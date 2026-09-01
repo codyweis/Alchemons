@@ -579,6 +579,24 @@ void main() {
       isTrue,
       reason: 'standing still in the pool flattens it',
     );
+    // THE REFLECTION IS A LIE UNTIL IT IS TURNED TRUE. On glass the moon in
+    // the pool comes apart into three pieces, each showing its own phase, and
+    // SPIRIT — the mirror-tide's mirror element, which had no job in this
+    // secret at all — turns each one until they agree with the moon overhead.
+    expect(game.mirrorShards, hasLength(3));
+    expect(game.mirrorIsTrue, isFalse, reason: 'they start wrong');
+    game.setActive(1); // the Spirit mask
+    for (var i = 0; i < game.mirrorShards.length; i++) {
+      var guard = 0;
+      while (!game.mirrorIsTrue && game.mirrorShards[i] != 6 && guard++ < 12) {
+        game.creatures[1]
+          ..position = kMirrorShardAt[i]
+          ..lastSafe = kMirrorShardAt[i];
+        game.activateAbility();
+      }
+    }
+    expect(game.mirrorIsTrue, isTrue, reason: 'all three show the same moon');
+
     game.setActive(2); // Ice
     final glint = game.frozenMoonGlint();
     expect(glint, isNotNull, reason: 'mid tide floats the moon glint');

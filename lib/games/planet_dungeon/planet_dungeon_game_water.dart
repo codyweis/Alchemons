@@ -69,6 +69,16 @@ const Offset _kMoonPoolCentre = Offset(320, 330);
 /// Seconds a Water creature must stand STILL in the pool to flatten it.
 const double kMirrorStillSeconds = 3.2;
 
+/// Where the three shards of the broken reflection lie in the pool.
+const List<Offset> kMirrorShardAt = [
+  Offset(262, 312),
+  Offset(320, 356),
+  Offset(378, 312),
+];
+
+/// How near Spirit must stand to turn a shard.
+const double _kShardReach = 46.0;
+
 /// How far a creature may drift and still count as standing.
 const double _kStillTolerance = 0.6;
 
@@ -304,10 +314,69 @@ extension MirrorTide on PlanetDungeonGame {
     if (stander != null) _mirrorWatchedAt = stander.position;
     final want = (mirrorStillT / kMirrorStillSeconds).clamp(0.0, 1.0);
     mirrorGlass += (want - mirrorGlass) * min(1.0, dt * 3.0);
+    for (var i = 0; i < mirrorShardFx.length; i++) {
+      if (mirrorShardFx[i] > 0) mirrorShardFx[i] -= dt * 1.5;
+    }
+    // THE GLASS BREAKS THE MOON INTO THREE. Rolled once, the first time the
+    // surface settles, and kept after that — breaking the glass by walking
+    // costs the stillness, never the work.
+    if (mirrorIsGlass && mirrorShards.isEmpty) {
+      final rng = Random();
+      while (mirrorShards.length < kMirrorShardAt.length) {
+        mirrorShards.add(1 + rng.nextInt(kMoonNotches - 2));
+      }
+      _setHint(
+        'The water stills — and the moon in it comes apart into three',
+        3.4,
+      );
+    }
   }
 
   /// Is the pool flat enough to hold a moon still?
   bool get mirrorIsGlass => mirrorStillT >= kMirrorStillSeconds;
+
+  /// Is the reflection finally showing the moon that hangs over it?
+  bool get mirrorIsTrue =>
+      mirrorShards.length == kMirrorShardAt.length &&
+      mirrorShards.every((n) => n == kMoonNotches - 1);
+
+  /// SPIRIT turns a shard of the reflection one phase on.
+  ///
+  /// The temple is the MIRROR-tide, and a mirror is the Spiritmask's whole
+  /// business — this is the job it did not have. Turning wraps, because a
+  /// reflection turning is not a stone grinding along a track, and because a
+  /// wrap means no shard can ever be stuck past its mark.
+  bool _tryMirrorShard(DungeonCreature a, DungeonRoom room) {
+    if (room.id != 'reflection_court') return false;
+    if (discoveredClouds.contains(kWaterFrozenMoonEggId)) return false;
+    if (a.member.element != 'Spirit') return false;
+    if (!mirrorIsGlass || mirrorShards.isEmpty) return false;
+    for (var i = 0; i < kMirrorShardAt.length; i++) {
+      if ((a.position - kMirrorShardAt[i]).distance > _kShardReach) continue;
+      if (mirrorShards[i] == kMoonNotches - 1) {
+        _setHint('This piece already shows the moon whole');
+        return true;
+      }
+      mirrorShards[i] = (mirrorShards[i] + 1) % kMoonNotches;
+      mirrorShardFx[i] = 1.0;
+      _spawnAlchemyBurst(
+        kMirrorShardAt[i],
+        producedElement: 'Spirit',
+        reagentElements: const ['Water'],
+        particleCount: 9,
+        intensity: 0.5,
+      );
+      if (mirrorIsTrue) {
+        _setHint(
+          'All three pieces show the same moon — the pool is telling the '
+          'truth at last',
+          3.4,
+        );
+      }
+      return true;
+    }
+    return false;
+  }
 
   Offset? frozenMoonGlint() {
     if (!_isTemple) return null;
@@ -890,6 +959,7 @@ extension MirrorTide on PlanetDungeonGame {
     if (_tryCanalDam(a, room)) return true;
     if (_tryMoonDial(a)) return true;
     if (_tryMoonBasin(a, room)) return true;
+    if (_tryMirrorShard(a, room)) return true;
     if (_tryFrozenMoon(a, room)) return true;
     if (_tryCourtCommune(a, room)) return true;
     return false;
@@ -1201,6 +1271,12 @@ extension MirrorTide on PlanetDungeonGame {
     // YOU CANNOT FREEZE A MOON THAT IS MOVING. The reflection runs because
     // the water runs; still the water and it will hold. The refusal costs
     // nothing and says what it sees, not what to do.
+    if (mirrorIsGlass && !mirrorIsTrue) {
+      _setBlockedHint(
+        'The pieces do not agree — this is not the moon that is up there',
+      );
+      return true;
+    }
     if (!mirrorIsGlass) {
       _setBlockedHint('The water will not hold it — the moon keeps slipping');
       _spawnAlchemyBurst(
@@ -2694,9 +2770,37 @@ extension MirrorTide on PlanetDungeonGame {
     // the pool runs, and standing dead centre once it is glass.
     final glint = frozenMoonGlint();
     if (glint != null) {
-      // On glass it is not a spark any more: it is the moon, whole, lying in
-      // the pool where it can finally be taken.
-      if (mirrorGlass > 0.15) {
+      // THE BROKEN REFLECTION. Three pieces of moon lying in the pool, each
+      // showing a phase of its own — and the true moon is hanging over the
+      // room where anyone can compare it. Nothing has to be explained: three
+      // wrong moons under one right one is the whole instruction.
+      if (mirrorGlass > 0.15 && mirrorShards.isNotEmpty && !mirrorIsTrue) {
+        for (var i = 0; i < kMirrorShardAt.length; i++) {
+          final at = kMirrorShardAt[i];
+          final fx = mirrorShardFx[i].clamp(0.0, 1.0);
+          final done = mirrorShards[i] == kMoonNotches - 1;
+          _drawTheMoon(
+            canvas,
+            at,
+            17,
+            mirrorShards[i] / (kMoonNotches - 1),
+            opacity: mirrorGlass * (done ? 1.0 : 0.82),
+          );
+          // The break it lies along, and a ring on a piece that is right.
+          canvas.drawCircle(
+            at,
+            20,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = done ? 1.8 : 1.0
+              ..color = (done ? Colors.white : const Color(0xFF8FE0EC))
+                  .withValues(alpha: (done ? 0.6 : 0.22) + 0.5 * fx),
+          );
+        }
+      }
+      // Turned true, the pieces are one moon again — whole, still, and ready
+      // to be taken.
+      if (mirrorGlass > 0.15 && (mirrorIsTrue || mirrorShards.isEmpty)) {
         _drawTheMoon(canvas, glint, 9 + 13 * mirrorGlass, 1.0,
             opacity: mirrorGlass);
       }

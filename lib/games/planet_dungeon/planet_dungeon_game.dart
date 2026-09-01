@@ -1033,6 +1033,16 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Eased 0→1: how flat the pool is. Render only.
   double mirrorGlass = 0;
+
+  /// THE BROKEN REFLECTION. Once the water goes to glass the moon in the pool
+  /// resolves into three shards, each showing the WRONG phase — a reflection
+  /// is a lie until it is turned true. Phase notch 0..6 per shard; all three
+  /// at full means the pool is finally showing the moon that is actually
+  /// hanging over it. Rolled when the glass forms.
+  final List<int> mirrorShards = [];
+
+  /// Per-shard flash when Spirit turns one (render only).
+  final List<double> mirrorShardFx = [0, 0, 0];
   final Map<String, double> _poolFx = {}; // freeze/shatter pulses
 
   bool get _isTemple => layout.element == 'Water';

@@ -1430,15 +1430,15 @@ shape is not "a hidden thing you touch". It is:
      sentence about what it sees. A secret that can be spent is a secret that
      can be lost, in a room built for curiosity.
 
-**WHERE THE SEVENTEEN STAND AGAINST THAT.** Only three currently clear it, and
-the rest are the queue:
+**WHERE THE SEVENTEEN STAND AGAINST THAT.** Four clear it; the rest are the
+queue:
 
 | Planet | Beats | Elements | Verdict |
 |---|---|---|---|
 | **Fire** — Ember Epitaph | 4 | Mask-read · Plant · Fire · Air×3 | ✅ the reference |
 | **Air** — The Four Winds | 4 | Lightning · Fire×4 · Air×4 | ✅ |
 | **Earth** — The Giant's Palm | 4 | Earth · Lightning · Crystal×3 | ✅ rebuilt 2026-09-01 |
-| **Water** — The Stilled Mirror | 2 | Water (stand still) · Ice | ▶ half — needs a third beat and Spirit has no job |
+| **Water** — The Stilled Mirror | 4 | Water (stand still) · Spirit×3 · Ice | ✅ rebuilt 2026-09-01 |
 | **Lightning** — Thunderbolt | 1 | rides Star 3's beam; a Horn must be present | ⬜ not its own puzzle at all |
 | **Steam** — Hidden Harmony | 0 | a zero-scald run | ⬜ an achievement, not a puzzle |
 | **Lava** — Black Glass | 1 | Ice ×3 quenches | ⬜ one verb, three times |
@@ -1551,30 +1551,23 @@ quotation constants are deleted from the code — nothing left to drift.
    which fixes the pad as a side effect. Not star-gated any more: a secret you
    can only find after finishing the dungeon is a secret nobody finds.
 
-3. **Water — THE STILLED MIRROR (BUILT; REWORKED 2026-08-31):** what it was
-   is one press on a drifting dot — at settled mid tide a glint wandered the
-   pool and Ice laid on it took the moon. A reflex check, and the only
-   interesting thing about it was noticing the tide.
-   **The reason it was hard is the puzzle now: YOU CANNOT FREEZE A MOON THAT
-   IS MOVING.** The reflection runs because the water runs, so still the
-   water — a Water creature standing MOTIONLESS in the pool flattens it, over
-   `kMirrorStillSeconds` (3.2s), to glass; the moon stops dead in the middle
-   of it; and only then will Ice take it. A single step resets the stilling.
-   Standing still is the one thing this game never asks for anywhere else,
-   and in a temple built entirely out of moving water it is the right thing to
-   ask for. It rhymes with the moon well one door away, where the moon must
-   SIT before a basin will hold it. Two creatures, no timer, no text — and
-   the result is still a permanent ice disc with frost cracks, forever.
-   **THE ROOM SAYS THE MIDDLE WATER MATTERS (2026-08-31).** The glint is
-   deliberately faint — it is a secret — so walking in at mid used to look
-   almost identical to walking in at low, and the tide's significance was
-   carried entirely by one oblique Mask line. The moon now hangs in the
-   vault always, dim and far off, and drops a shaft straight onto the pool as
-   the water eases toward the middle: full and unmistakable when it settles,
-   gone at either extreme. Nothing is named and nothing is spoiled — the moon
-   is simply interested in this room at one stand of water. Driven by
-   `tideMidness` (1 at mid, 0 at the ends, continuous), which is public
-   precisely so the tell can be pinned.
+3. **Water — THE STILLED MIRROR (BUILT; REWORKED to the MAXIM STANDARD
+   2026-09-01):** it began as one press on a drifting dot, became two beats
+   (stand still, then freeze), and is a full chain now — the middle beat is
+   the one that was missing, and it is the job SPIRIT did not have in its own
+   secret despite this being the MIRROR-tide temple.
+   **WATER** stands motionless in the pool and the surface flattens to glass
+   over `kMirrorStillSeconds` (3.2s) — the one place in the game that asks you
+   to stand still, in a temple made of moving water. On the glass the moon
+   comes apart into **three shards, each showing the wrong phase**, because a
+   reflection is a lie until it is turned true — and the real moon is hanging
+   over the room where anyone can compare it. **SPIRIT** turns a shard one
+   phase per press (wrapping, so no piece can be stuck past its mark) until
+   all three agree with the moon above. Only then will **ICE** take it, or
+   Spirit via the temple's own Spirit+Water→Ice braid.
+   The tell is wordless: three wrong moons under one right one. Nothing is
+   consumed — walking the Water creature out breaks the glass and costs the
+   stillness, never the shards you have already turned.
 4. **Ice — Star-Walker:** align every telescope on the unmarked 13th star —
    visible only in reflection.
 5. **Lightning — Thunderbolt (BUILT · first planet on the RITE OF THREE):**

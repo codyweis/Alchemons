@@ -457,8 +457,71 @@ void main() {
         lessThan(6),
         reason: 'on glass the moon stops running',
       );
+      // …but a broken reflection still cannot be frozen: three pieces of
+      // moon, each showing its own phase, and Spirit has to turn them true.
+      _pressAt(g, 'Ice', g.frozenMoonGlint()!);
+      expect(g.riteActive, isFalse, reason: 'the pieces do not agree yet');
+      for (var i = 0; i < g.mirrorShards.length; i++) {
+        var guard = 0;
+        while (g.mirrorShards[i] != 6 && guard++ < 12) {
+          _pressAt(g, 'Spirit', kMirrorShardAt[i]);
+        }
+      }
+      expect(g.mirrorIsTrue, isTrue);
       _pressAt(g, 'Ice', g.frozenMoonGlint()!);
       expect(g.riteActive, isTrue, reason: 'and now it can be taken');
+    });
+
+    test('Spirit has a job, and it is the mirror', () {
+      // The gap this closed: Spirit is the MIRROR-tide's mirror element and
+      // had nothing to do in its own secret.
+      final g = mirrorAtMid();
+      for (var i = 0; i < 60 * 5; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.mirrorShards, hasLength(3));
+      final was = [...g.mirrorShards];
+      for (final e in ['Water', 'Ice']) {
+        _pressAt(g, e, kMirrorShardAt[0]);
+        expect(g.mirrorShards, was, reason: '$e does not turn a reflection');
+      }
+      _pressAt(g, 'Spirit', kMirrorShardAt[0]);
+      expect(g.mirrorShards[0], isNot(was[0]));
+    });
+
+    test('the shards start wrong, and turning wraps so none can be stuck', () {
+      for (var run = 0; run < 20; run++) {
+        final g = mirrorAtMid();
+        for (var i = 0; i < 60 * 5; i++) {
+          g.update(1 / 60);
+        }
+        expect(
+          g.mirrorIsTrue,
+          isFalse,
+          reason: 'a reflection that is already true is not a puzzle',
+        );
+        for (final n in g.mirrorShards) {
+          expect(n, inInclusiveRange(1, 5));
+        }
+      }
+    });
+
+    test('breaking the glass costs the stillness, never the work', () {
+      final g = mirrorAtMid();
+      for (var i = 0; i < 60 * 5; i++) {
+        g.update(1 / 60);
+      }
+      _pressAt(g, 'Spirit', kMirrorShardAt[0]);
+      final turned = [...g.mirrorShards];
+      // Walk the Water creature out of the pool: the surface breaks.
+      _of(g, 'Water').position = const Offset(120, 120);
+      g.update(1 / 60);
+      expect(g.mirrorIsGlass, isFalse);
+      expect(
+        g.mirrorShards,
+        turned,
+        reason: 'what was turned stays turned — nothing is consumed',
+      );
     });
 
     test('moving breaks it — the water has to be LEFT alone', () {
