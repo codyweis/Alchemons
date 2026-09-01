@@ -1669,7 +1669,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         // Gone for the guardian, for the reason raids already dropped it:
         // there is no puzzle in a boss room, so the verb button would spend
         // the best spot on the pad answering every press with a shrug.
-        if (!_isRaid && !game.inGuardianFight) ...[
+        if (game.utilityAvailable) ...[
           _utilityButton(
             element: game.active?.member.element ?? widget.element,
             enabled: enabled,

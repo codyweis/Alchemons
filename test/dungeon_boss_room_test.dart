@@ -1,11 +1,14 @@
-// No verb button in a boss room.
+// What the pad carries in a boss room.
 //
-// Raids already dropped the UTILITY control, for a reason that applies just
-// as well to a planet's guardian: there is nothing to solve in the chamber,
-// so the button spends the best spot on the pad answering every press with a
-// shrug. This pins WHEN it goes, which is the part that is easy to get wrong
-// — too eager and a puzzle room loses its verb, too shy and it hangs around
-// through the fight.
+// Dropping the UTILITY control for every guardian fight was too broad a rule
+// and it cost a real fight: Air's Star 3 IS its altar, its conduits are worked
+// with the utility, and hiding the button walled the boss off behind a control
+// the player no longer had. So the rule is now about the ROOM, not the fight —
+// a bare arena still loses the button, a chamber with furniture in it keeps
+// every verb that furniture offers.
+//
+// Both halves are pinned here, because both failure modes are silent: a dead
+// button teaches that pressing does nothing, and a missing one is a wall.
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
@@ -160,4 +163,74 @@ void main() {
       expect(anyDoorOpen(g, lair), isTrue);
     });
   });
+
+  group('the utility follows the room, not the fight', () {
+    test('a puzzle room always has it', () {
+      final g = _game('Fire');
+      expect(g.utilityAvailable, isTrue);
+      g.currentRoomId = 'cloister';
+      expect(g.utilityAvailable, isTrue);
+    });
+
+    test('a lair with furniture in it keeps the verb mid-fight', () {
+      // Air's guardian shares its chamber with the storm rods, and ranking
+      // them is the fight — they are worked with the utility.
+      final g = _game('Air');
+      g.currentRoomId = _lairOf(g);
+      expect(
+        g.currentRoom.stormRods,
+        isNotEmpty,
+        reason: 'the Air lair holds the rods — this test is about that',
+      );
+      g.guardianAwake = true;
+      expect(g.inGuardianFight, isTrue);
+      expect(
+        g.utilityAvailable,
+        isTrue,
+        reason:
+            'the rods are worked with the utility; without the button '
+            'the boss cannot be fought at all',
+      );
+    });
+
+    test('a bare arena drops it', () {
+      // The original complaint: nothing to press, in the best spot on the pad.
+      for (final element in kPlanetDungeonLayouts.keys) {
+        final g = _game(element);
+        g.currentRoomId = _lairOf(g);
+        if (g.currentRoom.hasVerbsBesidesGuardian) continue;
+        g.guardianAwake = true;
+        expect(
+          g.utilityAvailable,
+          isFalse,
+          reason: '$element\'s lair holds nothing but the guardian',
+        );
+      }
+    });
+
+    test('the guardian alone never counts as furniture', () {
+      // The whole distinction rests on this: `hasVerbs` counts the boss (it
+      // IS a verb), and the fight has to ask the question without it.
+      for (final layout in kPlanetDungeonLayouts.values) {
+        for (final room in layout.rooms.values) {
+          if (room.guardian == null) continue;
+          if (room.hasVerbsBesidesGuardian) continue;
+          expect(
+            room.hasVerbs,
+            isTrue,
+            reason: 'a lair still has a verb — striking the thing in it',
+          );
+        }
+      }
+    });
+
+    test('and it comes back when the guardian goes down', () {
+      final g = _game('Fire');
+      g.currentRoomId = _lairOf(g);
+      g.guardianAwake = true;
+      g.earnStar(g.currentRoom.guardian!.starIndex);
+      expect(g.utilityAvailable, isTrue);
+    });
+  });
+
 }

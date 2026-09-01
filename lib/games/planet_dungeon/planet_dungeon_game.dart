@@ -1668,16 +1668,27 @@ class PlanetDungeonGame extends FlameGame {
   bool get hasCombatTargets => combatEnemies.any((e) => !e.isDead);
 
   /// Is the party in the guardian's chamber with the guardian still standing?
-  ///
-  /// Used to retire the UTILITY control for the fight. A boss room has no
-  /// puzzle in it — the verb button spends the best spot on the pad answering
-  /// every press with a shrug, exactly as it did in raids, which is why raids
-  /// already hid it.
   bool get inGuardianFight {
     final g = currentRoom.guardian;
     if (g == null) return false;
     if (hasStar(g.starIndex)) return false;
     return guardianAwake || altarOpen || guardianArriving;
+  }
+
+  /// Should the pad carry a UTILITY control right now?
+  ///
+  /// Retiring it for every boss fight was too broad a rule and it cost a real
+  /// fight: Air's Star 3 IS its altar, and its conduits are worked with the
+  /// utility, so hiding the button walled the boss off behind a control the
+  /// player no longer had. Raids had the same blanket exclusion.
+  ///
+  /// The question the fight actually wants is whether the ROOM answers to
+  /// anything besides the boss. A bare arena still hides it — a dead control
+  /// in the best spot on the pad teaches that pressing does nothing — but a
+  /// chamber with furniture in it keeps every verb that furniture offers.
+  bool get utilityAvailable {
+    if (!isRaid && !inGuardianFight) return true;
+    return currentRoom.hasVerbsBesidesGuardian;
   }
   double get autoCooldownFraction {
     final c = activeCombat;
@@ -11073,35 +11084,36 @@ class PlanetDungeonGame extends FlameGame {
           echo: true,
         );
       } else {
-        // Hint label scales with the last reveal tier. An unread anchor gets
-        // no chip at all — a '?' badge under every socket was five question
-        // marks shouting at once, and the socket already reads as empty.
+        // A REVEALED ANCHOR SHOWS THE SHAPE, NOT THE WORD.
+        //
+        // The Mask's reveal used to print the type's NAME under the socket,
+        // which turned the loom into five labelled drop-zones with the answer
+        // written beneath each one — a form to fill in rather than a thing to
+        // read. The clouds are already distinct shapes overhead, so a ghost of
+        // the one this seat wants says the same thing in the loom's own
+        // language, and says it IN the socket where the cloud will go.
+        //
+        // Tier 2 simply prints it brighter.
         if (revealTier >= 1) {
-          _drawTinyLabel(
+          _drawWonderCloud(
             canvas,
-            an.position + const Offset(0, 30),
+            an.position,
             an.requiredCloudType,
+            const Color(
+              0xFFB9C7D6,
+            ).withValues(alpha: revealTier >= 2 ? 0.34 : 0.18),
+            discovered: true,
+            echo: true,
           );
         }
         // The no-Mask strategy: up close, every anchor whispers its riddle
-        // ("the endless orbit" → Ring). Mask reveal upgrades this to the
-        // explicit type / ghost outline.
+        // ("the endless orbit" → Ring).
         final a = active;
         if (revealTier < 1 &&
             an.clue.isNotEmpty &&
             a != null &&
             (a.position - an.position).distance < 100) {
           _drawClueLabel(canvas, an.position + const Offset(0, 36), an.clue);
-        }
-        if (revealTier >= 2) {
-          _drawWonderCloud(
-            canvas,
-            an.position,
-            an.requiredCloudType,
-            const Color(0xFFB9C7D6).withValues(alpha: 0.18),
-            discovered: true,
-            echo: true,
-          );
         }
       }
     }

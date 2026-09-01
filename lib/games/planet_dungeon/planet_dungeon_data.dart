@@ -1349,7 +1349,21 @@ extension DungeonRoomAffordances on DungeonRoom {
   ///
   /// Pure geometry is excluded on purpose: walls, doors, hazards, gaps,
   /// platforms and tide zones are things you move through, not things you use.
-  bool get hasVerbs =>
+  bool get hasVerbs => guardian != null || hasVerbsBesidesGuardian;
+
+  /// The same question, with the BOSS ITSELF discounted.
+  ///
+  /// A guardian is a verb — you strike it, or a Kin calms it — so it belongs
+  /// in `hasVerbs`. But it is the one verb the action pad already covers with
+  /// its own button, so a boss room holding nothing else shows a utility
+  /// control whose only answer is the attack you could already make. During a
+  /// fight that is not merely dead, it is a lie about the room: it says look
+  /// around, and there is nothing to look at.
+  ///
+  /// So the fight asks THIS instead, and the utility appears mid-boss exactly
+  /// when the room has something in it — the Air altar's conduits, the
+  /// Sanguine mouths — and stays away when the arena is bare.
+  bool get hasVerbsBesidesGuardian =>
       // Shared furniture
       //
       // CURRENTS COUNT. They look like traversal and mostly are, but a Fire
@@ -1363,7 +1377,6 @@ extension DungeonRoomAffordances on DungeonRoom {
       conduits.isNotEmpty ||
       stars.isNotEmpty ||
       vaultCache != null ||
-      guardian != null ||
       // Air
       gustShrines.isNotEmpty ||
       galeVents.isNotEmpty ||
