@@ -3166,9 +3166,9 @@ class PlanetDungeonGame extends FlameGame {
             'The three reagents braid as one — the Ring echo awakens',
           );
         } else {
-          _setHint(
-            'The reagents are scattered — seal the orbit when they gather',
-          );
+          // A refusal says WHY it refused, not what to do instead — the
+          // second clause here was the answer, handed over on a failed press.
+          _setBlockedHint('The reagents are scattered');
         }
         return true;
 
@@ -8356,12 +8356,16 @@ class PlanetDungeonGame extends FlameGame {
         // storm-charge braid, are Mask-insight content (_wonderInsight), not
         // room-entry copy.
         'spiral_cloud' => 'Gale Eye — a still eye, and the vents are shut',
+        // These three were handing over the METHOD on the way through the
+        // door — "seal the orbit WHEN the three gather", "CATCH three
+        // plumes", "PIN each fold" — which is the Mask's job and nobody
+        // else's. They name the place and the state it is in; a reading
+        // still tells you what to do about it.
         'ring_cloud' =>
-          'The Conjunction — seal the orbit when the three reagents gather',
+          'The Conjunction — three reagents wander one orbit, seldom together',
         'anvil_cloud' => 'Storm Forge — a shell nothing plain can mark',
-        'feather_cloud' =>
-          'The Moult — catch three falling plumes before they settle',
-        'veil_cloud' => 'The Shroud — pin each fold while it breathes',
+        'feather_cloud' => 'The Moult — plumes fall, and the floor takes them',
+        'veil_cloud' => 'The Shroud — folds breathing in and out of reach',
         _ => null,
       };
     }
@@ -10111,44 +10115,89 @@ class PlanetDungeonGame extends FlameGame {
     }
     switch (type) {
       case 'Spiral':
-        // Galaxy arm: soft wide underlay + bright core + outward motes.
+        // THE SPIRAL, ONCE IT IS WON.
+        //
+        // A single 70-segment arm in one flat cyan is a scribble; this is the
+        // trophy for the hardest trial in the planet and it should look like
+        // one. Three arms on a shared differential spin (the inside turns
+        // faster, the way a real disc does), a lit disc under them, a hot
+        // bar-core, and motes strung along the arms at their own radii.
         final cyan = const Color(0xFF5BC8E8);
-        final path = Path()..moveTo(c.dx, c.dy);
-        for (var i = 1; i <= 70; i++) {
-          final a = i * 0.28 + _time * 0.15;
-          final r = i * 1.55;
-          path.lineTo(c.dx + cos(a) * r, c.dy + sin(a) * r);
-        }
-        canvas.drawPath(
-          path,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 7
-            ..strokeCap = StrokeCap.round
-            ..color = cyan.withValues(alpha: 0.07),
-        );
-        canvas.drawPath(
-          path,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..strokeCap = StrokeCap.round
-            ..color = cyan.withValues(alpha: 0.25),
-        );
-        for (var i = 0; i < 5; i++) {
-          final u = ((_time * 0.18 + i / 5) % 1.0) * 64 + 4;
-          final a = u * 0.28 + _time * 0.15;
+        final hot = Color.lerp(cyan, Colors.white, 0.55)!;
+        final spin = _time * 0.13;
+
+        // The disc the arms live in — layered, never blurred.
+        for (var i = 4; i >= 1; i--) {
           canvas.drawCircle(
-            c + Offset(cos(a), sin(a)) * (u * 1.55),
-            2.0,
-            Paint()
-              ..color = Color.lerp(
-                cyan,
-                Colors.white,
-                0.4,
-              )!.withValues(alpha: 0.4),
+            c,
+            26.0 * i,
+            Paint()..color = cyan.withValues(alpha: 0.030 / i),
           );
         }
+
+        Path arm(double phase, double tight) {
+          final path = Path()..moveTo(c.dx, c.dy);
+          for (var i = 1; i <= 74; i++) {
+            // Inner windings turn faster than outer ones.
+            final r = i * 1.5;
+            final a = phase + i * tight + spin * (1.0 + 40.0 / (r + 40.0));
+            path.lineTo(c.dx + cos(a) * r, c.dy + sin(a) * r);
+          }
+          return path;
+        }
+
+        for (var k = 0; k < 3; k++) {
+          final p = arm(k * pi * 2 / 3, 0.27);
+          canvas.drawPath(
+            p,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 9
+              ..strokeCap = StrokeCap.round
+              ..color = cyan.withValues(alpha: 0.05),
+          );
+          canvas.drawPath(
+            p,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.4
+              ..strokeCap = StrokeCap.round
+              ..color = cyan.withValues(alpha: 0.26),
+          );
+          // Stars strung along the arm.
+          for (var i = 0; i < 6; i++) {
+            final t = ((_time * 0.05 + i / 6 + k * 0.11) % 1.0);
+            final rr = 10 + t * 100;
+            final a =
+                k * pi * 2 / 3 + (rr / 1.5) * 0.27 + spin * (1 + 40 / (rr + 40));
+            canvas.drawCircle(
+              c + Offset(cos(a), sin(a)) * rr,
+              1.4 + 1.4 * (1 - t),
+              Paint()..color = hot.withValues(alpha: 0.55 * (1 - t * 0.6)),
+            );
+          }
+        }
+
+        // The core: a bar of light across a bright centre, turning slowly.
+        canvas.save();
+        canvas.translate(c.dx, c.dy);
+        canvas.rotate(spin * 0.6);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset.zero, width: 44, height: 13),
+            const Radius.circular(7),
+          ),
+          Paint()..color = hot.withValues(alpha: 0.22),
+        );
+        canvas.restore();
+        for (var i = 3; i >= 1; i--) {
+          canvas.drawCircle(
+            c,
+            5.0 * i,
+            Paint()..color = hot.withValues(alpha: 0.30 / i),
+          );
+        }
+        canvas.drawCircle(c, 4, Paint()..color = Colors.white.withValues(alpha: 0.75));
         break;
       case 'Ring':
         _drawRuneCircle(

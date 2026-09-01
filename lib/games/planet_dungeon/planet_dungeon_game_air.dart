@@ -442,7 +442,19 @@ extension WindCrownSpire on PlanetDungeonGame {
       // Entering is the edge: the vents were shut behind you when you left.
       if (room.galeVents.isNotEmpty) _armGaleEye();
     }
-    if (_spiralTearFlash > 0) _spiralTearFlash -= dt;
+    if (_spiralTearFlash > 0) {
+      _spiralTearFlash -= dt;
+      // THE RING RE-ARMS ITSELF. A wrong mouth used to leave the chamber
+      // "unmade" until you walked out of the door and back in — a correct
+      // no-softlock rule that made every mistake cost a round trip through a
+      // corridor. You watch the eye shear, it settles, and the ring is yours
+      // again where you stand.
+      if (_spiralTearFlash <= 0 && spiralTorn) {
+        _armGaleEye();
+        _setHint('The eye settles — the ring is whole again', 2.4);
+        onChanged();
+      }
+    }
     if (spiralOpenJets.isEmpty) return;
     final step = dt / _kJetSwellSeconds;
     for (final id in spiralOpenJets) {
@@ -460,7 +472,7 @@ extension WindCrownSpire on PlanetDungeonGame {
       if ((a.position - v.position).distance > _kVentReach) continue;
       if (spiralTorn) {
         // §5.6 BLOCKED: one clause, naming the state, never the method.
-        _setBlockedHint('The eye is unmade — this air is spent');
+        _setBlockedHint('The eye is shearing — let the ring settle');
         return true;
       }
       if (spiralOpenJets.contains(v.id)) {
@@ -1426,9 +1438,19 @@ extension WindCrownSpire on PlanetDungeonGame {
       final col = swept ? const Color(0xFF6B5330) : const Color(0xFFCBB27A);
       final alpha = swept ? 0.30 : 0.62;
 
-      // The walk itself: the top band of the path, where feet would go.
+      // The walk itself. A route rect is not always a horizontal walkway —
+      // the spire's are tall climbing corridors, and putting the chalk a
+      // third of the way down one of THOSE floated it in mid-air across the
+      // middle of an island, which is exactly what it looked like.
       final path = r.path;
-      final y = path.top + path.height * 0.34;
+      final vertical = path.height > path.width * 1.2;
+      if (vertical) {
+        _drawVerticalRouteMarks(canvas, path, col, alpha, swept);
+        if (swept) _drawScour(canvas, path);
+        continue;
+      }
+      // Horizontal: the chalk rides the near edge of the top surface.
+      final y = path.top + 9;
       final chalk = Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
@@ -1473,22 +1495,60 @@ extension WindCrownSpire on PlanetDungeonGame {
         );
       }
 
-      // Scoured: the gale's own streaks run across what is left of the chalk.
-      if (!swept) continue;
-      final scour = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 1.1
-        ..color = const Color(0xFF8FE6FF).withValues(alpha: 0.22);
-      for (var i = 0; i < 5; i++) {
-        final sy = path.top + 8 + i * (path.height - 16) / 4;
-        final sx = path.left + ((_time * 90 + i * 61) % (path.width + 60)) - 30;
-        canvas.drawLine(
-          Offset(sx, sy),
-          Offset((sx + 34).clamp(path.left, path.right), sy - 3),
-          scour,
-        );
-      }
+      if (swept) _drawScour(canvas, path);
+    }
+  }
+
+  /// A climbing route: rungs up the corridor rather than a line across it.
+  void _drawVerticalRouteMarks(
+    Canvas canvas,
+    Rect path,
+    Color col,
+    double alpha,
+    bool swept,
+  ) {
+    final x = path.center.dx;
+    final rung = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = swept ? 1.4 : 2.2
+      ..color = col.withValues(alpha: alpha);
+    const step = 26.0;
+    var i = 0;
+    for (var y = path.top + 14; y < path.bottom - 10; y += step) {
+      i++;
+      if (swept && i % 3 == 0) continue;
+      final w = 9.0 + sin(y * 0.05) * 2.0;
+      canvas.drawLine(Offset(x - w, y), Offset(x + w, y), rung);
+    }
+    // Chevrons pointing UP the climb.
+    final nib = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = swept ? 1.2 : 1.8
+      ..color = col.withValues(alpha: alpha * 0.85);
+    for (var k = 0; k < 2; k++) {
+      final cy = path.top + path.height * (0.34 + k * 0.3);
+      canvas.drawLine(Offset(x - 6, cy + 5), Offset(x, cy - 2), nib);
+      canvas.drawLine(Offset(x, cy - 2), Offset(x + 6, cy + 5), nib);
+    }
+  }
+
+  /// The gale's streaks running over what is left of a scoured walk.
+  void _drawScour(Canvas canvas, Rect path) {
+    final scour = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.1
+      ..color = const Color(0xFF8FE6FF).withValues(alpha: 0.22);
+    for (var i = 0; i < 5; i++) {
+      final sy = path.top + 8 + i * (path.height - 16) / 4;
+      final sx = path.left + ((_time * 90 + i * 61) % (path.width + 60)) - 30;
+      canvas.drawLine(
+        Offset(sx, sy),
+        Offset((sx + 34).clamp(path.left, path.right), sy - 3),
+        scour,
+      );
     }
   }
 

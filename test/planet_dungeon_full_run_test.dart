@@ -682,8 +682,8 @@ void main() {
       expect(game.discoveredClouds, isNot(contains('c_spiral')));
     });
 
-    test('an opened jet is IRREVERSIBLE inside the room, and a torn eye stays '
-        'torn until you leave', () {
+    test('an opened jet is IRREVERSIBLE, and a wrong one re-arms the ring '
+        'where you stand', () {
       final game = _harness(_trio());
       _walkIntoGaleEye(game);
       final answer = game.solveSpiralVents().solution!;
@@ -699,17 +699,32 @@ void main() {
       expect(game.spiralOpenJets.length, 1);
 
       _commune(game, _radialVent(game));
+      expect(game.spiralTorn, isTrue, reason: 'a wrong mouth shears the eye');
+
+      // The tear is WATCHED, not walked off. Mid-shear the ring still takes
+      // nothing — the failure has to be seen before it is undone.
+      _step(game, 0.4);
       expect(game.spiralTorn, isTrue);
-      _step(game, 6.0);
-      expect(game.spiralTorn, isTrue, reason: 'the attempt is spent');
       _commune(game, answer[1]);
       expect(
         game.spiralOpenJets.contains(answer[1]),
         isFalse,
-        reason: 'a torn chamber takes no more jets',
+        reason: 'a shearing chamber takes no more jets',
       );
       game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.blocked);
+
+      // And then it settles, in place. This used to cost a round trip out of
+      // the door and back for every mistake.
+      _step(game, 3.0);
+      expect(game.spiralTorn, isFalse, reason: 'the ring re-arms itself');
+      expect(game.spiralOpenJets, isEmpty);
+      _commune(game, answer.first);
+      expect(
+        game.spiralOpenJets,
+        contains(answer.first),
+        reason: 'and it takes jets again without leaving the room',
+      );
     });
 
     test('NO SOFTLOCK: leaving and re-entering re-arms the trial, and the '
