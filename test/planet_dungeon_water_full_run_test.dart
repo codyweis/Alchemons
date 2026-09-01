@@ -556,10 +556,10 @@ void main() {
     }
     clearWisps();
 
-    // The maxim wants the settled MID water, and the moon has been moved all
-    // over the sky — put it back.
+    // The maxim wants the settled HIGH water — the moon is nearest when it
+    // has pulled the most. Set the top stand and let it come up.
     game.setActive(0);
-    teleport('drowned_court', wheelAt(1));
+    teleport('drowned_court', wheelAt(2));
     game.activateAbility();
     settleTide();
 
@@ -605,7 +605,7 @@ void main() {
 
     game.setActive(2); // Ice
     final glint = game.frozenMoonGlint();
-    expect(glint, isNotNull, reason: 'mid tide floats the moon glint');
+    expect(glint, isNotNull, reason: 'high tide floats the moon glint');
     game.creatures[2]
       ..position = glint!
       ..lastSafe = glint;

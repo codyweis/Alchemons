@@ -277,12 +277,12 @@ void main() {
     }
   });
 
-  group('the mirror room says the middle water matters', () {
-    // The Frozen Moon only exists at a settled mid tide, and nothing in the
+  group('the mirror room says the HIGH water matters', () {
+    // The Frozen Moon only exists at a settled high tide, and nothing in the
     // room said so: the glint is deliberately faint (it is a secret), so
-    // walking in at mid looked almost identical to walking in at low. The
-    // moon drops a shaft onto the pool at the middle water now — no words,
-    // no naming, just a room that is plainly lit at one stand and not the
+    // walking in at high looked almost identical to walking in at low. The
+    // moon drops a shaft onto the pool as the water rises now — no words, no
+    // naming, just a room that is plainly lit at one stand and not the
     // others. This pins the value that drives it.
     PlanetDungeonGame mirror() {
       final g = _well();
@@ -290,42 +290,46 @@ void main() {
       return g;
     }
 
-    test('it is brightest at the middle and dark at both ends', () {
+    test('it is brightest at the top of the water and dark at the bottom', () {
       final g = mirror();
-      g.tideAnim = 0.5;
-      expect(g.tideMidness, closeTo(1.0, 0.001));
-      g.tideAnim = 0.0;
-      expect(g.tideMidness, closeTo(0.0, 0.001));
       g.tideAnim = 1.0;
-      expect(g.tideMidness, closeTo(0.0, 0.001));
+      expect(g.tideMoonReach, closeTo(1.0, 0.001));
+      g.tideAnim = 0.5;
+      expect(g.tideMoonReach, closeTo(0.5, 0.001));
+      g.tideAnim = 0.0;
+      expect(g.tideMoonReach, closeTo(0.0, 0.001));
     });
 
     test('and it eases rather than snapping at a threshold', () {
       // A tell that appears in one frame reads as a bug; one that swells as
-      // the water eases reads as the moon finding the room.
+      // the water rises reads as the moon coming closer.
       final g = mirror();
       double at(double a) {
         g.tideAnim = a;
-        return g.tideMidness;
+        return g.tideMoonReach;
       }
+
       var prev = at(0.0);
-      for (var a = 0.05; a <= 0.5; a += 0.05) {
+      for (var a = 0.05; a <= 1.0; a += 0.05) {
         final now = at(a);
-        expect(now, greaterThan(prev), reason: 'rising toward the middle');
+        expect(now, greaterThan(prev), reason: 'rising with the water');
         prev = now;
       }
     });
 
     test('the glint only exists where the light does', () {
       final g = mirror();
+      g.tideLevel = 2;
+      g.tideAnim = 1.0;
+      expect(g.frozenMoonGlint(), isNotNull);
+      expect(g.tideMoonReach, greaterThan(0.9));
       g.tideLevel = 1;
       g.tideAnim = 0.5;
-      expect(g.frozenMoonGlint(), isNotNull);
-      expect(g.tideMidness, greaterThan(0.9));
-      g.tideLevel = 0;
-      g.tideAnim = 0.0;
-      expect(g.frozenMoonGlint(), isNull);
-      expect(g.tideMidness, lessThan(0.1));
+      expect(
+        g.frozenMoonGlint(),
+        isNull,
+        reason: 'the middle water is not enough any more',
+      );
     });
   });
 
@@ -427,8 +431,8 @@ void main() {
     PlanetDungeonGame mirrorAtMid() {
       final g = _well();
       g.currentRoomId = 'reflection_court';
-      g.tideLevel = 1;
-      g.tideAnim = 0.5;
+      g.tideLevel = 2;
+      g.tideAnim = 1.0;
       for (final c in g.creatures) {
         c.position = const Offset(320, 330);
       }
@@ -542,10 +546,10 @@ void main() {
       expect(g.mirrorStillT, 0, reason: 'a step resets the stilling');
     });
 
-    test('and it only stills at the middle water', () {
+    test('and it only stills at the HIGH water', () {
       final g = mirrorAtMid();
-      g.tideLevel = 0;
-      g.tideAnim = 0.0;
+      g.tideLevel = 1;
+      g.tideAnim = 0.5;
       for (var i = 0; i < 60 * 5; i++) {
         g.update(1 / 60);
       }

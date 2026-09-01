@@ -305,7 +305,7 @@ extension MirrorTide on PlanetDungeonGame {
       break;
     }
     final watched = _mirrorWatchedAt;
-    if (stander == null || !(tideSettled && tideLevel == 1)) {
+    if (stander == null || !(tideSettled && tideLevel == 2)) {
       mirrorStillT = 0;
       _mirrorWatchedAt = null;
     } else if (watched != null &&
@@ -398,7 +398,7 @@ extension MirrorTide on PlanetDungeonGame {
   Offset? frozenMoonGlint() {
     if (!_isTemple) return null;
     if (discoveredClouds.contains(kWaterFrozenMoonEggId)) return null;
-    if (!(tideSettled && tideLevel == 1)) return null;
+    if (!(tideSettled && tideLevel == 2)) return null;
     // On glass the moon stops running: it eases into the middle and sits
     // there, which is both the tell that the stilling worked and the only
     // state in which Ice can take it.
@@ -1500,7 +1500,7 @@ extension MirrorTide on PlanetDungeonGame {
       case 'reflection_court':
         // The egg's single oblique hint.
         _setHint(
-          'The pool remembers the moon best when the tide stands between',
+          'The pool holds the moon closest when the water stands highest',
           3.6,
         );
         return;
@@ -2028,8 +2028,14 @@ extension MirrorTide on PlanetDungeonGame {
 
   void _drawDrownedCourt(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
-    // The moon, vast and pale over the court.
-    final moon = Offset(b.center.dx + 190, b.top + 92);
+    // THE MOON, VAST AND PALE OVER THE COURT — and moved to the middle.
+    //
+    // It used to hang at centre+190, which is x≈670 in a 960-wide court, and
+    // the mirror gate's doorway is x 610–720: the moon was sitting directly
+    // in front of the locked finale door. Dead centre clears both top doors
+    // (the tide-works at 170–280 and the gate at 610–720) and puts it exactly
+    // above the court's basin, which is where its reflection belongs.
+    final moon = Offset(b.center.dx, b.top + 92);
     if (_fx.ready) {
       drawGlow(
         canvas,
@@ -2039,21 +2045,24 @@ extension MirrorTide on PlanetDungeonGame {
         const Color(0xFFDCE8F0).withValues(alpha: 0.16 + 0.04 * _skyMood),
       );
     }
-    canvas.drawCircle(
-      moon,
-      34,
-      Paint()..color = const Color(0xFFC8DCE8).withValues(alpha: 0.5),
-    );
-    canvas.drawCircle(
-      moon + const Offset(-9, -6),
-      6,
-      Paint()..color = const Color(0xFF9FB8C8).withValues(alpha: 0.4),
-    );
-    canvas.drawCircle(
-      moon + const Offset(10, 8),
-      4,
-      Paint()..color = const Color(0xFF9FB8C8).withValues(alpha: 0.35),
-    );
+    // NO DISC — ONLY THE LIGHT. You are underground for the whole temple, and
+    // the moon reaches you as glow, as a shaft, and as a reflection lying in
+    // the water. The one place you ever look up and SEE it is the oculus over
+    // the moon well, which is Star 3. Drawing it in the hub spent that.
+    //
+    // (It also used to hang at centre+190 — x≈670 in a 960-wide court, with
+    // the mirror gate's doorway at 610–720 — so the moon was sitting directly
+    // in front of the locked finale door.)
+    for (var i = 3; i >= 1; i--) {
+      canvas.drawCircle(
+        moon,
+        30.0 + i * 16,
+        Paint()
+          ..color = const Color(
+            0xFFC8DCE8,
+          ).withValues(alpha: (0.05 + 0.012 * _skyMood) / i),
+      );
+    }
     // Broken colonnade down both flanks.
     final col = Paint()
       ..style = PaintingStyle.stroke
@@ -2073,6 +2082,87 @@ extension MirrorTide on PlanetDungeonGame {
         col,
       );
     }
+    // ── THE COURT'S OWN MOON, LYING IN THE WATER ──
+    //
+    // The hub is a flooded forum with a basin down the middle of it, and
+    // until now that basin was a tide zone and nothing else. When there is
+    // water in it there is a moon in it — small and half-drowned at the
+    // middle stand, and at HIGH water it is the largest thing in the temple.
+    //
+    // Same construction as the moon well and the mirror room: an inverted
+    // moon broken across horizontal slices that slide against one another.
+    // Three rooms, one moon, one way of drawing water.
+    final basin = room.tideZones.isNotEmpty
+        ? room.tideZones.first.rect
+        : Rect.fromCenter(center: b.center, width: 360, height: 220);
+    // 0 until the basin actually holds water, then up to 1 at the high stand.
+    final fill = ((tideAnim - 0.44) / 0.56).clamp(0.0, 1.0).toDouble();
+    if (fill > 0.001) {
+      final w = 0.42 + 0.58 * fill;
+      final at = Offset(moon.dx, basin.center.dy);
+      final r = 52.0 + 40.0 * fill;
+
+      // The moon-path: the column of broken light between the moon and its
+      // reflection, which is what actually sells water at night.
+      for (var i = 0; i < 9; i++) {
+        final t = i / 8;
+        final y = moon.dy + 46 + (at.dy - moon.dy - 46) * t;
+        final wob = sin(_time * 0.6 + i * 1.1) * (5 + 9 * t);
+        final halfW = (10 + 46 * t) * w;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(
+              center: Offset(moon.dx + wob, y),
+              width: halfW * 2,
+              height: 5,
+            ),
+            const Radius.circular(3),
+          ),
+          Paint()
+            ..color = const Color(
+              0xFFBFD9E8,
+            ).withValues(alpha: (0.030 + 0.055 * fill) * (1 - t * 0.55)),
+        );
+      }
+
+      // The reflection itself.
+      canvas.save();
+      canvas.clipRect(basin);
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          at,
+          r * 1.5,
+          const Color(0xFFDCE8F0).withValues(alpha: 0.04 + 0.06 * fill),
+        );
+      }
+      const slices = 5;
+      for (var i = 0; i < slices; i++) {
+        final wob = sin(_time * 0.5 + i * 1.7) * (3.0 + 3.0 * fill);
+        canvas.save();
+        canvas.clipRect(
+          Rect.fromLTWH(
+            at.dx - r - 20,
+            at.dy - r + i * (r * 2 / slices),
+            (r + 20) * 2,
+            r * 2 / slices,
+          ),
+        );
+        canvas.save();
+        canvas.translate(at.dx + wob, at.dy);
+        canvas.scale(1, -1);
+        canvas.translate(-at.dx, -at.dy);
+        // Dark water at night. A first pass ran to 0.62 and the basin came
+        // out as a solid grey plate that owned the room; a reflection is a
+        // hint of a moon, not a moon.
+        _drawTheMoon(canvas, at, r, 1.0, opacity: 0.07 + 0.15 * fill);
+        canvas.restore();
+        canvas.restore();
+      }
+      canvas.restore();
+    }
+
     // Star vigil lights over the mirror gate: tide, current, deep.
     for (var i = 0; i < 3; i++) {
       final p = Offset(b.center.dx + 120 + i * 50.0, b.top + 170);
@@ -2618,12 +2708,17 @@ extension MirrorTide on PlanetDungeonGame {
     );
   }
 
-  /// How near the temple's water is standing to the MIDDLE — 1 at mid, 0 at
-  /// either extreme, and continuous in between so the room answers the tide
-  /// as it eases rather than snapping at a threshold. Public because it is
-  /// what drives the mirror room's tell, and that is worth pinning.
-  double get tideMidness =>
-      (1 - (tideAnim - 0.5).abs() / 0.5).clamp(0.0, 1.0).toDouble();
+  /// How near the temple's water is standing to the HIGH stand — 0 at low, a
+  /// half at the middle water, 1 at the top. Continuous, so the room answers
+  /// the tide as it eases rather than snapping at a threshold. Public because
+  /// it drives the mirror room's tell, and that is worth pinning.
+  ///
+  /// It used to be a MIDNESS — the secret wanted the middle water, so the
+  /// room was brightest in the middle and dark at both ends. The secret wants
+  /// the HIGH stand now, which is the better fiction anyway: the moon is
+  /// nearest when it has pulled the most water, and the hub's basin shows the
+  /// largest reflection at exactly the same moment.
+  double get tideMoonReach => tideAnim.clamp(0.0, 1.0).toDouble();
 
   /// THE MOON REACHES THE MIRROR ROOM AT THE MIDDLE WATER.
   ///
@@ -2641,7 +2736,7 @@ extension MirrorTide on PlanetDungeonGame {
   /// stand here at mid tide and not notice.
   void _drawMirrorMoonbeam(Canvas canvas, DungeonRoom room, bool won) {
     // A found secret keeps its light: the frozen disc is lit forever.
-    final reach = won ? 1.0 : tideMidness * tideMidness;
+    final reach = won ? 1.0 : tideMoonReach * tideMoonReach;
     final moonAt = Offset(_kMoonPoolCentre.dx, room.bounds.top + 74);
     final target = _kMoonPoolCentre;
 
@@ -2693,9 +2788,23 @@ extension MirrorTide on PlanetDungeonGame {
       }
     }
 
-    // The moon itself, always there and always full — dim and far off at the
-    // wrong water, bright and close at the right one.
-    _drawTheMoon(canvas, moonAt, 26, 1.0, opacity: 0.22 + 0.78 * reach);
+    // AND NO DISC HERE EITHER — only the light it throws. Same reason as the
+    // court: the moon itself is Star 3's reveal, and the reflection court is
+    // reached long before Star 3. What tells the player the tide matters is
+    // the SHAFT and the lit pool, not a moon hanging in a buried room.
+    //
+    // The shard puzzle does not need it: a piece turned right takes a bright
+    // white ring of its own, so the target is legible from the pieces.
+    for (var i = 3; i >= 1; i--) {
+      canvas.drawCircle(
+        moonAt,
+        22.0 + i * 13,
+        Paint()
+          ..color = const Color(
+            0xFFDCE8F0,
+          ).withValues(alpha: (0.055 + 0.075 * reach) / i),
+      );
+    }
   }
 
   void _drawReflectionCourt(Canvas canvas, DungeonRoom room) {

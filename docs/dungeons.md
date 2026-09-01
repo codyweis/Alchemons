@@ -1556,7 +1556,8 @@ quotation constants are deleted from the code — nothing left to drift.
    (stand still, then freeze), and is a full chain now — the middle beat is
    the one that was missing, and it is the job SPIRIT did not have in its own
    secret despite this being the MIRROR-tide temple.
-   **WATER** stands motionless in the pool and the surface flattens to glass
+   **WATER** stands motionless in the pool at the settled HIGH stand and the
+   surface flattens to glass
    over `kMirrorStillSeconds` (3.2s) — the one place in the game that asks you
    to stand still, in a temple made of moving water. On the glass the moon
    comes apart into **three shards, each showing the wrong phase**, because a
@@ -1866,6 +1867,35 @@ STILL UNEXPLAINED, found by the same sweep and not yet chased: Air's
 and `skull_antechamber`, Lightning's `dynamo_court`, and Dust's `undercity`,
 `granary` and `kiln_cellar`. Some are certainly corridors and reading rooms.
 Some are not.
+
+### WATER'S MOON — you do not see it until the oculus
+
+You are underground for the whole temple. The moon reaches you as GLOW, as a
+SHAFT, and as a REFLECTION lying in the water; the one place you ever look up
+and see the disc itself is the oculus over the moon well, which is Star 3.
+Both earlier rooms drew a moon and spent that reveal, so both now draw only
+the light:
+
+  · **drowned_court (hub)** — the moon's glow hangs over the middle of the
+    court and its REFLECTION lies in the central basin: absent at the low
+    stand, half-drowned at the middle, and at HIGH water the largest thing in
+    the temple, with a broken moon-path column running up to the glow. Same
+    construction as the well and the mirror room — an inverted moon across
+    sliding horizontal slices — because three rooms should share one way of
+    drawing water. (The court's moon also used to hang at centre+190, x≈670 in
+    a 960-wide room, with the mirror gate's doorway at 610–720: it was sitting
+    directly in front of the locked finale door. Dead centre clears both top
+    doors and puts it above the basin, where its reflection belongs.)
+  · **reflection_court** — glow and shaft only. The shard puzzle does not need
+    a moon overhead to compare against: a piece turned right takes a bright
+    white ring of its own.
+
+**AND THE SECRET MOVED TO THE HIGH STAND.** It wanted the middle water, which
+made the mirror room brightest in the middle and dark at both ends — a shape
+with no meaning. The moon is nearest when it has pulled the most water, so the
+tell now rises continuously with the tide (`tideMoonReach`), and the hub's
+basin shows its largest reflection at exactly the moment the mirror room is
+worth standing in.
 
 ### HUD OCCLUSION — the panels own the screen's corners
 
