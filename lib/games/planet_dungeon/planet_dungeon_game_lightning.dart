@@ -459,11 +459,36 @@ extension StormCircuit on PlanetDungeonGame {
   void _drawFulminateVat(Canvas canvas, FulminateVat vat, double fuse) {
     final p = vat.position;
     final seethe = (fuse / _kVatFuseSeconds).clamp(0.0, 1.0);
-    canvas.drawCircle(
-      p + const Offset(0, 3),
-      17,
-      Paint()..color = const Color(0x66000000),
+    // A VAT IS A VESSEL. It was a flat 16px disc, which is why the one thing
+    // in Star 1 that can kill a run read as a token on a board. Riveted iron
+    // on three legs, with a lip you can see over.
+    canvas.drawOval(
+      Rect.fromCenter(center: p + const Offset(2, 22), width: 42, height: 12),
+      Paint()..color = const Color(0xFF04070C).withValues(alpha: 0.6),
     );
+    for (final dx in const [-11.0, 0.0, 11.0]) {
+      canvas.drawRect(
+        Rect.fromCenter(center: p + Offset(dx, 16), width: 4, height: 16),
+        Paint()..color = const Color(0xFF241C14),
+      );
+    }
+    // The belly, wider at the lip.
+    canvas.drawPath(
+      Path()
+        ..moveTo(p.dx - 15, p.dy - 8)
+        ..quadraticBezierTo(p.dx - 19, p.dy + 14, p.dx, p.dy + 15)
+        ..quadraticBezierTo(p.dx + 19, p.dy + 14, p.dx + 15, p.dy - 8)
+        ..close(),
+      Paint()..color = const Color(0xFF2A2118),
+    );
+    // Rivets round the belly.
+    for (var i = 0; i < 5; i++) {
+      canvas.drawCircle(
+        p + Offset(-12 + i * 6.0, 6),
+        1.3,
+        Paint()..color = const Color(0xFF8A6E3F).withValues(alpha: 0.45),
+      );
+    }
     canvas.drawCircle(p, 16, Paint()..color = const Color(0xFF2A2118));
     canvas.drawCircle(
       p,
@@ -2092,6 +2117,48 @@ extension StormCircuit on PlanetDungeonGame {
       }
     }
 
+    // THE ROTOR'S HOUSING. It was rings and spokes floating on the floor —
+    // the biggest machine on the planet, mounted on nothing. A bolted bed
+    // plate under it, and two field magnets flanking the drum.
+    canvas.drawOval(
+      Rect.fromCenter(center: c + const Offset(4, 62), width: 190, height: 40),
+      Paint()..color = const Color(0xFF04070C).withValues(alpha: 0.6),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: c + const Offset(0, 54), width: 176, height: 30),
+        const Radius.circular(5),
+      ),
+      Paint()..color = const Color(0xFF17202B),
+    );
+    for (var i = 0; i < 6; i++) {
+      canvas.drawCircle(
+        c + Offset(-72 + i * 29.0, 54),
+        2.2,
+        Paint()..color = const Color(0xFF6E8CA8).withValues(alpha: 0.5),
+      );
+    }
+    for (final side in const [-1.0, 1.0]) {
+      // A field magnet: a squat coil block either side of the drum.
+      final at = c + Offset(side * 78, 14);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: at, width: 34, height: 62),
+          const Radius.circular(6),
+        ),
+        Paint()..color = const Color(0xFF1E2833),
+      );
+      for (var i = 0; i < 5; i++) {
+        canvas.drawLine(
+          at + Offset(-14, -22 + i * 11.0),
+          at + Offset(14, -22 + i * 11.0),
+          Paint()
+            ..strokeWidth = 2.4
+            ..color = const Color(0xFFB98A44).withValues(alpha: 0.30),
+        );
+      }
+    }
+
     // The rotor: brass rings + spinning spokes (faster while feeding, and
     // running away with itself while Air has it over its limit).
     final over = (rotorOverspeed / kRotorOverspeedSeconds).clamp(0.0, 1.0);
@@ -2301,6 +2368,29 @@ extension StormCircuit on PlanetDungeonGame {
       final r = Rect.fromLTWH(bolt.left, bolt.top, w, bolt.height);
       final rr = RRect.fromRectAndRadius(r, const Radius.circular(4));
       canvas.drawRRect(rr, Paint()..color = const Color(0xFF1B2530));
+      // BANDED AND BOLTED, so a slab that holds a treasury looks like one.
+      // Vertical straps down the bolt with rivets in them, and a bright top
+      // edge — the same iron the rest of the works is made of.
+      for (var x = r.left + 26; x < r.right - 10; x += 42) {
+        canvas.drawRect(
+          Rect.fromLTWH(x, r.top + 2, 9, r.height - 4),
+          Paint()..color = const Color(0xFF283544),
+        );
+        for (final fy in const [0.25, 0.75]) {
+          canvas.drawCircle(
+            Offset(x + 4.5, r.top + r.height * fy),
+            1.6,
+            Paint()..color = const Color(0xFF8FB0CC).withValues(alpha: 0.5),
+          );
+        }
+      }
+      canvas.drawLine(
+        Offset(r.left + 2, r.top + 1.5),
+        Offset(r.right - 2, r.top + 1.5),
+        Paint()
+          ..strokeWidth = 1.4
+          ..color = const Color(0xFF8FB0CC).withValues(alpha: 0.28),
+      );
       canvas.drawRRect(
         rr,
         Paint()
@@ -2758,14 +2848,38 @@ extension StormCircuit on PlanetDungeonGame {
     if (_fx.ready && energized) {
       drawGlow(canvas, _fx.glow!, sock.position, 34, const Color(0xFF6BA8FF));
     }
-    canvas.drawCircle(
-      sock.position,
-      18,
+    // A CRADLE, not a ring. Something is meant to be SET into this, so it
+    // has a mount, a seat and two contact horns waiting for the cell.
+    _drawCircuitPost(canvas, sock.position, c, energized);
+    canvas.drawOval(
+      Rect.fromCenter(center: sock.position, width: 44, height: 18),
+      Paint()..color = const Color(0xFF141C26),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: sock.position, width: 44, height: 18),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
+        ..strokeWidth = 2.4
         ..color = c,
     );
+    // Contact horns, curling up out of the seat to hold what is set in it.
+    for (final side in const [-1.0, 1.0]) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(sock.position.dx + side * 20, sock.position.dy + 2)
+          ..quadraticBezierTo(
+            sock.position.dx + side * 24,
+            sock.position.dy - 14,
+            sock.position.dx + side * 13,
+            sock.position.dy - 20,
+          ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round
+          ..color = c.withValues(alpha: energized ? 1.0 : 0.7),
+      );
+    }
     canvas.drawCircle(
       sock.position,
       6,

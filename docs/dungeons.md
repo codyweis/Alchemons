@@ -1810,7 +1810,7 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
-### ▶ LIGHTNING — in progress (2026-09-01)
+### ✅ LIGHTNING — complete (2026-09-01)
 
 **The inverse of Earth: the puzzles are the strongest of the unpolished set
 and the art is the problem.** Star 1 threads one bolt through three terminals
@@ -1853,8 +1853,15 @@ None of that wants touching.
     and up when the trunk is dead, swung flat when it feeds. This is the verb
     thrown more than any other on the planet and it was a 15px circle with a
     stick on it.
-  · ⬜ The remaining furniture: the dynamo rotor, the cell sockets, the
-    fulminate vats, the vault bolt.
+  · ✅ **The rest of the furniture.** The DYNAMO was rings and spokes floating
+    on the floor — the biggest machine on the planet, mounted on nothing; it
+    has a bolted bed plate and two field-magnet coil blocks flanking the drum.
+    The CELL SOCKETS were rings; something is meant to be SET into one, so
+    they are cradles with a seat and two contact horns. The FULMINATE VATS
+    were flat discs — the one thing in Star 1 that can kill a run, reading as
+    a token on a board; they are riveted cauldrons on three legs. And the
+    VAULT BOLT is banded and bolted, so a slab holding a treasury looks like
+    one.
   · ✅ **THE THUNDERBOLT IS ITS OWN CHAIN** (see §7's maxim entry). It used to
     fire off Star 3's beam if a Lightning Horn happened to be in the room when
     the tower lit — a secret riding a star's coat-tails. It is built out of
@@ -1868,11 +1875,13 @@ None of that wants touching.
     beat. **LIGHTNING** throws a dynamo that has nowhere left to choose, every
     trunk takes at once, and the works lets go. Nothing consumed: Lightning
     blows a weld back off, and a lapsed over-speed costs the walk to the rotor.
-  · ⬜ Device playtest.
+  · ⬜ CARRIED: device playtest. The three star puzzles were deliberately not
+    touched — they are the strongest of the unpolished set and the art was
+    the whole problem.
 
-### FOUR DOWN, THIRTEEN TO GO (2026-09-01)
+### FIVE DOWN, TWELVE TO GO (2026-09-01)
 
-**Polished: Fire · Air · Water · Earth.** What that has come to mean, on top
+**Polished: Fire · Air · Water · Earth · Lightning.** What that has come to mean, on top
 of the art pass Fire set as the reference:
 
   1. **No star is one verb repeated.** Every "do the thing N times" star has
@@ -1886,10 +1895,18 @@ of the art pass Fire set as the reference:
      line, nothing consumed.
   4. **Nothing can strand.** Every irreversible-looking edit has an undo, and
      the undo costs walking rather than the run.
+  5. **The room can be navigated.** Lightning added this one: no two doorways
+     on a wall close enough to read as one, and a control stands where the
+     thing it controls is. Both are layout-test invariants now.
 
-**The thirteen left**, and the honest state of each: Lightning, Steam, Lava,
-Poison, Mud, Dust, Crystal, Plant, Spirit, Dark, Light, Blood — all BUILT and
-proved, none through a polish pass. Their secrets are the queue in §7's maxim
+**AND CHECK THE ACTION PAD FIRST, EVERY TIME.** Five planets shipped with a
+room whose verbs live outside `DungeonRoom` and therefore had no pad at all —
+Air's hub, Water's reflection court, Earth's palm hollow, four of Lava's seven
+rooms, and Lightning's hub, which made the planet unstartable. Tests never
+catch it because they call `activateAbility()` past the HUD's gate.
+
+**The twelve left**: Steam, Lava, Poison, Mud, Dust, Crystal, Plant, Spirit,
+Dark, Light, Blood — all BUILT and proved, none through a polish pass. Their secrets are the queue in §7's maxim
 table (only four of seventeen clear the standard). Steam additionally carries
 **8 of the 10 known test failures** in this repo and should be read as the
 riskiest of the thirteen, not the tidiest.
