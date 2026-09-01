@@ -1645,6 +1645,16 @@ leg, go again. Nothing in it can be lost to a clock, and nothing in it costs
 one either. The layout test pins REACH instead of co-location: every stand
 settable, one door from the water, both ways.
 
+**AND THE WHEELS WERE INVISIBLE.** `_drawTideWheels` was called from
+`_drawTideWorks` alone, while its own doc comment claimed it was "shared by
+the tide-works and the gallery's own bank". It was not — the gallery's three
+wheels were authored, interactive and never painted, and the bank moved to the
+court inherited the same silence. It is drawn from `_renderTemple` now, for
+any room carrying a bank, so the rule is structural rather than a call a room
+painter has to remember. `dungeon_water_wheels_drawn_test.dart` pins the
+single call site and its position ahead of the per-room switch, because the
+failure mode is invisible by definition.
+
 `dungeon_hud_occlusion_test.dart` walks every room on every planet — valves,
 canal nodes, shrines, vents, anchors, conduits, rune pillars, torches,
 braziers, vault caches — against each panel's real box at the camera clamp for

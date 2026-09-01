@@ -1733,6 +1733,17 @@ extension MirrorTide on PlanetDungeonGame {
   /// everything that stands in them).
   void _renderTemple(Canvas canvas, DungeonRoom room) {
     _renderTideWater(canvas, room);
+    // THE WHEELS ARE DRAWN WHEREVER THEY STAND, not by one room's painter.
+    //
+    // `_drawTideWheels` was called from `_drawTideWorks` alone, while its own
+    // doc comment claimed it was "shared by the tide-works and the gallery's
+    // own bank" — so the gallery's three wheels were AUTHORED, INTERACTIVE AND
+    // INVISIBLE, and the bank moved to the court would have been too. A room
+    // with a wheel in it shows the wheel; that is the rule now, and it cannot
+    // be broken by adding a bank to a room whose painter forgot to ask.
+    if (room.tideValves.any((v) => !v.pipOnly)) {
+      _drawTideWheels(canvas, room);
+    }
     switch (room.id) {
       case 'tide_gate':
         _drawOfferingBowl(canvas);
@@ -2000,8 +2011,8 @@ extension MirrorTide on PlanetDungeonGame {
     for (final x in const [160.0, 250.0, 340.0]) {
       canvas.drawLine(Offset(x, 110), Offset(x, 165), pipe);
     }
-    // Valves: rune-marked wheels (low / mid / high).
-    _drawTideWheels(canvas, room);
+    // (The rune-marked wheels themselves are drawn by `_renderTemple`, for
+    // every room that has a bank — see the note there.)
     // Sluice seals: round hatches that glow open.
     final star = room.sealStarIndex;
     final done = star != null && hasStar(star);
@@ -2051,9 +2062,9 @@ extension MirrorTide on PlanetDungeonGame {
     }
   }
 
-  /// The master sluice wheels — shared by the tide-works and the gallery's
-  /// own bank, because the gallery steers the lantern with the very same
-  /// wheels and they must read identically in both rooms.
+  /// The master sluice wheels. Called from `_renderTemple` for EVERY room
+  /// that carries a bank, so the tide-works and the court read identically
+  /// and no bank can be added to a room that then fails to paint it.
   void _drawTideWheels(Canvas canvas, DungeonRoom room) {
     for (final valve in room.tideValves) {
       if (valve.pipOnly) continue;
