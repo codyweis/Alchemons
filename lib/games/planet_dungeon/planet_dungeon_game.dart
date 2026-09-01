@@ -1192,9 +1192,22 @@ class PlanetDungeonGame extends FlameGame {
   /// life left. A socket at zero is dark again.
   final Map<String, double> pillarLife = {};
 
-  /// Sockets EARTH has broken out of the stone. They are buried; nothing can
-  /// be put into one that is still under rock.
+  /// Sockets that are open to the storm. Filled all at once when the spine
+  /// is walked; nothing can be put into a socket still under rock.
   final Set<String> pillarBared = {};
+
+  /// THE SPINE WALK. The crypt's column is a stair of vertebrae, and an EARTH
+  /// creature standing on one warms it. Pressing there LATCHES it. Latch them
+  /// all and the giant's back takes the weight — the four buried pillars rise
+  /// out of the floor and their sockets open.
+  final Set<int> spineLatched = {};
+
+  /// Warmth under an Earth creature's feet, per step (render + the verb's
+  /// precondition: you latch what you are standing on).
+  final Map<int, double> spineWarm = {};
+
+  /// Eased 0→1 as the pillars come up out of the floor.
+  double cryptRise = 0;
 
   /// Sockets CRYSTAL has sealed for good. A sealed socket counts as holding
   /// forever and can never gutter out.

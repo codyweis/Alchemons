@@ -68,6 +68,12 @@ const Map<String, String> kScaleClueRooms = {
   'w_spine': 'sternum_court',
 };
 
+/// How many vertebrae the crypt's spine is walked in.
+const int kSpineSteps = 5;
+
+/// How near a creature must stand to warm a step of the spine.
+const double _kSpineStepReach = 52.0;
+
 // Shove tunable: the rib is a HARD Earth+Horn gate, so every shove is clean.
 const double _kRibSlideClean = 0.9;
 
@@ -86,6 +92,9 @@ extension BuriedGiant on PlanetDungeonGame {
     pillarLife.clear();
     pillarBared.clear();
     pillarSealed.clear();
+    spineLatched.clear();
+    spineWarm.clear();
+    cryptRise = 0;
     // The palm: what you WORKED OUT survives a death (the same rule the Ember
     // Epitaph uses), what you grew does not.
     if (palmStage > 1) palmStage = 1;
@@ -162,6 +171,7 @@ extension BuriedGiant on PlanetDungeonGame {
   // ── Update ──────────────────────────────────────────────
 
   void _updateBarrow(DungeonCreature a, DungeonRoom room, double dt) {
+    _updateSpineWalk(room, dt);
     _updatePillarLife(room, dt);
     // The core rises and the cluster grows — watched, never popped.
     if (palmStage >= 1 && palmCoreRise < 1) {
@@ -346,6 +356,7 @@ extension BuriedGiant on PlanetDungeonGame {
     final room = currentRoom;
     if (_tryBarrowLintel(a, room)) return true;
     if (_tryRib(a, room)) return true;
+    if (_trySpineStep(a, room)) return true;
     if (_tryPillar(a, room)) return true;
     if (_tryGazePrism(a, room)) return true;
     if (_tryScaleWeight(a, room)) return true;
@@ -765,6 +776,98 @@ extension BuriedGiant on PlanetDungeonGame {
   bool _pillarHolding(String id) =>
       pillarSealed.contains(id) || lockedPillars.contains(id);
 
+  /// Where step [i] of the spine lies.
+  Offset spineStepAt(DungeonRoom room, int i) => Offset(
+    room.bounds.center.dx,
+    room.bounds.top + (i + 0.5) / kSpineSteps * room.bounds.height,
+  );
+
+
+  /// Has the walk been finished, and the crypt opened?
+  bool get cryptOpen => spineLatched.length >= kSpineSteps;
+
+  /// The spine warming under Earth's feet, and the pillars rising when the
+  /// last step latches.
+  void _updateSpineWalk(DungeonRoom room, double dt) {
+    if (room.fossilPillars.isEmpty) return;
+    final star = room.pillarStarIndex;
+    final open = cryptOpen || (star != null && hasStar(star));
+    if (!open) {
+      for (var i = 0; i < kSpineSteps; i++) {
+        final at = spineStepAt(room, i);
+        final stood = creatures.any(
+          (c) =>
+              c.alive &&
+              c.member.element == 'Earth' &&
+              (c.position - at).distance <= _kSpineStepReach,
+        );
+        final was = spineWarm[i] ?? 0;
+        spineWarm[i] = stood
+            ? min(1.0, was + dt * 3.2)
+            : max(0.0, was - dt * 1.6);
+      }
+      return;
+    }
+    // Open: the pillars come up out of the floor, watched.
+    if (cryptRise < 1) cryptRise = min(1.0, cryptRise + dt * 0.9);
+    if (pillarBared.length < room.fossilPillars.length) {
+      for (final p in room.fossilPillars) {
+        pillarBared.add(p.id);
+      }
+    }
+  }
+
+  /// EARTH latches the step it is standing on. A latched step stays lit; the
+  /// warmth alone fades the moment the foot leaves it, which is the whole
+  /// difference between walking the spine and holding it.
+  bool _trySpineStep(DungeonCreature a, DungeonRoom room) {
+    if (room.fossilPillars.isEmpty || cryptOpen) return false;
+    final star = room.pillarStarIndex;
+    if (star != null && hasStar(star)) return false;
+    for (var i = 0; i < kSpineSteps; i++) {
+      final at = spineStepAt(room, i);
+      if ((a.position - at).distance > _kSpineStepReach) continue;
+      if (spineLatched.contains(i)) {
+        _setHint('This one is set — it will hold');
+        return true;
+      }
+      if (a.member.element != 'Earth') {
+        _setBlockedHint('The bone warms under earth alone');
+        return true;
+      }
+      spineLatched.add(i);
+      spineWarm[i] = 1.0;
+      _spawnAlchemyBurst(
+        at,
+        producedElement: 'Earth',
+        particleCount: 12,
+        intensity: 0.7,
+      );
+      if (cryptOpen) {
+        cryptRise = 0;
+        _setHint(
+          'The whole back takes the weight — and the buried pillars come up',
+          4.0,
+        );
+        _spawnAlchemyBurst(
+          room.bounds.center,
+          producedElement: 'Earth',
+          reagentElements: const ['Crystal'],
+          particleCount: 28,
+          intensity: 1.1,
+        );
+      } else {
+        _setHint(
+          'The vertebra seats and stays lit '
+          '(${spineLatched.length} of $kSpineSteps)',
+          2.8,
+        );
+      }
+      return true;
+    }
+    return false;
+  }
+
   // ── STAR 2 · THE CRYPT ────────────────────────────────────
   //
   // WHAT THIS REPLACES: arc four sockets, one at a time, at leisure. One verb
@@ -801,22 +904,9 @@ extension BuriedGiant on PlanetDungeonGame {
         return true;
       }
 
-      // ── EARTH: break it out of the rock ──
-      if (!pillarBared.contains(id)) {
-        if (element != 'Earth') {
-          _setBlockedHint('Still buried — the rock has to come off it first');
-          return true;
-        }
-        pillarBared.add(id);
-        _spawnAlchemyBurst(
-          pillar.position,
-          producedElement: 'Earth',
-          particleCount: 16,
-          intensity: 0.8,
-        );
-        _setHint('The rock comes away — a socket, open to the storm', 3.0);
-        return true;
-      }
+      // The sockets are under the floor until the spine has been walked;
+      // there is nothing here to work yet.
+      if (!pillarBared.contains(id)) return false;
 
       // ── CRYSTAL: seal it, if it has somewhere to grow from ──
       if (element == 'Crystal') {
@@ -1152,16 +1242,22 @@ extension BuriedGiant on PlanetDungeonGame {
         // the scale's marks without naming a single lean.
         _setHint(
           switch (revealTier) {
-            <= 0 =>
-              'Four sockets sleep beneath the pillars — more Intelligence '
-                  'would read what wakes them',
-            1 =>
-              'Four sockets sleep beneath the pillars — storm-spark wakes '
-                  'them as crystal, and the giant takes it back',
-            _ =>
-              'Storm-spark wakes a socket as crystal and the giant takes it '
-                  'back. Crystal only SEALS where crystal already burns on '
-                  'both sides of it',
+            <= 0 => cryptOpen
+                ? 'Four sockets, open to the storm — more Intelligence would '
+                      'read what they want'
+                : 'The giant\'s back runs the length of this crypt, and it '
+                      'is not taking any weight',
+            1 => cryptOpen
+                ? 'Storm-spark wakes a socket as crystal — and the giant '
+                      'takes it back'
+                : 'Seat the vertebrae and the back will bear what is buried '
+                      'under it',
+            _ => cryptOpen
+                ? 'Storm-spark wakes a socket as crystal and the giant takes '
+                      'it back. Crystal only SEALS where crystal already '
+                      'burns on both sides of it'
+                : 'Earth\'s weight seats a vertebra. Seat them all and the '
+                      'back will bear what is buried under it',
           },
           4.4,
         );
@@ -2398,40 +2494,65 @@ extension BuriedGiant on PlanetDungeonGame {
         ..strokeWidth = 1.4
         ..color = const Color(0xFF0C0804).withValues(alpha: 0.6),
     );
-    // Vertebrae down the shaft, each with its processes reaching outward.
-    const n = 9;
-    for (var i = 0; i < n; i++) {
-      final y = b.top + (i + 0.5) / n * b.height;
+    // THE STEPS OF THE WALK. Five vertebrae, and each one is a place to
+    // stand: cold, WARM under an Earth creature's feet, or LATCHED and lit
+    // for good. The column is the puzzle's first beat, so it has to read as
+    // something you climb rather than as scenery down the middle.
+    final walked = cryptOpen || (room.pillarStarIndex != null &&
+        hasStar(room.pillarStarIndex!));
+    for (var i = 0; i < kSpineSteps; i++) {
+      final at = spineStepAt(room, i);
+      final y = at.dy;
+      final latched = walked || spineLatched.contains(i);
+      final warm = latched ? 1.0 : (spineWarm[i] ?? 0);
+      final tone = Color.lerp(
+        const Color(0xFF5C4A2E),
+        const Color(0xFFB8E0D8),
+        latched ? 0.75 : warm * 0.5,
+      )!;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset(x, y), width: 62, height: 30),
-          const Radius.circular(11),
+          Rect.fromCenter(center: Offset(x, y), width: 68, height: 34),
+          const Radius.circular(12),
         ),
-        Paint()..color = const Color(0xFF5C4A2E).withValues(alpha: 0.62),
+        Paint()..color = tone.withValues(alpha: 0.62 + 0.24 * warm),
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset(x, y - 4), width: 62, height: 30),
-          const Radius.circular(11),
+          Rect.fromCenter(center: Offset(x, y - 4), width: 68, height: 34),
+          const Radius.circular(12),
         ),
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.3
-          ..color = const Color(0xFFC6AC78).withValues(alpha: 0.22),
+          ..strokeWidth = latched ? 2.0 : 1.3
+          ..color = (latched
+                  ? const Color(0xFFD8F0EA)
+                  : const Color(0xFFC6AC78))
+              .withValues(alpha: 0.22 + 0.55 * warm),
       );
+      if (warm > 0.02 && _fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          Offset(x, y),
+          34,
+          const Color(0xFFB8E0D8).withValues(alpha: 0.16 * warm),
+        );
+      }
       // The processes — short bones out to either side, catching the light.
       for (final side in const [-1.0, 1.0]) {
         _drawBuriedBone(
           canvas,
-          Offset(x + side * 30, y),
-          Offset(x + side * 96, y - 8),
-          Offset(x + side * 168, y - 4),
+          Offset(x + side * 32, y),
+          Offset(x + side * 98, y - 8),
+          Offset(x + side * 170, y - 4),
           thick: 13,
-          alpha: 0.5,
+          alpha: 0.5 + 0.35 * warm,
         );
       }
     }
   }
+
 
   /// THE RING, DRAWN. The seal rule is "both ring neighbours must be
   /// holding", and until this the ring was invisible: nothing in the room
@@ -2501,9 +2622,14 @@ extension BuriedGiant on PlanetDungeonGame {
     _drawCryptRing(canvas, room);
     final star = room.pillarStarIndex;
     final done = star != null && hasStar(star);
+    // THE PILLARS ARE UNDER THE FLOOR until the spine has been walked, then
+    // they come up — the payoff of the first beat, and the reason the room is
+    // empty enough at the start to notice the column at all.
+    final rise = done ? 1.0 : Curves.easeOutCubic.transform(cryptRise.clamp(0.0, 1.0));
+    if (rise < 0.02) return;
     for (final pillar in room.fossilPillars) {
       final locked = done || lockedPillars.contains(pillar.id);
-      final p = pillar.position;
+      final p = pillar.position + Offset(0, 54 * (1 - rise));
       // The fossil column: stacked vertebra discs — solid bone, bottom-up so
       // the upper discs overlap the lower ones into a real stack.
       final discOutline = Paint()

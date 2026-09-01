@@ -200,10 +200,12 @@ void main() {
       g.activateAbility();
     }
 
+    /// Earth walks the spine: five vertebrae, warmed and then seated.
     void bareAll(PlanetDungeonGame g) {
-      for (final p in g.currentRoom.fossilPillars) {
-        at(g, 'Earth', p.position);
+      for (var i = 0; i < kSpineSteps; i++) {
+        at(g, 'Earth', g.spineStepAt(g.currentRoom, i));
       }
+      g.update(1 / 60);
     }
 
     void lightIt(PlanetDungeonGame g, FossilPillar p) {
@@ -217,15 +219,31 @@ void main() {
       }
     }
 
-    test('the sockets are buried, and only Earth opens one', () {
+    test('the crypt is shut until Earth walks the spine', () {
       final g = crypt();
       final p = g.currentRoom.fossilPillars.first;
-      for (final e in ['Lightning', 'Crystal']) {
+      // The sockets are under the floor: nothing at a pillar does anything.
+      for (final e in ['Lightning', 'Crystal', 'Earth']) {
         at(g, e, p.position);
-        expect(g.pillarBared, isEmpty, reason: '$e cannot shift rock');
+        expect(g.pillarBared, isEmpty, reason: '$e finds nothing there yet');
       }
-      at(g, 'Earth', p.position);
-      expect(g.pillarBared, contains(p.id));
+      // And the steps answer Earth alone.
+      final step = g.spineStepAt(g.currentRoom, 0);
+      for (final e in ['Lightning', 'Crystal']) {
+        at(g, e, step);
+        expect(g.spineLatched, isEmpty, reason: 'the bone warms under earth');
+      }
+      at(g, 'Earth', step);
+      expect(g.spineLatched, contains(0));
+      expect(g.cryptOpen, isFalse, reason: 'one of five is not the walk');
+
+      bareAll(g);
+      expect(g.cryptOpen, isTrue);
+      expect(
+        g.pillarBared,
+        hasLength(g.currentRoom.fossilPillars.length),
+        reason: 'the pillars come up and every socket opens at once',
+      );
     });
 
     test('the ring is a ring — the diagonal is not a neighbour', () {

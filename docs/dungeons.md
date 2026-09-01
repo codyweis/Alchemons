@@ -2046,8 +2046,15 @@ was one verb four times, with a defend wave as the only content. Giving them a
 leak made it a route; it did not make it a question. Three beats now, one per
 element:
 
-  · **EARTH** breaks a socket out of the stone. They are BURIED — the room has
-    always said so — and nothing goes into one still under rock.
+  · **EARTH WALKS THE SPINE.** The crypt's column is a stair of five
+    vertebrae. Standing on one WARMS it under an Earth creature's feet;
+    pressing there SEATS it, and a seated vertebra stays lit while warmth
+    alone fades the moment the foot leaves. Seat all five and the giant's
+    back takes the weight: the four buried pillars come up out of the floor
+    and their sockets open together. This replaced "press Earth on each of
+    four sockets", which was the same four-presses problem one beat earlier —
+    and it turns the spinal column from scenery running down the middle of
+    the room into the thing the room opens with.
   · **LIGHTNING** charges a bared socket over a window it must be defended
     through. It holds, and it LEAKS back into the giant over
     `kPillarLifeSeconds` (26s); a socket holding beside it halves its bleed.

@@ -228,13 +228,25 @@ void main() {
     // ── Star 2: charge the sockets — each draws the storm over a window and
     // must be DEFENDED until it lights (Crystal parity + Pip both fast) ──
     final crypt = room('pillar_crypt');
-    /// EARTH breaks a socket out of the rock. They are buried; nothing goes
-    /// into one still under stone.
-    void bare(FossilPillar p) {
+    /// EARTH WALKS THE SPINE. Standing on a vertebra warms it; pressing
+    /// there seats it for good. Seat all five and the giant's back takes the
+    /// weight — the buried pillars come up and their sockets open.
+    void walkTheSpine() {
       game.setActive(0); // the Earth horn
-      teleport('pillar_crypt', p.position);
-      game.activateAbility();
-      expect(game.pillarBared, contains(p.id), reason: 'the rock comes off');
+      for (var i = 0; i < kSpineSteps; i++) {
+        final at = game.spineStepAt(crypt, i);
+        teleport('pillar_crypt', at);
+        game.update(1 / 60); // the step warms under the foot
+        game.activateAbility();
+        expect(game.spineLatched, contains(i), reason: 'step $i seats');
+      }
+      expect(game.cryptOpen, isTrue, reason: 'the back takes the weight');
+      game.update(1 / 60);
+      expect(
+        game.pillarBared,
+        hasLength(crypt.fossilPillars.length),
+        reason: 'and the sockets come up with the pillars',
+      );
     }
 
     /// LIGHTNING lights a bared socket, over a charge window it must survive.
@@ -267,9 +279,7 @@ void main() {
       game.activateAbility();
     }
 
-    for (final p in crypt.fossilPillars) {
-      bare(p);
-    }
+    walkTheSpine();
 
     // CRYSTAL GROWS OUT OF CRYSTAL. A lit socket with a dark side refuses.
     final ring = crypt.fossilPillars;
