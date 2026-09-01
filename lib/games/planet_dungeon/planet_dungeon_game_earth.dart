@@ -912,10 +912,12 @@ extension BuriedGiant on PlanetDungeonGame {
             ? null
             : 'Skull Antechamber — the bone-mural diagrams the rite ahead';
       case 'eye_chamber':
+        // Both were procedures — "build it a lens of stone and storm", then
+        // "set the stones, THEN ask the eye". State only; the lens and the
+        // order it wants are the bone-mural's to give.
         return prismStage < 2
-            ? 'Eye Chamber — the eye is blind; build it a lens of stone '
-                  'and storm'
-            : 'Eye Chamber — set the stones, then ask the eye at its prism';
+            ? 'Eye Chamber — the eye is blind, and its prism is unmade'
+            : 'Eye Chamber — the prism stands, and the eye has not spoken';
       case 'heart_chamber':
         return guardianAwake
             ? 'The Heart — Terradon rises'

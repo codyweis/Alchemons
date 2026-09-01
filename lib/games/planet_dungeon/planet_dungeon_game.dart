@@ -8346,8 +8346,9 @@ class PlanetDungeonGame extends FlameGame {
       if (spire != null) return spire;
     }
     if (room.loomStarIndex != null) {
-      return 'Sky Loom — each anchor whispers a riddle up close; '
-          'match it with the echo it describes';
+      // State, not procedure: "match it with the echo it describes" was the
+      // method, handed over on the way through the door.
+      return 'Sky Loom — five sockets, and every one of them empty';
     }
     // Wonder trial chambers (until their echo is earned).
     if (_sealedWonderCloud(room) != null) {

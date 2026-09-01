@@ -370,6 +370,27 @@ original three channels had no home for; (2) the OBJECTIVE channel is
 currently leaking **complete solutions** (see the rule below). The standard
 now separates the capsule from the readouts.
 
+### THE ENTRY LINE IS AUDITED (2026-08-31)
+
+The WHAT/HOW split is easy to cross by accident — a helpful second clause and
+the puzzle is answered on the way through the door. A pass over every
+`*ObjectiveHint` in all seventeen found four:
+
+  · **Air / ring_cloud** — "seal the orbit WHEN the three reagents gather",
+    and its refusal said the same thing again on a failed press.
+  · **Air / sky_loom** — "match it with the echo it describes".
+  · **Earth / eye_chamber** — "build it a lens of stone and storm", then
+    "set the stones, THEN ask the eye at its prism".
+  · **Water / tide_works** — "turn the valves, stand the tide, open all three
+    sluices": a three-step procedure read out at the door.
+
+All four now name the state and stop. `dungeon_objective_hints_test.dart`
+holds the line by grammar rather than by vocabulary: it fails any entry line
+with a clause after a dash or semicolon that OPENS with a bare imperative,
+which is the shape all four shared. The guardian rooms keep a written
+exemption — "face X: calm it, or strike in its lulls" is a fight's rules, not
+a puzzle's answer, and it is deliberately identical on every planet.
+
 ### THE CAPSULE CARRIES NARRATIVE ONLY — four prioritized channels
 
 Everything that is *state* rather than *speech* leaves the capsule entirely

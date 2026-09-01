@@ -1498,8 +1498,10 @@ extension MirrorTide on PlanetDungeonGame {
             : 'Tide Gate — the offering-bowl stands dry; Water wakes the '
                   'way in';
       case 'tide_works':
-        return 'Tide-Works — turn the valves, stand the tide, open all '
-            'three sluices';
+        // Was a three-step procedure read out at the door: turn, stand,
+        // open. State only — the valves and the tide they want are the
+        // frieze's to explain.
+        return 'Tide-Works — three sluices, and the tide standing wrong';
       case 'ghost_gallery':
         // WHAT, never HOW (§5.6): the sills, the spill and the ice are the
         // frieze's and Spirit's to give, not the doorway's.
