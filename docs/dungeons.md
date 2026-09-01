@@ -1607,6 +1607,30 @@ The reference. What "complete" meant, so the next planet has a target:
   · ⬜ Device playtest.
   · The floating islands themselves are good and should be left alone.
 
+### THE ACTION PAD READS ONLY ROOM DATA — and several planets don't use it
+
+`roomOffersAction` gates the whole pad, and it consulted `DungeonRoom` fields
+only. Four planets keep their interactables somewhere else: **Lava's**
+production line is one global object indexed by room id, **Dust's** mounds are
+a const table indexed by room id, **Water's** moon glint is computed from the
+tide, and **Earth's** open palm is a bare `const Offset` inside a method.
+Those rooms reported "nothing here", the pad never appeared, and they could
+not be worked at all — including **four of Lava's seven rooms** and the
+reflection court, which is the only place Water's lost maxim can be taken.
+
+It never showed in a test because `activateAbility()` does not consult the
+getter: the gate is the HUD's, so only a human holding a phone ever hits it.
+`_planetOffersAction` is the hook a planet uses to declare verbs it keeps
+outside the room, and `dungeon_room_offers_action_test.dart` asserts the
+getter directly for exactly that reason.
+
+STILL UNEXPLAINED, found by the same sweep and not yet chased: Air's
+`storm_rune_hall` and `storm_altar`, Fire's `nave`, `vestry` and `high_altar`
+(the mercy shrine — suspicious), Earth's `sternum_court` (Star 1 banks there)
+and `skull_antechamber`, Lightning's `dynamo_court`, and Dust's `undercity`,
+`granary` and `kiln_cellar`. Some are certainly corridors and reading rooms.
+Some are not.
+
 ### HUD OCCLUSION — the panels own the screen's corners
 
 Three panels are bolted to the screen and cannot be moved: the **minimap**

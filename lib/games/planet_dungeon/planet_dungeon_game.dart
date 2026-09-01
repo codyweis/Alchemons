@@ -1917,8 +1917,29 @@ class PlanetDungeonGame extends FlameGame {
   bool get roomOffersAction =>
       hasCombatTargets ||
       currentRoom.hasVerbs ||
+      _planetOffersAction ||
       relicDropActive ||
       entryRitePending;
+
+  /// The verbs a planet keeps OUTSIDE `DungeonRoom`.
+  ///
+  /// `hasVerbs` reads authored room data, and several planets do not put their
+  /// interactables there: Lava's production line is one global object indexed
+  /// by room, Dust's mounds are a const table indexed by room, Water's moon
+  /// glint is computed from the tide, and Earth's open palm is a bare `const
+  /// Offset` in a method. Every one of those rooms reported "nothing here",
+  /// the action pad never appeared, and the room could not be worked at all.
+  ///
+  /// It never showed up in a test because `activateAbility()` does not consult
+  /// this — the gate is the HUD's, so only a human holding the phone ever hits
+  /// it. That is why it survived in four of Lava's seven rooms.
+  bool get _planetOffersAction {
+    if (_isFoundry) return works.line.line.nodesIn(currentRoomId).isNotEmpty;
+    if (_isRuins) return dustMoundsIn(currentRoomId).isNotEmpty;
+    if (_isTemple) return currentRoomId == 'reflection_court';
+    if (_isBarrow) return currentRoomId == 'palm_hollow';
+    return false;
+  }
 
   /// Is the party standing where the entrance rite has to be performed?
   ///
