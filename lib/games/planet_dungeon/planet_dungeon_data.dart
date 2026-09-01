@@ -3099,12 +3099,19 @@ const DungeonLayout _waterLayout = DungeonLayout(
     // ends in the blind sump, which is the puzzle's whole thesis).
     'ghost_gallery': DungeonRoom(
       id: 'ghost_gallery',
-      // PADDED (2026-08-31). The minimap sits in the screen's top-left, and with
-      // the camera clamped to this room's west end it covered the SPRING — the
-      // one basin that always answers a hand, and the reason a lost lantern can
-      // never end a run. Everything in the gallery is inset by (96, 64) and the
-      // bounds grown to match, so the corner the HUD occupies is empty floor.
-      bounds: Rect.fromLTWH(0, 0, 1096, 784),
+      // PADDED FOR THE HUD (2026-08-31). Two panels were sitting on this room.
+      //
+      // The minimap (top-left) covered the SPRING — the one basin that always
+      // answers a hand, and the reason a lost lantern can never end a run — so
+      // everything in the gallery is inset by (96, 64).
+      //
+      // The action pad (bottom-right, 230 tall) covered the SEA DRAIN, which is
+      // the goal of the whole canal. Insetting could not fix that one: at 784
+      // the room was SHORTER than the viewport, so it never panned vertically
+      // and the drain's screen position was fixed under the button. The gallery
+      // is 1000 deep now — past the viewport, so it pans — and the extra is the
+      // lower gallery below the drain. The camera can be pulled off the floor.
+      bounds: Rect.fromLTWH(0, 0, 1096, 1000),
       doors: [
         DungeonDoor(
           rect: Rect.fromLTWH(0, 379, 24, 90),
@@ -3125,9 +3132,9 @@ const DungeonLayout _waterLayout = DungeonLayout(
       // the steering wheel, so it has to be IN the room — but far enough from
       // the water's forks that every change is a committed walk.
       tideValves: [
-        TideValve(position: Offset(176, 534), level: 0),
-        TideValve(position: Offset(176, 624), level: 1),
-        TideValve(position: Offset(176, 714), level: 2),
+        TideValve(position: Offset(206, 534), level: 0),
+        TideValve(position: Offset(206, 624), level: 1),
+        TideValve(position: Offset(206, 714), level: 2),
       ],
       canalNodes: [
         // The spring: a carved lion-mouth high in the north-west wall. It is

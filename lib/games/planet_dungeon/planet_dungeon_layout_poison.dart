@@ -751,7 +751,12 @@ const DungeonLayout poisonLayout = DungeonLayout(
           ),
         ],
       ),
-      vaultCache: Offset(700, 600),
+      // LIFTED off the crypt floor (2026-08-31). At (700, 600) the cache sat
+      // under the action pad: the crypt is 700 tall against a 915 viewport, so
+      // it never pans vertically, and it is close enough to the east wall that
+      // the camera is clamped there whenever you stand on it. The pickup was
+      // permanently behind the button you press to take it.
+      vaultCache: Offset(700, 430),
       guardian: GuardianNode(
         position: Offset(470, 330),
         starIndex: 2,

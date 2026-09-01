@@ -1607,20 +1607,38 @@ The reference. What "complete" meant, so the next planet has a target:
   · ⬜ Device playtest.
   · The floating islands themselves are good and should be left alone.
 
-### HUD OCCLUSION — the minimap owns the screen's north-west corner
+### HUD OCCLUSION — the panels own the screen's corners
 
-It is pinned top-left and the player cannot move it. In a room WIDER and
-TALLER than the viewport the camera clamps to the room's own edges, so the
-room's north-west corner lands exactly under it.
+Three panels are bolted to the screen and cannot be moved: the **minimap**
+(top-left, 126x190), the **joystick** (bottom-left, 150x200) and the **action
+pad + swap rail** (bottom-right, 210x230 — the tallest thing on the screen).
 
-Water's canal gallery was the one offender: the SPRING — the basin that always
-answers a hand, and the reason a lost lantern can never end a run — sat at
-(100, 110) in a 1000x720 room, under the panel. The gallery is padded: every
-authored point inset by (96, 64) and the bounds grown to 1096x784, so the
-corner the HUD occupies is empty floor. `dungeon_hud_occlusion_test.dart`
-walks every room on every planet against a 412x915 portrait viewport and the
-panel's real box, so the next one is caught before a playtest rather than
-during one.
+A pannable room can put any point under any panel at some camera position;
+what the player cannot escape is a panel over a point the camera is CLAMPED
+against — and the camera is clamped whenever the object is within half a
+viewport of a wall, which is exactly when you are standing on it. So the rule
+is about ROOM CORNERS, and two rooms broke it:
+
+  · **Water / ghost_gallery.** The SPRING (the basin that always answers a
+    hand, and the reason a lost lantern can never end a run) sat under the
+    minimap; the SEA DRAIN — the goal of the whole canal — sat under the
+    action pad. Everything is inset by (96, 64) for the minimap, and the room
+    is 1096x1000 now. The depth is the load-bearing part: at 784 the room was
+    SHORTER than the 915 viewport, so it never panned vertically and the
+    drain's screen position was FIXED under the button. Past the viewport it
+    pans, and the extra depth is the lower gallery below the drain.
+  · **Poison / lazar_crypt.** The vault cache was at (700, 600) — behind the
+    button you press to take it, permanently, because a 700-deep room never
+    pans against a 915 screen. Lifted to (700, 430).
+
+**A room shorter than the viewport cannot pan its content clear**, so its
+corners have to be authored clear. That is the trap worth remembering.
+
+`dungeon_hud_occlusion_test.dart` walks every room on every planet — valves,
+canal nodes, shrines, vents, anchors, conduits, rune pillars, torches,
+braziers, vault caches — against each panel's real box at the camera clamp for
+that panel's corner, with a press-radius allowance, because a target is a disc
+and not a point.
 
 ## 8. Build status
 
