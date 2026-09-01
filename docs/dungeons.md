@@ -1799,6 +1799,42 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
+### ▶ LIGHTNING — in progress (2026-09-01)
+
+**The inverse of Earth: the puzzles are the strongest of the unpolished set
+and the art is the problem.** Star 1 threads one bolt through three terminals
+with four rotatable conductors and two fulminate vats as negative constraints,
+and it is PROVABLY UNIQUE — the vat is what kills the second solution. Star 2
+herds storm-cells onto sockets on the Air+Fire→Lightning braid. Star 3 is
+element stationing with a geometrically impossible decoy pair, solver-proven.
+The zero-sum trunk system under all of it (power here = dark there) is good.
+None of that wants touching.
+
+  · ✅ **THE HUB HAD NO ACTION PAD.** The four trunk breakers are declared on
+    the LAYOUT, not on a room, so `hasVerbs` could never see them — and the
+    run starts on the vault trunk with every star wing dark. Lightning could
+    not be started on a phone, and passed every test, because tests call
+    `activateAbility()` past the HUD's gate. Fifth instance of that blind
+    spot and the worst of them.
+  · ✅ **The floor is a storm-works, not graph paper.** It was a 96px square
+    lattice under every chamber — the single biggest reason a dungeon whose
+    premise is *the dungeon IS a living circuit* read as a circuit DIAGRAM. It
+    is iron plate bolted down in offset courses now, with rivets, three heavy
+    cable runs sunk into it under clamps, and the scorch blooms and branching
+    scars of everything that has ever arced across it.
+  · ✅ **Everything is bolted to something.** `_drawCircuitPost` — a bolted
+    base plate, an iron column and a stack of porcelain insulator rings — goes
+    under every source, sink, mirror, emitter, converter and terminal. The
+    conductors were 42x8 white lozenges lying on the floor, the most schematic
+    object on the planet and the one the player handles most; they swing in a
+    yoke on a pivot bolt now.
+  · ⬜ The remaining rooms' own furniture: the dynamo rotor, the cell sockets,
+    the fulminate vats, the vault bolt.
+  · ⬜ **The Thunderbolt is not its own puzzle.** It rides Star 3's beam — it
+    fires when a Lightning Horn happens to be standing there as the tower
+    lights. Weakest entry in the maxim table; wants the standard's chain.
+  · ⬜ Device playtest.
+
 ### FOUR DOWN, THIRTEEN TO GO (2026-09-01)
 
 **Polished: Fire · Air · Water · Earth.** What that has come to mean, on top
