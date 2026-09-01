@@ -1119,6 +1119,95 @@ void main() {
       expect(guardian!.encounter?.mysticId, 'Terradon');
     });
 
+    test('you never arrive at the far end from the door back', () {
+      // THE LOOP THIS FIXES. A door's `targetSpawn` is where you land in the
+      // next room. If the way BACK is on a wall, you have to land in the half
+      // of the room nearest that wall — otherwise you step through a doorway
+      // and appear at the opposite end of somewhere else, with no way to tell
+      // which opening you just used.
+      //
+      // Lightning's mirror gallery was the case that named this: its two
+      // doors were on exactly the wrong walls. The hub lies north of it, so
+      // the way home is UP — but the gallery's door to the hub sat at the
+      // BOTTOM, and the door at the top went somewhere else entirely. You
+      // walked south out of the court and every exit led further away.
+      //
+      // Interior doors are exempt: a door in the middle of an arena floor has
+      // no near half to land in.
+      final wrong = <String>[];
+      kPlanetDungeonLayouts.forEach((element, layout) {
+        for (final room in layout.rooms.values) {
+          for (final d in room.doors) {
+            final t = layout.rooms[d.targetRoomId];
+            if (t == null) continue;
+            final back =
+                t.doors.where((x) => x.targetRoomId == room.id).toList();
+            if (back.isEmpty) continue; // a genuine one-way drop
+            final r = back.first.rect;
+            final b = t.bounds;
+            final onTop = r.top <= b.top + 2;
+            final onBottom = r.bottom >= b.bottom - 2;
+            final onLeft = r.left <= b.left + 2;
+            final onRight = r.right >= b.right - 2;
+            bool bad = false;
+            if (onTop) bad = d.targetSpawn.dy > b.center.dy;
+            if (onBottom) bad = d.targetSpawn.dy < b.center.dy;
+            if (onLeft) bad = d.targetSpawn.dx > b.center.dx;
+            if (onRight) bad = d.targetSpawn.dx < b.center.dx;
+            if (bad) {
+              wrong.add(
+                '$element ${room.id} → ${t.id}: the way back is on one wall '
+                'and you land in the other half of the room',
+              );
+            }
+          }
+        }
+      });
+      expect(wrong, isEmpty, reason: wrong.join('\n'));
+    });
+
+    test('and never outside the room you are arriving in', () {
+      // Mud dropped you at x=680 in a room 460 wide.
+      kPlanetDungeonLayouts.forEach((element, layout) {
+        for (final room in layout.rooms.values) {
+          for (final d in room.doors) {
+            final t = layout.rooms[d.targetRoomId];
+            if (t == null) continue;
+            expect(
+              t.bounds.deflate(8).contains(d.targetSpawn),
+              isTrue,
+              reason:
+                  '$element ${room.id} → ${t.id}: lands at ${d.targetSpawn}, '
+                  'outside ${t.bounds}',
+            );
+          }
+        }
+      });
+    });
+
+    test('and never inside another doorway', () {
+      // The other half: land in a door's trigger and the next step bounces
+      // you straight back out of the room you just entered.
+      kPlanetDungeonLayouts.forEach((element, layout) {
+        for (final room in layout.rooms.values) {
+          for (final d in room.doors) {
+            final t = layout.rooms[d.targetRoomId];
+            if (t == null) continue;
+            for (final other in t.doors) {
+              if (other.targetRoomId == room.id) continue;
+              expect(
+                other.rect.inflate(20).contains(d.targetSpawn),
+                isFalse,
+                reason:
+                    '$element ${room.id} → ${t.id} lands inside ${t.id}\'s '
+                    'door to ${other.targetRoomId}',
+              );
+            }
+          }
+        }
+      });
+    });
+
     test('Lightning: the hub reads — doors apart, breakers at their doors', () {
       // Two faults, both about being able to navigate the hub at a glance.
       //

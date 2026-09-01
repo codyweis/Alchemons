@@ -3780,7 +3780,7 @@ const DungeonLayout _lightningLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(430, 696, 110, 24),
           targetRoomId: 'mirror_gallery',
-          targetSpawn: Offset(320, 110),
+          targetSpawn: Offset(380, 86),
         ),
         // FAR RIGHT of the north wall. It used to sit at x 700-810 with the
         // finale's breaker gate at 610-690 — ten pixels apart, a treasury and
@@ -3887,7 +3887,7 @@ const DungeonLayout _lightningLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(435, 0, 110, 24),
           targetRoomId: 'mirror_gallery',
-          targetSpawn: Offset(320, 560),
+          targetSpawn: Offset(380, 534),
         ),
       ],
       cellSockets: [
@@ -3958,16 +3958,24 @@ const DungeonLayout _lightningLayout = DungeonLayout(
     'mirror_gallery': DungeonRoom(
       id: 'mirror_gallery',
       bounds: Rect.fromLTWH(0, 0, 760, 620),
+      // THE GALLERY'S DOORS WERE ON THE WRONG WALLS — exactly swapped, and
+      // this is what made the wing read as a loop. The hub lies NORTH of this
+      // room (you leave the court through its south door to get here), so the
+      // way back is UP; cloud_works lies SOUTH (its north door opens into
+      // here), so that way is DOWN. The gallery had them the other way round:
+      // you walked south out of the hub, and the door at the top of the room
+      // you arrived in took you somewhere else entirely, while the way home
+      // sat at the bottom — further from the hub, not nearer it.
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(325, 596, 110, 24),
+          rect: Rect.fromLTWH(325, 0, 110, 24),
           targetRoomId: 'dynamo_court',
-          targetSpawn: Offset(480, 96),
+          targetSpawn: Offset(485, 634),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(325, 0, 110, 24),
+          rect: Rect.fromLTWH(325, 596, 110, 24),
           targetRoomId: 'cloud_works',
-          targetSpawn: Offset(120, 360),
+          targetSpawn: Offset(490, 86),
         ),
       ],
       stormCells: [
@@ -4019,7 +4027,7 @@ const DungeonLayout _lightningLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(40, 40, 80, 24),
           targetRoomId: 'dynamo_court',
-          targetSpawn: Offset(650, 90),
+          targetSpawn: Offset(480, 86),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(210, 640, 90, 32),

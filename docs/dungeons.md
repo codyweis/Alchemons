@@ -2013,6 +2013,30 @@ tell now rises continuously with the tide (`tideMoonReach`), and the hub's
 basin shows its largest reflection at exactly the moment the mirror room is
 worth standing in.
 
+### DOORS — where you come out matters as much as where you go in
+
+A door's `targetSpawn` is where you land in the next room. Three ways that
+goes wrong, all of them felt by the player as *"the doors don't lead
+anywhere sensible"*, and all three now layout-test invariants across all 17:
+
+  · **THE DOORS ON THE WRONG WALLS.** Lightning's `mirror_gallery` named this.
+    The hub lies NORTH of it — you leave the court by its south door to get
+    there — so the way home is UP. The gallery's door to the hub sat at the
+    BOTTOM, and the door at its top went to `cloud_works` instead. Walk south
+    out of the court and every exit led further away, which is exactly what a
+    loop feels like. The two were exactly swapped; they are the right way
+    round now, with both arrivals beside their own way back.
+  · **LANDING IN ANOTHER DOORWAY.** Poison's three wards are laid out alike,
+    each with a hatch down to the lazar crypt at (255, 290, 50, 40) — and the
+    ambulatory's arrival was (280, 330), exactly on that hatch's bottom edge.
+    Walking into any ward from the ambulatory dropped you straight through
+    into the crypt.
+  · **LANDING IN THE FAR HALF.** If the way back is on a wall, you have to
+    arrive in the half of the room nearest that wall, or you appear at the
+    opposite end from the opening you just used. Mud's sunken lotus had both
+    of its arrivals in the wrong half. (Interior doors are exempt: a door in
+    the middle of an arena floor has no near half to land in.)
+
 ### HUD OCCLUSION — the panels own the screen's corners
 
 Three panels are bolted to the screen and cannot be moved: the **minimap**

@@ -504,23 +504,39 @@ const DungeonLayout poisonLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(150, 0, 110, 24),
           targetRoomId: 'ward_bell',
-          targetSpawn: Offset(280, 330),
+          // (280, 330) landed exactly on the bottom edge of ward_bell's own
+          // door down to the lazar crypt — walk in from the ambulatory and
+          // you fell straight through to the crypt. Below it, beside the way
+          // back, where arriving from the south belongs.
+          targetSpawn: Offset(280, 380),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(470, 0, 110, 24),
           targetRoomId: 'ward_scriptorium',
-          targetSpawn: Offset(280, 330),
+          // Every ward is laid out alike, with its own hatch down to the
+          // crypt at (255, 290, 50, 40) — and (280, 330) sat exactly on that
+          // hatch's bottom edge, so walking in from the ambulatory dropped
+          // you straight through into the lazar crypt.
+          targetSpawn: Offset(280, 380),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(790, 0, 110, 24),
           targetRoomId: 'ward_refectory',
-          targetSpawn: Offset(280, 330),
+          // Every ward is laid out alike, with its own hatch down to the
+          // crypt at (255, 290, 50, 40) — and (280, 330) sat exactly on that
+          // hatch's bottom edge, so walking in from the ambulatory dropped
+          // you straight through into the lazar crypt.
+          targetSpawn: Offset(280, 380),
         ),
         // The bricked one (Lava HORN — §4 hard gate).
         DungeonDoor(
           rect: Rect.fromLTWH(1110, 0, 110, 24),
           targetRoomId: 'ward_charnel',
-          targetSpawn: Offset(280, 330),
+          // Every ward is laid out alike, with its own hatch down to the
+          // crypt at (255, 290, 50, 40) — and (280, 330) sat exactly on that
+          // hatch's bottom edge, so walking in from the ambulatory dropped
+          // you straight through into the lazar crypt.
+          targetSpawn: Offset(280, 380),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(640, 496, 110, 24),

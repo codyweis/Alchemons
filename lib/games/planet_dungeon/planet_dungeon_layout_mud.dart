@@ -879,7 +879,8 @@ const DungeonLayout mudLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(274, 340, 54, 54),
           targetRoomId: 'sunken_lotus',
-          targetSpawn: Offset(230, 120),
+          // The way back up to the knoll is the NORTH door: land high.
+          targetSpawn: Offset(230, 92),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(120, 340, 54, 54),
@@ -969,7 +970,9 @@ const DungeonLayout mudLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(640, 690, 54, 54),
           targetRoomId: 'sunken_lotus',
-          targetSpawn: Offset(230, 110),
+          // The way out of the sunken lotus is its SOUTH door, so arriving in
+          // the north half left the exit at the far end of the room.
+          targetSpawn: Offset(230, 296),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(625, 736, 110, 24),
