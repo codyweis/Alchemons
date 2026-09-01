@@ -3827,7 +3827,12 @@ const DungeonLayout _lightningLayout = DungeonLayout(
         Rect.fromLTWH(0, 0, 24, 720),
         Rect.fromLTWH(1016, 0, 24, 720),
         Rect.fromLTWH(0, 0, 1040, 24),
-        Rect.fromLTWH(0, 696, 1040, 24),
+        // The south sill is CUT for the doorway. Border iron laid straight
+        // across a door seals it: the walk clamps to 16px of the bounds and
+        // stands 16px off any wall, so a door lying inside the sill has no
+        // reachable point at all and reads to the player as a wall.
+        Rect.fromLTWH(0, 696, 445, 24),
+        Rect.fromLTWH(555, 696, 485, 24),
         Rect.fromLTWH(560, 300, 120, 140), // the pillar
       ],
       beamEmitters: [

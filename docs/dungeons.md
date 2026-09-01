@@ -2079,6 +2079,17 @@ anywhere sensible"*, and all three now layout-test invariants across all 17:
     of its arrivals in the wrong half. (Interior doors are exempt: a door in
     the middle of an arena floor has no near half to land in.)
 
+  · **A WALL LAID ACROSS THE DOORWAY.** The fourth way, and the one that
+    reads least like a bug: give a room border iron and lay it straight over
+    the door. The walk clamps to 16px inside the bounds and stands 16px off
+    any wall, so a door lying inside the sill has NO reachable point anywhere
+    in it — you walk into the opening and stop. Lightning's Pylon Hall shipped
+    this the day it grew walls, which sealed the player inside the room the
+    star is in. Cut the sill at the doorway. A rect-vs-rect check does not
+    catch the general case (a pillar parked in front of a door seals it just
+    as dead), so the invariant flood-fills each walled room from every point
+    you can arrive in it and requires each door to be walkable.
+
 ### HUD OCCLUSION — the panels own the screen's corners
 
 Three panels are bolted to the screen and cannot be moved: the **minimap**

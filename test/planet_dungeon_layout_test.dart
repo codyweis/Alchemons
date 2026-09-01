@@ -1185,6 +1185,111 @@ void main() {
       });
     });
 
+    test('and a wall never seals a door — every door is WALKABLE from where '
+        'you arrive in its room', () {
+      // Lightning's Pylon Hall shipped a beam-hall floor whose border iron
+      // ran straight across its only doorway. The walk clamps to 16px inside
+      // the bounds and stands 16px off any wall, so the door had no reachable
+      // point anywhere in it: the player walks into the opening and stops, and
+      // it reads as a wall rather than a bug. Rect-vs-rect is not enough to
+      // catch that — a pillar parked in front of a door seals it just as
+      // dead — so this walks the room.
+      const r = 16.0; // PlanetDungeonGame._radius
+      const step = 4.0;
+      final sealed = <String>[];
+      for (final entry in kPlanetDungeonLayouts.entries) {
+        final layout = entry.value;
+        for (final room in layout.rooms.values) {
+          if (room.walls.isEmpty) continue; // nothing can seal anything
+          final b = room.bounds;
+          bool free(double x, double y) {
+            if (x < b.left + r || x > b.right - r) return false;
+            if (y < b.top + r || y > b.bottom - r) return false;
+            for (final w in room.walls) {
+              if (x > w.left - r &&
+                  x < w.right + r &&
+                  y > w.top - r &&
+                  y < w.bottom + r) {
+                return false;
+              }
+            }
+            return true;
+          }
+
+          // Where the player can be standing in this room to begin with.
+          final arrivals = <Offset>[
+            if (room.id == layout.entranceRoomId) layout.entranceSpawn,
+            for (final other in layout.rooms.values)
+              for (final d in other.doors)
+                if (d.targetRoomId == room.id) d.targetSpawn,
+          ];
+          if (arrivals.isEmpty) continue;
+
+          final cols = ((b.width - 2 * r) / step).floor() + 1;
+          final rows = ((b.height - 2 * r) / step).floor() + 1;
+          double px(int i) => b.left + r + i * step;
+          double py(int j) => b.top + r + j * step;
+          final seen = List.generate(cols, (_) => List.filled(rows, false));
+          final queue = <int>[];
+          void seed(Offset p) {
+            // Snap to the nearest free cell — an arrival may sit a pixel
+            // inside a wall's skin without the room being broken.
+            var best = -1;
+            var bestD = double.infinity;
+            for (var i = 0; i < cols; i++) {
+              for (var j = 0; j < rows; j++) {
+                if (!free(px(i), py(j))) continue;
+                final d = (Offset(px(i), py(j)) - p).distanceSquared;
+                if (d < bestD) {
+                  bestD = d;
+                  best = i * rows + j;
+                }
+              }
+            }
+            if (best >= 0 && bestD <= 48 * 48) queue.add(best);
+          }
+
+          for (final a in arrivals) {
+            seed(a);
+          }
+          while (queue.isNotEmpty) {
+            final cell = queue.removeLast();
+            final i = cell ~/ rows, j = cell % rows;
+            if (i < 0 || j < 0 || i >= cols || j >= rows) continue;
+            if (seen[i][j]) continue;
+            if (!free(px(i), py(j))) continue;
+            seen[i][j] = true;
+            queue
+              ..add((i + 1) * rows + j)
+              ..add((i - 1) * rows + j)
+              ..add(i * rows + j + 1)
+              ..add(i * rows + j - 1);
+          }
+
+          for (final d in room.doors) {
+            var reachable = false;
+            for (var i = 0; i < cols && !reachable; i++) {
+              for (var j = 0; j < rows && !reachable; j++) {
+                if (seen[i][j] && d.rect.contains(Offset(px(i), py(j)))) {
+                  reachable = true;
+                }
+              }
+            }
+            if (!reachable) {
+              sealed.add(
+                '${entry.key}/${room.id} → ${d.targetRoomId} ${d.rect}',
+              );
+            }
+          }
+        }
+      }
+      expect(
+        sealed,
+        isEmpty,
+        reason: 'these doors cannot be walked into:\n${sealed.join('\n')}',
+      );
+    });
+
     test('and never inside another doorway', () {
       // The other half: land in a door's trigger and the next step bounces
       // you straight back out of the room you just entered.
