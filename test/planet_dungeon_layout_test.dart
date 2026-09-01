@@ -1278,31 +1278,32 @@ void main() {
         ]),
       );
       expect(lightning.starIndices, {0, 1, 2});
-      // Star 1 (rework): FOUR mirrors, three terminals, and the fulminate
-      // vats the bolt must never cross (the negative constraints).
+      // Star 1 (§9.2): the braid, taught small — three vents, three
+      // converters, four conductors, ONE mast.
       final pylon = lightning.rooms['pylon_hall']!;
       expect(pylon.circuitStarIndex, 0);
-      expect(pylon.beamEmitters.length, 1); // the pylon
+      expect(pylon.beamEmitters.length, 3);
+      expect(pylon.beamConverters.length, 3);
       expect(pylon.beamMirrors.length, 4);
-      expect(pylon.beamReceivers.length, 3); // the three terminals
-      expect(pylon.beamConverters, isEmpty, reason: 'no Fire conversion in S1');
-      expect(
-        pylon.fulminateVats.length,
-        2,
-        reason: 'the negative constraints that make it unique',
-      );
+      expect(pylon.beamReceiver, isNotNull);
+      expect(pylon.beamReceivers, isEmpty, reason: 'one mast, not three');
+      expect(pylon.walls, isNotEmpty, reason: 'the pillar that eats a bolt');
       // Star 2: three sockets (one needs heat) fed by storm-cells.
       final works = lightning.rooms['cloud_works']!;
       expect(works.circuitStarIndex, 1);
       expect(works.cellSockets.length, 3);
       expect(works.cellSockets.where((s) => s.requiresHeat).length, 1);
       expect(lightning.rooms['mirror_gallery']!.stormCells.length, 3);
-      // Star 3: the Storm Spire beam puzzle + Raikuma beyond the gate.
+      // Star 3 (§9.2): the same braid at spire scale — seven conductors,
+      // THREE masts to crown at once, and fulminate only the charged half
+      // may not cross.
       final maze = lightning.rooms['overload_maze']!;
       expect(maze.beamEmitters.length, 4); // Wind Vents (incl. the decoy VD)
       expect(maze.beamConverters.length, 4); // converters (incl. the decoy FD)
-      expect(maze.beamMirrors.length, 5);
-      expect(maze.beamReceiver, isNotNull); // the Storm Tower
+      expect(maze.beamMirrors.length, 7);
+      expect(maze.beamReceiver, isNull, reason: 'the Spire has masts, plural');
+      expect(maze.beamReceivers.length, 3);
+      expect(maze.fulminateVats.length, 3);
       expect(maze.poweredBarriers.length, 1, reason: 'just the core gate');
       final guardian = lightning.rooms['storm_core']!.guardian;
       expect(guardian, isNotNull);
@@ -1413,47 +1414,89 @@ void main() {
       // stays hard-gate free after the rework (element-only at full power).
     });
 
-    test('Lightning S1 threading is PROVABLY UNIQUE (brute-forced against the '
-        'real beam engine)', () {
+    test('Lightning S1 — the small braid is PROVABLY UNIQUE: one pairing, one '
+        'conductor set, brute-forced against the real beam engine', () {
       final game = _lightningProbe();
-      final result = game.solvePylonThreading();
-      expect(result.searched, 16, reason: '4 mirrors → 2^4 configurations');
+      final hall = game.layout.rooms['pylon_hall']!;
+      final works = <String>[];
+      ({int searched, int satisfying, Map<String, int>? solution})? only;
+      for (var v = 0; v < hall.beamEmitters.length; v++) {
+        for (var c = 0; c < hall.beamConverters.length; c++) {
+          final r = game.solveBeamHall(
+            roomId: 'pylon_hall',
+            ventIndex: v,
+            converterIndex: c,
+          );
+          expect(r.searched, 16, reason: '4 conductors → 2^4 configurations');
+          if (r.satisfying > 0) {
+            works.add('V$v+F$c×${r.satisfying}');
+            only = r;
+          }
+        }
+      }
       expect(
-        result.satisfying,
-        1,
+        works,
+        ['V0+F0×1'],
         reason:
-            'exactly ONE orientation set may thread all three '
-            'terminals without crossing a fulminate vat',
+            'exactly one vent/converter pairing may be braided, in exactly '
+            'one conductor set — every other pairing is eliminated by '
+            'geometry alone',
       );
-      expect(result.solution, {
+      expect(only!.solution, {
         'pa': 1,
         'pb': 0,
-        'pc': 0,
+        'pc': 1,
         'pd': 1,
-      }, reason: 'the authored solution: pa=\\ pd=\\ pc=/ pb=/');
+      }, reason: r'the authored answer: pa=\ pb=/ pc=\ pd=\');
     });
 
-    test('Lightning S3 decoy pair is geometrically impossible; the true pair '
-        'is not', () {
+    test('Lightning S3 — the spire braid is PROVABLY UNIQUE too, and the '
+        'dead-aligned east pair is impossible in all 128 configurations', () {
       final game = _lightningProbe();
-      // The decoy: vent VD (index 3) + converter FD (index 3) — dead-
-      // aligned, and a lie in every one of the 32 conductor configurations.
-      final decoy = game.solveStormSpire(ventIndex: 3, converterIndex: 3);
-      expect(decoy.searched, 32, reason: '5 mirrors → 2^5 configurations');
+      final spire = game.layout.rooms['overload_maze']!;
+      final works = <String>[];
+      ({int searched, int satisfying, Map<String, int>? solution})? only;
+      for (var v = 0; v < spire.beamEmitters.length; v++) {
+        for (var c = 0; c < spire.beamConverters.length; c++) {
+          final r = game.solveBeamHall(
+            roomId: 'overload_maze',
+            ventIndex: v,
+            converterIndex: c,
+          );
+          expect(r.searched, 128, reason: '7 conductors → 2^7 configurations');
+          if (r.satisfying > 0) {
+            works.add('V$v+F$c×${r.satisfying}');
+            only = r;
+          }
+        }
+      }
       expect(
-        decoy.satisfying,
-        0,
+        works,
+        ['V0+F0×1'],
         reason:
-            'no conductor waits beyond FD — the bolt dies in the '
-            'ceiling under every configuration',
+            'one pairing, one conductor set — and in particular the decoy '
+            'V3+F3 crowns nothing in any of the 128',
       );
-      // The viable chain: vent VA (0) + converter FA (0) reaches the tower.
-      final viable = game.solveStormSpire(ventIndex: 0, converterIndex: 0);
+      // Named explicitly: eliminating the decoy is geometry, not grinding.
       expect(
-        viable.satisfying,
-        greaterThan(0),
-        reason: 'VA + FA must remain routable',
+        game
+            .solveBeamHall(
+              roomId: 'overload_maze',
+              ventIndex: 3,
+              converterIndex: 3,
+            )
+            .satisfying,
+        0,
       );
+      expect(only!.solution, {
+        'A': 1,
+        'B': 0,
+        'C': 1,
+        'D': 1,
+        'E': 0,
+        'F': 0,
+        'G': 1,
+      });
     });
 
     test(

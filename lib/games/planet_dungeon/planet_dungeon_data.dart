@@ -3822,24 +3822,36 @@ const DungeonLayout _lightningLayout = DungeonLayout(
           targetSpawn: Offset(225, 110),
         ),
       ],
+      // An open hall: border iron and one cast pillar the bolt cannot cross.
+      walls: [
+        Rect.fromLTWH(0, 0, 24, 720),
+        Rect.fromLTWH(1016, 0, 24, 720),
+        Rect.fromLTWH(0, 0, 1040, 24),
+        Rect.fromLTWH(0, 696, 1040, 24),
+        Rect.fromLTWH(560, 300, 120, 140), // the pillar
+      ],
       beamEmitters: [
-        BeamEmitter(position: Offset(140, 150), dir: Offset(1, 0)),
+        // VA: the viable vent — the only one whose wind ever meets iron.
+        BeamEmitter(position: Offset(150, 150), dir: Offset(1, 0)),
+        // VB: runs the open floor and dies in the east wall.
+        BeamEmitter(position: Offset(150, 470), dir: Offset(1, 0)),
+        // VC: straight up into the ceiling, past nothing at all.
+        BeamEmitter(position: Offset(700, 650), dir: Offset(0, -1)),
+      ],
+      beamConverters: [
+        Offset(880, 340), // FA: on the viable route's first fall
+        Offset(700, 300), // FB: off every route
+        // FC: the teaching lie — dead in VB's path, so the flame really does
+        // catch and the bolt really is born… and then dies in the wall.
+        Offset(250, 470),
       ],
       beamMirrors: [
-        BeamMirror(id: 'pa', position: Offset(520, 150)), // right→down ('\')
-        BeamMirror(id: 'pb', position: Offset(960, 150)), // up→right   ('/')
-        BeamMirror(id: 'pc', position: Offset(960, 560)), // right→up   ('/')
-        BeamMirror(id: 'pd', position: Offset(520, 560)), // down→right ('\')
+        BeamMirror(id: 'pa', position: Offset(880, 150)), // right→down
+        BeamMirror(id: 'pb', position: Offset(880, 560)), // down→left
+        BeamMirror(id: 'pc', position: Offset(400, 560)), // left→up
+        BeamMirror(id: 'pd', position: Offset(400, 250)), // up→left
       ],
-      beamReceivers: [
-        Offset(520, 360), // T1 — on the down leg (pa→pd)
-        Offset(760, 560), // T2 — on the right leg (pd→pc)
-        Offset(960, 360), // T3 — on the up leg (pc→pb)
-      ],
-      fulminateVats: [
-        FulminateVat(id: 'vat_a', position: Offset(740, 150)),
-        FulminateVat(id: 'vat_b', position: Offset(300, 560)),
-      ],
+      beamReceiver: Offset(200, 250), // the hall's terminal mast
       circuitStarIndex: 0,
     ),
 
@@ -4035,47 +4047,57 @@ const DungeonLayout _lightningLayout = DungeonLayout(
           targetSpawn: Offset(110, 380),
         ),
       ],
-      // An open arena — border + two obstacle pillars the beam can't cross.
+      // The spire floor proper: border iron and three cast pillars that eat
+      // any bolt run across them.
       walls: [
-        Rect.fromLTWH(0, 0, 24, 720), // left border
-        Rect.fromLTWH(1096, 0, 24, 720), // right border
-        Rect.fromLTWH(0, 0, 1120, 24), // top border
-        Rect.fromLTWH(0, 696, 1120, 24), // bottom border
-        Rect.fromLTWH(420, 380, 110, 130), // obstacle pillar 1
-        Rect.fromLTWH(700, 380, 90, 130), // obstacle pillar 2
+        Rect.fromLTWH(0, 0, 24, 720),
+        Rect.fromLTWH(1096, 0, 24, 720),
+        Rect.fromLTWH(0, 0, 1120, 24),
+        Rect.fromLTWH(0, 696, 1120, 24),
+        Rect.fromLTWH(540, 220, 120, 120),
+        Rect.fromLTWH(150, 320, 130, 110),
+        Rect.fromLTWH(840, 380, 110, 120),
       ],
       beamEmitters: [
-        BeamEmitter(
-          position: Offset(160, 160),
-          dir: Offset(1, 0),
-        ), // VA: viable
-        BeamEmitter(
-          position: Offset(160, 460),
-          dir: Offset(1, 0),
-        ), // VB: → pillar
-        BeamEmitter(
-          position: Offset(560, 640),
-          dir: Offset(0, -1),
-        ), // VC: → ceiling
-        // VD: the DECOY — dead-aligned with FD, but no conductor beyond it.
-        BeamEmitter(position: Offset(1000, 640), dir: Offset(0, -1)),
+        BeamEmitter(position: Offset(170, 140), dir: Offset(1, 0)), // viable
+        BeamEmitter(position: Offset(170, 470), dir: Offset(1, 0)), // → pillar
+        BeamEmitter(position: Offset(560, 660), dir: Offset(0, -1)), // → pillar
+        // The DECOY: it runs the east aisle 20px clear of every conductor, so
+        // it can never be bent — and its converter sits right in that aisle.
+        BeamEmitter(position: Offset(1000, 660), dir: Offset(0, -1)),
       ],
       beamConverters: [
-        Offset(260, 420), // FA: on the viable beam path (the last leg)
-        Offset(700, 200), // FB: off any path
-        Offset(500, 560), // FC: off the viable path
-        Offset(1000, 300), // FD: the decoy pair's converter (see above)
+        Offset(980, 300), // FA: on the viable route's long fall
+        Offset(700, 180), // FB: off every route
+        Offset(620, 560), // FC: off every route
+        Offset(1010, 380), // FD: the decoy's partner (see above)
       ],
       beamMirrors: [
-        BeamMirror(id: 'A', position: Offset(900, 160)), // right→down ('\')
-        BeamMirror(id: 'B', position: Offset(900, 560)), // down→left  ('/')
-        BeamMirror(id: 'C', position: Offset(620, 560)), // left→up    ('\')
-        BeamMirror(id: 'D', position: Offset(620, 300)), // up→left    ('\')
-        BeamMirror(id: 'E', position: Offset(260, 300)), // left→down  ('/')
+        BeamMirror(id: 'A', position: Offset(980, 140)), // right→down
+        BeamMirror(id: 'B', position: Offset(980, 620)), // down→left
+        BeamMirror(id: 'C', position: Offset(760, 620)), // left→up
+        BeamMirror(id: 'D', position: Offset(760, 430)), // up→left
+        BeamMirror(id: 'E', position: Offset(450, 430)), // left→down
+        BeamMirror(id: 'F', position: Offset(450, 560)), // down→left
+        BeamMirror(id: 'G', position: Offset(340, 560)), // left→up
       ],
-      beamReceiver: Offset(260, 500), // the Storm Tower
+      // THREE terminals, and the LIGHTNING half of the braid must lie on all
+      // of them at once — so the conversion has to happen early in the run
+      // and the whole remaining route is charged.
+      beamReceivers: [
+        Offset(980, 470), // on the long fall, below the converter
+        Offset(610, 430), // on the westward reach
+        Offset(340, 300), // on the last climb
+      ],
+      // Fulminate: WIND may cross it, LIGHTNING may not. The vat sitting in
+      // plain sight on the very first leg is the lesson.
+      fulminateVats: [
+        FulminateVat(id: 'vat_a', position: Offset(560, 140)),
+        FulminateVat(id: 'vat_b', position: Offset(450, 300)),
+        FulminateVat(id: 'vat_c', position: Offset(760, 240)),
+      ],
       poweredBarriers: [
-        // The gate to the storm core — thrown when the tower is lit
+        // The gate to the storm core — thrown when every terminal is crowned
         // (nodeId 'beam_core', held live by the engine).
         PoweredBarrier(
           rect: Rect.fromLTWH(200, 600, 120, 22),

@@ -209,24 +209,18 @@ extension StormCircuit on PlanetDungeonGame {
     return null;
   }
 
-  // ── Star 1: thread one bolt through all three terminals ──
+  // ── The braid: wind, flame, iron (both beam halls) ──
 
-  void _updatePylonBeam(DungeonRoom room, double dt) {
-    final idx = room.circuitStarIndex;
-    if (idx == null || hasStar(idx)) return; // solved → frozen lit
-    if (!circuitRoomLit(room.id)) {
-      // The hall is dark — the emitter is dead and the vats cool off.
-      _coolVatFuses(dt);
-      return;
-    }
-    final vent = room.beamEmitters.first;
-    final path = _computeBeam(room, vent);
-
-    // Fulminate vats: a bolt lying on one COOKS it — a short seething fuse,
-    // then it detonates (spark wisps) and the dynamo trips dark for safety.
+  /// Cook every fulminate vat the CHARGED run lies on. Wind may cross a vat
+  /// all day — it is the lightning half that lights the fuse, which is why
+  /// the first hall hangs one in plain sight on the wind leg.
+  ///
+  /// Returns true when the frame must be abandoned: a fuse is burning, or one
+  /// has just gone up and tripped the dynamo dark.
+  bool _cookVats(DungeonRoom room, List<Offset> live, double dt) {
     var anyCrossed = false;
     for (final vat in room.fulminateVats) {
-      if (_beamHits(path, vat.position, _kVatRadius)) {
+      if (_beamHits(live, vat.position, _kVatRadius)) {
         anyCrossed = true;
         final fuse = (_vatFuse[vat.id] ?? 0) + dt;
         _vatFuse[vat.id] = fuse;
@@ -249,20 +243,13 @@ extension StormCircuit on PlanetDungeonGame {
           activeTrunk = null;
           _dynamoSwing = 0;
           _setHint('The fulminate flashes — the dynamo trips dark', 3.4);
-          return;
+          return true;
         }
       } else {
         _coolVatFuse(vat.id, dt);
       }
     }
-    if (anyCrossed) return; // a bolt cooking a vat can never bank the star
-
-    // The star banks when the single bolt lies on EVERY terminal at once.
-    if (room.beamReceivers.isNotEmpty &&
-        room.beamReceivers.every((t) => _beamHits(path, t))) {
-      _setHint('One bolt strings every terminal — the circuit runs true');
-      earnStar(idx);
-    }
+    return anyCrossed;
   }
 
   void _coolVatFuse(String vatId, double dt) {
@@ -279,130 +266,6 @@ extension StormCircuit on PlanetDungeonGame {
   void _coolVatFuses(double dt) {
     for (final id in _vatFuse.keys.toList()) {
       _coolVatFuse(id, dt);
-    }
-  }
-
-  bool _tryPylonBeam(DungeonCreature a, DungeonRoom room) {
-    // Turn a conductor mirror (Lightning only — the storm's own iron).
-    for (final m in room.beamMirrors) {
-      if ((a.position - m.position).distance <= 52) {
-        if (a.member.element != 'Lightning') {
-          _setBlockedHint('Only Lightning turns the conductor');
-          return true;
-        }
-        mirrorOrient[m.id] = ((mirrorOrient[m.id] ?? 0) + 1) % 2;
-        _spawnAlchemyBurst(
-          m.position,
-          producedElement: 'Lightning',
-          particleCount: 10,
-          intensity: 0.5,
-        );
-        _setHint('The conductor turns — the bolt will bend the other way');
-        return true;
-      }
-    }
-    // At the emitter: the bolt answers the dynamo now, not a held charge.
-    final vent = room.beamEmitters.first;
-    if ((a.position - vent.position).distance <= 56) {
-      if (circuitRoomLit(room.id)) {
-        _setHint('The emitter already burns — turn the conductors');
-      } else {
-        _setBlockedHint('The hall is dark — the dynamo feeds elsewhere');
-      }
-      return true;
-    }
-    return false;
-  }
-
-  void _renderPylonBeam(Canvas canvas, DungeonRoom room) {
-    // The hall's own equipment, under everything: the emitter, and a bolted
-    // post under each terminal the bolt has to be threaded through.
-    for (final e in room.beamEmitters) {
-      _drawCircuitPost(canvas, e.position, const Color(0xFFE9D27A), true);
-    }
-    for (final t in room.beamReceivers) {
-      _drawCircuitPost(canvas, t, const Color(0xFF8FB8E0), false);
-    }
-    final pylon = room.beamEmitters.first;
-    final on = circuitRoomLit(room.id); // freeze-lit once the star banks
-    final path = _computeBeam(room, pylon);
-
-    // The bolt — a jagged lightning line when live, a faint preview when off
-    // (dark-hall planning: the route can be read even in a dead wing).
-    if (path.length >= 2) {
-      if (on) {
-        for (var i = 0; i + 1 < path.length; i++) {
-          _drawJaggedBolt(canvas, path[i], path[i + 1]);
-        }
-        if (_fx.ready) {
-          for (final v in path) {
-            drawGlow(canvas, _fx.glow!, v, 12, const Color(0xFF6BA8FF));
-          }
-        }
-      } else {
-        final p = Path()..moveTo(path.first.dx, path.first.dy);
-        for (var i = 1; i < path.length; i++) {
-          p.lineTo(path[i].dx, path[i].dy);
-        }
-        canvas.drawPath(
-          p,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..color = const Color(0x66BFE6FF)
-            ..strokeWidth = 1.8,
-        );
-      }
-    }
-
-    // The emitter pylon.
-    canvas.drawCircle(
-      pylon.position,
-      14,
-      Paint()..color = const Color(0xFF241B12),
-    );
-    canvas.drawCircle(
-      pylon.position,
-      14,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = on ? const Color(0xFFBFE6FF) : const Color(0xFFE9D27A),
-    );
-    if (_fx.ready && on) {
-      drawGlow(canvas, _fx.glow!, pylon.position, 28, const Color(0xFF6BA8FF));
-    }
-
-    // Mirrors.
-    for (final m in room.beamMirrors) {
-      _drawBeamMirror(canvas, m, on);
-    }
-
-    // Fulminate vats — the negative constraints, seething when cooked.
-    for (final vat in room.fulminateVats) {
-      _drawFulminateVat(canvas, vat, _vatFuse[vat.id] ?? 0);
-    }
-
-    // Terminals — lit when the live beam lies on them.
-    for (final t in room.beamReceivers) {
-      final lit = on && _beamHits(path, t);
-      if (_fx.ready && lit) {
-        drawGlow(canvas, _fx.glow!, t, 28, const Color(0xFF6BA8FF));
-      }
-      canvas.drawCircle(
-        t,
-        11,
-        Paint()
-          ..color = lit ? const Color(0xFFEAF6FF) : const Color(0xFF2A3646),
-      );
-      canvas.drawCircle(
-        t,
-        11,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5
-          ..color = const Color(0xFF8FB8E0),
-      );
     }
   }
 
@@ -543,20 +406,21 @@ extension StormCircuit on PlanetDungeonGame {
   // ── Star 3: the Storm Spire stationing puzzle ────────────
 
   void _updateBeamMaze(DungeonRoom room, double dt) {
-    if (room.beamConverters.isEmpty) {
-      _updatePylonBeam(room, dt);
-      return;
-    }
+    final starIdx = room.circuitStarIndex;
+    // The hall banks a star (Pylon Hall) or throws the core gate (the Spire).
+    final solved = starIdx != null ? hasStar(starIdx) : _beamLatched;
+    // A star hall stands on its own trunk: a dead wing can be staged in the
+    // dark, but the wind never blows and nothing is ever crowned there.
+    final fed = starIdx == null || circuitRoomLit(room.id);
     final vent = _activeVent(room);
     final conv = _activeConverter(room);
 
-    if (!_beamLatched && vent != null && conv != null) {
+    if (!solved && fed && vent != null && conv != null) {
       final path = _computeBeam(room, vent);
       final split = _beamConvertSplit(path, conv);
-      final recv = room.beamReceiver;
-      // The beam must pass THROUGH the stationed converter, and the LIGHTNING
-      // portion (after it) must strike the tower.
-      if (split != null && recv != null) {
+      // The wind must pass THROUGH the stationed converter, and the LIGHTNING
+      // half born there must lie on every terminal at once.
+      if (split != null) {
         // A real arc at the moment of conversion — air becomes lightning here.
         _beamSparkT += dt;
         if (_beamSparkT > 0.18) {
@@ -571,44 +435,68 @@ extension StormCircuit on PlanetDungeonGame {
           );
         }
         final lightning = <Offset>[split.at, ...path.sublist(split.seg + 1)];
-        if (_beamHits(lightning, recv)) {
-          _beamLatched = true;
-          _setHint(
-            'The bolt crowns the Storm Spire — the gate to the core throws open',
-            3.6,
-          );
-          _spawnAlchemyBurst(
-            recv,
-            producedElement: 'Lightning',
-            reagentElements: const ['Air', 'Fire'],
-            unstable: true,
-            particleCount: 34,
-            intensity: 1.3,
-          );
+        // Wind crosses fulminate freely; the charged half never may.
+        if (_cookVats(room, lightning, dt)) return;
+        final crowns = beamTerminalsOf(room);
+        if (crowns.isNotEmpty && crowns.every((t) => _beamHits(lightning, t))) {
+          for (final t in crowns) {
+            _spawnAlchemyBurst(
+              t,
+              producedElement: 'Lightning',
+              reagentElements: const ['Air', 'Fire'],
+              unstable: true,
+              particleCount: crowns.length > 1 ? 18 : 34,
+              intensity: 1.3,
+            );
+          }
+          if (starIdx != null) {
+            _setHint('One braided bolt wakes the mast — the hall runs true');
+            earnStar(starIdx);
+          } else {
+            _beamLatched = true;
+            _setHint(
+              'Every terminal crowned at once — the gate to the core throws '
+              'open',
+              3.6,
+            );
+          }
 
           // (The Thunderbolt used to fire HERE, off this very beam, if a
           // Lightning Horn happened to be standing in the room — a secret
           // that rode a star's coat-tails and asked nothing of its own. It is
-          // its own chain at the dynamo now; see `_tryThunderbolt`.
-          //
-          // And nothing is granted here: a leftover line was still setting
-          // `_thunderboltGlow` whenever a Horn crowned the tower, which handed
-          // out the maxim's gameplay effect — every wing lit for good — to
-          // anyone who simply finished Star 3.)
+          // its own chain at the dynamo now; see `_tryThunderbolt`.)
         }
+      } else {
+        _coolVatFuses(dt);
+      }
+    } else {
+      _coolVatFuses(dt);
+      if (!solved && !fed && vent != null) {
+        _setBlockedHintOnce(
+          'circuit:hall_dark',
+          'The hall is dark — the vents wait on the dynamo',
+        );
       }
     }
 
     // The gate barrier reads its node from the live set (latched, or once the
     // star is banked it stays open for good — solved is solved).
-    _poweredNodes.clear();
-    if (_beamLatched || hasStar(2)) _poweredNodes.add('beam_core');
+    if (room.poweredBarriers.isNotEmpty) {
+      _poweredNodes.clear();
+      if (_beamLatched || hasStar(2)) _poweredNodes.add('beam_core');
+    }
 
     _maybeWakeRaikuma(room);
   }
 
+  /// Every terminal the charged half of the braid has to lie on — the single
+  /// mast of the first hall, or the Spire's three at once.
+  List<Offset> beamTerminalsOf(DungeonRoom room) => <Offset>[
+    if (room.beamReceiver != null) room.beamReceiver!,
+    ...room.beamReceivers,
+  ];
+
   bool _tryBeamMaze(DungeonCreature a, DungeonRoom room) {
-    if (room.beamConverters.isEmpty) return _tryPylonBeam(a, room);
     // Only a Lightning creature can turn the heavy iron conductors.
     for (final m in room.beamMirrors) {
       if ((a.position - m.position).distance <= 52) {
@@ -744,16 +632,24 @@ extension StormCircuit on PlanetDungeonGame {
 
   // ── Brute-force solvers (public: the layout test's proof engine) ──
 
-  /// Brute-force the pylon-hall threading over every mirror-orientation
-  /// configuration. A configuration SATISFIES when the bolt lies on every
-  /// terminal at once and never crosses a fulminate vat. The layout test
-  /// asserts exactly ONE satisfying configuration (§6.3 "provably unique"),
-  /// checked against the REAL beam engine so game and proof cannot drift.
-  ({int searched, int satisfying, Map<String, int>? solution})
-  solvePylonThreading() {
-    final room = layout.rooms.values.firstWhere(
-      (r) => r.circuitStarIndex == 0 && r.beamEmitters.isNotEmpty,
-    );
+  /// Brute-force ONE hall's vent/converter pairing over every conductor
+  /// orientation: in how many configurations does that pairing's CHARGED half
+  /// crown every terminal at once without cooking a fulminate vat?
+  ///
+  /// The layout test sweeps every pairing of both halls with this and asserts
+  /// exactly one pairing works, in exactly one configuration (§6.3 "provably
+  /// unique") — and that the dead-aligned decoy returns ZERO, so eliminating
+  /// it is mirror geometry rather than trial and error. It runs against the
+  /// REAL beam engine, so the game and its proof cannot drift apart.
+  ({int searched, int satisfying, Map<String, int>? solution}) solveBeamHall({
+    required String roomId,
+    required int ventIndex,
+    required int converterIndex,
+  }) {
+    final room = layout.rooms[roomId]!;
+    final vent = room.beamEmitters[ventIndex];
+    final converter = room.beamConverters[converterIndex];
+    final terminals = beamTerminalsOf(room);
     final mirrors = room.beamMirrors;
     final saved = Map<String, int>.from(mirrorOrient);
     var satisfying = 0;
@@ -763,57 +659,24 @@ extension StormCircuit on PlanetDungeonGame {
       for (var i = 0; i < mirrors.length; i++) {
         mirrorOrient[mirrors[i].id] = (mask >> i) & 1;
       }
-      final path = _computeBeam(room, room.beamEmitters.first);
-      final threads =
-          room.beamReceivers.isNotEmpty &&
-          room.beamReceivers.every((t) => _beamHits(path, t));
-      final safe = !room.fulminateVats.any(
-        (v) => _beamHits(path, v.position, _kVatRadius),
-      );
-      if (threads && safe) {
-        satisfying++;
-        solution = {for (final m in mirrors) m.id: mirrorOrient[m.id]!};
+      final path = _computeBeam(room, vent);
+      final split = _beamConvertSplit(path, converter);
+      if (split == null) continue;
+      final bolt = <Offset>[split.at, ...path.sublist(split.seg + 1)];
+      if (!terminals.every((t) => _beamHits(bolt, t))) continue;
+      // Wind may lie across fulminate; the charged half never may.
+      if (room.fulminateVats.any(
+        (v) => _beamHits(bolt, v.position, _kVatRadius),
+      )) {
+        continue;
       }
+      satisfying++;
+      solution = {for (final m in mirrors) m.id: mirrorOrient[m.id]!};
     }
     mirrorOrient
       ..clear()
       ..addAll(saved);
     return (searched: configs, satisfying: satisfying, solution: solution);
-  }
-
-  /// Brute-force one Storm-Spire vent/converter pairing over every conductor
-  /// orientation: in how many configurations does that pairing's converted
-  /// bolt reach the tower? The decoy pair must return ZERO — its elimination
-  /// is mirror geometry, not trial-and-error.
-  ({int searched, int satisfying}) solveStormSpire({
-    required int ventIndex,
-    required int converterIndex,
-  }) {
-    final room = layout.rooms.values.firstWhere(
-      (r) => r.beamConverters.isNotEmpty,
-    );
-    final vent = room.beamEmitters[ventIndex];
-    final converter = room.beamConverters[converterIndex];
-    final recv = room.beamReceiver;
-    final mirrors = room.beamMirrors;
-    final saved = Map<String, int>.from(mirrorOrient);
-    var satisfying = 0;
-    final configs = 1 << mirrors.length;
-    for (var mask = 0; mask < configs; mask++) {
-      for (var i = 0; i < mirrors.length; i++) {
-        mirrorOrient[mirrors[i].id] = (mask >> i) & 1;
-      }
-      final path = _computeBeam(room, vent);
-      final split = _beamConvertSplit(path, converter);
-      if (split != null && recv != null) {
-        final bolt = <Offset>[split.at, ...path.sublist(split.seg + 1)];
-        if (_beamHits(bolt, recv)) satisfying++;
-      }
-    }
-    mirrorOrient
-      ..clear()
-      ..addAll(saved);
-    return (searched: configs, satisfying: satisfying);
   }
 
   // ── Per-frame update ─────────────────────────────────────
@@ -1572,37 +1435,40 @@ extension StormCircuit on PlanetDungeonGame {
       );
       return;
     }
-    // Star 1 — the threading, tiered: t0 names the shape, t1 the constraint,
-    // t2 the route itself (the earned, marked answer).
-    if (room.beamEmitters.isNotEmpty && room.beamConverters.isEmpty) {
+    // Star 1 — the Pylon Hall braid. t0 names the shape, t1 the method,
+    // t2 the tempting lie the hall is built to teach.
+    if (room.circuitStarIndex == 0 && room.beamEmitters.isNotEmpty) {
       if (!circuitRoomLit(room.id)) {
         _setHint('The hall is dead — the dynamo must feed the pylon trunk');
         return;
       }
       _setHint(
         tier >= 2
-            ? 'Thread it sunwise: down the first iron, along the floor, up '
-                  'the far wall — and out ABOVE the vat, never back across it'
+            ? 'The low vent and the flame in front of it make a real bolt — '
+                  'and it dies in the east wall. Only the high vent ever '
+                  'reaches iron'
             : tier >= 1
-            ? 'One bolt must lie on all three terminals at once — and never '
-                  'on a fulminate vat'
-            : 'The bolt bends where the conductors will it, and the vats '
-                  'must stay unlit',
+            ? 'Air opens a vent; Fire standing in that wind turns it to '
+                  'lightning — and only lightning wakes the mast'
+            : 'The mast drinks lightning alone; wind and flame must braid to '
+                  'make it, and iron must carry it home',
       );
       return;
     }
-    // Star 3 — the stationing, tiered: t2 eliminates the decoy by geometry.
+    // Star 3 — the Spire. Three masts, one bolt, and fulminate that only the
+    // charged half can set off.
     if (room.beamEmitters.isNotEmpty) {
       _setHint(
         tier >= 2
-            ? 'The dead-aligned pair on the east wall is a lie — no conductor '
-                  'waits past its converter; that bolt can only die in the '
-                  'ceiling'
+            ? 'Convert high on the long east fall — everything after it is '
+                  'charged, and the charged run must thread all three masts '
+                  'while missing every vat. The east aisle runs clear of all '
+                  'iron: that pair is a lie'
             : tier >= 1
-            ? 'Air births the beam at a vent; Fire stationed in its path '
-                  'turns it to lightning — only the lightning wakes the tower'
-            : 'The tower drinks only lightning — wind and flame must braid '
-                  'to make it',
+            ? 'One bolt must lie on all three masts at once, and the charged '
+                  'half must never cross fulminate — the wind half may'
+            : 'Three masts, one braid. Where the flame stands decides how '
+                  'much of the run is lightning',
       );
       return;
     }
@@ -1704,10 +1570,10 @@ extension StormCircuit on PlanetDungeonGame {
       return 'Cloud Works — three sockets stand empty';
     }
     if (room.circuitStarIndex != null && room.beamEmitters.isNotEmpty) {
-      return 'Pylon Hall — three dead terminals wait on one bolt';
+      return 'Pylon Hall — one dead mast, and no bolt in the hall to wake it';
     }
     if (room.beamConverters.isNotEmpty) {
-      return 'Storm Spire — the Storm Tower wakes only to lightning';
+      return 'Storm Spire — three dead masts, and only lightning wakes them';
     }
     if (room.guardian != null) {
       return 'Storm Core — face Raikuma: calm it, or strike in its lulls';
@@ -1726,20 +1592,28 @@ extension StormCircuit on PlanetDungeonGame {
   /// everywhere else on the grid.
   DungeonProgressReadout? _circuitProgressReadout() {
     final room = currentRoom;
-    // S1: terminals the live bolt is lying on right now.
-    if (room.circuitStarIndex == 0 &&
-        room.beamEmitters.isNotEmpty &&
-        !hasStar(0)) {
+    // Either beam hall: masts the CHARGED half is lying on right now.
+    if (room.beamEmitters.isNotEmpty &&
+        !(room.circuitStarIndex == 0 ? hasStar(0) : _beamLatched)) {
+      final terminals = beamTerminalsOf(room);
       var lit = 0;
-      if (circuitRoomLit(room.id)) {
-        final path = _computeBeam(room, room.beamEmitters.first);
-        for (final t in room.beamReceivers) {
-          if (_beamHits(path, t)) lit++;
+      final vent = _activeVent(room);
+      final conv = _activeConverter(room);
+      if (vent != null &&
+          conv != null &&
+          (room.circuitStarIndex == null || circuitRoomLit(room.id))) {
+        final path = _computeBeam(room, vent);
+        final split = _beamConvertSplit(path, conv);
+        if (split != null) {
+          final bolt = <Offset>[split.at, ...path.sublist(split.seg + 1)];
+          for (final t in terminals) {
+            if (_beamHits(bolt, t)) lit++;
+          }
         }
       }
-      final total = room.beamReceivers.length;
+      final total = terminals.length;
       return DungeonProgressReadout(
-        label: 'TERMINALS',
+        label: total > 1 ? 'MASTS' : 'MAST',
         value: '$lit/$total',
         fraction: total == 0 ? null : lit / total,
       );
@@ -2464,6 +2338,12 @@ extension StormCircuit on PlanetDungeonGame {
   }
 
   void _renderBeamMaze(Canvas canvas, DungeonRoom room) {
+    final terminals = beamTerminalsOf(room);
+    final starIdx = room.circuitStarIndex;
+    final solved = starIdx != null
+        ? hasStar(starIdx)
+        : (_beamLatched || hasStar(2));
+
     // Everything in here stands on the works' own bolted equipment.
     for (final e in room.beamEmitters) {
       _drawCircuitPost(canvas, e.position, const Color(0xFF8FE0EC), true);
@@ -2471,14 +2351,10 @@ extension StormCircuit on PlanetDungeonGame {
     for (final cv in room.beamConverters) {
       _drawCircuitPost(canvas, cv, const Color(0xFFE0A46A), false);
     }
-    final recv0 = room.beamReceiver;
-    if (recv0 != null) {
-      _drawCircuitPost(canvas, recv0, const Color(0xFF8FB8E0), false);
+    for (final t in terminals) {
+      _drawCircuitPost(canvas, t, const Color(0xFF8FB8E0), false);
     }
-    if (room.beamConverters.isEmpty) {
-      _renderPylonBeam(canvas, room);
-      return;
-    }
+
     final vent = _activeVent(room);
     final conv = _activeConverter(room);
 
@@ -2488,6 +2364,9 @@ extension StormCircuit on PlanetDungeonGame {
     final split = (path.length >= 2 && conv != null)
         ? _beamConvertSplit(path, conv)
         : null;
+    final bolt = split == null
+        ? const <Offset>[]
+        : <Offset>[split.at, ...path.sublist(split.seg + 1)];
 
     if (path.length >= 2) {
       void drawRun(List<Offset> run, Color color, double w) {
@@ -2515,7 +2394,6 @@ extension StormCircuit on PlanetDungeonGame {
           3.0,
         );
         // …then a JAGGED white-blue bolt onward (air → lightning here).
-        final bolt = [split.at, ...path.sublist(split.seg + 1)];
         for (var i = 0; i + 1 < bolt.length; i++) {
           _drawJaggedBolt(canvas, bolt[i], bolt[i + 1]);
         }
@@ -2551,13 +2429,20 @@ extension StormCircuit on PlanetDungeonGame {
       _drawBeamMirror(canvas, m, live);
     }
 
-    // The Storm Tower (the beam's target).
-    final recv = room.beamReceiver;
-    if (recv != null) {
-      final lit = _beamLatched || hasStar(2);
-      // Spire body.
+    // Fulminate vats — the negative constraints, seething when cooked. Note
+    // they read cold under a WIND run and only ever wake under the bolt.
+    for (final vat in room.fulminateVats) {
+      _drawFulminateVat(canvas, vat, _vatFuse[vat.id] ?? 0);
+    }
+
+    // The masts the bolt has to crown.
+    for (final recv in terminals) {
+      final lit = solved || (bolt.isNotEmpty && _beamHits(bolt, recv));
+      // Mast body — the lone hall mast stands tall; the Spire's three are
+      // shorter iron so the room does not read as three towers.
+      final h = terminals.length > 1 ? 62.0 : 90.0;
       final body = RRect.fromRectAndRadius(
-        Rect.fromLTWH(recv.dx - 16, recv.dy - 6, 32, 90),
+        Rect.fromLTWH(recv.dx - 16, recv.dy - 6, 32, h),
         const Radius.circular(6),
       );
       canvas.drawRRect(body, Paint()..color = const Color(0xFF1C2733));

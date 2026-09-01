@@ -9333,6 +9333,12 @@ class PlanetDungeonGame extends FlameGame {
     if (_isFoundry) _renderFoundry(canvas, room);
     if (_isVenom) _renderMonastery(canvas, room);
     _renderRoomLandmarks(canvas, room);
+    // …and the WALLS, for the same reason twice over: a beam hall whose
+    // pillars are the whole puzzle rendered here as an empty floor, so the
+    // seam said "nothing is stopping that bolt" while the room said
+    // otherwise.
+    _renderWalls(canvas, room);
+    _renderDoors(canvas, room);
     _renderMaximRite(canvas);
   }
 

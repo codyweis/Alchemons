@@ -751,15 +751,11 @@ or it drifts into Water's seat.
    storm_core. Living-circuit engine: `CircuitNode` graph (source / bus /
    mirror w/ per-orientation conducting links / sink, latching), per-frame
    BFS power propagation, `PoweredBarrier` doors, DECAYING charge (~8s;
-   Horn-clean channel — refit per §4 inventory). S1 (pylon_hall): thread ONE
-   beam through all three terminals by rotating conductor mirrors
-   (multi-target routing). S2 (cloud_works): storm-cells bared in the
-   mirror_gallery, herded onto sockets; the anvil socket needs Fire heat
-   (**Air+Fire→Lightning**) → Thundercloud. S3 Storm Spire: open arena,
-   element STATIONING — park Air + Fire creatures on the right pads among
-   decoy pads (deduction), flip the conductor mirrors, the converted beam
-   renders as a jagged bolt and lights the Storm Tower → Raikuma (calm or
-   defeat). Egg: Thunderbolt. Vault cache: capacitor_vault. Tests:
+   Horn-clean channel — refit per §4 inventory). S1 (pylon_hall) and S3
+   (overload_maze) are now ONE mechanic at two scales — see §9.2. S2
+   (cloud_works): storm-cells bared in the mirror_gallery, herded onto
+   sockets; the anvil socket needs Fire heat (**Air+Fire→Lightning**) →
+   Thundercloud. Egg: Thunderbolt. Vault cache: capacitor_vault. Tests:
    `planet_dungeon_lightning_full_run_test.dart` + circuit-graph layout
    integrity.
    **REWORK BUILT 2026-08-10 — the zero-sum dynamo:** the shipped hub stays
@@ -2012,6 +2008,52 @@ with no meaning. The moon is nearest when it has pulled the most water, so the
 tell now rises continuously with the tide (`tideMoonReach`), and the hub's
 basin shows its largest reflection at exactly the moment the mirror room is
 worth standing in.
+
+### §9.2 LIGHTNING'S TWO HALLS — one braid, taught then tested
+
+Voltara used to hold two unrelated beam puzzles. The first hall was a pure
+routing exercise (thread one bolt through three terminals with four
+conductors); the third was the STATIONING puzzle — park Air on a vent, park
+Fire in the wind it makes, and the wind becomes lightning at the flame.
+
+The stationing puzzle is the better of the two, because it is the only one
+that is actually **alchemy**: three elements, each doing something only it can
+do, and a real transmutation you can see happen at a point in space. So it
+moved to **Star 1**, where the planet teaches, and Star 3 became the same idea
+at spire scale.
+
+**PYLON HALL (S1) — the braid, small.** Three vents, three converters, four
+conductors, ONE mast. Provably unique: of the nine vent/converter pairings ×
+16 conductor sets, exactly one combination crowns the mast.
+  · Vent VB and converter FC sit in a line together at the west end, so the
+    tempting pair really does catch — the flame lights, a real bolt is born,
+    and it dies in the east wall two seconds later. That is the hall's whole
+    lesson: **making lightning is not the puzzle; landing it is.**
+
+**STORM SPIRE (S3) — the braid, at scale.** Four vents, four converters, seven
+conductors, three pillars, and **three masts that must all be crowned at
+once**. 128 conductor sets per pairing; exactly one pairing in exactly one set
+works.
+  · Because there is one beam and the converter is a point ON it, the choice
+    of converter decides HOW MUCH of the run is charged. Crowning three masts
+    with the charged half forces the conversion high on the east fall, so
+    nearly the whole route is lightning. That is the complexity: not more
+    corners, but an ordering constraint that the corners have to satisfy.
+  · **Fulminate is half-blind.** Wind may lie across a vat all day; the
+    charged half cooks it off in 1.6s and trips the dynamo dark. The Spire
+    hangs one vat in plain sight on the very first leg so the player runs wind
+    over fulminate before they know it should scare them. Four of the 128 sets
+    detonate — including one a single conductor away from the answer.
+  · The dead-aligned decoy survives: vent VD runs the east aisle 20px clear of
+    every conductor, so it can never be bent, and converter FD sits right in
+    that aisle. Eliminating it is geometry, not grinding — asserted at zero
+    across all 128.
+
+Both halls are brute-forced against the REAL beam engine by
+`solveBeamHall(roomId:ventIndex:converterIndex:)` in the layout test, so the
+game and its proof cannot drift. Note the vats are HAZARDS, not the uniqueness
+constraint — the geometry alone is already unique, and that is the stronger
+guarantee.
 
 ### DOORS — where you come out matters as much as where you go in
 
