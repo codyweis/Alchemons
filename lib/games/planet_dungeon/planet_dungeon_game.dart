@@ -9236,6 +9236,10 @@ class PlanetDungeonGame extends FlameGame {
   /// looking at before shipping it. Costs nothing at runtime.
   @visibleForTesting
   void renderRoomForDebug(Canvas canvas, DungeonRoom room) {
+    // The GROUND first, exactly as the real frame does. A seam that skipped
+    // it rendered every room as furniture floating in a void, which is a very
+    // convincing way to misdiagnose a planet's art.
+    _renderIslandAndVoid(canvas, room);
     // The planet's own art comes FIRST and is the part usually worth looking
     // at — a seam that skipped it rendered Water's rooms as empty floor and
     // hid the very bug it was being used to chase.
