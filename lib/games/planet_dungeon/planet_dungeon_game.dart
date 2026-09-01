@@ -9638,23 +9638,76 @@ class PlanetDungeonGame extends FlameGame {
     double stormProgress = 0,
     double spin = 0,
   }) {
+    // THE INSTRUMENT IS SET INTO THE FLOOR.
+    //
+    // This was hairline circles and eight thin spokes on bare stone — a
+    // wireframe drawn over the room rather than a thing built into it, and
+    // the hub is the room the player passes through most. It sits in a sunk
+    // disc now with a brass kerb, the way the choir's ember-walk does.
+    canvas.drawCircle(
+      c,
+      r * 1.14,
+      Paint()..color = const Color(0xFF0C1119).withValues(alpha: 0.42),
+    );
+    canvas.drawCircle(
+      c,
+      r * 1.14,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.2
+        ..color = const Color(0xFF74613A).withValues(alpha: 0.7),
+    );
+    canvas.drawCircle(
+      c,
+      r * 1.09,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFFC4A35A).withValues(alpha: 0.28),
+    );
+
     _drawRuneCircle(
       canvas,
       c,
       r,
-      const Color(0xFFC4A35A).withValues(alpha: 0.25),
+      const Color(0xFFC4A35A).withValues(alpha: 0.34),
     );
-    final p = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF5BC8E8).withValues(alpha: 0.32);
+
+    // Spokes: cardinals are cut deep in brass, the diagonals are scratch
+    // lines. Eight identical hairlines read as a diagram; a heavier four
+    // reads as an instrument that has a north.
     for (var i = 0; i < 8; i++) {
       final a = i * pi / 4 + spin;
-      final p1 = c + Offset(cos(a), sin(a)) * r * 0.18;
-      final p2 = c + Offset(cos(a), sin(a)) * r * (i.isEven ? 0.95 : 0.62);
-      canvas.drawLine(p1, p2, p);
+      final cardinal = i.isEven;
+      final u = Offset(cos(a), sin(a));
+      canvas.drawLine(
+        c + u * r * 0.2,
+        c + u * r * (cardinal ? 0.95 : 0.58),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = cardinal ? 2.6 : 1.1
+          ..color = (cardinal
+                  ? const Color(0xFFC4A35A)
+                  : const Color(0xFF5BC8E8))
+              .withValues(alpha: cardinal ? 0.42 : 0.20),
+      );
     }
+
+    // The boss of the rose — the star sits on something.
+    canvas.drawCircle(
+      c,
+      26,
+      Paint()..color = const Color(0xFF17202C).withValues(alpha: 0.85),
+    );
+    canvas.drawCircle(
+      c,
+      26,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = const Color(0xFF74613A).withValues(alpha: 0.75),
+    );
     _drawStarGlyph(
       canvas,
       c,
@@ -10873,14 +10926,41 @@ class PlanetDungeonGame extends FlameGame {
         6,
         const Color(0xFF9FB3D6).withValues(alpha: 0.55),
       );
+      // THE SOCKET, not a circle on a diagram.
+      //
+      // Five bare rings with '?' chips under them read as a flowchart. An
+      // anchor is a thing on the loom: a sunk seat, a brass collar, and four
+      // grips waiting for something to be laid into them.
+      canvas.drawCircle(
+        an.position,
+        15,
+        Paint()..color = const Color(0xFF0B1017).withValues(alpha: 0.55),
+      );
       canvas.drawCircle(
         an.position,
         16,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = col.withValues(alpha: filled ? 0.9 : 0.55),
+          ..strokeWidth = filled ? 2.4 : 1.8
+          ..color = col.withValues(alpha: filled ? 0.95 : 0.6),
       );
+      if (!filled) {
+        // Empty grips: four short jaws around the seat, open and waiting.
+        final jaw = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 2.0
+          ..color = col.withValues(alpha: 0.5);
+        for (var i = 0; i < 4; i++) {
+          final a = i * pi / 2 + pi / 4;
+          final u = Offset(cos(a), sin(a));
+          canvas.drawLine(
+            an.position + u * 17,
+            an.position + u * 25,
+            jaw,
+          );
+        }
+      }
       if (filled) {
         _drawWonderCloud(
           canvas,
@@ -10891,9 +10971,16 @@ class PlanetDungeonGame extends FlameGame {
           echo: true,
         );
       } else {
-        // Hint label scales with the last reveal tier.
-        final label = revealTier >= 1 ? an.requiredCloudType : '?';
-        _drawTinyLabel(canvas, an.position + const Offset(0, 22), label);
+        // Hint label scales with the last reveal tier. An unread anchor gets
+        // no chip at all — a '?' badge under every socket was five question
+        // marks shouting at once, and the socket already reads as empty.
+        if (revealTier >= 1) {
+          _drawTinyLabel(
+            canvas,
+            an.position + const Offset(0, 30),
+            an.requiredCloudType,
+          );
+        }
         // The no-Mask strategy: up close, every anchor whispers its riddle
         // ("the endless orbit" → Ring). Mask reveal upgrades this to the
         // explicit type / ghost outline.
