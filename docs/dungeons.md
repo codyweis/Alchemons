@@ -310,7 +310,7 @@ new. The ledger grows with every build:
 |---|---|
 | **Air** | flow traversal (currents/updrafts) · set-collection constellation matching · **irreversible wind-authoring** (BUILT: gust shrines wake permanent gales that help AND hinder; the waking ORDER is the puzzle — CLAIMED: no other planet may hand the player a permanent world-edit whose ordering is the whole question) · **storm-steering by height-ranking** (BUILT: the bolt climbs one rank at a time, so the rod field must be a staircase) · **coherence composition** (BUILT 2026-08-14, the Gale Eye: a SET of irreversible edits that must agree with one another — no order, no sequence, just whether the four winds turn the same way) |
 | **Fire** | sequence-execution / order-memory ritual under attack (CLAIMED — no other planet may hand a sequence to execute) · flame-relay escort between checkpoints · *(rework)* forensic-evidence deduction at the object itself (rolled per run) · **reagent transport / deposition planning** (BUILT 2026-08-14: a burn's PRODUCT travels downwind onto other beds, so the question is where a reaction lands, not what order you were told; distinct from Fire's own sequence row — nothing hands you an order, you author one from the wind and the cuts) |
-| **Water** | global state machine (tide) that regates SPACE itself · **piloting a drifting object by editing the world state that carries it** (BUILT 2026-08-14: the lantern is never touched — you move the TIDE it floats on, and a dam only ever removes a destination; CLAIMED: no other planet may steer a thing it cannot touch) ~~flow-graph ordering deduced from spin~~ (RETIRED with the ghost gallery — it played as arbitrary, and the seat is free again for a later planet) |
+| **Water** | global state machine (tide) that regates SPACE itself · **holding a live set-point against a one-way drift, where the value you must hit also sets the cost of reaching it** (DESIGNED 2026-08-31, the Moon Well — see §6; distinct from Fire's tended process, which is a spatial route through a consuming medium) · **piloting a drifting object by editing the world state that carries it** (BUILT 2026-08-14: the lantern is never touched — you move the TIDE it floats on, and a dam only ever removes a destination; CLAIMED: no other planet may steer a thing it cannot touch) ~~flow-graph ordering deduced from spin~~ (RETIRED with the ghost gallery — it played as arbitrary, and the seat is free again for a later planet) |
 | **Earth** | track-notch sokoban shoves · clue-hunt logic deduction (answers carved into REMOTE architecture, rolled per run — the treasure-hunt variant; Fire's forensic variant reads the object itself) |
 | **Lightning** | beam routing/reflection via rotatable mirrors (+ *(rework)* negative constraints, provably unique) · element STATIONING pads · decoy-pad deduction · *(rework)* zero-sum power routing (power here = dark there) |
 | **Steam** | global resource economy (spend/condense/stoke one shared budget) · sacrifice-the-whole-budget vault |
@@ -831,11 +831,12 @@ or it drifts into Water's seat.
    (`solveLanternDrift`, public, walks the real sill/spill functions):** the
    authored stone is reachable, **`strandable == 0`**, and the route is
    **unsolvable at any single stand** AND **unsolvable without a dam** — both
-   verbs are load-bearing by proof, not by assertion. S3 (Deep Star), behind the mirror gate: at
-   settled MID tide freeze the two TRUE moon-pools (Spirit insight names
-   them) — Ice direct (Mane cleanest) or **Spirit+Water→Ice** (recipe rouses
-   brine); false pools SHATTER + fury wisps; both bridged → Leviathan (calm
-   or defeat). **LEVIATHAN TURNS THE TIDE** (§7 retrofit, 2026-08-11): the
+   verbs are load-bearing by proof, not by assertion. S3 (Deep Star), behind the mirror gate: **REDESIGNED
+   2026-08-31 — see "Water Star 3 — THE MOON WELL" below.** What is BUILT is
+   the true-pool quiz: at settled MID tide freeze the two TRUE moon-pools
+   (Spirit insight names them), false pools SHATTER + fury wisps. It is a
+   one-shot identification check and the moon well replaces it. Both bridged →
+   Leviathan (calm or defeat). **LEVIATHAN TURNS THE TIDE** (§7 retrofit, 2026-08-11): the
    depths carry tide zones of their own (a sink that becomes swimmable, two
    piers that drown at high water), and on every roar — the beat its lull
    shuts — the deep hauls the water one stand, rolling low→mid→high→mid so
@@ -1221,6 +1222,105 @@ or it drifts into Water's seat.
     (braziers, valves, conduits, vines), so it grows richer the more
     planets exist — hence build last. Guardian: the Magnum Opus (design
     open — a mirror of the player's own trio is the candidate). No raid.
+
+### Water Star 3 — THE MOON WELL (design, 2026-08-31; supersedes the true-pool quiz)
+
+*What is built is four pools, two of them true, frozen at mid tide. You read
+the room, you pick two, you are done — a one-shot identification check with no
+play in it, and the thinnest star on the planet. It also wastes the room: an
+oculus open to the sky with a moon standing in it, used as a backdrop.*
+
+**THE REVEAL THIS IS BUILT AROUND.** You spend the whole temple turning
+wheels. Every sluice, every master valve, every pipe-mouth — the tide is a
+thing you crank. The moon well is where you find out the wheels were only ever
+bleeding water off. **The moon is what moves the sea**, and up here, under an
+open oculus, it moves it directly. Nothing already built has to be rewritten
+for that to be true: the valves admit and drain LOCALLY, which is exactly what
+they have always done everywhere else.
+
+It also makes the Frozen Moon easter egg rhyme with the finale. Freeze the
+moon's *reflection* in the mirror room and it holds forever; freeze the moon
+*itself* here and it holds for five seconds.
+
+**THE MOON.** A disc over the well, at one of **seven notches** (new → full).
+It **waxes on its own**, one notch every `_kMoonWaxSeconds` (4.5s), and it
+never stops. That one-way drift is the clock — there is no timer on screen and
+none is wanted, because the moon IS the timer and it is the thing you are
+already looking at.
+
+The notch sets the tide TARGET, which the water then eases toward exactly as
+it does everywhere else (`tideAnim`, ~2.3s a stand — no engine change):
+
+| notch | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|---|
+| stand | low | low | mid | mid | mid | high | high |
+
+**THREE STATIONS, ONE PER ELEMENT.** The room is a balancing act because the
+three controls are three different creatures standing in three different
+places, and swap-control means only one of them is ever in your hands:
+
+  · **SPIRIT — the moon dial.** One press WANES the moon a notch. The sky
+    pushes it forward, Spirit pulls it back; that is the whole loop, and it is
+    one button, which is what keeps a three-system room legible. This is also
+    the Spiritmask's first verb on this planet — today it only ever reads.
+  · **WATER (pip) — the still.** The existing pipe-mouth, re-purposed: it
+    CALMS the well, halving the wax rate for `_kCalmSeconds` (6s). It buys the
+    walk. It does not move the moon, so it can never substitute for Spirit.
+  · **ICE — the pools.** A true pool wants ONE notch. When the moon sits at it
+    and has held for `_kPoolHold` (1.2s), Ice at the pool locks it — frozen
+    forever, one of the two bridges.
+
+**THE COUPLING THAT MAKES IT A PUZZLE.** The notch you have to hit also
+decides how hard it is to reach the pool that wants it. Drive the moon to 5 to
+serve a fat-moon pool and the room floods — the water is swimmable at high,
+and a non-Water creature swims at 0.62×, so the very act of setting the value
+lengthens the walk you have to make while it drifts. A thin-moon pool drains
+the floor and the walk is quick, but the moon is waxing away from you the
+whole time. **Neither pool is hard on its own; the pair is hard because they
+pull in opposite directions.**
+
+**ROLLED PER RUN.** The two wanted notches are drawn from {1, 2, 4, 5} with at
+least 2 between them, so the answer cannot be looked up — the same rule as the
+choir's brazier order. Spirit's reading is tiered and never hands over both:
+t0 "one pool wants a thin moon, one a fat one" · t1 names one notch · t2 names
+both. The other two pools are simply not listening; pressing one says so and
+costs nothing.
+
+**NOTHING IS CONSUMED, SO NOTHING CAN STRAND.** The current version SHATTERS a
+false pool and throws fury wisps — a consumed attempt in a finale, which is
+cruel and which this drops. The moon always waxes and Spirit can always wane,
+so every notch is reachable forever from every state. The mercy shrine is
+already this room, so a wipe here is a reset rather than a run.
+
+**THE WISPS COME LAST.** Brine wisps off the drowned pier, on a slow cadence,
+and they attack the party rather than the moon. The drift is already a clock,
+and two clocks make a room noisy instead of tense. This is the dial to turn if
+playtest says the room is too calm — not the first thing to build.
+
+**THE LEVIATHAN INHERITS IT** (§7 guardian principle: the guardian fights WITH
+the planet's rule). Its roar currently hauls the tide a stand. It should wrench
+the MOON now, and let the tide follow — same effect, but it reads as the deep
+fighting you for the thing the antechamber just taught you to hold. The lull
+still opens only on settled water, so the swell is still its armour.
+
+**WHAT CHANGES IN DATA.** `MoonPool.isTrue` becomes `wantsNotch` (int?, null =
+deaf). The four authored pools stay where they are. The pip-only pipe-mouth
+stays where it is and gains the calm verb. The room's tide zone is unchanged.
+
+**LEDGER (§5.5).** Water claims *holding a live set-point against a one-way
+drift, where the value you must hit also sets the cost of reaching it.* It is
+close to Fire's "tend a fragile process under attack" and deliberately not the
+same: Fire's is a ROUTE — spatial, consuming, a thing carried along a path —
+and this is a SCALAR held in a band, where nothing is spent and the terrain is
+the consequence rather than the medium. Any planet reusing it must couple the
+value to the cost; a bare "hold the needle steady" minigame is not this row.
+
+**TESTS.** The notch roll is a real permutation with the spacing rule; every
+notch is reachable from every state (no-strand, swept); a deaf pool costs
+nothing; both wanted notches are individually satisfiable with the authored
+wax rate and the authored walking distances at the stand each implies — that
+last one is the tuning test, and it is the one that decides whether the room
+is playable or a stopwatch.
 
 ### Mystic guardian roster (Star-3 boss + raid boss per planet)
 Verified against `assets/data/alchemons_creatures.json`; spritesheets in
