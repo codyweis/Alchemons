@@ -1666,6 +1666,19 @@ class PlanetDungeonGame extends FlameGame {
   bool get guardianRiteUnlocked =>
       isRaid || hasStar(2) || (hasStar(0) && hasStar(1));
   bool get hasCombatTargets => combatEnemies.any((e) => !e.isDead);
+
+  /// Is the party in the guardian's chamber with the guardian still standing?
+  ///
+  /// Used to retire the UTILITY control for the fight. A boss room has no
+  /// puzzle in it — the verb button spends the best spot on the pad answering
+  /// every press with a shrug, exactly as it did in raids, which is why raids
+  /// already hid it.
+  bool get inGuardianFight {
+    final g = currentRoom.guardian;
+    if (g == null) return false;
+    if (hasStar(g.starIndex)) return false;
+    return guardianAwake || altarOpen || guardianArriving;
+  }
   double get autoCooldownFraction {
     final c = activeCombat;
     if (c == null) return 0;

@@ -1665,7 +1665,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         // whole line of chrome spending itself on a word that never changed
         // and named nothing. The glyph names the VERB instead, which is the
         // thing the dungeon is actually teaching.
-        if (!_isRaid) ...[
+        //
+        // Gone for the guardian, for the reason raids already dropped it:
+        // there is no puzzle in a boss room, so the verb button would spend
+        // the best spot on the pad answering every press with a shrug.
+        if (!_isRaid && !game.inGuardianFight) ...[
           _utilityButton(
             element: game.active?.member.element ?? widget.element,
             enabled: enabled,
