@@ -2041,15 +2041,31 @@ from true.
 > shove from it drives a neighbour negative. It is seeded in the constructor
 > now, beside the other planets' rolls.
 
-**STAR 2 — THE SOCKETS LEAK.** Four sockets arced at leisure with a defend
-wave as the only content. A sealed socket now bleeds its charge back into the
-giant over `kPillarLifeSeconds` (26s) and goes dark, and the star wants all
-four **holding at once** — so it is a route and an order, not four buttons.
-AND THE SPINE CONDUCTS: a socket that is still holding halves the bleed of any
-socket within 320px, so adjacent pairs keep each other alive and opposite
-corners do not. That is a fact about the room the player can see rather than a
-rule they must be told. `lockedPillars` empties itself as sockets gutter, so
-the star's check is genuine simultaneity rather than a running total.
+**STAR 2 — CRYSTAL GROWS OUT OF CRYSTAL.** Four sockets arced one at a time
+was one verb four times, with a defend wave as the only content. Giving them a
+leak made it a route; it did not make it a question. Three beats now, one per
+element:
+
+  · **EARTH** breaks a socket out of the stone. They are BURIED — the room has
+    always said so — and nothing goes into one still under rock.
+  · **LIGHTNING** charges a bared socket over a window it must be defended
+    through. It holds, and it LEAKS back into the giant over
+    `kPillarLifeSeconds` (26s); a socket holding beside it halves its bleed.
+  · **CRYSTAL** seals a socket for good — but ONLY while both of its ring
+    neighbours are holding, because crystal grows out of crystal and will not
+    start in the dark.
+
+So the seals have an order and the order has to be found. **Three sockets must
+be alight at once before the first seal is possible**, which is what the leak
+is for; after that each sealed socket is a permanent anchor its neighbours can
+grow from, and the rest fall out. The star banks on four SEALS, not four
+lights.
+
+THE RING IS A RING: the four sit on a rectangle and a socket's neighbours are
+its nearest TWO, so the diagonal is not one. If it were, every socket would
+border every other and the ordering would evaporate — pinned by test. Nothing
+can strand: sealing only ever helps and a guttered socket can always be lit
+again.
 
 **RIB CURVE, FOR THE NEXT PERSON.** A quadratic control point near the chord
 draws a straight bone: the first pass put it at 0.35 of the reach and 0.30 of

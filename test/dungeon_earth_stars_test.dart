@@ -14,6 +14,7 @@
 // sweep here is for.
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:flame/game.dart' show Vector2;
 import 'package:flutter_test/flutter_test.dart';
@@ -179,6 +180,128 @@ void main() {
         reason: 'they all gutter — nothing is banked by having once been lit',
       );
       expect(g.hasStar(room.pillarStarIndex!), isFalse);
+    });
+  });
+
+  group('Star 2 — crystal grows out of crystal', () {
+    PlanetDungeonGame crypt() {
+      final g = _barrow('pillar_crypt');
+      // onLoad never runs headless; open the rite gate by hand.
+      g.starMask = 1 << 0;
+      return g;
+    }
+
+    void at(PlanetDungeonGame g, String element, Offset p) {
+      final c = g.creatures.firstWhere((x) => x.member.element == element);
+      g.activeIndex = g.creatures.indexOf(c);
+      c
+        ..position = p
+        ..lastSafe = p;
+      g.activateAbility();
+    }
+
+    void bareAll(PlanetDungeonGame g) {
+      for (final p in g.currentRoom.fossilPillars) {
+        at(g, 'Earth', p.position);
+      }
+    }
+
+    void lightIt(PlanetDungeonGame g, FossilPillar p) {
+      at(g, 'Lightning', p.position);
+      var guard = 0;
+      while (!g.lockedPillars.contains(p.id) && guard++ < 600) {
+        g.update(1 / 60);
+        for (final q in g.currentRoom.fossilPillars) {
+          if (g.pillarLife.containsKey(q.id)) g.pillarLife[q.id] = 99;
+        }
+      }
+    }
+
+    test('the sockets are buried, and only Earth opens one', () {
+      final g = crypt();
+      final p = g.currentRoom.fossilPillars.first;
+      for (final e in ['Lightning', 'Crystal']) {
+        at(g, e, p.position);
+        expect(g.pillarBared, isEmpty, reason: '$e cannot shift rock');
+      }
+      at(g, 'Earth', p.position);
+      expect(g.pillarBared, contains(p.id));
+    });
+
+    test('the ring is a ring — the diagonal is not a neighbour', () {
+      // Four sockets on a rectangle. If the diagonal counted, every socket
+      // would border every other and the ordering would evaporate.
+      final g = crypt();
+      final room = g.currentRoom;
+      for (final p in room.fossilPillars) {
+        final ring = g.pillarRingOf(room, p.id);
+        expect(ring, hasLength(2));
+        final far = room.fossilPillars
+            .where((q) => q.id != p.id)
+            .reduce(
+              (x, y) => (x.position - p.position).distance >
+                      (y.position - p.position).distance
+                  ? x
+                  : y,
+            );
+        expect(
+          ring,
+          isNot(contains(far.id)),
+          reason: 'the far corner must not be a neighbour',
+        );
+      }
+    });
+
+    test('a lit socket with a dark side refuses the seal, and costs nothing',
+        () {
+      final g = crypt();
+      bareAll(g);
+      final p = g.currentRoom.fossilPillars.first;
+      lightIt(g, p);
+      at(g, 'Crystal', p.position);
+      expect(g.pillarSealed, isEmpty);
+      expect(g.lockedPillars, contains(p.id), reason: 'and it stays lit');
+    });
+
+    test('flanked on both sides, it seals — and never leaks again', () {
+      final g = crypt();
+      bareAll(g);
+      final room = g.currentRoom;
+      final p = room.fossilPillars.first;
+      lightIt(g, p);
+      for (final id in g.pillarRingOf(room, p.id)) {
+        lightIt(g, room.fossilPillars.firstWhere((q) => q.id == id));
+      }
+      at(g, 'Crystal', p.position);
+      expect(g.pillarSealed, contains(p.id));
+      // Sealed is permanent: run the clock right past the leak.
+      for (var i = 0; i < 60 * 40; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.pillarSealed, contains(p.id), reason: 'crystal does not gutter');
+    });
+
+    test('and the whole crypt can be sealed from there', () {
+      final g = crypt();
+      bareAll(g);
+      final room = g.currentRoom;
+      final first = room.fossilPillars.first;
+      lightIt(g, first);
+      for (final id in g.pillarRingOf(room, first.id)) {
+        lightIt(g, room.fossilPillars.firstWhere((q) => q.id == id));
+      }
+      at(g, 'Crystal', first.position);
+      var guard = 0;
+      while (g.pillarSealed.length < room.fossilPillars.length &&
+          guard++ < 20) {
+        for (final p in room.fossilPillars) {
+          if (g.pillarSealed.contains(p.id)) continue;
+          if (!g.lockedPillars.contains(p.id)) lightIt(g, p);
+          at(g, 'Crystal', p.position);
+        }
+      }
+      expect(g.pillarSealed, hasLength(room.fossilPillars.length));
+      expect(g.hasStar(room.pillarStarIndex!), isTrue);
     });
   });
 }

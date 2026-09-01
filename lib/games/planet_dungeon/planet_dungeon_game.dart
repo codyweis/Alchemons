@@ -1192,6 +1192,14 @@ class PlanetDungeonGame extends FlameGame {
   /// life left. A socket at zero is dark again.
   final Map<String, double> pillarLife = {};
 
+  /// Sockets EARTH has broken out of the stone. They are buried; nothing can
+  /// be put into one that is still under rock.
+  final Set<String> pillarBared = {};
+
+  /// Sockets CRYSTAL has sealed for good. A sealed socket counts as holding
+  /// forever and can never gutter out.
+  final Set<String> pillarSealed = {};
+
   // ── THE GIANT'S PALM · Earth's lost maxim ──
   //
   // 0 empty · 1 a stone core raised in the palm · 2 the core braided to

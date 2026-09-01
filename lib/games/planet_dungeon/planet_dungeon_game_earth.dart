@@ -84,6 +84,8 @@ extension BuriedGiant on PlanetDungeonGame {
     _rollRibCage();
     lockedPillars.clear();
     pillarLife.clear();
+    pillarBared.clear();
+    pillarSealed.clear();
     // The palm: what you WORKED OUT survives a death (the same rule the Ember
     // Epitaph uses), what you grew does not.
     if (palmStage > 1) palmStage = 1;
@@ -319,10 +321,11 @@ extension BuriedGiant on PlanetDungeonGame {
       intensity: 1.15,
     );
     final star = room.pillarStarIndex;
-    // ALL FOUR AT ONCE. `lockedPillars` empties itself as sockets gutter out,
-    // so this is a genuine simultaneity check rather than a running total.
+    // LIGHTING every socket is no longer the star — SEALING every socket is,
+    // and only Crystal seals. This branch stays for the case where the last
+    // charge completes on an already-sealed board.
     if (star != null &&
-        lockedPillars.length >= room.fossilPillars.length &&
+        pillarSealed.length >= room.fossilPillars.length &&
         !hasStar(star)) {
       pillarLife.clear(); // the giant stops taking it back — the star is banked
       earnStar(star);
@@ -581,8 +584,8 @@ extension BuriedGiant on PlanetDungeonGame {
   static const double _kPillarFeedReach = 320.0;
 
   /// Sockets holding right now, in this room.
-  Iterable<FossilPillar> _liveSockets(DungeonRoom room) =>
-      room.fossilPillars.where((p) => (pillarLife[p.id] ?? 0) > 0);
+  Iterable<FossilPillar> _liveSockets(DungeonRoom room) => room.fossilPillars
+      .where((p) => pillarSealed.contains(p.id) || (pillarLife[p.id] ?? 0) > 0);
 
   /// Run the leak. Sockets beside a holding socket bleed at half rate.
   void _updatePillarLife(DungeonRoom room, double dt) {
@@ -591,6 +594,7 @@ extension BuriedGiant on PlanetDungeonGame {
     if (star != null && hasStar(star)) return;
     final live = _liveSockets(room).toList();
     for (final p in room.fossilPillars) {
+      if (pillarSealed.contains(p.id)) continue; // crystal does not leak
       final left = pillarLife[p.id];
       if (left == null || left <= 0) continue;
       final fed = live.any(
@@ -736,6 +740,52 @@ extension BuriedGiant on PlanetDungeonGame {
   /// lights — and the charge wakes the marrow AT ONCE, for EVERYONE, so the
   /// player defends the socket until it fills. ELEMENT-ONLY: any Lightning
   /// charges it; Crystal sets it direct (parity).
+  /// The two sockets nearest [id] — the ring the crypt is wired in.
+  ///
+  /// The four sit at the corners of a rectangle, so "nearest two" is the
+  /// vertical partner and the horizontal one; the DIAGONAL is not a
+  /// neighbour, which is what makes the four a ring rather than a clique.
+  /// Public alias for the tests: the ring is the shape of the puzzle, so a
+  /// test that hard-codes its own adjacency is testing a different room.
+  List<String> pillarRingOf(DungeonRoom room, String id) =>
+      _pillarRing(room, id);
+
+  List<String> _pillarRing(DungeonRoom room, String id) {
+    final me = room.fossilPillars.firstWhere((p) => p.id == id);
+    final others = [...room.fossilPillars.where((p) => p.id != id)]
+      ..sort(
+        (x, y) => (x.position - me.position).distance.compareTo(
+          (y.position - me.position).distance,
+        ),
+      );
+    return others.take(2).map((p) => p.id).toList();
+  }
+
+  /// Is this socket carrying charge right now — lit, or sealed for good?
+  bool _pillarHolding(String id) =>
+      pillarSealed.contains(id) || lockedPillars.contains(id);
+
+  // ── STAR 2 · THE CRYPT ────────────────────────────────────
+  //
+  // WHAT THIS REPLACES: arc four sockets, one at a time, at leisure. One verb
+  // four times, with a defend wave as the only content. Giving the sockets a
+  // leak made it a route; it did not make it a question.
+  //
+  // THE QUESTION IS WHERE CRYSTAL CAN GROW. Three beats, three elements:
+  //
+  //   EARTH breaks a socket out of the stone. They are BURIED — the room has
+  //   always said so — and nothing can be put into one still under rock.
+  //   LIGHTNING charges a bared socket. It holds, and it LEAKS, and a socket
+  //   holding beside it halves its bleed.
+  //   CRYSTAL seals a socket for good — but only while BOTH of its ring
+  //   neighbours are holding, because crystal grows out of crystal and will
+  //   not start in the dark.
+  //
+  // So the seals have an order and the order has to be found. Three sockets
+  // must be alight at once before the first seal is possible, which is what
+  // the leak is FOR; after that each sealed socket is a permanent anchor its
+  // neighbours can grow from. Nothing can strand — sealing only ever helps,
+  // and a guttered socket can always be lit again.
   bool _tryPillar(DungeonCreature a, DungeonRoom room) {
     final star = room.pillarStarIndex;
     if (room.fossilPillars.isEmpty || star == null || hasStar(star)) {
@@ -743,65 +793,108 @@ extension BuriedGiant on PlanetDungeonGame {
     }
     for (final pillar in room.fossilPillars) {
       if ((a.position - pillar.position).distance > 50) continue;
-      if (lockedPillars.contains(pillar.id)) {
-        _setHint('This socket already burns with crystal');
-        return true;
-      }
-      if (_pillarCharge.containsKey(pillar.id)) {
-        _setHint(
-          'The socket is charging — hold the marrow off until it lights',
-        );
-        return true;
-      }
       final element = a.member.element;
-      double dur;
-      int waveCount;
-      bool unstable;
-      String hint;
-      if (element == 'Crystal') {
-        // PARITY: what the Earth+Lightning braid grows, Crystal sets direct.
-        dur = 2.0;
-        waveCount = 2;
-        unstable = false;
-        hint = 'Crystal floods the socket — guard it while it sets';
-      } else if (element == 'Lightning') {
-        // ELEMENT-ONLY: any Lightning drives the same clean, fast charge.
-        dur = 2.0;
-        waveCount = 2;
-        unstable = false;
-        hint = 'The spark slips clean into the socket — defend its charge';
-      } else {
-        _setHint(
-          'A buried socket — storm-spark would wake it, or crystal '
-          'seal it outright',
-        );
+      final id = pillar.id;
+
+      if (pillarSealed.contains(id)) {
+        _setHint('Crystal has this one for good');
         return true;
       }
-      _pillarCharge[pillar.id] = 0.0;
-      _pillarChargeDur[pillar.id] = dur;
+
+      // ── EARTH: break it out of the rock ──
+      if (!pillarBared.contains(id)) {
+        if (element != 'Earth') {
+          _setBlockedHint('Still buried — the rock has to come off it first');
+          return true;
+        }
+        pillarBared.add(id);
+        _spawnAlchemyBurst(
+          pillar.position,
+          producedElement: 'Earth',
+          particleCount: 16,
+          intensity: 0.8,
+        );
+        _setHint('The rock comes away — a socket, open to the storm', 3.0);
+        return true;
+      }
+
+      // ── CRYSTAL: seal it, if it has somewhere to grow from ──
+      if (element == 'Crystal') {
+        if (!lockedPillars.contains(id)) {
+          _setBlockedHint('Nothing to seal — this socket is dark');
+          return true;
+        }
+        final ring = _pillarRing(room, id);
+        final unlit = ring.where((n) => !_pillarHolding(n)).toList();
+        if (unlit.isNotEmpty) {
+          // The rule, said as a fact about crystal rather than an
+          // instruction — and it names how many, never which.
+          _setBlockedHint(
+            unlit.length == 1
+                ? 'Crystal grows out of crystal — one side of this socket is '
+                      'still dark'
+                : 'Crystal grows out of crystal — both sides of this socket '
+                      'are dark',
+          );
+          return true;
+        }
+        pillarSealed.add(id);
+        pillarLife.remove(id);
+        _crystalGrow[id] = 0.0001;
+        _spawnAlchemyBurst(
+          pillar.position,
+          producedElement: 'Crystal',
+          reagentElements: const ['Earth', 'Lightning'],
+          particleCount: 30,
+          intensity: 1.2,
+        );
+        if (pillarSealed.length >= room.fossilPillars.length) {
+          earnStar(star);
+        } else {
+          _setHint(
+            'Crystal takes the socket and will not give it back '
+            '(${pillarSealed.length} of ${room.fossilPillars.length} sealed)',
+            3.2,
+          );
+        }
+        onChanged();
+        return true;
+      }
+
+      // ── LIGHTNING: light it ──
+      if (lockedPillars.contains(id)) {
+        _setHint('This socket already burns — it wants sealing, not sparking');
+        return true;
+      }
+      if (_pillarCharge.containsKey(id)) {
+        _setHint('The socket is charging — hold the marrow off until it lights');
+        return true;
+      }
+      if (element != 'Lightning') {
+        _setBlockedHint('An open socket, and nothing in it but dark');
+        return true;
+      }
+      _pillarCharge[id] = 0.0;
+      _pillarChargeDur[id] = 2.0;
       _spawnAlchemyBurst(
         pillar.position,
         producedElement: 'Crystal',
-        reagentElements: element == 'Crystal'
-            ? const ['Crystal']
-            : const ['Earth', 'Lightning'],
+        reagentElements: const ['Earth', 'Lightning'],
         particleCount: 14,
         intensity: 0.8,
       );
-      // The consequence is now an ACTIVE fight: the wave comes immediately.
+      // The consequence is an ACTIVE fight: the wave comes immediately.
       spawnWispWave(
         element: 'Earth',
         center: pillar.position,
-        count: waveCount,
-        unstable: unstable,
+        count: 2,
         announce: false,
       );
-      _setHint(hint, 3.0);
+      _setHint('The spark slips clean into the socket — defend its charge', 3.0);
       return true;
     }
     return false;
   }
-
   /// Star 3: toggle a scale weight between pans. The eye counts the truth.
   bool _tryScaleWeight(DungeonCreature a, DungeonRoom room) {
     final scale = room.stoneScale;

@@ -228,36 +228,83 @@ void main() {
     // ── Star 2: charge the sockets — each draws the storm over a window and
     // must be DEFENDED until it lights (Crystal parity + Pip both fast) ──
     final crypt = room('pillar_crypt');
-    void chargePillar(int activeIdx, String pillarId, Offset pos) {
-      game.setActive(activeIdx);
-      teleport('pillar_crypt', pos);
+    /// EARTH breaks a socket out of the rock. They are buried; nothing goes
+    /// into one still under stone.
+    void bare(FossilPillar p) {
+      game.setActive(0); // the Earth horn
+      teleport('pillar_crypt', p.position);
+      game.activateAbility();
+      expect(game.pillarBared, contains(p.id), reason: 'the rock comes off');
+    }
+
+    /// LIGHTNING lights a bared socket, over a charge window it must survive.
+    void light(FossilPillar p) {
+      game.setActive(1); // the Lightning pip
+      teleport('pillar_crypt', p.position);
       game.activateAbility();
       expect(
-        game.lockedPillars.contains(pillarId),
+        game.lockedPillars.contains(p.id),
         isFalse,
         reason: 'the socket CHARGES first — it does not light instantly',
       );
       var guard = 0;
-      while (!game.lockedPillars.contains(pillarId) && guard++ < 600) {
+      while (!game.lockedPillars.contains(p.id) && guard++ < 600) {
         game.update(1 / 60);
+        // Hold the leak off the others while the charge runs: this test is
+        // about the ORDER, and the clock has its own test.
+        for (final q in crypt.fossilPillars) {
+          if (game.pillarLife.containsKey(q.id)) game.pillarLife[q.id] = 99;
+        }
       }
-      expect(
-        game.lockedPillars,
-        contains(pillarId),
-        reason: 'the charge fills and the crystal lights',
-      );
+      expect(game.lockedPillars, contains(p.id), reason: 'the crystal lights');
       clearWisps(); // the defend-wave came at charge start
     }
 
-    chargePillar(
-      2,
-      crypt.fossilPillars.first.id,
-      crypt.fossilPillars.first.position,
-    ); // Crystal parity
-    for (final pillar in crypt.fossilPillars.skip(1)) {
-      chargePillar(1, pillar.id, pillar.position); // Lightning pip
+    /// CRYSTAL seals one for good — only with both ring neighbours holding.
+    void seal(FossilPillar p) {
+      game.setActive(2); // the Crystal mask
+      teleport('pillar_crypt', p.position);
+      game.activateAbility();
     }
-    expect(game.hasStar(1), isTrue, reason: 'four sockets bank Star 2');
+
+    for (final p in crypt.fossilPillars) {
+      bare(p);
+    }
+
+    // CRYSTAL GROWS OUT OF CRYSTAL. A lit socket with a dark side refuses.
+    final ring = crypt.fossilPillars;
+    light(ring[0]);
+    seal(ring[0]);
+    expect(
+      game.pillarSealed,
+      isEmpty,
+      reason: 'both sides of it are still dark — crystal will not start',
+    );
+
+    // Light its two ring neighbours, then it takes.
+    final firstRing = game.pillarRingOf(crypt, ring[0].id);
+    for (final id in firstRing) {
+      light(crypt.fossilPillars.firstWhere((p) => p.id == id));
+    }
+    seal(ring[0]);
+    expect(
+      game.pillarSealed,
+      contains(ring[0].id),
+      reason: 'flanked on both sides, the crystal takes',
+    );
+
+    // A sealed socket is a permanent anchor its neighbours can grow from, so
+    // the rest fall in order.
+    var sealGuard = 0;
+    while (game.pillarSealed.length < crypt.fossilPillars.length &&
+        sealGuard++ < 20) {
+      for (final p in crypt.fossilPillars) {
+        if (game.pillarSealed.contains(p.id)) continue;
+        if (!game.lockedPillars.contains(p.id)) light(p);
+        seal(p);
+      }
+    }
+    expect(game.hasStar(1), isTrue, reason: 'four SEALED sockets bank Star 2');
     expect(game.guardianRiteUnlocked, isTrue);
     expect(
       game.isDoorLocked(court, jaw),
@@ -447,6 +494,10 @@ void main() {
       final game = _harness([_member(0, 'Lightning', family)]);
       final pillar = game.layout.rooms['pillar_crypt']!.fossilPillars.first;
       game.currentRoomId = 'pillar_crypt';
+      // The sockets are BURIED now — Earth takes the rock off before anything
+      // can be put in. This test is about the family parity of the CHARGE, so
+      // the digging is done by hand.
+      game.pillarBared.add(pillar.id);
       game.creatures.single
         ..position = pillar.position
         ..lastSafe = pillar.position;
