@@ -2442,8 +2442,89 @@ extension MirrorTide on PlanetDungeonGame {
     );
   }
 
+  /// How near the temple's water is standing to the MIDDLE — 1 at mid, 0 at
+  /// either extreme, and continuous in between so the room answers the tide
+  /// as it eases rather than snapping at a threshold. Public because it is
+  /// what drives the mirror room's tell, and that is worth pinning.
+  double get tideMidness =>
+      (1 - (tideAnim - 0.5).abs() / 0.5).clamp(0.0, 1.0).toDouble();
+
+  /// THE MOON REACHES THE MIRROR ROOM AT THE MIDDLE WATER.
+  ///
+  /// The Frozen Moon is the one secret here and it only exists at a settled
+  /// mid tide — but nothing in the room said so. The glint is deliberately
+  /// faint (it is a secret), so a player who happened to walk in at mid saw
+  /// almost the same room as one who walked in at low, and the tide's
+  /// significance was carried entirely by an oblique line from a Mask.
+  ///
+  /// Now the room tells you itself. The moon hangs in the vault always, dim
+  /// and far off; as the water eases toward the middle it drops a shaft
+  /// straight down onto the pool, full and unmistakable when the tide
+  /// settles. Nothing is named and nothing is spoiled — the moon is simply
+  /// interested in this room at one stand of water, and it is impossible to
+  /// stand here at mid tide and not notice.
+  void _drawMirrorMoonbeam(Canvas canvas, DungeonRoom room, bool won) {
+    // A found secret keeps its light: the frozen disc is lit forever.
+    final reach = won ? 1.0 : tideMidness * tideMidness;
+    final moonAt = Offset(_kMoonPoolCentre.dx, room.bounds.top + 74);
+    final target = _kMoonPoolCentre;
+
+    // THE SHAFT — three nested wedges, soft-edged without a blur (the same
+    // construction as the well's oculus, and for the same perf reason).
+    if (reach > 0.02) {
+      final reachY = target.dy - moonAt.dy;
+      for (var i = 3; i >= 1; i--) {
+        final f = i / 3;
+        final top = 26.0 * f;
+        final foot = (62.0 + 34 * reach) * f;
+        canvas.drawPath(
+          Path()
+            ..moveTo(moonAt.dx - top, moonAt.dy)
+            ..lineTo(moonAt.dx + top, moonAt.dy)
+            ..lineTo(target.dx + foot, moonAt.dy + reachY + 46)
+            ..lineTo(target.dx - foot, moonAt.dy + reachY + 46)
+            ..close(),
+          Paint()
+            ..color = const Color(0xFFBFD9E8)
+                .withValues(alpha: 0.012 + 0.030 * reach),
+        );
+      }
+      // Where the beam lands: a pale oval on the water, widening with the
+      // reach. This is the tell — at mid the pool is LIT.
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: target,
+          width: 150 + 60 * reach,
+          height: 60 + 26 * reach,
+        ),
+        Paint()
+          ..color = const Color(0xFFBFD9E8)
+              .withValues(alpha: 0.020 + 0.055 * reach),
+      );
+      // Motes riding down the beam, few and slow.
+      for (var i = 0; i < 5; i++) {
+        final t = (_time * 0.07 + i * 0.2) % 1.0;
+        canvas.drawCircle(
+          Offset(
+            moonAt.dx + sin(i * 2.3 + _time * 0.45) * (14 + 40 * t),
+            moonAt.dy + reachY * t,
+          ),
+          1.5,
+          Paint()
+            ..color = const Color(0xFFEAF2F8)
+                .withValues(alpha: (0.34 * (1 - t) * reach).clamp(0.0, 0.34)),
+        );
+      }
+    }
+
+    // The moon itself, always there and always full — dim and far off at the
+    // wrong water, bright and close at the right one.
+    _drawTheMoon(canvas, moonAt, 26, 1.0, opacity: 0.22 + 0.78 * reach);
+  }
+
   void _drawReflectionCourt(Canvas canvas, DungeonRoom room) {
     final won = discoveredClouds.contains(kWaterFrozenMoonEggId);
+    _drawMirrorMoonbeam(canvas, room, won);
     // The still pool's rim.
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -2589,7 +2670,13 @@ extension MirrorTide on PlanetDungeonGame {
   /// The moon over the oculus: a lit disc with a real terminator, maria, a
   /// halo, and an earthshine ghost of the dark limb so a thin moon still
   /// reads as a SPHERE rather than a crescent-shaped hole.
-  void _drawTheMoon(Canvas canvas, Offset c, double r, double phase) {
+  void _drawTheMoon(
+    Canvas canvas,
+    Offset c,
+    double r,
+    double phase, {
+    double opacity = 1.0,
+  }) {
     // Halo — three soft rings rather than a blur, because blur in a paint
     // loop is the one thing this game cannot afford (see the perf notes).
     for (var i = 3; i >= 1; i--) {
@@ -2598,14 +2685,14 @@ extension MirrorTide on PlanetDungeonGame {
         r + i * 9.0 + _moonWaxFx * 4,
         Paint()
           ..color = const Color(0xFFDCE8F0)
-              .withValues(alpha: (0.045 + 0.02 * _moonWaxFx) / i),
+              .withValues(alpha: (0.045 + 0.02 * _moonWaxFx) / i * opacity),
       );
     }
     // The dark body first, so the lit part is laid ON a sphere.
     canvas.drawCircle(
       c,
       r,
-      Paint()..color = const Color(0xFF14202C).withValues(alpha: 0.96),
+      Paint()..color = const Color(0xFF14202C).withValues(alpha: 0.96 * opacity),
     );
     // Earthshine: the unlit limb, barely there.
     canvas.drawCircle(
@@ -2614,7 +2701,7 @@ extension MirrorTide on PlanetDungeonGame {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2
-        ..color = const Color(0xFF6E86A0).withValues(alpha: 0.30),
+        ..color = const Color(0xFF6E86A0).withValues(alpha: 0.30 * opacity),
     );
 
     // THE LIT FACE. phase 0 = dark, 1 = full. The terminator is an ellipse
@@ -2643,9 +2730,13 @@ extension MirrorTide on PlanetDungeonGame {
       // across the dark limb where nothing should be visible at all.
       canvas.save();
       canvas.clipPath(lit);
-      canvas.drawPath(lit, Paint()..color = const Color(0xFFEAF2F8));
+      canvas.drawPath(
+        lit,
+        Paint()..color = const Color(0xFFEAF2F8).withValues(alpha: opacity),
+      );
       // Maria — the moon's own darker seas, so the face is a face.
-      final sea = Paint()..color = const Color(0xFFC3D2DE).withValues(alpha: 0.55);
+      final sea = Paint()
+        ..color = const Color(0xFFC3D2DE).withValues(alpha: 0.55 * opacity);
       canvas.drawCircle(c + Offset(-r * 0.22, -r * 0.28), r * 0.26, sea);
       canvas.drawCircle(c + Offset(r * 0.30, -r * 0.05), r * 0.17, sea);
       canvas.drawCircle(c + Offset(-r * 0.05, r * 0.34), r * 0.21, sea);
@@ -2660,7 +2751,7 @@ extension MirrorTide on PlanetDungeonGame {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0
-        ..color = Colors.white.withValues(alpha: 0.10 + 0.35 * phase),
+        ..color = Colors.white.withValues(alpha: (0.10 + 0.35 * phase) * opacity),
     );
   }
 

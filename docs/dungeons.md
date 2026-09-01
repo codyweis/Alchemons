@@ -1468,8 +1468,16 @@ quotation constants are deleted from the code — nothing left to drift.
 3. **Water — Frozen Moon (BUILT):** at the settled MID tide only, a faint
    glint drifts on the reflection-court pool; Ice laid exactly on it freezes
    the moon's reflection — a permanent ice disc with frost cracks, forever.
-   One oblique hint (Mask in the room: "the pool remembers the moon best
-   when the tide stands between").
+   **THE ROOM SAYS THE MIDDLE WATER MATTERS (2026-08-31).** The glint is
+   deliberately faint — it is a secret — so walking in at mid used to look
+   almost identical to walking in at low, and the tide's significance was
+   carried entirely by one oblique Mask line. The moon now hangs in the
+   vault always, dim and far off, and drops a shaft straight onto the pool as
+   the water eases toward the middle: full and unmistakable when it settles,
+   gone at either extreme. Nothing is named and nothing is spoiled — the moon
+   is simply interested in this room at one stand of water. Driven by
+   `tideMidness` (1 at mid, 0 at the ends, continuous), which is public
+   precisely so the tell can be pinned.
 4. **Ice — Star-Walker:** align every telescope on the unmarked 13th star —
    visible only in reflection.
 5. **Lightning — Thunderbolt (BUILT · first planet on the RITE OF THREE):**
