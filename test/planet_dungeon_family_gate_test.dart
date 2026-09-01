@@ -193,6 +193,12 @@ void main() {
       final game = _harness('Earth', [
         _member(0, 'Earth', 'mane'),
       ], discoveries: discoveries);
+      // The cage's opening arrangement is ROLLED per run, so park the ribs
+      // at notch 0 by hand — this test is about the family gate, not the
+      // puzzle, and a rib that has moved is a rib the creature is not beside.
+      for (final r in game.layout.rooms['rib_hall']!.fossilRibs) {
+        game.ribNotches[r.id] = 0;
+      }
       final rib = game.layout.rooms['rib_hall']!.fossilRibs.first;
       final stand = rib.notches.first - const Offset(110, 0);
 
@@ -249,6 +255,10 @@ void main() {
         discoveries: discoveries,
         initialDiscoveredCloudIds: const {'gate:earth_horn'},
       );
+      // The cage's opening arrangement is ROLLED per run — park it.
+      for (final r in game.layout.rooms['rib_hall']!.fossilRibs) {
+        game.ribNotches[r.id] = 0;
+      }
       final rib = game.layout.rooms['rib_hall']!.fossilRibs.first;
 
       _attemptAt(game, 'rib_hall', rib.notches.first - const Offset(110, 0));

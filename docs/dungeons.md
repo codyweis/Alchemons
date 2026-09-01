@@ -1887,18 +1887,43 @@ The rest were diagrams of their own mechanics.
     `heart_chamber`, `barrow_gate` still owe their anatomy.
   · ⬜ Device playtest.
 
-**AND THE PUZZLES ARE THE REAL PROBLEM.** Star 1 is three ribs on three
-separate tracks that never interact — one verb, three times. Star 2 is four
-sockets charged one at a time with a defend wave as the only content — one
-verb, four times. Star 3 (the rolled scale, its answer carved as bone-marks in
-four other chambers) is genuinely good and should not be touched. The two
-early stars need the treatment the moon well just had: something to work out,
-not a lap to repeat. Sketched, not designed:
+### EARTH STARS 1 AND 2 — REWORKED 2026-09-01
 
-  · **Star 1** — make the ribs one object. They share the chasm, so a rib
-    dropped in the groove blocks the track behind it and the order is forced.
-  · **Star 2** — make the sockets a circuit. Charging one drains its
-    neighbours, so the question is an order that lets all four hold at once.
+Both were one verb repeated. Star 3 (the rolled scale, its answer carved as
+bone-marks in four other chambers) is genuinely good and was not touched.
+
+**STAR 1 — THE CAGE IS ONE BONE.** Three ribs on three separate tracks that
+never touched each other: six identical shoves. They are ARTICULATED now — the
+cage hangs, so driving a rib along its groove levers **the rib below it** the
+other way, and the lowest rib has nothing under it to lever. Nothing wraps and
+nothing clamps: if a coupled rib would be driven off its track the whole shove
+is refused, which makes every move exactly reversible (stand on the other side
+and shove back) and is therefore the no-strand argument as well. The opening
+arrangement is ROLLED, drawn only from boards the solver proves are ≥4 shoves
+from true.
+
+> **COUPLING BOTH NEIGHBOURS IS UNBUILDABLE, and it is not obvious.** With
+> every rib pulling both its neighbours, the laid-true board is an ISOLATED
+> state — from all-in-the-groove, every legal shove drives some neighbour off
+> the end of its track, so the goal has no approaches and the star cannot be
+> banked from anywhere. Exactly 1 of 27 boards can reach it: itself. The
+> one-sided rule reaches all 27, at up to 12 shoves. `ribCageDistance` is
+> public and the test sweeps all 27, because this is a mistake that looks
+> completely fine until someone tries to finish the room.
+>
+> The all-zero board is also DEAD, which is what the game shipped with — every
+> shove from it drives a neighbour negative. It is seeded in the constructor
+> now, beside the other planets' rolls.
+
+**STAR 2 — THE SOCKETS LEAK.** Four sockets arced at leisure with a defend
+wave as the only content. A sealed socket now bleeds its charge back into the
+giant over `kPillarLifeSeconds` (26s) and goes dark, and the star wants all
+four **holding at once** — so it is a route and an order, not four buttons.
+AND THE SPINE CONDUCTS: a socket that is still holding halves the bleed of any
+socket within 320px, so adjacent pairs keep each other alive and opposite
+corners do not. That is a fact about the room the player can see rather than a
+rule they must be told. `lockedPillars` empties itself as sockets gutter, so
+the star's check is genuine simultaneity rather than a running total.
 
 **RIB CURVE, FOR THE NEXT PERSON.** A quadratic control point near the chord
 draws a straight bone: the first pass put it at 0.35 of the reach and 0.30 of

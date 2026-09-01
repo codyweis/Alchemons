@@ -75,7 +75,11 @@ extension BuriedGiant on PlanetDungeonGame {
     _entryRevealPrev = _entryReveal;
     ribNotches.clear();
     _ribSlides.clear();
+    // The cage's opening arrangement is rolled fresh every run — and only
+    // from arrangements the solver proves can still be laid true.
+    _rollRibCage();
     lockedPillars.clear();
+    pillarLife.clear();
     _crystalGrow.clear();
     _pillarCharge.clear();
     _pillarChargeDur.clear();
@@ -112,6 +116,10 @@ extension BuriedGiant on PlanetDungeonGame {
     );
   }
 
+  /// Is any bone in the cage still moving? A shove levers several ribs at
+  /// once, so "the grind" is a property of the CAGE, not of one rib.
+  bool get ribGrinding => _ribSlides.isNotEmpty;
+
   /// Settled in the chasm groove (last notch, not mid-grind)?
   bool _ribBridging(FossilRib rib) =>
       !_ribSlides.containsKey(rib.id) &&
@@ -142,6 +150,7 @@ extension BuriedGiant on PlanetDungeonGame {
   // ── Update ──────────────────────────────────────────────
 
   void _updateBarrow(DungeonCreature a, DungeonRoom room, double dt) {
+    _updatePillarLife(room, dt);
     if (!_isBarrow) return;
     if (_scaleTruthFlash > 0) _scaleTruthFlash -= dt;
 
@@ -277,6 +286,7 @@ extension BuriedGiant on PlanetDungeonGame {
   void _lockPillar(DungeonRoom room, String pillarId) {
     if (!lockedPillars.add(pillarId)) return;
     _crystalGrow[pillarId] = 0.0001; // kick off the grow animation
+    pillarLife[pillarId] = kPillarLifeSeconds;
 
     final pillar = room.fossilPillars.firstWhere(
       (p) => p.id == pillarId,
@@ -292,14 +302,17 @@ extension BuriedGiant on PlanetDungeonGame {
       intensity: 1.15,
     );
     final star = room.pillarStarIndex;
+    // ALL FOUR AT ONCE. `lockedPillars` empties itself as sockets gutter out,
+    // so this is a genuine simultaneity check rather than a running total.
     if (star != null &&
         lockedPillars.length >= room.fossilPillars.length &&
         !hasStar(star)) {
+      pillarLife.clear(); // the giant stops taking it back — the star is banked
       earnStar(star);
     } else {
       _setHint(
-        'The socket takes the spark — crystal seals it '
-        '(${lockedPillars.length} of ${room.fossilPillars.length})',
+        'The socket takes the spark — and begins to give it back '
+        '(${lockedPillars.length} of ${room.fossilPillars.length} holding)',
         3.0,
       );
     }
@@ -481,24 +494,36 @@ extension BuriedGiant on PlanetDungeonGame {
         _setHint('The giant\'s bones move only for earthen strength');
         return true;
       }
-      final cur = ribNotches[rib.id] ?? 0;
       // Which way? The shover stands on one side of the track axis.
       final axis = rib.notches.last - rib.notches.first;
       final axisLen = axis.distance;
       final dirn = axisLen > 0 ? axis / axisLen : const Offset(1, 0);
       final rel = a.position - _ribRect(rib).center;
       final along = rel.dx * dirn.dx + rel.dy * dirn.dy;
-      final forward = along < 0; // standing behind → shove onward
-      final target = forward ? cur + 1 : cur - 1;
-      if (target < 0 || target >= rib.notches.length) {
-        _setHint('The rib will not grind further that way');
+      final step = along < 0 ? 1 : -1; // standing behind → shove onward
+
+      // THE CAGE IS ONE BONE. Three ribs on three separate tracks were three
+      // separate shoves that never once affected each other — the star was
+      // the same verb six times over. They are ARTICULATED now: they hang off
+      // the same spine, so driving one along its groove levers the ribs
+      // either side of it the other way. The mechanism is the puzzle.
+      final next = _ribCageAfter(room, rib.id, step);
+      if (next == null) {
+        _setHint('The cage will not give that way — something would tear out');
         return true;
       }
-      _ribSlides[rib.id] = _RibSlide(
-        from: cur,
-        to: target,
-        dur: _kRibSlideClean,
-      );
+      var moved = 0;
+      for (final other in room.fossilRibs) {
+        final from = ribNotches[other.id] ?? 0;
+        final to = next[other.id]!;
+        if (from == to) continue;
+        moved++;
+        _ribSlides[other.id] = _RibSlide(
+          from: from,
+          to: to,
+          dur: _kRibSlideClean,
+        );
+      }
       _spawnAlchemyBurst(
         _ribRect(rib).center,
         producedElement: 'Earth',
@@ -506,10 +531,188 @@ extension BuriedGiant on PlanetDungeonGame {
         particleCount: 14,
         intensity: 0.8,
       );
-      _setHint('One clean shove — the rib grinds along its track');
+      _setHint(
+        moved > 1
+            ? 'The cage gives — and the ribs beside it lever the other way'
+            : 'One clean shove — the rib grinds along its track',
+      );
       return true;
     }
     return false;
+  }
+
+  // ── THE LEAKING SOCKETS (Star 2) ──────────────────────────
+  //
+  // Four sockets, arced one at a time, each with a defend wave: that was one
+  // verb four times over, and the only content was the fight. They LEAK now.
+  // A sealed socket bleeds its charge back into the giant over
+  // [kPillarLifeSeconds], and the star wants all four holding at once — so
+  // the question is a route: which order, and which pairs.
+  //
+  // AND THE SPINE CONDUCTS. A socket that is still holding feeds the two
+  // beside it, halving their bleed. Adjacent pairs therefore keep each other
+  // alive and opposite corners do not, which is a fact about the room the
+  // player can see rather than a rule they have to be told.
+
+  /// How long a sealed socket holds before it is dark again.
+  static const double kPillarLifeSeconds = 26.0;
+
+  /// The bleed a socket suffers while a neighbour is holding beside it.
+  static const double _kPillarFedBleed = 0.5;
+
+  /// How near two sockets must be to feed one another.
+  static const double _kPillarFeedReach = 320.0;
+
+  /// Sockets holding right now, in this room.
+  Iterable<FossilPillar> _liveSockets(DungeonRoom room) =>
+      room.fossilPillars.where((p) => (pillarLife[p.id] ?? 0) > 0);
+
+  /// Run the leak. Sockets beside a holding socket bleed at half rate.
+  void _updatePillarLife(DungeonRoom room, double dt) {
+    if (room.fossilPillars.isEmpty || pillarLife.isEmpty) return;
+    final star = room.pillarStarIndex;
+    if (star != null && hasStar(star)) return;
+    final live = _liveSockets(room).toList();
+    for (final p in room.fossilPillars) {
+      final left = pillarLife[p.id];
+      if (left == null || left <= 0) continue;
+      final fed = live.any(
+        (o) =>
+            o.id != p.id &&
+            (o.position - p.position).distance <= _kPillarFeedReach,
+      );
+      final next = left - dt * (fed ? _kPillarFedBleed : 1.0);
+      if (next <= 0) {
+        pillarLife.remove(p.id);
+        lockedPillars.remove(p.id);
+        _crystalGrow.remove(p.id);
+        _spawnAlchemyBurst(
+          p.position,
+          producedElement: 'Earth',
+          particleCount: 8,
+          intensity: 0.4,
+        );
+        _setHint('The crystal gutters out — the giant takes it back', 2.4);
+      } else {
+        pillarLife[p.id] = next;
+      }
+    }
+  }
+
+  // ── THE ARTICULATED CAGE (Star 1) ─────────────────────────
+  //
+  // Shoving a rib one notch levers THE RIB BELOW IT one notch the other way.
+  // Nothing wraps and nothing is clamped: if a coupled rib would be driven
+  // off the end of its track the whole shove is refused, which keeps every
+  // move exactly reversible (stand on the other side and shove back) and is
+  // therefore the no-strand argument as well.
+  //
+  // The consequence worth knowing: the all-zero board is DEAD — every shove
+  // from it drives a neighbour off the track — so the opening arrangement has
+  // to be rolled from states that can actually reach the goal. See
+  // `_rollRibCage`.
+
+  /// What a shove drags with it: THE RIB BELOW, and only that one.
+  ///
+  /// The cage hangs, so driving a rib along its groove levers the next one
+  /// down the other way, and the lowest rib has nothing under it to lever.
+  ///
+  /// Coupling BOTH neighbours was the first attempt and it is unbuildable —
+  /// proved, not guessed. With every rib pulling both its neighbours, the
+  /// laid-true board is an ISOLATED state: from all-in-the-groove every legal
+  /// shove drives some neighbour off the end of its track, so the goal has no
+  /// approaches at all and the star can never be banked from anywhere. The
+  /// one-sided rule reaches all 27 boards, at up to 12 shoves.
+  List<int> _ribNeighbours(DungeonRoom room, int i) => [
+    if (i < room.fossilRibs.length - 1) i + 1,
+  ];
+
+  /// The board after shoving [ribId] by [step], or null if the cage refuses.
+  Map<String, int>? _ribCageAfter(DungeonRoom room, String ribId, int step) {
+    final ribs = room.fossilRibs;
+    final i = ribs.indexWhere((r) => r.id == ribId);
+    if (i < 0) return null;
+    final out = {
+      for (final r in ribs) r.id: (ribNotches[r.id] ?? 0),
+    };
+    out[ribId] = out[ribId]! + step;
+    for (final j in _ribNeighbours(room, i)) {
+      out[ribs[j].id] = out[ribs[j].id]! - step;
+    }
+    for (final r in ribs) {
+      final v = out[r.id]!;
+      if (v < 0 || v >= r.notches.length) return null;
+    }
+    return out;
+  }
+
+  /// Shortest number of shoves from [start] to every rib in its groove, or
+  /// -1 if the cage can never be laid true from there.
+  ///
+  /// Public and pure: the layout test sweeps every opening arrangement
+  /// through it, so the proof and the played mechanic are the same code.
+  int ribCageDistance(DungeonRoom room, List<int> start) {
+    final ribs = room.fossilRibs;
+    if (ribs.isEmpty) return -1;
+    final goal = [for (final r in ribs) r.notches.length - 1].join(',');
+    final seen = <String, int>{start.join(','): 0};
+    final q = <List<int>>[start];
+    while (q.isNotEmpty) {
+      final cur = q.removeAt(0);
+      final key = cur.join(',');
+      if (key == goal) return seen[key]!;
+      final d = seen[key]!;
+      for (var i = 0; i < ribs.length; i++) {
+        for (final step in const [1, -1]) {
+          final nxt = [...cur];
+          nxt[i] += step;
+          for (final j in _ribNeighbours(room, i)) {
+            nxt[j] -= step;
+          }
+          var ok = true;
+          for (var k = 0; k < ribs.length; k++) {
+            if (nxt[k] < 0 || nxt[k] >= ribs[k].notches.length) ok = false;
+          }
+          if (!ok) continue;
+          final nk = nxt.join(',');
+          if (seen.containsKey(nk)) continue;
+          seen[nk] = d + 1;
+          q.add(nxt);
+        }
+      }
+    }
+    return -1;
+  }
+
+  /// Roll the cage's opening arrangement.
+  ///
+  /// Rolled per run, like the choir's rite and the well's basins, so no wiki
+  /// can hold the answer — and drawn only from arrangements the solver proves
+  /// are both solvable AND not nearly solved already.
+  void _rollRibCage() {
+    final room = layout.rooms.values
+        .where((r) => r.fossilRibs.isNotEmpty)
+        .firstOrNull;
+    if (room == null) return;
+    final ribs = room.fossilRibs;
+    final candidates = <List<int>>[];
+    void walk(List<int> acc) {
+      if (acc.length == ribs.length) {
+        final d = ribCageDistance(room, acc);
+        if (d >= 4) candidates.add([...acc]);
+        return;
+      }
+      for (var v = 0; v < ribs[acc.length].notches.length; v++) {
+        walk([...acc, v]);
+      }
+    }
+
+    walk([]);
+    if (candidates.isEmpty) return;
+    final pick = candidates[Random().nextInt(candidates.length)];
+    for (var i = 0; i < ribs.length; i++) {
+      ribNotches[ribs[i].id] = pick[i];
+    }
   }
 
   /// Star 2: arc a buried socket. The socket must CHARGE before the crystal

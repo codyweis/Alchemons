@@ -152,24 +152,60 @@ void main() {
     // ── Star 1: shove the three ribs home (animated grinds), then the
     //    sternum plate beyond the bridged marrow ──
     final hall = room('rib_hall');
-    for (final rib in hall.fossilRibs) {
-      for (var shove = 0; shove < rib.notches.length - 1; shove++) {
-        final cur = game.ribNotches[rib.id] ?? 0;
-        // Stand WEST of the rib (behind it on the track) and shove onward.
-        teleport('rib_hall', rib.notches[cur] - const Offset(110, 0));
-        game.activateAbility();
-        expect(
-          game.ribNotches[rib.id] ?? 0,
-          cur,
-          reason: 'the grind is ANIMATED — the notch lands later',
-        );
-        var guard = 0;
-        while ((game.ribNotches[rib.id] ?? 0) == cur && guard++ < 200) {
-          game.update(1 / 60);
-        }
-        expect(game.ribNotches[rib.id], cur + 1, reason: 'the grind lands');
+
+    /// THE CAGE IS ONE BONE. Shoving a rib levers its neighbours the other
+    /// way, so the star is no longer six identical shoves — it is a sequence,
+    /// and the test walks it with the game's OWN solver rather than a script
+    /// that would rot away from the mechanic it is meant to exercise.
+    List<int> board() =>
+        [for (final r in hall.fossilRibs) game.ribNotches[r.id] ?? 0];
+
+    /// Shove rib [i] one notch in [step], and let every grind it causes land.
+    void shove(int i, int step) {
+      final rib = hall.fossilRibs[i];
+      final at = rib.notches[game.ribNotches[rib.id] ?? 0];
+      // Stand behind it on the track: west shoves onward, east shoves back.
+      teleport('rib_hall', at + Offset(step > 0 ? -110 : 110, 0));
+      game.activateAbility();
+      var guard = 0;
+      while (game.ribGrinding && guard++ < 400) {
+        game.update(1 / 60);
       }
     }
+
+    expect(
+      game.ribCageDistance(hall, board()),
+      greaterThanOrEqualTo(4),
+      reason: 'the rolled cage is a real walk, not nearly solved already',
+    );
+
+    // Greedy on the solver: every shove must strictly shorten the distance.
+    var guard = 0;
+    while (game.ribCageDistance(hall, board()) > 0 && guard++ < 40) {
+      final was = game.ribCageDistance(hall, board());
+      var took = false;
+      for (var i = 0; i < hall.fossilRibs.length && !took; i++) {
+        for (final step in const [1, -1]) {
+          // The cage drags THE RIB BELOW, and only that one — mirror the
+          // game's rule exactly or the greedy walks off the mechanic.
+          final trial = [...board()];
+          trial[i] += step;
+          if (i + 1 < trial.length) trial[i + 1] -= step;
+          if (trial.any((v) => v < 0 || v > 2)) continue;
+          if (game.ribCageDistance(hall, trial) != was - 1) continue;
+          shove(i, step);
+          took = true;
+          break;
+        }
+      }
+      expect(took, isTrue, reason: 'the solver always has a move');
+    }
+    expect(
+      hall.fossilRibs.every((r) => game.ribNotches[r.id] == 2),
+      isTrue,
+      reason: 'every rib lies true in the marrow groove',
+    );
+
     expect(
       game.combatEnemies.where((e) => !e.isDead),
       isEmpty,
@@ -315,9 +351,15 @@ void main() {
     void shove(PlanetDungeonGame game) {
       final rib = game.layout.rooms['rib_hall']!.fossilRibs.first;
       game.currentRoomId = 'rib_hall';
+      // The cage's opening arrangement is ROLLED now, so park the rib at
+      // notch 0 by hand — this test is about the family gate, not the puzzle.
+      for (final r in game.layout.rooms['rib_hall']!.fossilRibs) {
+        game.ribNotches[r.id] = 0;
+      }
+      final at = rib.notches.first - const Offset(110, 0);
       game.creatures.single
-        ..position = rib.notches.first - const Offset(110, 0)
-        ..lastSafe = rib.notches.first - const Offset(110, 0);
+        ..position = at
+        ..lastSafe = at;
       game.activateAbility();
       for (var i = 0; i < 180; i++) {
         game.update(1 / 60);
@@ -345,9 +387,29 @@ void main() {
 
     // Right element AND family: one clean shove, no consequence wave.
     final horn = _harness([_member(0, 'Earth', 'horn')]);
-    final ribId = horn.layout.rooms['rib_hall']!.fossilRibs.first.id;
     shove(horn);
-    expect(horn.ribNotches[ribId], 1, reason: 'the Horn lands the shove');
+    // The top rib has a rib below it, so a legal shove from (0,0,0) would
+    // drive that one to -1 — the cage refuses. Shove the LOWEST rib instead:
+    // nothing hangs under it, so it moves alone.
+    final lowest = horn.layout.rooms['rib_hall']!.fossilRibs.last;
+    horn.currentRoomId = 'rib_hall';
+    for (final r in horn.layout.rooms['rib_hall']!.fossilRibs) {
+      horn.ribNotches[r.id] = 0;
+    }
+    final at = lowest.notches.first - const Offset(110, 0);
+    horn.creatures.single
+      ..position = at
+      ..lastSafe = at;
+    horn.activateAbility();
+    for (var i = 0; i < 180; i++) {
+      horn.update(1 / 60);
+      horn.creatures.single.hp = horn.creatures.single.maxHp;
+    }
+    expect(
+      horn.ribNotches[lowest.id],
+      1,
+      reason: 'the Horn lands the shove on the rib that hangs free',
+    );
     expect(
       horn.combatEnemies.where((e) => !e.isDead),
       isEmpty,

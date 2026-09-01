@@ -327,8 +327,12 @@ class PlanetDungeonGame extends FlameGame {
     // The zero-sum dynamo idles into its authored initial trunk from the
     // first frame (Lightning; null everywhere else).
     activeTrunk = layout.initialTrunkId;
-    // The Buried Giant's scale answer is rolled fresh per run.
+    // The Buried Giant's scale answer is rolled fresh per run…
     _rollScaleSolution();
+    // …and so is its ribcage. This one is not optional: the ribs are
+    // articulated now, and the all-zero board every run used to start in is
+    // a DEAD state — every shove from it drives a neighbour off its track.
+    _rollRibCage();
     // The Mirror-Tide's canal network is STONE — authored, not rolled; its
     // solvability is proved once, in the layout test, by `solveLanternDrift`.
     // Its MOON WELL is rolled, though, and the temple was never seeded here
@@ -1166,6 +1170,12 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Crystal-locked pillar sockets (Star 2).
   final Set<String> lockedPillars = {};
+
+  /// THE SOCKETS LEAK. A sealed socket bleeds its charge back into the giant,
+  /// and the star wants all four holding AT ONCE — so the star is a route and
+  /// an order rather than four buttons pressed at leisure. id → seconds of
+  /// life left. A socket at zero is dark again.
+  final Map<String, double> pillarLife = {};
 
   /// Per-pillar crystal-growth animation (id → 0..1): the lock shards GROW
   /// out of the socket over ~0.6s instead of popping in.
