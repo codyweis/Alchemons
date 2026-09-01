@@ -9152,6 +9152,16 @@ class PlanetDungeonGame extends FlameGame {
   /// looking at before shipping it. Costs nothing at runtime.
   @visibleForTesting
   void renderRoomForDebug(Canvas canvas, DungeonRoom room) {
+    // The planet's own art comes FIRST and is the part usually worth looking
+    // at — a seam that skipped it rendered Water's rooms as empty floor and
+    // hid the very bug it was being used to chase.
+    if (_isCathedral) _renderCathedral(canvas, room);
+    if (_isTemple) _renderTemple(canvas, room);
+    if (_isBarrow) _renderBarrow(canvas, room);
+    if (_isCircuit) _renderCircuit(canvas, room);
+    if (_isVapor) _renderSteam(canvas, room);
+    if (_isFoundry) _renderFoundry(canvas, room);
+    if (_isVenom) _renderMonastery(canvas, room);
     _renderRoomLandmarks(canvas, room);
     _renderMaximRite(canvas);
   }
