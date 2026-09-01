@@ -995,40 +995,97 @@ extension BuriedGiant on PlanetDungeonGame {
           const Color(0xFF120E08).withValues(alpha: 0.58),
         ]),
     );
-    final seam = Paint()
+    // THE GROUND IS STRATA, NOT GRAPH PAPER.
+    //
+    // It used to be a 110px square grid of seams. Every room in the barrow
+    // therefore sat on a sheet of graph paper, which is the single biggest
+    // reason nine chambers of a BURIED BODY read as diagrams of their own
+    // mechanics. Earth is the one planet whose ground is the story: the giant
+    // sank through ages, and the ages are still lying on top of it in bands.
+    //
+    // Bands, then, with irregular boundaries — a straight line is a drawing
+    // and a wavering one is a deposit. Deterministic per room (seeded off the
+    // bounds), so the ground does not crawl between frames.
+    final seed = (b.width * 31 + b.height * 17).toInt();
+    double wob(int i, double x) =>
+        sin((x + seed + i * 137) * 0.0121 + i * 2.3) * (5 + (i % 3) * 3.5);
+
+    const bands = 7;
+    for (var i = 1; i < bands; i++) {
+      final y = b.top + b.height * i / bands;
+      // The band's own body, laid under its boundary so the seam sits ON a
+      // change of colour rather than floating over one flat tone.
+      final path = Path()..moveTo(b.left, y + wob(i, b.left));
+      for (var x = b.left; x <= b.right; x += 26) {
+        path.lineTo(x, y + wob(i, x));
+      }
+      path.lineTo(b.right, b.bottom);
+      path.lineTo(b.left, b.bottom);
+      path.close();
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = (i.isEven
+                  ? const Color(0xFF241B12)
+                  : const Color(0xFF1A140D))
+              .withValues(alpha: 0.34),
+      );
+      // The seam itself: a pale line of older grit pressed between the ages.
+      final seam = Path()..moveTo(b.left, y + wob(i, b.left));
+      for (var x = b.left; x <= b.right; x += 26) {
+        seam.lineTo(x, y + wob(i, x));
+      }
+      canvas.drawPath(
+        seam,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = const Color(0xFF8A6E48).withValues(alpha: 0.10),
+      );
+    }
+
+    // BONE FLECK AND ROOT. What is actually in the dirt over a giant: chips
+    // of it, and the roots that came down looking for it. Sparse, small and
+    // deterministic — this is texture, not a particle system.
+    final chip = Paint()..color = const Color(0xFFB8A070).withValues(alpha: 0.13);
+    final root = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = const Color(0xFF5E4C34).withValues(alpha: 0.12);
-    for (var x = b.left + 90; x < b.right - 20; x += 110) {
-      canvas.drawLine(Offset(x, b.top + 18), Offset(x, b.bottom - 18), seam);
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF4A3A22).withValues(alpha: 0.4);
+    for (var i = 0; i < 34; i++) {
+      final u = ((i * 2654435761) % 1000) / 1000.0;
+      final v = ((i * 40503 + seed) % 997) / 997.0;
+      final at = Offset(b.left + 20 + u * (b.width - 40),
+          b.top + 20 + v * (b.height - 40));
+      if (i % 4 == 0) {
+        // A root thread, feeling downward.
+        canvas.drawPath(
+          Path()
+            ..moveTo(at.dx, at.dy)
+            ..quadraticBezierTo(
+              at.dx + 7 * (i.isEven ? 1 : -1),
+              at.dy + 13,
+              at.dx + 2 * (i.isEven ? -1 : 1),
+              at.dy + 27,
+            ),
+          root,
+        );
+      } else {
+        // A chip of the giant, edge-on.
+        canvas.save();
+        canvas.translate(at.dx, at.dy);
+        canvas.rotate(u * pi);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset.zero, width: 5 + (i % 3) * 2.0, height: 2),
+            const Radius.circular(1),
+          ),
+          chip,
+        );
+        canvas.restore();
+      }
     }
-    for (var y = b.top + 90; y < b.bottom - 20; y += 110) {
-      canvas.drawLine(Offset(b.left + 18, y), Offset(b.right - 18, y), seam);
-    }
-    // Strata stains — the layered ages the giant sank through.
-    final strata = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = const Color(0xFF8A6E48).withValues(alpha: 0.07);
-    canvas.drawLine(
-      Offset(b.left + 26, b.top + 130),
-      Offset(b.right - 26, b.top + 142),
-      strata,
-    );
-    canvas.drawLine(
-      Offset(b.left + 30, b.bottom - 150),
-      Offset(b.right - 30, b.bottom - 138),
-      strata,
-    );
-    // A bone-ring mosaic at the chamber's heart.
-    canvas.drawCircle(
-      b.center,
-      84,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = const Color(0xFFB8A070).withValues(alpha: 0.14),
-    );
     if (_fx.ready) {
       final cols = (b.width / 130).clamp(3, 9).toInt();
       for (var i = 0; i < cols; i++) {
@@ -1472,20 +1529,160 @@ extension BuriedGiant on PlanetDungeonGame {
     // shown ON the locked finale door itself, in _renderDoors.)
   }
 
+  /// A length of the giant, drawn as BONE rather than as a stroke.
+  ///
+  /// A rib is not a line: it is thick at the spine, tapers to nothing at the
+  /// tip, and catches light along its upper edge. Every arch in this barrow
+  /// goes through here, so the anatomy is one material instead of nine
+  /// different curves that happen to be beige.
+  void _drawBuriedBone(
+    Canvas canvas,
+    Offset from,
+    Offset ctrl,
+    Offset to, {
+    double thick = 16,
+    double alpha = 1.0,
+  }) {
+    const steps = 18;
+    Offset at(double t) {
+      final u = 1 - t;
+      return Offset(
+        u * u * from.dx + 2 * u * t * ctrl.dx + t * t * to.dx,
+        u * u * from.dy + 2 * u * t * ctrl.dy + t * t * to.dy,
+      );
+    }
+
+    // Two offset edges around the spine of the curve, tapering to the tip.
+    final upper = <Offset>[];
+    final lower = <Offset>[];
+    for (var i = 0; i <= steps; i++) {
+      final t = i / steps;
+      final p0 = at(max(0.0, t - 0.02));
+      final p1 = at(min(1.0, t + 0.02));
+      final d = p1 - p0;
+      final len = d.distance;
+      final n = len < 1e-4
+          ? const Offset(0, -1)
+          : Offset(-d.dy / len, d.dx / len);
+      final w = thick * 0.5 * (1 - t * t * 0.86);
+      upper.add(at(t) + n * w);
+      lower.add(at(t) - n * w);
+    }
+    final body = Path()..moveTo(upper.first.dx, upper.first.dy);
+    for (final p in upper.skip(1)) {
+      body.lineTo(p.dx, p.dy);
+    }
+    for (final p in lower.reversed) {
+      body.lineTo(p.dx, p.dy);
+    }
+    body.close();
+    canvas.drawPath(
+      body,
+      Paint()..color = const Color(0xFF6B5636).withValues(alpha: 0.55 * alpha),
+    );
+    // The lit edge, which is what makes it read as round.
+    final lit = Path()..moveTo(upper.first.dx, upper.first.dy);
+    for (final p in upper.skip(1)) {
+      lit.lineTo(p.dx, p.dy);
+    }
+    canvas.drawPath(
+      lit,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFC6AC78).withValues(alpha: 0.42 * alpha),
+    );
+    // …and the shadow it sits in.
+    final dark = Path()..moveTo(lower.first.dx, lower.first.dy);
+    for (final p in lower.skip(1)) {
+      dark.lineTo(p.dx, p.dy);
+    }
+    canvas.drawPath(
+      dark,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFF120C06).withValues(alpha: 0.5 * alpha),
+    );
+  }
+
+  /// THE HALL IS INSIDE THE RIBCAGE. Great ribs come down from the vault and
+  /// up from the floor and stop short of the marrow channel that runs between
+  /// them — so the room the player walks is the gap between two ribs of a
+  /// body, which is what this planet has claimed to be all along and what
+  /// only the hub was actually drawing.
+  void _drawRibcageWalls(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    final chasm = room.ribChasm;
+    // A RIB ARCS, and the control point is the whole difference. Sitting it
+    // near the chord (0.35 out, 0.30 down) draws a straight bone, and the
+    // hall came out full of diagonal spears. The hub's ribcage — the one room
+    // that always looked right — puts it at 0.7 of the reach and 0.25 of the
+    // drop, so the bone leaves the vault almost sideways and turns down late.
+    // Same numbers here, so the cage is one cage.
+    for (var i = 0; i < 6; i++) {
+      final t = (i + 0.5) / 6;
+      final x = b.left + t * b.width;
+      // Ribs never cross the marrow channel — the split is where they END.
+      if (chasm != null && x > chasm.left - 40 && x < chasm.right + 40) {
+        continue;
+      }
+      // Ribs sweep AWAY from the marrow channel, the way they sweep away
+      // from a spine — and only as far as there is wall to sweep into, or the
+      // ones near the edge simply leave the room and are never seen.
+      final away = x < (chasm?.center.dx ?? b.center.dx) ? -1.0 : 1.0;
+      final room2wall = away < 0 ? x - b.left : b.right - x;
+      final depth = 150 + 60 * sin(t * pi);
+      final sweep = min(165 + 55 * sin(t * pi), room2wall * 0.92);
+      _drawBuriedBone(
+        canvas,
+        Offset(x, b.top - 10),
+        Offset(x + away * sweep * 0.70, b.top + depth * 0.25),
+        Offset(x + away * sweep, b.top + depth),
+        thick: 21,
+        alpha: 0.85,
+      );
+      _drawBuriedBone(
+        canvas,
+        Offset(x + 26, b.bottom + 10),
+        Offset(x + 26 + away * sweep * 0.70, b.bottom - depth * 0.25),
+        Offset(x + 26 + away * sweep, b.bottom - depth),
+        thick: 21,
+        alpha: 0.66,
+      );
+    }
+  }
+
+
   void _drawRibHall(Canvas canvas, DungeonRoom room) {
     // The marrow chasm: a dark pit with glowing marrow veins down its walls.
+    _drawRibcageWalls(canvas, room);
     final chasm = room.ribChasm;
     if (chasm != null) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(chasm, const Radius.circular(12)),
-        Paint()..color = const Color(0xFF060402).withValues(alpha: 0.78),
+      // THE MARROW CHANNEL — a split in the bone, not a rounded rectangle.
+      // Its edges waver the way a break does, and the lips of it are the same
+      // bone the ribs are made of.
+      double lip(double y, double sign) =>
+          sign * (7 * sin(y * 0.021) + 4 * sin(y * 0.047 + 1.9));
+      final split = Path()..moveTo(chasm.left + lip(chasm.top, 1), chasm.top);
+      for (var y = chasm.top; y <= chasm.bottom; y += 18) {
+        split.lineTo(chasm.left + lip(y, 1), y);
+      }
+      for (var y = chasm.bottom; y >= chasm.top; y -= 18) {
+        split.lineTo(chasm.right + lip(y, -1), y);
+      }
+      split.close();
+      canvas.drawPath(
+        split,
+        Paint()..color = const Color(0xFF050301).withValues(alpha: 0.88),
       );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(chasm, const Radius.circular(12)),
+      canvas.drawPath(
+        split,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = const Color(0xFF8A6E48).withValues(alpha: 0.5),
+          ..strokeWidth = 2.2
+          ..color = const Color(0xFF8A6E48).withValues(alpha: 0.45),
       );
       final vein = Paint()
         ..style = PaintingStyle.stroke
@@ -1567,6 +1764,42 @@ extension BuriedGiant on PlanetDungeonGame {
               (bridging ? const Color(0xFF9A8458) : const Color(0xFFC8B488))
                   .withValues(alpha: bridging ? 0.78 : 0.92),
       );
+      // A SHAFT, NOT A CAPSULE. A plain rounded rect between two knobs reads
+      // as a pill; real bone is waisted at the middle and split with old
+      // fissures along its length. Two dark wedges pull the silhouette in and
+      // three hairlines give it grain — the collision rect is untouched.
+      for (final side in const [-1.0, 1.0]) {
+        canvas.drawPath(
+          Path()
+            ..moveTo(rect.center.dx - rect.width * 0.26,
+                rect.center.dy + side * rect.height * 0.5)
+            ..quadraticBezierTo(
+              rect.center.dx,
+              rect.center.dy + side * rect.height * 0.28,
+              rect.center.dx + rect.width * 0.26,
+              rect.center.dy + side * rect.height * 0.5,
+            )
+            ..lineTo(rect.center.dx + rect.width * 0.26,
+                rect.center.dy + side * rect.height * 0.52)
+            ..lineTo(rect.center.dx - rect.width * 0.26,
+                rect.center.dy + side * rect.height * 0.52)
+            ..close(),
+          Paint()..color = const Color(0xFF17100A).withValues(alpha: 0.55),
+        );
+      }
+      final grain = Paint()
+        ..strokeWidth = 1
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFF6E5A3A).withValues(alpha: 0.35);
+      for (var i = 0; i < 3; i++) {
+        final y = rect.top + rect.height * (0.34 + i * 0.16);
+        final x0 = rect.left + 12 + i * 9.0;
+        canvas.drawLine(
+          Offset(x0, y),
+          Offset(x0 + rect.width * (0.32 + i * 0.14), y + (i - 1) * 0.8),
+          grain,
+        );
+      }
       // Lit bevel along the top of the shaft.
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -1676,7 +1909,71 @@ extension BuriedGiant on PlanetDungeonGame {
     );
   }
 
+  /// THE CRYPT IS THE SPINE. The four sockets used to be four stacks of discs
+  /// standing in a void; they are vertebrae, so there is a column for them to
+  /// be vertebrae OF — a great backbone running the length of the chamber
+  /// with the buried sockets set into it, and the transverse processes
+  /// reaching out to the walls.
+  void _drawSpinalColumn(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    final x = b.center.dx;
+    // The column itself, sunk in the earth: a broad dark shaft with a lit
+    // near edge, so it reads as a mass rather than a stripe.
+    canvas.drawRect(
+      Rect.fromLTRB(x - 34, b.top, x + 34, b.bottom),
+      Paint()..color = const Color(0xFF17110A).withValues(alpha: 0.55),
+    );
+    canvas.drawLine(
+      Offset(x - 34, b.top),
+      Offset(x - 34, b.bottom),
+      Paint()
+        ..strokeWidth = 1.4
+        ..color = const Color(0xFF8A6E48).withValues(alpha: 0.20),
+    );
+    canvas.drawLine(
+      Offset(x + 34, b.top),
+      Offset(x + 34, b.bottom),
+      Paint()
+        ..strokeWidth = 1.4
+        ..color = const Color(0xFF0C0804).withValues(alpha: 0.6),
+    );
+    // Vertebrae down the shaft, each with its processes reaching outward.
+    const n = 9;
+    for (var i = 0; i < n; i++) {
+      final y = b.top + (i + 0.5) / n * b.height;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset(x, y), width: 62, height: 30),
+          const Radius.circular(11),
+        ),
+        Paint()..color = const Color(0xFF5C4A2E).withValues(alpha: 0.62),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset(x, y - 4), width: 62, height: 30),
+          const Radius.circular(11),
+        ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..color = const Color(0xFFC6AC78).withValues(alpha: 0.22),
+      );
+      // The processes — short bones out to either side, catching the light.
+      for (final side in const [-1.0, 1.0]) {
+        _drawBuriedBone(
+          canvas,
+          Offset(x + side * 30, y),
+          Offset(x + side * 96, y - 8),
+          Offset(x + side * 168, y - 4),
+          thick: 13,
+          alpha: 0.5,
+        );
+      }
+    }
+  }
+
   void _drawPillarCrypt(Canvas canvas, DungeonRoom room) {
+    _drawSpinalColumn(canvas, room);
     final star = room.pillarStarIndex;
     final done = star != null && hasStar(star);
     for (final pillar in room.fossilPillars) {

@@ -1858,6 +1858,54 @@ braziers, vault caches — against each panel's real box at the camera clamp for
 that panel's corner, with a press-radius allowance, because a target is a disc
 and not a point.
 
+### ▶ EARTH — in progress (art pass 2026-09-01)
+
+The planet's conceit is the best on the roster — *the dungeon IS a buried
+body, rooms are anatomy, the bones are the machinery* — and exactly one room
+in nine was drawing it. `sternum_court` is a ribcage vault with a spine and it
+reads; `rib_hall` was three lozenges and a black box, `pillar_crypt` was four
+stacks of discs in a void, `eye_chamber` is an eye, a plank and four coins.
+The rest were diagrams of their own mechanics.
+
+  · ✅ **The ground is strata, not graph paper.** It was a 110px square grid of
+    seams — every chamber of a buried body sat on a sheet of graph paper. It
+    is seven bands now with wavering boundaries (a straight line is a drawing,
+    a wavering one is a deposit), each band its own tone, seeded off the room
+    bounds so it never crawls; plus bone chips and root threads in the dirt.
+  · ✅ **One bone material.** `_drawBuriedBone` — thick at the root, tapering
+    to nothing, lit along the upper edge and shadowed under. Every arch in the
+    barrow goes through it, so the anatomy is one substance instead of nine
+    curves that happen to be beige.
+  · ✅ **`rib_hall` is inside the ribcage.** Ribs down from the vault and up
+    from the floor, stopping short of the marrow channel — and the chasm is a
+    SPLIT in the bone with wavering lips, not a rounded rectangle. The
+    movable ribs are waisted and grained so they stop reading as pills.
+  · ✅ **`pillar_crypt` is the spine.** The four sockets are vertebrae, so
+    there is now a backbone for them to be vertebrae OF, with transverse
+    processes reaching to the walls.
+  · ⬜ `eye_chamber`, `palm_hollow`, `skull_antechamber`, `marrow_vault`,
+    `heart_chamber`, `barrow_gate` still owe their anatomy.
+  · ⬜ Device playtest.
+
+**AND THE PUZZLES ARE THE REAL PROBLEM.** Star 1 is three ribs on three
+separate tracks that never interact — one verb, three times. Star 2 is four
+sockets charged one at a time with a defend wave as the only content — one
+verb, four times. Star 3 (the rolled scale, its answer carved as bone-marks in
+four other chambers) is genuinely good and should not be touched. The two
+early stars need the treatment the moon well just had: something to work out,
+not a lap to repeat. Sketched, not designed:
+
+  · **Star 1** — make the ribs one object. They share the chasm, so a rib
+    dropped in the groove blocks the track behind it and the order is forced.
+  · **Star 2** — make the sockets a circuit. Charging one drains its
+    neighbours, so the question is an order that lets all four hold at once.
+
+**RIB CURVE, FOR THE NEXT PERSON.** A quadratic control point near the chord
+draws a straight bone: the first pass put it at 0.35 of the reach and 0.30 of
+the drop and the hall came out full of diagonal spears. The hub's ribs — the
+ones that always looked right — use **0.7 of the reach, 0.25 of the drop**, so
+the bone leaves the vault almost sideways and turns down late. Use those.
+
 ## 8. Build status
 
 - ✅ Overworld gate flow: a gated planet's recipe is a ONE-TIME element
