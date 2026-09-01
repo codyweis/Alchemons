@@ -1015,6 +1015,14 @@ class DungeonRoom {
   // Air Star 1 (WAKE THE WINDS): the wind graph + its shrines.
   final List<WindLedge> windLedges;
   final List<WindRoute> windRoutes;
+  /// The four rune pillars ringing the hub compass — the Four Winds.
+  ///
+  /// Authored rather than computed on a radius so they are a THING IN THE
+  /// ROOM: the pad can see them (an empty hub used to offer no action button
+  /// at all, which quietly made Air's lost maxim unreachable), and the
+  /// interaction and the render agree on where they stand.
+  final List<Offset> windRunes;
+
   final List<GustShrine> gustShrines;
   final SpireSummit? summit;
   // Air Star 2 (THE SPIRAL, COMPOSED): the Gale Eye's ring of vents.
@@ -1207,6 +1215,7 @@ class DungeonRoom {
     this.currents = const [],
     this.windLedges = const [],
     this.windRoutes = const [],
+    this.windRunes = const [],
     this.gustShrines = const [],
     this.summit,
     this.galeVents = const [],
@@ -1378,6 +1387,7 @@ extension DungeonRoomAffordances on DungeonRoom {
       stars.isNotEmpty ||
       vaultCache != null ||
       // Air
+      windRunes.isNotEmpty ||
       gustShrines.isNotEmpty ||
       galeVents.isNotEmpty ||
       stormRods.isNotEmpty ||
@@ -1748,6 +1758,16 @@ const DungeonLayout _airLayout = DungeonLayout(
     'hub': DungeonRoom(
       id: 'hub',
       bounds: Rect.fromLTWH(0, 0, 920, 680),
+      // THE FOUR WINDS. Ringing the compass at radius 235 from its heart
+      // (460, 340) — the same ring the pillars have always been drawn on,
+      // written down so the room can be acted on rather than only looked at.
+      // Clockwise from the north-east: NE, SE, SW, NW.
+      windRunes: [
+        Offset(626, 174),
+        Offset(626, 506),
+        Offset(294, 506),
+        Offset(294, 174),
+      ],
       doors: [
         DungeonDoor(
           rect: Rect.fromLTWH(0, 285, 24, 90),

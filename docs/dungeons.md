@@ -1268,12 +1268,31 @@ and the maxim itself is the fanfare (long hint, public-domain quote).
    are not."* (Epicurus). Entirely WORDLESS — no hint popups at any step
    (cached TextPainters, clip-reveal + burn-front animation; the mural shows
    no placeholder smudges — unread glyphs are simply absent).
-2. **Air — First Wind (BUILT):** with all three stars banked, commune at the
-   exact heart of the hub compass — the Roc's first-wind memory. PERMANENT
-   completion state (persisted with the discovery): the hub mechanism wakes
-   for good — the compass spokes turn forever, the four rune pillars ride a
-   slow perpetual orbit of the hub, and three gust-heads endlessly circle
-   the compass trailing arc streaks.
+2. **Air — The Four Winds (BUILT, REBUILT to the Fire template):** the four
+   rune pillars ringing the hub compass. Any hand touching one flares its
+   rune and it dies — the lure. An **Air** breath SCOURS a face clean; scour
+   all four and the compass gives up the maxim, its words hanging scattered
+   and eddying over the rose. Now wake the winds **oldest first**: the
+   longest-blown wind ate its rune down the most, so the stone says the order
+   out loud. Wear is **rolled per run** (like the choir's brazier order), so
+   it is deduced, never memorised. A wrong pillar scatters them all and the
+   walk restarts — the wear survives, because what the player learned is
+   still true. The fourth right wind gathers the words into their lines,
+   where they stay: *"If a man knows not to which port he sails, no wind is
+   favourable."* (Seneca, Letters LXXI — the only maxim on the roster that is
+   ABOUT the room it is hidden in; this hub is a compass.) PERMANENT
+   completion state, unchanged: the compass spokes turn forever, the pillars
+   ride a slow perpetual orbit and stay lit, and three gust-heads endlessly
+   circle the compass trailing arc streaks.
+
+   *What it replaced, and why:* one press on the exact centre of the hub,
+   gated on all three stars. No puzzle, nothing marking the spot — and the
+   hub declared no furniture at all, so `roomOffersAction` was false, the
+   action pad never appeared in that room, and the secret **could not be
+   reached by any means**. The pillars are authored data now
+   (`DungeonRoom.windRunes`), which fixes the pad as a side effect. Not
+   star-gated any more: a secret you can only find after finishing the
+   dungeon is a secret nobody finds.
 3. **Water — Frozen Moon (BUILT):** at the settled MID tide only, a faint
    glint drifts on the reflection-court pool; Ice laid exactly on it freezes
    the moon's reflection — a permanent ice disc with frost cracks, forever.
@@ -1518,18 +1537,26 @@ The reference. What "complete" meant, so the next planet has a target:
   · **Feel.** Flame crawls at 15px/s and holds 4.0s; the gust glides rather
     than teleports; the boss fight runs inside the frame budget again.
 
-### ▶ AIR — next
+### ▶ AIR — in progress
 
-Observed from whole-room renders before the playtest, to be confirmed on the
-device:
-
-  · **The currents are straight hairlines.** crosswind_hall is criss-crossed
-    with long thin gold diagonals that read as scratches or debug geometry
-    rather than moving air. This is Air's version of Fire's "cobweb chains".
-  · **The gale columns are translucent rectangles.** lower_spire's updrafts
+  · ✅ **The long gold diagonals** across crosswind_hall were not a wind
+    effect at all: `_drawBrokenBridgeLines` walked `platforms` in AUTHORING
+    order and joined each to the next, stringing lines between ledges that
+    are not neighbours — through the islands and off the room edges.
+    Neighbours are decided by position now, gaps outside 24–300px are skipped,
+    and the bridge is drawn genuinely broken (sagging ropes that stop short,
+    planks hanging from the stumps).
+  · ✅ **Route marks.** Chalk dashes and chevrons on the wind ledges, rungs on
+    the vertical climbs, instead of pasted-on amber glyphs floating mid-air.
+  · ✅ **The Spiral** resets the moment a wrong vent is opened, and a completed
+    ring reads as a galaxy rather than a diagram.
+  · ✅ **The hints** no longer name the method (see §5.6).
+  · ✅ **THE FOUR WINDS** — the hub secret rebuilt to Fire's template, and the
+    hub made actionable at all (it declared no furniture, so it had no action
+    pad). See §7 lost maxims, entry 2.
+  · ⬜ **The gale columns are translucent rectangles.** lower_spire's updrafts
     are plain pale slabs — they read as UI panels standing in the room.
-  · **Platform glyphs look pasted on.** The small amber marks on the ledges
-    read as icons rather than as anything carved into or resting on the rock.
+  · ⬜ Device playtest.
   · The floating islands themselves are good and should be left alone.
 
 ## 8. Build status
@@ -1623,7 +1650,7 @@ device:
   door-unlock reveal rings; idle creatures catch feathers; carried echoes
   trail wind and are torn loose by landed dives; rune-hall mural diagrams
   the conduit sync (Mask completes it); storm-altar mercy heal (once/run);
-  hub-compass secret at 3 stars.
+  hub compass carries THE FOUR WINDS (the rune pillars, rolled per run).
 - ✅ **Guardian relic drop**: Star 3 grants the element relic once
   (feeds the Mystic Altar; turn-based Boss Gauntlet deleted — see §7).
 - ✅ **Timed raids**: 24h takeover windows on conquered planets, 48h rotation

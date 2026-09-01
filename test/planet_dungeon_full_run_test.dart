@@ -1616,13 +1616,36 @@ void main() {
     expect(earned, [0, 1, 2], reason: 'stars bank in play order, once each');
     expect(game.starsEarnedCount, 3);
 
-    // ── The First Wind: commune at the compass heart, and it STAYS ──
-    _teleport(game, 'hub', room('hub').bounds.center);
-    game.activateAbility();
+    // ── THE FOUR WINDS: scour the pillars, then speak them oldest first ──
+    //
+    // Was one press on the compass heart at 3 stars. It is a puzzle now, and
+    // an ungated one — the walk below would work just as well on a fresh
+    // run; it is done here because this is the test that plays Air through.
+    game.activeIndex = game.creatures.indexWhere(
+      (c) => c.member.element == 'Air',
+    );
+    final runes = room('hub').windRunes;
+    for (var pass = 0; pass < 2; pass++) {
+      // Pass 0 scours the four faces; pass 1 speaks them in the rolled order.
+      final order = pass == 0
+          ? List<int>.generate(runes.length, (i) => i)
+          : game.firstWindOrder;
+      for (final i in order) {
+        _teleport(game, 'hub', runes[i]);
+        game.activateAbility();
+      }
+      if (pass == 0) {
+        expect(
+          game.firstWindStage,
+          1,
+          reason: 'four scoured faces make the wear readable',
+        );
+      }
+    }
     expect(
       discovered,
       contains(kAirFirstWindEggId),
-      reason: 'the 3-star commune yields the maxim (screen pays 20 gold)',
+      reason: 'the four winds, spoken oldest first (screen pays 20 gold)',
     );
     // Permanence: the completion state survives a death/reset.
     for (final c in game.creatures) {

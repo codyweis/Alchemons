@@ -578,6 +578,51 @@ class PlanetDungeonGame extends FlameGame {
   Offset _rocLeash = Offset.zero;
   double _rocStunLeft = 0;
 
+  // ── THE FOUR WINDS · Air's lost maxim (the hub compass) ──
+  //
+  // Fire's Ember Epitaph is a four-stage wordless chain; Air's maxim used to
+  // be a single press on the exact centre of the hub, gated on a dungeon the
+  // player had already finished. Worse, the hub declared no furniture at all,
+  // so the action pad never appeared there and the secret could not be
+  // reached by any means. This is the puzzle that replaces it.
+  //
+  // Stage 0 dormant · 1 bared by a Mask (the pillars show their wear and the
+  // maxim's words hang scattered over the compass) · 2 gathering, as each
+  // wind is spoken in turn · 3 found.
+  //
+  // Knowledge survives death (stage 1, like the epitaph's); the speaking is
+  // run-state and resets with everything else.
+  int firstWindStage = 0;
+
+  /// The order the winds must be woken in — this run's pillar indices, oldest
+  /// (most worn) first. ROLLED PER RUN, so it is deduced from the stone and
+  /// never memorised, exactly as the choir's brazier order is.
+  final List<int> firstWindOrder = [];
+
+  /// How eaten each pillar's face is, 0..1, by pillar index. The testimony
+  /// the answer is read from: the longest-blown wind wore its rune down most.
+  final List<double> firstWindWear = [];
+
+  /// Winds spoken correctly so far, in order.
+  final List<int> firstWindSpoken = [];
+
+  /// Seconds since the last wrong pillar blew the whole thing apart, and
+  /// since the fourth right one gathered the words. Both are WATCHED.
+  double firstWindScatterFx = 0;
+  double firstWindGatherT = -1;
+
+  /// Faces an Air breath has scoured clean this run (stage 0 → 1).
+  final Set<int> firstWindScoured = {};
+
+  /// A pillar's rune flaring from a press that did nothing — the answer to a
+  /// curious tap, so the hub is never silent when it is touched.
+  final Map<int, double> _windRuneFlare = {};
+
+  /// Per-word drift phases, so the scattered maxim eddies instead of sitting
+  /// still. Rolled once with the order.
+  final List<double> _firstWindWordPhase = [];
+  List<TextPainter>? _firstWindWords; // cached — never built per frame
+
   final Set<String> discoveredClouds = {}; // cloud ids (kept across death)
   String? carriedCloudId;
   String? carriedCloudType;
@@ -3058,6 +3103,7 @@ class PlanetDungeonGame extends FlameGame {
     // guard: leaving the chamber is what shuts the vents, and that has to be
     // seen even on the frame the player walks out.
     if (_isSpire) _updateSpiralChamber(room, dt);
+    if (_isSpire) _updateFourWinds(dt);
     final sealed = _sealedWonderCloud(room);
     if (sealed == null) return;
 
@@ -7502,24 +7548,9 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return;
     }
-    // The secret: with all three stars, commune at the compass's heart.
-    // Air's lost maxim — finding it pays out once (screen-side, 20 gold).
-    if (currentRoomId == 'hub' &&
-        starsEarnedCount >= 3 &&
-        (a.position - currentRoom.bounds.center).distance < 34) {
-      _discoverCloud(kAirFirstWindEggId);
-      _setHint(
-        'The compass stills. Long before the storm, the Roc wove the first '
-        'wind through this loom — the planet remembers, and now it rests.',
-        7.5,
-      );
-      _spawnAlchemyBurst(
-        currentRoom.bounds.center,
-        producedElement: 'Light',
-        reagentElements: const ['Air', 'Spirit'],
-        particleCount: 20,
-        intensity: 0.8,
-      );
+    // THE FOUR WINDS — Air's lost maxim, worked at the hub's rune pillars.
+    // Wordless; the pillars answer every press themselves.
+    if (_tryFourWinds(a)) {
       onChanged();
       return;
     }
@@ -9055,6 +9086,15 @@ class PlanetDungeonGame extends FlameGame {
     };
   }
 
+  /// TEST-ONLY seam: paint a room's landmarks straight onto a canvas.
+  ///
+  /// A headless Flame game never mounts, so `render` is unreachable from a
+  /// widget test — and the art in these rooms is exactly the thing worth
+  /// looking at before shipping it. Costs nothing at runtime.
+  @visibleForTesting
+  void renderRoomForDebug(Canvas canvas, DungeonRoom room) =>
+      _renderRoomLandmarks(canvas, room);
+
   void _renderRoomLandmarks(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
     switch (_themeFor(room)) {
@@ -9064,15 +9104,10 @@ class PlanetDungeonGame extends FlameGame {
         break;
       case _AirRoomTheme.hub:
         _drawHubProgressCompass(canvas, room);
-        // Once the First Wind wakes, even the rune pillars ride it — a slow
-        // perpetual orbit of the hub.
-        _drawRunePillars(
-          canvas,
-          b.center,
-          235,
-          4,
-          drift: _firstWindWoken ? _time * 0.05 : 0,
-        );
+        // The pillars are the Four Winds now: drawn from the room's authored
+        // runes rather than a computed ring, and carrying the puzzle's state.
+        _drawFourWindsPillars(canvas, room.windRunes);
+        _drawFourWindsMaxim(canvas, b.center);
         break;
       case _AirRoomTheme.ascent:
         _drawVerticalSpireGhost(canvas, b);
@@ -9805,36 +9840,6 @@ class PlanetDungeonGame extends FlameGame {
           Color.lerp(color, Colors.white, 0.35)!.withValues(alpha: 0.72),
         );
       }
-    }
-  }
-
-  void _drawRunePillars(
-    Canvas canvas,
-    Offset c,
-    double radius,
-    int count, {
-    double drift = 0,
-  }) {
-    for (var i = 0; i < count; i++) {
-      final a = i * pi * 2 / count + pi / 4 + drift;
-      final pos = c + Offset(cos(a), sin(a)) * radius;
-      final rect = Rect.fromCenter(center: pos, width: 34, height: 64);
-      canvas.save();
-      canvas.translate(pos.dx, pos.dy);
-      canvas.rotate(a + pi / 2);
-      canvas.translate(-pos.dx, -pos.dy);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(8)),
-        Paint()..color = const Color(0xFF111723).withValues(alpha: 0.82),
-      );
-      canvas.drawLine(
-        pos + const Offset(-9, 0),
-        pos + const Offset(9, 0),
-        Paint()
-          ..strokeWidth = 1.4
-          ..color = const Color(0xFF5BC8E8).withValues(alpha: 0.35),
-      );
-      canvas.restore();
     }
   }
 
