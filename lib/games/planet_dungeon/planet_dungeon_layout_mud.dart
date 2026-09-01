@@ -549,8 +549,6 @@ class BogFen {
 /// Mud's lost maxim (§6 easter eggs #9, "No Mud, No Lotus").
 const String kMudLotusEggId = 'egg:mud_no_lotus';
 
-/// The maxim itself, over a seed that went all the way down and came back.
-const String kMudLotusMaxim = '"From the deepest mud grows the lotus."';
 
 /// PALUSIA — THE SINKING ALTAR, the Mud dungeon.
 ///

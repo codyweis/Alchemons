@@ -1293,7 +1293,8 @@ replays. A quotation is now OPTIONAL per planet — keep one only where it is
 about the room it is hidden in (Air's Seneca and a compass), and prefer the
 world's own answer everywhere else.
 
-**Adoption:** ▶ Lightning (built, the proof) · ⬜ the other fifteen.
+**Adoption: ALL SEVENTEEN.** Every planet's secret goes through it, and the
+quotation constants are deleted from the code — nothing left to drift.
 
 1. **Fire — Ember Epitaph (BUILT):** the dead words live in the soot mural
    panel's upper half as a near-invisible MIRROR-CIPHER (every word written
@@ -1308,39 +1309,45 @@ world's own answer everywhere else.
    (cached TextPainters, clip-reveal + burn-front animation; the mural shows
    no placeholder smudges — unread glyphs are simply absent).
 2. **Air — The Four Winds (BUILT, REBUILT to the Fire template):** the four
-   rune pillars ringing the hub compass. Any hand touching one flares its
-   rune and it dies — the lure. An **Air** breath SCOURS a face clean; scour
-   all four and the compass gives up the maxim, its words hanging scattered
-   and eddying over the rose. Now wake the winds **oldest first**: the
-   longest-blown wind ate its rune down the most, so the stone says the order
-   out loud. Wear is **rolled per run** (like the choir's brazier order), so
-   it is deduced, never memorised. A wrong pillar scatters them all and the
-   walk restarts — the wear survives, because what the player learned is
-   still true. The fourth right wind gathers the words into their lines,
-   where they stay: *"If a man knows not to which port he sails, no wind is
-   favourable."* (Seneca, Letters LXXI — the only maxim on the roster that is
-   ABOUT the room it is hidden in; this hub is a compass.) PERMANENT
-   completion state, unchanged: the compass spokes turn forever, the pillars
-   ride a slow perpetual orbit and stay lit, and three gust-heads endlessly
-   circle the compass trailing arc streaks.
+   rune pillars ringing the hub compass. Any hand touching one flares its rune
+   and throws a spark at the compass heart — the lure, and the pointer.
+   **ALL THREE ELEMENTS SOLVE IT**, because the payout is a reaction built
+   from all three and a puzzle must keep the promise its own payout makes:
+
+     · **LIGHTNING** at the compass heart puts current through the mechanism.
+       The ring wakes.
+     · **FIRE** burns the rime off each of the four faces. Clean all four and
+       the wear is legible.
+     · **AIR** wakes the winds, OLDEST FIRST — the longest-blown wind ate its
+       rune down the most, so the stone says the order out loud to anyone who
+       looks. Rolled per run (like the choir's brazier order), so it is
+       deduced, never memorised. A wrong pillar scatters them and the walk
+       restarts; the wear survives, because what the player learned is still
+       true.
+
+   What hangs over the rose is **the compass's own ring, in pieces** — broken
+   while the winds are unspoken, closing as the last one is spoken, whole and
+   lit forever after. It replaced three lines of Seneca and does the job
+   better: a visibly broken ring says "unfinished" from across the hall, where
+   italic verse said "there is text here, walk over and read it". PERMANENT
+   completion state: the compass spokes turn forever, the pillars ride a slow
+   perpetual orbit and stay lit, three gust-heads circle trailing arc streaks.
 
    *What it replaced, and why:* one press on the exact centre of the hub,
-   gated on all three stars. No puzzle, nothing marking the spot — and the
-   hub declared no furniture at all, so `roomOffersAction` was false, the
-   action pad never appeared in that room, and the secret **could not be
-   reached by any means**. The pillars are authored data now
-   (`DungeonRoom.windRunes`), which fixes the pad as a side effect. Not
-   star-gated any more: a secret you can only find after finishing the
-   dungeon is a secret nobody finds.
+   gated on all three stars. No puzzle, nothing marking the spot — and the hub
+   declared no furniture at all, so `roomOffersAction` was false, the action
+   pad never appeared in that room, and the secret **could not be reached by
+   any means**. The pillars are authored data now (`DungeonRoom.windRunes`),
+   which fixes the pad as a side effect. Not star-gated any more: a secret you
+   can only find after finishing the dungeon is a secret nobody finds.
+
 3. **Water — Frozen Moon (BUILT):** at the settled MID tide only, a faint
    glint drifts on the reflection-court pool; Ice laid exactly on it freezes
    the moon's reflection — a permanent ice disc with frost cracks, forever.
    One oblique hint (Mask in the room: "the pool remembers the moon best
-   when the tide stands between"). *"Nothing is softer than water, yet
-   nothing better overcomes the hard."* (Lao Tzu)
+   when the tide stands between").
 4. **Ice — Star-Walker:** align every telescope on the unmarked 13th star —
-   visible only in reflection. *"When I trace the circling courses of the
-   stars, my feet no longer touch the earth."* (Ptolemy)
+   visible only in reflection.
 5. **Lightning — Thunderbolt (BUILT · first planet on the RITE OF THREE):**
    light the Storm Tower with a Lightning HORN standing among the conductors
    (`egg:lightning_thunderbolt`, permanent tower glow). The Heraclitus line it
@@ -1348,42 +1355,32 @@ world's own answer everywhere else.
    of whichever trio came down, and the reaction hands over the gold.
 6. **Steam — Hidden Harmony (BUILT):** finish the whole labyrinth — the rite
    included — without the molten ever swallowing your footing: zero scalds,
-   one run. *"The hidden harmony is better than the obvious."* (Heraclitus)
+   one run.
 7. **Earth — The Giant's Palm (BUILT):** the giant's open fossil hand lies
    in the palm hollow, far off the puzzle path; a Crystal creature laying a
    crystal in it earns the maxim — the crystal takes root in the palm
    forever. One oblique hint (Mask in the room: "the hand lies open… and
-   misses it"). *"Loss is nothing but change, and change is Nature's
-   delight."* (Marcus Aurelius)
+   misses it").
 8. **Lava — Black Glass:** quench the casting font mid-pour three times —
-   the spoiled keys cool into a black-glass mirror. *"All things are an
-   exchange for fire, and fire for all things."* (Heraclitus)
+   the spoiled keys cool into a black-glass mirror.
 9. **Mud — No Mud, No Lotus:** plant a seed in the DEEPEST sink-pit, water
-   it, and let it sink utterly — it re-blooms. *"From the deepest mud grows
-   the lotus."*
+   it, and let it sink utterly — it re-blooms.
 10. **Dust — Nothing Perishes:** reveal, then sweep away (Air) EVERY ancient
-    footprint in the ruins. *"All things change; nothing perishes."* (Ovid)
+    footprint in the ruins.
 11. **Crystal — Know Thyself:** stand all three creatures inside one split
-    prism beam at once — it casts their merged reflection. *"Know thyself."*
-    (Delphi)
+    prism beam at once — it casts their merged reflection.
 12. **Plant — The Unseen Shade:** at tiny scale, tend the seed hidden under
-    the giant root until it towers at huge scale. *"Plant trees whose shade
-    you will never sit in."*
+    the giant root until it towers at huge scale.
 13. **Poison — The Dose:** one sick wisp wanders the monastery; cure it with
-    an antidote instead of a blade. *"The dose alone makes the poison."*
-    (Paracelsus)
+    an antidote instead of a blade.
 14. **Spirit — Stuff of Dreams:** stamp the minimap on your OWN position —
-    the grave that replays is yours. *"We are such stuff as dreams are made
-    on."* (Shakespeare)
+    the grave that replays is yours.
 15. **Dark — The Abyss:** stand utterly still in the total-darkness chamber
-    for a full minute, casting no light. *"When you gaze long into the
-    abyss, the abyss gazes also into you."* (Nietzsche)
+    for a full minute, casting no light.
 16. **Light — Afraid of the Light:** cross the blinding maze revealing
-    NOTHING — no light cast at all. *"The real tragedy is men who are afraid
-    of the light."* (after Plato)
+    NOTHING — no light cast at all.
 17. **Blood — The Blood Is the Life:** strike the heart-drum in sync with
-    the dungeon's pulse for twelve straight beats. *"The blood is the
-    life."* (Stoker)
+    the dungeon's pulse for twelve straight beats.
 
 ### Signature mechanic summary
 Fire=ritual forensics · Lava=production-line casting · Lightning=zero-sum living

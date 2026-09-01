@@ -758,9 +758,6 @@ class EchoGrave {
 /// Requia's lost maxim discovery id and its verse (§6 easter eggs #14 — *stamp
 /// the minimap on your OWN position: the grave that replays is yours*).
 const String kSpiritStuffOfDreamsEggId = 'egg:spirit_stuff_of_dreams';
-const String kSpiritStuffOfDreamsMaxim =
-    'WE ARE SUCH STUFF AS DREAMS ARE MADE ON — and the unmarked grave was '
-    'always yours';
 
 // ─────────────────────────────────────────────────────────
 // THE LAYOUT

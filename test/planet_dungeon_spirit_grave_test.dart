@@ -829,6 +829,10 @@ void main() {
       game.creatures[2].position = const Offset(210, 150);
       game.setActive(spirit);
       game.activateAbility();
+      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+      for (var tick = 0; tick < 200; tick++) {
+        game.update(1 / 60);
+      }
       expect(clouds, contains(kSpiritStuffOfDreamsEggId));
     });
 
@@ -919,6 +923,10 @@ void main() {
       expect(clouds, contains('cache:spirit_vault'));
       game.setActive(spirit);
       game.activateAbility();
+      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+      for (var tick = 0; tick < 200; tick++) {
+        game.update(1 / 60);
+      }
       expect(clouds, contains(kSpiritStuffOfDreamsEggId));
 
       // Back warm, and set the mark where the ring closes.

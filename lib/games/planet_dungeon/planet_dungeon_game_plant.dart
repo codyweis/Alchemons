@@ -49,9 +49,6 @@ part of 'planet_dungeon_game.dart';
 /// Plant's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kPlantUnseenShadeEggId = 'egg:plant_unseen_shade';
 
-/// The proverb the crypt was built on.
-const String kPlantUnseenShadeMaxim =
-    '"Plant trees whose shade you will never sit in."';
 
 // ── Device-tunable knobs ───────────────────────────────────
 // Plant has never been on a device; every number the feel depends on is named
@@ -623,8 +620,8 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     // Tended three ways, and now it wants to be LOOKED at from above.
     if (crypt.isTiny) return false;
     crypt.shadeRisen = true;
-    _discoverCloud(kPlantUnseenShadeEggId); // the screen pays the 20 gold
-    _setHint('THE UNSEEN SHADE — $kPlantUnseenShadeMaxim', 7.5);
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    beginMaximRite(kPlantUnseenShadeEggId, pos);
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Plant',

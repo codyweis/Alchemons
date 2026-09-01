@@ -708,12 +708,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       return true;
     }
     m.wisp = null;
-    _discoverCloud(kPoisonDoseEggId);
-    _setHint(
-      'The wisp drinks, and quietens. The monks knew it and wrote it small: '
-      '$kPoisonDoseMaxim',
-      7.5,
-    );
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    _setHint('The wisp drinks, and quietens', 4.0);
+    beginMaximRite(kPoisonDoseEggId, wisp);
     _spawnAlchemyBurst(
       wisp,
       producedElement: 'Light',

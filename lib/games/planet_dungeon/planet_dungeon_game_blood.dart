@@ -52,8 +52,6 @@ part of 'planet_dungeon_game.dart';
 /// Blood's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kBloodDrumEggId = 'egg:blood_drum';
 
-/// What the orrery was built to say.
-const String kBloodDrumMaxim = '"The blood is the life."';
 
 // ── Device-tunable knobs ───────────────────────────────────
 // Blood has never been on a device; every number the feel depends on is named
@@ -580,8 +578,8 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       return true;
     }
     heart.drumHeard = true;
-    _discoverCloud(kBloodDrumEggId); // the screen pays the 20 gold
-    _setHint('THE HEART-DRUM — $kBloodDrumMaxim', 7.5);
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    beginMaximRite(kBloodDrumEggId, pos);
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Blood',

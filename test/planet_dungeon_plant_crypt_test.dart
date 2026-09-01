@@ -731,6 +731,10 @@ void main() {
         expect(clouds, isNot(contains(kPlantUnseenShadeEggId)));
         g.crypt.scale = PlantScale.huge;
         act(g, plant, 'fern_gallery', seed);
+        // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+        for (var tick = 0; tick < 200; tick++) {
+          g.update(1 / 60);
+        }
         expect(clouds, contains(kPlantUnseenShadeEggId));
         expect(g.crypt.shadeRisen, isTrue);
       },

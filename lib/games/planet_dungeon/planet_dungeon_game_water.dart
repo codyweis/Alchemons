@@ -66,9 +66,6 @@ const Offset kTideGateBowl = Offset(330, 265);
 /// Reflection-court pool centre — the frozen-moon glint drifts around it.
 const Offset _kMoonPoolCentre = Offset(320, 330);
 
-/// Lao Tzu, frozen into the pool.
-const String kWaterFrozenMoonMaxim =
-    '"Nothing is softer than water, yet nothing better overcomes the hard."';
 
 // Tide tunables. The swing is deliberately watchable: a full low↔high flood
 // takes ~4.5s, one step ~2.3s.
@@ -1226,7 +1223,8 @@ extension MirrorTide on PlanetDungeonGame {
     if (glint == null) return false;
     if (a.member.element != 'Ice') return false;
     if ((a.position - glint).distance > 28) return false;
-    _discoverCloud(kWaterFrozenMoonEggId); // screen pays the 20 gold
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    beginMaximRite(kWaterFrozenMoonEggId, glint);
     _spawnAlchemyBurst(
       glint,
       producedElement: 'Ice',
@@ -1234,7 +1232,7 @@ extension MirrorTide on PlanetDungeonGame {
       particleCount: 26,
       intensity: 1.1,
     );
-    _setHint('$kWaterFrozenMoonMaxim — the moon stands frozen', 9.0);
+    _setHint('The moon stands frozen', 4.0);
     return true;
   }
 

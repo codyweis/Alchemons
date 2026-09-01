@@ -848,9 +848,6 @@ Offset keepPlateFor(int facet) => switch (facet) {
 
 /// Vitrea's lost maxim discovery id and its verse (§6 easter eggs #11).
 const String kCrystalKnowThyselfEggId = 'egg:crystal_know_thyself';
-const String kCrystalKnowThyselfMaxim =
-    'KNOW THYSELF — the split throws back three shapes, and all of them '
-    'are yours';
 
 // ─────────────────────────────────────────────────────────
 // THE LAYOUT

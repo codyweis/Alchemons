@@ -173,8 +173,8 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     for (final c in live) {
       if (!kBeamBand.contains(c.position)) return;
     }
-    _discoverCloud(kCrystalKnowThyselfEgg);
-    _setHint(kCrystalKnowThyselfMaxim, 7.0);
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    beginMaximRite(kCrystalKnowThyselfEgg, kChamberHeart);
     _spawnAlchemyBurst(
       kChamberHeart,
       producedElement: 'Light',

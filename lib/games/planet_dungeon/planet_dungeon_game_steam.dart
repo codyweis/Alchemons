@@ -29,9 +29,6 @@ part of 'planet_dungeon_game.dart';
 /// Steam's lost maxim discovery id (screen pays 20 gold on first find).
 const String kSteamHiddenHarmonyEggId = 'egg:steam_hidden_harmony';
 
-/// Heraclitus, in the stilled, cooled works.
-const String kSteamHiddenHarmonyMaxim =
-    '"The hidden harmony is better than the obvious."';
 
 /// Mutable cell codes for the molten grid.
 const int _mOpen = 0; // walkable floor
@@ -760,11 +757,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   void _maybeEarnHiddenHarmony(DungeonRoom room) {
     if (discoveredClouds.contains(kSteamHiddenHarmonyEggId)) return;
     if (moltenScalds != 0) return;
-    _discoverCloud(kSteamHiddenHarmonyEggId);
-    _setHint(
-      '$kSteamHiddenHarmonyMaxim — the molten never once touched you.',
-      7.5,
-    );
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    _setHint('The molten never once touched you', 4.0);
+    beginMaximRite(kSteamHiddenHarmonyEggId, room.bounds.center);
     _spawnAlchemyBurst(
       room.bounds.center,
       producedElement: 'Steam',

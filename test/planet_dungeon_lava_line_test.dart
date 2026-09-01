@@ -896,6 +896,10 @@ void _engineRun() {
         g.works.line.remelt('plug:ch_tap'); // clear the spoil and go again
       }
       expect(g.works.line.quenches, kLavaBlackGlassQuenches);
+      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+      for (var tick = 0; tick < 200; tick++) {
+        g.update(1 / 60);
+      }
       expect(found, contains(kLavaBlackGlassEggId));
       expect(g.works.line.poursLeft, kLavaPourBudget - kLavaBlackGlassQuenches);
       expect(

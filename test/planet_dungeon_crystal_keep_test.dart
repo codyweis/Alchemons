@@ -1246,6 +1246,10 @@ void main() {
       expect(clouds, isNot(contains(kCrystalKnowThyselfEggId)));
       game.creatures[2].position = kChamberHeart + const Offset(40, 0);
       game.update(0.016);
+      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+      for (var tick = 0; tick < 200; tick++) {
+        game.update(1 / 60);
+      }
       expect(clouds, contains(kCrystalKnowThyselfEggId));
     });
   });

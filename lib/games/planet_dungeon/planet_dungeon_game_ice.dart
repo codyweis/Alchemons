@@ -45,10 +45,6 @@ part of 'planet_dungeon_game.dart';
 /// Ice's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kIceStarWalkerEggId = 'egg:ice_star_walker';
 
-/// Ptolemy, sighting the thirteenth star.
-const String kIceStarWalkerMaxim =
-    '"When I trace the circling courses of the stars, my feet no longer '
-    'touch the earth."';
 
 // ── Device-tunable knobs ───────────────────────────────────
 // Ice has never been on a device; every number the feel depends on is named
@@ -732,8 +728,8 @@ extension FrozenObservatory on PlanetDungeonGame {
       _setBlockedHint('The mount will not hold — the sighting drifts');
       return true;
     }
-    _discoverCloud(kIceStarWalkerEggId); // the screen pays the 20 gold
-    _setHint('STAR-WALKER — $kIceStarWalkerMaxim', 7.5);
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    beginMaximRite(kIceStarWalkerEggId, pos);
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Light',

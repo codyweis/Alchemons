@@ -280,6 +280,10 @@ void main() {
     // ── The Lost Maxim: a crystal takes root in the open palm ──
     teleport('palm_hollow', kGiantsPalm);
     game.activateAbility();
+    // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+    for (var tick = 0; tick < 200; tick++) {
+      game.update(1 / 60);
+    }
     expect(
       discovered,
       contains(kEarthGiantsPalmEggId),

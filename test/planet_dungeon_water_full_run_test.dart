@@ -474,6 +474,10 @@ void main() {
     expect(glint, isNotNull, reason: 'mid tide floats the moon glint');
     teleport('reflection_court', glint!);
     game.activateAbility();
+    // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+    for (var tick = 0; tick < 200; tick++) {
+      game.update(1 / 60);
+    }
     expect(
       discovered,
       contains(kWaterFrozenMoonEggId),

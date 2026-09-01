@@ -60,9 +60,6 @@ const double kLavaPourSecondsPer100 = 0.62;
 const String kLavaBlackGlassEggId = 'egg:lava_black_glass';
 const String kLavaTapRuneId = 'rune:lava_tap';
 
-/// Heraclitus, in the cooled spoil of three ruined keys.
-const String kLavaBlackGlassMaxim =
-    '"All things are an exchange for fire, and fire for all things."';
 
 // ── The line, as a graph ────────────────────────────────────
 

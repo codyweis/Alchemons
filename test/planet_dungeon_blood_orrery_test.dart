@@ -858,6 +858,10 @@ void main() {
         g.heart.advance(1.0);
         g.update(1 / 60);
       }
+      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+      for (var tick = 0; tick < 200; tick++) {
+        g.update(1 / 60);
+      }
       expect(clouds, contains('egg:blood_drum'));
       expect(g.heart.drumHeard, isTrue);
     });

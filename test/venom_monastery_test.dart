@@ -858,6 +858,10 @@ void main() {
       );
       final wisp = m.wisp!;
       actAt(game, 'ambulatory', poison, wisp);
+      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+      for (var tick = 0; tick < 200; tick++) {
+        game.update(1 / 60);
+      }
       expect(found, contains(kPoisonDoseEggId));
       expect(m.wisp, isNull);
     });

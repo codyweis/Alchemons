@@ -380,8 +380,6 @@ class PriorsSeal {
 /// Poison's lost maxim (§6 easter eggs #13, "The Dose").
 const String kPoisonDoseEggId = 'egg:poison_the_dose';
 
-/// Paracelsus, over a wisp that was cured instead of killed.
-const String kPoisonDoseMaxim = '"The dose alone makes the poison."';
 
 /// Ward ids in walking order along the ambulatory. The charnel is last — the
 /// dead-house at the end of the walk, and the one behind brick.

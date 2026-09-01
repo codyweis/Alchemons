@@ -662,8 +662,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
       return true;
     }
     if (e != 'Mud') return false;
-    _discoverCloud(kMudNoLotusEggId);
-    _setHint(kMudLotusMaxim, 6.0);
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    beginMaximRite(kMudNoLotusEggId, pit);
     _spawnAlchemyBurst(
       pit,
       producedElement: 'Plant',

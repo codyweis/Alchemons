@@ -401,11 +401,9 @@ extension MoltenReliquary on PlanetDungeonGame {
       );
       if (s.quenches >= kLavaBlackGlassQuenches &&
           !discoveredClouds.contains(kLavaBlackGlassEggId)) {
-        _discoverCloud(kLavaBlackGlassEggId); // the screen pays the 20 gold
-        _setHint(
-          'Three spoiled keys cool into one black mirror. $kLavaBlackGlassMaxim',
-          7.5,
-        );
+        // THE RITE OF THREE pays this out (see `beginMaximRite`).
+        _setHint('Three spoiled keys cool into one black mirror', 4.0);
+        beginMaximRite(kLavaBlackGlassEggId, tap.position);
       } else {
         _setHint('The font goes black — the charge dies in the channel');
       }

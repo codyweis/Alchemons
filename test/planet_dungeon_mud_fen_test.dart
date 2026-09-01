@@ -659,6 +659,10 @@ void main() {
       _act(game, water, 'drowned_fane', pit);
       expect(found, isNot(contains(kMudLotusEggId)));
       _act(game, mud, 'drowned_fane', pit);
+      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+      for (var tick = 0; tick < 200; tick++) {
+        game.update(1 / 60);
+      }
       expect(found, contains(kMudLotusEggId));
     });
   });

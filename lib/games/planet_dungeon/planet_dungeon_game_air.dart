@@ -2010,37 +2010,53 @@ extension WindCrownSpire on PlanetDungeonGame {
 // answer is DEDUCED from physical testimony, rolled per run so it cannot be
 // memorised, presented by the world rather than by hint popups.
 //
+// ALL THREE ELEMENTS SOLVE IT. A first pass had the whole chain on Air alone,
+// which made the payout — a reaction built from the trio you brought — a
+// promise the puzzle had not kept. Each element now does the thing it does
+// everywhere else in this game, and the finale belongs to Air because this is
+// the Air dungeon.
+//
 //   0 · DORMANT — four cold pillars ring the compass. Any press flares a rune
-//       and it dies; the stone answers, so curiosity is not met with silence.
-//   1 · READABLE — an Air breath scours a face clean. Scour all four and the
-//       compass gives up the maxim: its words hang scattered over the rose,
-//       eddying, plainly out of order. The wear on each face is now legible.
-//   2 · SPOKEN — wake the winds OLDEST FIRST. The longest-blown wind ate its
-//       rune down the most, so the stone says the order out loud to anyone
-//       who looks at it. A wrong pillar scatters them all and the walk starts
-//       again — the wear stays, because what you learned is still true.
-//   3 · GATHERED — the fourth right wind releases the First Wind. The words
-//       sweep into their lines and stay, and the hub wakes for good.
+//       and it dies, and an arc jumps from the pillar toward the compass
+//       heart: the stone answers, and it points. Curiosity is never met with
+//       silence, and it is never met with a sentence either.
+//   1 · WOKEN — LIGHTNING at the compass heart puts current through the
+//       mechanism. The ring wakes: the pillars come alive and the compass's
+//       own ring hangs broken over the rose.
+//   2 · READABLE — FIRE burns the rime off each face. Clean all four and the
+//       wear is legible: the longest-blown wind ate its rune down the most.
+//   3 · SPOKEN — AIR wakes the winds, OLDEST FIRST, so the stone says the
+//       order out loud to anyone who looks at it. A wrong pillar scatters
+//       them and the walk starts again — the wear stays, because what you
+//       learned is still true.
+//   4 · GATHERED — the fourth right wind releases the First Wind. The broken
+//       ring closes, the Rite of Three binds your three elements over the
+//       compass heart, and the hub wakes for good.
 //
 // Not star-gated, unlike the version it replaces: a secret you can only find
 // after finishing the dungeon is a secret nobody finds.
 
-/// Seneca, Letters LXXI — the only maxim on the roster that is ABOUT the room
-/// it is hidden in. This hub is a compass.
-const List<String> kAirMaximLines = [
-  'If a man knows not',
-  'to which port he sails,',
-  'no wind is favourable.',
-];
+// THE COMPASS'S OWN RING is what hangs scattered over the rose, not a
+// quotation. Air ended on Seneca ("If a man knows not to which port he
+// sails, no wind is favourable.") — the one borrowed line on the roster that
+// was actually about its room, and still a borrowed line. A compass whose
+// ring has come apart says the same thing without words, in the room's own
+// vocabulary, and reads at a glance from anywhere in the hall.
+
+/// How many loose arcs the broken ring is in.
+const int _kRoseShards = 8;
+
+/// The radius the whole ring closes to.
+const double _kRoseRadius = 148.0;
 
 /// How close a creature must stand to a rune pillar to work it.
 const double _kWindRuneReach = 54.0;
 
+/// How close to the compass heart the current has to be put in.
+const double _kCompassHeartReach = 46.0;
+
 /// Seconds the gathering sweep plays for. The payoff is WATCHED.
 const double _kFirstWindGatherSeconds = 2.8;
-
-/// Seconds a scattered word takes to travel to its place in the line.
-const double _kFirstWindWordFlight = 1.5;
 
 extension PlanetDungeonFourWinds on PlanetDungeonGame {
   /// The hub's pillars, or empty everywhere else.
@@ -2054,15 +2070,17 @@ extension PlanetDungeonFourWinds on PlanetDungeonGame {
     firstWindOrder.clear();
     firstWindWear.clear();
     firstWindSpoken.clear();
-    firstWindScoured.clear();
     _windRuneFlare.clear();
+    _riteHintArc.clear();
     _firstWindWordPhase.clear();
     firstWindScatterFx = 0;
     firstWindGatherT = -1;
-    // Stage 1 is KNOWLEDGE — that the faces can be scoured at all — and
-    // knowledge survives death, exactly as the epitaph's does. The walk does
-    // not.
-    if (firstWindStage > 1) firstWindStage = 1;
+    // KNOWLEDGE SURVIVES DEATH, exactly as the epitaph's does — the woken
+    // mechanism and the cleaned faces stay. The ANSWERING WALK does not, and
+    // the wear is re-rolled below, so a retry is a fresh reading of the stone
+    // rather than a fresh memory of the answer.
+    if (firstWindStage > 2) firstWindStage = 2;
+    if (firstWindStage < 2) firstWindScoured.clear();
 
     final n = layout.rooms['hub']?.windRunes.length ?? 0;
     if (n == 0) return;
@@ -2076,7 +2094,7 @@ extension PlanetDungeonFourWinds on PlanetDungeonGame {
       wear[firstWindOrder[i]] = 0.93 - i * 0.23 + (rng.nextDouble() - 0.5) * 0.05;
     }
     firstWindWear.addAll(wear);
-    for (var i = 0; i < kAirMaximLines.join(' ').split(' ').length; i++) {
+    for (var i = 0; i < _kRoseShards; i++) {
       _firstWindWordPhase.add(rng.nextDouble() * pi * 2);
     }
   }
@@ -2086,6 +2104,10 @@ extension PlanetDungeonFourWinds on PlanetDungeonGame {
     if (_windRuneFlare.isNotEmpty) {
       _windRuneFlare.updateAll((_, v) => v - dt * 1.6);
       _windRuneFlare.removeWhere((_, v) => v <= 0);
+    }
+    if (_riteHintArc.isNotEmpty) {
+      _riteHintArc.updateAll((_, v) => v - dt * 0.9);
+      _riteHintArc.removeWhere((_, v) => v <= 0);
     }
     if (firstWindGatherT >= 0 &&
         firstWindGatherT < _kFirstWindGatherSeconds + 1) {
@@ -2108,50 +2130,93 @@ extension PlanetDungeonFourWinds on PlanetDungeonGame {
     return idx;
   }
 
-  /// A press on a rune pillar. Returns true if the pillar took the press —
-  /// including the presses that only flare, because a tap that visibly did
-  /// something must not also fall through to the creature's family ability.
+  /// A press at the compass, on a pillar or at its heart. Returns true if it
+  /// took the press — including the presses that only flare, because a tap
+  /// that visibly did something must not also fall through to the creature's
+  /// family ability.
   bool _tryFourWinds(DungeonCreature a) {
     if (!_isSpire || isRaid) return false;
     if (_windRunes.isEmpty || _fourWindsFound) return false;
+    final heart = currentRoom.bounds.center;
     final idx = _windRuneAt(a.position);
-    if (idx < 0) return false;
+    final atHeart = (a.position - heart).distance <= _kCompassHeartReach;
+    if (idx < 0 && !atHeart) return false;
     // Mid-gather the room is answering; nothing more to say.
     if (firstWindGatherT >= 0) return true;
+    final el = a.member.element;
 
-    // COLD STONE. Anyone may touch a pillar and the rune answers — a brief
-    // flare, and out. That is the lure: four of these standing around a
-    // compass, each one reacting, is enough to make a curious player wonder
-    // what wakes them. No text; the flare IS the sentence.
-    if (a.member.element != 'Air') {
-      _windRuneFlare[idx] = 0.6;
+    // ── THE HEART: current, and only current ──
+    if (atHeart) {
+      if (firstWindStage > 0) return false; // done; let other verbs have it
+      if (el != 'Lightning') {
+        _spawnAlchemyBurst(
+          heart,
+          producedElement: el,
+          particleCount: 6,
+          intensity: 0.4,
+        );
+        return true;
+      }
+      firstWindStage = 1;
+      _windRuneFlare.clear();
+      for (var i = 0; i < _windRunes.length; i++) {
+        _windRuneFlare[i] = 1.0; // the whole ring answers at once
+      }
+      _spawnAlchemyBurst(
+        heart,
+        producedElement: 'Lightning',
+        reagentElements: const ['Air'],
+        particleCount: 22,
+        intensity: 0.9,
+      );
+      return true;
+    }
+
+    // ── COLD STONE. Anyone may touch a pillar and the rune answers — a brief
+    // flare, and out, with an arc thrown toward the compass heart. That is the
+    // lure AND the pointer: four of these reacting around a compass, each one
+    // throwing its spark the same way, is enough to say where the current
+    // wants to go. No text; the flare is the sentence.
+    if (firstWindStage == 0) {
+      _windRuneFlare[idx] = 0.7;
+      _riteHintArc[idx] = 0.9;
       _spawnAlchemyBurst(
         _windRunes[idx],
-        producedElement: a.member.element,
+        producedElement: el,
         particleCount: 6,
         intensity: 0.4,
       );
       return true;
     }
 
-    if (firstWindStage == 0) {
-      if (firstWindScoured.add(idx)) {
-        _windRuneFlare[idx] = 0.9;
+    // ── FIRE burns the rime off a woken face ──
+    if (firstWindStage == 1) {
+      if (el != 'Fire') {
+        _windRuneFlare[idx] = 0.6;
         _spawnAlchemyBurst(
           _windRunes[idx],
-          producedElement: 'Air',
-          particleCount: 10,
-          intensity: 0.6,
+          producedElement: el,
+          particleCount: 6,
+          intensity: 0.4,
+        );
+        return true;
+      }
+      if (firstWindScoured.add(idx)) {
+        _windRuneFlare[idx] = 0.95;
+        _spawnAlchemyBurst(
+          _windRunes[idx],
+          producedElement: 'Fire',
+          reagentElements: const ['Air'],
+          particleCount: 12,
+          intensity: 0.65,
         );
       }
       if (firstWindScoured.length >= _windRunes.length) {
-        firstWindStage = 1;
-        // The compass gives up what it was holding. Scattered, so the state
-        // of the puzzle is legible at a glance from anywhere in the room.
+        firstWindStage = 2;
         _spawnAlchemyBurst(
-          currentRoom.bounds.center,
-          producedElement: 'Air',
-          reagentElements: const ['Spirit'],
+          heart,
+          producedElement: 'Fire',
+          reagentElements: const ['Air'],
           particleCount: 18,
           intensity: 0.75,
         );
@@ -2159,7 +2224,17 @@ extension PlanetDungeonFourWinds on PlanetDungeonGame {
       return true;
     }
 
-    // SPEAKING. Oldest wind first.
+    // ── AIR speaks the winds, oldest first ──
+    if (el != 'Air') {
+      _windRuneFlare[idx] = 0.6;
+      _spawnAlchemyBurst(
+        _windRunes[idx],
+        producedElement: el,
+        particleCount: 6,
+        intensity: 0.4,
+      );
+      return true;
+    }
     final want = firstWindOrder[firstWindSpoken.length];
     if (idx == want) {
       firstWindSpoken.add(idx);
@@ -2172,14 +2247,9 @@ extension PlanetDungeonFourWinds on PlanetDungeonGame {
       );
       if (firstWindSpoken.length >= firstWindOrder.length) {
         firstWindGatherT = 0;
-        _discoverCloud(kAirFirstWindEggId); // the screen pays the 20 gold
-        _spawnAlchemyBurst(
-          currentRoom.bounds.center,
-          producedElement: 'Light',
-          reagentElements: const ['Air', 'Spirit'],
-          particleCount: 24,
-          intensity: 0.95,
-        );
+        // THE RITE OF THREE pays this out (see `beginMaximRite`) — the ring
+        // closes while the trio's elements bind over the compass heart.
+        beginMaximRite(kAirFirstWindEggId, heart);
       }
       return true;
     }
@@ -2200,119 +2270,69 @@ extension PlanetDungeonFourWinds on PlanetDungeonGame {
 // ── THE FOUR WINDS · render ────────────────────────────────
 
 extension PlanetDungeonFourWindsRender on PlanetDungeonGame {
-  /// One TextPainter per word, laid out once. The maxim is drawn word by word
-  /// because the words are what MOVE: scattered, they eddy over the rose;
-  /// gathered, they fly to their place in the line.
-  List<TextPainter> get _maximWords {
-    return _firstWindWords ??= [
-      for (final w in kAirMaximLines.join(' ').split(' '))
-        TextPainter(
-          text: TextSpan(
-            text: w,
-            style: TextStyle(
-              color: const Color(0xFFBFD2E6).withValues(alpha: 0.9),
-              fontSize: 13,
-              fontStyle: FontStyle.italic,
-              letterSpacing: 0.5,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout(),
-    ];
-  }
-
-  /// Where word [i] comes to rest — its place in the settled verse, centred
-  /// on the compass and measured from the cached painters, so the lines stay
-  /// centred whatever the words are.
-  Offset _maximWordHome(int i, Offset c) {
-    final words = _maximWords;
-    var w = 0;
-    for (var line = 0; line < kAirMaximLines.length; line++) {
-      final count = kAirMaximLines[line].split(' ').length;
-      final widths = [
-        for (var k = 0; k < count; k++) words[w + k].width,
-      ];
-      final total = widths.fold(0.0, (s, v) => s + v) + (count - 1) * 5.0;
-      if (i >= w && i < w + count) {
-        var x = c.dx - total / 2;
-        for (var k = 0; k < i - w; k++) {
-          x += widths[k] + 5.0;
-        }
-        // BELOW THE HEART, not across it. Centred on the rose, the middle
-        // line ran straight through the compass star at the centre and the
-        // verse read as a defect in the artwork. The block sits in the lower
-        // half of the rose instead, clear of the star and still well inside
-        // the outer ring at its widest line.
-        return Offset(x, c.dy + 42 + line * 20.0);
-      }
-      w += count;
-    }
-    return c;
-  }
-
-  /// The maxim over the compass rose: scattered while the winds are unspoken,
-  /// gathering as the last one is, settled forever after.
-  void _drawFourWindsMaxim(Canvas canvas, Offset c) {
+  /// The compass ring, in pieces over the rose.
+  ///
+  /// Scattered while the winds are unspoken, closing as the last one is
+  /// spoken, whole forever after. It replaces the maxim's words, and does the
+  /// job better than they did: a ring visibly broken says "this is unfinished"
+  /// from across the hall, where three lines of italic verse said "there is
+  /// text here, walk over and read it".
+  void _drawFourWindsRose(Canvas canvas, Offset c) {
     if (!_isSpire) return;
     final settled = _fourWindsFound && firstWindGatherT < 0;
     if (firstWindStage < 1 && !settled && firstWindGatherT < 0) return;
 
-    final words = _maximWords;
-    // 0 while scattered → 1 once every word has flown home. Each word leaves
-    // a beat after the one before it, so the verse assembles left to right
-    // instead of snapping into place.
+    // 0 while broken → 1 once every shard has come home.
     final gather = settled
         ? 1.0
         : firstWindGatherT < 0
         ? 0.0
-        : firstWindGatherT / _kFirstWindGatherSeconds;
+        : (firstWindGatherT / _kFirstWindGatherSeconds).clamp(0.0, 1.0);
 
-    for (var i = 0; i < words.length; i++) {
+    const sweep = pi * 2 / _kRoseShards;
+    for (var i = 0; i < _kRoseShards; i++) {
       final phase = i < _firstWindWordPhase.length
           ? _firstWindWordPhase[i]
           : i * 1.7;
-      // THE SCATTERED BERTH. Out in the margin of the room, well clear of
-      // the compass and of the pillar ring — a first pass strewed them across
-      // the rose itself, where they tangled with the spokes and with each
-      // other and read as damage rather than as words waiting to be gathered.
-      //
-      // Spread EVENLY by index and only jittered by the phase: pure random
-      // angles clumped three words into one corner and left the rest of the
-      // circle bare.
-      final a = i * pi * 2 / words.length + phase * 0.22;
-      final r = 268.0 + (i % 3) * 24.0;
-      final scattered =
-          c +
-          Offset(cos(a), sin(a)) * r +
-          Offset(sin(_time * 0.7 + phase) * 7, cos(_time * 0.55 + phase) * 5);
+      // Each shard comes home on its own beat, so the ring knits round rather
+      // than snapping shut.
+      final t = ((gather * 1.35) - i * 0.05).clamp(0.0, 1.0);
+      final e = t * t * (3 - 2 * t);
 
-      final stagger = (words.length - 1) * 0.06;
-      final t = ((gather * (1 + stagger) - i * 0.06) /
-              (_kFirstWindWordFlight / _kFirstWindGatherSeconds))
-          .clamp(0.0, 1.0);
-      final e = t * t * (3 - 2 * t); // smoothstep — a wind eases, never snaps
-      final home = _maximWordHome(i, c);
-      final pos = Offset.lerp(scattered, home, e)!;
+      // Adrift: pushed out past the pillar ring, turned off true, and
+      // breathing on its own phase. A wrong wind blows them further apart.
+      final drift = 96.0 * (1 - e) * (1 + firstWindScatterFx * 0.5);
+      final wobble = (1 - e) * sin(_time * 0.6 + phase) * 9;
+      final r = _kRoseRadius + drift + wobble;
+      // Its true seat on the ring, plus the skew it has drifted to.
+      final home = i * sweep - pi / 2;
+      final a = home + (1 - e) * sin(phase) * 0.85;
 
-      // Scattered words lie askew; gathered ones sit true.
-      final tilt = (1 - e) * sin(phase) * 0.22;
-      // A wrong wind blows them further apart before they settle back.
-      final blown = firstWindScatterFx > 0
-          ? Offset(cos(a), sin(a)) * (firstWindScatterFx * 26)
-          : Offset.zero;
-
-      canvas.save();
-      canvas.translate(pos.dx + blown.dx, pos.dy + blown.dy);
-      if (tilt.abs() > 0.001) canvas.rotate(tilt);
-      final tp = words[i];
-      // Faint while adrift, plain once it has landed.
-      canvas.saveLayer(
-        Rect.fromLTWH(-4, -4, tp.width + 8, tp.height + 8),
-        Paint()..color = Color.fromRGBO(255, 255, 255, 0.34 + 0.66 * e),
+      final col = const Color(0xFF8FE6FF).withValues(
+        alpha: 0.2 + 0.45 * e + 0.1 * sin(_time * 1.4 + phase) * (1 - e),
       );
-      tp.paint(canvas, Offset.zero);
-      canvas.restore();
-      canvas.restore();
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r),
+        a,
+        sweep * (0.62 + 0.3 * e),
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6 + 1.4 * e
+          ..strokeCap = StrokeCap.round
+          ..color = col,
+      );
+      // A tick at the leading end, so a loose piece reads as a piece OF
+      // something graduated rather than as a stray stroke.
+      final u = Offset(cos(a), sin(a));
+      canvas.drawLine(
+        c + u * (r - 6),
+        c + u * (r + 1),
+        Paint()
+          ..strokeWidth = 1.2
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFFF0C36B).withValues(alpha: 0.22 + 0.4 * e),
+      );
     }
   }
 
@@ -2322,7 +2342,7 @@ extension PlanetDungeonFourWindsRender on PlanetDungeonGame {
   /// a worn face keeps less of its mark — rather than as a bar or a number.
   /// A pillar already spoken this walk stands lit.
   void _drawFourWindsPillars(Canvas canvas, List<Offset> runes) {
-    final readable = firstWindStage >= 1 || _fourWindsFound;
+    final readable = firstWindStage >= 2 || _fourWindsFound;
     for (var i = 0; i < runes.length; i++) {
       final pos = runes[i];
       // Once the maxim is found the ring turns for good, and the pillars ride
@@ -2339,7 +2359,7 @@ extension PlanetDungeonFourWindsRender on PlanetDungeonGame {
       // A solved hub keeps all four lit forever — the same permanence the
       // turning compass and the circling gust-heads already promise.
       final spoken = firstWindSpoken.contains(i) || _fourWindsFound;
-      final scoured = firstWindScoured.contains(i) || readable;
+      final cleaned = firstWindScoured.contains(i) || readable;
       final flare = _windRuneFlare[i] ?? 0.0;
       final wear = i < firstWindWear.length ? firstWindWear[i] : 0.0;
 
@@ -2372,16 +2392,16 @@ extension PlanetDungeonFourWindsRender on PlanetDungeonGame {
         ..color = const Color(0xFF8FE6FF).withValues(
           alpha: spoken
               ? 0.9
-              : scoured
+              : cleaned
               ? 0.30 + 0.42 * (1 - wear)
               : 0.16 + flare * 0.5,
         );
-      final strokes = !scoured ? 1 : (3 - (wear * 2.2).floor()).clamp(1, 3);
+      final strokes = !cleaned ? 1 : (3 - (wear * 2.2).floor()).clamp(1, 3);
       for (var k = 0; k < strokes; k++) {
         final dy = (k - (strokes - 1) / 2) * 8.0;
         // The surviving strokes are also SHORTER on a worn face — the wind
         // takes the ends of a mark before it takes the middle.
-        final half = 9.0 * (scoured ? (1 - wear * 0.55) : 0.8);
+        final half = 9.0 * (cleaned ? (1 - wear * 0.55) : 0.8);
         canvas.drawLine(Offset(-half, dy), Offset(half, dy), mark);
       }
       canvas.restore();
@@ -2393,6 +2413,30 @@ extension PlanetDungeonFourWindsRender on PlanetDungeonGame {
           at,
           16,
           const Color(0xFF8FE6FF).withValues(alpha: 0.28 * flare),
+        );
+      }
+
+      // THE POINTER. A dormant pillar that was touched throws its spark at the
+      // compass heart — the only wordless way to say "the current goes THERE"
+      // in a hall that otherwise gives the player nothing to go on.
+      final arc = _riteHintArc[i] ?? 0.0;
+      if (arc > 0) {
+        final c = currentRoom.bounds.center;
+        final travel = 1 - arc; // 0 at the pillar → 1 at the heart
+        final head = Offset.lerp(at, c, travel * travel)!;
+        canvas.drawLine(
+          Offset.lerp(at, c, max(0.0, travel * travel - 0.22))!,
+          head,
+          Paint()
+            ..strokeWidth = 1.6
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0xFFF2E27A).withValues(alpha: 0.55 * arc),
+        );
+        canvas.drawCircle(
+          head,
+          2.6,
+          Paint()
+            ..color = const Color(0xFFFFF6C8).withValues(alpha: 0.8 * arc),
         );
       }
     }

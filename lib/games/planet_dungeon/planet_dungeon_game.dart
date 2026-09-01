@@ -634,17 +634,22 @@ class PlanetDungeonGame extends FlameGame {
   double firstWindScatterFx = 0;
   double firstWindGatherT = -1;
 
-  /// Faces an Air breath has scoured clean this run (stage 0 → 1).
+  /// Faces Fire has burned the rime off this run (stage 1 → 2).
   final Set<int> firstWindScoured = {};
 
   /// A pillar's rune flaring from a press that did nothing — the answer to a
   /// curious tap, so the hub is never silent when it is touched.
   final Map<int, double> _windRuneFlare = {};
 
-  /// Per-word drift phases, so the scattered maxim eddies instead of sitting
-  /// still. Rolled once with the order.
+  /// The spark a dormant pillar throws toward the compass heart when it is
+  /// touched. The whole chain hangs on the player trying the HEART with a
+  /// Lightning creature, and nothing in an empty hall says to — so every
+  /// pillar points, wordlessly, at the thing that wakes it.
+  final Map<int, double> _riteHintArc = {};
+
+  /// Per-shard drift phases, so the broken compass ring eddies over the rose
+  /// instead of sitting still. Rolled once with the order.
   final List<double> _firstWindWordPhase = [];
-  List<TextPainter>? _firstWindWords; // cached — never built per frame
 
   final Set<String> discoveredClouds = {}; // cloud ids (kept across death)
   String? carriedCloudId;
@@ -9146,7 +9151,7 @@ class PlanetDungeonGame extends FlameGame {
         // The pillars are the Four Winds now: drawn from the room's authored
         // runes rather than a computed ring, and carrying the puzzle's state.
         _drawFourWindsPillars(canvas, room.windRunes);
-        _drawFourWindsMaxim(canvas, b.center);
+        _drawFourWindsRose(canvas, b.center);
         break;
       case _AirRoomTheme.ascent:
         _drawVerticalSpireGhost(canvas, b);

@@ -53,9 +53,6 @@ part of 'planet_dungeon_game.dart';
 /// Dark's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kDarkAbyssEggId = 'egg:dark_abyss';
 
-/// What the vault was built to say.
-const String kDarkAbyssMaxim =
-    '"When you gaze long into the abyss, the abyss gazes also into you."';
 
 // ── Device-tunable knobs ───────────────────────────────────
 // Dark has never been on a device; every number the feel depends on is named
@@ -582,8 +579,9 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     vault.abyssStillness += dt;
     if (vault.abyssStillness < _kAbyssSeconds) return;
     vault.abyssGazed = true;
-    _discoverCloud(kDarkAbyssEggId); // the screen pays the 20 gold
-    _setHint('THE ABYSS — $kDarkAbyssMaxim', 7.5);
+    // THE RITE OF THREE pays this out (see `beginMaximRite`) — the reaction
+    // is built from the trio that came down and hands over the gold itself.
+    beginMaximRite(kDarkAbyssEggId, room.eclipse!.abyss!);
     _spawnAlchemyBurst(
       room.eclipse!.abyss!,
       producedElement: 'Dark',

@@ -57,9 +57,6 @@ part of 'planet_dungeon_game.dart';
 /// Light's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kLightAfraidEggId = 'egg:light_afraid';
 
-/// What the archive was built to say.
-const String kLightAfraidMaxim =
-    '"The real tragedy is men who are afraid of the light."';
 
 // ── Device-tunable knobs ───────────────────────────────────
 // Light has never been on a device; every number the feel depends on is named
@@ -501,8 +498,8 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     if (!archive.hushWalk || room.vaultCache == null) return;
     archive.hushWalk = false;
     archive.hushWalked = true;
-    _discoverCloud(kLightAfraidEggId); // the screen pays the 20 gold
-    _setHint('AFRAID OF THE LIGHT — $kLightAfraidMaxim', 7.5);
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    beginMaximRite(kLightAfraidEggId, room.vaultCache!);
     _spawnAlchemyBurst(
       room.vaultCache!,
       producedElement: 'Light',

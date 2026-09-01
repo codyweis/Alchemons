@@ -50,9 +50,6 @@ const Offset kBarrowLintel = Offset(330, 265);
 /// The giant's open hand in the palm hollow.
 const Offset kGiantsPalm = Offset(320, 310);
 
-/// Marcus Aurelius, grown in crystal.
-const String kEarthGiantsPalmMaxim =
-    '"Loss is nothing but change, and change is Nature\'s delight."';
 
 /// Where each scale-stone's truth is RECORDED in the giant's body. The
 /// per-run answer isn't noise to binary-search — it is physically written
@@ -663,7 +660,8 @@ extension BuriedGiant on PlanetDungeonGame {
     if (discoveredClouds.contains(kEarthGiantsPalmEggId)) return false;
     if (a.member.element != 'Crystal') return false;
     if ((a.position - kGiantsPalm).distance > 34) return false;
-    _discoverCloud(kEarthGiantsPalmEggId); // screen pays the 20 gold
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    beginMaximRite(kEarthGiantsPalmEggId, kGiantsPalm);
     _spawnAlchemyBurst(
       kGiantsPalm,
       producedElement: 'Crystal',
@@ -671,11 +669,7 @@ extension BuriedGiant on PlanetDungeonGame {
       particleCount: 26,
       intensity: 1.1,
     );
-    _setHint(
-      '$kEarthGiantsPalmMaxim — a crystal takes root in the open '
-      'palm',
-      9.0,
-    );
+    _setHint('A crystal takes root in the open palm', 4.0);
     return true;
   }
 

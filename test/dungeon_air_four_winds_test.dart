@@ -56,12 +56,10 @@ PlanetDungeonGame _spire() {
   return g;
 }
 
-/// The Airwing — the only hand the pillars answer to.
-DungeonCreature _air(PlanetDungeonGame g) =>
-    g.creatures.firstWhere((c) => c.member.element == 'Air');
+DungeonCreature _of(PlanetDungeonGame g, String element) =>
+    g.creatures.firstWhere((c) => c.member.element == element);
 
-DungeonCreature _other(PlanetDungeonGame g) =>
-    g.creatures.firstWhere((c) => c.member.element != 'Air');
+DungeonCreature _air(PlanetDungeonGame g) => _of(g, 'Air');
 
 /// Walk [c] to pillar [i] and press.
 void _press(PlanetDungeonGame g, DungeonCreature c, int i) {
@@ -70,11 +68,32 @@ void _press(PlanetDungeonGame g, DungeonCreature c, int i) {
   g.activateAbility();
 }
 
-/// Scour all four faces so the wear can be read.
-void _scour(PlanetDungeonGame g) {
-  for (var i = 0; i < g.currentRoom.windRunes.length; i++) {
-    _press(g, _air(g), i);
+/// Let the payout reaction run to its flash.
+void _settle(PlanetDungeonGame g) {
+  for (var i = 0; i < 240; i++) {
+    g.update(1 / 60);
   }
+}
+
+/// Put the current in: Lightning at the compass heart wakes the ring.
+void _wake(PlanetDungeonGame g) {
+  final c = _of(g, 'Lightning');
+  g.activeIndex = g.creatures.indexOf(c);
+  c.position = g.currentRoom.bounds.center;
+  g.activateAbility();
+}
+
+/// Burn the rime off all four faces with Fire, so the wear can be read.
+void _clean(PlanetDungeonGame g) {
+  for (var i = 0; i < g.currentRoom.windRunes.length; i++) {
+    _press(g, _of(g, 'Fire'), i);
+  }
+}
+
+/// The whole reading pass: current in, faces cleaned.
+void _open(PlanetDungeonGame g) {
+  _wake(g);
+  _clean(g);
 }
 
 void main() {
@@ -156,37 +175,94 @@ void main() {
   });
 
   group('working the pillars', () {
-    test('cold stone answers anyone, but only Air scours it', () {
+    test('cold stone answers anyone, and points at the heart', () {
+      // Stage 0 must never be silent — but it must never advance either.
       final g = _spire();
-      _press(g, _other(g), 0);
-      expect(
-        g.firstWindScoured,
-        isEmpty,
-        reason: 'the rune flares and dies — nothing is learned',
-      );
-      _press(g, _air(g), 0);
+      for (final c in g.creatures) {
+        _press(g, c, 0);
+        expect(g.firstWindStage, 0);
+        expect(g.firstWindScoured, isEmpty);
+      }
+    });
+
+    test('only LIGHTNING wakes the ring, and only at the heart', () {
+      final g = _spire();
+      // Lightning at a PILLAR does nothing — the current goes in at the heart.
+      _press(g, _of(g, 'Lightning'), 0);
+      expect(g.firstWindStage, 0);
+      // Air and Fire at the heart do nothing either.
+      for (final e in ['Air', 'Fire']) {
+        final c = _of(g, e);
+        g.activeIndex = g.creatures.indexOf(c);
+        c.position = g.currentRoom.bounds.center;
+        g.activateAbility();
+        expect(g.firstWindStage, 0, reason: '$e is not the current');
+      }
+      _wake(g);
+      expect(g.firstWindStage, 1);
+    });
+
+    test('only FIRE cleans a woken face', () {
+      final g = _spire();
+      _wake(g);
+      for (final e in ['Air', 'Lightning']) {
+        _press(g, _of(g, e), 0);
+        expect(g.firstWindScoured, isEmpty, reason: '$e does not clean stone');
+      }
+      _press(g, _of(g, 'Fire'), 0);
       expect(g.firstWindScoured, {0});
     });
 
-    test('four scoured faces make the wear readable', () {
+    test('four cleaned faces make the wear readable', () {
       final g = _spire();
       expect(g.firstWindStage, 0);
-      _scour(g);
-      expect(g.firstWindStage, 1);
+      _open(g);
+      expect(g.firstWindStage, 2);
+    });
+
+    test('every element in the party has a job', () {
+      // The payout is a reaction built from all three, so the SOLVE has to be
+      // too — a first pass ran the whole chain on Air alone and the puzzle
+      // did not keep the promise its own payout made.
+      final g = _spire();
+      _open(g);
+      for (final i in g.firstWindOrder) {
+        _press(g, _air(g), i);
+      }
+      _settle(g);
+      expect(g.discoveredClouds, contains(kAirFirstWindEggId));
+      // And none of the three could have been left at home.
+      for (final skip in ['Lightning', 'Fire', 'Air']) {
+        final h = _spire();
+        if (skip != 'Lightning') _wake(h);
+        if (skip != 'Fire') _clean(h);
+        if (skip != 'Air' && h.firstWindStage >= 2) {
+          for (final i in h.firstWindOrder) {
+            _press(h, _air(h), i);
+          }
+        }
+        _settle(h);
+        expect(
+          h.discoveredClouds,
+          isNot(contains(kAirFirstWindEggId)),
+          reason: 'without $skip the winds stay asleep',
+        );
+      }
     });
 
     test('spoken in order, it pays out once', () {
       final g = _spire();
-      _scour(g);
+      _open(g);
       for (final i in g.firstWindOrder) {
         _press(g, _air(g), i);
       }
+      _settle(g);
       expect(g.discoveredClouds, contains(kAirFirstWindEggId));
     });
 
     test('a wrong wind scatters them and the walk starts again', () {
       final g = _spire();
-      _scour(g);
+      _open(g);
       final order = [...g.firstWindOrder];
       _press(g, _air(g), order[0]);
       expect(g.firstWindSpoken, [order[0]]);
@@ -194,20 +270,22 @@ void main() {
       expect(g.firstWindSpoken, isEmpty);
       expect(g.discoveredClouds, isNot(contains(kAirFirstWindEggId)));
       // The wear survives the failure — what the player learned is still true.
-      expect(g.firstWindStage, 1);
+      expect(g.firstWindStage, 2);
       // And the walk can be made again.
       for (final i in order) {
         _press(g, _air(g), i);
       }
+      _settle(g);
       expect(g.discoveredClouds, contains(kAirFirstWindEggId));
     });
 
-    test('standing away from every pillar works nothing', () {
+    test('standing away from the pillars AND the heart works nothing', () {
       final g = _spire();
       final a = _air(g);
       g.activeIndex = g.creatures.indexOf(a);
-      a.position = g.currentRoom.bounds.center;
+      a.position = g.currentRoom.bounds.topLeft + const Offset(80, 80);
       g.activateAbility();
+      expect(g.firstWindStage, 0);
       expect(g.firstWindScoured, isEmpty);
     });
   });
@@ -218,16 +296,33 @@ void main() {
       // finds. This game has no stars at all.
       final g = _spire();
       expect(g.starsEarnedCount, 0);
-      _scour(g);
+      _open(g);
       for (final i in g.firstWindOrder) {
         _press(g, _air(g), i);
       }
+      _settle(g);
       expect(g.discoveredClouds, contains(kAirFirstWindEggId));
     });
 
-    test('the maxim is three lines of actual verse', () {
-      expect(kAirMaximLines, hasLength(3));
-      expect(kAirMaximLines.join(' '), contains('no wind is favourable'));
+    test('and it does not end on a borrowed quotation', () {
+      // Air ended on Seneca — the one line on the roster that was actually
+      // about its room, and still a line lifted from someone else. What
+      // gathers over the rose now is the compass's OWN ring, in pieces, and
+      // the payout is the Rite of Three.
+      final g = _spire();
+      _open(g);
+      for (final i in g.firstWindOrder) {
+        _press(g, _air(g), i);
+      }
+      expect(
+        g.riteActive,
+        isTrue,
+        reason: 'the reaction pays it, not a popup',
+      );
+      for (var i = 0; i < 400; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.discoveredClouds, contains(kAirFirstWindEggId));
     });
   });
 }

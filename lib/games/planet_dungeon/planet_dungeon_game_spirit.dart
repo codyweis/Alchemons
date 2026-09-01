@@ -547,8 +547,8 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     for (final c in live) {
       if (!currentRoom.bounds.contains(c.position)) return false;
     }
-    _discoverCloud(kSpiritStuffOfDreamsEgg);
-    _setHint(kSpiritStuffOfDreamsMaxim, 7.0);
+    // THE RITE OF THREE pays this out (see `beginMaximRite`).
+    beginMaximRite(kSpiritStuffOfDreamsEgg, a.position);
     _spawnAlchemyBurst(
       a.position,
       producedElement: 'Spirit',

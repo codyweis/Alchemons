@@ -48,9 +48,6 @@ part of 'planet_dungeon_game.dart';
 /// Dust's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kDustNothingPerishesEggId = 'egg:dust_nothing_perishes';
 
-/// Ovid, on the ruins of cities.
-const String kDustNothingPerishesMaxim =
-    '"All things change; nothing perishes."';
 
 // ── Device-tunable knobs ───────────────────────────────────
 // Dust has never been on a device; every number the feel depends on is named
@@ -665,8 +662,8 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         );
         return true;
       }
-      _discoverCloud(kDustNothingPerishesEggId); // the screen pays the 20 gold
-      _setHint('NOTHING PERISHES — $kDustNothingPerishesMaxim', 7.5);
+      // THE RITE OF THREE pays this out (see `beginMaximRite`).
+      beginMaximRite(kDustNothingPerishesEggId, pos);
       _spawnAlchemyBurst(
         pos,
         producedElement: 'Air',

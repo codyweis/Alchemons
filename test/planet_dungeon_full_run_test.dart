@@ -1621,26 +1621,34 @@ void main() {
     // Was one press on the compass heart at 3 stars. It is a puzzle now, and
     // an ungated one — the walk below would work just as well on a fresh
     // run; it is done here because this is the test that plays Air through.
-    game.activeIndex = game.creatures.indexWhere(
-      (c) => c.member.element == 'Air',
-    );
+    // ALL THREE ELEMENTS. Lightning puts the current in at the compass heart,
+    // Fire burns the rime off the four faces, Air wakes the winds oldest
+    // first. It is not star-gated — the walk below would work on a fresh run;
+    // it is done here because this is the test that plays Air through.
     final runes = room('hub').windRunes;
-    for (var pass = 0; pass < 2; pass++) {
-      // Pass 0 scours the four faces; pass 1 speaks them in the rolled order.
-      final order = pass == 0
-          ? List<int>.generate(runes.length, (i) => i)
-          : game.firstWindOrder;
-      for (final i in order) {
-        _teleport(game, 'hub', runes[i]);
-        game.activateAbility();
-      }
-      if (pass == 0) {
-        expect(
-          game.firstWindStage,
-          1,
-          reason: 'four scoured faces make the wear readable',
-        );
-      }
+    void asElement(String element) => game.activeIndex = game.creatures
+        .indexWhere((c) => c.member.element == element);
+
+    asElement('Lightning');
+    _teleport(game, 'hub', room('hub').bounds.center);
+    game.activateAbility();
+    expect(game.firstWindStage, 1, reason: 'the current wakes the ring');
+
+    asElement('Fire');
+    for (var i = 0; i < runes.length; i++) {
+      _teleport(game, 'hub', runes[i]);
+      game.activateAbility();
+    }
+    expect(game.firstWindStage, 2, reason: 'four clean faces show their wear');
+
+    asElement('Air');
+    for (final i in game.firstWindOrder) {
+      _teleport(game, 'hub', runes[i]);
+      game.activateAbility();
+    }
+    // THE RITE OF THREE runs before the gold lands.
+    for (var tick = 0; tick < 200; tick++) {
+      game.update(1 / 60);
     }
     expect(
       discovered,
