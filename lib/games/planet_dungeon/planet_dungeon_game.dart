@@ -329,8 +329,12 @@ class PlanetDungeonGame extends FlameGame {
     activeTrunk = layout.initialTrunkId;
     // The Buried Giant's scale answer is rolled fresh per run.
     _rollScaleSolution();
-    // (The Mirror-Tide's canal network is STONE — authored, not rolled; its
-    // solvability is proved once, in the layout test, by `solveLanternDrift`.)
+    // The Mirror-Tide's canal network is STONE — authored, not rolled; its
+    // solvability is proved once, in the layout test, by `solveLanternDrift`.
+    // Its MOON WELL is rolled, though, and the temple was never seeded here
+    // at all: the well's listening basins came up empty until something else
+    // happened to call the reset, so the room had nothing to ask for.
+    _resetTempleState();
     // The Cinder Cathedral's rite IS rolled, with the evidence that proves it.
     _rollRiteOrder();
     // …and the cloister's grooves, out of the assignments the garden solver
@@ -966,6 +970,38 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Moon-pool states (Star 3): MoonPool.id → 0 liquid · 1 frozen bridge.
   final Map<String, int> poolStates = {};
+
+  // ── THE MOON WELL · Water's Star 3 (docs §6) ──
+  //
+  // The temple's whole tide is a wheel you crank, until here: the well is
+  // open to the sky and the MOON moves the water directly. The moon waxes on
+  // its own and never stops, so the drift is the clock — no timer is drawn,
+  // because the moon IS the timer and it is what the player is already
+  // watching.
+
+  /// 0 (new) … 6 (full). Sets the tide's target; the water eases to it.
+  int moonNotch = 3;
+
+  /// Seconds banked toward the next wax, and how long the moon has held this
+  /// notch (a pool wants it STILL, not merely passing through).
+  double moonWaxT = 0;
+  double moonHoldT = 0;
+
+  /// Seconds of calm left on the well — the pip's still, halving the wax.
+  double moonCalmLeft = 0;
+
+  /// This run's listening basins: pool id → the notch it wants. Rolled fresh
+  /// every run, so the answer cannot be looked up. A basin not in here is
+  /// deaf, and pressing it costs nothing.
+  final Map<String, int> poolWants = {};
+
+  /// Render pulses: the dial answering a press, and the moon's own breath.
+  double _moonDialFx = 0;
+  double _moonWaxFx = 0;
+
+  /// Whether the moon has been reconciled with the standing water since the
+  /// party walked in. See `_updateMoonWell`.
+  bool _moonSynced = false;
   final Map<String, double> _poolFx = {}; // freeze/shatter pulses
 
   bool get _isTemple => layout.element == 'Water';

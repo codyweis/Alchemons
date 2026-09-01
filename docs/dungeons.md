@@ -831,11 +831,12 @@ or it drifts into Water's seat.
    (`solveLanternDrift`, public, walks the real sill/spill functions):** the
    authored stone is reachable, **`strandable == 0`**, and the route is
    **unsolvable at any single stand** AND **unsolvable without a dam** — both
-   verbs are load-bearing by proof, not by assertion. S3 (Deep Star), behind the mirror gate: **REDESIGNED
-   2026-08-31 — see "Water Star 3 — THE MOON WELL" below.** What is BUILT is
-   the true-pool quiz: at settled MID tide freeze the two TRUE moon-pools
-   (Spirit insight names them), false pools SHATTER + fury wisps. It is a
-   one-shot identification check and the moon well replaces it. Both bridged →
+   verbs are load-bearing by proof, not by assertion. S3 (Deep Star), behind the mirror gate: **THE MOON WELL (BUILT
+   2026-08-31 — see below).** The moon drives the tide, Spirit wanes it, the
+   pip's still buys the walk, Ice locks a basin when the moon stands where
+   that basin asks. It replaced the true-pool quiz (freeze the two TRUE pools
+   at settled mid tide; false pools shattered), which was a one-shot
+   identification check. Both bridged →
    Leviathan (calm or defeat). **LEVIATHAN TURNS THE TIDE** (§7 retrofit, 2026-08-11): the
    depths carry tide zones of their own (a sink that becomes swimmable, two
    piers that drown at high water), and on every roar — the beat its lull
@@ -1223,7 +1224,7 @@ or it drifts into Water's seat.
     planets exist — hence build last. Guardian: the Magnum Opus (design
     open — a mirror of the player's own trio is the candidate). No raid.
 
-### Water Star 3 — THE MOON WELL (design, 2026-08-31; supersedes the true-pool quiz)
+### Water Star 3 — THE MOON WELL (BUILT 2026-08-31; supersedes the true-pool quiz)
 
 *What is built is four pools, two of them true, frozen at mid tide. You read
 the room, you pick two, you are done — a one-shot identification check with no
@@ -1315,12 +1316,24 @@ and this is a SCALAR held in a band, where nothing is spent and the terrain is
 the consequence rather than the medium. Any planet reusing it must couple the
 value to the cost; a bare "hold the needle steady" minigame is not this row.
 
-**TESTS.** The notch roll is a real permutation with the spacing rule; every
-notch is reachable from every state (no-strand, swept); a deaf pool costs
-nothing; both wanted notches are individually satisfiable with the authored
-wax rate and the authored walking distances at the stand each implies — that
-last one is the tuning test, and it is the one that decides whether the room
-is playable or a stopwatch.
+**TESTS** (`dungeon_water_moon_well_test.dart`, 11). The roll always gives a
+pair at least 2 apart and never 1 or 6; the sky waxes and PARKS at full rather
+than wrapping (wrapping would make the drift a way of reaching a low notch and
+quietly remove Spirit from the room); every notch is reachable from every
+notch, swept 7x7, which is the no-strand argument; a deaf basin and a wrong
+moon both cost nothing; a moon still in motion is refused; and the moon takes
+the standing water the moment you walk in.
+
+**TWO THINGS THE BUILD FOUND.** The temple was never seeded in the
+constructor's per-planet block — every other planet is, and Water's absence
+meant the well's basins came up empty until something happened to call the
+reset. And the well can be entered at ANY stand, because the tide is
+temple-wide and set three rooms away, so a moon that disagreed with the
+standing water dragged the tide to a new stand on its first wax with nobody
+touching anything; the moon reconciles to the water on entry now.
+
+**STILL OWED: the tuning playtest.** Whether 4.5s of wax and 6s of calm make
+both walks possible is the one thing the design cannot settle on paper.
 
 ### Mystic guardian roster (Star-3 boss + raid boss per planet)
 Verified against `assets/data/alchemons_creatures.json`; spritesheets in

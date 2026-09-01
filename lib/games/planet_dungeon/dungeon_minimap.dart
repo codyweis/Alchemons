@@ -488,7 +488,10 @@ class _DungeonMiniMapPainter extends CustomPainter {
       }
     } else if (room.moonPools.isNotEmpty && !game.hasStar(2)) {
       for (final pool in room.moonPools) {
-        if (pool.isTrue && (game.poolStates[pool.id] ?? 0) != 1) {
+        // A LISTENING basin, not a "true" one — and only the ones this run
+        // actually rolled, so the marker cannot point at a deaf basin.
+        if (game.poolWants.containsKey(pool.id) &&
+            (game.poolStates[pool.id] ?? 0) != 1) {
           objective = pool.position;
           break;
         }

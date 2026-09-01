@@ -609,15 +609,15 @@ class CanalChannel {
 /// (Spirit acting in the water braids the same — Spirit+Water→Ice). Only the
 /// TRUE pools (the ones whose reflection holds the moon — Spirit insight
 /// tells) take the ice; freezing a false pool shatters and angers the brine.
+/// A basin in the moon well that may or may not be listening for the moon.
+///
+/// WHICH pools listen, and at what phase, is ROLLED PER RUN (see
+/// `_rollMoonWell`) — the same rule as the choir's brazier order, so the
+/// answer cannot be looked up. The data carries only where the basins are.
 class MoonPool {
   final String id;
   final Offset position;
-  final bool isTrue;
-  const MoonPool({
-    required this.id,
-    required this.position,
-    required this.isTrue,
-  });
+  const MoonPool({required this.id, required this.position});
 }
 
 /// Tide-shaped terrain. A basin ([ledge] false) is always passable — drained
@@ -1064,6 +1064,9 @@ class DungeonRoom {
   final List<CanalChannel> canalChannels; // the carved grooves, with sills
   final int? canalStarIndex; // star banked when the lantern reaches the sea
   final List<MoonPool> moonPools;
+
+  /// Where Spirit stands to wane the moon (Water's Star 3). Null off the well.
+  final Offset? moonDial;
   final List<TideZone> tideZones;
   final List<TideDoorRule> tideDoorRules;
 
@@ -1242,6 +1245,7 @@ class DungeonRoom {
     this.canalChannels = const [],
     this.canalStarIndex,
     this.moonPools = const [],
+    this.moonDial,
     this.tideZones = const [],
     this.tideDoorRules = const [],
     this.vaultCache,
@@ -1405,6 +1409,7 @@ extension DungeonRoomAffordances on DungeonRoom {
       tideSeals.isNotEmpty ||
       canalNodes.isNotEmpty ||
       moonPools.isNotEmpty ||
+      moonDial != null ||
       // Earth
       fossilRibs.isNotEmpty ||
       fossilPillars.isNotEmpty ||
@@ -3255,13 +3260,17 @@ const DungeonLayout _waterLayout = DungeonLayout(
         ),
       ],
       moonPools: [
-        MoonPool(id: 'pool_nw', position: Offset(250, 230), isTrue: true),
-        MoonPool(id: 'pool_ne', position: Offset(650, 230), isTrue: false),
-        MoonPool(id: 'pool_sw', position: Offset(250, 530), isTrue: false),
-        MoonPool(id: 'pool_se', position: Offset(650, 530), isTrue: true),
+        MoonPool(id: 'pool_nw', position: Offset(250, 230)),
+        MoonPool(id: 'pool_ne', position: Offset(650, 230)),
+        MoonPool(id: 'pool_sw', position: Offset(250, 530)),
+        MoonPool(id: 'pool_se', position: Offset(650, 530)),
       ],
-      // A pipe-mouth so a Pip can retune the tide without the long walk
-      // back to the tide-works (cycles one step per slip).
+      // THE MOON DIAL — Spirit's station, under the oculus. One press wanes
+      // the moon a notch; the sky waxes it back on its own, forever.
+      moonDial: Offset(450, 470),
+      // THE STILL — the pip's pipe-mouth, re-purposed. It calms the well and
+      // halves the wax for a few seconds: it buys the walk, and it cannot
+      // move the moon, so it never substitutes for Spirit.
       tideValves: [TideValve(position: Offset(450, 640), pipOnly: true)],
       tideZones: [
         TideZone(rect: Rect.fromLTWH(330, 270, 240, 200), floodedAt: 1),

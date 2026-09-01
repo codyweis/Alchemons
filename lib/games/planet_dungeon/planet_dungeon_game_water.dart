@@ -161,6 +161,8 @@ extension MirrorTide on PlanetDungeonGame {
     canalRevealTier = 0;
     poolStates.clear();
     _poolFx.clear();
+    // The well's moon and its listening basins are rolled fresh every run.
+    _rollMoonWell();
     _leviathanTideDir = 1;
     _leviathanLullPrev = true;
     _leviathanRoars = 0;
@@ -616,6 +618,9 @@ extension MirrorTide on PlanetDungeonGame {
     // player is in the gallery — the temple holds its breath behind you, so
     // nothing is ever lost off-screen to a valve turned three rooms away.
     if (room.canalNodes.isNotEmpty) _updateLantern(room, dt);
+    // Star 3: the moon waxes, and the water follows it. Same rule — the sky
+    // does not turn behind the player's back.
+    _updateMoonWell(dt);
   }
 
   /// The dam ice easing in and out (ANIMATED-STATE rule: never a flip).
@@ -817,7 +822,8 @@ extension MirrorTide on PlanetDungeonGame {
     if (_tryLantern(a, room)) return true;
     if (_tryCanalReveal(a, room)) return true;
     if (_tryCanalDam(a, room)) return true;
-    if (_tryMoonPool(a, room)) return true;
+    if (_tryMoonDial(a)) return true;
+    if (_tryMoonBasin(a, room)) return true;
     if (_tryFrozenMoon(a, room)) return true;
     if (_tryCourtCommune(a, room)) return true;
     return false;
@@ -884,6 +890,15 @@ extension MirrorTide on PlanetDungeonGame {
         _setHint('The valve answers Water alone');
         return true;
       }
+      // THE STILL. In the well the pipe-mouth does not cycle the tide — the
+      // moon owns the water up here, and a wheel fighting the moon would make
+      // the room a tug-of-war with itself. It calms instead.
+      //
+      // It is placed AFTER the requirement check on purpose: this mouth is
+      // the only Pip-gated object in the temple, so the calm inherits that
+      // lock rather than dissolving it, and the Water pip keeps a job in the
+      // finale — a better one than a tide shortcut it can no longer use.
+      if (_atWell && _tryMoonStill(a, valve)) return true;
       final targetLevel = valve.level ?? (tideLevel + 1) % 3;
       if (targetLevel == tideLevel && tideSettled) {
         _setHint(
@@ -1107,112 +1122,6 @@ extension MirrorTide on PlanetDungeonGame {
     return true;
   }
 
-  /// Star 3: freeze the TRUE moon-pools at mid tide (Ice direct; PARITY —
-  /// a Spirit creature acting in the water braids the same ice, angrier).
-  bool _tryMoonPool(DungeonCreature a, DungeonRoom room) {
-    if (room.moonPools.isEmpty || hasStar(2)) return false;
-    for (final pool in room.moonPools) {
-      if ((a.position - pool.position).distance > 50) continue;
-      if (!guardianRiteUnlocked) {
-        _setHint(
-          'The pools sleep — they answer only a bearer of both the '
-          '${layout.starName(0)} and ${layout.starName(1)}',
-        );
-        return true;
-      }
-      if ((poolStates[pool.id] ?? 0) == 1) {
-        _setHint('This pool already stands as ice');
-        return true;
-      }
-      if (!(tideSettled && tideLevel == 1)) {
-        _setHint('The pools only hold the moon at the settled MIDDLE water');
-        return true;
-      }
-      final r = evaluateInteraction(
-        a.member,
-        const DungeonInteractionRequirement(element: 'Ice', allowRecipe: true),
-        recipeAvailable: a.member.element == 'Spirit',
-      );
-      final viaRecipe = r == InteractionResult.passedViaRecipe;
-      if (!interactionSucceeded(r)) {
-        _setHint('Ice would take this pool — or Spirit standing in the water');
-        return true;
-      }
-      if (!pool.isTrue) {
-        // The false pools never held the moon: the ice takes, then SHATTERS.
-        _poolFx[pool.id] = 1.4;
-        _spawnAlchemyBurst(
-          pool.position,
-          producedElement: 'Ice',
-          unstable: true,
-          particleCount: 24,
-        );
-        spawnWispWave(
-          element: 'Water',
-          center: pool.position,
-          count: 3,
-          unstable: true,
-          announce: false,
-        );
-        _setHint(
-          'The ice takes — and SHATTERS. This pool never held the moon',
-          3.4,
-        );
-        return true;
-      }
-      poolStates[pool.id] = 1;
-      _poolFx[pool.id] = 1.4;
-      _spawnAlchemyBurst(
-        pool.position,
-        producedElement: 'Ice',
-        reagentElements: viaRecipe
-            ? const ['Spirit', 'Water']
-            : [a.member.element],
-        particleCount: 22,
-        intensity: 1.0,
-      );
-      if (viaRecipe) {
-        // The RECIPE's downside (not a family penalty): braiding Spirit through
-        // the water is a loud way to make ice, and the brine hears it. Ice laid
-        // direct — by ANY family — is silent.
-        spawnWispWave(
-          element: 'Water',
-          center: pool.position,
-          count: 2,
-          announce: false,
-        );
-      }
-      final trueTotal = room.moonPools.where((p) => p.isTrue).length;
-      final frozen = room.moonPools
-          .where((p) => p.isTrue && (poolStates[p.id] ?? 0) == 1)
-          .length;
-      if (frozen >= trueTotal) {
-        guardianAwake = true;
-        guardianHp = PlanetDungeonGame.maxGuardianHp;
-        _setHint(
-          'The bridge of ice stands over the well — the deep stirs beyond',
-          4.2,
-        );
-        spawnWispWave(
-          element: 'Water',
-          center: room.bounds.center,
-          count: 3,
-          unstable: true,
-          announce: false,
-        );
-      } else {
-        _setHint(
-          viaRecipe
-              ? 'Spirit and Water braid into ice — and the brine stirs at it'
-              : 'The pool takes the ice clean — the moon stands frozen in it',
-          3.2,
-        );
-      }
-      onChanged();
-      return true;
-    }
-    return false;
-  }
 
   /// The Lost Maxim: freeze the moon's drifting reflection (Ice, exactly on
   /// the glint, mid tide only). Wordless until won; the maxim is the fanfare.
@@ -1345,6 +1254,12 @@ extension MirrorTide on PlanetDungeonGame {
   // ── Mask insight ────────────────────────────────────────
 
   void _templeReveal(DungeonCreature a, DungeonRoom room) {
+    if (room.moonDial != null) {
+      revealFlash = 0.6;
+      revealTier = revealHintTier(a.member.statIntelligence);
+      _setInsightHint(_moonWellInsight(revealTier));
+      return;
+    }
     revealFlash = 0.6;
     revealTier = revealHintTier(a.member.statIntelligence);
     switch (room.id) {
@@ -2662,9 +2577,221 @@ extension MirrorTide on PlanetDungeonGame {
     }
   }
 
+  // ── THE MOON WELL · render ─────────────────────────────────
+  //
+  // The room is one image: a moon standing in an oculus, its light falling
+  // down a shaft into black water, and four basins waiting to catch it. Every
+  // piece of state the player needs is IN that image — the moon's phase is
+  // the target, the shaft's width is the phase, the water's height is the
+  // consequence, and a locked basin holds a little moon of its own forever.
+  // Nothing here is a gauge, a bar or a number.
+
+  /// The moon over the oculus: a lit disc with a real terminator, maria, a
+  /// halo, and an earthshine ghost of the dark limb so a thin moon still
+  /// reads as a SPHERE rather than a crescent-shaped hole.
+  void _drawTheMoon(Canvas canvas, Offset c, double r, double phase) {
+    // Halo — three soft rings rather than a blur, because blur in a paint
+    // loop is the one thing this game cannot afford (see the perf notes).
+    for (var i = 3; i >= 1; i--) {
+      canvas.drawCircle(
+        c,
+        r + i * 9.0 + _moonWaxFx * 4,
+        Paint()
+          ..color = const Color(0xFFDCE8F0)
+              .withValues(alpha: (0.045 + 0.02 * _moonWaxFx) / i),
+      );
+    }
+    // The dark body first, so the lit part is laid ON a sphere.
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()..color = const Color(0xFF14202C).withValues(alpha: 0.96),
+    );
+    // Earthshine: the unlit limb, barely there.
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFF6E86A0).withValues(alpha: 0.30),
+    );
+
+    // THE LIT FACE. phase 0 = dark, 1 = full. The terminator is an ellipse
+    // whose x-radius runs r → 0 → r as the moon fills, which is what a real
+    // terminator does and what makes the half-moon read as a half and not as
+    // a chord.
+    if (phase > 0.02) {
+      final lit = Path();
+      final k = (phase - 0.5) * 2; // -1 waning-dark … +1 full
+      // The bright limb is always on the right here (the oculus faces east).
+      lit.addArc(Rect.fromCircle(center: c, radius: r), -pi / 2, pi);
+      // Back up the terminator to the top. Sweeping CLOCKWISE from the
+      // bottom takes the ellipse's left half and the moon reads gibbous;
+      // anticlockwise takes its right half and cuts into the bright limb,
+      // which is a crescent. Getting this backwards renders a new moon as a
+      // nearly full one, which is exactly what it did.
+      lit.arcTo(
+        Rect.fromCenter(center: c, width: 2 * r * k.abs(), height: 2 * r),
+        pi / 2,
+        k >= 0 ? pi : -pi,
+        false,
+      );
+      lit.close();
+      // Clip to the LIT path, not to the disc: the maria are features of the
+      // sunlit face, and clipped to the whole circle they printed grey blots
+      // across the dark limb where nothing should be visible at all.
+      canvas.save();
+      canvas.clipPath(lit);
+      canvas.drawPath(lit, Paint()..color = const Color(0xFFEAF2F8));
+      // Maria — the moon's own darker seas, so the face is a face.
+      final sea = Paint()..color = const Color(0xFFC3D2DE).withValues(alpha: 0.55);
+      canvas.drawCircle(c + Offset(-r * 0.22, -r * 0.28), r * 0.26, sea);
+      canvas.drawCircle(c + Offset(r * 0.30, -r * 0.05), r * 0.17, sea);
+      canvas.drawCircle(c + Offset(-r * 0.05, r * 0.34), r * 0.21, sea);
+      canvas.drawCircle(c + Offset(r * 0.12, r * 0.12), r * 0.10, sea);
+      canvas.restore();
+    }
+
+    // A cold rim on the lit side.
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = Colors.white.withValues(alpha: 0.10 + 0.35 * phase),
+    );
+  }
+
+  /// The oculus: an eye of cut stone the moon sits in, with the shaft of
+  /// light falling out of it. The shaft's WIDTH is the phase, so the room is
+  /// brighter when the water is higher — the two readings agree.
+  void _drawOculus(Canvas canvas, Offset moon, double r, double phase, Rect b) {
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 7
+      ..color = const Color(0xFF2A4453).withValues(alpha: 0.85);
+    canvas.drawCircle(moon, r + 26, ring);
+    // Voussoirs — sixteen cut stones around the eye.
+    final joint = Paint()
+      ..strokeWidth = 1.4
+      ..color = const Color(0xFF0A1620).withValues(alpha: 0.7);
+    for (var i = 0; i < 16; i++) {
+      final a = i * pi / 8;
+      final u = Offset(cos(a), sin(a));
+      canvas.drawLine(moon + u * (r + 22), moon + u * (r + 30), joint);
+    }
+    // THE SHAFT. Two long quads of pale light spreading down into the well.
+    if (phase > 0.03) {
+      final spread = 0.10 + 0.20 * phase;
+      final reach = b.bottom - moon.dy;
+      final top = r + 20;
+      // Three nested wedges rather than one, so the beam has a soft edge
+      // without a blur — the same trick the halo uses, and for the same
+      // reason (blur in a paint loop is this game's worst jank source).
+      for (var s = 3; s >= 1; s--) {
+        final f = s / 3;
+        final shaft = Path()
+          ..moveTo(moon.dx - top * f, moon.dy)
+          ..lineTo(moon.dx + top * f, moon.dy)
+          ..lineTo(moon.dx + top * f + reach * spread * f, b.bottom)
+          ..lineTo(moon.dx - top * f - reach * spread * f, b.bottom)
+          ..close();
+        canvas.drawPath(
+          shaft,
+          Paint()
+            ..color = const Color(0xFFBFD9E8)
+                .withValues(alpha: (0.010 + 0.018 * phase)),
+        );
+      }
+      // Motes riding the beam — slow, few, and cheap.
+      for (var i = 0; i < 7; i++) {
+        final t = ((_time * 0.06 + i * 0.143) % 1.0);
+        final y = moon.dy + reach * t;
+        final w = top + reach * t * spread;
+        final x = moon.dx + sin(i * 2.1 + _time * 0.5) * w * 0.7;
+        canvas.drawCircle(
+          Offset(x, y),
+          1.6,
+          Paint()
+            ..color = const Color(0xFFEAF2F8)
+                .withValues(alpha: (0.30 * (1 - t) * phase).clamp(0.0, 0.3)),
+        );
+      }
+    }
+  }
+
+  /// The dial Spirit stands on: a plinth ringed with the seven notches, the
+  /// standing one lit. It is a phase ring, not a slider — the shape of the
+  /// mark IS the shape of the moon it asks for.
+  void _drawMoonDial(Canvas canvas, Offset p) {
+    canvas.drawCircle(
+      p,
+      30,
+      Paint()..color = const Color(0xFF0B1C26).withValues(alpha: 0.9),
+    );
+    canvas.drawCircle(
+      p,
+      30,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0 + _moonDialFx * 1.6
+        ..color = const Color(0xFF8FE0EC)
+            .withValues(alpha: 0.45 + 0.45 * _moonDialFx),
+    );
+    for (var i = 0; i < kMoonNotches; i++) {
+      // Laid out along the TOP arc, waning left to waxing right, so the ring
+      // reads the way the sky moves rather than as a clock face.
+      final a = -pi + pi * (i / (kMoonNotches - 1));
+      final at = p + Offset(cos(a), sin(a)) * 22;
+      final here = i == moonNotch;
+      final ph = i / (kMoonNotches - 1);
+      canvas.drawCircle(
+        at,
+        here ? 5.0 : 3.0,
+        Paint()
+          ..color = const Color(0xFFEAF2F8)
+              .withValues(alpha: here ? 0.95 : 0.16 + 0.24 * ph),
+      );
+      if (here) {
+        canvas.drawCircle(
+          at,
+          8.0 + _moonDialFx * 3,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.2
+            ..color = Colors.white.withValues(alpha: 0.5),
+        );
+      }
+    }
+    // The calm, while the still holds: a glassy sheen over the plinth.
+    if (moonCalmLeft > 0) {
+      final u = (moonCalmLeft / _kCalmSeconds).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        p,
+        34,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..color = const Color(0xFF4AB8D8).withValues(alpha: 0.5 * u),
+      );
+    }
+  }
+
   void _drawMoonWell(Canvas canvas, DungeonRoom room) {
-    final c = room.bounds.center;
-    // The well: a dark depth ringed in old stone.
+    final b = room.bounds;
+    final dial = room.moonDial;
+    final phase = moonNotch / (kMoonNotches - 1);
+    final moonAt = Offset(b.center.dx, b.top + 118);
+
+    // Sky first, then the room it falls into.
+    _drawOculus(canvas, moonAt, 46, phase, b);
+    _drawTheMoon(canvas, moonAt, 46, phase);
+
+    final c = b.center;
+    // The well itself: a dark depth ringed in old stone, and the moon lying
+    // on the black water at the bottom of it.
     canvas.drawCircle(
       c,
       54,
@@ -2678,6 +2805,36 @@ extension MirrorTide on PlanetDungeonGame {
         ..strokeWidth = 3
         ..color = const Color(0xFF4A7080).withValues(alpha: 0.8),
     );
+    // THE REFLECTION — the same moon, wrong way up and never quite still.
+    // It is the honest reading of the phase for a player who cannot see the
+    // sky from where they are standing.
+    if (phase > 0.03) {
+      canvas.save();
+      canvas.clipPath(Path()..addOval(Rect.fromCircle(center: c, radius: 50)));
+      // The same moon, upside down and never quite still. Drawn as three
+      // horizontal slices offset against each other, which is what a
+      // reflection on moving water actually does — and costs three cheap
+      // clips instead of a blur.
+      for (var i = 0; i < 3; i++) {
+        final wob = sin(_time * 0.9 + i * 1.9) * 4.0;
+        canvas.save();
+        canvas.clipRect(Rect.fromLTWH(c.dx - 52, c.dy - 26 + i * 17.0, 104, 17));
+        canvas.save();
+        canvas.translate(c.dx + wob, c.dy);
+        canvas.scale(1, -1);
+        canvas.translate(-c.dx, -c.dy);
+        _drawTheMoon(canvas, c, 24, phase);
+        canvas.restore();
+        canvas.restore();
+      }
+      // and the black water over it
+      canvas.drawCircle(
+        c,
+        50,
+        Paint()..color = const Color(0xFF04101A).withValues(alpha: 0.45),
+      );
+      canvas.restore();
+    }
     if (guardianAwake || hasStar(2)) {
       if (_fx.ready) {
         drawGlow(
@@ -2691,10 +2848,14 @@ extension MirrorTide on PlanetDungeonGame {
         );
       }
     }
-    final truthGlow = _poolFx['truth'] ?? 0;
+
+    if (dial != null) _drawMoonDial(canvas, dial);
+
+    // THE BASINS.
     for (final pool in room.moonPools) {
       final frozen = (poolStates[pool.id] ?? 0) == 1 || hasStar(2);
       final fx = _poolFx[pool.id] ?? 0;
+      final want = poolWants[pool.id];
       final p = pool.position;
       canvas.drawCircle(
         p,
@@ -2712,80 +2873,82 @@ extension MirrorTide on PlanetDungeonGame {
           ..color = (frozen ? Colors.white : const Color(0xFF4A7080))
               .withValues(alpha: frozen ? 0.65 : 0.7),
       );
+
       if (frozen) {
-        // Frost cracks + a held moon.
+        // A held moon, forever — the basin's own little full disc, with the
+        // frost that took it.
+        _drawTheMoon(canvas, p, 15, 1.0);
         final crack = Paint()
           ..strokeWidth = 1
           ..color = Colors.white.withValues(alpha: 0.45);
-        canvas.drawLine(
-          p + const Offset(-16, -7),
-          p + const Offset(9, 11),
-          crack,
-        );
-        canvas.drawLine(
-          p + const Offset(5, -18),
-          p + const Offset(11, 7),
-          crack,
-        );
-        canvas.drawCircle(
-          p + const Offset(4, -4),
-          7,
-          Paint()..color = const Color(0xFFDCE8F0).withValues(alpha: 0.7),
-        );
-        if (fx > 0 && _fx.ready) {
-          drawGlow(
-            canvas,
-            _fx.glow!,
-            p,
-            48,
-            const Color(0xFFB8E8F0).withValues(alpha: 0.25 * fx),
-          );
-        }
-      } else {
-        // Liquid: a slow shimmer; insight's truth-glow marks the real two.
-        final shimmer = 0.5 + 0.5 * sin(_time * 1.4 + p.dx);
+        canvas.drawLine(p + const Offset(-22, -10), p + const Offset(-9, -2), crack);
+        canvas.drawLine(p + const Offset(20, 12), p + const Offset(8, 4), crack);
+        canvas.drawLine(p + const Offset(-4, 24), p + const Offset(2, 12), crack);
+        continue;
+      }
+
+      // AN UNLOCKED BASIN SHOWS WHAT IT IS WAITING FOR, and shows it as a
+      // MOON — the mark is the shape of the thing it wants, so there is
+      // nothing to decode and no legend to learn. A deaf basin shows still
+      // black water and never pretends otherwise.
+      if (want != null) {
+        final wantPhase = want / (kMoonNotches - 1);
+        _drawTheMoon(canvas, p, 13, wantPhase);
+        // And how close the sky is to it: a ring that closes as the moon
+        // approaches, complete and bright the moment the basin would take it.
+        final off = (moonNotch - want).abs();
+        final near = (1 - off / 3).clamp(0.0, 1.0);
+        final ready = off == 0 && moonHoldT >= _kPoolHold;
         canvas.drawArc(
-          Rect.fromCircle(center: p, radius: 20),
-          _time * 0.5,
-          pi * 0.8,
+          Rect.fromCircle(center: p, radius: 24),
+          -pi / 2,
+          pi * 2 * (ready ? 1.0 : near),
           false,
           Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.2
-            ..color = const Color(
-              0xFF8FE0EC,
-            ).withValues(alpha: 0.18 + 0.1 * shimmer),
+            ..strokeWidth = ready ? 2.6 : 1.6
+            ..strokeCap = StrokeCap.round
+            ..color = (ready ? Colors.white : const Color(0xFF8FE0EC))
+                .withValues(alpha: ready ? 0.9 : 0.22 + 0.3 * near),
         );
-        if (truthGlow > 0 && pool.isTrue && _fx.ready) {
+        if (ready && _fx.ready) {
           drawGlow(
             canvas,
             _fx.glow!,
             p,
-            40,
-            const Color(
-              0xFFDCE8F0,
-            ).withValues(alpha: (0.28 * (truthGlow / 3)).clamp(0.0, 0.3)),
+            42,
+            const Color(0xFFDCE8F0)
+                .withValues(alpha: 0.16 + 0.10 * sin(_time * 3.4)),
           );
         }
-        if (fx > 0) {
-          // A false pool's shatter: flying shards.
-          final shard = Paint()
-            ..strokeWidth = 1.4
-            ..strokeCap = StrokeCap.round
-            ..color = Colors.white.withValues(alpha: 0.5 * fx);
-          for (var i = 0; i < 5; i++) {
-            final a = i * 1.256 + p.dx;
-            final d = 32 + (1.4 - fx) * 26;
-            canvas.drawLine(
-              p + Offset(cos(a), sin(a)) * d,
-              p + Offset(cos(a), sin(a)) * (d + 8),
-              shard,
-            );
-          }
-        }
+      } else {
+        // Deaf water: a shiver of reflected light and nothing in it.
+        final shimmer = 0.5 + 0.5 * sin(_time * 1.3 + p.dx * 0.01);
+        canvas.drawCircle(
+          p,
+          19,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.2
+            ..color = const Color(0xFF8FE0EC)
+                .withValues(alpha: 0.10 + 0.06 * shimmer),
+        );
+      }
+
+      if (fx > 0) {
+        // A refusal: rings pushing back out of the water.
+        canvas.drawCircle(
+          p,
+          30 + (1 - fx) * 18,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = const Color(0xFF8FE0EC).withValues(alpha: 0.5 * fx),
+        );
       }
     }
-    // The pipe-mouth in the south wall.
+
+    // The pipe-mouth in the south wall — THE STILL.
     for (final valve in room.tideValves) {
       if (!valve.pipOnly) continue;
       final p = valve.position;
@@ -2802,6 +2965,20 @@ extension MirrorTide on PlanetDungeonGame {
           ..strokeWidth = 2
           ..color = const Color(0xFF4A8AB8).withValues(alpha: 0.8),
       );
+      // While the well is calm, still rings stand off the mouth.
+      if (moonCalmLeft > 0) {
+        final u = (moonCalmLeft / _kCalmSeconds).clamp(0.0, 1.0);
+        for (var i = 1; i <= 3; i++) {
+          canvas.drawCircle(
+            p,
+            11.0 + i * 9,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.2
+              ..color = const Color(0xFF4AB8D8).withValues(alpha: 0.30 * u / i),
+          );
+        }
+      }
       if (_fx.ready) {
         drawGlow(
           canvas,
@@ -2861,5 +3038,332 @@ extension MirrorTide on PlanetDungeonGame {
         ).withValues(alpha: 0.14 + 0.08 * sin(_time * 1.8)),
       );
     }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// THE MOON WELL — Water's Star 3 (docs §6)
+// ═══════════════════════════════════════════════════════════
+//
+// WHAT THIS REPLACES. Four pools, two of them true, frozen at settled mid
+// tide. You read the room, you pick two, you are done — a one-shot
+// identification check with no play in it, and it wasted the room: an oculus
+// open to the sky with a moon standing in it, used as a backdrop.
+//
+// THE REVEAL IT IS BUILT AROUND. The whole temple is wheels. Every sluice,
+// every master valve, every pipe-mouth — the tide is a thing you crank. Here
+// you find out the wheels were only ever bleeding water off: the MOON moves
+// the sea, and under an open oculus it moves it directly.
+//
+// THE LOOP. The moon waxes on its own and never stops, so the drift is the
+// clock — no timer is drawn, because the moon is the timer and it is what the
+// player is already looking at. Three stations, one per element, and
+// swap-control means only one of them is ever in your hands:
+//
+//   SPIRIT at the dial wanes the moon a notch (its first verb on this planet).
+//   WATER at the still calms the well, halving the wax for a few seconds.
+//   ICE at a pool locks it, if the moon is sitting at the notch that pool
+//   wants and has HELD there.
+//
+// And the coupling that makes it a puzzle rather than a chore: the notch you
+// must hit also decides how hard that pool is to reach. A fat moon floods the
+// room and a non-Water creature swims at 0.62x, so setting the value
+// lengthens the walk you have to make while it drifts away from you. Neither
+// pool is hard alone; the pair pulls in opposite directions.
+
+/// Notches the moon can stand at: new (0) through full (6).
+const int kMoonNotches = 7;
+
+/// Seconds per notch of unattended waxing. THE clock of the room.
+const double _kMoonWaxSeconds = 4.5;
+
+/// Seconds the still holds, and what it does to the wax while it lasts.
+const double _kCalmSeconds = 6.0;
+const double _kCalmFactor = 0.5;
+
+/// How long the moon must SIT at a notch before a basin will take it. A pool
+/// wants the moon still, not merely passing through.
+const double _kPoolHold = 1.2;
+
+/// Reach for the dial, the still and a basin.
+const double _kDialReach = 54.0;
+const double _kPoolReach = 50.0;
+
+/// The notches a basin may ask for. Deliberately off the ends: notch 0 and 6
+/// are where the drift PARKS (0 is where waning bottoms out, 6 is where the
+/// sky pushes to), and a target you can hold by doing nothing is not a target.
+const List<int> kMoonWantable = [1, 2, 4, 5];
+
+/// The tide stand each notch calls for. Two notches per stand at the ends and
+/// three in the middle, so the water is a coarse read of the moon and the
+/// moon is the fine one — you cannot solve the room off the water alone.
+int moonStandFor(int notch) => notch <= 1 ? 0 : (notch <= 4 ? 1 : 2);
+
+extension PlanetDungeonMoonWell on PlanetDungeonGame {
+  DungeonRoom? get _wellRoom {
+    for (final r in layout.rooms.values) {
+      if (r.moonDial != null) return r;
+    }
+    return null;
+  }
+
+  bool get _atWell => _isTemple && currentRoom.moonDial != null;
+
+  /// Has the ice bridge been laid — both listening basins locked?
+  bool get moonBridgeWhole =>
+      poolWants.isNotEmpty &&
+      poolWants.keys.every((id) => (poolStates[id] ?? 0) == 1);
+
+  /// Roll this run's listening basins and what each wants.
+  ///
+  /// Two of the four, and their notches at least 2 apart — so the pair always
+  /// pulls the moon (and the water, and the length of the walk) in opposite
+  /// directions, which is the whole design. Everything about the room is
+  /// re-rolled on death: the stone is unchanged, the reading is not.
+  void _rollMoonWell() {
+    poolWants.clear();
+    moonNotch = 3;
+    moonWaxT = 0;
+    moonHoldT = 0;
+    moonCalmLeft = 0;
+    _moonDialFx = 0;
+    _moonWaxFx = 0;
+    _moonSynced = false;
+    final room = _wellRoom;
+    if (room == null || room.moonPools.length < 2) return;
+    final rng = Random();
+    final pools = [...room.moonPools]..shuffle(rng);
+    final notches = [...kMoonWantable]..shuffle(rng);
+    int a = notches.first;
+    int b = notches.firstWhere(
+      (n) => (n - a).abs() >= 2,
+      orElse: () => a >= 4 ? 1 : 5,
+    );
+    poolWants[pools[0].id] = a;
+    poolWants[pools[1].id] = b;
+  }
+
+  /// The moon's own turning. Runs only in the well: the sky does not wax
+  /// behind the player's back, for the same reason the lantern does not drift
+  /// behind it — nothing in this temple is lost off-screen.
+  void _updateMoonWell(double dt) {
+    if (!_atWell) {
+      _moonSynced = false;
+      return;
+    }
+    if (moonBridgeWhole || hasStar(2)) return;
+    // THE MOON AND THE WATER MUST AGREE THE MOMENT YOU WALK IN. The tide is
+    // temple-wide and set by wheels three rooms away, so the well can be
+    // entered at any stand — and a moon that disagreed with it dragged the
+    // water to a new stand on its very first wax, without anyone touching
+    // anything. The moon takes the standing water as its own, which is only
+    // the fiction told straight: the sky was always what the wheels were
+    // bleeding against.
+    if (!_moonSynced) {
+      _moonSynced = true;
+      moonNotch = switch (tideLevel) { 0 => 1, 1 => 3, _ => 5 };
+      moonWaxT = 0;
+      moonHoldT = 0;
+    }
+    if (moonCalmLeft > 0) moonCalmLeft = max(0, moonCalmLeft - dt);
+    if (_moonDialFx > 0) _moonDialFx -= dt * 1.6;
+    if (_moonWaxFx > 0) _moonWaxFx -= dt * 1.1;
+    moonHoldT += dt;
+    if (moonNotch >= kMoonNotches - 1) {
+      // Full, and it stays full until someone pulls it back. The sky is not
+      // a wheel that spins round: it is a weight that always rolls one way.
+      moonWaxT = 0;
+      return;
+    }
+    moonWaxT += dt * (moonCalmLeft > 0 ? _kCalmFactor : 1.0);
+    if (moonWaxT >= _kMoonWaxSeconds) {
+      moonWaxT = 0;
+      moonNotch++;
+      moonHoldT = 0;
+      _moonWaxFx = 1.0;
+      _syncTideToMoon();
+    }
+  }
+
+  /// The water follows the moon, easing exactly as it does everywhere else.
+  void _syncTideToMoon() {
+    final want = moonStandFor(moonNotch);
+    if (want != tideLevel) _setTide(want);
+  }
+
+  /// SPIRIT at the dial: one press wanes the moon a notch.
+  bool _tryMoonDial(DungeonCreature a) {
+    final dial = currentRoom.moonDial;
+    if (dial == null || hasStar(2) || moonBridgeWhole) return false;
+    if ((a.position - dial).distance > _kDialReach) return false;
+    if (!guardianRiteUnlocked) {
+      _setBlockedHint(
+        'The well sleeps — it answers only a bearer of both the '
+        '${layout.starName(0)} and ${layout.starName(1)}',
+      );
+      return true;
+    }
+    if (a.member.element != 'Spirit') {
+      _setBlockedHint('Only Spirit has any purchase on the moon');
+      return true;
+    }
+    if (moonNotch <= 0) {
+      _setBlockedHint('The moon is dark — there is nothing left to take');
+      return true;
+    }
+    moonNotch--;
+    moonWaxT = 0;
+    moonHoldT = 0;
+    _moonDialFx = 1.0;
+    _syncTideToMoon();
+    _spawnAlchemyBurst(
+      dial,
+      producedElement: 'Spirit',
+      reagentElements: const ['Water'],
+      particleCount: 10,
+      intensity: 0.6,
+    );
+    return true;
+  }
+
+  /// WATER at the still: calm the well and halve the wax for a while.
+  bool _tryMoonStill(DungeonCreature a, TideValve valve) {
+    if (!_atWell || hasStar(2) || moonBridgeWhole) return false;
+    if (a.member.element != 'Water') return false;
+    if (moonCalmLeft > 0) {
+      _setHint('The well is already still');
+      return true;
+    }
+    moonCalmLeft = _kCalmSeconds;
+    _spawnAlchemyBurst(
+      valve.position,
+      producedElement: 'Water',
+      particleCount: 12,
+      intensity: 0.55,
+    );
+    _setHint('The well goes glassy — the moon slows in it', 2.6);
+    return true;
+  }
+
+  /// ICE at a basin: lock it, if the moon is standing where it wants.
+  bool _tryMoonBasin(DungeonCreature a, DungeonRoom room) {
+    if (room.moonPools.isEmpty || hasStar(2)) return false;
+    for (final pool in room.moonPools) {
+      if ((a.position - pool.position).distance > _kPoolReach) continue;
+      if (!guardianRiteUnlocked) {
+        _setBlockedHint(
+          'The pools sleep — they answer only a bearer of both the '
+          '${layout.starName(0)} and ${layout.starName(1)}',
+        );
+        return true;
+      }
+      if ((poolStates[pool.id] ?? 0) == 1) {
+        _setHint('This basin holds its moon already');
+        return true;
+      }
+      final r = evaluateInteraction(
+        a.member,
+        const DungeonInteractionRequirement(element: 'Ice', allowRecipe: true),
+        recipeAvailable: a.member.element == 'Spirit',
+      );
+      final viaRecipe = r == InteractionResult.passedViaRecipe;
+      if (!interactionSucceeded(r)) {
+        _setBlockedHint(
+          'Ice would take this basin — or Spirit standing in the water',
+        );
+        return true;
+      }
+      final want = poolWants[pool.id];
+      if (want == null) {
+        // A DEAF BASIN COSTS NOTHING. The old version shattered a false pool
+        // and threw fury wisps — a consumed attempt in a finale, and the only
+        // thing in the room that could strand a run.
+        _poolFx[pool.id] = 0.8;
+        _setHint('Nothing looks back out of this water', 2.4);
+        return true;
+      }
+      if (moonNotch != want) {
+        _poolFx[pool.id] = 0.6;
+        _setHint(
+          moonNotch < want
+              ? 'The moon is too thin for this basin'
+              : 'The moon is too full for this basin',
+          2.4,
+        );
+        return true;
+      }
+      if (moonHoldT < _kPoolHold) {
+        _setBlockedHint('The moon is still moving — let it settle');
+        return true;
+      }
+      poolStates[pool.id] = 1;
+      _poolFx[pool.id] = 1.4;
+      _spawnAlchemyBurst(
+        pool.position,
+        producedElement: 'Ice',
+        reagentElements: viaRecipe
+            ? const ['Spirit', 'Water']
+            : [a.member.element],
+        particleCount: 22,
+        intensity: 1.0,
+      );
+      if (viaRecipe) {
+        // The RECIPE's downside, unchanged: braiding Spirit through the water
+        // is a loud way to make ice, and the brine hears it.
+        spawnWispWave(
+          element: 'Water',
+          center: pool.position,
+          count: 2,
+          announce: false,
+        );
+      }
+      if (moonBridgeWhole) {
+        guardianAwake = true;
+        guardianHp = PlanetDungeonGame.maxGuardianHp;
+        _setHint(
+          'Two moons stand frozen in the well — the bridge holds, and the '
+          'deep stirs beyond',
+          4.2,
+        );
+        spawnWispWave(
+          element: 'Water',
+          center: room.bounds.center,
+          count: 3,
+          unstable: true,
+        );
+      } else {
+        _setHint('The basin takes the moon and holds it', 3.0);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /// What insight says about the well, by tier. It never gives both notches.
+  String _moonWellInsight(int tier) {
+    if (hasStar(2) || moonBridgeWhole) {
+      return 'The bridge stands — the well keeps nothing back now';
+    }
+    final wants = poolWants.values.toList()..sort();
+    if (wants.length < 2) return 'The well is quiet';
+    String phase(int n) => switch (n) {
+      0 => 'a dark moon',
+      1 => 'a thin crescent',
+      2 => 'a half moon',
+      3 => 'a half moon',
+      4 => 'a swelling moon',
+      5 => 'a near-full moon',
+      _ => 'a full moon',
+    };
+    return switch (tier) {
+      <= 0 =>
+        'Two of these basins are listening — one for a thin moon, one for a '
+            'fat one',
+      1 =>
+        'Two basins are listening, and one of them wants ${phase(wants.first)}',
+      _ =>
+        'Two basins are listening: one wants ${phase(wants.first)}, the other '
+            '${phase(wants.last)}',
+    };
   }
 }

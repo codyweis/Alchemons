@@ -281,10 +281,18 @@ void main() {
               reason: '${room.id}: moon-pool ids must be unique',
             );
             if (room.moonPools.isNotEmpty) {
+              // WHICH basins listen is rolled per run now, so the data cannot
+              // say. What it must still guarantee is that there are enough of
+              // them to roll a pair out of, and somewhere to work the moon.
               expect(
-                room.moonPools.any((p) => p.isTrue),
-                isTrue,
-                reason: '${room.id}: at least one pool must hold the moon',
+                room.moonPools.length,
+                greaterThanOrEqualTo(2),
+                reason: '${room.id}: two basins are rolled, so two must exist',
+              );
+              expect(
+                room.moonDial,
+                isNotNull,
+                reason: '${room.id}: basins with no dial can never be filled',
               );
             }
             for (final z in room.tideZones) {
@@ -1015,15 +1023,34 @@ void main() {
         isNotEmpty,
         reason: 'the depths must flood and drain on the guardian\'s roar',
       );
-      // Star 3: four moon-pools, exactly two true; Leviathan in the depths.
+      // Star 3, THE MOON WELL: four basins (which two listen, and at what
+      // phase, is rolled per run — see the game test), a dial for Spirit and
+      // the pip's pipe-mouth as the still. Leviathan in the depths.
       final well = water.rooms['moon_well']!;
       expect(well.moonPools.length, 4);
-      expect(well.moonPools.where((p) => p.isTrue).length, 2);
+      expect(
+        well.moonDial,
+        isNotNull,
+        reason: 'Spirit needs somewhere to stand and wane the moon',
+      );
       expect(
         well.tideValves.single.pipOnly,
         isTrue,
-        reason: 'the well\'s pipe-mouth is a Pip shortcut',
+        reason: 'the well\'s pipe-mouth is the still, and Pip-only',
       );
+      // The dial must not sit on top of the well mouth or a basin — three
+      // stations in one place is one station.
+      for (final p in [
+        well.bounds.center,
+        ...well.moonPools.map((m) => m.position),
+        well.tideValves.single.position,
+      ]) {
+        expect(
+          (well.moonDial! - p).distance,
+          greaterThan(70),
+          reason: 'the dial must be its own place in the room',
+        );
+      }
       final guardian = water.rooms['leviathan_depths']!.guardian;
       expect(guardian, isNotNull);
       expect(guardian!.encounter?.mysticId, 'Leviathan');
