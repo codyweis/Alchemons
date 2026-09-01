@@ -110,6 +110,20 @@ void main() {
     }
   });
 
+  test('Lightning: the hub can throw its trunk breakers', () {
+    // The four breakers ring the hub dynamo and are the planet's signature
+    // verb — the zero-sum switch that powers one wing and darkens the rest.
+    // They live on the LAYOUT, not the room, so `hasVerbs` could never see
+    // them: the hub had no action pad, the run starts with every star wing
+    // dark, and there was no way to light one. Lightning was unfinishable on
+    // a phone and finishable in every test, because the tests call
+    // `activateAbility()` straight past the gate.
+    final g = _game('Lightning');
+    final layout = kPlanetDungeonLayouts['Lightning']!;
+    expect(layout.dynamoTrunks, isNotEmpty);
+    expect(_offersIn(g, layout.dynamoRoomId!), isTrue);
+  });
+
   test('and a corridor still has no button', () {
     // The other half of the rule: a dead control in the best spot on the pad
     // teaches that pressing does nothing, so this must not become "always".

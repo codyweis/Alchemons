@@ -2061,6 +2061,15 @@ class PlanetDungeonGame extends FlameGame {
     if (_isRuins) return dustMoundsIn(currentRoomId).isNotEmpty;
     if (_isTemple) return currentRoomId == 'reflection_court';
     if (_isBarrow) return currentRoomId == 'palm_hollow';
+    // LIGHTNING'S TRUNK BREAKERS ARE ON THE LAYOUT, NOT THE ROOM. Four of
+    // them ring the hub dynamo and they are the planet's signature verb — the
+    // zero-sum switch that powers one wing and darkens the rest. `hasVerbs`
+    // reads `DungeonRoom` and can never see them, so the hub offered no
+    // action pad at all: the run starts on the VAULT trunk with every star
+    // wing dark, and there was no way to throw a breaker and light one.
+    if (_isCircuit && currentRoomId == layout.dynamoRoomId) {
+      return layout.dynamoTrunks.isNotEmpty;
+    }
     return false;
   }
 
