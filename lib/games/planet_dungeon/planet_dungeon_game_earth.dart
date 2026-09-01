@@ -1145,13 +1145,25 @@ extension BuriedGiant on PlanetDungeonGame {
         );
         return;
       case 'pillar_crypt':
+        // THE RULE, ONCE. The seal wants both ring neighbours holding, and
+        // the ring is drawn in the room — but "crystal grows out of crystal"
+        // is the sentence that turns four lit sockets into a plan. It names
+        // the SYSTEM and never an order, the same way the sternum court names
+        // the scale's marks without naming a single lean.
         _setHint(
-          revealTier >= 1
-              ? 'Four sockets sleep beneath the pillars — storm-spark '
-                    'wakes them as crystal'
-              : 'Four sockets sleep beneath the pillars — more '
-                    'Intelligence would read what wakes them',
-          3.8,
+          switch (revealTier) {
+            <= 0 =>
+              'Four sockets sleep beneath the pillars — more Intelligence '
+                  'would read what wakes them',
+            1 =>
+              'Four sockets sleep beneath the pillars — storm-spark wakes '
+                  'them as crystal, and the giant takes it back',
+            _ =>
+              'Storm-spark wakes a socket as crystal and the giant takes it '
+                  'back. Crystal only SEALS where crystal already burns on '
+                  'both sides of it',
+          },
+          4.4,
         );
         return;
       case 'skull_antechamber':
@@ -2421,8 +2433,72 @@ extension BuriedGiant on PlanetDungeonGame {
     }
   }
 
+  /// THE RING, DRAWN. The seal rule is "both ring neighbours must be
+  /// holding", and until this the ring was invisible: nothing in the room
+  /// said which sockets were beside which, so "both sides of this socket are
+  /// dark" named a relationship the player could not see. Every pair is a
+  /// nerve of bone between two vertebrae, dead while either end is dark and
+  /// running with light when both are holding.
+  void _drawCryptRing(Canvas canvas, DungeonRoom room) {
+    final star = room.pillarStarIndex;
+    final done = star != null && hasStar(star);
+    final drawn = <String>{};
+    for (final a in room.fossilPillars) {
+      for (final bId in _pillarRing(room, a.id)) {
+        final key = ([a.id, bId]..sort()).join('|');
+        if (!drawn.add(key)) continue;
+        final b = room.fossilPillars.firstWhere((p) => p.id == bId);
+        final live = done || (_pillarHolding(a.id) && _pillarHolding(bId));
+        final from = a.position + const Offset(0, 34);
+        final to = b.position + const Offset(0, 34);
+        // The nerve sags between its ends, so the four read as a ring hung
+        // round the chamber rather than as a wire diagram.
+        final mid =
+            Offset.lerp(from, to, 0.5)! +
+            Offset(0, (to.dx - from.dx).abs() > 100 ? 26 : 0);
+        final path = Path()
+          ..moveTo(from.dx, from.dy)
+          ..quadraticBezierTo(mid.dx, mid.dy, to.dx, to.dy);
+        canvas.drawPath(
+          path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = live ? 3.2 : 2.2
+            ..strokeCap = StrokeCap.round
+            // A DEAD NERVE MUST STILL BE VISIBLE. Drawn at 0xFF4A3A22 it
+            // vanished into the strata, and the ring is the one thing that
+            // has to be readable BEFORE anything is lit — a player cannot
+            // plan an order out of relationships they cannot see.
+            ..color = (live
+                    ? const Color(0xFFB8E0D8)
+                    : const Color(0xFF9A7E52))
+                .withValues(alpha: live ? 0.6 : 0.38),
+        );
+        if (live) {
+          // Charge running the nerve — which way does not matter, only that
+          // it is running.
+          for (var i = 0; i < 3; i++) {
+            final t = ((_time * 0.35 + i / 3) % 1.0);
+            final u = 1 - t;
+            final at = Offset(
+              u * u * from.dx + 2 * u * t * mid.dx + t * t * to.dx,
+              u * u * from.dy + 2 * u * t * mid.dy + t * t * to.dy,
+            );
+            canvas.drawCircle(
+              at,
+              2.4,
+              Paint()
+                ..color = const Color(0xFFD8F0EA).withValues(alpha: 0.75),
+            );
+          }
+        }
+      }
+    }
+  }
+
   void _drawPillarCrypt(Canvas canvas, DungeonRoom room) {
     _drawSpinalColumn(canvas, room);
+    _drawCryptRing(canvas, room);
     final star = room.pillarStarIndex;
     final done = star != null && hasStar(star);
     for (final pillar in room.fossilPillars) {
@@ -2465,8 +2541,61 @@ extension BuriedGiant on PlanetDungeonGame {
         9,
         Paint()..color = const Color(0xFF0E0A06).withValues(alpha: 0.9),
       );
+      // FOUR STATES, EACH ITS OWN THING TO LOOK AT. The room used to draw
+      // exactly one bit — lit or not — so buried, open, burning and sealed
+      // were all the same picture and nothing could be planned from it.
+      final at = p + const Offset(0, 34);
+      final sealed = done || pillarSealed.contains(pillar.id);
+      final bared = sealed || locked || pillarBared.contains(pillar.id);
+      if (!bared) {
+        // BURIED: rubble heaped over the mouth.
+        for (var i = 0; i < 5; i++) {
+          final a2 = i * 1.257 + p.dx * 0.01;
+          canvas.drawCircle(
+            at + Offset(cos(a2), sin(a2) * 0.55) * (7 + (i % 3) * 3.0),
+            4.0 + (i % 2) * 1.5,
+            Paint()..color = const Color(0xFF3A2E1E).withValues(alpha: 0.95),
+          );
+        }
+      }
+      if (sealed) {
+        // SEALED: crystal grown out of the mouth, and it never leaks.
+        for (final (dx, h) in const [(-6.0, 16.0), (1.0, 24.0), (7.0, 13.0)]) {
+          final base = at + Offset(dx, 2);
+          canvas.drawPath(
+            Path()
+              ..moveTo(base.dx - 3.5, base.dy)
+              ..lineTo(base.dx, base.dy - h)
+              ..lineTo(base.dx + 3.5, base.dy)
+              ..close(),
+            Paint()..color = const Color(0xFFB8E0D8).withValues(alpha: 0.85),
+          );
+        }
+      } else if (locked) {
+        // BURNING, AND BLEEDING BACK. The arc is the socket's remaining life,
+        // draining widdershins — the race is the puzzle, so the clock is on
+        // the thing that is racing rather than in a corner of the HUD.
+        final left =
+            ((pillarLife[pillar.id] ?? 0) / kPillarLifeSeconds)
+                .clamp(0.0, 1.0);
+        canvas.drawArc(
+          Rect.fromCircle(center: at, radius: 15),
+          -pi / 2,
+          -pi * 2 * left,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.6
+            ..strokeCap = StrokeCap.round
+            ..color = Color.lerp(
+              const Color(0xFFE07A4A),
+              const Color(0xFFB8E0D8),
+              left,
+            )!.withValues(alpha: 0.9),
+        );
+      }
       canvas.drawCircle(
-        p + const Offset(0, 34),
+        at,
         9,
         Paint()
           ..style = PaintingStyle.stroke

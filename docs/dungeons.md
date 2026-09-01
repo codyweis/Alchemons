@@ -2061,6 +2061,17 @@ is for; after that each sealed socket is a permanent anchor its neighbours can
 grow from, and the rest fall out. The star banks on four SEALS, not four
 lights.
 
+**AND THE ROOM SHOWS ALL OF IT**, because a rule about neighbours is useless
+if the neighbours are invisible. The RING IS DRAWN — a nerve of bone between
+each pair, dead while either end is dark and running with light when both
+hold, so "both sides of this socket are dark" names something the player can
+see. Each socket now draws its own state instead of one lit/unlit bit: RUBBLE
+heaped over a buried mouth · an open dark socket · a burning one wearing its
+remaining life as a draining arc that runs warm as it empties · crystal grown
+out of a sealed one. And the reading names the rule at tier 2 — *"crystal only
+SEALS where crystal already burns on both sides of it"* — the system, never an
+order, the same way the sternum court names the scale's marks.
+
 THE RING IS A RING: the four sit on a rectangle and a socket's neighbours are
 its nearest TWO, so the diagonal is not one. If it were, every socket would
 border every other and the ordering would evaporate — pinned by test. Nothing
