@@ -1351,6 +1351,13 @@ extension DungeonRoomAffordances on DungeonRoom {
   /// platforms and tide zones are things you move through, not things you use.
   bool get hasVerbs =>
       // Shared furniture
+      //
+      // CURRENTS COUNT. They look like traversal and mostly are, but a Fire
+      // creature acting inside one is a verb — it is Air's entry rite, and
+      // leaving currents off this list hid the action cluster in the very
+      // first room of the Air dungeon, so the rite could not be performed and
+      // the run could not start.
+      currents.isNotEmpty ||
       clouds.isNotEmpty ||
       anchors.isNotEmpty ||
       conduits.isNotEmpty ||

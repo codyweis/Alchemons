@@ -1831,7 +1831,27 @@ class PlanetDungeonGame extends FlameGame {
   /// which is exactly the wrong lesson in a game built on verbs. Corridors
   /// and landings are simply for walking through.
   bool get roomOffersAction =>
-      hasCombatTargets || currentRoom.hasVerbs || relicDropActive;
+      hasCombatTargets ||
+      currentRoom.hasVerbs ||
+      relicDropActive ||
+      entryRitePending;
+
+  /// Is the party standing where the entrance rite has to be performed?
+  ///
+  /// `hasVerbs` reads the room's DATA, and not every rite has data to read:
+  /// Air's is a Fire creature acting inside a wind current, Water's is an
+  /// offering bowl at a hardcoded point with no furniture behind it at all.
+  /// Both of those rooms therefore looked empty, the action cluster was
+  /// hidden, and neither dungeon could be STARTED — you stood at the door
+  /// with no button to press.
+  ///
+  /// So the rite itself is the answer: if this layout hides its entrance door
+  /// behind one and it has not been performed, there is something to do here,
+  /// whatever the furniture says.
+  bool get entryRitePending =>
+      layout.entranceRevealDoor != null &&
+      !entryDoorRevealed &&
+      currentRoomId == layout.entranceRoomId;
 
   /// The utility button is intentionally non-spoilery: the world response, not
   /// the label, teaches which specimen qualities and elements matter.

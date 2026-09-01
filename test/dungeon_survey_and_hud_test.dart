@@ -158,6 +158,56 @@ void main() {
       expect(g.roomOffersAction, isTrue);
     });
 
+    test('a room you must ACT in offers the action cluster', () {
+      // THE BLOCKER THIS EXISTS FOR: the cluster is hidden in rooms with
+      // nothing to do, and `hasVerbs` is a hand-kept list of furniture types
+      // that missed one. Air's entry rite is a Fire creature acting inside a
+      // wind CURRENT, currents were not on the list, so the first room of the
+      // Air dungeon showed no buttons and the run could not be started.
+      //
+      // Any layout that hides its entrance door behind a rite has to be able
+      // to perform that rite.
+      for (final element in kPlanetDungeonLayouts.keys) {
+        final layout = kPlanetDungeonLayouts[element]!;
+        if (layout.entranceRevealDoor == null) continue;
+        final g = _game(element);
+        expect(
+          g.roomOffersAction,
+          isTrue,
+          reason:
+              '$element hides its entrance door behind a rite performed in '
+              '${g.currentRoomId}, but that room offers no action — the '
+              'cluster is hidden and the dungeon cannot be started',
+        );
+      }
+    });
+
+    test('and stops offering it once the rite is done', () {
+      // The exemption is for the rite, not for the room: an entrance you have
+      // already opened is just a corridor again.
+      for (final element in kPlanetDungeonLayouts.keys) {
+        final layout = kPlanetDungeonLayouts[element]!;
+        if (layout.entranceRevealDoor == null) continue;
+        final g = _game(element);
+        g.entryDoorRevealed = true;
+        expect(g.entryRitePending, isFalse, reason: element);
+      }
+    });
+
+    test('a current is a verb, wherever it is', () {
+      // Fire-in-a-current is Air's recurring interaction, not just its entry.
+      kPlanetDungeonLayouts.forEach((element, layout) {
+        for (final room in layout.rooms.values) {
+          if (room.currents.isEmpty) continue;
+          expect(
+            room.hasVerbs,
+            isTrue,
+            reason: '$element/${room.id} carries a current',
+          );
+        }
+      });
+    });
+
     test('geometry alone is not a verb', () {
       // Walls, doors, hazards, gaps and platforms are things you move
       // through. A room holding only those must not show a dead button.
