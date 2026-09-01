@@ -1799,6 +1799,30 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
+### FOUR DOWN, THIRTEEN TO GO (2026-09-01)
+
+**Polished: Fire · Air · Water · Earth.** What that has come to mean, on top
+of the art pass Fire set as the reference:
+
+  1. **No star is one verb repeated.** Every "do the thing N times" star has
+     been rebuilt into a mechanism, an order, or a deduction. This was the
+     single most common fault and it was in six stars across the four.
+  2. **Every room draws what it IS**, not a diagram of its own mechanic — and
+     every piece of state a puzzle turns on is visible ON the thing it belongs
+     to, never in a corner of the HUD.
+  3. **The secret meets the MAXIM STANDARD** (§7): a chain, all three
+     elements, the planet's own braid, one repeated beat, wordless past one
+     line, nothing consumed.
+  4. **Nothing can strand.** Every irreversible-looking edit has an undo, and
+     the undo costs walking rather than the run.
+
+**The thirteen left**, and the honest state of each: Lightning, Steam, Lava,
+Poison, Mud, Dust, Crystal, Plant, Spirit, Dark, Light, Blood — all BUILT and
+proved, none through a polish pass. Their secrets are the queue in §7's maxim
+table (only four of seventeen clear the standard). Steam additionally carries
+**8 of the 10 known test failures** in this repo and should be read as the
+riskiest of the thirteen, not the tidiest.
+
 ### ✅ FIRE — complete (2026-08-31)
 
 The reference. What "complete" meant, so the next planet has a target:
@@ -1951,7 +1975,29 @@ braziers, vault caches — against each panel's real box at the camera clamp for
 that panel's corner, with a press-radius allowance, because a target is a disc
 and not a point.
 
-### ▶ EARTH — in progress (art pass 2026-09-01)
+### ✅ WATER — complete (2026-09-01)
+
+  · ✅ **Star 3 rebuilt as THE MOON WELL.** The moon drives the tide and waxes
+    on its own, so the drift is the clock; Spirit wanes it, the Water pip
+    plugs the broken main by STANDING in it, Ice locks a basin when the moon
+    sits where it asks. All four basins listen, and the ice raises the well —
+    two of them drown once two stand, so the ORDER is the question. Breaking
+    ice undoes it, which is why the rise is allowed to exist.
+  · ✅ **The secret rebuilt as THE STILLED MIRROR**, to the maxim standard:
+    Water stands motionless to flatten the pool, the moon breaks into three
+    shards showing the wrong phase, Spirit turns each true, Ice takes it.
+  · ✅ **The moon is a reveal, not decoration.** You are underground the whole
+    temple — the moon reaches you as glow, as a shaft, and as a reflection in
+    the water, and the one place you look up and SEE it is the oculus over the
+    well. The hub's basin carries the big reflection instead, largest at the
+    high stand.
+  · ✅ **The sluice-bank moved to the court**, the canal gallery was padded off
+    the HUD's corners, and the tide wheels are drawn wherever they stand —
+    they had never been painted outside the tide-works at all.
+  · ⬜ CARRIED: the moon well's tuning (4.5s per notch of wax) has only been
+    reasoned about, never measured against a real walk.
+
+### ✅ EARTH — complete (2026-09-01)
 
 The planet's conceit is the best on the roster — *the dungeon IS a buried
 body, rooms are anatomy, the bones are the machinery* — and exactly one room
