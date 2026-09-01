@@ -970,17 +970,37 @@ void main() {
         reason: 'the three seals cover the three tide stands',
       );
       // Star 2: the gallery owns the canal network — a spring, five basins,
-      // a sea drain, ten carved grooves, and its OWN sluice-bank (the tide is
-      // the steering wheel, so the wheels have to be in the room).
+      // a sea drain, ten carved grooves.
       final gallery = water.rooms['ghost_gallery']!;
       expect(gallery.canalNodes.length, 7);
       expect(gallery.canalNodes.where((n) => n.isBasin).length, 5);
       expect(gallery.canalChannels.length, 10);
       expect(gallery.canalStarIndex, 1);
+      // THE SLUICE-BANK LIVES IN THE COURT, one door west. It used to be in
+      // the gallery so that steering the water was a walk taken against the
+      // lantern's drift; the lantern only ticks while you are in the gallery,
+      // so the trip freezes it and the canal is a planning puzzle now.
+      //
+      // What still has to hold is REACH: every stand must be settable from
+      // somewhere a player standing in the canal can walk to without passing
+      // a locked door, or a route that needs a stand becomes unfloatable.
+      final bank = water.rooms['drowned_court']!;
       expect(
-        gallery.tideValves.map((v) => v.level).toSet(),
+        bank.tideValves.map((v) => v.level).toSet(),
         {0, 1, 2},
-        reason: 'the gallery must be able to reach every stand from inside it',
+        reason: 'every stand must be reachable from beside the canal',
+      );
+      expect(
+        gallery.doors.any((d) => d.targetRoomId == 'drowned_court'),
+        isTrue,
+        reason: 'and the wheels must be ONE door from the water',
+      );
+      expect(
+        water.rooms['drowned_court']!.doors.any(
+          (d) => d.targetRoomId == 'ghost_gallery',
+        ),
+        isTrue,
+        reason: 'both ways — the walk back cannot be the long way round',
       );
       // Every sill kind is authored, or the tide is only half a verb.
       expect(

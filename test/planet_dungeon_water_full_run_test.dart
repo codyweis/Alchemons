@@ -308,8 +308,9 @@ void main() {
     game.currentRoomId = 'ghost_gallery';
     Offset nodeAt(String id) =>
         gallery.canalNodes.firstWhere((n) => n.id == id).position;
+    // The wheels live in the COURT now, one door west of the canal.
     Offset wheelAt(int stand) =>
-        gallery.tideValves.firstWhere((v) => v.level == stand).position;
+        court.tideValves.firstWhere((v) => v.level == stand).position;
 
     // The Spirit reads the deep cuts before committing anything to the water
     // — the same first move a player makes, and pure foresight either way.
@@ -342,11 +343,14 @@ void main() {
     }
 
     void setStand(int stand) {
-      game.setActive(0); // the Water pip works the gallery's own wheels
-      teleport('ghost_gallery', wheelAt(stand));
+      // Out to the court, turn the wheel, back to the water. The lantern is
+      // frozen for the whole trip — the temple holds its breath behind you.
+      game.setActive(0); // the Water pip works the wheels
+      teleport('drowned_court', wheelAt(stand));
       game.activateAbility();
       expect(game.tideLevel, stand, reason: 'the wheel answers Water at once');
       settleTide();
+      game.currentRoomId = 'ghost_gallery';
     }
 
     var standing = 'spring';

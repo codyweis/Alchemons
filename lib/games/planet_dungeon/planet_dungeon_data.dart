@@ -3030,6 +3030,16 @@ const DungeonLayout _waterLayout = DungeonLayout(
           targetSpawn: Offset(420, 430),
         ),
       ],
+      // THE SLUICE-BANK. Three wheels on the east wall, beside the gallery
+      // door — you come off the canal and they are right there. Placed clear
+      // of every HUD panel at this room's camera clamps (the court is 700 deep
+      // against a 915 screen, so it never pans vertically and its corners have
+      // to be authored clear; see `dungeon_hud_occlusion_test.dart`).
+      tideValves: [
+        TideValve(position: Offset(845, 120), level: 0),
+        TideValve(position: Offset(845, 210), level: 1),
+        TideValve(position: Offset(845, 300), level: 2),
+      ],
       // The court's central basin: drained mosaic floor at low tide,
       // shallows from mid up.
       tideZones: [
@@ -3128,14 +3138,17 @@ const DungeonLayout _waterLayout = DungeonLayout(
       tideDoorRules: [
         TideDoorRule(targetRoomId: 'pearl_vault', tides: {0}),
       ],
-      // The gallery keeps its own sluice-bank on the west wall: the tide is
-      // the steering wheel, so it has to be IN the room — but far enough from
-      // the water's forks that every change is a committed walk.
-      tideValves: [
-        TideValve(position: Offset(206, 534), level: 0),
-        TideValve(position: Offset(206, 624), level: 1),
-        TideValve(position: Offset(206, 714), level: 2),
-      ],
+      // THE SLUICE-BANK MOVED OUT (2026-08-31). The gallery used to keep its
+      // own wheels on the west wall so that steering the water was a walk you
+      // took inside the room, against the lantern's drift. They live in the
+      // drowned court now, one door west.
+      //
+      // KNOW WHAT THIS CHANGED: the lantern only drifts while you are in this
+      // room (see `_updateLantern`'s guard — the temple holds its breath
+      // behind you), so a walk to the court FREEZES it. The canal is a pure
+      // planning puzzle now: set the stand, come back, watch a leg, go again.
+      // Nothing about it can be lost to a clock any more, and nothing about it
+      // costs a clock either.
       canalNodes: [
         // The spring: a carved lion-mouth high in the north-west wall. It is
         // the one basin that always answers a hand, so a lost lantern can

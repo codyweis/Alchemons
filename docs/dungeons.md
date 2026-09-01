@@ -1634,6 +1634,17 @@ is about ROOM CORNERS, and two rooms broke it:
 **A room shorter than the viewport cannot pan its content clear**, so its
 corners have to be authored clear. That is the trap worth remembering.
 
+**THE SLUICE-BANK MOVED TO THE COURT (2026-08-31).** The gallery used to keep
+its own three wheels on the west wall, so that steering the water was a walk
+taken inside the room against the lantern's drift. They are on the drowned
+court's east wall now, beside the gallery door. Know what this changed: the
+lantern only drifts while the player is IN the gallery (`_updateLantern`'s
+guard — the temple holds its breath behind you), so the trip out FREEZES it.
+The canal is a pure planning puzzle now — set the stand, come back, watch a
+leg, go again. Nothing in it can be lost to a clock, and nothing in it costs
+one either. The layout test pins REACH instead of co-location: every stand
+settable, one door from the water, both ways.
+
 `dungeon_hud_occlusion_test.dart` walks every room on every planet — valves,
 canal nodes, shrines, vents, anchors, conduits, rune pillars, torches,
 braziers, vault caches — against each panel's real box at the camera clamp for
