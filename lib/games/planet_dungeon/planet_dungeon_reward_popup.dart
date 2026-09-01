@@ -59,8 +59,9 @@ class DungeonRewardPopup extends StatefulWidget {
 }
 
 class _DungeonRewardPopupState extends State<DungeonRewardPopup>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _intro;
+  late final AnimationController _turn;
   final Map<int, List<String>> _lines = {};
   Star3Choice? _choice;
   Star3Choice? _highlighted;
@@ -101,6 +102,14 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
       vsync: this,
       duration: const Duration(milliseconds: 700),
     )..forward();
+    // THE LIGHT KEEPS TURNING. The rays used to be spun by `_intro`, which
+    // runs once and stops at 1.0 — so the moment the panel finished arriving
+    // the light behind it froze mid-turn, and the rarest screen in the game
+    // sat there as a still image. This one repeats, slowly, forever.
+    _turn = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 44),
+    )..repeat();
     _checkRelicIncoming();
     _grantAuto();
   }
@@ -145,6 +154,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
 
   @override
   void dispose() {
+    _turn.dispose();
     _intro.dispose();
     super.dispose();
   }
@@ -157,7 +167,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
         behavior: HitTestBehavior.opaque, // absorb taps to the game behind
         onTap: () {},
         child: AnimatedBuilder(
-          animation: _intro,
+          animation: Listenable.merge([_intro, _turn]),
           builder: (context, _) {
             final t = _intro.value;
             return Stack(
@@ -189,7 +199,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
                   child: CustomPaint(
                     painter: _RewardRaysPainter(
                       progress: t,
-                      spin: _intro.value * 0.6,
+                      spin: _turn.value * pi * 2,
                     ),
                   ),
                 ),
@@ -232,15 +242,14 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
             end: Alignment.bottomCenter,
             colors: [Color(0xFF1B1710), _C.panel],
           ),
-          // A real gold frame, not the hairline every other panel wears.
-          border: Border.all(color: _C.amberBright, width: 2.0),
-          boxShadow: [
+          // ONE FRAME, NOT A HALO. A 2px bright-gold border wrapped in a
+          // 46px amber bloom is how a slot machine announces a win; the
+          // bracket chrome around this panel already says "important", and
+          // the turning light behind it already says "rare". The blur was
+          // also the most expensive thing on the screen.
+          border: Border.all(color: _C.amber, width: 1.2),
+          boxShadow: const [
             BoxShadow(
-              color: _C.amberBright.withValues(alpha: 0.30),
-              blurRadius: 46,
-              spreadRadius: 6,
-            ),
-            const BoxShadow(
               color: Color(0xCC000000),
               blurRadius: 24,
               offset: Offset(0, 12),
@@ -292,7 +301,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
                 Icons.star_rounded,
                 color: _C.amberBright,
                 size: 14,
-                shadows: [Shadow(color: _C.amberBright, blurRadius: 8)],
+                shadows: [Shadow(color: _C.amber, blurRadius: 4)],
               ),
             ),
             _headerRule(),
@@ -375,7 +384,10 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
                 Icons.star_rounded,
                 color: _C.amberBright,
                 size: 38,
-                shadows: [Shadow(color: _C.amberBright, blurRadius: 14)],
+                // A halo, not a flare. 14px of bloom on a 38px glyph is most of
+                // the glyph again, and three of them in a row read as arcade
+                // signage rather than as an earned mark.
+                shadows: [Shadow(color: _C.amber, blurRadius: 6)],
               ),
             ),
           ),
@@ -458,14 +470,8 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   /// Shown above the Star-3 choice cards: the relic is guaranteed, the
   /// choice is on top of it.
   Widget _relicBanner() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: _C.amberBright.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _C.amberBright.withValues(alpha: 0.45)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 2),
       child: Row(
         children: [
           _relicArt(30),
@@ -500,14 +506,13 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   Widget _rewardBlock(int star) {
     final lines = _lines[star];
     final needChoice = star == 2 && _choice == null;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _C.bg.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _C.border.withValues(alpha: 0.5)),
-      ),
+    // NO BOX. This used to be a bordered, rounded, filled panel sitting
+    // inside the bordered panel — and the choice cards were bordered boxes
+    // inside THAT, with a bordered medallion inside each of those. Four
+    // frames deep is what made the popup read as nested rather than
+    // designed. A section is a heading, a rule, and its contents.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -538,6 +543,15 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.6,
                   ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // The rule runs out to the panel edge and does the job the box
+              // used to: it separates without enclosing.
+              Expanded(
+                child: Container(
+                  height: 1,
+                  color: _C.border.withValues(alpha: 0.45),
                 ),
               ),
             ],
@@ -638,17 +652,9 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
         border: Border.all(
           color: selected
               ? _C.amberBright.withValues(alpha: 0.85)
-              : _C.border.withValues(alpha: 0.45),
+              : _C.border.withValues(alpha: 0.20),
           width: selected ? 1.4 : 1.0,
         ),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: _C.amberBright.withValues(alpha: 0.32),
-                  blurRadius: 14,
-                ),
-              ]
-            : null,
       ),
       child: art,
     );
@@ -696,20 +702,21 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
         decoration: BoxDecoration(
           // Warm, not the HUD's blue-black: a gold reward highlighted in navy
           // looked like a different screen's component had wandered in.
-          color: selected ? const Color(0xFF1E1810) : _C.panel,
+          // A CARD ONLY ONCE YOU TOUCH IT. Three bordered boxes side by side
+          // inside a bordered section inside a bordered panel is the nesting;
+          // unselected these are just their contents on the panel's own
+          // ground, and the border arrives with the choice. The bloom is gone
+          // for the same reason the panel's is.
+          color: selected
+              ? const Color(0xFF1E1810)
+              : Colors.white.withValues(alpha: 0.02),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: selected ? _C.amberBright : _C.border.withValues(alpha: 0.7),
+            color: selected
+                ? _C.amberBright
+                : _C.border.withValues(alpha: 0.22),
             width: selected ? 1.6 : 1.0,
           ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: _C.amberBright.withValues(alpha: 0.22),
-                    blurRadius: 14,
-                  ),
-                ]
-              : null,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -828,23 +835,29 @@ class _RewardRaysPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (progress <= 0.01) return;
     final c = Offset(size.width / 2, size.height / 2);
-    final r = size.longestSide * 0.75;
-    const rays = 14;
-    final paint = Paint()
-      ..color = _C.amberBright.withValues(alpha: 0.055 * progress);
+    final r = size.longestSide * 0.78;
+    // UNEVEN, so it reads as light and not as a pinwheel. Fourteen identical
+    // wedges turning in lockstep is a prize-wheel; a scatter of long thin
+    // ones at three different widths and reaches is a shaft coming through
+    // something.
+    const rays = 11;
     canvas.save();
     canvas.translate(c.dx, c.dy);
     canvas.rotate(spin);
     for (var i = 0; i < rays; i++) {
       final a = i * (pi * 2 / rays);
-      final half = 0.055;
+      final half = 0.016 + (i % 3) * 0.014;
+      final reach = r * (0.62 + (i % 4) * 0.13);
       canvas.drawPath(
         Path()
           ..moveTo(0, 0)
-          ..lineTo(cos(a - half) * r, sin(a - half) * r)
-          ..lineTo(cos(a + half) * r, sin(a + half) * r)
+          ..lineTo(cos(a - half) * reach, sin(a - half) * reach)
+          ..lineTo(cos(a + half) * reach, sin(a + half) * reach)
           ..close(),
-        paint,
+        Paint()
+          ..color = _C.amberBright.withValues(
+            alpha: (0.030 + (i % 3) * 0.014) * progress,
+          ),
       );
     }
     canvas.restore();

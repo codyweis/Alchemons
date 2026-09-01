@@ -450,9 +450,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     if (!_dungeonFrozen) return;
     _dungeonFrozen = false;
     // The descent overlay ignores pointers, so END RUN is reachable (blind)
-    // mid-dive. If that already handed the pause to a reward popup, leave it
-    // paused — the thaw only ever undoes the DESCENT'S freeze.
-    if (_rewardStars != null || _showRaidReward) return;
+    // mid-dive. If that already handed the pause to the RAID popup, leave it
+    // paused — the thaw only ever undoes the DESCENT'S freeze. The star
+    // reward no longer pauses at all, so it must not be listed here: doing so
+    // would skip `beginRun()` and leave the whole dungeon frozen.
+    if (_showRaidReward) return;
     _game?.resumeEngine();
     // First frame the player can actually act on: the planet states its rule
     // now, once ever, rather than while the descent still covers the screen.
@@ -486,7 +488,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       return;
     }
     _rewardPending = false;
-    _game?.pauseEngine();
+    // THE WORLD KEEPS RUNNING BEHIND IT. Pausing the engine froze the room
+    // the star was just earned in — the beams, the water, the sky all stopped
+    // dead behind the scrim, so the most celebratory screen in the game was
+    // pinned to a still photograph. The popup absorbs its own taps, so
+    // nothing can be worked underneath it while it is open.
     if (mounted) setState(() => _rewardStars = pending);
   }
 
@@ -743,8 +749,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       _popDungeon(_game?.starMask ?? 0);
       return;
     }
-    // Show the reward popup; the game keeps rendering behind it.
-    _game?.pauseEngine();
+    // Show the reward popup; the game keeps rendering behind it — which it
+    // now actually does. This line said so while calling `pauseEngine()`
+    // directly underneath.
     if (mounted) setState(() => _rewardStars = pending);
   }
 
