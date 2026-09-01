@@ -79,6 +79,10 @@ const List<Offset> kMirrorShardAt = [
 /// How near Spirit must stand to turn a shard.
 const double _kShardReach = 46.0;
 
+/// Seconds the three pieces take to travel back into one moon. The payoff is
+/// WATCHED — they do not snap together the frame the last one agrees.
+const double kMirrorMergeSeconds = 1.35;
+
 /// How far a creature may drift and still count as standing.
 const double _kStillTolerance = 0.6;
 
@@ -317,6 +321,15 @@ extension MirrorTide on PlanetDungeonGame {
     for (var i = 0; i < mirrorShardFx.length; i++) {
       if (mirrorShardFx[i] > 0) mirrorShardFx[i] -= dt * 1.5;
     }
+    // THE PIECES COME BACK TOGETHER. Once all three agree they travel in and
+    // become one moon — watched, not snapped, and the ice waits for it.
+    if (mirrorIsTrue) {
+      mirrorMergeT = mirrorMergeT < 0
+          ? 0
+          : min(kMirrorMergeSeconds + 0.5, mirrorMergeT + dt);
+    } else {
+      mirrorMergeT = -1;
+    }
     // THE GLASS BREAKS THE MOON INTO THREE. Rolled once, the first time the
     // surface settles, and kept after that — breaking the glass by walking
     // costs the stillness, never the work.
@@ -334,6 +347,10 @@ extension MirrorTide on PlanetDungeonGame {
 
   /// Is the pool flat enough to hold a moon still?
   bool get mirrorIsGlass => mirrorStillT >= kMirrorStillSeconds;
+
+  /// Have the pieces finished travelling back into one moon?
+  bool get mirrorIsWhole =>
+      mirrorIsTrue && mirrorMergeT >= kMirrorMergeSeconds;
 
   /// Is the reflection finally showing the moon that hangs over it?
   bool get mirrorIsTrue =>
@@ -1275,6 +1292,10 @@ extension MirrorTide on PlanetDungeonGame {
       _setBlockedHint(
         'The pieces do not agree — this is not the moon that is up there',
       );
+      return true;
+    }
+    if (mirrorIsGlass && !mirrorIsWhole) {
+      _setBlockedHint('The pieces are still coming back together');
       return true;
     }
     if (!mirrorIsGlass) {
@@ -2699,10 +2720,10 @@ extension MirrorTide on PlanetDungeonGame {
       // water, so it is drawn the way the moon well draws its own: inverted,
       // broken across three horizontal slices, each offset from the next.
       //
-      // The difference is that these slices DO NOT MOVE. The well's wobble
-      // runs off `_time` because that water is alive; this one is locked at
-      // the offsets it happened to have on the instant the ice took it, so
-      // the pool is visibly holding one moment rather than sitting still.
+      // And it STILL MOVES. A reflection that stopped read as a picture of
+      // one, not as water — the ice holds the moon, it does not hold the
+      // pool. Same wobble as the well's, off `_time`, just slower and
+      // shallower for water under a pane.
       final c = _kMoonPoolCentre;
       if (_fx.ready) {
         drawGlow(
@@ -2723,15 +2744,15 @@ extension MirrorTide on PlanetDungeonGame {
       );
       canvas.save();
       canvas.clipPath(Path()..addOval(Rect.fromCircle(center: c, radius: 30)));
-      // Three slices of an upside-down moon, frozen out of true.
-      const locked = [-3.4, 2.6, -1.2];
+      // Three slices of an upside-down moon, sliding against each other.
       for (var i = 0; i < 3; i++) {
+        final wob = sin(_time * 0.55 + i * 1.9) * 2.8;
         canvas.save();
         canvas.clipRect(
           Rect.fromLTWH(c.dx - 32, c.dy - 30 + i * 20.0, 64, 20),
         );
         canvas.save();
-        canvas.translate(c.dx + locked[i], c.dy);
+        canvas.translate(c.dx + wob, c.dy);
         canvas.scale(1, -1);
         canvas.translate(-c.dx, -c.dy);
         _drawTheMoon(canvas, c, 25, 1.0, opacity: 0.92);
@@ -2810,33 +2831,44 @@ extension MirrorTide on PlanetDungeonGame {
       // showing a phase of its own — and the true moon is hanging over the
       // room where anyone can compare it. Nothing has to be explained: three
       // wrong moons under one right one is the whole instruction.
-      if (mirrorGlass > 0.15 && mirrorShards.isNotEmpty && !mirrorIsTrue) {
+      if (mirrorGlass > 0.15 && mirrorShards.isNotEmpty && !mirrorIsWhole) {
+        // THE PIECES TRAVELLING BACK IN. While they agree but have not yet
+        // arrived, each one slides from where it lay toward the middle and
+        // swells, so the moon is assembled in front of you rather than
+        // appearing the frame the last shard turns.
+        final m = mirrorMergeT < 0
+            ? 0.0
+            : (mirrorMergeT / kMirrorMergeSeconds).clamp(0.0, 1.0);
+        final e = m * m * (3 - 2 * m);
         for (var i = 0; i < kMirrorShardAt.length; i++) {
-          final at = kMirrorShardAt[i];
+          final at = Offset.lerp(kMirrorShardAt[i], glint, e)!;
           final fx = mirrorShardFx[i].clamp(0.0, 1.0);
           final done = mirrorShards[i] == kMoonNotches - 1;
           _drawTheMoon(
             canvas,
             at,
-            17,
+            17 + 5 * e,
             mirrorShards[i] / (kMoonNotches - 1),
             opacity: mirrorGlass * (done ? 1.0 : 0.82),
           );
-          // The break it lies along, and a ring on a piece that is right.
+          // The break it lies along, and a ring on a piece that is right —
+          // both fading out as the piece stops being a piece.
           canvas.drawCircle(
             at,
-            20,
+            20 + 4 * e,
             Paint()
               ..style = PaintingStyle.stroke
               ..strokeWidth = done ? 1.8 : 1.0
               ..color = (done ? Colors.white : const Color(0xFF8FE0EC))
-                  .withValues(alpha: (done ? 0.6 : 0.22) + 0.5 * fx),
+                  .withValues(
+                    alpha: ((done ? 0.6 : 0.22) + 0.5 * fx) * (1 - e),
+                  ),
           );
         }
       }
       // Turned true, the pieces are one moon again — whole, still, and ready
       // to be taken.
-      if (mirrorGlass > 0.15 && (mirrorIsTrue || mirrorShards.isEmpty)) {
+      if (mirrorGlass > 0.15 && (mirrorIsWhole || mirrorShards.isEmpty)) {
         _drawTheMoon(canvas, glint, 9 + 13 * mirrorGlass, 1.0,
             opacity: mirrorGlass);
       }

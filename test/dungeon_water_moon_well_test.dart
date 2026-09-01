@@ -468,6 +468,13 @@ void main() {
         }
       }
       expect(g.mirrorIsTrue, isTrue);
+      // The pieces travel back into one moon first, and the ice waits.
+      _pressAt(g, 'Ice', g.frozenMoonGlint()!);
+      expect(g.riteActive, isFalse, reason: 'still coming together');
+      for (var i = 0; i < 120; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.mirrorIsWhole, isTrue);
       _pressAt(g, 'Ice', g.frozenMoonGlint()!);
       expect(g.riteActive, isTrue, reason: 'and now it can be taken');
     });

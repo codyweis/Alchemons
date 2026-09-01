@@ -1043,6 +1043,11 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Per-shard flash when Spirit turns one (render only).
   final List<double> mirrorShardFx = [0, 0, 0];
+
+  /// Seconds since the three shards came to agree, or -1 while they do not.
+  /// The pieces travel back together over [kMirrorMergeSeconds]; the ice
+  /// cannot take the moon until they have.
+  double mirrorMergeT = -1;
   final Map<String, double> _poolFx = {}; // freeze/shatter pulses
 
   bool get _isTemple => layout.element == 'Water';

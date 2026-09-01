@@ -596,6 +596,12 @@ void main() {
       }
     }
     expect(game.mirrorIsTrue, isTrue, reason: 'all three show the same moon');
+    // And they TRAVEL back into one moon before the ice can take it.
+    expect(game.mirrorIsWhole, isFalse, reason: 'the merge is watched');
+    for (var i = 0; i < 120; i++) {
+      game.update(1 / 60);
+    }
+    expect(game.mirrorIsWhole, isTrue, reason: 'the pieces arrive');
 
     game.setActive(2); // Ice
     final glint = game.frozenMoonGlint();
