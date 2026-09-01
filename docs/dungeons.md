@@ -1828,8 +1828,22 @@ None of that wants touching.
     conductors were 42x8 white lozenges lying on the floor, the most schematic
     object on the planet and the one the player handles most; they swing in a
     yoke on a pivot bolt now.
-  · ⬜ The remaining rooms' own furniture: the dynamo rotor, the cell sockets,
-    the fulminate vats, the vault bolt.
+  · ✅ **The hub reads at a glance.** Two faults, both navigational. The
+    north wall carried the FINALE GATE at x 610-690 and the TREASURY at
+    700-810 — **ten pixels apart**, a locked endgame door and a reward room
+    reading as one doorway; the gate is dead centre now, directly over the
+    dynamo, with 145px and 225px of wall either side. And the four trunk
+    breakers sat in a blob around the rotor, so which switch woke which wing
+    had to be traced along a wire or memorised — **every breaker stands in
+    front of the door it feeds** now, so the geography IS the mapping. Both
+    pinned in the layout test.
+  · ✅ **The breakers are knife switches.** A backboard, two brass jaws, a
+    hinged blade with a ceramic grip, and a contact arc when it closes — open
+    and up when the trunk is dead, swung flat when it feeds. This is the verb
+    thrown more than any other on the planet and it was a 15px circle with a
+    stick on it.
+  · ⬜ The remaining furniture: the dynamo rotor, the cell sockets, the
+    fulminate vats, the vault bolt.
   · ⬜ **The Thunderbolt is not its own puzzle.** It rides Star 3's beam — it
     fires when a Lightning Horn happens to be standing there as the tower
     lights. Weakest entry in the maxim table; wants the standard's chain.

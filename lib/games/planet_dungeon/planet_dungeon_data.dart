@@ -3661,27 +3661,33 @@ const DungeonLayout _lightningLayout = DungeonLayout(
     DynamoTrunk(
       id: 'trunk_pylon',
       name: 'PYLON TRUNK',
-      breakerPosition: Offset(360, 250),
+      // EVERY BREAKER STANDS IN FRONT OF THE DOOR IT FEEDS. They were
+      // clustered in a blob around the rotor, so which breaker woke which
+      // wing had to be traced along a wire or memorised. Now the geography IS
+      // the mapping: walk to the door you want and throw the switch beside it.
+      breakerPosition: Offset(225, 118),
       roomIds: ['pylon_hall'],
       freezeLitStarIndex: 0,
     ),
     DynamoTrunk(
       id: 'trunk_cloud',
       name: 'CLOUD TRUNK',
-      breakerPosition: Offset(620, 440),
+      // This one feeds two rooms — the east door and the south door — so it
+      // stands between them rather than at either.
+      breakerPosition: Offset(790, 520),
       roomIds: ['cloud_works', 'mirror_gallery'],
       freezeLitStarIndex: 1,
     ),
     DynamoTrunk(
       id: 'trunk_vault',
       name: 'VAULT TRUNK',
-      breakerPosition: Offset(640, 290),
+      breakerPosition: Offset(815, 118),
       roomIds: ['capacitor_vault'],
     ),
     DynamoTrunk(
       id: 'trunk_core',
       name: 'CORE TRUNK',
-      breakerPosition: Offset(505, 235),
+      breakerPosition: Offset(480, 118),
       roomIds: ['overload_maze', 'storm_core'],
       freezeLitStarIndex: 2,
     ),
@@ -3776,14 +3782,20 @@ const DungeonLayout _lightningLayout = DungeonLayout(
           targetRoomId: 'mirror_gallery',
           targetSpawn: Offset(320, 110),
         ),
+        // FAR RIGHT of the north wall. It used to sit at x 700-810 with the
+        // finale's breaker gate at 610-690 — ten pixels apart, a treasury and
+        // a locked endgame door reading as one doorway.
         DungeonDoor(
-          rect: Rect.fromLTWH(700, 0, 110, 24),
+          rect: Rect.fromLTWH(760, 0, 110, 24),
           targetRoomId: 'capacitor_vault',
           targetSpawn: Offset(320, 480),
         ),
-        // The breaker gate — dead until the Circuit and Storm stars bank.
+        // THE BREAKER GATE, dead centre of the north wall and directly above
+        // the dynamo — dead until the Circuit and Storm stars bank. Centre is
+        // where a finale belongs, and it puts 145px of wall between it and
+        // the pylon door and 225px between it and the vault.
         DungeonDoor(
-          rect: Rect.fromLTWH(610, 0, 80, 24),
+          rect: Rect.fromLTWH(425, 0, 110, 24),
           targetRoomId: 'overload_maze',
           targetSpawn: Offset(480, 280),
         ),
@@ -3844,7 +3856,7 @@ const DungeonLayout _lightningLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(265, 536, 110, 24),
           targetRoomId: 'dynamo_court',
-          targetSpawn: Offset(745, 110),
+          targetSpawn: Offset(815, 96),
         ),
       ],
       // The sanctum: a walled cell around the cache with one south mouth.
@@ -3950,7 +3962,7 @@ const DungeonLayout _lightningLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(325, 596, 110, 24),
           targetRoomId: 'dynamo_court',
-          targetSpawn: Offset(485, 110),
+          targetSpawn: Offset(480, 96),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(325, 0, 110, 24),

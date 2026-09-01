@@ -1,3 +1,4 @@
+import 'dart:math' show min;
 import 'dart:ui' show Rect;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -1116,6 +1117,60 @@ void main() {
       final guardian = earth.rooms['heart_chamber']!.guardian;
       expect(guardian, isNotNull);
       expect(guardian!.encounter?.mysticId, 'Terradon');
+    });
+
+    test('Lightning: the hub reads — doors apart, breakers at their doors', () {
+      // Two faults, both about being able to navigate the hub at a glance.
+      //
+      // The north wall carried the FINALE GATE at x 610-690 and the TREASURY
+      // at 700-810: ten pixels apart, a locked endgame door and a reward room
+      // reading as one doorway. And the four trunk breakers sat in a blob
+      // around the rotor, so which switch woke which wing had to be traced
+      // along a wire or memorised.
+      final l = kPlanetDungeonLayouts['Lightning']!;
+      final hub = l.rooms[l.dynamoRoomId]!;
+
+      // Every pair of doorways on the same wall clears the other by a margin
+      // no one could mistake for one opening.
+      final top = hub.doors.where((d) => d.rect.top <= 1).toList();
+      expect(top.length, greaterThanOrEqualTo(3));
+      for (var i = 0; i < top.length; i++) {
+        for (var j = i + 1; j < top.length; j++) {
+          final gap = top[i].rect.left < top[j].rect.left
+              ? top[j].rect.left - top[i].rect.right
+              : top[i].rect.left - top[j].rect.right;
+          expect(
+            gap,
+            greaterThan(100),
+            reason:
+                '${top[i].targetRoomId} and ${top[j].targetRoomId} are '
+                '${gap.round()}px apart on the same wall',
+          );
+        }
+      }
+
+      // And each breaker stands nearer the door of the wing it feeds than to
+      // any door it does not, so the geography IS the mapping.
+      for (final t in l.dynamoTrunks) {
+        final mine = hub.doors
+            .where((d) => t.roomIds.contains(d.targetRoomId))
+            .toList();
+        if (mine.isEmpty) continue;
+        final nearestMine = mine
+            .map((d) => (d.rect.center - t.breakerPosition).distance)
+            .reduce(min);
+        for (final d in hub.doors) {
+          if (t.roomIds.contains(d.targetRoomId)) continue;
+          if (d.targetRoomId == l.entranceRoomId) continue;
+          expect(
+            (d.rect.center - t.breakerPosition).distance,
+            greaterThan(nearestMine),
+            reason:
+                '${t.id} sits closer to ${d.targetRoomId} than to any wing '
+                'it actually feeds',
+          );
+        }
+      }
     });
 
     test('Lightning dungeon has its three star chambers and full 3 stars', () {

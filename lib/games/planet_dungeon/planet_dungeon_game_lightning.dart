@@ -2016,32 +2016,73 @@ extension StormCircuit on PlanetDungeonGame {
           const Color(0xFF6BA8FF).withValues(alpha: 0.3 + 0.6 * swing),
         );
       }
-      canvas.drawCircle(bp, 15, Paint()..color = const Color(0xFF241B12));
-      canvas.drawCircle(
-        bp,
-        15,
+      // A KNIFE SWITCH IN A HOUSING, not a circle with a stick in it. This is
+      // the verb the player throws more than any other on this planet and it
+      // was the smallest thing in the room. Backboard, two brass jaws, a
+      // ceramic handle on a hinge, and a plate underneath saying which wing.
+      _drawCircuitPost(canvas, bp, const Color(0xFFE9D27A), sel);
+      final board = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: bp + const Offset(0, -6), width: 54, height: 40),
+        const Radius.circular(5),
+      );
+      canvas.drawRRect(
+        board,
+        Paint()..color = const Color(0xFF1B242F).withValues(alpha: 0.96),
+      );
+      canvas.drawRRect(
+        board,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..color = sel ? const Color(0xFFBFE6FF) : const Color(0xFFE9D27A),
+          ..strokeWidth = 1.6
+          ..color = (sel ? const Color(0xFFBFE6FF) : const Color(0xFF6E8CA8))
+              .withValues(alpha: sel ? 0.95 : 0.5),
       );
-      // The blade: eases from open (up-angled) to thrown (flat) on select.
+      // The two jaws the blade closes across.
+      for (final dx in const [-15.0, 15.0]) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(
+              center: bp + Offset(dx, -4),
+              width: 9,
+              height: 16,
+            ),
+            const Radius.circular(2),
+          ),
+          Paint()
+            ..color = (sel ? const Color(0xFFE9D27A) : const Color(0xFF7A6A44)),
+        );
+      }
+      // THE BLADE, hinged at the left jaw: open and up when the trunk is
+      // dead, swung flat across both jaws when it is feeding.
       final blade = sel ? swing : 0.0;
-      final ang = -0.9 * (1.0 - blade);
-      final dir = Offset(cos(ang), sin(ang));
+      final ang = -1.05 * (1.0 - blade);
+      final hinge = bp + const Offset(-15, -4);
+      final tip = hinge + Offset(cos(ang), sin(ang)) * 30;
       canvas.drawLine(
-        bp + const Offset(-9, 0),
-        bp + const Offset(-9, 0) + dir * 18,
+        hinge,
+        tip,
         Paint()
           ..strokeCap = StrokeCap.round
-          ..strokeWidth = 4
+          ..strokeWidth = 6
           ..color = sel ? const Color(0xFFEAF6FF) : const Color(0xFF8FB8E0),
       );
+      // The ceramic grip at the end of it.
       canvas.drawCircle(
-        bp + const Offset(-9, 0),
-        3,
-        Paint()..color = const Color(0xFFBFE6FF),
+        tip,
+        4.6,
+        Paint()..color = const Color(0xFFD8B878),
       );
+      canvas.drawCircle(hinge, 3.2, Paint()..color = const Color(0xFFBFE6FF));
+      if (sel) {
+        // Contact arc across the closed jaws.
+        canvas.drawLine(
+          bp + const Offset(-15, -4),
+          bp + const Offset(15, -4),
+          Paint()
+            ..strokeWidth = 1.4
+            ..color = const Color(0xFFEAF6FF).withValues(alpha: 0.5 * swing),
+        );
+      }
     }
   }
 
