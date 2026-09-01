@@ -1406,6 +1406,55 @@ screen pays the gold + toast the first time the id lands
 oblique hint, prefer ADVANCED element combos beyond what the stars demand,
 and the maxim itself is the fanfare (long hint, public-domain quote).
 
+**WHAT A SECRET MUST BE — THE MAXIM STANDARD (the rule, from 2026-09-01).**
+
+Fire's Ember Epitaph is the shape every one of these has to reach, and the
+shape is not "a hidden thing you touch". It is:
+
+  1. **A CHAIN, not a press.** Three or four beats that must happen in order,
+     each one visible in the world before the next is possible.
+  2. **ALL THREE ELEMENTS of the descent trio**, each doing the thing it does
+     everywhere else on that planet. If one of the three has no job, the
+     payout — which is a reaction built from all three — is a promise the
+     puzzle did not keep.
+  3. **THE PLANET'S OWN ALCHEMY.** The braid the rest of the dungeon already
+     taught (Earth+Lightning→Crystal, Plant+Fire→Dust, Spirit+Water→Ice) does
+     the transforming beat. Nothing new has to be learned to solve a secret.
+  4. **ONE REPEATED BEAT** near the end — Fire's three gusts, Air's four
+     winds, the palm's three creases. It turns the finish into something you
+     are DOING rather than a state you flipped.
+  5. **WORDLESS past the first nudge.** One oblique line on the HINT button
+     and nothing else; every subsequent step is legible from what is standing
+     there. No popups narrating progress.
+  6. **NOTHING CONSUMED.** A wrong element answers with a small burst and a
+     sentence about what it sees. A secret that can be spent is a secret that
+     can be lost, in a room built for curiosity.
+
+**WHERE THE SEVENTEEN STAND AGAINST THAT.** Only three currently clear it, and
+the rest are the queue:
+
+| Planet | Beats | Elements | Verdict |
+|---|---|---|---|
+| **Fire** — Ember Epitaph | 4 | Mask-read · Plant · Fire · Air×3 | ✅ the reference |
+| **Air** — The Four Winds | 4 | Lightning · Fire×4 · Air×4 | ✅ |
+| **Earth** — The Giant's Palm | 4 | Earth · Lightning · Crystal×3 | ✅ rebuilt 2026-09-01 |
+| **Water** — The Stilled Mirror | 2 | Water (stand still) · Ice | ▶ half — needs a third beat and Spirit has no job |
+| **Lightning** — Thunderbolt | 1 | rides Star 3's beam; a Horn must be present | ⬜ not its own puzzle at all |
+| **Steam** — Hidden Harmony | 0 | a zero-scald run | ⬜ an achievement, not a puzzle |
+| **Lava** — Black Glass | 1 | Ice ×3 quenches | ⬜ one verb, three times |
+| **Poison** — The Dose | 1 | cure the sick wisp | ⬜ one press |
+| **Mud** — No Mud No Lotus | 3 | Plant · Water · Mud | ▶ closest of the rest |
+| **Dust** — Nothing Perishes | 1 | Air sweeps every print | ⬜ one verb, N times |
+| **Crystal** — Know Thyself | 1 | stand all three in the beam | ⬜ positional, one beat |
+| **Plant** — The Unseen Shade | 3 | tend small, look big | ▶ has beats, check the elements |
+| **Spirit** — Stuff of Dreams | 1 | mark your own position | ⬜ one press |
+| **Dark** — The Abyss | 1 | stand still a minute | ⬜ a wait |
+| **Light** — Afraid of the Light | 1 | cross casting nothing | ⬜ a restriction |
+| **Blood** — The Blood Is the Life | 1 | twelve beats on the drum | ⬜ rhythm, one verb |
+
+Take them a planet at a time, with the planet's polish pass — a secret
+designed away from the dungeon it lives in will not use its braid.
+
 **HOW A SECRET PAYS OUT — THE RITE OF THREE (the rule, from 2026-08-31).**
 
 All seventeen used to end the same way: a permanent change to the room, and a
@@ -1536,13 +1585,20 @@ quotation constants are deleted from the code — nothing left to drift.
 6. **Steam — Hidden Harmony (BUILT):** finish the whole labyrinth — the rite
    included — without the molten ever swallowing your footing: zero scalds,
    one run.
-7. **Earth — The Giant's Palm (BUILT):** the giant's open fossil hand lies
-   in the palm hollow, far off the puzzle path; a Crystal creature laying a
-   crystal in it earns the maxim — the crystal takes root in the palm
-   forever. One oblique line, on the HINT button and so available to everyone:
-   "the hand lies open… and misses it". (Not a Mask reading — insight stopped
-   being a family verb in the §9.0 refit; information must never depend on who
-   you brought.)
+7. **Earth — The Giant's Palm (BUILT; REBUILT to the MAXIM STANDARD
+   2026-09-01):** what it was is one press — stand a Crystal creature in the
+   hand, and the trio always carries a Crystal, so the whole puzzle was
+   noticing the room. It is a chain in the barrow's own braid now: **EARTH**
+   raises a core of stone into the open hand · **LIGHTNING** arcs it and
+   Earth+Lightning→Crystal wakes it as a seed (Crystal may set it direct, the
+   same parity the gaze-lens has) · **CRYSTAL** refracts down each of the
+   palm's three creases in turn, because a seed roots along light and the
+   creases are the only roads out of the hand. The third crease taken, the
+   cluster comes up through the palm and stays there forever. One oblique line
+   on the HINT button — "the hand lies open… and misses it" — and nothing
+   after it; every step is legible from what is standing in the hand. Nothing
+   is consumed: a wrong element gets a small burst and a sentence about what
+   it sees. Knowledge survives death, the growth does not.
 8. **Lava — Black Glass:** quench the casting font mid-pour three times —
    the spoiled keys cool into a black-glass mirror.
 9. **Mud — No Mud, No Lotus:** plant a seed in the DEEPEST sink-pit, water

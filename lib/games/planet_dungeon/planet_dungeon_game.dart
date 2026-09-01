@@ -1177,6 +1177,20 @@ class PlanetDungeonGame extends FlameGame {
   /// life left. A socket at zero is dark again.
   final Map<String, double> pillarLife = {};
 
+  // ── THE GIANT'S PALM · Earth's lost maxim ──
+  //
+  // 0 empty · 1 a stone core raised in the palm · 2 the core braided to
+  // crystal · 3 rooted. Stage survives death (knowledge does; the growth
+  // does not), the same rule the Ember Epitaph uses.
+  int palmStage = 0;
+
+  /// Which of the palm's three creases the seed has been lit down.
+  final Set<int> palmCreases = {};
+
+  /// Eased render state: the core coming up, and the cluster growing.
+  double palmCoreRise = 0;
+  double palmGrow = 0;
+
   /// Per-pillar crystal-growth animation (id → 0..1): the lock shards GROW
   /// out of the socket over ~0.6s instead of popping in.
   final Map<String, double> _crystalGrow = {};

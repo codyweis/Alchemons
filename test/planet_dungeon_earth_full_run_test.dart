@@ -313,9 +313,31 @@ void main() {
     );
     clearWisps();
 
-    // ── The Lost Maxim: a crystal takes root in the open palm ──
-    teleport('palm_hollow', kGiantsPalm);
-    game.activateAbility();
+    // ── The Lost Maxim: the hand is given something to hold ──
+    //
+    // A CHAIN now, in the barrow's own braid: Earth raises a core, Lightning
+    // (or Crystal) braids it to a seed, and Crystal refracts light down each
+    // of the palm's three creases until it roots. Three elements, four beats
+    // — the Ember Epitaph's shape, on this planet's vocabulary.
+    void atPalm(int who) {
+      game.setActive(who);
+      teleport('palm_hollow', kGiantsPalm);
+      game.activateAbility();
+    }
+
+    atPalm(0); // the Earth horn raises the core
+    expect(game.palmStage, 1, reason: 'stone rises in the palm');
+    atPalm(1); // the Lightning pip braids it
+    expect(game.palmStage, 2, reason: 'Earth+Lightning braid to a seed');
+    for (var i = 0; i < 3; i++) {
+      expect(
+        discovered,
+        isNot(contains(kEarthGiantsPalmEggId)),
+        reason: 'nothing is earned until the third crease is lit',
+      );
+      atPalm(2); // the Crystal mask lights a crease
+    }
+    expect(game.palmStage, 3, reason: 'the seed roots');
     // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
     for (var tick = 0; tick < 200; tick++) {
       game.update(1 / 60);

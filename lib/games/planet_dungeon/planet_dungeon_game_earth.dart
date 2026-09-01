@@ -80,6 +80,12 @@ extension BuriedGiant on PlanetDungeonGame {
     _rollRibCage();
     lockedPillars.clear();
     pillarLife.clear();
+    // The palm: what you WORKED OUT survives a death (the same rule the Ember
+    // Epitaph uses), what you grew does not.
+    if (palmStage > 1) palmStage = 1;
+    palmCreases.clear();
+    palmGrow = 0;
+    palmCoreRise = palmStage >= 1 ? 1 : 0;
     _crystalGrow.clear();
     _pillarCharge.clear();
     _pillarChargeDur.clear();
@@ -151,6 +157,13 @@ extension BuriedGiant on PlanetDungeonGame {
 
   void _updateBarrow(DungeonCreature a, DungeonRoom room, double dt) {
     _updatePillarLife(room, dt);
+    // The core rises and the cluster grows — watched, never popped.
+    if (palmStage >= 1 && palmCoreRise < 1) {
+      palmCoreRise = min(1.0, palmCoreRise + dt * 1.5);
+    }
+    if (palmStage >= 2 && palmGrow < 1) {
+      palmGrow = min(1.0, palmGrow + dt * 0.85);
+    }
     if (!_isBarrow) return;
     if (_scaleTruthFlash > 0) _scaleTruthFlash -= dt;
 
@@ -856,24 +869,127 @@ extension BuriedGiant on PlanetDungeonGame {
     return false;
   }
 
-  /// The Lost Maxim: lay a crystal in the giant's open palm. Wordless until
-  /// won; the maxim is the fanfare.
+  // ── THE GIANT'S PALM · the lost maxim ─────────────────────
+  //
+  // WHAT THIS REPLACES: stand a Crystal creature in the hand and press. One
+  // element, one press, and the trio always carries a Crystal — so the whole
+  // "puzzle" was noticing the room. Against Fire's Ember Epitaph (four beats,
+  // three elements, entirely wordless) it was not a secret, it was a pickup.
+  //
+  // THE CHAIN, in the barrow's own vocabulary — the same braid the gaze-lens
+  // and the sockets are built on, so nothing here has to be taught:
+  //
+  //   1 · The hand is open and EMPTY, and has been for an age. **EARTH**
+  //       raises a core of stone into it: you give the hand something to hold.
+  //   2 · A stone in a dead hand is just a stone. **LIGHTNING** arcs it —
+  //       Earth+Lightning→Crystal, the planet's own braid — and it becomes a
+  //       seed. (Crystal may set it direct, the same parity the lens has.)
+  //   3 · A seed roots along light, and the palm's three CREASES are the only
+  //       roads out of it. **CRYSTAL** stands in the hand and refracts down
+  //       one crease at a time — the eye-chamber's verb, three times over,
+  //       which is this planet's answer to Fire's three gusts.
+  //   4 · The third crease taken, the cluster comes up through the palm.
+  //
+  // Wordless past the first nudge, nothing consumed, and no order to memorise
+  // — every step is legible from what is standing in the hand.
+
+  /// How many creases the seed must be lit down before it roots.
+  static const int kPalmCreases = 3;
+
   bool _tryGiantsPalm(DungeonCreature a, DungeonRoom room) {
     if (room.id != 'palm_hollow') return false;
     if (discoveredClouds.contains(kEarthGiantsPalmEggId)) return false;
-    if (a.member.element != 'Crystal') return false;
-    if ((a.position - kGiantsPalm).distance > 34) return false;
-    // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    beginMaximRite(kEarthGiantsPalmEggId, kGiantsPalm);
-    _spawnAlchemyBurst(
-      kGiantsPalm,
-      producedElement: 'Crystal',
-      reagentElements: const ['Earth'],
-      particleCount: 26,
-      intensity: 1.1,
-    );
-    _setHint('A crystal takes root in the open palm', 4.0);
-    return true;
+    if ((a.position - kGiantsPalm).distance > 60) return false;
+    final element = a.member.element;
+
+    switch (palmStage) {
+      case 0:
+        if (element != 'Earth') {
+          // The hand answers a touch, and says only what it is.
+          _spawnAlchemyBurst(
+            kGiantsPalm,
+            producedElement: element,
+            particleCount: 6,
+            intensity: 0.35,
+          );
+          _setHint('An open hand, and nothing in it', 2.4);
+          return true;
+        }
+        palmStage = 1;
+        palmCoreRise = 0;
+        _spawnAlchemyBurst(
+          kGiantsPalm,
+          producedElement: 'Earth',
+          particleCount: 18,
+          intensity: 0.9,
+        );
+        _setHint('Stone rises in the palm — the hand has something to hold');
+        return true;
+
+      case 1:
+        if (element != 'Lightning' && element != 'Crystal') {
+          _spawnAlchemyBurst(
+            kGiantsPalm,
+            producedElement: element,
+            particleCount: 6,
+            intensity: 0.35,
+          );
+          _setHint('A bare core of stone, waiting on the storm', 2.4);
+          return true;
+        }
+        palmStage = 2;
+        palmGrow = 0;
+        _spawnAlchemyBurst(
+          kGiantsPalm,
+          producedElement: 'Crystal',
+          reagentElements: element == 'Lightning'
+              ? const ['Earth', 'Lightning']
+              : const ['Crystal'],
+          particleCount: 26,
+          intensity: 1.15,
+        );
+        _setHint(
+          element == 'Lightning'
+              ? 'Earth and Lightning braid — the core wakes as a seed'
+              : 'Crystal takes the core whole — it wakes as a seed',
+          3.2,
+        );
+        return true;
+
+      default:
+        if (element != 'Crystal') {
+          _spawnAlchemyBurst(
+            kGiantsPalm,
+            producedElement: element,
+            particleCount: 6,
+            intensity: 0.35,
+          );
+          _setHint('The seed sits and does not grow — it wants light', 2.6);
+          return true;
+        }
+        // Each refraction takes the next crease. Which one is not a choice
+        // and never was: a seed grows where the light falls, in order.
+        palmCreases.add(palmCreases.length);
+        _spawnAlchemyBurst(
+          kGiantsPalm,
+          producedElement: 'Crystal',
+          reagentElements: const ['Earth'],
+          particleCount: 12 + palmCreases.length * 6,
+          intensity: 0.6 + palmCreases.length * 0.2,
+        );
+        if (palmCreases.length < kPalmCreases) {
+          _setHint(
+            'Light runs one crease of the palm — ${kPalmCreases - palmCreases.length} still dark',
+            2.8,
+          );
+          return true;
+        }
+        palmStage = 3;
+        // THE RITE OF THREE pays this out (see `beginMaximRite`).
+        beginMaximRite(kEarthGiantsPalmEggId, kGiantsPalm);
+        _setHint('The crystal takes root in the open palm', 4.0);
+        return true;
+    }
   }
 
   /// The 3-star secret: commune at the sternum court's heart.
@@ -2488,20 +2604,91 @@ extension BuriedGiant on PlanetDungeonGame {
     // Hung low and level it read as a second forearm leaving the room.
     _drawGiantFinger(canvas, Offset(c.dx - 82, c.dy + 12), -pi * 0.74, 76);
 
+    // ── THE CHAIN, standing in the hand ──
+    // Everything the player has done so far is visible IN the palm, which is
+    // what lets the next step be worked out instead of guessed.
     if (!won) {
-      // Empty, and open. A single grain of crystal light down in the crease,
-      // so a player standing here has one reason to wonder — the room's only
-      // tell, and it says nothing about what to bring.
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.mote!,
-          c + const Offset(-4, 16),
-          5,
-          const Color(
-            0xFFB8E0D8,
-          ).withValues(alpha: 0.10 + 0.06 * sin(_time * 0.9)),
-        );
+      if (palmStage == 0) {
+        // Empty, and open. One grain of crystal light in the crease: the
+        // room's only tell, and it says nothing about what to bring.
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.mote!,
+            c + const Offset(-4, 16),
+            5,
+            const Color(
+              0xFFB8E0D8,
+            ).withValues(alpha: 0.10 + 0.06 * sin(_time * 0.9)),
+          );
+        }
+        return;
+      }
+      // THE CORE: a rough stone lump come up out of the palm.
+      final rise = Curves.easeOutBack.transform(palmCoreRise.clamp(0.0, 1.0));
+      final coreAt = c + Offset(0, 14 - 8 * rise);
+      final r = 20.0 * rise;
+      canvas.drawOval(
+        Rect.fromCenter(center: coreAt + const Offset(2, 6), width: r * 2.3, height: r * 0.7),
+        Paint()..color = const Color(0xFF0E0A06).withValues(alpha: 0.5),
+      );
+      final rough = Path();
+      for (var i = 0; i < 9; i++) {
+        final a = i * pi * 2 / 9;
+        final rr = r * (0.82 + 0.22 * sin(i * 2.7));
+        final p2 = coreAt + Offset(cos(a) * rr, sin(a) * rr * 0.8);
+        i == 0 ? rough.moveTo(p2.dx, p2.dy) : rough.lineTo(p2.dx, p2.dy);
+      }
+      rough.close();
+      canvas.drawPath(
+        rough,
+        Paint()
+          ..color = (palmStage >= 2
+                  ? const Color(0xFF3E6A66)
+                  : const Color(0xFF6B5636))
+              .withValues(alpha: 0.9),
+      );
+      canvas.drawPath(
+        rough,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = (palmStage >= 2
+                  ? const Color(0xFFB8E0D8)
+                  : const Color(0xFFC6AC78))
+              .withValues(alpha: 0.5),
+      );
+      if (palmStage >= 2) {
+        // THE SEED, waking. It pulses until it is given somewhere to go.
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            coreAt,
+            26 + 6 * sin(_time * 2.1),
+            const Color(0xFFB8E0D8).withValues(alpha: 0.16),
+          );
+        }
+        // The creases already taken, lit and running outward.
+        for (var i = 0; i < kPalmCreases; i++) {
+          if (!palmCreases.contains(i)) continue;
+          final t = (i - 1) * 0.5;
+          canvas.drawPath(
+            Path()
+              ..moveTo(coreAt.dx, coreAt.dy)
+              ..quadraticBezierTo(
+                c.dx + t * 60,
+                c.dy + 20,
+                c.dx + t * 120,
+                c.dy - 24 + (i == 1 ? 10 : 0),
+              ),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.4
+              ..strokeCap = StrokeCap.round
+              ..color = const Color(0xFFD8F0EA).withValues(alpha: 0.5),
+          );
+        }
       }
       return;
     }
