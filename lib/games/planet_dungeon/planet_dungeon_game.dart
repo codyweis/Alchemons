@@ -8159,6 +8159,7 @@ class PlanetDungeonGame extends FlameGame {
       return true;
     }
     if (_guardianDoorSealed(door)) return true;
+    if (_guardianFightSeal(room)) return true;
     if (_isVapor && _sealBlocked(room, door)) return true;
     if (_isFoundry && _foundryDoorLocked(room, door)) return true;
     if (_isVenom && _monasteryDoorLocked(room, door)) return true;
@@ -8188,10 +8189,41 @@ class PlanetDungeonGame extends FlameGame {
     return !guardianAwake;
   }
 
+  /// YOU DO NOT WALK OUT OF A FIGHT YOU STARTED.
+  ///
+  /// The way IN is already sealed until the rite rouses the mystic, so a boss
+  /// is walked into on purpose — but nothing sealed the way back out, and a
+  /// guardian could be woken, chipped at, and abandoned through the door it
+  /// cannot follow you through. The chamber closes for the length of the
+  /// fight, on the beat the thing actually lands.
+  ///
+  /// The outs are the honest ones: kill it, fall to it (death restarts you at
+  /// the gate), or END RUN. Only the LAIR is sealed — every other door in the
+  /// dungeon is untouched by this.
+  bool _guardianFightSeal(DungeonRoom room) {
+    final g = room.guardian;
+    if (g == null) return false;
+    // Solved is solved: a banked star leaves the chamber open for good.
+    if (!isRaid && hasStar(g.starIndex)) return false;
+    // Still falling — the fight has begun even though nothing can be hit yet.
+    if (guardianArriving) return true;
+    final e = _guardianEnemy;
+    return e != null && !e.isDead && e.hp > 0;
+  }
+
   /// What a locked door says when touched. The finale hint is PROGRESS-AWARE:
   /// the full thematic line while both keys are missing, narrowing to name
   /// only the star still owed once the first of the pair is banked.
   String _lockedDoorHint(DungeonRoom room, DungeonDoor door) {
+    // The fight seal answers first: it is the only lock that can appear on a
+    // door the player has already walked through, so a planet-specific line
+    // about a key they have would be nonsense here.
+    if (_guardianFightSeal(room)) {
+      final name = room.guardian?.encounter?.mysticId;
+      return name == null
+          ? 'The way out is shut while the guardian stands'
+          : 'The way out is shut — $name is not finished with you';
+    }
     if (_isTemple && _tideDoorBlocked(room, door)) {
       return _tideDoorHint(room, door);
     }

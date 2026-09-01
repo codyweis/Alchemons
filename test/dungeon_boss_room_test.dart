@@ -99,4 +99,65 @@ void main() {
       expect(g.inGuardianFight, isFalse, reason: '$element at its entrance');
     }
   });
+
+  group('you do not walk out of a fight you started', () {
+    /// Wake the guardian and let it land.
+    PlanetDungeonGame engaged() {
+      final g = _game('Fire');
+      g.currentRoomId = _lairOf(g);
+      g.guardianAwake = true;
+      g.altarOpen = true;
+      var guard = 0;
+      while (g.combatEnemies.isEmpty && guard++ < 1200) {
+        g.update(1 / 60);
+      }
+      expect(g.combatEnemies, isNotEmpty, reason: 'the guardian has landed');
+      return g;
+    }
+
+    bool anyDoorOpen(PlanetDungeonGame g, DungeonRoom room) =>
+        room.doors.any((d) => !g.isDoorLocked(room, d));
+
+    test('the lair seals while the guardian stands', () {
+      final g = engaged();
+      final lair = g.currentRoom;
+      expect(lair.doors, isNotEmpty, reason: 'there is a way out to seal');
+      expect(anyDoorOpen(g, lair), isFalse);
+    });
+
+    test('and opens again the moment it falls', () {
+      final g = engaged();
+      final lair = g.currentRoom;
+      for (final e in g.combatEnemies) {
+        e.hp = 0;
+      }
+      // The kill banks the star, which is what unseals it for good.
+      g.earnStar(lair.guardian!.starIndex);
+      expect(anyDoorOpen(g, lair), isTrue);
+    });
+
+    test('it seals the LAIR and nothing else', () {
+      // A seal that leaked into other rooms would strand a player mid-run
+      // with no way back to the gate.
+      final g = engaged();
+      for (final room in g.layout.rooms.values) {
+        if (room.guardian != null) continue;
+        if (room.doors.isEmpty) continue;
+        expect(
+          anyDoorOpen(g, room),
+          isTrue,
+          reason: '${room.id} must stay passable',
+        );
+      }
+    });
+
+    test('an unwoken lair is not sealed', () {
+      // Walking in and back out before rousing it is allowed — the way IN is
+      // what gates the encounter, and it has its own lock.
+      final g = _game('Fire');
+      g.currentRoomId = _lairOf(g);
+      final lair = g.currentRoom;
+      expect(anyDoorOpen(g, lair), isTrue);
+    });
+  });
 }
