@@ -1293,6 +1293,17 @@ replays. A quotation is now OPTIONAL per planet — keep one only where it is
 about the room it is hidden in (Air's Seneca and a compass), and prefer the
 world's own answer everywhere else.
 
+**AND INSIGHT ADMITS THE SECRET EXISTS.** The reading used to answer "Nothing
+hidden stirs here" full stop — in the Air hub, that was said to a player
+standing in the one room on the planet that IS the secret, and everywhere else
+it taught them there was nothing to look for at all. Two fixes: the hub now
+has its own tiered reading (the compass is a mechanism · its heart wants
+current · the wind ate the four faces unequally — never the ORDER), and the
+generic line admits what it knows: *"Nothing hidden stirs here — but the
+planet is still keeping one"*, until the planet's `egg:` id is banked. Derived
+from the discovery channel, not a hand-kept map of which room holds what, so
+it cannot fall out of step with the planets.
+
 **Adoption: ALL SEVENTEEN.** Every planet's secret goes through it, and the
 quotation constants are deleted from the code — nothing left to drift.
 

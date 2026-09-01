@@ -1038,7 +1038,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         );
         return;
       }
-      _setHint('${a.member.element} insight finds nothing hidden here');
+      _setHint(_nothingHiddenLine());
       return;
     }
     _setHint(switch (g.starIndex) {

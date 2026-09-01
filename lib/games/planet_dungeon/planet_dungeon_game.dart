@@ -7683,6 +7683,25 @@ class PlanetDungeonGame extends FlameGame {
     onChanged();
   }
 
+  /// Has this planet's one hidden secret been found?
+  ///
+  /// Derived from the discovery channel rather than a hand-kept map of which
+  /// room holds what: every planet has exactly one `egg:` id and it is
+  /// persisted, so this cannot fall out of step with the planets.
+  bool get planetSecretFound =>
+      discoveredClouds.any((id) => id.startsWith('egg:'));
+
+  /// What insight says when it genuinely found nothing HERE.
+  ///
+  /// "Nothing hidden stirs here" full stop was a lie by omission on every
+  /// planet: each one keeps a secret, and a player who reads that line in
+  /// room after room concludes there is nothing to look for at all. It says
+  /// what it actually knows now — nothing in THIS room, and the planet is
+  /// still holding out.
+  String _nothingHiddenLine() => planetSecretFound
+      ? 'Nothing hidden stirs here'
+      : 'Nothing hidden stirs here — but the planet is still keeping one';
+
   void _doReveal(DungeonCreature a) {
     final room = currentRoom;
     if (_isCathedral) {
@@ -7772,9 +7791,19 @@ class PlanetDungeonGame extends FlameGame {
         revealFlash = 0.6;
         revealTier = revealHintTier(a.member.statIntelligence);
         _setInsightHint(_spireStormInsight(room, revealTier));
-      } else {
-        _setInsightHint('Nothing hidden stirs here', 2.4);
+        return;
       }
+      // THE HUB. It used to fall through to "nothing hidden stirs here" —
+      // standing in the one room on the planet that IS the secret. Insight
+      // reads the pillars here, tiered like everything else, and stops short
+      // of the order itself.
+      if (room.windRunes.isNotEmpty) {
+        revealFlash = 0.6;
+        revealTier = revealHintTier(a.member.statIntelligence);
+        _setInsightHint(_fourWindsInsight(revealTier));
+        return;
+      }
+      _setInsightHint(_nothingHiddenLine(), 2.4);
       return;
     }
     revealFlash = 0.6;

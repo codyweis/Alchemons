@@ -2442,3 +2442,46 @@ extension PlanetDungeonFourWindsRender on PlanetDungeonGame {
     }
   }
 }
+
+extension PlanetDungeonFourWindsInsight on PlanetDungeonGame {
+  /// What a reading of the hub says, by tier.
+  ///
+  /// It never gives the ORDER — that is written on the stone in wear, and
+  /// reading it is the puzzle. What it gives is the shape of the thing: that
+  /// the compass is a mechanism, that the mechanism wants current rather than
+  /// hands, and that there is something under the rime worth comparing.
+  String _fourWindsInsight(int tier) {
+    if (_fourWindsFound) {
+      return 'The ring is whole and the compass turns — this hall keeps '
+          'nothing back now';
+    }
+    switch (firstWindStage) {
+      case 0:
+        return switch (tier) {
+          <= 0 => 'Four stones ring the compass — and the compass is a '
+              'mechanism, not a mural',
+          1 => 'The mechanism is cold. Its heart wants CURRENT, not a hand '
+              'on its stones',
+          _ => 'The mechanism is cold, and the stones are rimed shut. Put '
+              'current through the heart and the ring will answer',
+        };
+      case 1:
+        return switch (tier) {
+          <= 0 => 'The ring is live, and every face is still rimed over',
+          _ => 'Rime hides the four faces. Burn it off and there will be '
+              'something to compare',
+        };
+      case 2:
+        final left = firstWindOrder.length - firstWindSpoken.length;
+        return switch (tier) {
+          <= 0 => 'The faces are bare, and no two are worn alike',
+          1 => 'The wind has eaten the four faces unequally — $left still '
+              'sleep',
+          _ => 'The wind has eaten the four faces unequally, and it has been '
+              'blowing longest on one of them',
+        };
+      default:
+        return 'The winds gather';
+    }
+  }
+}

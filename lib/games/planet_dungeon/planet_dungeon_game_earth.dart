@@ -787,7 +787,7 @@ extension BuriedGiant on PlanetDungeonGame {
         );
         return;
     }
-    _setHint('Nothing hidden stirs here');
+    _setHint(_nothingHiddenLine());
   }
 
   // ── Ambient hints / objectives / mood ───────────────────

@@ -325,4 +325,61 @@ void main() {
       expect(g.discoveredClouds, contains(kAirFirstWindEggId));
     });
   });
+
+  group('insight tells you a secret is here', () {
+    /// Press the HINT button as [element]'s bearer and read what came back.
+    String read(PlanetDungeonGame g, {String element = 'Fire'}) {
+      final c = _of(g, element);
+      g.activeIndex = g.creatures.indexOf(c);
+      c.position = g.currentRoom.bounds.center;
+      g.askForRoomHint();
+      return g.hintText ?? '';
+    }
+
+    test('the hub no longer claims to be empty', () {
+      // It used to fall through to "nothing hidden stirs here" while the
+      // player stood in the one room on the planet that IS the secret.
+      final g = _spire();
+      final line = read(g);
+      expect(line, isNotEmpty);
+      expect(
+        line.toLowerCase(),
+        isNot(contains('nothing hidden')),
+        reason: 'the hub holds the Four Winds — saying otherwise is a lie',
+      );
+    });
+
+    test('it names the mechanism without naming the order', () {
+      final g = _spire();
+      _open(g);
+      final line = read(g).toLowerCase();
+      // It may say the faces are worn unequally. It must never say WHICH.
+      for (final i in g.firstWindOrder) {
+        expect(line, isNot(contains('pillar $i')));
+      }
+      expect(line, isNot(contains('north')));
+      expect(line, isNot(contains('first: ')));
+    });
+
+    test('and it stops promising once the ring is whole', () {
+      final g = _spire();
+      g.discoveredClouds.add(kAirFirstWindEggId);
+      expect(read(g).toLowerCase(), contains('whole'));
+    });
+
+    test('an empty room admits the planet is still keeping one', () {
+      // The other half: "nothing hidden stirs here" full stop taught the
+      // player there was nothing to look for anywhere.
+      final g = _spire();
+      g.currentRoomId = 'entry';
+      final at = g.currentRoom.bounds.center;
+      for (final c in g.creatures) {
+        c.position = at;
+      }
+      expect(g.planetSecretFound, isFalse);
+      g.discoveredClouds.add(kAirFirstWindEggId);
+      expect(g.planetSecretFound, isTrue);
+    });
+  });
+
 }

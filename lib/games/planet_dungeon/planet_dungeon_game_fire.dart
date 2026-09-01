@@ -2329,7 +2329,7 @@ extension CinderCathedral on PlanetDungeonGame {
         );
         return;
     }
-    _setHint('Nothing hidden stirs here');
+    _setHint(_nothingHiddenLine());
   }
 
   /// The ONE source→groove link a tier-2 reading draws out of the garth: the
