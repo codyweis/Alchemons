@@ -1370,6 +1370,15 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// same pill, same size, same place — only the accent (a hairline rule and
   /// a small glyph) and the text weight change, so a refusal reads as a
   /// refusal and flavor stays in the background. Never stacks.
+  /// THE ONE THING THAT SPEAKS, dressed like the rest of the dungeon.
+  ///
+  /// It was a soft 20px pill with a hairline all the way round — the only
+  /// rounded chrome left on a screen of bracketed panels, round glyph buttons
+  /// and cornered banners, so it read as a component from an older build
+  /// parked over the game. It wears the house chrome now: square, corner
+  /// brackets, and the CHANNEL as a rule down its left edge rather than a
+  /// tint smeared around its whole perimeter — the same way every other list
+  /// row in this game says what kind of thing it is.
   Widget _hintCapsule(String hint, DungeonHintChannel channel) {
     final (Color accent, IconData? glyph, double textAlpha) = switch (channel) {
       // A refusal: ember-warm, glyphed, the firmest of the four.
@@ -1378,38 +1387,30 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       DungeonHintChannel.insight => (_C.cyan, Icons.visibility_outlined, 0.96),
       // What the room wants: the house amber, unglyphed.
       DungeonHintChannel.objective => (_C.amber, null, 0.92),
-      // Flavor: no rule, no glyph, sits back.
+      // Flavour: no rule, no glyph, no brackets. It sits back.
       DungeonHintChannel.ambient => (Colors.transparent, null, 0.74),
     };
     final ruled = channel != DungeonHintChannel.ambient;
-    return Container(
-      key: ValueKey('${channel.name}:$hint'),
-      padding: EdgeInsets.only(
-        left: glyph == null ? 14 : 11,
-        right: 14,
-        top: 7,
-        bottom: 7,
-      ),
+
+    final body = Container(
+      padding: EdgeInsets.fromLTRB(ruled ? 10 : 13, 8, 13, 8),
       decoration: BoxDecoration(
-        color: _C.bg.withValues(
-          alpha: channel == DungeonHintChannel.ambient ? 0.5 : 0.68,
+        color: _C.panel.withValues(alpha: ruled ? 0.94 : 0.62),
+        border: Border(
+          top: BorderSide(color: _C.border.withValues(alpha: 0.55)),
+          right: BorderSide(color: _C.border.withValues(alpha: 0.55)),
+          bottom: BorderSide(color: _C.border.withValues(alpha: 0.55)),
+          left: ruled
+              ? BorderSide(color: accent, width: 3)
+              : BorderSide(color: _C.border.withValues(alpha: 0.55)),
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: ruled
-            ? Border.all(
-                color: accent.withValues(
-                  alpha: channel == DungeonHintChannel.blocked ? 0.6 : 0.4,
-                ),
-                width: 1,
-              )
-            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (glyph != null) ...[
-            Icon(glyph, size: 12, color: accent.withValues(alpha: 0.9)),
-            const SizedBox(width: 6),
+            Icon(glyph, size: 12, color: accent.withValues(alpha: 0.95)),
+            const SizedBox(width: 7),
           ],
           Flexible(
             child: Text(
@@ -1419,10 +1420,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                 color: _C.text.withValues(alpha: textAlpha),
                 fontSize: 12,
                 fontWeight: channel == DungeonHintChannel.blocked
-                    ? FontWeight.w600
+                    ? FontWeight.w700
                     : FontWeight.w500,
-                letterSpacing: 0.3,
-                height: 1.3,
+                letterSpacing: 0.25,
+                height: 1.34,
                 fontStyle: channel == DungeonHintChannel.ambient
                     ? FontStyle.italic
                     : FontStyle.normal,
@@ -1431,6 +1432,20 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
           ),
         ],
       ),
+    );
+
+    return KeyedSubtree(
+      key: ValueKey('${channel.name}:$hint'),
+      child: ruled
+          ? CustomPaint(
+              foregroundPainter: DungeonBracketPainter(
+                color: accent.withValues(alpha: 0.85),
+                bracketSize: 8,
+                strokeWidth: 1.3,
+              ),
+              child: body,
+            )
+          : body,
     );
   }
 

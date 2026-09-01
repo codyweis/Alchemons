@@ -202,6 +202,38 @@ void main() {
       expect(source, contains('Icons.help_rounded'));
       expect(source, contains('Icons.help_outline_rounded'));
     });
+
+    test('the capsule wears the house chrome, not a soft pill', () {
+      // It was the only rounded thing left on a screen of bracketed panels,
+      // round glyph buttons and cornered banners — a component from an older
+      // build parked over the game.
+      final capsule = source.substring(
+        source.indexOf('Widget _hintCapsule('),
+        source.indexOf('/// PROGRESS READOUT'),
+      );
+      expect(
+        capsule.contains('BorderRadius.circular(20)'),
+        isFalse,
+        reason: 'the pill is retired',
+      );
+      expect(capsule, contains('DungeonBracketPainter'));
+    });
+
+    test('the channel is a rule down the edge, not a tint all round', () {
+      final capsule = source.substring(
+        source.indexOf('Widget _hintCapsule('),
+        source.indexOf('/// PROGRESS READOUT'),
+      );
+      expect(capsule, contains('BorderSide(color: accent, width: 3)'));
+      // Every channel still has to be answered, or one of them renders bare.
+      for (final ch in ['blocked', 'insight', 'objective', 'ambient']) {
+        expect(
+          capsule,
+          contains('DungeonHintChannel.$ch'),
+          reason: '$ch has no styling',
+        );
+      }
+    });
   });
 }
 
