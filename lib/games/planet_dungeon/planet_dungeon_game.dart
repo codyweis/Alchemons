@@ -503,6 +503,29 @@ class PlanetDungeonGame extends FlameGame {
   final List<_KinBeamFx> _kinBeams = [];
   final List<_AlchemyParticle> _alchemyParticles = [];
 
+  // ── THE RITE OF THREE · how a lost secret pays out ──
+  //
+  // Every one of the seventeen secrets used to end the same way: a permanent
+  // change to the room, and a hint popup carrying an italic quotation from a
+  // dead philosopher (Heraclitus three times over). The change was the good
+  // part and the quotation was a label on it.
+  //
+  // What pays out now is a REACTION, and it is made from the party you
+  // brought: your three creatures' elements are drawn out of them, bound over
+  // the thing you found, and the binding throws the gold. Descend with a
+  // different trio and it is a different reaction — three different colours,
+  // a differently-tinted yield. The secret is the same; what the planet makes
+  // of it depends on who was standing there.
+  //
+  // The payout is deliberately deferred to the FLASH (`_kRiteBind`), so the
+  // gold arrives on the beat the reaction gives it rather than three seconds
+  // earlier when the trigger fired.
+  Offset? _riteFocus;
+  String? _riteRoomId;
+  String? _ritePendingEgg;
+  double _riteT = -1;
+  final List<String> _riteElements = [];
+
   /// Shared combat-ability particles (zone wisps, hit sparks, bursts). Kept
   /// separate from the alchemy/puzzle flavor pool above so abilities render
   /// identically to Cosmic Survival via the shared canonical renderer.
@@ -2419,6 +2442,7 @@ class PlanetDungeonGame extends FlameGame {
     _ambient.update(dt);
     _skyMood += (_skyMoodTarget - _skyMood) * min(1.0, dt * 1.1);
     _updateAlchemyParticles(dt);
+    _updateMaximRite(dt);
     _abilityVfx.update(dt);
     for (final c in creatures) {
       c.ticker?.update(dt);
@@ -8745,6 +8769,7 @@ class PlanetDungeonGame extends FlameGame {
     _renderRoomLandmarks(canvas, room);
     _renderCurrents(canvas, room);
     _renderAlchemyParticles(canvas);
+    _renderMaximRite(canvas);
     _abilityVfx.render(canvas);
     _renderHazards(canvas, room);
     _renderWalls(canvas, room);
@@ -9092,8 +9117,22 @@ class PlanetDungeonGame extends FlameGame {
   /// widget test — and the art in these rooms is exactly the thing worth
   /// looking at before shipping it. Costs nothing at runtime.
   @visibleForTesting
-  void renderRoomForDebug(Canvas canvas, DungeonRoom room) =>
-      _renderRoomLandmarks(canvas, room);
+  void renderRoomForDebug(Canvas canvas, DungeonRoom room) {
+    _renderRoomLandmarks(canvas, room);
+    _renderMaximRite(canvas);
+  }
+
+  /// TEST-ONLY: park a payout reaction at [t] seconds so a single frame of it
+  /// can be looked at.
+  @visibleForTesting
+  void debugSeekRite(Offset focus, double t) {
+    _riteFocus = focus;
+    _riteRoomId = currentRoomId;
+    _riteT = t;
+    _riteElements
+      ..clear()
+      ..addAll(creatures.map((c) => c.member.element));
+  }
 
   void _renderRoomLandmarks(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
@@ -12758,6 +12797,323 @@ class PlanetDungeonGame extends FlameGame {
     }
     path.close();
     canvas.drawPath(path, Paint()..color = color);
+  }
+
+  // ── THE RITE OF THREE ──────────────────────────────────────
+  //
+  // Beats, in seconds. A reaction is watched, so none of them snap.
+  static const double _kRiteDraw = 1.25; // the elements leave their bearers
+  static const double _kRiteBind = 2.45; // they meet, and the binding takes
+  static const double _kRiteYield = 4.2; // the gold falls out of it
+
+  /// Is a payout reaction playing right now?
+  bool get riteActive => _riteT >= 0;
+
+  /// Begin a lost secret's payout over [focus] — the thing that was found.
+  ///
+  /// The caller does NOT discover the cloud itself; this does, at the flash.
+  /// A secret already found is a no-op, so a re-entered room cannot replay it.
+  void beginMaximRite(String eggId, Offset focus) {
+    if (discoveredClouds.contains(eggId) || _ritePendingEgg == eggId) return;
+    _ritePendingEgg = eggId;
+    _riteFocus = focus;
+    _riteRoomId = currentRoomId;
+    _riteT = 0;
+    _riteElements
+      ..clear()
+      // The party you BROUGHT, dead or alive — they are all standing in this
+      // dungeon, and a creature that fell on the way still contributed its
+      // element to the descent.
+      ..addAll(creatures.map((c) => c.member.element));
+  }
+
+  /// Pay the secret out. Idempotent; safe to call from the flash or from a
+  /// bail-out, so a player who dies or walks off mid-reaction still gets it.
+  void _settleRite() {
+    final egg = _ritePendingEgg;
+    _ritePendingEgg = null;
+    if (egg != null) _discoverCloud(egg); // the screen pays the 20 gold
+  }
+
+  void _updateMaximRite(double dt) {
+    if (_riteT < 0) return;
+    // Walked out, or died on the beat. The find is not taken away for it.
+    if (currentRoomId != _riteRoomId) {
+      _settleRite();
+      _riteT = -1;
+      _riteFocus = null;
+      return;
+    }
+    final was = _riteT;
+    _riteT += dt;
+    if (was < _kRiteBind && _riteT >= _kRiteBind) {
+      _settleRite();
+      // The binding takes: the produced element is the FIRST of the trio (the
+      // planet's own, by the entry order), reagents are the other two.
+      if (_riteElements.isNotEmpty && _riteFocus != null) {
+        _spawnAlchemyBurst(
+          _riteFocus!,
+          producedElement: _riteElements.first,
+          reagentElements: _riteElements.skip(1).toList(),
+          particleCount: 30,
+          intensity: 1.1,
+        );
+      }
+    }
+    if (_riteT >= _kRiteYield) {
+      _riteT = -1;
+      _riteFocus = null;
+      _riteRoomId = null;
+    }
+  }
+
+  /// Where element [i]'s thread starts: on its own bearer if that creature is
+  /// still standing in this room, otherwise on the ring around the focus, so
+  /// a fallen party member's colour still shows up in the reaction.
+  Offset _riteSource(int i, Offset focus) {
+    if (i < creatures.length) {
+      final c = creatures[i];
+      if (c.alive) return c.position;
+    }
+    final a = i * pi * 2 / max(1, _riteElements.length) - pi / 2;
+    return focus + Offset(cos(a), sin(a)) * 150;
+  }
+
+  void _renderMaximRite(Canvas canvas) {
+    final focus = _riteFocus;
+    if (_riteT < 0 || focus == null || _riteElements.isEmpty) return;
+    final t = _riteT;
+    final n = _riteElements.length;
+
+    // NOTHING HERE IS GLOW-ONLY. A first pass drew the heads, the vertices
+    // and the coined light purely as `drawGlow` blits, and with the mote
+    // sprite absent the whole reaction collapsed to three hairlines and a
+    // small white triangle. Every mark is a real shape now; the glow sits on
+    // top of it as bloom, not as the thing itself.
+
+    // ── DRAW: each element leaves its bearer and winds in ──
+    final draw = (t / _kRiteDraw).clamp(0.0, 1.0);
+    final ease = draw * draw * (3 - 2 * draw);
+    for (var i = 0; i < n; i++) {
+      final col = elementColor(_riteElements[i]);
+      final from = _riteSource(i, focus);
+      // Each thread takes its bend the other way, so three approaches do not
+      // lie on top of one another.
+      final mid =
+          Offset.lerp(from, focus, 0.5)! +
+          Offset(-(focus - from).dy, (focus - from).dx) *
+              (0.16 * (i.isEven ? 1 : -1));
+      final head = _quadPoint(from, mid, focus, ease);
+      if (draw < 1) {
+        final tail = Path()..moveTo(from.dx, from.dy);
+        const steps = 10;
+        for (var k = 1; k <= steps; k++) {
+          tail.lineTo(
+            _quadPoint(from, mid, focus, ease * k / steps).dx,
+            _quadPoint(from, mid, focus, ease * k / steps).dy,
+          );
+        }
+        canvas.drawPath(
+          tail,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0
+            ..strokeCap = StrokeCap.round
+            ..color = col.withValues(alpha: 0.5),
+        );
+        canvas.drawCircle(head, 4.5, Paint()..color = col);
+        canvas.drawCircle(
+          head,
+          1.9,
+          Paint()..color = Colors.white.withValues(alpha: 0.9),
+        );
+      }
+      if (_fx.ready && draw < 1) {
+        drawGlow(canvas, _fx.mote!, head, 13, col.withValues(alpha: 0.8));
+      }
+    }
+
+    // ── BIND: the alchemical figure closes over the focus ──
+    if (t >= _kRiteDraw) {
+      final bind = ((t - _kRiteDraw) / (_kRiteBind - _kRiteDraw)).clamp(
+        0.0,
+        1.0,
+      );
+      // THE FIGURE IS CONSUMED BY THE FLASH. Left at full strength it stood
+      // there intact behind the falling gold, which said the reaction had not
+      // actually happened — the three elements have to go INTO the yield.
+      final bf = t < _kRiteBind
+          ? 1.0
+          : (1 - (t - _kRiteBind) / 0.55).clamp(0.0, 1.0);
+      if (bf <= 0) {
+        _renderRiteYield(canvas, focus, t);
+        return;
+      }
+      final r = 46.0 * (1 - bind) + 12.0;
+
+      // The circle the figure is drawn in, contracting with it, with ticks
+      // on the rim so the contraction is legible as TURNING and not just
+      // shrinking. This is the game's alchemical vocabulary, not a new one.
+      final ring = r * 2.05;
+      final spin = -bind * 2.4;
+      canvas.drawCircle(
+        focus,
+        ring,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = const Color(0xFFF0C36B).withValues(alpha: (0.22 + 0.3 * bind) * bf),
+      );
+      final tick = Paint()
+        ..strokeWidth = 1.1
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFF0C36B).withValues(alpha: (0.3 + 0.35 * bind) * bf);
+      for (var k = 0; k < 12; k++) {
+        final a = k * pi / 6 + spin;
+        final u = Offset(cos(a), sin(a));
+        canvas.drawLine(focus + u * (ring - 5), focus + u * ring, tick);
+      }
+
+      final pts = <Offset>[];
+      for (var i = 0; i < n; i++) {
+        final a = i * pi * 2 / n - pi / 2 + bind * pi * 1.6;
+        pts.add(focus + Offset(cos(a), sin(a)) * r);
+      }
+      if (pts.length >= 2) {
+        final sigil = Path()..moveTo(pts.first.dx, pts.first.dy);
+        for (final pt in pts.skip(1)) {
+          sigil.lineTo(pt.dx, pt.dy);
+        }
+        sigil.close();
+        canvas.drawPath(
+          sigil,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.2 + bind * 1.6
+            ..color = const Color(0xFFFFF3DC)
+                .withValues(alpha: (0.3 + 0.55 * bind) * bf),
+        );
+        // Late in the bind the opposed figure comes up through it — three
+        // elements held against each other, which is what the rite is.
+        if (bind > 0.5) {
+          final u = ((bind - 0.5) / 0.5).clamp(0.0, 1.0);
+          final anti = Path();
+          for (var i = 0; i < n; i++) {
+            final a = i * pi * 2 / n + pi / 2 + bind * pi * 1.6;
+            final pt = focus + Offset(cos(a), sin(a)) * r;
+            i == 0 ? anti.moveTo(pt.dx, pt.dy) : anti.lineTo(pt.dx, pt.dy);
+          }
+          anti.close();
+          canvas.drawPath(
+            anti,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.0 + u
+              ..color = const Color(0xFFFFF3DC).withValues(alpha: 0.5 * u * bf),
+          );
+        }
+      }
+      // The three elements themselves, riding the figure's points.
+      for (var i = 0; i < n; i++) {
+        final col = elementColor(_riteElements[i]);
+        canvas.drawCircle(
+          pts[i],
+          (6.5 - bind * 1.5) * bf,
+          Paint()..color = col.withValues(alpha: bf),
+        );
+        canvas.drawCircle(
+          pts[i],
+          2.4 * bf,
+          Paint()..color = Colors.white.withValues(alpha: 0.85 * bf),
+        );
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.mote!,
+            pts[i],
+            (15 - bind * 4) * bf,
+            col.withValues(alpha: 0.85 * bf),
+          );
+        }
+      }
+    }
+
+    _renderRiteYield(canvas, focus, t);
+  }
+
+  /// The flash and what falls out of it.
+  void _renderRiteYield(Canvas canvas, Offset focus, double t) {
+    // ── FLASH + YIELD: the binding takes, and the gold falls out of it ──
+    if (t < _kRiteBind) return;
+    {
+      final y = ((t - _kRiteBind) / (_kRiteYield - _kRiteBind)).clamp(0.0, 1.0);
+      final fade = (1 - y) * (1 - y);
+      // The take itself — a hard white bloom on the first fifth of a second,
+      // so the moment the gold is granted has an actual beat to it.
+      if (y < 0.12) {
+        final f = 1 - y / 0.12;
+        canvas.drawCircle(
+          focus,
+          14 + 40 * (1 - f),
+          Paint()..color = Colors.white.withValues(alpha: 0.75 * f),
+        );
+      }
+      canvas.drawCircle(
+        focus,
+        18 + y * 150,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.0 * fade + 0.5
+          ..color = Colors.white.withValues(alpha: 0.75 * fade),
+      );
+      canvas.drawCircle(
+        focus,
+        10 + y * 88,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2 * fade + 0.4
+          ..color = const Color(0xFFF0C36B).withValues(alpha: 0.9 * fade),
+      );
+      // Coined light: thrown out of the binding, arcing over and falling.
+      for (var i = 0; i < 11; i++) {
+        final a = i * 2.399963 + 0.4;
+        final speed = 62 + (i % 4) * 36.0;
+        final pos =
+            focus +
+            Offset(cos(a), sin(a)) * speed * y +
+            Offset(0, 138 * y * y * 0.55);
+        final rad = 4.6 - y * 2.2;
+        canvas.drawCircle(
+          pos,
+          rad,
+          Paint()
+            ..color = const Color(0xFFF6D488).withValues(alpha: 0.95 * fade),
+        );
+        canvas.drawCircle(
+          pos,
+          rad * 0.4,
+          Paint()..color = Colors.white.withValues(alpha: 0.8 * fade),
+        );
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.mote!,
+            pos,
+            9 - y * 4,
+            const Color(0xFFF6D488).withValues(alpha: 0.75 * fade),
+          );
+        }
+      }
+    }
+  }
+
+  /// A point on the quadratic through [a] → [c] bending at [b].
+  Offset _quadPoint(Offset a, Offset b, Offset c, double t) {
+    final u = 1 - t;
+    return Offset(
+      u * u * a.dx + 2 * u * t * b.dx + t * t * c.dx,
+      u * u * a.dy + 2 * u * t * b.dy + t * t * c.dy,
+    );
   }
 
   void _renderAlchemyParticles(Canvas canvas) {

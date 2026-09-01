@@ -1256,6 +1256,45 @@ screen pays the gold + toast the first time the id lands
 oblique hint, prefer ADVANCED element combos beyond what the stars demand,
 and the maxim itself is the fanfare (long hint, public-domain quote).
 
+**HOW A SECRET PAYS OUT — THE RITE OF THREE (the rule, from 2026-08-31).**
+
+All seventeen used to end the same way: a permanent change to the room, and a
+hint popup carrying an italic quotation from a dead philosopher (Heraclitus
+three times over, plus Ovid, Nietzsche, Shakespeare, Plato…). The change was
+the good part. The quotation was a label stuck on it, and having every planet
+reach for the same borrowed shelf made seventeen different discoveries land
+identically.
+
+What pays out now is a REACTION, and it is made from **the party you brought**.
+Call `beginMaximRite(eggId, focus)` instead of `_discoverCloud` + a quote:
+
+  · **DRAW** (0 → 1.25s) — each of your three creatures' elements is drawn out
+    of it and winds in to the thing you found, each thread bending its own way
+    so three approaches never overlap into one.
+  · **BIND** (→ 2.45s) — they close into an alchemical figure over the focus: a
+    ticked gold circle contracting as it turns, the triangle through the three
+    element nodes, and the opposed figure coming up through it late.
+  · **FLASH** (2.45s) — the binding takes. **This is where the gold is granted**
+    — deliberately deferred from the trigger, so the payout lands on the beat
+    the reaction gives it rather than three seconds early.
+  · **YIELD** (→ 4.2s) — the figure is consumed and coined light is thrown out
+    of it, arcing over and falling.
+
+Descend with a different trio and it is a visibly different reaction. The
+secret is the same; what the planet makes of it depends on who was standing
+there. Nothing in it is glow-only — a first pass drew the heads, the nodes and
+the coins purely as mote blits and the whole thing collapsed to three hairlines
+whenever the sprite was missing.
+
+Safety, pinned in `dungeon_maxim_rite_test.dart`: the gold arrives exactly
+once, it arrives even if the player dies or walks out mid-reaction, a second
+trigger during the reaction cannot double it, and a found secret never
+replays. A quotation is now OPTIONAL per planet — keep one only where it is
+about the room it is hidden in (Air's Seneca and a compass), and prefer the
+world's own answer everywhere else.
+
+**Adoption:** ▶ Lightning (built, the proof) · ⬜ the other fifteen.
+
 1. **Fire — Ember Epitaph (BUILT):** the dead words live in the soot mural
    panel's upper half as a near-invisible MIRROR-CIPHER (every word written
    backwards — decodable, hidden). Mask insight makes an ember-quill WRITE
@@ -1302,10 +1341,11 @@ and the maxim itself is the fanfare (long hint, public-domain quote).
 4. **Ice — Star-Walker:** align every telescope on the unmarked 13th star —
    visible only in reflection. *"When I trace the circling courses of the
    stars, my feet no longer touch the earth."* (Ptolemy)
-5. **Lightning — Thunderbolt (BUILT):** light the Storm Tower with a
-   Lightning HORN standing among the conductors (`egg:lightning_thunderbolt`,
-   permanent tower glow). *"The thunderbolt steers all things."*
-   (Heraclitus)
+5. **Lightning — Thunderbolt (BUILT · first planet on the RITE OF THREE):**
+   light the Storm Tower with a Lightning HORN standing among the conductors
+   (`egg:lightning_thunderbolt`, permanent tower glow). The Heraclitus line it
+   used to end on is retired; the payout is the reaction above, in the colours
+   of whichever trio came down, and the reaction hands over the gold.
 6. **Steam — Hidden Harmony (BUILT):** finish the whole labyrinth — the rite
    included — without the molten ever swallowing your footing: zero scalds,
    one run. *"The hidden harmony is better than the obvious."* (Heraclitus)

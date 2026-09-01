@@ -314,10 +314,24 @@ void main() {
     teleport('overload_maze', const Offset(420, 200));
     pinStations();
     step();
+    // THE RITE OF THREE. The find no longer pays out on the frame it fires:
+    // the trio's elements are drawn out, bound over the tower, and the
+    // BINDING hands over the gold. So the reaction has to run.
+    expect(
+      game.riteActive,
+      isTrue,
+      reason: 'Air+Fire born a bolt and a Horn crowned the tower = Thunderbolt',
+    );
+    expect(
+      discovered,
+      isNot(contains(kLightningThunderboltEggId)),
+      reason: 'and it is NOT paid yet — the reaction pays it',
+    );
+    step(3.0);
     expect(
       discovered,
       contains(kLightningThunderboltEggId),
-      reason: 'Air+Fire born a bolt and a Horn crowned the tower = Thunderbolt',
+      reason: 'the binding takes, and the gold falls out of it',
     );
     clearWisps();
 

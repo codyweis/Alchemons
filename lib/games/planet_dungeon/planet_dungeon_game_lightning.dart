@@ -37,8 +37,9 @@ part of 'planet_dungeon_game.dart';
 const String kLightningThunderboltEggId = 'egg:lightning_thunderbolt';
 
 /// Heraclitus, lit forever in the overloaded grid.
-const String kLightningThunderboltMaxim =
-    '"The thunderbolt steers all things."';
+// The quotation this planet used to end on ("The thunderbolt steers all
+// things.", Heraclitus) is retired: the payout is the Rite of Three now, and
+// a borrowed line over the top of it was a label on a picture.
 
 /// The three storm-cell echoes (authored in the mirror gallery) the cloud
 /// works can herd. Their staging order maps to the staging slots.
@@ -517,12 +518,13 @@ extension StormCircuit on PlanetDungeonGame {
                 c.ability == DungeonAbility.heavyForce,
           );
           if (horn && !discoveredClouds.contains(kLightningThunderboltEggId)) {
-            _discoverCloud(kLightningThunderboltEggId);
+            // THE RITE OF THREE (the new payout — see `beginMaximRite`).
+            // What used to happen here was `_discoverCloud` plus a popup
+            // quoting Heraclitus at the player. The reaction says it instead,
+            // in the colours of the trio that came down, and it is the
+            // reaction that hands over the gold — at its flash, not here.
+            beginMaximRite(kLightningThunderboltEggId, recv);
             _thunderboltGlow = 0.001;
-            _setHint(
-              '$kLightningThunderboltMaxim — the storm answered by its own.',
-              7.5,
-            );
           }
         }
       }
