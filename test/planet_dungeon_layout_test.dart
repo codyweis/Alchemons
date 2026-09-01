@@ -3,7 +3,12 @@ import 'dart:ui' show Rect;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart'
-    show PlanetDungeonGame, MirrorTide, StormCircuit, kSteamStartPressure;
+    show
+        PlanetDungeonGame,
+        MirrorTide,
+        StormCircuit,
+        kSteamStartPressure,
+        kScaleClueRooms;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -1086,7 +1091,28 @@ void main() {
       // Star 3: the stone scale with a two-sided solution; Terradon beyond.
       final eye = earth.rooms['eye_chamber']!.stoneScale;
       expect(eye, isNotNull);
-      expect(eye!.weights.length, 4);
+      expect(eye!.weights.length, 5);
+      // EVERY STONE MUST HAVE A MARK, and every mark a room. A stone with no
+      // clue carved anywhere is a coin-flip the player cannot reason about,
+      // which is the whole thing this star was built to avoid.
+      for (final w in eye.weights) {
+        final clueRoom = kScaleClueRooms[w.id];
+        expect(
+          clueRoom,
+          isNotNull,
+          reason: '${w.id} has no chamber carrying its mark',
+        );
+        expect(
+          earth.rooms.keys,
+          contains(clueRoom),
+          reason: '${w.id}\'s mark is in "$clueRoom", which does not exist',
+        );
+      }
+      expect(
+        kScaleClueRooms.values.toSet(),
+        hasLength(eye.weights.length),
+        reason: 'two marks in one room would be two arrows to tell apart',
+      );
       final guardian = earth.rooms['heart_chamber']!.guardian;
       expect(guardian, isNotNull);
       expect(guardian!.encounter?.mysticId, 'Terradon');

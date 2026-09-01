@@ -951,15 +951,15 @@ or it drifts into Water's seat.
    sightline: Earth raises a stone core, Lightning's arc crystallises it
    (**Earth+Lightning→Crystal**, the planet's own braid; Crystal sets it
    direct) → the GAZE PRISM stands, the pupil locks on, a gaze-beam
-   refracts through it toward the scale. Four weights, left/right pans,
+   refracts through it toward the scale. FIVE weights, left/right pans,
    only the giant's remembered arrangement balances — and the solution is
    ROLLED PER RUN (always two-sided; wikis can never spoil it). CRUCIALLY
    the answer is NOT noise: the giant's BODY remembers it — each stone's
    true pan is carved as a leaning bone-mark in a different chamber of the
    anatomy (skull→skull_antechamber, root→palm_hollow, geode→marrow_vault,
-   seed→pillar_crypt), discoverable while exploring for the earlier stars.
+   seed→pillar_crypt, **spine→sternum_court**), discoverable while exploring for the earlier stars.
    So Star 3 is a treasure hunt through the body you've walked, not binary
-   search. The stones give NO feedback; the prism count ("n of 4 sit true")
+   search. The stones give NO feedback; the prism count ("n of 5 sit true")
    is VERIFICATION of what the marks already told (read only by communing at
    the prism). Crystal insight tier-2 glows each true pan (a shortcut); the
    scale's visible tilt follows PAN LOADING only (never leaks truth); every
@@ -1990,6 +1990,28 @@ The rest were diagrams of their own mechanics.
   · ⬜ `eye_chamber`, `skull_antechamber`, `marrow_vault`, `heart_chamber`,
     `barrow_gate` still owe their anatomy.
   · ⬜ Device playtest.
+
+### EARTH STAR 3 — a fifth stone, and the room that names the system
+
+Three small changes, and the third is the one that matters.
+
+  · **A FIFTH WEIGHT, `w_spine`** — the giant's own centre. Five also breaks
+    the even split: four stones can sit 2/2 and read as symmetrical, and a
+    balance that looks balanced by default is a worse question than one that
+    plainly is not.
+  · **ITS MARK IS IN THE HUB.** The other four marks are all in side rooms,
+    so it was possible to walk the whole barrow and never suspect the marks
+    were a system. The fifth is carved on the sternum court's own spine — the
+    one room crossed on every trip.
+  · **AND THE HUB SAYS SO, ONCE.** *"The bones are carved all over. Mind the
+    symbols: they are what tips the scale."* It names the SYSTEM and never a
+    single lean, so the treasure hunt stays a treasure hunt. Without it a
+    player could read all five marks as decoration and brute-force the scale,
+    which is exactly what this star was built to avoid.
+
+The layout test now pins that every stone has a mark and every mark a real
+room, and that no two share one — a stone with no clue carved anywhere is a
+coin-flip nobody can reason about.
 
 ### EARTH STARS 1 AND 2 — REWORKED 2026-09-01
 

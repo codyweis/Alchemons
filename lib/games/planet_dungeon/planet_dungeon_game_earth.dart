@@ -62,6 +62,10 @@ const Map<String, String> kScaleClueRooms = {
   'w_root': 'palm_hollow',
   'w_geode': 'marrow_vault',
   'w_seed': 'pillar_crypt',
+  // The fifth mark is in the HUB — the one room the player crosses on every
+  // trip. The other four are all in side rooms, so it was possible to walk
+  // the whole barrow and never suspect the marks were a system at all.
+  'w_spine': 'sternum_court',
 };
 
 // Shove tunable: the rib is a HARD Earth+Horn gate, so every shove is clean.
@@ -1025,6 +1029,21 @@ extension BuriedGiant on PlanetDungeonGame {
     revealFlash = 0.6;
     revealTier = revealHintTier(a.member.statIntelligence);
     switch (room.id) {
+      case 'sternum_court':
+        // THE ROOM THAT NAMES THE SYSTEM. Five marks are carved across the
+        // barrow, each leaning the way its stone must go, and until now
+        // nothing anywhere said they were a system — a player could read all
+        // five as decoration and brute-force the scale instead. The hub says
+        // it once, in the room everyone crosses, and still never says WHICH
+        // way any of them leans.
+        _setHint(
+          hasStar(2)
+              ? 'The giant lies quiet — the scale is settled'
+              : 'The bones are carved all over. Mind the symbols: they are '
+                    'what tips the scale',
+          4.2,
+        );
+        return;
       case 'rib_hall':
         _setHint(
           'The grooves remember three roads east — shove the bones home '
@@ -1575,6 +1594,15 @@ extension BuriedGiant on PlanetDungeonGame {
         );
         canvas.drawLine(c + Offset(0, -r * 0.5), c + Offset(0, r * 0.55), p);
         break;
+      case 'w_spine':
+        // A short length of backbone: the column, and three vertebrae across
+        // it. It reads at 9px, which is the only real constraint on these.
+        canvas.drawLine(c + Offset(0, -r * 0.9), c + Offset(0, r * 0.9), p);
+        for (var i = -1; i <= 1; i++) {
+          final y = c.dy + i * r * 0.62;
+          canvas.drawLine(Offset(c.dx - r * 0.62, y), Offset(c.dx + r * 0.62, y), p);
+        }
+        break;
     }
   }
 
@@ -1601,6 +1629,8 @@ extension BuriedGiant on PlanetDungeonGame {
       'palm_hollow' => kGiantsPalm + const Offset(0, 64),
       'marrow_vault' => room.bounds.center + const Offset(0, 70),
       'pillar_crypt' => room.bounds.center,
+      // On the court's own spine, below the heart of the ribcage vault.
+      'sternum_court' => Offset(room.bounds.center.dx, room.bounds.top + 486),
       _ => room.bounds.center,
     };
     // A carved bone-groove that curves the way the stone leans, with a

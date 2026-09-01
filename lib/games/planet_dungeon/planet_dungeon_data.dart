@@ -3563,25 +3563,37 @@ const DungeonLayout _earthLayout = DungeonLayout(
       stoneScale: StoneScale(
         position: Offset(450, 400),
         plinth: Offset(450, 282),
+        // FIVE STONES, laid in an arc along the chamber floor. The fifth —
+        // the SPINE — is the giant's own centre, and its mark is carved in
+        // the sternum court, so the treasure hunt now reaches the hub the
+        // player crosses on every trip instead of only the four side rooms.
+        // Five also breaks the even split: four stones could sit 2/2 and read
+        // as symmetrical, and a balance that looks balanced by default is a
+        // worse question than one that plainly is not.
         weights: [
           ScaleWeight(
             id: 'w_skull',
-            position: Offset(250, 580),
+            position: Offset(240, 578),
             truePanRight: true,
           ),
           ScaleWeight(
             id: 'w_root',
-            position: Offset(383, 612),
+            position: Offset(345, 616),
             truePanRight: false,
           ),
           ScaleWeight(
+            id: 'w_spine',
+            position: Offset(450, 632),
+            truePanRight: true,
+          ),
+          ScaleWeight(
             id: 'w_geode',
-            position: Offset(517, 612),
+            position: Offset(555, 616),
             truePanRight: true,
           ),
           ScaleWeight(
             id: 'w_seed',
-            position: Offset(650, 580),
+            position: Offset(660, 578),
             truePanRight: false,
           ),
         ],
