@@ -314,24 +314,43 @@ void main() {
     teleport('overload_maze', const Offset(420, 200));
     pinStations();
     step();
-    // THE RITE OF THREE. The find no longer pays out on the frame it fires:
-    // the trio's elements are drawn out, bound over the tower, and the
-    // BINDING hands over the gold. So the reaction has to run.
-    expect(
-      game.riteActive,
-      isTrue,
-      reason: 'Air+Fire born a bolt and a Horn crowned the tower = Thunderbolt',
-    );
+    // THE THUNDERBOLT NO LONGER RIDES THIS BEAM. It used to fire right here
+    // if a Lightning Horn happened to be in the room when the tower lit —
+    // a secret that asked nothing of its own. It is its own chain at the
+    // dynamo now, walked below.
     expect(
       discovered,
       isNot(contains(kLightningThunderboltEggId)),
-      reason: 'and it is NOT paid yet — the reaction pays it',
+      reason: 'crowning the tower is a STAR, not the secret',
     );
-    step(3.0);
+
+    clearWisps();
+
+    // ── The Lost Maxim: refuse the dynamo's exclusivity ──
+    //
+    // AIR winds the rotor past its limit, FIRE fuses every breaker shut while
+    // it is over, and LIGHTNING throws a dynamo that has nowhere left to
+    // choose. The zero-sum rule this whole planet is built on, broken.
+    game.setActive(1); // the Air wing
+    teleport('dynamo_court', hub.bounds.center);
+    game.activateAbility();
+    expect(game.rotorOverspeed, greaterThan(0), reason: 'the rotor runs over');
+    game.setActive(2); // the Fire mask
+    for (final t in game.layout.dynamoTrunks) {
+      teleport('dynamo_court', t.breakerPosition);
+      game.activateAbility();
+    }
+    expect(game.dynamoFused, isTrue, reason: 'every blade fused');
+    game.setActive(0); // the Lightning horn
+    teleport('dynamo_court', hub.bounds.center);
+    game.activateAbility();
+    for (var tick = 0; tick < 200; tick++) {
+      game.update(1 / 60);
+    }
     expect(
       discovered,
       contains(kLightningThunderboltEggId),
-      reason: 'the binding takes, and the gold falls out of it',
+      reason: 'the works lets go (screen pays the 20 gold)',
     );
     clearWisps();
 

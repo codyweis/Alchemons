@@ -1430,7 +1430,7 @@ shape is not "a hidden thing you touch". It is:
      sentence about what it sees. A secret that can be spent is a secret that
      can be lost, in a room built for curiosity.
 
-**WHERE THE SEVENTEEN STAND AGAINST THAT.** Four clear it; the rest are the
+**WHERE THE SEVENTEEN STAND AGAINST THAT.** Five clear it; the rest are the
 queue:
 
 | Planet | Beats | Elements | Verdict |
@@ -1439,7 +1439,7 @@ queue:
 | **Air** — The Four Winds | 4 | Lightning · Fire×4 · Air×4 | ✅ |
 | **Earth** — The Giant's Palm | 4 | Earth · Lightning · Crystal×3 | ✅ rebuilt 2026-09-01 |
 | **Water** — The Stilled Mirror | 4 | Water (stand still) · Spirit×3 · Ice | ✅ rebuilt 2026-09-01 |
-| **Lightning** — Thunderbolt | 1 | rides Star 3's beam; a Horn must be present | ⬜ not its own puzzle at all |
+| **Lightning** — Thunderbolt | 3 | Air · Fire×4 · Lightning | ✅ rebuilt 2026-09-01 |
 | **Steam** — Hidden Harmony | 0 | a zero-scald run | ⬜ an achievement, not a puzzle |
 | **Lava** — Black Glass | 1 | Ice ×3 quenches | ⬜ one verb, three times |
 | **Poison** — The Dose | 1 | cure the sick wisp | ⬜ one press |
@@ -1583,11 +1583,22 @@ quotation constants are deleted from the code — nothing left to drift.
    one rather than as water.
 4. **Ice — Star-Walker:** align every telescope on the unmarked 13th star —
    visible only in reflection.
-5. **Lightning — Thunderbolt (BUILT · first planet on the RITE OF THREE):**
-   light the Storm Tower with a Lightning HORN standing among the conductors
-   (`egg:lightning_thunderbolt`, permanent tower glow). The Heraclitus line it
-   used to end on is retired; the payout is the reaction above, in the colours
-   of whichever trio came down, and the reaction hands over the gold.
+5. **Lightning — Thunderbolt (BUILT; REBUILT to the MAXIM STANDARD
+   2026-09-01):** it used to fire off Star 3's beam if a Lightning HORN
+   happened to be standing among the conductors when the tower lit — a secret
+   that rode a star's coat-tails and asked nothing of its own.
+   It is built out of the one thing this planet owns that no other does: the
+   dynamo is **ZERO-SUM**. It feeds one trunk and darkens the rest, and every
+   wing you have ever lit cost you the other three. The secret is refusing
+   that. **AIR** winds the rotor past its limit and it bleeds back down on its
+   own, so the over-speed is the clock the rite runs against · **FIRE** fuses
+   a breaker's blade shut, but only while the rotor is over, because a breaker
+   built to open will not weld on the current it was designed for — four
+   breakers, four welds · **LIGHTNING** throws a dynamo with nowhere left to
+   choose, every trunk takes at once, and the works lets go.
+   Nothing is consumed: Lightning blows a weld back off (which is the undo the
+   rite needs to be allowed a wrong turn), and a lapsed over-speed costs the
+   walk back to the rotor. The tower keeps its permanent glow.
 6. **Steam — Hidden Harmony (BUILT):** finish the whole labyrinth — the rite
    included — without the molten ever swallowing your footing: zero scalds,
    one run.
@@ -1844,9 +1855,19 @@ None of that wants touching.
     stick on it.
   · ⬜ The remaining furniture: the dynamo rotor, the cell sockets, the
     fulminate vats, the vault bolt.
-  · ⬜ **The Thunderbolt is not its own puzzle.** It rides Star 3's beam — it
-    fires when a Lightning Horn happens to be standing there as the tower
-    lights. Weakest entry in the maxim table; wants the standard's chain.
+  · ✅ **THE THUNDERBOLT IS ITS OWN CHAIN** (see §7's maxim entry). It used to
+    fire off Star 3's beam if a Lightning Horn happened to be in the room when
+    the tower lit — a secret riding a star's coat-tails. It is built out of
+    the one thing this planet owns that no other does: **the dynamo is
+    ZERO-SUM**, it feeds one trunk and darkens the rest, and every wing you
+    have ever lit cost you the other three. The secret is refusing that.
+    **AIR** winds the rotor past its limit, and it bleeds back down on its
+    own — that is the clock. **FIRE** fuses a breaker's blade shut, but only
+    while the rotor is over, because a breaker built to open will not weld on
+    the current it was designed for; four breakers, four welds, the repeated
+    beat. **LIGHTNING** throws a dynamo that has nowhere left to choose, every
+    trunk takes at once, and the works lets go. Nothing consumed: Lightning
+    blows a weld back off, and a lapsed over-speed costs the walk to the rotor.
   · ⬜ Device playtest.
 
 ### FOUR DOWN, THIRTEEN TO GO (2026-09-01)

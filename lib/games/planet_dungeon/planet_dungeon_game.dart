@@ -1293,6 +1293,19 @@ class PlanetDungeonGame extends FlameGame {
   /// sources (storm-cell sockets) are parked at a huge value and never decay.
   final Map<String, double> circuitCharge = {};
 
+  // ── THE THUNDERBOLT · Lightning's lost maxim ──
+  //
+  // The zero-sum dynamo feeds ONE trunk and darkens the rest; that exclusivity
+  // is the planet's whole rule. The secret is breaking it — welding every
+  // breaker shut so the dynamo has nowhere to choose, and throwing it.
+
+  /// Breakers Fire has fused closed. A welded breaker cannot open.
+  final Set<String> weldedBreakers = {};
+
+  /// Seconds of over-speed left on the rotor. Air winds it; the jaws only
+  /// carry enough current to fuse while it is spinning past its limit.
+  double rotorOverspeed = 0;
+
   /// Source node id → its initial charge window (drives the drain-timer arc).
   final Map<String, double> _circuitChargeMax = {};
 

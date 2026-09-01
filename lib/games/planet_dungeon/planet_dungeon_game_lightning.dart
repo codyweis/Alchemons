@@ -82,6 +82,8 @@ extension StormCircuit on PlanetDungeonGame {
   // ── Lifecycle ────────────────────────────────────────────
 
   void _resetCircuitState() {
+    weldedBreakers.clear();
+    rotorOverspeed = 0;
     if (!_isCircuit) return;
     circuitCharge.clear();
     _circuitChargeMax.clear();
@@ -551,15 +553,11 @@ extension StormCircuit on PlanetDungeonGame {
                 c.member.element == 'Lightning' &&
                 c.ability == DungeonAbility.heavyForce,
           );
-          if (horn && !discoveredClouds.contains(kLightningThunderboltEggId)) {
-            // THE RITE OF THREE (the new payout — see `beginMaximRite`).
-            // What used to happen here was `_discoverCloud` plus a popup
-            // quoting Heraclitus at the player. The reaction says it instead,
-            // in the colours of the trio that came down, and it is the
-            // reaction that hands over the gold — at its flash, not here.
-            beginMaximRite(kLightningThunderboltEggId, recv);
-            _thunderboltGlow = 0.001;
-          }
+          // (The Thunderbolt used to fire HERE, off this very beam, if a
+          // Lightning Horn happened to be standing in the room — a secret
+          // that rode a star's coat-tails and asked nothing of its own. It is
+          // its own chain at the dynamo now; see `_tryThunderbolt`.)
+          if (horn) _thunderboltGlow = max(_thunderboltGlow, 0.001);
         }
       }
     }
@@ -784,6 +782,7 @@ extension StormCircuit on PlanetDungeonGame {
   // ── Per-frame update ─────────────────────────────────────
 
   void _updateCircuit(DungeonCreature a, DungeonRoom room, double dt) {
+    _updateThunderbolt(dt);
     if (!_isCircuit) return;
 
     // Zero-sum atmosphere first (darkness ease, bolt ease, wisp prowl) —
@@ -1215,6 +1214,10 @@ extension StormCircuit on PlanetDungeonGame {
     if (_tryBareStormCells(a, room)) return true;
 
     // 0) The dynamo breakers — the zero-sum trunk selector.
+    // The rotor's own verbs come first at the dynamo: Air winds it, and
+    // Lightning throws a fused dynamo. Everything else falls through to the
+    // breakers.
+    if (_tryThunderbolt(a, room)) return true;
     if (room.id == layout.dynamoRoomId && _trySelectTrunk(a, room)) {
       return true;
     }
@@ -1278,14 +1281,147 @@ extension StormCircuit on PlanetDungeonGame {
     return false;
   }
 
+  // ── THE THUNDERBOLT · the lost maxim ─────────────────────
+  //
+  // WHAT THIS REPLACES: it fired off Star 3's beam, if a Lightning Horn
+  // happened to be standing among the conductors when the tower lit. A secret
+  // that rides a star's coat-tails and asks nothing of its own — the weakest
+  // entry on the roster.
+  //
+  // THE CHAIN, and it is built out of the one thing this planet owns that no
+  // other does: the dynamo is ZERO-SUM. It feeds one trunk and darkens the
+  // rest, and every wing you have ever lit cost you the other three. The
+  // secret is refusing that.
+  //
+  //   AIR winds the rotor past its limit. It bleeds back down on its own, so
+  //   the over-speed is the clock the whole rite runs against.
+  //   FIRE welds a breaker's blade shut — but only while the rotor is over,
+  //   because the jaws must be carrying more than they were built for to
+  //   fuse. Four breakers, four welds: the repeated beat.
+  //   LIGHTNING throws the rotor with all four fused. The dynamo has nowhere
+  //   left to choose, every trunk takes at once, and the works lets go.
+  //
+  // Nothing is consumed: Lightning on a welded breaker blows the fuse open
+  // again, and a lapsed over-speed costs the walk back to the rotor and
+  // nothing else.
+
+  /// Seconds of over-speed one winding buys.
+  static const double kRotorOverspeedSeconds = 22.0;
+
+  /// How near the rotor a creature must stand to work it.
+  static const double _kRotorReach = 70.0;
+
+  bool get _atDynamo => _isCircuit && currentRoomId == layout.dynamoRoomId;
+
+  /// Are all four breakers fused shut?
+  bool get dynamoFused =>
+      layout.dynamoTrunks.isNotEmpty &&
+      layout.dynamoTrunks.every((t) => weldedBreakers.contains(t.id));
+
+  void _updateThunderbolt(double dt) {
+    if (!_atDynamo) return;
+    if (rotorOverspeed > 0) rotorOverspeed = max(0, rotorOverspeed - dt);
+  }
+
+  /// AIR at the rotor, and LIGHTNING once it is fused.
+  bool _tryThunderbolt(DungeonCreature a, DungeonRoom room) {
+    if (!_atDynamo) return false;
+    if (discoveredClouds.contains(kLightningThunderboltEggId)) return false;
+    final c = room.bounds.center;
+    if ((a.position - c).distance > _kRotorReach) return false;
+    final element = a.member.element;
+
+    if (element == 'Air') {
+      rotorOverspeed = kRotorOverspeedSeconds;
+      _dynamoSwing = 0;
+      _spawnAlchemyBurst(
+        c,
+        producedElement: 'Air',
+        reagentElements: const ['Lightning'],
+        particleCount: 20,
+        intensity: 0.9,
+      );
+      _setHint('The rotor takes the wind and runs past its limit', 3.0);
+      return true;
+    }
+
+    if (element == 'Lightning' && dynamoFused) {
+      _spawnAlchemyBurst(
+        c,
+        producedElement: 'Lightning',
+        reagentElements: const ['Air', 'Fire'],
+        unstable: true,
+        particleCount: 40,
+        intensity: 1.4,
+      );
+      _thunderboltGlow = 0.001;
+      beginMaximRite(kLightningThunderboltEggId, c);
+      _setHint(
+        'Every trunk takes at once — the works has nowhere to put it',
+        4.2,
+      );
+      return true;
+    }
+    return false;
+  }
+
   /// Throw a trunk breaker at the dynamo. Any Lightning (element-only): the
   /// selected wing wakes, every other goes dark; throwing the live breaker
   /// again grounds the dynamo entirely.
   bool _trySelectTrunk(DungeonCreature a, DungeonRoom room) {
     for (final t in layout.dynamoTrunks) {
       if ((a.position - t.breakerPosition).distance > 56) continue;
-      if (a.member.element != 'Lightning') {
+      final el = a.member.element;
+
+      // FIRE FUSES THE JAWS — but only on a rotor running past its limit,
+      // because a breaker built to open will not weld on the current it was
+      // designed for. This is the Thunderbolt's repeated beat.
+      if (el == 'Fire' &&
+          !discoveredClouds.contains(kLightningThunderboltEggId)) {
+        if (weldedBreakers.contains(t.id)) {
+          _setHint('This one is fused — it will not open again');
+          return true;
+        }
+        if (rotorOverspeed <= 0) {
+          _setBlockedHint(
+            'The jaws are cold — nothing here is carrying enough to fuse',
+          );
+          return true;
+        }
+        weldedBreakers.add(t.id);
+        _spawnAlchemyBurst(
+          t.breakerPosition,
+          producedElement: 'Lightning',
+          reagentElements: const ['Air', 'Fire'],
+          particleCount: 18,
+          intensity: 0.95,
+        );
+        _setHint(
+          dynamoFused
+              ? 'The last blade fuses — the dynamo has nowhere left to choose'
+              : 'The blade fuses across the jaws '
+                    '(${weldedBreakers.length} of ${layout.dynamoTrunks.length})',
+          3.2,
+        );
+        return true;
+      }
+
+      if (el != 'Lightning') {
         _setBlockedHint('The breaker answers only Lightning');
+        return true;
+      }
+
+      // A FUSED BREAKER IS NOT STUCK. The storm blows the weld off it, which
+      // is the undo the whole rite needs in order to be allowed a wrong turn.
+      if (weldedBreakers.remove(t.id)) {
+        _spawnAlchemyBurst(
+          t.breakerPosition,
+          producedElement: 'Lightning',
+          unstable: true,
+          particleCount: 16,
+          intensity: 0.9,
+        );
+        _setHint('The storm blows the weld off — the blade is free', 2.8);
         return true;
       }
       _dynamoSwing = 0;
@@ -1956,8 +2092,29 @@ extension StormCircuit on PlanetDungeonGame {
       }
     }
 
-    // The rotor: brass rings + spinning spokes (faster while feeding).
-    final spin = _time * (live ? 1.7 : 0.5);
+    // The rotor: brass rings + spinning spokes (faster while feeding, and
+    // running away with itself while Air has it over its limit).
+    final over = (rotorOverspeed / kRotorOverspeedSeconds).clamp(0.0, 1.0);
+    final spin = _time * (live ? 1.7 : 0.5) + _time * 5.5 * over;
+    if (over > 0.01) {
+      // A heat ring, tightening as the wind bleeds out of it: the clock the
+      // whole rite runs against, drawn on the thing that is running.
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: 62),
+        -pi / 2,
+        -pi * 2 * over,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.4
+          ..strokeCap = StrokeCap.round
+          ..color = Color.lerp(
+            const Color(0xFFFF7A4A),
+            const Color(0xFFBFE6FF),
+            over,
+          )!.withValues(alpha: 0.9),
+      );
+    }
     if (_fx.ready) {
       drawGlow(
         canvas,
@@ -2053,8 +2210,10 @@ extension StormCircuit on PlanetDungeonGame {
         );
       }
       // THE BLADE, hinged at the left jaw: open and up when the trunk is
-      // dead, swung flat across both jaws when it is feeding.
-      final blade = sel ? swing : 0.0;
+      // dead, swung flat across both jaws when it is feeding — and FUSED flat
+      // for good once Fire has welded it, whatever the dynamo wants.
+      final welded = weldedBreakers.contains(t.id);
+      final blade = welded ? 1.0 : (sel ? swing : 0.0);
       final ang = -1.05 * (1.0 - blade);
       final hinge = bp + const Offset(-15, -4);
       final tip = hinge + Offset(cos(ang), sin(ang)) * 30;
@@ -2073,6 +2232,31 @@ extension StormCircuit on PlanetDungeonGame {
         Paint()..color = const Color(0xFFD8B878),
       );
       canvas.drawCircle(hinge, 3.2, Paint()..color = const Color(0xFFBFE6FF));
+      if (welded) {
+        // The weld bead across the far jaw, still hot.
+        final bead = bp + const Offset(15, -4);
+        canvas.drawCircle(
+          bead,
+          5.0,
+          Paint()..color = const Color(0xFFFFB46B).withValues(alpha: 0.85),
+        );
+        canvas.drawCircle(
+          bead,
+          2.2,
+          Paint()..color = const Color(0xFFFFF0D0),
+        );
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            bead,
+            16,
+            const Color(0xFFFF9A4A).withValues(
+              alpha: 0.20 + 0.10 * sin(_time * 2.2 + bp.dx),
+            ),
+          );
+        }
+      }
       if (sel) {
         // Contact arc across the closed jaws.
         canvas.drawLine(
