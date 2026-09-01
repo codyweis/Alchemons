@@ -131,12 +131,27 @@ extension StormCircuit on PlanetDungeonGame {
   /// trunk wing is lit while the dynamo feeds it — or forever once its star
   /// banks (solved is solved, the rule the circuit rooms already obey).
   bool circuitRoomLit(String roomId) {
+    // THE THUNDERBOLT'S PERMANENT MARK. The dungeon's whole rule is that the
+    // dynamo CHOOSES — one trunk fed, the rest dark, every wing you light
+    // costing you the other three. The secret is breaking that, so what it
+    // leaves behind is the rule broken for good: the welds hold, the works
+    // never chooses again, and every wing stays lit for the rest of the run
+    // and every run after it.
+    //
+    // It is also the only payoff the other four polished planets each have
+    // and this one did not — Fire's burning epitaph, Air's turning compass,
+    // Water's frozen moon, Earth's rooted crystal. Lightning left a boolean.
+    if (thunderboltWon) return true;
     final t = _trunkForRoom(roomId);
     if (t == null) return true;
     final freeze = t.freezeLitStarIndex;
     if (freeze != null && hasStar(freeze)) return true;
     return activeTrunk == t.id;
   }
+
+  /// Has the works been made to let go?
+  bool get thunderboltWon =>
+      discoveredClouds.contains(kLightningThunderboltEggId);
 
   /// Raikuma's feed state (read-only, for tests/diagnostics).
   bool get raikumaFed => _raikumaFed;
@@ -570,19 +585,16 @@ extension StormCircuit on PlanetDungeonGame {
             particleCount: 34,
             intensity: 1.3,
           );
-          // The Lost Maxim: the tower crowned with a Lightning HORN standing
-          // among the conductors (kept exactly — the maxim and its spirit).
-          final horn = creatures.any(
-            (c) =>
-                c.alive &&
-                c.member.element == 'Lightning' &&
-                c.ability == DungeonAbility.heavyForce,
-          );
+
           // (The Thunderbolt used to fire HERE, off this very beam, if a
           // Lightning Horn happened to be standing in the room — a secret
           // that rode a star's coat-tails and asked nothing of its own. It is
-          // its own chain at the dynamo now; see `_tryThunderbolt`.)
-          if (horn) _thunderboltGlow = max(_thunderboltGlow, 0.001);
+          // its own chain at the dynamo now; see `_tryThunderbolt`.
+          //
+          // And nothing is granted here: a leftover line was still setting
+          // `_thunderboltGlow` whenever a Horn crowned the tower, which handed
+          // out the maxim's gameplay effect — every wing lit for good — to
+          // anyone who simply finished Star 3.)
         }
       }
     }
@@ -2159,6 +2171,40 @@ extension StormCircuit on PlanetDungeonGame {
       }
     }
 
+    // THE SCAR. Where the works let go, the iron did not recover: a burn
+    // struck across the bed and out into the floor, with the welds still
+    // standing cold in every breaker. This is what the secret leaves behind,
+    // and it is visible from the doorway.
+    if (thunderboltWon) {
+      final burn = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFF9FD4FF).withValues(alpha: 0.30);
+      for (var i = 0; i < 6; i++) {
+        final a = i * pi / 3 + 0.4;
+        final u = Offset(cos(a), sin(a));
+        canvas.drawPath(
+          Path()
+            ..moveTo(c.dx + u.dx * 58, c.dy + u.dy * 58)
+            ..lineTo(c.dx + u.dx * 104 + u.dy * 16, c.dy + u.dy * 104 - u.dx * 16)
+            ..lineTo(c.dx + u.dx * 168, c.dy + u.dy * 168),
+          burn,
+        );
+      }
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          c,
+          120,
+          const Color(0xFF6BA8FF).withValues(
+            alpha: 0.10 + 0.04 * sin(_time * 1.1),
+          ),
+        );
+      }
+    }
+
     // The rotor: brass rings + spinning spokes (faster while feeding, and
     // running away with itself while Air has it over its limit).
     final over = (rotorOverspeed / kRotorOverspeedSeconds).clamp(0.0, 1.0);
@@ -2279,7 +2325,7 @@ extension StormCircuit on PlanetDungeonGame {
       // THE BLADE, hinged at the left jaw: open and up when the trunk is
       // dead, swung flat across both jaws when it is feeding — and FUSED flat
       // for good once Fire has welded it, whatever the dynamo wants.
-      final welded = weldedBreakers.contains(t.id);
+      final welded = thunderboltWon || weldedBreakers.contains(t.id);
       final blade = welded ? 1.0 : (sel ? swing : 0.0);
       final ang = -1.05 * (1.0 - blade);
       final hinge = bp + const Offset(-15, -4);

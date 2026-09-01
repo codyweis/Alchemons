@@ -162,4 +162,47 @@ void main() {
       );
     }
   });
+
+  group('what it leaves behind', () {
+    test('the dynamo never chooses again', () {
+      // The mark. This planet's whole rule is that the dynamo CHOOSES — one
+      // trunk fed, the rest dark, every wing costing the other three. Break
+      // it and it stays broken: every wing lit, this run and every run after.
+      final g = _dynamo();
+      final wing = g.layout.dynamoTrunks
+          .firstWhere((t) => t.id != g.layout.initialTrunkId);
+      expect(
+        g.circuitRoomLit(wing.roomIds.first),
+        isFalse,
+        reason: 'a wing the dynamo is not feeding starts dark',
+      );
+      _fuseAll(g);
+      _at(g, 'Lightning', g.currentRoom.bounds.center);
+      for (var i = 0; i < 300; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.thunderboltWon, isTrue);
+      for (final t in g.layout.dynamoTrunks) {
+        for (final id in t.roomIds) {
+          expect(
+            g.circuitRoomLit(id),
+            isTrue,
+            reason: '$id stays lit — the works has stopped choosing',
+          );
+        }
+      }
+    });
+
+    test('and crowning the tower does NOT hand that out', () {
+      // A leftover line was setting the maxim's flag whenever a Lightning
+      // Horn crowned the Storm Tower, so anyone who simply finished Star 3
+      // got every wing lit for good without ever finding the secret.
+      final g = _dynamo();
+      expect(g.thunderboltWon, isFalse);
+      final wing = g.layout.dynamoTrunks
+          .firstWhere((t) => t.id != g.layout.initialTrunkId);
+      expect(g.circuitRoomLit(wing.roomIds.first), isFalse);
+    });
+  });
+
 }

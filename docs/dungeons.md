@@ -1598,7 +1598,11 @@ quotation constants are deleted from the code — nothing left to drift.
    choose, every trunk takes at once, and the works lets go.
    Nothing is consumed: Lightning blows a weld back off (which is the undo the
    rite needs to be allowed a wrong turn), and a lapsed over-speed costs the
-   walk back to the rotor. The tower keeps its permanent glow.
+   walk back to the rotor.
+   **What it leaves behind is the rule broken for good**: the dynamo never
+   chooses again — every wing lit this run and every run after, the welds
+   standing cold in all four breakers, and the burn the discharge struck
+   across the bed plate and out into the floor.
 6. **Steam — Hidden Harmony (BUILT):** finish the whole labyrinth — the rite
    included — without the molten ever swallowing your footing: zero scalds,
    one run.
