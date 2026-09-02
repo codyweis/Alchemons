@@ -1972,6 +1972,24 @@ of old stone bars the way"** in a room that had not had one for weeks.
     the field's real puzzle (cap, ride, and watch the throw decay as each body
     leaves), and the vault test was rewritten against the burst disc, since the
     forge plug it described no longer exists.
+  · ✅ **STAR 2 WAS AWARDED FOR OPENING A DOOR.** Reported from the device as
+    "I walked up to where star 2 is and instantly got it", and that is exactly
+    what happened: the Cinder Forge is won by standing the whole party on the
+    far shore across a chasm, and its south door sat AT (295,816) — inside the
+    far shore. Walking in from the south manifold put the party down on the
+    goal and banked the star on the first tick, chasm uncrossed.
+      Moving the one door was not enough, and the layout test said why. The
+      forge sits BETWEEN the two manifolds on the ring, so it is entered from
+      above and below, and "vertical travel lands on the matching side" forces
+      those arrivals to opposite ends of the room — so ANY chasm splitting it
+      top from bottom has a door on each side, whichever shore holds the
+      pedestal. The chasm runs north-south now, both doors open on the west
+      shore, and the throw numbers were mirrored to keep the decay intact
+      (r_long needs four mouths held, r_short needs two).
+      New invariant, because this is a class and not an incident: **no way
+      into a room may put you inside that room's own win region**, and no door
+      may open on to it.
+
   · ⬜ **The ring's economy shifted and nobody noticed.** Both star rooms used
     to make you cool lava on the way through, and cooling pays the main back.
     Geyser fields pay nothing, so Fire's stoke port is the only income before

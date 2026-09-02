@@ -1191,6 +1191,51 @@ void main() {
       });
     });
 
+    test('and you never ARRIVE on the goal — no door drops you inside a '
+        "room's own win region", () {
+      // Steam's Cinder Forge is won by standing the whole party on the far
+      // shore across a chasm. Its south door sat in the far shore, so walking
+      // in from the south manifold banked Star 2 on the first tick without the
+      // chasm ever being crossed. The room read as "walked up to star 2 and
+      // instantly got it", which is exactly what it was.
+      //
+      // The general rule: if a room's star is won by BEING somewhere, no way
+      // into that room may put you there.
+      final landed = <String>[];
+      for (final entry in kPlanetDungeonLayouts.entries) {
+        final layout = entry.value;
+        for (final room in layout.rooms.values) {
+          // The win region of a launch star is the last platform — the far
+          // shore the party has to be thrown onto.
+          if (room.capstone == null) continue;
+          if (room.platforms.length < 2) continue;
+          if (!room.geysers.any((g) => g.isRiser)) continue;
+          final goal = room.platforms.last;
+          final arrivals = <Offset>[
+            if (room.id == layout.entranceRoomId) layout.entranceSpawn,
+            for (final other in layout.rooms.values)
+              for (final d in other.doors)
+                if (d.targetRoomId == room.id) d.targetSpawn,
+          ];
+          for (final a in arrivals) {
+            if (goal.inflate(2).contains(a)) {
+              landed.add('${entry.key}/${room.id} arrival $a is inside $goal');
+            }
+          }
+          // And the doors themselves, so the goal is not simply walkable to.
+          for (final d in room.doors) {
+            if (goal.inflate(2).overlaps(d.rect)) {
+              landed.add(
+                '${entry.key}/${room.id} door ${d.rect} opens on to '
+                'the win region',
+              );
+            }
+          }
+        }
+      }
+      expect(landed, isEmpty, reason: landed.join('\n'));
+    });
+
     test('and a wall never seals a door — every door is WALKABLE from where '
         'you arrive in its room', () {
       // Lightning's Pylon Hall shipped a beam-hall floor whose border iron

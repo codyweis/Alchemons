@@ -371,7 +371,7 @@ void main() {
     // two hobs, and Earth rides the far riser.
     place(steam, mouth('r_hob_b'));
     place(fire, mouth('r_hob_c'));
-    place(earth, mouth('r_long'), aim: pi / 2);
+    place(earth, mouth('r_long'), aim: 0); // the chasm runs east
     game.update(1 / 60);
     expect(
       game.geyserPressure,
@@ -391,7 +391,7 @@ void main() {
 
     // Now the field is one body weaker, and the long riser can no longer make
     // it — the short one at the lip is the only crossing left.
-    place(steam, mouth('r_short'), aim: pi / 2);
+    place(steam, mouth('r_short'), aim: 0);
     game.update(1 / 60);
     expect(game.geyserPressure, 3, reason: 'a capper left to ride');
     rideTheBlast([fire], {fire: mouth('r_hob_c'), steam: mouth('r_short')});
@@ -401,7 +401,7 @@ void main() {
     );
 
     // And the last body across rides on the weakest field of all.
-    place(fire, mouth('r_short'), aim: pi / 2);
+    place(fire, mouth('r_short'), aim: 0);
     game.update(1 / 60);
     expect(game.geyserPressure, 2, reason: 'only the choked mouth and stone');
     rideTheBlast([], {fire: mouth('r_short')});

@@ -310,10 +310,10 @@ void main() {
       _stand(game, 1, const Offset(620, 60));
       _stand(game, 2, const Offset(60, 60));
       _stand(game, 0, r.position);
-      game.creatures[0].aimAngle = 1.5708; // aimed at the far shore
-      final before = game.creatures[0].position.dy;
+      game.creatures[0].aimAngle = 0; // aimed east at the far shore
+      final before = game.creatures[0].position.dx;
       _step(game, 6);
-      final weak = game.creatures[0].position.dy - before;
+      final weak = game.creatures[0].position.dx - before;
 
       // Now the same rider with the whole field shut behind him.
       final game2 = atForge();
@@ -321,10 +321,10 @@ void main() {
       _stand(game2, 1, riser(game2, 'r_hob_a').position);
       _stand(game2, 2, riser(game2, 'r_hob_b').position);
       _stand(game2, 0, r2.position);
-      game2.creatures[0].aimAngle = 1.5708;
-      final before2 = game2.creatures[0].position.dy;
+      game2.creatures[0].aimAngle = 0;
+      final before2 = game2.creatures[0].position.dx;
       _step(game2, 6);
-      final strong = game2.creatures[0].position.dy - before2;
+      final strong = game2.creatures[0].position.dx - before2;
 
       expect(
         strong,
@@ -350,7 +350,7 @@ void main() {
       _stand(game, 1, riser(game, 'r_hob_a').position);
       _stand(game, 2, riser(game, 'r_hob_b').position);
       _stand(game, 0, riser(game, 'r_long').position);
-      game.creatures[0].aimAngle = 1.5708;
+      game.creatures[0].aimAngle = 0; // the chasm runs east now
       _step(game, 6);
       expect(
         far.inflate(2).contains(game.creatures[0].position),
@@ -360,13 +360,13 @@ void main() {
 
       // Then rider 1, with one body left behind plus the stone.
       _stand(game, 1, riser(game, 'r_short').position);
-      game.creatures[1].aimAngle = 1.5708;
+      game.creatures[1].aimAngle = 0;
       _step(game, 6);
       expect(far.inflate(2).contains(game.creatures[1].position), isTrue);
 
       // And the last one over, with only the stone and the rubble holding.
       _stand(game, 2, riser(game, 'r_short').position);
-      game.creatures[2].aimAngle = 1.5708;
+      game.creatures[2].aimAngle = 0;
       _step(game, 6);
       expect(
         far.inflate(2).contains(game.creatures[2].position),

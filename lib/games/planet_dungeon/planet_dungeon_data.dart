@@ -4364,7 +4364,10 @@ const DungeonLayout _steamLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(860, 0, 110, 24),
           targetRoomId: 'cinder_forge',
-          targetSpawn: Offset(385, 665),
+          // The near shore, low (you came up from the south manifold) — NOT
+          // (385,665), which was on the far shore and is the star's own win
+          // region, so arriving there banked Star 2 on the first tick.
+          targetSpawn: Offset(170, 700),
         ),
         // The vault shaft — hidden behind the burst-disc until it blows.
         DungeonDoor(
@@ -4449,16 +4452,28 @@ const DungeonLayout _steamLayout = DungeonLayout(
     'cinder_forge': DungeonRoom(
       id: 'cinder_forge',
       bounds: Rect.fromLTWH(0, 0, 700, 840),
+      // THE CHASM RUNS NORTH-SOUTH, and both doors open on its WEST shore.
+      //
+      // It used to split the room top from bottom with a door on each side —
+      // so walking in from the south manifold put the whole party down on the
+      // FAR shore, which is the platform Star 2 is won by standing on, and the
+      // star banked on the first tick without the chasm ever being crossed.
+      //
+      // Moving the one door was not enough, and the layout test said why: the
+      // forge sits BETWEEN the two manifolds on the ring, so it is entered
+      // from above and from below, and "travel lands on the matching side"
+      // forces those two arrivals to opposite ends of the room. Any chasm
+      // splitting it top/bottom therefore has a door on each side, whichever
+      // shore holds the pedestal. Turn the chasm ninety degrees and both
+      // arrivals sit on the same shore with their travel still reading true.
       doors: [
-        // Ring: down to the south manifold.
         DungeonDoor(
-          rect: Rect.fromLTWH(295, 816, 110, 24),
+          rect: Rect.fromLTWH(120, 816, 110, 24),
           targetRoomId: 'manifold_south',
           targetSpawn: Offset(915, 110),
         ),
-        // Ring: up to the north manifold — clamped junction.
         DungeonDoor(
-          rect: Rect.fromLTWH(295, 0, 110, 24),
+          rect: Rect.fromLTWH(120, 0, 110, 24),
           targetRoomId: 'manifold_north',
           targetSpawn: Offset(915, 310),
         ),
@@ -4480,26 +4495,32 @@ const DungeonLayout _steamLayout = DungeonLayout(
       // to come along — so the order is: hold the far riser for the crossing
       // that still has bodies behind it, and leave the near riser, the one
       // that needs least, for whoever goes last.
+      //
+      // The numbers: a throw is 120 + 55 per shut mouth, and the far shore
+      // begins at x=480. r_long(140) needs 340 — four mouths held, which is
+      // the choked one plus the stone plus two bodies, every mouth there is.
+      // r_short(250) needs 230, which is two. So the long crossing is only
+      // available while nobody has gone yet.
       platforms: [
-        Rect.fromLTWH(40, 40, 620, 300), // the near shore
-        Rect.fromLTWH(40, 560, 620, 240), // the far shore (pedestal)
+        Rect.fromLTWH(40, 40, 260, 760), // the near shore (both doors)
+        Rect.fromLTWH(480, 40, 180, 760), // the far shore (pedestal)
       ],
       geysers: [
-        // Cappable mouths on the near shore — the fuel.
-        GeyserMouth(id: 'r_hob_a', position: Offset(130, 130)),
-        GeyserMouth(id: 'r_hob_b', position: Offset(330, 110)),
-        GeyserMouth(id: 'r_hob_c', position: Offset(540, 130)),
+        // Cappable mouths down the near shore — the fuel.
+        GeyserMouth(id: 'r_hob_a', position: Offset(80, 120)),
+        GeyserMouth(id: 'r_hob_b', position: Offset(80, 420)),
+        GeyserMouth(id: 'r_hob_c', position: Offset(80, 700)),
         GeyserMouth(
           id: 'r_choked',
-          position: Offset(560, 280),
+          position: Offset(240, 120),
           blockedAtStart: true,
         ),
-        // The two risers, at the chasm's lip. The far one needs a full field
-        // behind it; the near one is the short hop anyone can take.
-        GeyserMouth(id: 'r_long', position: Offset(200, 220), isRiser: true),
-        GeyserMouth(id: 'r_short', position: Offset(470, 330), isRiser: true),
+        // The two risers. The far one needs a full field behind it; the near
+        // one is the short hop anyone can take.
+        GeyserMouth(id: 'r_long', position: Offset(140, 240), isRiser: true),
+        GeyserMouth(id: 'r_short', position: Offset(250, 560), isRiser: true),
       ],
-      capstone: GeyserCapstone(position: Offset(350, 690), starIndex: 1),
+      capstone: GeyserCapstone(position: Offset(570, 420), starIndex: 1),
     ),
 
     // North Manifold — the ring's top segment. The rite-sealed crucible gate
@@ -4519,7 +4540,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(860, 396, 110, 24),
           targetRoomId: 'cinder_forge',
-          targetSpawn: Offset(105, 175),
+          targetSpawn: Offset(170, 150), // the near shore, high
         ),
         // The crucible gate — rite-sealed until Causeway + Cinder bank.
         DungeonDoor(
