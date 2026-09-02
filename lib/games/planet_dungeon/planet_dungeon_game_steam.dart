@@ -98,7 +98,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     geyserCycle = 0;
     earthRock = null;
     earthRockRaise = 0;
-    capstoneBurst = false;
+    burstCapstoneRooms.clear();
   }
 
   // ── STAR 1 · THE GEYSER FIELD ────────────────────────────
@@ -295,11 +295,42 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// EARTH's verb in this labyrinth: heave one rock out of the floor, and
   /// heave it back down. Only ever ONE — pressing again on your own rock
   /// destroys it, which is what makes WHERE you spend it the question.
+  /// Is this creature standing at something the ring-main answers for — a
+  /// clamped junction, a stoke port, or the burst disc?
+  bool _nearPressureFixture(DungeonCreature a, DungeonRoom room) {
+    final port = room.stokePort;
+    if (port != null && (a.position - port).distance <= _kPressureReach) {
+      return true;
+    }
+    final disc = room.burstDisc;
+    if (disc != null &&
+        (a.position - disc.position).distance <= _kPressureReach) {
+      return true;
+    }
+    for (final door in room.doors) {
+      if (_sealFor(room, door) == null) continue;
+      if (!_sealBlocked(room, door)) continue;
+      if ((a.position - door.rect.center).distance <= _kPressureReach) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   bool _tryEarthRock(DungeonCreature a) {
     if (!_isVapor) return false;
     final room = currentRoom;
     if (room.geysers.isEmpty) return false;
     if (a.member.element != 'Earth') {
+      // A REFUSAL MUST NEVER OUTRANK A THING THAT WOULD ACTUALLY WORK. Earth's
+      // stone answers before the ring-main's fixtures on purpose, but this
+      // branch claimed EVERY non-Earth press anywhere in a geyser room — and
+      // both geyser rooms have pressure-sealed doors. So a Steam creature
+      // standing on a clamped junction inside the Cinder Forge got "only Earth
+      // raises stone from this floor" and the junction was never thrown: a
+      // refusal that was both wrong and about something the player had not
+      // asked for. Stand back and let the fixture answer.
+      if (_nearPressureFixture(a, room)) return false;
       _setBlockedHint('Only Earth raises stone from this floor');
       return true;
     }
@@ -665,6 +696,31 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         }
       }
     }
+  }
+
+  /// Every meltable gate in [roomId]'s band, and whether it is WET — asked
+  /// through the REAL rule, so the layout test's proof cannot drift from the
+  /// thing the renderer draws and the player reads.
+  ///
+  /// This exists because the crucible shipped with the cisterns one column
+  /// off: diagonally beside the gates rather than orthogonally behind them.
+  /// `_wallIsWet` looks at the four orthogonal neighbours only, so not one
+  /// gate on the planet was ever wet, and choose-your-breach — the dungeon's
+  /// first lesson, per the design doc — had no instance in the built game.
+  @visibleForTesting
+  Map<String, bool> gateWetness(String roomId) {
+    final room = layout.rooms[roomId]!;
+    final g = room.molten;
+    if (g == null) return const {};
+    final grid = _moltenFor(room);
+    final out = <String, bool>{};
+    for (var r = 0; r < g.rowCount; r++) {
+      for (var c = 0; c < g.cols; c++) {
+        if (g.rows[r][c] != '#') continue;
+        out['$c,$r'] = _wallIsWet(grid, g, c, r);
+      }
+    }
+    return out;
   }
 
   /// A wall cell is WET when molten leans on it from any side — breaching it

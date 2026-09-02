@@ -911,13 +911,27 @@ or it drifts into Water's seat.
    HUD. Egg: Hidden Harmony (zero scalds) unchanged. Rooms: boiler_gate,
    manifold_south, ember_causeway, manifold_north, cinder_forge, crucible,
    burst_vault, boiler_heart.
-   Each star room is a tile grid of sleeping lava cisterns that WAKE the moment
-   Fire breaks rock (**Earth+Fire→Lava**): Fire melts walls to lava, Steam cools
-   lava to stone (breath-metered), Earth dams the creep. S1 choose-your-breach:
-   the causeway wall is a dam — wet sections glow with ember cracks (molten
-   behind; breaching them floods your own chamber), one is dry. S2 bunker the
-   sanctuary gate BEFORE melting it. Rite: break the crucible band, quench the
-   source, take the pedestal → Boilrog.
+   **STARS 1 AND 2 ARE GEYSER FIELDS (reworked 2026-08-14; this paragraph
+   described the retired tile-lava rooms until 2026-09-01).** S1 (Ember
+   Causeway): five mouths ring the floor and a sixth waits under a slab at the
+   heart; one ring mouth starts choked, so four blow — exactly three bodies
+   plus the one stone an Earth hand can raise. Every cap sends its head to the
+   mouths still open, so the field gets angrier the closer you are to solving
+   it, and the stone has to be placed while it is still calm enough to cross.
+   Shut them all and the heart takes the whole head. S2 (Cinder Forge): the
+   same field with a chasm through it — three cappable hobs, a choked mouth,
+   and two RISERS whose throats are too wide for a body to smother. Cap the
+   hobs and a riser throws whoever rides it, as far as the shut field allows —
+   but every body sent across is one fewer holding the field down, so **the
+   longest throw has to be taken first** and the last one across rides the
+   weakest field. Star banks when the whole party stands on the far shore.
+   The MOLTEN GRID survives in the crucible alone: Fire melts walls to lava,
+   Steam cools lava to stone (breath-metered), Earth dams the creep, and the
+   flood sleeps until Fire first breaks rock. Its band offers
+   CHOOSE-YOUR-BREACH — of each pair of gates the inner one (the short way to
+   the pedestal) has a cistern behind it and floods your own chamber, the
+   outer is dry. Rite: still the reservoir, break in, quench the rest, take the
+   pedestal → Boilrog.
    NOTE for future builds — verbs Steam now owns: "cool lava into paths"
    (Lava planet must lean into CASTING/molds instead), tile wall raise/remove
    (Mud's reshaping should drag/flow terrain), tile-flood spreading (Poison's
@@ -1897,6 +1911,77 @@ mechanics are actually made of. The art pass came first, then the puzzles:
     answer to that and has not been timed yet. If it is still quick, the next
     lever is a mast that wants WIND rather than lightning, which squeezes the
     flame into a window instead of an extreme — verified buildable, not built.
+
+### 🔧 STEAM — in progress (2026-09-01)
+
+**The record and the game had come apart.** On 2026-08-14 both star rooms were
+rebuilt from tile-lava chambers into geyser fields. That rework reached the
+code and nothing else: the docs above still described a dam, the room's own
+data comment still described its retired 10×12 grid, the Cinder Forge's
+comment still called itself Star 1, eight tests still played rooms that no
+longer exist — and **the objective line the player reads still promised "a dam
+of old stone bars the way"** in a room that had not had one for weeks.
+
+  · ✅ **The rooms stopped being diagrams.** A 104px square lattice under every
+    chamber, on the planet whose whole premise is a PRESSURE RING-MAIN. It is
+    firebrick in offset courses now, kilned unevenly and heat-bloomed, with the
+    ring-main's own pipe runs sunk into the floor of every room under bolted
+    flanges and a condensate grate down the low side.
+  · ✅ **The Crucible stopped being a board game** — and the third star happens
+    in it. Lava is a crust with its bright body showing through the cracks;
+    rock is split basalt; walls are dressed blocks with a lit top and shadowed
+    foot. The biggest single change was to stop drawing an outlined tile for
+    the EMPTY cells: the lattice was the loudest thing in the room. The floor
+    is continuous now and only the material sits on it.
+  · ✅ **The geyser mouths got their geology** — sinter terraces built
+    unevenly, a wet stain that never dries at the lip, a broken ring of stone
+    teeth around a dark throat. (Everything the FX layer already did — steam,
+    glow, the strain of a shut mouth — was left alone. The headless render
+    lacks the baked sprites, so it shows the skeleton and not the room.)
+  · ✅ **CHOOSE-YOUR-BREACH EXISTED NOWHERE.** The crucible's cisterns sat one
+    column off — diagonally beside the meltable gates instead of orthogonally
+    behind them — and `_wallIsWet` only looks at the four orthogonal
+    neighbours. So not one gate on the planet was ever wet, the renderer's
+    ember-crack state never fired, and the dungeon's first lesson had no
+    instance in the built game. Two characters in the authored rows put it
+    back, and the inner gate of each pair is the wet one, so **the greedy
+    breach is the punished one**. A layout invariant now asks the REAL rule.
+  · ✅ **THE PLANET WAS UNWINNABLE IN ITS INTENDED ORDER.** Three bugs, all the
+    same shape — run-global state that should have been per-room:
+      1. `capstoneBurst` is one latch shared by both geyser rooms. Star 1 sets
+         it, and Star 2's win condition is guarded by `!capstoneBurst`, so once
+         Star 1 was banked Star 2 could never fire at all.
+      2. `earthRock` is one stone for the whole run. Raised to cap a mouth in
+         the causeway it was still standing in the forge, where Earth is told
+         "your stone already stands" — and the forge needs its stone to free a
+         third body to ride. Worse, the stale coordinates were measured against
+         the NEW room's mouths, so a stone left behind could cap a mouth in a
+         chamber it was not in.
+      3. `_tryEarthRock` claimed EVERY non-Earth press anywhere in a geyser
+         room, and both geyser rooms have pressure-sealed doors — so a Steam
+         creature standing on a clamped junction got "only Earth raises stone
+         from this floor" and the junction was never thrown. A refusal must
+         never outrank a thing that would actually work.
+    The first two are scoped by room now rather than cleared on a room-change
+    TICK: a tick-based reset fires on the first frame AFTER the change, which
+    is after an action, and it was quietly wiping stones that had just been
+    raised. (I shipped that version first and it broke the geyser tests, which
+    is how I found out.)
+  · ✅ **The eight stale tests are gone** — the suite is at two failures, both
+    pre-existing balance tests unrelated to dungeons. Star 2's script now plays
+    the field's real puzzle (cap, ride, and watch the throw decay as each body
+    leaves), and the vault test was rewritten against the burst disc, since the
+    forge plug it described no longer exists.
+  · ⬜ **The ring's economy shifted and nobody noticed.** Both star rooms used
+    to make you cool lava on the way through, and cooling pays the main back.
+    Geyser fields pay nothing, so Fire's stoke port is the only income before
+    the crucible: the head buys two junctions, then every further junction is
+    bought with a stoke and the wisps it draws. The ring can still be fully
+    opened — on exactly one stoke, ending on an empty main. Playable, and
+    arguably better (it costs fights, not arithmetic), but it is not what §6
+    describes and it has never been felt on a device.
+  · ⬜ CARRIED: device playtest; the rest of the art pass (the capstone slab is
+    still a flat disc); Boilrog and the boiler heart unexamined.
 
 ### FIVE DOWN, TWELVE TO GO (2026-09-01)
 

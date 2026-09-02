@@ -1415,14 +1415,46 @@ class PlanetDungeonGame extends FlameGame {
   double geyserCycle = 0;
 
   /// The one rock an Earth hand can hold in the world at a time (null = none).
-  Offset? earthRock;
+  /// THE STONE AND THE SLAB BELONG TO A ROOM, NOT TO THE RUN. Both were plain
+  /// run-globals, which broke Steam twice over: a stone raised to cap a mouth
+  /// in the Ember Causeway was still standing in the Cinder Forge (so Earth
+  /// could not raise the one that frees a third body to ride), and the
+  /// capstone latch set by Star 1 permanently failed the `!capstoneBurst`
+  /// guard on Star 2's win condition, making the planet unwinnable in its
+  /// intended order.
+  ///
+  /// Scoping them by room rather than clearing them on a room-change TICK
+  /// matters: a tick-based reset fires on the first frame after the change,
+  /// which is after an action in any test — and after a door transition on
+  /// device — so it was quietly wiping stones that had just been raised.
+  String? earthRockRoom;
+  final Set<String> burstCapstoneRooms = {};
+
+  /// True when THIS room's capstone has gone. (Field-shaped on purpose: every
+  /// existing read and write keeps working.)
+  bool get capstoneBurst => burstCapstoneRooms.contains(currentRoomId);
+  set capstoneBurst(bool v) => v
+      ? burstCapstoneRooms.add(currentRoomId)
+      : burstCapstoneRooms.remove(currentRoomId);
+
+  Offset? _earthRock;
+
+  /// The stone standing in the room you are in — null if the only stone you
+  /// have raised belongs to a different chamber.
+  Offset? get earthRock =>
+      earthRockRoom == null || earthRockRoom == currentRoomId
+      ? _earthRock
+      : null;
+  set earthRock(Offset? v) {
+    _earthRock = v;
+    earthRockRoom = v == null ? null : currentRoomId;
+  }
 
   /// Eased 0→1 as the rock heaves up out of the floor; the shove only answers
   /// once it has fully risen.
   double earthRockRaise = 0;
 
   /// True once the capstone has burst (the star follows).
-  bool capstoneBurst = false;
 
   /// Fire-blood too fresh to quench (roomId → cell indices), cleared on the
   /// next creep beat.

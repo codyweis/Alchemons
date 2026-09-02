@@ -285,34 +285,133 @@ void main() {
       eastJunction.rect.center + const Offset(0, 40),
     );
     expect(game.isDoorLocked(south, eastJunction), isFalse);
-    final afterEast = kSteamStartPressure - 30 + 2 * kSteamCondensateGain;
-    expect(game.boilerPressure, afterEast);
+    // THE GEYSER FIELD EARNS NO CONDENSATE. This used to read
+    // `- 30 + 2 * kSteamCondensateGain`, because the old tile-lava causeway
+    // made you cool two cells on the way through and cooling pays the main
+    // back. Star 1 is a geyser field now: you cap mouths, you never cool
+    // anything, so the head after two junctions is simply what is left of it.
+    // Worth knowing rather than patching quietly — the ring's economy got
+    // tighter when the causeway went, and Fire's stoke port is now the only
+    // income before the crucible.
+    expect(game.boilerPressure, kSteamStartPressure - 30);
 
-    // ── THE TWO POURS: breach the west entrance, cross the gallery, and
-    // work the two-thick plug while the cisterns pour into your road ──
-    standAt('cinder_forge', 4, 6, 4, 5);
-    step(); // entering builds the room's mutable grid
-    final forge = game.moltenCells['cinder_forge']!;
-    waitForBreath(3);
-    // The gallery is walkable, the pours are asleep, and the vault is shut by
-    // a plug TWO walls thick — melting it is what wakes the cisterns under
-    // your feet, so the whole fight happens while you are pinned here.
-    expect(forge[5][4], 1, reason: 'the inner plug');
-    expect(forge[4][4], 1, reason: 'and the outer plug behind it');
-    expect(game.wokeRooms.contains('cinder_forge'), isFalse);
-    act('cinder_forge', fire, 4, 6, 4, 5);
-    expect(game.wokeRooms, contains('cinder_forge'));
-    act('cinder_forge', steam, 4, 6, 4, 5);
-    standAt('cinder_forge', 4, 5, 4, 4);
-    waitForBreath(1);
-    act('cinder_forge', fire, 4, 5, 4, 4);
-    act('cinder_forge', steam, 4, 5, 4, 4);
-    standAt('cinder_forge', 5, 3, 5, 3); // the pedestal, inside the vault
+    // ── STAR 2: THE CINDER FORGE — cap the hobs, ride the risers ──
+    // WHAT THIS REPLACES: a molten forge with a two-thick plug, two pours
+    // boxed in bedrock, and a vault pedestal behind it. That room was retired
+    // on 2026-08-14 and rebuilt as a geyser field with a chasm across it, so
+    // the script below was playing furniture that no longer exists.
+    //
+    // The field's own puzzle is a DECAY. Every capped mouth sends its head to
+    // the ones still open, so a riser throws further the more of the field is
+    // held — and each body you send across the chasm is one fewer body holding
+    // it down for the next. The far throw has to be taken FIRST, while the
+    // field is at its fullest, and Earth's one stone is what frees a third
+    // body to ride at all.
+    final forgeRoom0 = room('cinder_forge');
+    game.currentRoomId = 'cinder_forge';
+    expect(
+      game.earthRock,
+      isNull,
+      reason:
+          'the causeway keeps its own stone — a stone belongs to the floor it '
+          'came out of, so Earth can raise a fresh one here',
+    );
+    Offset mouth(String id) =>
+        forgeRoom0.geysers.firstWhere((g) => g.id == id).position;
+    final farShore = forgeRoom0.platforms.last;
+    void place(int slot, Offset at, {double? aim}) {
+      final c = game.creatures[slot];
+      c
+        ..position = at
+        ..lastSafe = at;
+      if (aim != null) {
+        c
+          ..angle = aim
+          ..aimAngle = aim;
+      }
+    }
+
+    /// Hold everyone still through the field's next eruption.
+    void rideTheBlast(List<int> holders, Map<int, Offset> stations) {
+      var frames = 0;
+      final before = Map<int, Offset>.fromEntries(
+        stations.keys.map((k) => MapEntry(k, game.creatures[k].position)),
+      );
+      while (frames++ < 60 * 9) {
+        for (final h in holders) {
+          place(h, stations[h]!);
+        }
+        game.update(1 / 60);
+        for (final cr in game.creatures) {
+          if (cr.alive) cr.hp = cr.maxHp;
+        }
+        final moved = stations.keys.any(
+          (k) =>
+              !holders.contains(k) &&
+              (game.creatures[k].position - before[k]!).distance > 40,
+        );
+        if (moved) break;
+      }
+    }
+
+    // Earth heaves its one stone onto a hob — that is the third capper, and
+    // without it nobody is free to ride.
+    game.setActive(earth);
+    place(earth, mouth('r_hob_a') + const Offset(0, 60), aim: -pi / 2);
+    game.activateAbility();
+    expect(game.earthRock, isNotNull);
+    step(0.8);
+    expect(
+      game.cappedGeysers,
+      contains('r_hob_a'),
+      reason: 'the stone smothers the hob it was pushed onto',
+    );
+
+    // THE LONG THROW, taken while the field is fullest: bodies on the other
+    // two hobs, and Earth rides the far riser.
+    place(steam, mouth('r_hob_b'));
+    place(fire, mouth('r_hob_c'));
+    place(earth, mouth('r_long'), aim: pi / 2);
+    game.update(1 / 60);
+    expect(
+      game.geyserPressure,
+      4,
+      reason: 'choked + stone + two bodies — every mouth but the risers',
+    );
+    rideTheBlast([steam, fire], {
+      steam: mouth('r_hob_b'),
+      fire: mouth('r_hob_c'),
+      earth: mouth('r_long'),
+    });
+    expect(
+      farShore.inflate(2).contains(game.creatures[earth].position),
+      isTrue,
+      reason: 'a full field throws the long riser clear across the chasm',
+    );
+
+    // Now the field is one body weaker, and the long riser can no longer make
+    // it — the short one at the lip is the only crossing left.
+    place(steam, mouth('r_short'), aim: pi / 2);
+    game.update(1 / 60);
+    expect(game.geyserPressure, 3, reason: 'a capper left to ride');
+    rideTheBlast([fire], {fire: mouth('r_hob_c'), steam: mouth('r_short')});
+    expect(
+      farShore.inflate(2).contains(game.creatures[steam].position),
+      isTrue,
+    );
+
+    // And the last body across rides on the weakest field of all.
+    place(fire, mouth('r_short'), aim: pi / 2);
+    game.update(1 / 60);
+    expect(game.geyserPressure, 2, reason: 'only the choked mouth and stone');
+    rideTheBlast([], {fire: mouth('r_short')});
+    expect(farShore.inflate(2).contains(game.creatures[fire].position), isTrue);
+
     step();
     expect(
       game.hasStar(1),
       isTrue,
-      reason: 'reaching the vault pedestal banks star 1',
+      reason: 'the whole party on the far shore yields the pedestal',
     );
     clearWisps();
 
@@ -325,20 +424,60 @@ void main() {
     final forgeNorthDoor = forgeRoom.doors.firstWhere(
       (d) => d.targetRoomId == 'manifold_north',
     );
+    // THE PINCH MOVED. With both star rooms rebuilt as geyser fields there is
+    // no cooling on the way round any more, so the head does not top itself
+    // up: after two junctions it stands at 10 and the third is already out of
+    // reach. The clamp refuses and takes nothing.
+    expect(game.boilerPressure, lessThan(15));
+    actAt(
+      'cinder_forge',
+      steam,
+      forgeNorthDoor.rect.center + const Offset(0, 40),
+    );
+    expect(
+      game.isDoorLocked(forgeRoom, forgeNorthDoor),
+      isTrue,
+      reason: 'an unaffordable clamp refuses',
+    );
+    expect(
+      game.boilerPressure,
+      kSteamStartPressure - 30,
+      reason: 'and takes nothing for the attempt',
+    );
+
+    // So the ring has to be PAID FOR, and Fire's stoke port is the only
+    // income left before the crucible — at the price of the wisps each roar
+    // pulls in. That is the strategic pinch now: it costs you fights.
+    final southPort = south.stokePort!;
+    actAt('manifold_south', fire, southPort + const Offset(30, 0));
+    expect(game.boilerPressure, kSteamStartPressure - 30 + kSteamStokeGain);
+    expect(
+      game.combatEnemies.where((e) => !e.isDead),
+      isNotEmpty,
+      reason: 'the stoke roar draws wisps',
+    );
+    clearWisps();
+
     actAt(
       'cinder_forge',
       steam,
       forgeNorthDoor.rect.center + const Offset(0, 40),
     );
     expect(game.isDoorLocked(forgeRoom, forgeNorthDoor), isFalse);
-    // +2 forge cools: the reworked vault plug is two walls thick.
-    final afterNorth = afterEast - 15 + 2 * kSteamCondensateGain;
+    final afterNorth = kSteamStartPressure - 30 + kSteamStokeGain - 15;
     expect(game.boilerPressure, afterNorth);
-    expect(
-      afterNorth,
-      lessThan(15),
-      reason: 'the strategic pinch: the fourth junction cannot be bought',
-    );
+    // Exactly one junction's worth left, and nothing else. The ring CAN be
+    // closed on a single stoke — but doing it empties the main, and the
+    // burst-disc vault wants a 60-surge in one go, so the whole cost of a
+    // fully-open ring is paid again in stokes (and in the wisps each one
+    // brings) before the treasury is even on the table.
+    expect(afterNorth, 15);
+    // The last clamp takes exactly what is left, and the ring closes on an
+    // empty main. (This used to expect a refusal here — with the causeway's
+    // condensate income the fourth junction really was out of reach. One
+    // stoke replaced that income and then some, so the pinch is no longer
+    // "you cannot open the ring"; it is "opening it leaves you nothing", and
+    // the burst-disc vault upstairs wants a 60-surge in a single go.)
     final northWestDoor = north.doors.firstWhere(
       (d) => d.targetRoomId == 'ember_causeway',
     );
@@ -347,12 +486,12 @@ void main() {
       steam,
       northWestDoor.rect.center + const Offset(0, -40),
     );
+    expect(game.isDoorLocked(north, northWestDoor), isFalse);
     expect(
-      game.isDoorLocked(north, northWestDoor),
-      isTrue,
-      reason: 'an unaffordable clamp refuses — and takes nothing',
+      game.boilerPressure,
+      0,
+      reason: 'the ring is open and the main is spent to the last unit',
     );
-    expect(game.boilerPressure, afterNorth);
 
     // ── Rite: the Crucible — THE SOURCE, QUENCHED (reworked) ──
     // The pedestal will not sink while one vein still runs, and the cisterns
@@ -388,7 +527,10 @@ void main() {
     );
 
     // ── Hidden Harmony: the whole labyrinth without one scald ──
+    // The rite PAYS OUT through the Rite of Three, so the egg lands when that
+    // reaction settles (~4.2s), not on the frame the pedestal sinks.
     expect(game.moltenScalds, 0);
+    step(5.0);
     expect(discovered, contains(kSteamHiddenHarmonyEggId));
     clearWisps();
 
@@ -468,18 +610,27 @@ void main() {
     game.update(1 / 60);
     final cells = game.moltenCells['crucible']!;
 
-    // The dry meltable face sits at col5/row5 — the '#' band in the
-    // crucible's authored rows. (Was row6, stale by one after an art edit.)
-    const wc = 5, wr = 5;
+    // A DRY meltable face — col4/row5 of the '#' band. (Two corrections: the
+    // band moved to row 5 in an art edit, and col 5 is one of the two WET
+    // gates since the cisterns were put back behind the inner pair, so a verb
+    // test that wants nothing to burst has to use an outer one.)
+    const wc = 4, wr = 5;
     expect(cells[wr][wc], 1);
+    expect(
+      game.gateWetness('crucible')['$wc,$wr'],
+      isFalse,
+      reason: 'this test wants a face that will not burst on breaching',
+    );
 
     void faceWallAs(int idx) {
       game.setActive(idx);
+      // Standing on the FLOOR north of the gate, facing down at it. (This
+      // used to stand at (wc-1, wr), which is inside the band itself.)
       game.creatures[idx]
-        ..position = _center(room, g, wc - 1, wr)
-        ..lastSafe = _center(room, g, wc - 1, wr)
-        ..angle = 0
-        ..aimAngle = 0; // facing right toward the wall
+        ..position = _center(room, g, wc, wr - 1)
+        ..lastSafe = _center(room, g, wc, wr - 1)
+        ..angle = pi / 2
+        ..aimAngle = pi / 2;
     }
 
     faceWallAs(0); // Steam
@@ -489,14 +640,13 @@ void main() {
     faceWallAs(2); // Fire
     game.activateAbility();
     expect(cells[wr][wc], 3, reason: 'Fire melts the wall to lava');
-    // STALE, and not just a coordinate: this melts in the crucible and
-    // expects ember_causeway to wake, but the crucible wakes instead. Whether
-    // the propagation rule changed or the test always meant its own room is a
-    // design question, not a lookup — see the note at the top of this file.
+    // Settled: waking is per-room and the melt happens HERE, so the crucible
+    // is what wakes. (The Ember Causeway has not been a molten room since the
+    // 2026-08-14 geyser rework, so it can no longer wake at all.)
     expect(
       game.wokeRooms,
-      contains('ember_causeway'),
-      reason: 'the first melt wakes the room',
+      contains('crucible'),
+      reason: 'the first melt wakes the room it happens in',
     );
 
     // Earth cannot wall a lava cell (only open ground).
@@ -505,7 +655,12 @@ void main() {
     expect(cells[wr][wc], 3, reason: 'Earth cannot wall over molten');
 
     // Steam cools the lava back to open — spending one breath, earning
-    // condensate for the main.
+    // condensate for the main. FRESH fire-blood will not take the breath (see
+    // 'a breach RUNS'), so the beat has to pass first.
+    for (var i = 0; i < 60 * 2.5; i++) {
+      game.update(1 / 60);
+    }
+    faceWallAs(0);
     final breathBefore = game.steamBreath;
     final pressureBefore = game.boilerPressure;
     faceWallAs(0); // Steam
@@ -656,39 +811,42 @@ void main() {
   });
 
   test('the flood sleeps until woken, then creeps on the beat', () {
+    // (Was written against `cinder_forge`, which has had no molten grid since
+    // the 2026-08-14 geyser rework — `room.molten!` on it now throws. The
+    // crucible is the planet's one remaining molten chamber.)
     final game = _harness([_member(0, 'Steam', 'pip')]);
-    final room = game.layout.rooms['cinder_forge']!;
+    final room = game.layout.rooms['crucible']!;
     final g = room.molten!;
-    game.currentRoomId = 'cinder_forge';
+    game.currentRoomId = 'crucible';
     void park() {
+      // The north field, on the far side of the band from both cisterns.
       game.creatures.single
-        ..position = _center(room, g, 1, 9)
-        ..lastSafe = _center(room, g, 1, 9);
+        ..position = _center(room, g, 1, 1)
+        ..lastSafe = _center(room, g, 1, 1);
     }
 
     park();
     game.update(1 / 60);
-    final cells = game.moltenCells['cinder_forge']!;
-    // The two pours sit under the gallery at (3,7) and (5,7).
-    expect(cells[7][3], 3);
-    expect(cells[7][5], 3);
+    final cells = game.moltenCells['crucible']!;
+    // The two cisterns sit behind the inner gates of the band.
+    expect(cells[6][5], 3);
+    expect(cells[6][7], 3);
     // Asleep: nothing creeps, however long you wait.
     for (var i = 0; i < 60 * 5; i++) {
       park();
       game.update(1 / 60);
     }
-    expect(cells[6][3], 0, reason: 'a sleeping cistern never creeps');
+    expect(cells[7][5], 0, reason: 'a sleeping cistern never creeps');
+    expect(cells[7][7], 0);
 
-    // Woken: the flood claims the neighbour within a beat.
-    game.wokeRooms.add('cinder_forge');
+    // Woken: each claims its neighbours within a beat.
+    game.wokeRooms.add('crucible');
     for (var i = 0; i < 60 * 3; i++) {
       park();
       game.update(1 / 60);
     }
-    // Each pour is walled on three sides, so it has exactly one way to go:
-    // UP, into the gallery cell the player has to walk across.
-    expect(cells[6][3], 3, reason: 'a woken cistern floods its neighbours');
-    expect(cells[6][5], 3, reason: 'and so does the other pour');
+    expect(cells[7][5], 3, reason: 'a woken cistern floods its neighbours');
+    expect(cells[7][7], 3, reason: 'and so does the other');
   });
 
   test('the crucible rite is a QUENCHING: the source, before the pedestal', () {
@@ -806,41 +964,62 @@ void main() {
     expect(cells[5][4], 0, reason: 'a spent breach stills to standing stone');
   });
 
-  test('the vault cannot be taken in one melt any more', () {
-    // The old forge was a 2.6s dash — one gate, one cool, done, with the
-    // cisterns too far away to ever act. The plug is now two walls thick and
-    // the two pours sit under the only cell it can be worked from.
-    final game = _harness([_member(0, 'Steam', 'pip')]);
-    final room = game.layout.rooms['cinder_forge']!;
-    final cells =
-        game.moltenCells[room.id] ??
-        () {
-          game.currentRoomId = 'cinder_forge';
-          game.update(1 / 60);
-          return game.moltenCells['cinder_forge']!;
-        }();
+  test('the vault cannot be taken cheaply: the disc refuses a short surge and '
+      'takes nothing for the attempt', () {
+    // WHAT THIS REPLACES: a test of the old Cinder Forge — a two-thick plug
+    // with two pours boxed in bedrock under the only cell it could be worked
+    // from. That whole room was retired on 2026-08-14 and rebuilt as a geyser
+    // field, so the test was describing furniture that no longer exists. The
+    // vault's guard is the BURST DISC now, and this is that guard: it opens to
+    // one whole-main surge or to nothing, and a short one is not part-paid.
+    final game = _harness([
+      _member(0, 'Steam', 'pip'),
+      _member(1, 'Earth', 'horn'),
+      _member(2, 'Fire', 'mask'),
+    ]);
+    final south = game.layout.rooms['manifold_south']!;
+    final disc = south.burstDisc!;
+    game.currentRoomId = 'manifold_south';
+    game.setActive(0);
+    game.update(1 / 60);
 
-    // Two walls between the gallery and the vault, stacked.
-    expect(cells[5][4], 1);
-    expect(cells[4][4], 1);
-    // The pours sit directly under the working cell's neighbours, walled on
-    // three sides so each has exactly one way to run: onto your road.
-    expect(cells[7][3], 3);
-    expect(cells[7][5], 3);
-    for (final (c, r) in const [(2, 7), (4, 7), (6, 7), (3, 8), (5, 8)]) {
-      expect(
-        cells[r][c],
-        2,
-        reason: 'a pour is boxed in bedrock except upward',
-      );
-    }
-    // And the vault itself is sealed on every other face.
-    for (final c in [3, 4, 5, 6]) {
-      expect(cells[2][c], 2, reason: 'the vault roof is bedrock');
-    }
+    expect(
+      game.boilerPressure,
+      lessThan(disc.threshold),
+      reason: 'the starting head is deliberately short of the disc',
+    );
+    final before = game.boilerPressure;
+    final at = disc.position + const Offset(30, 0);
+    game.creatures[0]
+      ..position = at
+      ..lastSafe = at;
+    game.activateAbility();
+    expect(game.burstDiscBlown, isFalse, reason: 'a short surge does nothing');
+    expect(
+      game.boilerPressure,
+      before,
+      reason:
+          'and it costs NOTHING — a disc that skimmed the main on a failed '
+          'attempt would make the vault a grind rather than a decision',
+    );
+
+    // Stoked past the threshold, the same act blows it and spends everything.
+    game.boilerPressure = disc.threshold + 5;
+    game.activateAbility();
+    expect(game.burstDiscBlown, isTrue);
+    expect(
+      game.boilerPressure,
+      0,
+      reason: 'venting the main dumps EVERYTHING — the sacrifice is whole',
+    );
   });
 
   test('breaching a WET dam section floods your own chamber', () {
+    // This test had no subject for weeks: the crucible's cisterns sat
+    // DIAGONALLY beside the gates instead of orthogonally behind them, and
+    // `_wallIsWet` only looks at the four orthogonal neighbours, so every gate
+    // on the planet was dry. Two characters in the authored rows put the
+    // choice back — see the layout test's gate-wetness invariant.
     final game = _harness([
       _member(0, 'Steam', 'pip'),
       _member(1, 'Earth', 'horn'),
@@ -851,24 +1030,29 @@ void main() {
     game.currentRoomId = 'crucible';
     game.update(1 / 60);
     final cells = game.moltenCells['crucible']!;
-    // (2,6) is a wet face: the sealed reservoir at (2,5) presses on it.
-    expect(cells[5][2], 3);
-    // Fire breaches it from the south field.
+    // (5,5) is the west pair's INNER gate — the short way to the pedestal, and
+    // the one with a cistern leaning on it from behind.
+    expect(cells[5][5], 1);
+    expect(cells[6][5], 3, reason: 'the cistern that makes it wet');
+    expect(game.gateWetness('crucible')['5,5'], isTrue);
+
+    // Fire breaches it from the NORTH field — the side the player is on.
     game.setActive(2);
-    final stand = _center(room, g, 2, 7);
+    final stand = _center(room, g, 5, 4);
     for (final c in game.creatures) {
       c
         ..position = stand
         ..lastSafe = stand
-        ..angle = -pi / 2
-        ..aimAngle = -pi / 2; // facing up at the wet dam face
+        ..angle = pi / 2
+        ..aimAngle = pi / 2; // facing down at the wet gate
     }
     game.activateAbility();
-    expect(cells[6][2], 3, reason: 'the breach itself runs molten');
-    // Park clear of the flood's first rings and let the beats pass: the
-    // reservoir pours through the hole into YOUR chamber.
-    final safe = _center(room, g, 8, 9);
-    for (var i = 0; i < 60 * 3; i++) {
+    expect(cells[5][5], 3, reason: 'the breach itself runs molten');
+
+    // Stand clear and let the beats pass: what was behind the gate comes
+    // through it, into the chamber you are standing in.
+    final safe = _center(room, g, 1, 1);
+    for (var i = 0; i < 60 * 4; i++) {
       for (final c in game.creatures) {
         c
           ..position = safe
@@ -877,15 +1061,10 @@ void main() {
       game.update(1 / 60);
     }
     expect(
-      cells[7][2],
+      cells[4][5],
       3,
-      reason:
-          'the flood crosses into the player\'s chamber — the wrong '
-          'breach has a consequence',
+      reason: 'a wet breach floods NORTH — your own side of the band',
     );
-    // And the pocket stays sealed on the pedestal side: the north field
-    // never floods through the bedrock.
-    expect(cells[3][2], 0);
   });
 
   test('cooling breath is finite and returns with the beat', () {
@@ -933,20 +1112,25 @@ void main() {
     ]);
     final room = game.layout.rooms['crucible']!;
     final g = room.molten!;
-    game.currentRoomId = 'ember_causeway';
+    // (This read `ember_causeway` while measuring against the crucible's
+    // geometry — fine while that room had a grid of its own shape, fatal
+    // since the 2026-08-14 geyser rework took its grid away entirely.)
+    game.currentRoomId = 'crucible';
     game.setActive(0);
     game.update(1 / 60);
-    final cells = game.moltenCells['ember_causeway']!;
-    // Active stands clear; the IDLE Earth companion stands at (2,8).
+    final cells = game.moltenCells['crucible']!;
+    // Active stands clear on the south field; the IDLE Earth companion is at
+    // (2,8). Row 9 is bedrock, so everyone stands a row up from where this
+    // test used to put them.
     game.creatures[0]
-      ..position = _center(room, g, 7, 9)
-      ..lastSafe = _center(room, g, 7, 9);
+      ..position = _center(room, g, 7, 8)
+      ..lastSafe = _center(room, g, 7, 8);
     final idle = game.creatures[1]
       ..position = _center(room, g, 2, 8)
       ..lastSafe = _center(room, g, 3, 8);
     game.creatures[2]
-      ..position = _center(room, g, 8, 9)
-      ..lastSafe = _center(room, g, 8, 9);
+      ..position = _center(room, g, 9, 8)
+      ..lastSafe = _center(room, g, 9, 8);
     // The flood claims the idle companion's cell.
     cells[8][2] = 3;
     game.update(1 / 60);
@@ -976,29 +1160,29 @@ void main() {
     game.currentRoomId = 'crucible';
     game.update(1 / 60);
     final cells = game.moltenCells['crucible']!;
-    // Flood the ENTIRE south field (rows 7-10). The nearest open cell by
-    // pure distance is now the dam's hollow (5,5) — on the FAR side of a
-    // meltable wall. The rescue must NOT put the creature there.
-    for (var r = 7; r <= 10; r++) {
-      for (var c = 1; c <= 8; c++) {
+    // Drown the ENTIRE south field (rows 6-8). The nearest open ground by
+    // pure distance is then across the band, on the north side of a wall the
+    // creature cannot pass — the rescue must never put it there.
+    // (Rows 7-10 of a twelve-row chamber, once. The crucible is ten rows.)
+    for (var r = 6; r <= 8; r++) {
+      for (var c = 1; c <= 11; c++) {
         cells[r][c] = 3;
       }
     }
-    final pos = _center(room, g, 5, 7); // right below the dry dam face
+    final pos = _center(room, g, 4, 6); // just south of the dry west gate
     game.creatures.single
       ..position = pos
       ..lastSafe = pos; // last safe ground is drowned too
     game.update(1 / 60);
-    final me = game.creatures.single.position;
     expect(
-      me.dy,
-      greaterThan(room.bounds.top + room.bounds.height * 7 / 12),
+      game.creatures.single.position.dy,
+      greaterThan(room.bounds.top + room.bounds.height * 6 / 10),
       reason:
-          'the creature stays on ITS side of the dam — the old spiral '
-          'search teleported it through the wall into the hollow',
+          'the creature stays on ITS side of the band — the old spiral '
+          'search teleported it through the wall into the north field',
     );
     expect(
-      cells[7][5],
+      cells[6][4],
       0,
       reason: 'with no reachable ground, the footing crusts underfoot',
     );
@@ -1042,9 +1226,10 @@ void main() {
       final game = _harness([_member(0, 'Steam', 'pip')]);
       final room = game.layout.rooms['crucible']!;
       final g = room.molten!;
-      game.currentRoomId = 'ember_causeway';
+      // (Read `ember_causeway` while measuring the crucible — see above.)
+      game.currentRoomId = 'crucible';
       game.update(1 / 60); // build the grid
-      final cells = game.moltenCells['ember_causeway']!;
+      final cells = game.moltenCells['crucible']!;
 
       // Flood every non-bedrock cell with lava — the worst case.
       for (var r = 0; r < g.rowCount; r++) {
@@ -1067,11 +1252,11 @@ void main() {
       );
 
       // Restart wipes the chamber back to its authored layout, asleep again.
-      game.wokeRooms.add('ember_causeway');
+      game.wokeRooms.add('crucible');
       game.restartRoom();
-      expect(game.wokeRooms, isNot(contains('ember_causeway')));
+      expect(game.wokeRooms, isNot(contains('crucible')));
       expect(game.steamBreath, kSteamBreathMax);
-      final fresh = game.moltenCells['ember_causeway']!;
+      final fresh = game.moltenCells['crucible']!;
       var lava = 0, wall = 0;
       for (final rowCells in fresh) {
         lava += rowCells.where((c) => c == 3).length;

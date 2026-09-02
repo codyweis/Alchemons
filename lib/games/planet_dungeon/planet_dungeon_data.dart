@@ -4567,8 +4567,19 @@ const DungeonLayout _steamLayout = DungeonLayout(
           'X...........X',
           'X....LLL....X',
           'X...........X',
+          // THE BAND, and the choice it is supposed to offer. Four gates in
+          // two pairs — and the cistern behind each pair sits under the INNER
+          // gate, so of every pair the one nearest the pedestal is WET and the
+          // long way round is dry. The greedy breach is the punished one.
+          //
+          // (The cisterns used to sit at cols 3 and 9 — diagonally off the
+          // gates rather than orthogonally behind them. `_wallIsWet` only
+          // looks at the four orthogonal neighbours, so NO gate on this planet
+          // was ever wet: choose-your-breach, which docs call this dungeon's
+          // first lesson, had no instance anywhere in the built game. Two
+          // characters.)
           'XXXX##X##XXXX',
-          'X..L.....L..X',
+          'X....L.L....X',
           'X.....P.....X',
           'X...........X',
           'XXXXXXXXXXXXX',

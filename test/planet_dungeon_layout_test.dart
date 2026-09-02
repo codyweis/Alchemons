@@ -8,6 +8,11 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart'
         PlanetDungeonGame,
         MirrorTide,
         StormCircuit,
+        // Extensions must be NAMED in a show clause or their members simply
+        // are not in scope — a proof seam added to one then reads as "method
+        // isn't defined" while the identical seam in a listed extension
+        // resolves fine.
+        MoltenLabyrinth,
         kSteamStartPressure,
         kScaleClueRooms;
 import 'package:flutter_test/flutter_test.dart';
@@ -1880,6 +1885,37 @@ void main() {
       expect(sg!.encounter?.mysticId, 'Boilrog');
     });
 
+    test('Steam S3 — the crucible band really does offer a CHOICE: of each '
+        'pair of gates one is wet and one is dry, and the wet one is the one '
+        'nearest the pedestal', () {
+      final game = _steamProbe();
+      final wet = game.gateWetness('crucible');
+      expect(wet.length, 4, reason: 'four gates in two pairs: $wet');
+      expect(
+        wet.entries.where((e) => e.value).map((e) => e.key),
+        unorderedEquals(['5,5', '7,5']),
+        reason:
+            'the INNER gate of each pair — the short way to the pedestal — is '
+            'the one with a cistern behind it, so the greedy breach is the '
+            'punished one',
+      );
+      expect(
+        wet.entries.where((e) => !e.value).map((e) => e.key),
+        unorderedEquals(['4,5', '8,5']),
+        reason: 'and the long way round is the safe one',
+      );
+      // THE FAULT THIS GUARDS. The cisterns shipped one column off, sitting
+      // diagonally beside the gates rather than orthogonally behind them.
+      // `_wallIsWet` looks at the four orthogonal neighbours only, so every
+      // gate on the planet was dry and choose-your-breach — the dungeon's
+      // first lesson per §6 — had no instance anywhere in the built game.
+      expect(
+        wet.values.any((v) => v),
+        isTrue,
+        reason: 'a band with no wet gate is a band with no decision in it',
+      );
+    });
+
     test(
       'Steam ring-main is a true loop with a budget that cannot buy it all',
       () {
@@ -2055,6 +2091,15 @@ void main() {
 /// uniqueness proof can never drift from what the game actually computes.
 PlanetDungeonGame _waterProbe() => PlanetDungeonGame(
   element: 'Water',
+  party: const [],
+  initialStarMask: 0,
+  onStarEarned: (_) {},
+  onPlayerDown: () {},
+  onChanged: () {},
+);
+
+PlanetDungeonGame _steamProbe() => PlanetDungeonGame(
+  element: 'Steam',
   party: const [],
   initialStarMask: 0,
   onStarEarned: (_) {},
