@@ -1990,6 +1990,20 @@ of old stone bars the way"** in a room that had not had one for weeks.
       into a room may put you inside that room's own win region**, and no door
       may open on to it.
 
+  · ✅ **AND THEN YOU COULD NOT GET BACK OUT.** Moving the forge's chasm put
+    both doors in the north and south walls — but the near shore stopped at
+    y=40/800 and the door mouths are at y=0/816, and **in a room with
+    platforms only a platform is solid ground**. So both doors stood off the
+    end of the floor: you step toward one, the walk refuses because the next
+    step is void, and the room can only be LEFT by teleport. The shore runs
+    the full height of the room now.
+      The existing guard skipped this: "every molten-room door is passable on
+      foot" only swept rooms with a molten grid, and the geyser rooms have
+      none — they have PLATFORMS, which is the stricter case. It sweeps every
+      Steam door now, skipping only doors the game itself reports as locked or
+      hidden, so a gated door stays a design decision and an unreachable one
+      is a bug.
+
   · ⬜ **The ring's economy shifted and nobody noticed.** Both star rooms used
     to make you cool lava on the way through, and cooling pays the main back.
     Geyser fields pay nothing, so Fire's stoke port is the only income before

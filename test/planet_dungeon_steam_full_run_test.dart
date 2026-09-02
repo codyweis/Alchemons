@@ -734,7 +734,7 @@ void main() {
     },
   );
 
-  test('every molten-room door is passable on foot (not just by teleport)', () {
+  test('every Steam door is passable on foot (not just by teleport)', () {
     final game = _harness([_member(0, 'Steam', 'pip')]);
     // Geometry test, not economy: pre-pay every ring junction. And not
     // gating either — rouse Boilrog so the heart's door is unsealed too (the
@@ -744,11 +744,30 @@ void main() {
         game.unclampedSeals.add(_sealKeyOf(room.id, s.targetRoomId));
       }
     }
-    game.guardianAwake = true;
+    // GEOMETRY, NOT GATING — so open everything the run would have opened.
+    // All three stars banked matters for the boss room in particular: Boilrog
+    // seals his chamber while he is up, and "solved is solved" is what leaves
+    // it open again. (Asking `isDoorLocked` once before stepping is not
+    // enough there — he spawns DURING the walk and the lock appears with him.)
+    game.entryDoorRevealed = true;
+    game.burstDiscBlown = true;
+    game.starMask = 0x7;
     for (final room in game.layout.rooms.values) {
-      if (room.molten == null) continue;
+      // Was `molten == null → skip`, which let the geyser rooms out of a
+      // check they needed more than the crucible did: in a room with
+      // PLATFORMS only a platform is solid ground, so a door standing off the
+      // end of one cannot be walked into — you step into the void and the
+      // fall puts you back. The Cinder Forge shipped exactly that and could
+      // not be left on foot at all.
       for (final door in room.doors) {
         game.currentRoomId = room.id;
+        // A LOCKED door is a design decision; an UNREACHABLE one is a bug.
+        // Boilrog's heart holds you while he is roused, and that is the point
+        // of a boss room — so ask the game which doors are shut and test only
+        // the ones that claim to be open.
+        if (game.isDoorLocked(room, door) || game.isDoorHidden(room, door)) {
+          continue;
+        }
         // Stand one step inside the room, centred on the door, and walk at it.
         final r = door.rect;
         final horizontal = r.width >= r.height;

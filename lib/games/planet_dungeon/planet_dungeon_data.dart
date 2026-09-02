@@ -4501,8 +4501,15 @@ const DungeonLayout _steamLayout = DungeonLayout(
       // the choked one plus the stone plus two bodies, every mouth there is.
       // r_short(250) needs 230, which is two. So the long crossing is only
       // available while nobody has gone yet.
+      // THE NEAR SHORE REACHES BOTH DOOR MOUTHS. In a room with platforms
+      // only a platform is solid ground, so a door standing off the end of
+      // one cannot be walked into at all — you step into the void and the
+      // fall puts you back. The forge's doors sit in the north and south
+      // walls, so its shore has to run the full height of the room to meet
+      // them; a shore stopping at y=40/800 left both of them unreachable and
+      // the room could only be LEFT by teleport, which is to say not at all.
       platforms: [
-        Rect.fromLTWH(40, 40, 260, 760), // the near shore (both doors)
+        Rect.fromLTWH(40, 0, 260, 840), // the near shore (both doors)
         Rect.fromLTWH(480, 40, 180, 760), // the far shore (pedestal)
       ],
       geysers: [
