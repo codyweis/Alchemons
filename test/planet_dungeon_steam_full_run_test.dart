@@ -570,12 +570,16 @@ void main() {
     );
     clearWisps();
 
-    // ── Hidden Harmony: the whole labyrinth without one scald ──
-    // The rite PAYS OUT through the Rite of Three, so the egg lands when that
-    // reaction settles (~4.2s), not on the frame the pedestal sinks.
-    expect(game.moltenScalds, 0);
+    // ── AND THE MAXIM IS NOT ON THIS PATH ──
+    // Hidden Harmony used to fall out of the rite for free if you had taken
+    // no scalds. It is a place now, at the end of a spur no star sends you
+    // down, so a clean star run must reach the end of the planet WITHOUT it.
     step(5.0);
-    expect(discovered, contains(kSteamHiddenHarmonyEggId));
+    expect(
+      discovered,
+      isNot(contains(kSteamHiddenHarmonyEggId)),
+      reason: 'the lost maxim is lost — the star path never passes it',
+    );
     clearWisps();
 
     // ── The burst-disc: stoke the main to a 60-surge, then vent it all ──
@@ -752,6 +756,80 @@ void main() {
     game.joystickDirection = Offset.zero;
     expect(game.currentRoomId, 'ember_causeway');
   });
+
+  test(
+    'the lost maxim is a PLACE, and only a screaming main goes down to it',
+    () {
+      // WHAT THIS REPLACES. Hidden Harmony used to be a run-long CONDITION —
+      // zero scalds, then zero short throws — which is an achievement, not a
+      // puzzle. The short-throw version was actively hostile: the Cinder Forge
+      // teaches by letting you WATCH a throw fall in, so the move the room
+      // invites spoiled the maxim twenty minutes before you could claim it and
+      // nothing said so. It is a room at the end of a dead spur now.
+      final found = <String>[];
+      final game = _harness([_member(0, 'Steam', 'pip')], onCloud: found.add);
+      final north = game.layout.rooms['manifold_north']!;
+      final split = north.doors.firstWhere(
+        (d) => d.targetRoomId == 'scald_cellar',
+      );
+
+      // A HALF-FULL MAIN DOES NOT GO DOWN. Stand on the split and stay put.
+      game.currentRoomId = 'manifold_north';
+      game.boilerPressure = kSteamPressureMax - 1;
+      game.creatures.single
+        ..position = split.rect.center
+        ..lastSafe = split.rect.center;
+      for (var i = 0; i < 60; i++) {
+        game.update(1 / 60);
+      }
+      expect(
+        game.currentRoomId,
+        'manifold_north',
+        reason: 'one short of full blast is still short',
+      );
+      expect(game.isDoorLocked(north, split), isTrue);
+
+      // FULL BLAST CARRIES YOU.
+      game.boilerPressure = kSteamPressureMax;
+      expect(game.isDoorLocked(north, split), isFalse);
+      var frames = 0;
+      while (game.currentRoomId == 'manifold_north' && frames++ < 60 * 3) {
+        game.update(1 / 60);
+      }
+      expect(game.currentRoomId, 'scald_cellar');
+
+      // The maxim is not collected by ARRIVING — you walk up to it.
+      final cellar = game.layout.rooms['scald_cellar']!;
+      expect(cellar.maximCache, isNotNull);
+      expect(found, isEmpty, reason: 'landing in the room is not taking it');
+
+      final cache = cellar.maximCache!;
+      game.creatures.single
+        ..position = cache
+        ..lastSafe = cache;
+      // The Rite of Three settles at ~2.45s, so the egg lands then and not on
+      // the frame you step up to the stone.
+      for (var i = 0; i < 60 * 5; i++) {
+        game.update(1 / 60);
+      }
+      expect(
+        game.discoveredClouds,
+        contains(kSteamHiddenHarmonyEggId),
+        reason: 'standing at the cache takes the maxim',
+      );
+
+      // AND THE WAY OUT IS THE PIPE YOU CAME IN BY — no pressure required,
+      // because a maxim you cannot carry home is not a reward.
+      final back = cellar.doors.single;
+      expect(game.isDoorLocked(cellar, back), isFalse);
+      game.boilerPressure = 0;
+      expect(
+        game.isDoorLocked(cellar, back),
+        isFalse,
+        reason: 'a spent main must never strand you down here',
+      );
+    },
+  );
 
   test('the vault cannot be taken cheaply: the disc refuses a short surge and '
       'takes nothing for the attempt', () {

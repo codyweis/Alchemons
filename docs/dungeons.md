@@ -1455,7 +1455,7 @@ queue:
 | **Earth** — The Giant's Palm | 4 | Earth · Lightning · Crystal×3 | ✅ rebuilt 2026-09-01 |
 | **Water** — The Stilled Mirror | 4 | Water (stand still) · Spirit×3 · Ice | ✅ rebuilt 2026-09-01 |
 | **Lightning** — Thunderbolt | 3 | Air · Fire×4 · Lightning | ✅ rebuilt 2026-09-01 |
-| **Steam** — Hidden Harmony | 0 | a zero-scald run | ⬜ an achievement, not a puzzle |
+| **Steam** — Hidden Harmony | 1 | the whole main, spent on something that is not a door | ✅ §9.6 |
 | **Lava** — Black Glass | 1 | Ice ×3 quenches | ⬜ one verb, three times |
 | **Poison** — The Dose | 1 | cure the sick wisp | ⬜ one press |
 | **Mud** — No Mud No Lotus | 3 | Plant · Water · Mud | ▶ closest of the rest |
@@ -2179,6 +2179,12 @@ catch it because they call `activateAbility()` past the HUD's gate.
     Dust's three side doors and Dark's shade gallery (all 16px). A floor
     HATCH is exempt on purpose: Mud's risen wallows are climbed out of, so
     arriving on top of one is the fiction rather than a fault.
+  · ✅ **THE MAXIM IS A PLACE** — §9.6. Hidden Harmony was a run-long
+    condition (zero scalds, then zero short throws), which is an achievement
+    rather than a puzzle, and the short-throw version punished the exact move
+    the Cinder Forge teaches. The north manifold now runs 600px west into a
+    dead spur, the main is split at the end of it, and only a main at 99
+    carries a body down. §7's table moves Steam from ⬜ to ✅.
   · ⬜ CARRIED: device playtest of the whole planet, and the four-corner room
     in particular — it has been simulated and rendered, never played.
 
@@ -2604,6 +2610,54 @@ rounded outer corners instead of a field of separate tiles.
     reached the floor crawled into the mould and the room won itself.
   · **A wrong answer cost a re-plan, never a run** — the property the four
     corners inherited whole.
+
+### §9.6 STEAM'S LOST MAXIM — a maxim has to be a PLACE
+
+**A run-long condition is an achievement, not a puzzle.** Hidden Harmony began
+as *finish without one scald*, then — when the labyrinth stopped being three
+tile-grid chambers and the old rule had quietly become free — as *finish with
+no short throw*. Both are things you avoid rather than things you work out,
+which is the grade §7's table gives most of the seventeen.
+
+The short-throw version was worse than merely weak. **The Cinder Forge teaches
+by letting you watch a throw fall in** — that is the room telling you the
+arithmetic, and it is the correct thing to do the first time you stand on a
+riser. Doing it once silently spoiled the maxim twenty minutes before you could
+have claimed it, with nothing on screen saying so. A secret that punishes the
+lesson the dungeon just taught is not a secret; it is a trap.
+
+**IT IS A ROOM NOW.** The north manifold runs 600px further west than the ring
+needs, past the last junction, into a dead spur no door uses. At the end of it
+the main is split, and **a hole only carries a body when the main is
+screaming**: at anything under 99 the pipe refuses and names its key. Down the
+split is the scald cellar, an undercroft the foundry forgot, with the maxim
+lying on a plinth. Take it and step back into the pipe — the way out costs
+nothing, because a maxim you cannot carry home is not a reward.
+
+**Why this is the RIGHT question for this planet.** Steam's whole economy is
+one shared budget: the main holds forty and every junction costs fifteen.
+Everything you have ever spent it on has been a *door*. The maxim asks you to
+carry the entire budget somewhere that is not one — and stoking to 99 draws two
+wisps a time, so it is a real price and not a walk.
+
+**AND THE SPUR HAS TO SAY SOMETHING.** Six hundred pixels of nothing is a bug;
+six hundred pixels of a spur that was CLOSED is a story. A capped dead end, a
+seized stop-valve and a dead gauge with its needle slack at the pin are the
+only things telling you why no junction runs down here. The tear's jet scales
+with the gauge — a whisper at forty, a plume at eighty, a column at full blast
+— so the answer is legible the FIRST time you wander down with a half-empty
+main, long before you have the pressure to use it.
+
+**The refusal names the key and not the prize:** *"The split spits and sucks at
+you — but the main reads 62. Nothing goes down a pipe that is not screaming."*
+You are told exactly what the pipe wants and left to wonder why you would ever
+give it that. (Writing it also retired a stale line: every shut Steam rite-door
+used to say *"the heart does not open to an empty mould"*, on a planet that no
+longer has a mould and now has three different reasons a way on can be closed.)
+
+**The star path never passes it**, and the full run asserts that — a clean
+three-star run reaches Boilrog without the egg. That is what "lost" has to
+mean.
 
 ### A GAUGE CAN BE WRONG WITH EVERY NUMBER RIGHT
 

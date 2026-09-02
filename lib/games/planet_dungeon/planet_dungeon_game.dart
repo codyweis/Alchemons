@@ -8587,7 +8587,7 @@ class PlanetDungeonGame extends FlameGame {
       return _tideDoorHint(room, door);
     }
     if (_isVapor && _vaporRiteDoorShut(room, door)) {
-      return 'The heart does not open to an empty mould';
+      return _vaporRiteDoorHint(room, door);
     }
     if (_isVapor && _sealBlocked(room, door)) {
       return _sealDoorHint(room, door);

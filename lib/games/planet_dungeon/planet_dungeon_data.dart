@@ -1241,6 +1241,15 @@ class DungeonRoom {
   /// Its centre plinth — not there at all until every corner is sealed.
   final Rect? centrePlinth;
 
+  /// A LOST MAXIM lying in a room, to be walked up to and taken.
+  ///
+  /// A maxim that is a run-long *condition* is an achievement, not a puzzle
+  /// (§7's table grades most of the seventeen that way). A maxim that is a
+  /// PLACE can be reasoned toward, which is what this is for: somewhere the
+  /// dungeon does not send you, reachable only by understanding what the
+  /// planet's own resource is for.
+  final Offset? maximCache;
+
   /// The span the finished cast lays across a chasm — the way home, earned.
   /// Impassable until the room's star is banked; it IS the thing you made.
   final Rect? castSpan;
@@ -1406,6 +1415,7 @@ class DungeonRoom {
     this.castSpan,
     this.crucibleSeals = const [],
     this.centrePlinth,
+    this.maximCache,
     this.capstone,
     this.molten,
     this.steamVent,
@@ -4501,7 +4511,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(295, 0, 110, 24),
           targetRoomId: 'manifold_north',
-          targetSpawn: Offset(185, 310),
+          targetSpawn: Offset(785, 310),
         ),
       ],
       pressureSeals: [
@@ -4566,7 +4576,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(120, 0, 110, 24),
           targetRoomId: 'manifold_north',
-          targetSpawn: Offset(915, 310),
+          targetSpawn: Offset(1515, 310),
         ),
       ],
       pressureSeals: [
@@ -4634,23 +4644,35 @@ const DungeonLayout _steamLayout = DungeonLayout(
     // burns here for runs that arrive with an empty main.
     'manifold_north': DungeonRoom(
       id: 'manifold_north',
-      bounds: Rect.fromLTWH(0, 0, 1100, 420),
+      // 600 LONGER TO THE WEST than the ring needs. That reach is the whole
+      // point: the main runs off past the last junction into a dead spur no
+      // door uses, and at the end of it the pipe is split. Nothing sends you
+      // there. See §9.6 — the maxim is what is down there.
+      bounds: Rect.fromLTWH(0, 0, 1700, 420),
       doors: [
         // Ring: down the west side to the causeway — clamped junction.
         DungeonDoor(
-          rect: Rect.fromLTWH(130, 396, 110, 24),
+          rect: Rect.fromLTWH(730, 396, 110, 24),
           targetRoomId: 'ember_causeway',
           targetSpawn: Offset(175, 175),
         ),
         // Ring: down the east side to the forge — clamped junction.
         DungeonDoor(
-          rect: Rect.fromLTWH(860, 396, 110, 24),
+          rect: Rect.fromLTWH(1460, 396, 110, 24),
           targetRoomId: 'cinder_forge',
           targetSpawn: Offset(200, 180), // the near shore, high
         ),
+        // THE SPLIT PIPE, at the dead end of the western spur. Not a door in
+        // any wall — a hole in the main, and the main has to be at full blast
+        // to carry a body down it. Nothing in the dungeon points here.
+        DungeonDoor(
+          rect: Rect.fromLTWH(110, 180, 60, 60),
+          targetRoomId: 'scald_cellar',
+          targetSpawn: Offset(250, 230),
+        ),
         // The crucible gate — rite-sealed until Causeway + Cinder bank.
         DungeonDoor(
-          rect: Rect.fromLTWH(495, 396, 110, 24),
+          rect: Rect.fromLTWH(1095, 396, 110, 24),
           targetRoomId: 'crucible',
           // The middle of the NW terrace: clear of the sill, of both mouths
           // and of the socket, on the open floor the corner now has.
@@ -4661,7 +4683,28 @@ const DungeonLayout _steamLayout = DungeonLayout(
         PressureSeal(targetRoomId: 'ember_causeway', cost: 15),
         PressureSeal(targetRoomId: 'cinder_forge', cost: 15),
       ],
-      stokePort: Offset(550, 140),
+      stokePort: Offset(1150, 140),
+    ),
+
+    // ── THE SCALD CELLAR — Steam's lost maxim, and it is a PLACE.
+    //
+    // Blown down the split pipe, you land in an undercroft the foundry
+    // forgot. There is nothing to solve in here: the solving was getting
+    // here at all, which costs the whole main. Take it and step back into
+    // the pipe.
+    'scald_cellar': DungeonRoom(
+      id: 'scald_cellar',
+      bounds: Rect.fromLTWH(0, 0, 700, 460),
+      doors: [
+        // The pipe mouth you came in by, and the only way out.
+        DungeonDoor(
+          rect: Rect.fromLTWH(60, 200, 60, 60),
+          targetRoomId: 'manifold_north',
+          // Back beside the split, not on top of it.
+          targetSpawn: Offset(250, 210),
+        ),
+      ],
+      maximCache: Offset(520, 230),
     ),
 
     // THE CRUCIBLE — the ring's CENTRE, and the rite. Four corners around a
@@ -4707,7 +4750,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(170, 60, 110, 24),
           targetRoomId: 'manifold_north',
-          targetSpawn: Offset(550, 310),
+          targetSpawn: Offset(1150, 310),
         ),
         // Out, from the CENTRE — so the way on genuinely is the rite.
         DungeonDoor(

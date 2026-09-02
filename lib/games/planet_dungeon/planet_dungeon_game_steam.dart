@@ -124,6 +124,9 @@ const double _kCrucibleLob = 190.0;
 /// why the crossing has to be bought with head rather than with hands.
 const double _kCruciblePerOver = 1.8;
 
+/// How close you have to stand to a lost maxim to take it.
+const double _kMaximReach = 60.0;
+
 /// How far one press of flame runs the melt down the moat, how much of the
 /// boulder it spends doing it, and how fast an unfed front skins over.
 const double _kMoatPerPour = 0.25;
@@ -345,7 +348,6 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         'You stand in the crucible\'s heart — Boilrog heaves up beyond it',
         4.0,
       );
-      _maybeEarnHiddenHarmony(room);
       onChanged();
     }
     if (geyserFlightActive) return; // let the arc finish before anything reads
@@ -629,7 +631,32 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// never touched. Reported from play, and the whole of Star 3 was optional.
   ///
   /// The way to the heart is the cast. Fill the mould and it opens.
+  /// What a shut Steam rite-door says. It used to be one fixed line about an
+  /// empty mould, on a planet that no longer has a mould and now has three
+  /// different reasons a way on can be closed.
+  String _vaporRiteDoorHint(DungeonRoom room, DungeonDoor door) {
+    if (door.targetRoomId == 'scald_cellar') {
+      // Names the key, not the prize: you should be told exactly what the
+      // pipe wants and left to wonder why you would ever give it that.
+      return 'The split spits and sucks at you — but the main reads '
+          '$boilerPressure. Nothing goes down a pipe that is not screaming';
+    }
+    if (room.centrePlinth != null && room.crucibleSeals.isNotEmpty) {
+      final left = room.crucibleSeals.length - sealedCorners.length;
+      return left == 1
+          ? 'One corner still stands open — the heart will not form over it'
+          : '$left corners still stand open — there is no heart to cross to';
+    }
+    return 'The heart does not open to an empty mould';
+  }
+
   bool _vaporRiteDoorShut(DungeonRoom room, DungeonDoor door) {
+    // THE SPLIT PIPE. Not a door — a hole in the main, and a hole only
+    // carries a body when the main is screaming. The whole budget, spent on
+    // something that is not a junction: that is the maxim's question.
+    if (door.targetRoomId == 'scald_cellar') {
+      return boilerPressure < kSteamPressureMax;
+    }
     // The corner room's way on stands ON the centre plinth, which does not
     // exist until all four are sealed — so it is unreachable rather than
     // locked. Saying so out loud matters anyway: anything that asks "is this
@@ -795,6 +822,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     // cleared, the cap recompute never ran, and the crucible was still
     // counting the FORGE's mouths. A stale flight could also seize a
     // creature's position in a room it was never thrown in.
+    _maybeTakeMaxim(room, a);
     if (_vaporPrevRoomId != room.id) {
       _vaporPrevRoomId = room.id;
       geyserFlights.clear();
@@ -1068,22 +1096,30 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     );
   }
 
-  /// The Hidden Harmony (Heraclitus): finish the whole labyrinth — all three
-  /// molten chambers, the rite included — without the molten EVER swallowing a
-  /// creature's footing. Zero scalds, one run. Checked as the rite completes.
-  void _maybeEarnHiddenHarmony(DungeonRoom room) {
+  /// The Hidden Harmony — Steam's lost maxim, and it is a PLACE.
+  ///
+  /// It used to be a run-long CONDITION: zero scalds, later zero short
+  /// throws. Both were achievements rather than puzzles (§7's table grades
+  /// most of the seventeen that way), and the short-throw version was worse
+  /// than that — the Cinder Forge teaches by letting you watch a throw fall
+  /// in, so the move the room invites silently spoiled the maxim twenty
+  /// minutes before you could claim it, with nothing on screen saying so.
+  ///
+  /// What it asks now is the only thing this planet has to spend. The main
+  /// holds forty and every junction costs fifteen; the maxim is at the end of
+  /// a spur no junction uses, down a split in the pipe that will only carry a
+  /// body at FULL BLAST. Spending the whole budget on something that is not a
+  /// door is the question, and stoking to 99 draws wisps each time, so it is
+  /// a real price and not a walk.
+  void _maybeTakeMaxim(DungeonRoom room, DungeonCreature a) {
+    final cache = room.maximCache;
+    if (cache == null) return;
     if (discoveredClouds.contains(kSteamHiddenHarmonyEggId)) return;
-    // ZERO SHORT THROWS. It used to ask for zero scalds, which was a fine
-    // question while the labyrinth was three tile-grid chambers — it is one
-    // room now and the crucible has no grid at all, so the old condition had
-    // quietly become free. What the planet actually asks of you is pressure
-    // discipline: never send a body on a head that could not carry it.
-    if (shortThrows != 0 || moltenScalds != 0) return;
-    // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    _setHint('Not one of them was ever thrown short', 4.0);
-    beginMaximRite(kSteamHiddenHarmonyEggId, room.bounds.center);
+    if ((a.position - cache).distance > _kMaximReach) return;
+    _setHint('The foundry forgot this room. You did not.', 4.0);
+    beginMaximRite(kSteamHiddenHarmonyEggId, cache);
     _spawnAlchemyBurst(
-      room.bounds.center,
+      cache,
       producedElement: 'Steam',
       unstable: true,
       particleCount: 36,
@@ -1216,7 +1252,6 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           'the heart',
           4.0,
         );
-        _maybeEarnHiddenHarmony(room);
         onChanged();
         return;
       }
@@ -3453,6 +3488,262 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     }
   }
 
+  /// THE WESTERN SPUR AND THE SPLIT. The main runs off past the last junction
+  /// into a dead end no door uses, and at the end of it the pipe is torn.
+  ///
+  /// The tear has to be legible as a THING, not as scenery, from the moment
+  /// you first wander down here with a half-empty main — otherwise the spur
+  /// is just a long walk that says nothing. So the jet scales with the gauge:
+  /// a whisper at forty, a plume you can hear at eighty, and a column at full
+  /// blast. What changes is only how hard it blows, so the answer is legible
+  /// before you ever have the pressure to use it.
+  void _drawSplitPipe(Canvas canvas, DungeonRoom room) {
+    DungeonDoor? split;
+    for (final d in room.doors) {
+      if (d.targetRoomId == 'scald_cellar') split = d;
+    }
+    if (split == null) return;
+    final c = split.rect.center;
+    final t = (boilerPressure / kSteamPressureMax).clamp(0.0, 1.0);
+    final full = boilerPressure >= kSteamPressureMax;
+
+    // The spur itself, running east back toward the ring.
+    final run = Rect.fromLTRB(
+      c.dx - 62,
+      c.dy - 17,
+      room.bounds.width,
+      c.dy + 17,
+    );
+    canvas.drawRect(run, Paint()..color = const Color(0xFF241F1A));
+    canvas.drawRect(
+      Rect.fromLTRB(run.left, run.top, run.right, run.top + 6),
+      Paint()..color = const Color(0xFF3A332B),
+    );
+    canvas.drawRect(
+      Rect.fromLTRB(run.left, run.bottom - 5, run.right, run.bottom),
+      Paint()..color = const Color(0xFF14110E),
+    );
+    // Flanges every so often, and a CAP at the dead end so the spur reads as
+    // finished rather than as a pipe that ran off the edge of the room.
+    for (var x = c.dx + 40; x < room.bounds.width; x += 150) {
+      canvas.drawRect(
+        Rect.fromLTRB(x, run.top - 5, x + 9, run.bottom + 5),
+        Paint()..color = const Color(0xFF4A4038),
+      );
+    }
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTRB(run.left - 14, run.top - 9, run.left + 4, run.bottom + 9),
+        const Radius.circular(4),
+      ),
+      Paint()..color = const Color(0xFF4A4038),
+    );
+
+    // DISUSED FITTINGS. Six hundred pixels of nothing is a bug; six hundred
+    // pixels of a spur that was CLOSED is a story, and it is the only thing
+    // telling you why no junction runs down here.
+    final valve = Offset(c.dx + 210, c.dy);
+    canvas.drawCircle(valve, 17, Paint()..color = const Color(0xFF2B241C));
+    final spoke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = const Color(0xFF5A4B3A);
+    canvas.drawCircle(valve, 17, spoke);
+    for (var k = 0; k < 3; k++) {
+      final ang = k * pi / 3 + 0.4;
+      canvas.drawLine(
+        valve - Offset(cos(ang), sin(ang)) * 15,
+        valve + Offset(cos(ang), sin(ang)) * 15,
+        spoke,
+      );
+    }
+    // A dead gauge, needle slack at the pin.
+    final gauge = Offset(c.dx + 330, c.dy - 34);
+    canvas.drawCircle(gauge, 15, Paint()..color = const Color(0xFF191512));
+    canvas.drawCircle(
+      gauge,
+      15,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..color = const Color(0xFF4A4038),
+    );
+    canvas.drawLine(
+      gauge,
+      gauge + const Offset(-9, 8),
+      Paint()
+        ..strokeWidth = 2
+        ..color = const Color(0xFF7A6A55),
+    );
+
+    // THE TEAR — iron lips peeled back off a dark throat.
+    final tear = Rect.fromCenter(center: c, width: 46, height: 26);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(tear, const Radius.circular(10)),
+      Paint()..color = const Color(0xFF07090B),
+    );
+    final lip = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeJoin = StrokeJoin.miter
+      ..color = const Color(0xFF6B5B47);
+    for (var k = 0; k < 5; k++) {
+      final x = tear.left + tear.width * (k / 4);
+      final up = k.isEven;
+      canvas.drawLine(
+        Offset(x, up ? tear.top : tear.bottom),
+        Offset(x + 6, (up ? tear.top : tear.bottom) + (up ? -9 : 9)),
+        lip,
+      );
+    }
+
+    // THE JET.
+    final h = 26 + 150 * t * t;
+    final w = 9 + 20 * t;
+    final jet = Path()
+      ..moveTo(c.dx - w * 0.5, c.dy)
+      ..quadraticBezierTo(
+        c.dx - w * 1.5,
+        c.dy - h * 0.6,
+        c.dx - w * 0.7,
+        c.dy - h,
+      )
+      ..lineTo(c.dx + w * 0.7, c.dy - h)
+      ..quadraticBezierTo(c.dx + w * 1.5, c.dy - h * 0.6, c.dx + w * 0.5, c.dy)
+      ..close();
+    canvas.drawPath(
+      jet,
+      Paint()
+        ..color = const Color(0xFFBFE9F2).withValues(alpha: 0.10 + 0.34 * t),
+    );
+    for (var i = 0; i < 4; i++) {
+      final k = ((_moltenPulse * (0.8 + 0.5 * t) + i / 4) % 1.0);
+      canvas.drawCircle(
+        Offset(c.dx + sin(k * 6.0 + i) * (5 + 12 * t), c.dy - h * k),
+        (3 + 7 * t) * (1 - k * 0.5),
+        Paint()
+          ..color = const Color(
+            0xFFEAF7FA,
+          ).withValues(alpha: (0.30 + 0.35 * t) * (1 - k)),
+      );
+    }
+    if (full && _fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        Offset(c.dx, c.dy - h * 0.4),
+        h * 0.7,
+        const Color(0xFF8FE0EC).withValues(alpha: 0.26),
+      );
+    }
+  }
+
+  /// A LOST MAXIM, lying where nothing sent you.
+  void _drawMaximCache(Canvas canvas, DungeonRoom room) {
+    final cache = room.maximCache;
+    if (cache == null) return;
+    final taken = discoveredClouds.contains(kSteamHiddenHarmonyEggId);
+
+    // A ROOM THE FOUNDRY FORGOT. Rendered with the same brick and the same
+    // ring-main as every other chamber, the cellar read as just another room
+    // — which is the one thing it must not be. Silt drifted into the corners,
+    // fallen block, and the light closing in at the edges.
+    final b = room.bounds;
+    for (var i = 0; i < 9; i++) {
+      final x = b.width * ((i * 0.113 + 0.04) % 1.0);
+      final top = b.bottom - 26 - 16 * sin(i * 1.7);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(x, top, x + 90 + 40 * cos(i * 2.1), b.bottom),
+          const Radius.circular(12),
+        ),
+        Paint()..color = const Color(0xFF1B1610).withValues(alpha: 0.9),
+      );
+    }
+    for (var i = 0; i < 5; i++) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            b.width * (0.16 + 0.17 * i),
+            b.height * (0.62 + 0.13 * sin(i * 2.3)),
+            34,
+            15,
+          ),
+          const Radius.circular(3),
+        ),
+        Paint()..color = const Color(0xFF241E18),
+      );
+    }
+    canvas.drawRect(
+      b,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            const Color(0x00000000),
+            const Color(0xFF06070A).withValues(alpha: 0.72),
+          ],
+          stops: const [0.42, 1.0],
+        ).createShader(b),
+    );
+
+    // A low plinth of the same dressed block the foundry is built of.
+    final base = Rect.fromCenter(
+      center: cache + const Offset(0, 22),
+      width: 96,
+      height: 30,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(base, const Radius.circular(6)),
+      Paint()..color = const Color(0xFF2A2620),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTRB(base.left, base.top, base.right, base.top + 7),
+        const Radius.circular(5),
+      ),
+      Paint()..color = const Color(0xFF443C31),
+    );
+    if (taken) {
+      // An empty socket, and it stays. What you took should leave a hole.
+      canvas.drawCircle(
+        cache + const Offset(0, 8),
+        11,
+        Paint()..color = const Color(0xFF16130F),
+      );
+      return;
+    }
+
+    // The maxim itself: a turning sigil over the stone.
+    final a = _moltenPulse * 0.5;
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = const Color(0xFFE0A24A).withValues(alpha: 0.85);
+    canvas.drawCircle(cache, 26, ring);
+    for (var k = 0; k < 3; k++) {
+      final ang = a + k * 2 * pi / 3;
+      canvas.drawLine(
+        cache + Offset(cos(ang), sin(ang)) * 26,
+        cache + Offset(cos(ang + 2 * pi / 3), sin(ang + 2 * pi / 3)) * 26,
+        ring,
+      );
+    }
+    canvas.drawCircle(
+      cache,
+      7 + 1.5 * sin(_moltenPulse * 2.4),
+      Paint()..color = const Color(0xFFFFD79A),
+    );
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        cache,
+        46,
+        const Color(0xFFE0A24A).withValues(alpha: 0.30),
+      );
+    }
+  }
+
   /// The shape of a run of melt in a channel.
   ///
   /// A rounded rectangle is a progress bar. Molten rock crawling down a stone
@@ -3667,6 +3958,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     _renderPressureFixtures(canvas, room);
     _drawGeyserField(canvas, room);
     _drawCrucibleSeals(canvas, room);
+    _drawSplitPipe(canvas, room);
+    _drawMaximCache(canvas, room);
     final g = room.molten;
     if (g == null) {
       // The entry vent wheel.
