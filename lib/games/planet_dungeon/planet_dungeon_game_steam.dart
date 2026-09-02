@@ -1359,6 +1359,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           _setHint(
             wet
                 ? 'The dam gives way — the reservoir pours through your breach!'
+                : g.starIndex == null
+                // In a pour chamber a dry gate is a DOOR, not a source, and
+                // breaking one is the most natural first thing to try. Say so
+                // rather than leaving the player with one square of melt and
+                // no idea why nothing ran.
+                ? 'Nothing behind this one — it is a door. The runs come from '
+                      'the gates the cisterns lean on'
                 : woke
                 ? 'Fire breaks the rock — and the sleeping cisterns WAKE'
                 : 'Fire breaks the rock — the fire-blood runs free',
@@ -3085,6 +3092,52 @@ extension MoltenLabyrinth on PlanetDungeonGame {
             ch,
           );
           final pulse = 0.5 + 0.5 * sin(_moltenPulse * 2.2 + c * 1.7 + r);
+          // A WET GATE IS A SOURCE, and in a pour chamber that is the single
+          // most important thing on the screen: which of these doors will
+          // actually give you melt. Thin cracks on a grey block, in a room
+          // already full of orange, were not saying it — reported from play
+          // as breaking one and getting "just one square of fire".
+          //
+          // So the gate is lit from behind, and the cistern leaning on it
+          // visibly FEEDS it: a molten throat through the rock joining the
+          // two, so the pairing can be read from across the room.
+          canvas.drawRect(
+            rect.deflate(3),
+            Paint()
+              ..color = Color.lerp(
+                const Color(0x66B5400F),
+                const Color(0x99FF7A33),
+                pulse,
+              )!,
+          );
+          for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
+            final nc = c + dc, nr = r + dr;
+            if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
+            if (grid[nr][nc] != _mLava) continue;
+            final from = Offset(
+              room.bounds.left + (nc + 0.5) * cw,
+              room.bounds.top + (nr + 0.5) * ch,
+            );
+            canvas.drawLine(
+              from,
+              rect.center,
+              Paint()
+                ..strokeWidth = 7
+                ..strokeCap = StrokeCap.round
+                ..color = const Color(
+                  0xFFB5400F,
+                ).withValues(alpha: 0.45 + 0.30 * pulse),
+            );
+          }
+          if (_fx.ready) {
+            drawGlow(
+              canvas,
+              _fx.glow!,
+              rect.center,
+              cw * 0.75,
+              const Color(0xFFFF7A33).withValues(alpha: 0.22 + 0.16 * pulse),
+            );
+          }
           final crack = Paint()
             ..strokeWidth = 2
             ..strokeCap = StrokeCap.round

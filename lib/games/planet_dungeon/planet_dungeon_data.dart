@@ -4627,13 +4627,20 @@ const DungeonLayout _steamLayout = DungeonLayout(
     // BOTH ways at once if both are open. It is worth a fixed number of cells
     // before it congeals, and that number is bought with the main.
     //
-    // The trade, and it is the whole room:
-    //   · LEFT gate, no thought ……… reaches the mould, 16 cells
-    //   · RIGHT gate, no walls at all … 10 cells
-    //   · LEFT gate, two walls ……… 8 cells
-    // A run is 5 cells plus one per 6 of head, so a lean main forces you to
-    // plan and a fat one lets you brute-force it. Ledges at rows 5 and 7 are
-    // what make the left side need shaping.
+    // THE MOULD SITS IN A POCKET (row 8 is bedrock either side of it), and
+    // that is load-bearing: with an open bottom row ANY run that reached the
+    // floor simply crawled along it into the mould, so breaking the right
+    // gate and doing nothing at all won the room. Melt has to be steered into
+    // the middle chimney (cols 5-7) and dropped in.
+    //
+    // The trade, measured against the real fall rule, not estimated:
+    //   · LEFT gate + one wall at (2,4) …… 8 cells   (main ≥ 18)
+    //   · RIGHT gate + one wall at (11,6) … 10 cells  (main ≥ 30)
+    //   · LEFT gate, no walls at all ……… 16 cells  (main ≥ 66)
+    //   · RIGHT gate, no walls ………………… never; it dead-ends
+    // A run is 5 cells plus one per 6 of head, so at least one wall has to go
+    // down unless the boiler is enormous — and WHERE it goes is the choice.
+    // Ledges at rows 5 and 7 are what make the left side need shaping.
     //
     // WHAT THIS REPLACES (twice): a quenching whose win condition was a
     // flood-fill the player could not see, and then a hold-the-needle act —
@@ -4669,7 +4676,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
           'X..XX...XX..X',
           'X...........X',
           'X.XXX...XXX.X',
-          'X.....P.....X',
+          'X.XXX.P.XXX.X',
           'XXXXXXXXXXXXX',
         ],
       ),

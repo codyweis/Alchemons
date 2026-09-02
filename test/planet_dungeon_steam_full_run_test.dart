@@ -454,11 +454,9 @@ void main() {
       reason: 'the chamber is cold and still until it is committed to',
     );
 
-    // Two walls turn the left fall from a 16-cell wander into an 8-cell run.
+    // ONE wall turns the left fall from a 16-cell wander into an 8-cell run.
     act('crucible', earth, 2, 5, 2, 4); // stand below it, face up
-    act('crucible', earth, 5, 8, 4, 8); // stand beside it, face west
     expect(crucible[4][2], 1);
-    expect(crucible[8][4], 1);
 
     // Bring head, then commit. (The furnace drank the main dry on the way
     // here in the old rite; the pour just needs enough of it to reach.)
@@ -864,12 +862,10 @@ void main() {
     );
     expect(game.moltenRiteDone, isFalse);
 
-    // EARTH BUILDS THE CHANNEL, cold and at leisure. Two walls turn the left
+    // EARTH BUILDS THE CHANNEL, cold and at leisure. One wall turns the left
     // fall from a 16-cell wander into an 8-cell run.
     act(1, 2, 5, 2, 4); // stand below it, face up
     expect(cells[4][2], 1, reason: 'a wall stands where the melt must not go');
-    act(1, 5, 8, 4, 8); // stand beside it, face west
-    expect(cells[8][4], 1);
 
     // FIRE BREAKS A WET GATE — the commit, and the only thing that moves.
     act(2, 3, 4, 3, 3); // stand under the wet gate, face up
@@ -893,6 +889,54 @@ void main() {
       reason: 'the melt finds the mould and fills it',
     );
   });
+
+  test(
+    'NO GATE WINS ON ITS OWN: a bare pour from either source falls short',
+    () {
+      // THE FAULT THIS PINS. Row 8 used to be open all the way across, so any
+      // run that reached the floor simply crawled along it into the mould —
+      // breaking the right gate and doing nothing else won the room outright.
+      // Reported from play as "all I did was fire then steam and I beat it".
+      // The mould sits in a bedrock pocket now, so melt has to be steered into
+      // the middle chimney and dropped in, which means at least one wall.
+      for (final gate in const [3, 11]) {
+        final game = _harness([
+          _member(0, 'Steam', 'pip'),
+          _member(1, 'Earth', 'horn'),
+          _member(2, 'Fire', 'mask'),
+        ]);
+        final room = game.layout.rooms['crucible']!;
+        final g = room.molten!;
+        game.currentRoomId = 'crucible';
+        game.update(1 / 60);
+        final at = _center(room, g, gate, 4);
+        game.setActive(2);
+        for (final c in game.creatures) {
+          c
+            ..position = at
+            ..lastSafe = at
+            ..angle = -pi / 2
+            ..aimAngle = -pi / 2;
+        }
+        game.activateAbility();
+        expect(game.pourRunning, isTrue, reason: 'gate $gate is a source');
+        var guard = 0;
+        while (game.pourRunning && guard++ < 60 * 60) {
+          for (final c in game.creatures) {
+            c.hp = c.maxHp;
+          }
+          game.update(1 / 60);
+        }
+        expect(
+          game.moltenRiteDone,
+          isFalse,
+          reason:
+              'a pour from gate $gate with no channel built must NOT reach the '
+              'mould on the head you arrive with',
+        );
+      }
+    },
+  );
 
   test('a run that is too short congeals, and nothing is lost by it', () {
     final game = _harness([
@@ -1214,22 +1258,24 @@ void main() {
     game.currentRoomId = 'crucible';
     game.update(1 / 60);
     final cells = game.moltenCells['crucible']!;
-    // The Steam companion stands at (3,8); Earth stands beside it, aiming in.
+    // The Steam companion stands at (3,6); Earth stands beside it, aiming in.
+    // (Row 6 is the one course of the fall that runs clear across — row 8 is
+    // bedrock either side of the mould since the pour rework.)
     game.creatures[0]
-      ..position = _center(room, g, 3, 8)
-      ..lastSafe = _center(room, g, 3, 8);
+      ..position = _center(room, g, 3, 6)
+      ..lastSafe = _center(room, g, 3, 6);
     game.creatures[2]
-      ..position = _center(room, g, 7, 9)
-      ..lastSafe = _center(room, g, 7, 9);
+      ..position = _center(room, g, 7, 1)
+      ..lastSafe = _center(room, g, 7, 1);
     game.setActive(1);
     game.creatures[1]
-      ..position = _center(room, g, 2, 8)
-      ..lastSafe = _center(room, g, 2, 8)
+      ..position = _center(room, g, 2, 6)
+      ..lastSafe = _center(room, g, 2, 6)
       ..angle = 0
       ..aimAngle = 0; // facing the occupied cell
     game.activateAbility();
     expect(
-      cells[8][3],
+      cells[6][3],
       0,
       reason: 'the wall must refuse to rise on an occupied cell',
     );
@@ -1253,13 +1299,13 @@ void main() {
         }
       }
       // Stand the creature in the middle of the flood.
-      final pos = _center(room, g, 3, 8);
+      final pos = _center(room, g, 6, 6);
       game.creatures.single
         ..position = pos
         ..lastSafe = pos;
       game.update(1 / 60);
       // It must end on crusted-open ground (scalded, but never frozen).
-      expect(cells[8][3], 0, reason: 'the engulfed cell crusts to a foothold');
+      expect(cells[6][6], 0, reason: 'the engulfed cell crusts to a foothold');
       expect(
         game.moltenScalds,
         greaterThan(0),

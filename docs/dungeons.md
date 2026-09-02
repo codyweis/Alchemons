@@ -2475,14 +2475,35 @@ strategy."*
 
 **The trade is the room**, and it is all answerable standing still:
 
-| route | cost |
-|---|---|
-| left gate, two walls | 8 cells |
-| right gate, no walls at all | 10 cells |
-| left gate, no thought | 16 cells |
+| route | cost | needs |
+|---|---|---|
+| left gate + one wall at (2,4) | 8 cells | main ≥ 18 |
+| right gate + one wall at (11,6) | 10 cells | main ≥ 30 |
+| left gate, no walls at all | 16 cells | main ≥ 66 |
+| right gate, no walls | — | never; it dead-ends |
 
-A lean main forces you to plan; a fat one lets you brute-force it. Fixed
-bedrock ledges at rows 5 and 7 are what make the left side need shaping.
+So at least one wall has to go down unless the boiler is enormous, and WHERE
+it goes is the choice. Bedrock ledges at rows 5 and 7 are what make the left
+side need shaping. Every number above is measured against the real fall rule,
+not estimated.
+
+**THE SOURCES HAVE TO LOOK LIKE SOURCES.** Three doors in a wall, and only
+two of them give you melt — which door you break is the room's first decision
+and it was being made blind. Thin ember cracks on a grey block, in a chamber
+already full of orange, said nothing: reported from play as breaking one and
+getting *"just one square of fire"*, which was correct behaviour and unreadable.
+A wet gate is lit from behind now and the cistern leaning on it visibly FEEDS
+it — a molten throat through the rock joining the two — so the pairing reads
+from across the room. And breaking the dry one says what it is rather than
+leaving you with a square of melt and no explanation: *nothing behind this one
+— it is a door.*
+
+**THE MOULD SITS IN A POCKET**, and that is load-bearing. Row 8 was open all
+the way across, so any run that reached the floor simply crawled along it into
+the mould — breaking the right gate and doing nothing else won the room
+outright. Melt has to be steered into the middle chimney (cols 5-7) and dropped
+in. A test now fires a bare pour from BOTH gates and requires each to fall
+short.
 
 **Nothing can go wrong except a wasted run.** Steam cools any congealed melt
 back to floor, Fire melts a wall away, Earth raises another, and a gate pours
