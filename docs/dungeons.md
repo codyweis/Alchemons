@@ -2121,8 +2121,32 @@ VA(90,170) →──────────────────────
    ↑ D(480,370) '\' ← E(250,370) '/' ↓ MAST(250,540) ↓ THE GATE
 ```
 
-Sixteen vent/converter pairings × 32 conductor sets; exactly one combination
-lights all three at once.
+**AND THE ROOM IS FULL OF CHAINS THAT ARE NOT IT.** The first cut of this
+layout was solvable in about five minutes, and the reason was not that it was
+small — it was that nothing in it resisted you. Live preview makes turning a
+conductor free and instant, so you steer into the answer rather than search for
+it; three of the four vents visibly died in a wall, so that choice was made by
+looking; and the one insight collapsed into a heuristic you could execute
+without understanding it — *push the flame as far back as it goes*.
+
+So the fix was not more spiral. Three of the eight conductors — F(825,370),
+G(825,270), H(710,270) — stand nowhere near the true route. What they do is
+give the OTHER vents somewhere to go: a wrong start no longer dies in a wall
+after one bounce, it winds through four, five, eight corners and comes out
+looking like an answer. Six vents and five converters make thirty pairings and
+**fourteen of them light a mast**; four reach two of the three.
+
+**VD is the honest trap.** Its column holds a real mast at (710,540) and a
+converter *above* it, so the flame catches, the chain runs eight corners and
+lights the east mast. What you see is your own bolt passing straight through a
+mast that stays dark — because the wind reached it and the lightning was born
+above it. The room's own rule, demonstrated on you.
+
+Thirty pairings × 256 conductor sets, and exactly **one route** lights all
+three. Eight bitmasks satisfy, all tracing that same route: the decoy
+conductors are never touched by it, so their orientation is genuinely free.
+Uniqueness here is asserted of the ROUTE — the thing the player actually finds
+— not of the bitmask, and `solveBeamHall` reports both.
 
 **THE LAST MAST STANDS ON THE CORE GATE.** It sits at (250,540), centred over
 the barrier at (200,600), so the bolt drives down into the mast and through
@@ -2142,16 +2166,16 @@ something you stumble into by flipping conductors.
 charged half, so the wind draws the whole spiral and lights nothing. Lay a
 route out, look it over, then decide where the flame goes.
 
-**THE DECOY IS TEMPTING FOR A REASON.** Vent VD(710,650) fires straight up a
-column holding no conductor at all and converter FD(710,270) stands dead in it,
-so the flame really does catch and a real bolt is born. The lie is that the
-column's mast (710,540) sits *below* the converter: the wind passes it on the
-way up and the bolt is only born above it, so that chain crowns nothing and
-dies in the ceiling. It is the room's own lesson read backwards.
-  · Lane discipline matters here. Two cast blocks first went in straddling
-    column 710 and swallowed the decoy's wind before it left the vent, which
-    quietly turned a tempting lie into a dead prop. The blocks live in the
-    x-bands 540–650 and 790–900 now, clear of all four columns.
+**LATTICE HALF-STEPS.** Iron is allowed on the lattice points AND on the
+half-steps between them (365·595·825 across, 270·455 down). The decoy net lives
+on the half-steps, which still reads as a switchyard and never as scatter; the
+layout test asserts it.
+  · **Lane discipline.** A cast block standing in a lane eats a decoy's wind
+    before it leaves the vent and quietly turns a tempting lie into a dead
+    prop. That happened TWICE while building this room, and both times the
+    only thing that caught it was rendering the room and looking. The three
+    blocks live at x 540–650 and 960–1070, clear of every column and of the
+    decoy chain's own run along row 270.
 
 **FULMINATE LIVES IN PYLON HALL.** Every vat position on this lattice that
 bites kills every solution — the routes are too tight — and an inert vat is

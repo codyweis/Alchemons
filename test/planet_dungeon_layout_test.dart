@@ -1140,8 +1140,9 @@ void main() {
           for (final d in room.doors) {
             final t = layout.rooms[d.targetRoomId];
             if (t == null) continue;
-            final back =
-                t.doors.where((x) => x.targetRoomId == room.id).toList();
+            final back = t.doors
+                .where((x) => x.targetRoomId == room.id)
+                .toList();
             if (back.isEmpty) continue; // a genuine one-way drop
             final r = back.first.rect;
             final b = t.bounds;
@@ -1451,9 +1452,9 @@ void main() {
       // Star 3 (§9.4): a switchyard LATTICE — four columns by three rows,
       // every conductor/mast/vent on a point, every converter on an edge.
       final maze = lightning.rooms['overload_maze']!;
-      expect(maze.beamEmitters.length, 4);
-      expect(maze.beamConverters.length, 4);
-      expect(maze.beamMirrors.length, 5);
+      expect(maze.beamEmitters.length, 6);
+      expect(maze.beamConverters.length, 5);
+      expect(maze.beamMirrors.length, 8);
       expect(maze.beamReceiver, isNull, reason: 'the Spire has masts, plural');
       expect(maze.beamReceivers.length, 3);
       expect(
@@ -1465,8 +1466,10 @@ void main() {
             'Hall, where the geometry has slack',
       );
       expect(maze.poweredBarriers.length, 1, reason: 'just the core gate');
-      const cols = [250.0, 480.0, 710.0, 940.0];
-      const rows = [170.0, 370.0, 540.0];
+      // Points AND the half-steps between them — the decoy iron lives on the
+      // half-steps, which still reads as a switchyard and never as scatter.
+      const cols = [250.0, 365.0, 480.0, 595.0, 710.0, 825.0, 940.0];
+      const rows = [170.0, 270.0, 370.0, 455.0, 540.0];
       for (final m in maze.beamMirrors) {
         expect(cols, contains(m.position.dx), reason: 'conductor ${m.id}');
         expect(rows, contains(m.position.dy), reason: 'conductor ${m.id}');
@@ -1589,7 +1592,8 @@ void main() {
       final game = _lightningProbe();
       final hall = game.layout.rooms['pylon_hall']!;
       final works = <String>[];
-      ({int searched, int satisfying, Map<String, int>? solution})? only;
+      ({int searched, int satisfying, int routes, Map<String, int>? solution})?
+      only;
       for (var v = 0; v < hall.beamEmitters.length; v++) {
         for (var c = 0; c < hall.beamConverters.length; c++) {
           final r = game.solveBeamHall(
@@ -1620,12 +1624,14 @@ void main() {
       }, reason: r'the authored answer: pa=\ pb=/ pc=\ pd=\');
     });
 
-    test('Lightning S3 — one chain lights all three masts, and it is PROVABLY '
-        'UNIQUE: one pairing, one conductor set', () {
+    test('Lightning S3 — one chain lights all three, exactly ONE ROUTE does '
+        'it, and the decoy net gives the wrong starts somewhere to go', () {
       final game = _lightningProbe();
       final spire = game.layout.rooms['overload_maze']!;
       final works = <String>[];
-      ({int searched, int satisfying, Map<String, int>? solution})? only;
+      var nearMissPairings = 0;
+      ({int searched, int satisfying, int routes, Map<String, int>? solution})?
+      only;
       for (var v = 0; v < spire.beamEmitters.length; v++) {
         for (var c = 0; c < spire.beamConverters.length; c++) {
           final r = game.solveBeamHall(
@@ -1633,39 +1639,63 @@ void main() {
             ventIndex: v,
             converterIndex: c,
           );
-          expect(r.searched, 32, reason: '5 conductors → 2^5 sets');
+          expect(r.searched, 256, reason: '8 conductors → 2^8 sets');
           if (r.satisfying > 0) {
-            works.add('V$v+F$c×${r.satisfying}');
+            works.add('V$v+F$c×${r.routes}route(s)');
             only = r;
+          }
+          if (game.spireNearMiss(ventIndex: v, converterIndex: c) > 0) {
+            nearMissPairings++;
           }
         }
       }
       expect(
         works,
-        ['V0+F0×1'],
+        ['V0+F0×1route(s)'],
         reason:
-            'one vent, one converter, one conductor set lights all three at '
-            'once — and in particular ONLY the earliest converter on the '
-            'route leaves enough of it charged',
+            'one vent, one converter, ONE ROUTE lights all three at once — '
+            'and only the earliest converter on the route leaves enough of it '
+            'charged',
       );
-      expect(only!.solution, {'A': 1, 'B': 0, 'C': 1, 'D': 1, 'E': 0});
+      // Eight bitmasks trace that one route: the three decoy conductors are
+      // never touched by it, so their orientation is genuinely free.
+      expect(only!.satisfying, 8);
+      expect(only.solution!['A'], 1);
+      expect(only.solution!['B'], 0);
+      expect(only.solution!['C'], 1);
+      expect(only.solution!['D'], 1);
+      expect(only.solution!['E'], 0);
 
-      // The last mast stands ON the core gate, so the thing you power and the
-      // thing it opens are one object.
+      // The decoy net is the whole point of the rework: a wrong start must
+      // wander somewhere convincing rather than die in a wall.
+      expect(
+        nearMissPairings,
+        greaterThanOrEqualTo(12),
+        reason:
+            'most pairings should light SOMETHING — a room where only the '
+            'answer does anything is a room you solve by elimination',
+      );
+      final twoOfThree = [
+        for (var v = 0; v < spire.beamEmitters.length; v++)
+          for (var c = 0; c < spire.beamConverters.length; c++)
+            if (game.spireNearMiss(ventIndex: v, converterIndex: c) == 2)
+              'V$v+F$c',
+      ];
+      expect(
+        twoOfThree.length,
+        greaterThanOrEqualTo(3),
+        reason:
+            'and several must reach TWO of the three, which is what makes a '
+            'wrong answer feel like a near answer: $twoOfThree',
+      );
+
+      // The last mast stands ON the core gate.
       final gate = spire.poweredBarriers.single.rect;
       final onGate = spire.beamReceivers.where(
         (m) => m.dx > gate.left && m.dx < gate.right && m.dy < gate.top,
       );
-      expect(
-        onGate.length,
-        1,
-        reason: 'exactly one mast stands over the gate: ${spire.beamReceivers}',
-      );
-      expect(
-        gate.top - onGate.single.dy,
-        lessThan(90),
-        reason: 'and close enough above it to read as standing on it',
-      );
+      expect(onGate.length, 1, reason: '${spire.beamReceivers}');
+      expect(gate.top - onGate.single.dy, lessThan(90));
     });
 
     test('Lightning S3 — the dead-aligned east pair crowns nothing in any of '

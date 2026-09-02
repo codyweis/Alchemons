@@ -4113,55 +4113,65 @@ const DungeonLayout _lightningLayout = DungeonLayout(
     // Room G — The Storm Spire. Star 3, behind the breaker gate (§9.4).
     //
     // ONE CHAIN, ALL THREE MASTS, AT ONCE. A single bolt must lie on every
-    // mast simultaneously — nothing is banked between firings, so the room is
-    // one answer and you are free to try as many routes as you like getting
-    // there. The last mast STANDS ON THE CORE GATE at (250,540): the bolt
-    // drives down into it and the barrier below throws open, so the thing you
-    // are powering and the thing it opens are the same object.
+    // mast simultaneously — nothing banks between firings, so the room is one
+    // answer and you are free to try as many routes as you like reaching it.
+    // The last mast STANDS ON THE CORE GATE at (250,540): the bolt drives down
+    // into it and the barrier below throws open, so the thing you power and
+    // the thing it opens are one object.
     //
-    // THE ROOM IS A SWITCHYARD LATTICE. Four columns (250·480·710·940) by
-    // three rows (170·370·540); every conductor, mast and vent on a lattice
-    // point and every converter on a lattice edge, so the lanes read off the
-    // floor before you touch anything. The answer is an inward SPIRAL:
+    // A SWITCHYARD LATTICE. Columns 250·480·710·940 and rows 170·370·540, with
+    // iron allowed on the points AND the half-steps between them (365·595·825
+    // across, 270·455 down). The answer is an inward SPIRAL:
     //
-    //   VA(90,170) →─────────────────────────────→ A(940,170)  '\'  ↓
-    //                       (converts at FA(595,170) on the way)
-    //   A ↓ MAST(940,370) ↓ B(940,540) '/'  ←────────────────────────
-    //   B ← MAST(710,540) ← C(480,540) '\'  ↑
-    //   C ↑ D(480,370) '\' ←── E(250,370) '/' ↓── MAST(250,540) ↓ the gate
+    //   VA(90,170) →─────────────────────────────→ A(940,170) '\' ↓
+    //                    converts at FA(595,170)
+    //   ↓ MAST(940,370) ↓ B(940,540) '/' ←──────────────────────
+    //   ← MAST(710,540) ← C(480,540) '\' ↑
+    //   ↑ D(480,370) '\' ← E(250,370) '/' ↓ MAST(250,540) ↓ THE GATE
     //
-    // Solver-proven unique: 16 vent/converter pairings × 32 conductor sets,
-    // exactly one combination lights all three at once.
+    // AND THE ROOM IS FULL OF CHAINS THAT ARE NOT IT. Three of the eight
+    // conductors — F(825,370), G(825,270), H(710,270) — stand nowhere near the
+    // true spiral. What they do is give the OTHER vents somewhere to go, so a
+    // wrong start does not die in a wall after one bounce; it winds through
+    // four, five, eight corners and comes out looking like an answer. Six
+    // vents and five converters make thirty pairings, and FOURTEEN of them
+    // light a mast. Four light TWO of the three:
     //
-    // THE REAL QUESTION IS HOW EARLY YOU CONVERT. Three of the four converters
-    // sit ON the true route, at different depths — FA(595,170) on the opening
-    // run, FC(940,455) most of the way down the east column, FB(365,370) near
-    // the end. Standing Fire on any of them makes a real bolt; only the
-    // earliest leaves enough of the route charged to reach all three, because
-    // everything before the flame is merely wind. That is the insight the room
-    // is built around, and it is not something you can stumble into by
-    // flipping conductors.
+    //   VA+FA on a wrong conductor set …… two masts (the near-miss you make)
+    //   VA+FC (940,455) ………………………………… two masts (converted too late)
+    //   VD+FD, VD+FE ……………………………………… two masts, off an eight-corner chain
+    //                                     that begins in a column with no
+    //                                     conductor in it at all
+    //
+    // VD is the honest trap. Its column holds a real mast at (710,540) and a
+    // converter above it, so the flame catches and the chain runs a long way
+    // and lights things — it simply cannot light all three, because the mast
+    // in its own column sits BELOW the converter and only ever sees wind.
+    //
+    // Solver-proven: thirty pairings × 256 conductor sets, and exactly ONE
+    // ROUTE lights all three. (Eight sets satisfy, all tracing that same
+    // route — the three decoy conductors are never touched by it, so their
+    // orientation is genuinely free. Uniqueness here is of the ROUTE, which is
+    // the thing the player actually finds; the layout test asserts it that
+    // way rather than counting bitmasks.)
+    //
+    // THE REAL QUESTION IS HOW EARLY YOU CONVERT. Three converters sit ON the
+    // true route at different depths — FA(595,170) early, FC(940,455) most of
+    // the way down the east column, FB(365,370) near the end. Every one makes
+    // a real bolt; only the earliest leaves enough of the route charged to
+    // reach all three, because everything before the flame is merely wind.
     //
     // PLANNING IS FREE. With Air on a vent and nobody on a converter there is
-    // no charged half at all, so the wind draws the entire route and lights
-    // nothing — lay a route out, look it over, then decide where the flame
-    // goes.
+    // no charged half, so the wind draws the whole chain and lights nothing.
     //
-    // DECOY PAIR, and it is tempting for a REASON: vent VD(710,650) fires
-    // straight up a column that holds no conductor at all, and converter
-    // FD(710,270) stands dead in that column — so the flame really does catch
-    // and a real bolt is born. The lie is that the column's mast (710,540)
-    // sits BELOW the converter: the wind passes it on the way up and the bolt
-    // is only born above it, so that chain crowns nothing and dies in the
-    // ceiling. Its elimination is the room's own lesson read backwards.
+    // LANE DISCIPLINE. Cast blocks must never stand in a lane, or they eat a
+    // decoy's wind before it leaves the vent and quietly turn a tempting lie
+    // into a dead prop. That happened twice while building this room. The
+    // three blocks live at x 540-650 and x 960-1070, clear of every column and
+    // of the decoy chain's own run along row 270.
     //
-    // (Lane discipline: the three cast blocks sit in x-bands 540-650 and
-    // 790-900, clear of all four columns. An earlier pair straddled column
-    // 710 and swallowed the decoy's wind before it left the vent, which
-    // quietly turned a tempting lie into a dead prop.)
-    //
-    // (A welding rule and a multi-firing structure both lived here briefly;
-    // see §9.4 in docs/dungeons.md for what they were and why they went.)
+    // (A welding rule and a banked-crowns structure both lived here and were
+    // removed; docs §9.4 records what they were and why.)
     'overload_maze': DungeonRoom(
       id: 'overload_maze',
       bounds: Rect.fromLTWH(0, 0, 1120, 720),
@@ -4177,42 +4187,47 @@ const DungeonLayout _lightningLayout = DungeonLayout(
           targetSpawn: Offset(110, 380),
         ),
       ],
-      // Border iron, and three cast blocks standing in lattice GAPS — never on
-      // a lane, only closing the shortcuts between them.
+      // Cast blocks in the gaps BETWEEN lanes — never in one.
       walls: [
         Rect.fromLTWH(0, 0, 24, 720),
         Rect.fromLTWH(1096, 0, 24, 720),
         Rect.fromLTWH(0, 0, 1120, 24),
         Rect.fromLTWH(0, 696, 1120, 24),
         Rect.fromLTWH(540, 230, 110, 100),
-        Rect.fromLTWH(790, 230, 110, 100),
         Rect.fromLTWH(540, 420, 110, 90),
+        Rect.fromLTWH(960, 440, 110, 120),
       ],
+      // Six vents. Only one opens the spiral; the rest feed the decoy iron.
       beamEmitters: [
-        BeamEmitter(position: Offset(90, 170), dir: Offset(1, 0)), // viable
-        BeamEmitter(position: Offset(90, 370), dir: Offset(1, 0)),
-        BeamEmitter(position: Offset(480, 650), dir: Offset(0, -1)),
-        BeamEmitter(position: Offset(710, 650), dir: Offset(0, -1)), // decoy
+        BeamEmitter(position: Offset(90, 170), dir: Offset(1, 0)), // VA viable
+        BeamEmitter(position: Offset(90, 370), dir: Offset(1, 0)), // VB
+        BeamEmitter(position: Offset(480, 650), dir: Offset(0, -1)), // VC
+        BeamEmitter(position: Offset(710, 650), dir: Offset(0, -1)), // VD trap
+        BeamEmitter(position: Offset(1040, 370), dir: Offset(-1, 0)), // VE
+        BeamEmitter(position: Offset(480, 90), dir: Offset(0, 1)), // VF
       ],
       beamConverters: [
-        Offset(595, 170), // FA — early, on the opening run: the only one that
-        //                   leaves enough of the route charged
-        Offset(365, 370), // FB — on the route, but far too late
-        Offset(940, 455), // FC — on the route, still too late
-        Offset(710, 270), // FD — the decoy's partner, in an empty column
+        Offset(595, 170), // FA — early on the true run: the only one that works
+        Offset(365, 370), // FB — on the route, far too late
+        Offset(940, 455), // FC — on the route, still too late (lights two)
+        Offset(710, 455), // FD — on VD's chain, above its own mast
+        Offset(770, 270), // FE — on the decoy chain's westward run
       ],
-      // Five conductors, every one of them on the true spiral.
+      // Eight conductors: five carry the spiral, three exist to give the wrong
+      // starts somewhere convincing to go.
       beamMirrors: [
         BeamMirror(id: 'A', position: Offset(940, 170)),
         BeamMirror(id: 'B', position: Offset(940, 540)),
         BeamMirror(id: 'C', position: Offset(480, 540)),
         BeamMirror(id: 'D', position: Offset(480, 370)),
         BeamMirror(id: 'E', position: Offset(250, 370)),
+        BeamMirror(id: 'F', position: Offset(825, 370)), // decoy net
+        BeamMirror(id: 'G', position: Offset(825, 270)), // decoy net
+        BeamMirror(id: 'H', position: Offset(710, 270)), // decoy net
       ],
-      // One bolt must lie on all three AT ONCE.
       beamReceivers: [
         Offset(940, 370), // on the east fall
-        Offset(710, 540), // on the southern reach
+        Offset(710, 540), // on the southern reach — and in VD's column
         Offset(250, 540), // ON THE GATE — the bolt drives down into it
       ],
       poweredBarriers: [

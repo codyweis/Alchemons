@@ -1013,33 +1013,49 @@ void main() {
     expect(gateOpen('trunk_core', vent: 0, conv: 0), isTrue);
   });
 
-  test('only the right vent + converter pairings crown anything — the '
-      'dead-aligned east pair never does', () {
+  test('the Spire has one ROUTE and a great many convincing wrong ones', () {
     final game = _harness([
       _member(0, 'Lightning', 'horn'),
       _member(1, 'Air', 'wing'),
       _member(2, 'Fire', 'pip'),
     ]);
-    // Proved exhaustively against the engine: the decoy crowns nothing in any
-    // of the 128 conductor sets, and the room as a whole has exactly seven
-    // openings of which three strand you.
-    expect(
-      game
-          .solveBeamHall(
-            roomId: 'overload_maze',
-            ventIndex: 3,
-            converterIndex: 3,
-          )
-          .satisfying,
-      0,
-      reason: 'VD + FD is a geometric lie',
+    final spire = game.layout.rooms['overload_maze']!;
+    final r = game.solveBeamHall(
+      roomId: 'overload_maze',
+      ventIndex: 0,
+      converterIndex: 0,
     );
+    expect(r.routes, 1, reason: 'VA + FA lights all three by exactly one path');
     expect(
-      game
-          .solveBeamHall(roomId: 'overload_maze', ventIndex: 0, converterIndex: 0)
-          .satisfying,
-      1,
-      reason: 'VA + FA is the one chain that lights all three',
+      r.satisfying,
+      8,
+      reason:
+          'eight conductor sets trace that one path — the three decoy '
+          'conductors are never touched by it, so they are free',
+    );
+    // Every other pairing fails, and most of them fail INTERESTINGLY.
+    var lights = 0;
+    for (var v = 0; v < spire.beamEmitters.length; v++) {
+      for (var c = 0; c < spire.beamConverters.length; c++) {
+        if (v == 0 && c == 0) continue;
+        expect(
+          game
+              .solveBeamHall(
+                roomId: 'overload_maze',
+                ventIndex: v,
+                converterIndex: c,
+              )
+              .routes,
+          0,
+          reason: 'V$v + F$c must not light all three',
+        );
+        if (game.spireNearMiss(ventIndex: v, converterIndex: c) > 0) lights++;
+      }
+    }
+    expect(
+      lights,
+      greaterThanOrEqualTo(11),
+      reason: 'a wrong start should wander somewhere and light something',
     );
   });
 

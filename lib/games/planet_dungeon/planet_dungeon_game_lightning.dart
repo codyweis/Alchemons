@@ -641,7 +641,8 @@ extension StormCircuit on PlanetDungeonGame {
   /// unique") — and that the dead-aligned decoy returns ZERO, so eliminating
   /// it is mirror geometry rather than trial and error. It runs against the
   /// REAL beam engine, so the game and its proof cannot drift apart.
-  ({int searched, int satisfying, Map<String, int>? solution}) solveBeamHall({
+  ({int searched, int satisfying, int routes, Map<String, int>? solution})
+  solveBeamHall({
     required String roomId,
     required int ventIndex,
     required int converterIndex,
@@ -653,6 +654,11 @@ extension StormCircuit on PlanetDungeonGame {
     final mirrors = room.beamMirrors;
     final saved = Map<String, int>.from(mirrorOrient);
     var satisfying = 0;
+    // Distinct satisfying ROUTES. A conductor the winning route never touches
+    // is a free variable — the Spire's decoy net means eight bitmasks trace
+    // one and the same bolt — so the honest uniqueness claim is about the
+    // route, which is the thing the player actually finds.
+    final routes = <String>{};
     Map<String, int>? solution;
     final configs = 1 << mirrors.length;
     for (var mask = 0; mask < configs; mask++) {
@@ -671,12 +677,49 @@ extension StormCircuit on PlanetDungeonGame {
         continue;
       }
       satisfying++;
+      routes.add(path.map((p) => '${p.dx.round()},${p.dy.round()}').join(';'));
       solution = {for (final m in mirrors) m.id: mirrorOrient[m.id]!};
     }
     mirrorOrient
       ..clear()
       ..addAll(saved);
-    return (searched: configs, satisfying: satisfying, solution: solution);
+    return (
+      searched: configs,
+      satisfying: satisfying,
+      routes: routes.length,
+      solution: solution,
+    );
+  }
+
+  /// The most masts this vent/converter pairing can light over all conductor
+  /// sets, when it cannot light them all. The Spire's decoy net exists to keep
+  /// this HIGH across many pairings: a wrong start should wander somewhere
+  /// convincing and light something, not die in a wall after one bounce.
+  int spireNearMiss({required int ventIndex, required int converterIndex}) {
+    final room = layout.rooms['overload_maze']!;
+    final vent = room.beamEmitters[ventIndex];
+    final conv = room.beamConverters[converterIndex];
+    final mirrors = room.beamMirrors;
+    final saved = Map<String, int>.from(mirrorOrient);
+    var best = 0;
+    for (var mask = 0; mask < (1 << mirrors.length); mask++) {
+      for (var i = 0; i < mirrors.length; i++) {
+        mirrorOrient[mirrors[i].id] = (mask >> i) & 1;
+      }
+      final path = _computeBeam(room, vent);
+      final split = _beamConvertSplit(path, conv);
+      if (split == null) continue;
+      final bolt = <Offset>[split.at, ...path.sublist(split.seg + 1)];
+      var n = 0;
+      for (final t in room.beamReceivers) {
+        if (_beamHits(bolt, t)) n++;
+      }
+      if (n < room.beamReceivers.length) best = max(best, n);
+    }
+    mirrorOrient
+      ..clear()
+      ..addAll(saved);
+    return best;
   }
 
   // ── Per-frame update ─────────────────────────────────────
