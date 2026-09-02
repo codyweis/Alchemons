@@ -8507,6 +8507,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_guardianDoorSealed(door)) return true;
     if (_guardianFightSeal(room)) return true;
     if (_isVapor && _sealBlocked(room, door)) return true;
+    if (_isVapor && _vaporRiteDoorShut(room, door)) return true;
     if (_isFoundry && _foundryDoorLocked(room, door)) return true;
     if (_isVenom && _monasteryDoorLocked(room, door)) return true;
     if (_isShaft && _iceDoorBlocked(room, door)) return true;
@@ -8572,6 +8573,9 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_isTemple && _tideDoorBlocked(room, door)) {
       return _tideDoorHint(room, door);
+    }
+    if (_isVapor && _vaporRiteDoorShut(room, door)) {
+      return 'The heart does not open to an empty mould';
     }
     if (_isVapor && _sealBlocked(room, door)) {
       return _sealDoorHint(room, door);

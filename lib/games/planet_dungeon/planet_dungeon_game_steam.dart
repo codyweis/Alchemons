@@ -552,6 +552,25 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   }
 
   /// True while a junction door's clamp is still down (unpaid this run).
+  /// THE RITE HAS TO GATE SOMETHING, and it was gating nothing at all.
+  ///
+  /// The crucible's onward door drops into the furnace heart, and it was
+  /// simply open: melt the middle gate — the DRY one, the door — walk down the
+  /// fall and out the bottom, and Boilrog was in front of you with the mould
+  /// never touched. Reported from play, and the whole of Star 3 was optional.
+  ///
+  /// The way to the heart is the cast. Fill the mould and it opens.
+  bool _vaporRiteDoorShut(DungeonRoom room, DungeonDoor door) {
+    final g = room.molten;
+    if (g == null || g.starIndex != null) return false;
+    if (door.targetRoomId != room.doors.last.targetRoomId) {
+      // Only the ONWARD door — the way back to the ring stays open, so a
+      // party that has spent its head can always go and stoke.
+      return false;
+    }
+    return !moltenRiteDone && !hasStar(2);
+  }
+
   bool _sealBlocked(DungeonRoom room, DungeonDoor door) {
     final seal = _sealFor(room, door);
     if (seal == null) return false;
@@ -2114,15 +2133,36 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         final h = ch.height * moatFill.clamp(0.0, 1.0);
         final run = Rect.fromLTWH(ch.left + 3, ch.top + 3, ch.width - 6, h);
         final pulse = 0.55 + 0.45 * sin(_moltenPulse * 2.2);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(run, const Radius.circular(4)),
+        final rr = RRect.fromRectAndRadius(run, const Radius.circular(9));
+        canvas.drawRRect(rr, Paint()..color = const Color(0xFF3A1206));
+        canvas.save();
+        canvas.clipRRect(rr);
+        canvas.drawRect(
+          run,
           Paint()
             ..color = Color.lerp(
               const Color(0xFF8A2E0C),
-              const Color(0xFFD9611A),
-              pulse * 0.7,
+              const Color(0xFFC4531A),
+              pulse * 0.8,
             )!,
         );
+        // The same travelling bands the chamber's melt has — a moat being fed
+        // should look like it is RUNNING, not like a filled progress bar.
+        final band = Paint()
+          ..strokeWidth = 6
+          ..strokeCap = StrokeCap.round;
+        for (var i = 0; i < 5; i++) {
+          final t = ((_moltenPulse * 0.30 + i / 5) % 1.0);
+          final y = run.top - 20 + (run.height + 40) * t;
+          band.color = const Color(
+            0xFFFFB05A,
+          ).withValues(alpha: 0.22 * sin(t * pi).clamp(0.0, 1.0));
+          canvas.drawLine(
+            Offset(run.left - 6, y),
+            Offset(run.right + 6, y + 7),
+            band,
+          );
+        }
         for (var y = run.top + 12; y < run.bottom - 4; y += 26) {
           canvas.drawLine(
             Offset(run.left + 5, y),
@@ -2132,6 +2172,18 @@ extension MoltenLabyrinth on PlanetDungeonGame {
               ..color = const Color(0xFFFFC98A).withValues(alpha: 0.5),
           );
         }
+        canvas.restore();
+        canvas.drawRRect(
+          rr,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = const Color(
+              0xFFFFC98A,
+            ).withValues(alpha: 0.5 + 0.2 * pulse),
+        );
+        // The FRONT of the run — where the work has got to, and the thing the
+        // player is actually watching.
         final front = Offset(run.center.dx, run.bottom);
         canvas.drawRRect(
           RRect.fromRectAndRadius(
@@ -2459,7 +2511,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     for (var r = 0; r < g.rowCount; r++) {
       for (var c = 0; c < g.cols; c++) {
         final code = grid[r][c];
-        if (code == _mOpen || (code == _mLava && cleared)) continue;
+        if (code == _mOpen || code == _mLava) continue;
         final rect = Rect.fromLTWH(
           room.bounds.left + c * cw,
           room.bounds.top + r * ch,
@@ -2469,6 +2521,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         _renderMoltenCell(canvas, rect, code, cleared);
       }
     }
+    if (!cleared) _drawMoltenMass(canvas, room, g, grid);
   }
 
   /// A stable 0..1 value per grid cell — variation without allocating, and
@@ -2677,6 +2730,150 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           20,
           const Color(0x2290A4AE),
         );
+      }
+    }
+  }
+
+  /// MOLTEN AS A MASS, not as tiles.
+  ///
+  /// Lava used to be drawn one cell at a time, which made a run of it read as
+  /// a row of orange squares — a board game, not a river. Adjacent cells are
+  /// merged into a single path here: the outside corners round off only where
+  /// there is no neighbour, so a run has a flowing outline and a body of it
+  /// has none at all, and the surface carries slow bands that travel ALONG
+  /// the mass so it looks like something moving rather than something lit.
+  void _drawMoltenMass(
+    Canvas canvas,
+    DungeonRoom room,
+    MoltenGrid g,
+    List<List<int>> grid,
+  ) {
+    final (cw, ch) = _cellSize(room, g);
+    final body = Path();
+    var any = false;
+    Rect? bounds;
+    for (var r = 0; r < g.rowCount; r++) {
+      for (var c = 0; c < g.cols; c++) {
+        if (grid[r][c] != _mLava) continue;
+        any = true;
+        final rect = Rect.fromLTWH(
+          room.bounds.left + c * cw,
+          room.bounds.top + r * ch,
+          cw + 0.5,
+          ch + 0.5,
+        );
+        bounds = bounds == null ? rect : bounds.expandToInclude(rect);
+        bool lava(int cc, int rr) =>
+            cc >= 0 &&
+            rr >= 0 &&
+            cc < g.cols &&
+            rr < g.rowCount &&
+            grid[rr][cc] == _mLava;
+        // Round a corner only where the mass actually ends.
+        const rad = 13.0;
+        final tl = (lava(c - 1, r) || lava(c, r - 1))
+            ? Radius.zero
+            : const Radius.circular(rad);
+        final tr = (lava(c + 1, r) || lava(c, r - 1))
+            ? Radius.zero
+            : const Radius.circular(rad);
+        final br = (lava(c + 1, r) || lava(c, r + 1))
+            ? Radius.zero
+            : const Radius.circular(rad);
+        final bl = (lava(c - 1, r) || lava(c, r + 1))
+            ? Radius.zero
+            : const Radius.circular(rad);
+        body.addRRect(
+          RRect.fromRectAndCorners(
+            rect,
+            topLeft: tl,
+            topRight: tr,
+            bottomRight: br,
+            bottomLeft: bl,
+          ),
+        );
+      }
+    }
+    if (!any || bounds == null) return;
+
+    final pulse = 0.5 + 0.5 * sin(_moltenPulse * 1.9);
+    // The crust the run has skinned over with.
+    canvas.drawPath(body, Paint()..color = const Color(0xFF3A1206));
+    canvas.save();
+    canvas.clipPath(body);
+    // The body of it, breathing.
+    canvas.drawRect(
+      bounds,
+      Paint()
+        ..color = Color.lerp(
+          const Color(0xFF8A2E0C),
+          const Color(0xFFC4531A),
+          pulse * 0.8,
+        )!,
+    );
+    // Bands travelling ALONG the mass — this is the whole difference between
+    // "lit" and "flowing".
+    final band = Paint()
+      ..strokeWidth = 7
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 7; i++) {
+      final t = ((_moltenPulse * 0.22 + i / 7) % 1.0);
+      final y = bounds.top - 40 + (bounds.height + 80) * t;
+      band.color = const Color(
+        0xFFFFB05A,
+      ).withValues(alpha: 0.20 * sin(t * pi).clamp(0.0, 1.0));
+      canvas.drawLine(
+        Offset(bounds.left - 10, y),
+        Offset(bounds.right + 10, y + 14),
+        band,
+      );
+    }
+    // Bright seams where the crust has cracked open.
+    final seam = Paint()
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..color = Color.lerp(
+        const Color(0xFFFF6A2A),
+        const Color(0xFFFFE0A8),
+        pulse,
+      )!;
+    for (var r = 0; r < g.rowCount; r++) {
+      for (var c = 0; c < g.cols; c++) {
+        if (grid[r][c] != _mLava) continue;
+        final n = _forgeNoise(c * 7, r * 13);
+        final x = room.bounds.left + (c + 0.2 + 0.6 * n) * cw;
+        final y = room.bounds.top + (r + 0.5) * ch;
+        canvas.drawLine(
+          Offset(x, y - ch * 0.22),
+          Offset(x + cw * (0.2 + 0.3 * n), y + ch * 0.24),
+          seam,
+        );
+      }
+    }
+    canvas.restore();
+    // A hot rim on the outside of the mass.
+    canvas.drawPath(
+      body,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..color = const Color(0xFFFFC98A).withValues(alpha: 0.55 + 0.2 * pulse),
+    );
+    if (_fx.ready) {
+      for (var r = 0; r < g.rowCount; r++) {
+        for (var c = 0; c < g.cols; c++) {
+          if (grid[r][c] != _mLava) continue;
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            Offset(
+              room.bounds.left + (c + 0.5) * cw,
+              room.bounds.top + (r + 0.5) * ch,
+            ),
+            cw * 0.8,
+            const Color(0xFFFF7A33).withValues(alpha: 0.22 + 0.14 * pulse),
+          );
+        }
       }
     }
   }
