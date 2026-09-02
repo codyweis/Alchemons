@@ -1393,6 +1393,50 @@ void main() {
       expect(pylon.beamReceiver, isNotNull);
       expect(pylon.beamReceivers, isEmpty, reason: 'one mast, not three');
       expect(pylon.walls, isNotEmpty, reason: 'the pillar that eats a bolt');
+      // The Mirror Gallery (§9.3): three echoes, three panes, three DIFFERENT
+      // wings — and never the gallery's own, which would light the room and
+      // drown them.
+      final gallery = lightning.rooms['mirror_gallery']!;
+      expect(gallery.stormCells.length, 3);
+      final galleryTrunk = lightning.dynamoTrunks
+          .firstWhere((t) => t.roomIds.contains('mirror_gallery'))
+          .id;
+      final wings = gallery.stormCells
+          .map((c) => c.showsUnderTrunk)
+          .toList(growable: false);
+      expect(
+        wings.toSet().length,
+        3,
+        reason: 'each echo answers to its own wing: $wings',
+      );
+      expect(
+        wings,
+        isNot(contains(galleryTrunk)),
+        reason:
+            'an echo keyed to the gallery\'s own trunk could never be seen — '
+            'that wing lights the room and drowns the glass',
+      );
+      for (final c in gallery.stormCells) {
+        expect(
+          lightning.dynamoTrunks.map((t) => t.id),
+          contains(c.showsUnderTrunk),
+          reason: '${c.id} names a wing that does not exist',
+        );
+        // The reflection must land somewhere the player can stand and read
+        // it, and far enough from the truth that walking to one is a choice.
+        expect(gallery.bounds.deflate(40).contains(c.reflection), isTrue);
+        expect(gallery.bounds.deflate(40).contains(c.position), isTrue);
+        expect(
+          (c.reflection - c.position).distance,
+          greaterThan(120),
+          reason: '${c.id}: the two sides must not blur into one another',
+        );
+        for (final w in gallery.walls) {
+          expect(w.inflate(16).contains(c.position), isFalse);
+          expect(w.inflate(16).contains(c.reflection), isFalse);
+        }
+      }
+
       // Star 2: three sockets (one needs heat) fed by storm-cells.
       final works = lightning.rooms['cloud_works']!;
       expect(works.circuitStarIndex, 1);

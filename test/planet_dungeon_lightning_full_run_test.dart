@@ -221,16 +221,63 @@ void main() {
     );
     clearWisps();
 
-    // ── Star 2: bare the storm-cells, herd + heat them, then feed the works ──
+    // ── Star 2: READ THE GLASS, then herd + heat ──
+    // The gallery holds no light of its own. Each echo shows only while ITS
+    // wing is the wing being fed, and what stands in the pane is a
+    // reflection — the echo waits the same distance the other side.
     final gallery = room('mirror_gallery');
-    game.setActive(1); // Air wing
+    game.setActive(0); // Lightning bares the glass
+
+    // Its OWN (cloud) trunk lights the room, and a lit room drowns all three.
+    throwTrunk('trunk_cloud');
+    teleport('mirror_gallery', gallery.stormCells.first.position);
+    game.activateAbility();
+    step();
+    expect(
+      game.discoveredClouds,
+      isNot(contains('cell_spark')),
+      reason: "the gallery's own light drowns the glass",
+    );
+
     for (final cell in gallery.stormCells) {
+      // A wing that is not this echo's shows nothing, even stood right on
+      // it. (Not the LIVE one either — a breaker thrown twice cuts its own
+      // trunk, which is the vault's whole trick.)
+      throwTrunk(
+        game.layout.dynamoTrunks
+            .map((t) => t.id)
+            .firstWhere(
+              (id) => id != cell.showsUnderTrunk && id != game.activeTrunk,
+            ),
+      );
       teleport('mirror_gallery', cell.position);
+      game.activateAbility();
+      step();
+      expect(
+        game.discoveredClouds,
+        isNot(contains(cell.id)),
+        reason: '${cell.id} answers to ${cell.showsUnderTrunk} alone',
+      );
+
+      throwTrunk(cell.showsUnderTrunk);
+      // The reflection is the mistake the room is built to spring exactly
+      // once — standing in the image and grasping at glass.
+      teleport('mirror_gallery', cell.reflection);
+      game.activateAbility();
+      step();
+      expect(
+        game.discoveredClouds,
+        isNot(contains(cell.id)),
+        reason: 'the pane shows a SIDE — nothing is standing there to take',
+      );
+
+      teleport('mirror_gallery', cell.position);
+      game.activateAbility();
       step();
       expect(
         game.discoveredClouds,
         contains(cell.id),
-        reason: 'close approach bares the storm-cell echo',
+        reason: 'its own wing lit, and stood on the true side of the glass',
       );
     }
     clearWisps();

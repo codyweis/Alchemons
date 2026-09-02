@@ -45,6 +45,10 @@ const String kLightningThunderboltEggId = 'egg:lightning_thunderbolt';
 /// works can herd. Their staging order maps to the staging slots.
 const List<String> _kCircuitCellIds = ['cell_spark', 'cell_veil', 'cell_anvil'];
 
+/// How close Lightning must stand to bare a shown echo — generous, because
+/// the puzzle is WHICH WING and WHICH SIDE, never pixel-hunting the floor.
+const double _kEchoReach = 74.0;
+
 /// How long a charged (non-latching) pylon holds — the arc-gate entry rite.
 const double _kChargeWindow = 8.0;
 
@@ -773,21 +777,10 @@ extension StormCircuit on PlanetDungeonGame {
       );
     }
 
-    // Discover storm-cells by close approach (insight reveals them at range).
-    for (final cell in room.stormCells) {
-      if (discoveredClouds.contains(cell.id)) continue;
-      if ((a.position - cell.position).distance < 40) {
-        _discoverCloud(cell.id);
-        _setHint('A storm-cell stirs — its echo wakes at the cloud works');
-        _spawnAlchemyBurst(
-          cell.position,
-          producedElement: 'Lightning',
-          reagentElements: const ['Air'],
-          particleCount: 14,
-          intensity: 0.7,
-        );
-      }
-    }
+    // (Walk-by discovery is GONE. An echo bares to Lightning at its true
+    // spot, in the light of its own wing, and nowhere else — see
+    // `_tryBareStormCells`. Stumbling into one by walking past it was the
+    // whole reason the room felt like nothing.)
 
     // The vault bolt: refusal lean + never trapping a creature in its slot.
     if (room.vaultBolt != null) _updateVaultBolt(a, room);
@@ -1087,24 +1080,54 @@ extension StormCircuit on PlanetDungeonGame {
   /// permanent progress — pressing HINT out of curiosity would discover the
   /// cells for you. Asking now only says how many are still hiding; finding
   /// them is something you do.
+  /// Is this echo standing in borrowed light right now? Only the one wing
+  /// that belongs to it shows it — and the gallery's OWN (cloud) trunk lights
+  /// the room instead, which drowns every echo in it.
+  bool stormCellShown(StormCell cell) => activeTrunk == cell.showsUnderTrunk;
+
   bool _tryBareStormCells(DungeonCreature a, DungeonRoom room) {
     if (room.stormCells.isEmpty) return false;
     if (a.member.element != 'Lightning') return false;
-    var found = 0;
+    // Standing at a REFLECTION and pressing is the mistake the room is built
+    // to make you make once — so it answers, rather than doing nothing.
     for (final cell in room.stormCells) {
       if (discoveredClouds.contains(cell.id)) continue;
-      if ((a.position - cell.position).distance >= 220) continue;
-      _discoverCloud(cell.id);
-      found++;
-      _spawnAlchemyBurst(
-        cell.position,
-        producedElement: 'Lightning',
-        reagentElements: const ['Air'],
-        particleCount: 12,
-        intensity: 0.6,
-      );
+      if (!stormCellShown(cell)) continue;
+      if ((a.position - cell.position).distance <= _kEchoReach) {
+        _discoverCloud(cell.id);
+        _setHint(
+          'The ${cell.cellType} echo bares — its place wakes at the works',
+        );
+        _spawnAlchemyBurst(
+          cell.position,
+          producedElement: 'Lightning',
+          reagentElements: const ['Air'],
+          particleCount: 16,
+          intensity: 0.8,
+        );
+        return true;
+      }
+      if ((a.position - cell.reflection).distance <= _kEchoReach) {
+        _setBlockedHint('Your hand closes on glass — the pane shows a side');
+        return true;
+      }
     }
-    return found > 0;
+    // Nothing shown, or nothing near: name the state, never the answer.
+    if (room.stormCells.every((c) => discoveredClouds.contains(c.id))) {
+      return false;
+    }
+    if (!room.stormCells.any(stormCellShown)) {
+      _setBlockedHintOnce(
+        'circuit:gallery_drowned',
+        activeTrunk == null
+            ? 'The glass is black — no wing is lit to shine into it'
+            : circuitRoomLit(room.id)
+            ? 'The gallery\'s own light drowns the glass'
+            : 'This wing throws nothing the glass can hold',
+      );
+      return true;
+    }
+    return false;
   }
 
   bool _tryCircuit(DungeonCreature a) {
@@ -1429,9 +1452,23 @@ extension StormCircuit on PlanetDungeonGame {
         .where((c) => !discoveredClouds.contains(c.id))
         .length;
     if (hidden > 0) {
+      final shown = room.stormCells.any(
+        (c) => stormCellShown(c) && !discoveredClouds.contains(c.id),
+      );
       _setInsightHint(
-        'The air will not sit still — $hidden echo${hidden == 1 ? '' : 'es'} '
-        'somewhere in this gallery',
+        tier >= 2
+            ? (shown
+                  ? 'One pane is speaking. What stands in it is a REFLECTION '
+                        '— the echo waits as far the other side of the glass '
+                        'as its image stands this side'
+                  : 'Nothing shines in here now. Go back to the dynamo and '
+                        'feed a different wing — any wing but this one')
+            : tier >= 1
+            ? 'The glass holds no light of its own. It carries whichever wing '
+                  'the dynamo feeds, and each echo answers to one wing only — '
+                  'so lighting THIS room hides all three'
+            : 'Glass, and $hidden echo${hidden == 1 ? '' : 'es'} that will not '
+                  'stand where they seem to',
       );
       return;
     }
@@ -1579,7 +1616,7 @@ extension StormCircuit on PlanetDungeonGame {
       return 'Storm Core — face Raikuma: calm it, or strike in its lulls';
     }
     if (room.stormCells.isNotEmpty) {
-      return 'Mirror Gallery — something stirs behind the glass';
+      return 'Mirror Gallery — three echoes, and glass that holds no light';
     }
     if (room.vaultBolt != null && !discoveredClouds.contains(_vaultCacheId)) {
       return 'Capacitor Vault — the treasury hoards its charge';
@@ -1616,6 +1653,18 @@ extension StormCircuit on PlanetDungeonGame {
         label: total > 1 ? 'MASTS' : 'MAST',
         value: '$lit/$total',
         fraction: total == 0 ? null : lit / total,
+      );
+    }
+    // The gallery: echoes bared out of the glass.
+    if (room.stormCells.isNotEmpty && !hasStar(1)) {
+      final total = room.stormCells.length;
+      final n = room.stormCells
+          .where((c) => discoveredClouds.contains(c.id))
+          .length;
+      return DungeonProgressReadout(
+        label: 'ECHOES',
+        value: '$n/$total',
+        fraction: total == 0 ? null : n / total,
       );
     }
     // S2: energized sockets.
@@ -1943,6 +1992,9 @@ extension StormCircuit on PlanetDungeonGame {
       _drawBarrier(canvas, bar.rect, open);
     }
 
+    // 3b) The Mirror Gallery's panes, and whatever the borrowed light shows.
+    if (room.stormCells.isNotEmpty) _renderMirrorGallery(canvas, room);
+
     // 4) Cell sockets + the discovered echoes hovering in staging.
     for (final sock in room.cellSockets) {
       _drawSocket(canvas, sock);
@@ -1969,6 +2021,139 @@ extension StormCircuit on PlanetDungeonGame {
           carriedCloudType!,
         );
       }
+    }
+  }
+
+  /// The colour a wing throws into the gallery's glass.
+  Color _wingLight(String trunkId) => switch (trunkId) {
+    'trunk_pylon' => const Color(0xFFBFE6FF), // the hall of bolts
+    'trunk_vault' => const Color(0xFFE9D27A), // the treasury's hoarded amber
+    'trunk_core' => const Color(0xFFE0A46A), // the spire's ember
+    _ => const Color(0xFF9FB6CE),
+  };
+
+  /// The Mirror Gallery: three panes of storm-glass, and the echo each one
+  /// carries when — and only when — its own wing is the wing being fed.
+  void _renderMirrorGallery(Canvas canvas, DungeonRoom room) {
+    for (final cell in room.stormCells) {
+      final rect = cell.paneRect;
+      final shown = stormCellShown(cell);
+      final bared = discoveredClouds.contains(cell.id);
+      final light = _wingLight(cell.showsUnderTrunk);
+
+      // The iron frame the glass stands in — always there, always readable,
+      // so the room reads as a gallery even with every wing dark.
+      final frame = RRect.fromRectAndRadius(
+        rect.inflate(5),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(frame, Paint()..color = const Color(0xFF171E27));
+      canvas.drawRRect(
+        frame,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = const Color(0xFF54708F),
+      );
+      // Feet, so the pane stands on the floor instead of floating.
+      for (final foot in cell.paneVertical
+          ? [rect.topCenter, rect.bottomCenter]
+          : [rect.centerLeft, rect.centerRight]) {
+        canvas.drawCircle(foot, 5, Paint()..color = const Color(0xFF2A3646));
+      }
+
+      // The glass. Inert slate when nothing shines into it; silvered and
+      // wing-coloured when its own wing is the one being fed.
+      canvas.drawRect(
+        rect,
+        Paint()
+          ..color = shown
+              ? light.withValues(alpha: 0.55)
+              : const Color(0xFF1B2430).withValues(alpha: 0.85),
+      );
+      if (shown) {
+        // A bright inner edge, so a speaking pane is unmistakable across a
+        // dark room rather than a slightly warmer grey.
+        canvas.drawRect(
+          rect.deflate(2),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = Colors.white.withValues(alpha: 0.55),
+        );
+      }
+      // A couple of raking highlights so it reads as glass, not a slab.
+      final rake = Paint()
+        ..strokeWidth = 1.2
+        ..color = Colors.white.withValues(alpha: shown ? 0.45 : 0.10);
+      for (var k = 0; k < 3; k++) {
+        final t = 0.22 + k * 0.28;
+        if (cell.paneVertical) {
+          final y = rect.top + rect.height * t;
+          canvas.drawLine(
+            Offset(rect.left, y + 10),
+            Offset(rect.right, y),
+            rake,
+          );
+        } else {
+          final x = rect.left + rect.width * t;
+          canvas.drawLine(
+            Offset(x, rect.top),
+            Offset(x + 10, rect.bottom),
+            rake,
+          );
+        }
+      }
+
+      if (bared) {
+        // Spent: the glass keeps a cold etch of what it once held, so a wing
+        // you have already read never looks like one you have not.
+        canvas.drawCircle(
+          cell.pane,
+          9,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = light.withValues(alpha: 0.45),
+        );
+        continue;
+      }
+      if (!shown) continue;
+
+      // The borrowed light, thrown: three motes running the glass out to
+      // where the image stands. (A flat translucent rect between the two read
+      // as a grey box laid on the floor, which is not light.)
+      if (_fx.ready) {
+        drawGlow(canvas, _fx.glow!, cell.pane, 52, light);
+      }
+      for (var k = 0; k < 3; k++) {
+        final t = ((_time * 0.5 + k / 3) % 1.0);
+        final at = Offset.lerp(cell.pane, cell.reflection, t)!;
+        canvas.drawCircle(
+          at,
+          2.6,
+          Paint()..color = light.withValues(alpha: 0.55 * (1 - t)),
+        );
+      }
+      // …and the perpendicular the image hangs on: a dotted tick from the
+      // reflection back to the glass. It states the RELATION (this thing is
+      // an image, and that is its mirror) without ever pointing at the far
+      // side, which is the part the player is here to work out.
+      final tick = Paint()
+        ..strokeWidth = 1.2
+        ..color = light.withValues(alpha: 0.30);
+      const dots = 9;
+      for (var k = 0; k < dots; k += 2) {
+        final t0 = k / dots, t1 = (k + 1) / dots;
+        canvas.drawLine(
+          Offset.lerp(cell.reflection, cell.pane, t0)!,
+          Offset.lerp(cell.reflection, cell.pane, t1)!,
+          tick,
+        );
+      }
+
+      final pulse = 0.55 + 0.2 * sin(_time * 1.7 + cell.pane.dx * 0.01);
+      _drawStormCell(canvas, cell.reflection, cell.cellType, opacity: pulse);
     }
   }
 
@@ -2829,7 +3014,15 @@ extension StormCircuit on PlanetDungeonGame {
     }
   }
 
-  void _drawStormCell(Canvas canvas, Offset center, String type) {
+  /// [opacity] < 1 draws the REFLECTION of an echo rather than the echo — an
+  /// image in the glass. Faded in the paints rather than through a saveLayer,
+  /// which is a per-frame cost this room does not need to pay.
+  void _drawStormCell(
+    Canvas canvas,
+    Offset center,
+    String type, {
+    double opacity = 1.0,
+  }) {
     final c = switch (type) {
       'Anvil' => const Color(0xFFB6C2D0),
       'Veil' => const Color(0xFF9FB6CE),
@@ -2838,14 +3031,18 @@ extension StormCircuit on PlanetDungeonGame {
     final bob = sin(_time * 2 + center.dx * 0.02) * 3;
     final p = center + Offset(0, bob);
     if (_fx.ready) {
-      drawGlow(canvas, _fx.glow!, p, 26, c);
-      drawPuff(canvas, _fx.puff!, p, 30, c.withValues(alpha: 0.7));
+      drawGlow(canvas, _fx.glow!, p, 26, c.withValues(alpha: opacity));
+      drawPuff(canvas, _fx.puff!, p, 30, c.withValues(alpha: 0.7 * opacity));
     } else {
-      canvas.drawCircle(p, 12, Paint()..color = c.withValues(alpha: 0.8));
+      canvas.drawCircle(
+        p,
+        12,
+        Paint()..color = c.withValues(alpha: 0.8 * opacity),
+      );
     }
     // a little fork of lightning inside
     final bolt = Paint()
-      ..color = const Color(0xFFFFFFFF)
+      ..color = Colors.white.withValues(alpha: opacity)
       ..strokeWidth = 1.6
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(p + const Offset(-4, -6), p + const Offset(1, 0), bolt);

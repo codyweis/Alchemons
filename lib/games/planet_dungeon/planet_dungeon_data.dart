@@ -842,15 +842,60 @@ class BeamMirror {
 
 /// A storm-cell echo (Spark/Veil/Anvil flavour) discovered in a side room via
 /// insight or proximity, then herded by an Airwing gust onto a [CellSocket].
+/// A storm-cell echo hiding in the Mirror Gallery.
+///
+/// THE GALLERY HOLDS NO LIGHT OF ITS OWN. It shares the cloud trunk with the
+/// works, so feeding that trunk simply lights the room — and a lit room drowns
+/// what the glass carries. Every OTHER wing the dynamo feeds throws its light
+/// into the gallery through a pane of storm-glass, and each echo shows only in
+/// the light of the one wing that belongs to it.
+///
+/// And the glass is a mirror, so it lies about the side: what you see standing
+/// in the pane is the echo's REFLECTION, and the echo itself waits the same
+/// distance the other way. Two readings, both stateable — which wing, and
+/// which side — and no sweeping the floor.
 class StormCell {
   final String id;
   final String cellType;
+
+  /// Where the echo really waits (never drawn until it is bared).
   final Offset position;
+
+  /// The centre of the pane of storm-glass that carries its light.
+  final Offset pane;
+
+  /// The plane the glass stands in — true for a pane you walk around
+  /// left/right, false for one you walk around top/bottom.
+  final bool paneVertical;
+
+  /// How long the glass is, along its own plane.
+  final double paneSpan;
+
+  /// The wing whose borrowed light shows this echo. Feed any other trunk and
+  /// the pane stands dark; feed the gallery's OWN (cloud) trunk and the room
+  /// lights up and drowns every echo in it.
+  final String showsUnderTrunk;
+
   const StormCell({
     required this.id,
     required this.cellType,
     required this.position,
+    required this.pane,
+    required this.showsUnderTrunk,
+    this.paneVertical = true,
+    this.paneSpan = 150,
   });
+
+  /// Where the echo APPEARS — its reflection, mirrored across the glass.
+  Offset get reflection => paneVertical
+      ? Offset(2 * pane.dx - position.dx, position.dy)
+      : Offset(position.dx, 2 * pane.dy - position.dy);
+
+  /// The glass itself (solid — you walk around it, and walking around it is
+  /// how you cross to the side the echo is really on).
+  Rect get paneRect => paneVertical
+      ? Rect.fromCenter(center: pane, width: 12, height: paneSpan)
+      : Rect.fromCenter(center: pane, width: paneSpan, height: 12);
 }
 
 /// A socket an Airwing drops a storm-cell into. A filled socket energizes
@@ -3802,17 +3847,24 @@ const DungeonLayout _lightningLayout = DungeonLayout(
       ],
     ),
 
-    // Room C — Pylon Hall. Star 1 (zero-sum rework): the hall's emitter is
-    // live only while the PYLON TRUNK is fed. One bolt must thread ALL THREE
-    // terminals via FOUR conductor mirrors ('/' or '\\') — and it must NEVER
-    // cross a fulminate vat (a cooked vat detonates + trips the dynamo dark).
-    // Geometry (solver-proven unique — see the layout test's brute force):
-    //   E(140,150)→ pa'\\'(520,150) ↓ T1 → pd'\\'(520,560) → T2 →
-    //   pc'/'(960,560) ↑ T3 → pb'/'(960,150) → out right.
-    // The tempting alternative pb='\\' (back along the top) crosses vat A —
-    // the vat is the constraint that makes the threading unique; vat B
-    // punishes the wrong turn at pd (down→left runs straight over it).
-    'pylon_hall': DungeonRoom(
+    // Room C — Pylon Hall. Star 1 (§9.2): THE BRAID, TAUGHT SMALL. The hall
+    // is live only while the PYLON TRUNK is fed, and the mast at the west end
+    // drinks lightning alone — which nothing in the room emits.
+    //  • AIR stationed on a vent opens a wind (three vents; only one ever
+    //    meets iron).
+    //  • FIRE stationed in that wind turns it to lightning AT THE FLAME
+    //    (three converters) — so where Fire stands decides how much of the
+    //    run is charged.
+    //  • LIGHTNING turns the four heavy conductors ('/' or '\'); only the
+    //    storm's own can move them.
+    // Solver-proven unique — 9 pairings × 16 conductor sets, one answer:
+    //   VA(150,150) → pa'\'(880,150) ↓ through FA(880,340) → pb'/'(880,560)
+    //   → pc'\'(400,560) ↑ → pd'\'(400,250) → MAST(200,250).
+    // THE TEACHING LIE: vent VB(150,470) and converter FC(250,470) lie in a
+    // line together, so the tempting pair really does catch — the flame
+    // lights, a real bolt is born, and it dies in the east wall. Making
+    // lightning is not the puzzle; landing it is.
+'pylon_hall': DungeonRoom(
       id: 'pylon_hall',
       bounds: Rect.fromLTWH(0, 0, 1040, 720),
       doors: [
@@ -3969,9 +4021,33 @@ const DungeonLayout _lightningLayout = DungeonLayout(
       circuitStarIndex: 1,
     ),
 
-    // Room F — Mirror Gallery. Storm-cell echoes hide here, bared by insight
-    // (Mask) or close approach; discovering one unlocks its echo at the cloud
-    // works (no dragging across rooms). A Mask also reads the maze's true path.
+    // Room F — The Mirror Gallery (§9.3 rework). The FINDING half of Star 2:
+    // three storm-cell echoes hide here; the works below is where they are
+    // spent.
+    //
+    // WHAT THIS REPLACES: the echoes used to be found by walking within 40px
+    // of one, or by standing near the middle and using Lightning, which bared
+    // everything inside 220px. There was nothing to reason about and nothing
+    // that could be got wrong — you swept the floor and the room paid out.
+    //
+    // THE ROOM ONLY WORKS IN THE DARK. It shares the CLOUD trunk with the
+    // works, so feeding that trunk lights it — and its own light drowns what
+    // the glass carries. Feed any OTHER wing and the gallery goes dark, and
+    // that wing's light reaches it through one pane of storm-glass, showing
+    // the one echo that belongs to it. Every echo therefore costs you the wing
+    // you were standing in, which is this planet's zero-sum made personal —
+    // and dark segments prowl with spark-wisps, so gathering is never free.
+    //
+    // AND THE GLASS LIES ABOUT THE SIDE. What stands in the pane is the
+    // echo's REFLECTION; the echo waits the same distance the other way.
+    // Lightning bares it at the TRUE spot, never at the reflection.
+    //
+    //   Spark ← trunk_pylon · pane x=190 · shows (270,220), waits (110,220)
+    //   Veil  ← trunk_vault · pane x=570 · shows (490,220), waits (650,220)
+    //   Anvil ← trunk_core  · pane y=440 · shows (240,360), waits (240,520)
+    //
+    // (The Anvil echo is the one the works wants heated by Fire — so the
+    // spire's own light hands you the cell that needs a flame.)
     'mirror_gallery': DungeonRoom(
       id: 'mirror_gallery',
       bounds: Rect.fromLTWH(0, 0, 760, 620),
@@ -3995,49 +4071,70 @@ const DungeonLayout _lightningLayout = DungeonLayout(
           targetSpawn: Offset(490, 86),
         ),
       ],
+      // The three panes stand as solid glass in iron frames.
+      walls: [
+        Rect.fromLTWH(184, 145, 12, 150),
+        Rect.fromLTWH(564, 145, 12, 150),
+        Rect.fromLTWH(140, 434, 200, 12),
+      ],
       stormCells: [
         StormCell(
           id: 'cell_spark',
           cellType: 'Spark',
-          position: Offset(170, 200),
+          position: Offset(110, 220),
+          pane: Offset(190, 220),
+          showsUnderTrunk: 'trunk_pylon',
         ),
         StormCell(
           id: 'cell_veil',
           cellType: 'Veil',
-          position: Offset(590, 200),
+          position: Offset(650, 220),
+          pane: Offset(570, 220),
+          showsUnderTrunk: 'trunk_vault',
         ),
         StormCell(
           id: 'cell_anvil',
           cellType: 'Anvil',
-          position: Offset(380, 430),
+          position: Offset(240, 520),
+          pane: Offset(240, 440),
+          paneVertical: false,
+          paneSpan: 200,
+          showsUnderTrunk: 'trunk_core',
         ),
       ],
     ),
 
-    // Room G — The Storm Spire. Star 3, behind the breaker gate: an open-arena
-    // beam puzzle that needs all three creatures stationed/used at once — and
-    // there are MULTIPLE vents and converters, only the right combination works.
-    //  • Station AIR on a Wind Vent → that vent emits a power beam (but only one
-    //    vent's beam can actually be routed; the others die into walls/pillars).
-    //  • Station FIRE on a Converter spot → IF the beam passes through it the
-    //    beam becomes LIGHTNING there (a real arc — Air+Fire→Lightning). You must
-    //    thread the beam THROUGH a converter on its way to the tower.
-    //  • LIGHTNING roams and turns the heavy conductor mirrors (only the storm's
-    //    own can move them) to bounce the beam around the pillars, through a
-    //    converter, and onto the central STORM TOWER. Only the lightning portion
-    //    lights it → the gate to Raikuma throws open.
-    // The one viable chain spirals inward through FIVE conductors: vent VA →
-    // A(right→down) → B(down→left) → C(left→up) → D(up→left) → E(left→down) →
-    // through converter FA → tower. Mirror solution A='\\' B='/' C='\\' D='\\'
-    // E='/' (three flipped off the default '/'). The Thunderbolt egg lights it
-    // with a Lightning Horn among the conductors.
-    // DECOY PAIR (rework): vent VD + converter FD stand dead-aligned on the
-    // east wall — the only vent/converter pair that line up perfectly, and a
-    // lie: no conductor waits beyond FD on that column, so the born bolt can
-    // only die in the ceiling. Its elimination is pure mirror-geometry
-    // reasoning (the layout test brute-forces all 32 orientations to prove
-    // it impossible).
-    'overload_maze': DungeonRoom(
+    // Room G — The Storm Spire. Star 3, behind the breaker gate (§9.2): THE
+    // SAME BRAID AT SCALE. Everything Pylon Hall taught, with the screws
+    // turned: four vents, four converters, SEVEN conductors, three pillars —
+    // and THREE MASTS that must all be crowned at once.
+    //  • AIR opens a vent; FIRE standing in the wind turns it to lightning
+    //    there; LIGHTNING turns the conductors around the pillars.
+    // THE ORDERING CONSTRAINT is what makes it hard, not the extra corners.
+    // There is one beam and the converter is a point ON it, so the flame's
+    // position decides how much of the run is charged — and crowning three
+    // masts with the charged half forces the conversion HIGH on the east
+    // fall, leaving nearly the whole route lightning.
+    // Solver-proven unique — 16 pairings × 128 conductor sets, one answer:
+    //   VA(170,140) →A'\'(980,140) ↓ FA(980,300) ↓ MAST(980,470) ↓
+    //   →B'/'(980,620) →C'\'(760,620) ↑ →D'\'(760,430) → MAST(610,430) →
+    //   →E'/'(450,430) ↓ →F'/'(450,560) →G'\'(340,560) ↑ MAST(340,300) ↑ out.
+    // (Wind for the first leg only; everything from FA onward is lightning.)
+    // FULMINATE IS HALF-BLIND: wind may lie across a vat all day, the charged
+    // half cooks it off in 1.6s and trips the dynamo dark. Vat A(560,140)
+    // hangs in plain sight on the very first leg so the player runs wind over
+    // fulminate before they know it should frighten them. Four of the 128
+    // sets detonate, one of them a single conductor from the answer. Note the
+    // vats are HAZARDS, not the uniqueness constraint — the geometry alone is
+    // already unique, which is the stronger guarantee.
+    // DECOY PAIR: vent VD(1000,660) runs the east aisle 20px clear of every
+    // conductor, so it can never be bent, and converter FD(1010,380) sits
+    // right in that aisle — the only pair that line up perfectly, and a lie.
+    // Its elimination is pure geometry (the layout test brute-forces all 128
+    // conductor sets to prove it crowns nothing).
+    // (The Thunderbolt no longer rides this beam — it is its own chain at the
+    // dynamo now; see `_tryThunderbolt`.)
+'overload_maze': DungeonRoom(
       id: 'overload_maze',
       bounds: Rect.fromLTWH(0, 0, 1120, 720),
       doors: [

@@ -2055,6 +2055,50 @@ game and its proof cannot drift. Note the vats are HAZARDS, not the uniqueness
 constraint — the geometry alone is already unique, and that is the stronger
 guarantee.
 
+### §9.3 THE MIRROR GALLERY — the room that only works in the dark
+
+Star 2 has two halves: the gallery FINDS the three storm-cell echoes, the
+cloud works SPENDS them. The works half was always fine. The finding half was
+not a puzzle at all — an echo bared if you walked within 40px of it, or if you
+stood anywhere near the middle and used Lightning, which bared everything
+inside 220px. Nothing to reason about, nothing you could get wrong: you swept
+the floor and the room paid out.
+
+It asks two questions now, and both are rules you can state out loud.
+
+**WHICH WING.** The gallery shares the CLOUD trunk with the works, so feeding
+that trunk lights the room — and its own light drowns what the glass carries.
+Feed any *other* wing and the gallery goes dark, and that wing's light reaches
+it through one pane of storm-glass, showing the one echo that belongs to it.
+  · Spark ← the pylon trunk. Veil ← the vault trunk. Anvil ← the core trunk.
+  · So every echo costs you the wing you were standing in. That is this
+    planet's zero-sum stated as a puzzle instead of as a fact, and it is the
+    one thing Voltara owns that no other planet does.
+  · It also sets the order of the whole star: go dark three times to gather,
+    then feed cloud to seat and bank. And dark segments prowl with
+    spark-wisps, so gathering is never free.
+  · The Anvil echo — the one the works wants heated by Fire — is handed to you
+    by the SPIRE's light. The wing you need for Star 3 gives you the cell that
+    needs a flame.
+
+**WHICH SIDE.** The glass is a mirror, so it lies about the side. What stands
+in the pane is the echo's REFLECTION; the echo waits the same distance the
+other way, and Lightning bares it at the true spot only. Grasping at the image
+is the mistake the room is built to spring exactly once, so it answers —
+*your hand closes on glass* — rather than doing nothing.
+  · The panes are solid, and walking around one is how you cross to the side
+    the echo is really on.
+  · The render states the RELATION without giving the answer: motes run the
+    glass out to the image, and a dotted perpendicular hangs the image off its
+    mirror. It says *this is a picture, and that is what it is a picture in* —
+    it never points at the far side.
+
+Two rendering traps worth remembering. The panes are walls, so the generic
+`_renderWalls` rock body painted straight over the top and turned three panes
+of storm-glass into three grey slabs — it skips storm panes now. And the
+"borrowed light" first went in as a flat translucent rect between pane and
+image, which reads as a grey box lying on the floor; light has to travel.
+
 ### DOORS — where you come out matters as much as where you go in
 
 A door's `targetSpawn` is where you land in the next room. Three ways that

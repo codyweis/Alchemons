@@ -12690,7 +12690,12 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _renderWalls(Canvas canvas, DungeonRoom room) {
+    // The Mirror Gallery's panes are walls — you walk around them — but they
+    // are GLASS, and the room draws them itself. Laying the generic rock body
+    // over the top turned three panes of storm-glass into three grey slabs.
+    final glass = room.stormCells.map((c) => c.paneRect).toSet();
     for (final w in room.walls) {
+      if (glass.contains(w)) continue;
       // Soft cast shadow under the rock.
       canvas.drawRRect(
         RRect.fromRectAndRadius(
