@@ -2015,20 +2015,31 @@ of old stone bars the way"** in a room that had not had one for weeks.
       the one that stays, because the far shore is Earth's and Fire's work.
       **The gauge reads 0-99.** Counting mouths is the physics; "the riser
       needs 99" is a far better thing to know than "the riser needs two".
+      **THE THROW LEFT THE BODY, NOT THE MOUTH — so a half-held field cleared
+      the chasm.** Reported from play as "we didn't need 99 pressure". You may
+      ride from anywhere within 44px of the throat and the throw was measured
+      from the CREATURE, so standing on the east lip of the ring handed you up
+      to 44px of free distance against the 25px that separates a full head
+      from half of one. It leaves the mouth now, and a test rides from the far
+      lip and requires it to still fall short.
       **A short throw is now watchable.** The throw used to TELEPORT — the one
       spectacular thing in the room was invisible, and a throw that fell short
       was indistinguishable from one that did nothing. Bodies arc now, lift
       scaled to the distance, and a throw that lands in the void drops into it
       in full view before scrambling back onto the shore it left. That arc is
       the room's only wordless way of saying *not enough head*.
-      **THE FAR SHORE IS A CASTING MOULD.** Three dry runs: Earth heaves a
-      boulder onto each lip, Fire melts it down (**Earth+Fire→Lava**), the run
-      fills. All three poured and the pedestal yields. Steam is the one
-      element that would ruin a pour and the one element that cannot come —
-      which is what makes the split a decision rather than a chore. An
-      objective line fires once, the first time anyone comes down over there,
-      because a party that arrives mid-air on an unfamiliar shore should be
-      told what the shore is for.
+      **THE FAR SHORE IS A CASTING MOAT.** One boulder lip at the head of a
+      channel that runs the length of the shore down to the pedestal at its
+      foot. Earth heaves a rock on; Fire melts it (**Earth+Fire→Lava**) and the
+      melt runs DOWN — further with every press, and creeping back up the hill
+      whenever it is left alone, because the front of a run of lava skins over
+      the moment nobody is feeding it. A rock is worth about three pours and
+      the moat wants more than one, so the pair over there have a rhythm to
+      keep: Fire works the melt, Earth feeds it. Steam is the one element that
+      would kill it outright and the one that cannot come. An objective line
+      fires once, the first time anyone lands over there.
+        (It was first built as three separate sockets to fill in any order —
+        a row of switches, and a sequence rather than a thing you keep going.)
       **And the star condition had to change with it**: "the whole party on
       the far shore" is now impossible by construction, since the field needs
       a body holding it. The pour is the star.

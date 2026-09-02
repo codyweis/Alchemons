@@ -239,28 +239,27 @@ class StormRod {
 /// A creature mid-throw, arcing from a riser to wherever the field's head can
 /// put it. Held by the game, advanced each frame; the landing is whatever the
 /// arc ends on, solid ground or not.
-/// A section of the Cinder Forge's casting mould, on the FAR shore.
+/// The Cinder Forge's casting moat, on the FAR shore.
 ///
-/// The room throws two of your three across a chasm and keeps the third
-/// holding the field, so whatever waits over there has to be finishable by
-/// the two who went — and it is deliberately Earth's and Fire's work: Earth
-/// heaves a boulder into the channel, Fire melts it down
-/// (**Earth+Fire→Lava**), and the run of melt fills. Steam is the one element
-/// that would ruin it, and Steam is the one that cannot come.
-class MeltSocket {
-  final String id;
+/// One boulder lip at the head of a long channel that runs down to the
+/// pedestal at its foot. Earth heaves a rock onto the lip; Fire melts it, and
+/// the melt runs DOWN the channel — a little further with every press, and
+/// creeping back whenever it is left alone, because the front of a run of
+/// lava skins over the moment nobody is feeding it.
+///
+/// So the far shore is not a row of switches, it is a thing you have to keep
+/// going: Fire works the melt while Earth feeds it rock, and if the pair of
+/// them stop, the moat cools back up the hill. Steam is the one element that
+/// would kill it outright, and Steam is the one that has to stay behind
+/// holding the field — which is what makes the party split a decision.
+class CastingMoat {
+  /// The lip at the head of the channel, where a boulder stands.
+  final Offset boulderAt;
 
-  /// Where the boulder stands, at the channel's lip.
-  final Offset position;
-
-  /// The run of mould this boulder fills when it is melted down.
+  /// The channel itself, head at the top and foot at the pedestal.
   final Rect channel;
 
-  const MeltSocket({
-    required this.id,
-    required this.position,
-    required this.channel,
-  });
+  const CastingMoat({required this.boulderAt, required this.channel});
 }
 
 class GeyserFlight {
@@ -1198,8 +1197,8 @@ class DungeonRoom {
   /// Steam Star 1: the geyser field and the capstone at its heart.
   final List<GeyserMouth> geysers;
 
-  /// The Cinder Forge's casting mould, on its far shore.
-  final List<MeltSocket> meltSockets;
+  /// The Cinder Forge's casting moat, on its far shore.
+  final CastingMoat? castingMoat;
   final GeyserCapstone? capstone;
 
   final MoltenGrid? molten; // a star room's spreading-lava grid
@@ -1358,7 +1357,7 @@ class DungeonRoom {
     this.coreBreaker,
     this.garth,
     this.geysers = const [],
-    this.meltSockets = const [],
+    this.castingMoat,
     this.capstone,
     this.molten,
     this.steamVent,
@@ -4551,35 +4550,21 @@ const DungeonLayout _steamLayout = DungeonLayout(
         // THE RISER. Too wide to smother; stand on it and it throws you.
         GeyserMouth(id: 'r_riser', position: Offset(290, 420), isRiser: true),
       ],
-      // THE CASTING MOULD, on the far shore — three runs of dry channel and a
-      // boulder lip at each. Earth heaves the stone in, Fire melts it down,
-      // and the melt fills that run. All three poured and the cast is made.
+      // THE CASTING MOAT, on the far shore. One boulder lip at the head of a
+      // channel that runs the length of the shore down to the pedestal at its
+      // foot. Earth heaves a rock on; Fire melts it and the melt runs down —
+      // further with every press, and creeping back whenever it is left
+      // alone. A rock is worth about three presses, and the moat wants more
+      // than one rock, so the two who came over have a rhythm to keep: Fire
+      // works the melt, Earth feeds it.
       //
-      // The star is no longer "stand the whole party on the far shore": the
-      // field needs a body holding it, so the party CANNOT all be over there.
-      // What the room asks for now is the pour, which is Earth's and Fire's
-      // work and would be spoiled by the one element that has to stay behind.
-      // Stacked DOWN the shore, not across it. Side by side they sat 56px
-      // apart against a 62px working reach, so standing at one put you in
-      // range of its neighbour and the runs could not be addressed
-      // separately. The shore is tall and narrow; so is the mould.
-      meltSockets: [
-        MeltSocket(
-          id: 'm_a',
-          position: Offset(575, 170),
-          channel: Rect.fromLTWH(505, 205, 140, 50),
-        ),
-        MeltSocket(
-          id: 'm_b',
-          position: Offset(575, 330),
-          channel: Rect.fromLTWH(505, 365, 140, 40),
-        ),
-        MeltSocket(
-          id: 'm_c',
-          position: Offset(575, 500),
-          channel: Rect.fromLTWH(505, 535, 140, 50),
-        ),
-      ],
+      // (It was three separate sockets to fill in any order — a row of
+      // switches, and a sequence rather than a puzzle. This is the same two
+      // elements doing the same braid, with a clock on it.)
+      castingMoat: CastingMoat(
+        boulderAt: Offset(575, 150),
+        channel: Rect.fromLTWH(545, 190, 60, 450),
+      ),
       capstone: GeyserCapstone(position: Offset(575, 690), starIndex: 1),
     ),
 

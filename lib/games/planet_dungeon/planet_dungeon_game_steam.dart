@@ -78,6 +78,13 @@ const double _kFlightSeconds = 0.75;
 
 /// How close a body must stand to a channel lip to work it.
 const double _kCastReach = 62.0;
+
+/// How far one press of flame runs the melt down the moat, how much of the
+/// boulder it spends doing it, and how fast an unfed front skins over.
+const double _kMoatPerPour = 0.25;
+const double _kBoulderPerPour = 0.34;
+const double _kMoatCoolPerSecond = 0.055;
+const double _kMoatGraceSeconds = 1.2;
 const int _kBodyHoldLimit = 3;
 const double _kRockRaiseSeconds = 0.55;
 const double _kRockReach = 46.0;
@@ -105,8 +112,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     earthRock = null;
     earthRockRaise = 0;
     burstCapstoneRooms.clear();
-    raisedBoulders.clear();
-    pouredChannels.clear();
+    moatFill = 0;
+    boulderCharge = 0;
+    _moatIdle = 0;
     castingGreeted = false;
     geyserFlights.clear();
   }
@@ -237,6 +245,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (earthRockRaise < 1 && earthRock != null) {
       earthRockRaise = min(1.0, earthRockRaise + dt / _kRockRaiseSeconds);
     }
+    _updateCastingMoat(room, dt);
     _updateGeyserFlights(dt);
     if (geyserFlightActive) return; // let the arc finish before anything reads
     final wasBlasting = _geyserBlasting;
@@ -279,12 +288,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final far = room.platforms.isEmpty ? null : room.platforms.last;
     if (!castingGreeted &&
         far != null &&
-        room.meltSockets.isNotEmpty &&
+        room.castingMoat != null &&
         creatures.any((c) => c.alive && far.inflate(2).contains(c.position))) {
       castingGreeted = true;
       _setObjectiveHint(
-        'A dry casting mould — heave a boulder into each run and melt it '
-        'down',
+        'A dry casting moat — a boulder on the lip, a flame under it, and '
+        'keep the melt running down',
       );
     }
   }
@@ -305,13 +314,20 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           if ((cr.position - gy.position).distance > _kGeyserReach) continue;
           final reach = _kThrowBase + _kThrowPerCap * p;
           final aim = Offset(cos(cr.aimAngle), sin(cr.aimAngle));
-          final to = _clampToBounds(cr.position + aim * reach, room);
+          // THE THROW LEAVES THE MOUTH, not the body. You may ride from
+          // anywhere within `_kGeyserReach` (44) of the throat, and measuring
+          // from the creature handed you up to 44px of free distance — more
+          // than the 25px margin that separates "a full head clears the
+          // chasm" from "half a head falls in". Standing on the far lip of
+          // the ring made a half-held field enough, which is not a choice the
+          // room ever meant to offer.
+          final to = _clampToBounds(gy.position + aim * reach, room);
           // ARC, don't teleport. The landing is identical; what changes is
           // that a short throw can now be WATCHED falling short, which is the
           // room's only way of saying "not enough head" without a line of
           // text. (`_updateGeyserFlights` owns the position until it lands.)
           final i = creatures.indexOf(cr);
-          if (i >= 0) geyserFlights[i] = GeyserFlight(cr.position, to);
+          if (i >= 0) geyserFlights[i] = GeyserFlight(gy.position, to);
           cr.lastSafe = _onSolidGround(to, room) ? to : cr.lastSafe;
           _spawnAlchemyBurst(
             gy.position,
@@ -369,8 +385,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// Is this creature standing at something the ring-main answers for — a
   /// clamped junction, a stoke port, or the burst disc?
   bool _nearPressureFixture(DungeonCreature a, DungeonRoom room) {
-    for (final sock in room.meltSockets) {
-      if ((a.position - sock.position).distance <= _kCastReach) return true;
+    final moat = room.castingMoat;
+    if (moat != null && (a.position - moat.boulderAt).distance <= _kCastReach) {
+      return true;
     }
     final port = room.stokePort;
     if (port != null && (a.position - port).distance <= _kPressureReach) {
@@ -395,10 +412,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (!_isVapor) return false;
     final room = currentRoom;
     if (room.geysers.isEmpty) return false;
-    // At a channel lip, Earth's stone is a BOULDER for the mould — the
-    // casting owns that press (see `_tryCasting`).
-    for (final sock in room.meltSockets) {
-      if ((a.position - sock.position).distance <= _kCastReach) return false;
+    // At the moat's lip, Earth's stone is a BOULDER for the casting — that
+    // press belongs to `_tryCasting`, not to the field.
+    final moat = room.castingMoat;
+    if (moat != null && (a.position - moat.boulderAt).distance <= _kCastReach) {
+      return false;
     }
     if (a.member.element != 'Earth') {
       // A REFUSAL MUST NEVER OUTRANK A THING THAT WOULD ACTUALLY WORK. Earth's
@@ -905,82 +923,83 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   // ── Action button ────────────────────────────────────────
 
-  /// THE CASTING, on the Cinder Forge's far shore. Earth heaves a boulder
-  /// onto a channel lip; Fire melts it down and the run fills. Three runs
-  /// poured and the cast is made.
+  /// THE CASTING, on the Cinder Forge's far shore. Earth heaves a rock onto
+  /// the lip at the head of the moat; Fire melts it and the melt runs down.
+  /// Every press pushes the front a little further; left alone it skins over
+  /// and creeps back. Reach the foot and the pedestal yields.
   bool _tryCasting(DungeonCreature a) {
-    final room = currentRoom;
-    if (room.meltSockets.isEmpty) return false;
-    // The NEAREST lip in reach, never merely the first in the list — two runs
-    // close enough to both be in range would otherwise always answer as the
-    // earlier one, and the later ones could not be worked at all.
-    MeltSocket? best;
-    var bestD = double.infinity;
-    for (final sock in room.meltSockets) {
-      final d = (a.position - sock.position).distance;
-      if (d <= _kCastReach && d < bestD) {
-        bestD = d;
-        best = sock;
-      }
+    final moat = currentRoom.castingMoat;
+    if (moat == null) return false;
+    if ((a.position - moat.boulderAt).distance > _kCastReach) return false;
+    final cap = currentRoom.capstone;
+    if (cap != null && hasStar(cap.starIndex)) {
+      _setHint('The cast is made — the moat lies cold and full');
+      return true;
     }
-    for (final sock in [if (best != null) best]) {
-      if (pouredChannels.contains(sock.id)) {
-        _setBlockedHint('That run is already poured');
+
+    if (a.member.element == 'Earth') {
+      if (boulderCharge > 0.05) {
+        _setBlockedHint('There is still rock on the lip to melt');
         return true;
       }
-      final loaded = raisedBoulders.contains(sock.id);
-      if (!loaded) {
-        if (a.member.element != 'Earth') {
-          _setBlockedHint('The channel is dry — it wants a stone in it first');
-          return true;
-        }
-        raisedBoulders.add(sock.id);
-        _setHint('Earth heaves a boulder onto the lip — it wants melting');
-        _spawnAlchemyBurst(
-          sock.position,
-          producedElement: 'Earth',
-          particleCount: 14,
-          intensity: 0.7,
-        );
-        onChanged();
-        return true;
-      }
-      if (a.member.element == 'Earth') {
-        // Your own stone, taken back — nothing here can strand.
-        raisedBoulders.remove(sock.id);
-        _setHint('The boulder sinks back out of the channel');
-        onChanged();
-        return true;
-      }
-      if (a.member.element != 'Fire') {
-        _setBlockedHint('The boulder waits on a flame');
-        return true;
-      }
-      raisedBoulders.remove(sock.id);
-      pouredChannels.add(sock.id);
+      boulderCharge = 1.0;
+      _setHint('Earth heaves a fresh boulder onto the lip');
       _spawnAlchemyBurst(
-        sock.position,
-        producedElement: 'Lava',
-        reagentElements: const ['Earth', 'Fire'],
-        unstable: true,
-        particleCount: 24,
-        intensity: 1.1,
+        moat.boulderAt,
+        producedElement: 'Earth',
+        particleCount: 14,
+        intensity: 0.7,
       );
-      final left = room.meltSockets.length - pouredChannels.length;
-      final cap = room.capstone;
-      if (left == 0 && cap != null && !hasStar(cap.starIndex)) {
-        _setHint(
-          'The last run fills and the mould brims — the pedestal yields',
-          4.0,
-        );
-        earnStar(cap.starIndex);
-      } else {
-        _setHint('The stone goes to melt and the run fills — $left still dry');
-      }
       onChanged();
       return true;
     }
-    return false;
+
+    if (a.member.element != 'Fire') {
+      _setBlockedHint('Only a flame takes the rock down to melt');
+      return true;
+    }
+    if (boulderCharge <= 0.05) {
+      _setBlockedHint('The lip is bare — the moat wants rock before flame');
+      return true;
+    }
+    boulderCharge = max(0.0, boulderCharge - _kBoulderPerPour);
+    moatFill = min(1.0, moatFill + _kMoatPerPour);
+    _moatIdle = 0;
+    _spawnAlchemyBurst(
+      moat.boulderAt,
+      producedElement: 'Lava',
+      reagentElements: const ['Earth', 'Fire'],
+      unstable: true,
+      particleCount: 18,
+      intensity: 1.0,
+    );
+    if (moatFill >= 1.0 && cap != null && !hasStar(cap.starIndex)) {
+      _setHint(
+        'The melt reaches the foot of the moat — the pedestal yields',
+        4.0,
+      );
+      earnStar(cap.starIndex);
+    } else {
+      _setHint(
+        boulderCharge <= 0.05
+            ? 'The rock is spent — the run wants feeding again'
+            : 'The melt runs on down the channel',
+      );
+    }
+    onChanged();
+    return true;
+  }
+
+  /// The front of a run of lava skins over the moment nobody is feeding it,
+  /// so an unattended moat creeps back up the hill. This is the clock the far
+  /// shore runs on, and the reason the pair over there cannot dawdle.
+  void _updateCastingMoat(DungeonRoom room, double dt) {
+    if (room.castingMoat == null) return;
+    final cap = room.capstone;
+    if (cap != null && hasStar(cap.starIndex)) return;
+    _moatIdle += dt;
+    if (_moatIdle < _kMoatGraceSeconds || moatFill <= 0) return;
+    moatFill = max(0.0, moatFill - _kMoatCoolPerSecond * dt);
   }
 
   bool _tryPressure(DungeonCreature a) {
@@ -1764,21 +1783,36 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       }
     }
 
-    // THE CASTING MOULD: dry channels, boulders on their lips, and the runs
-    // that have been poured.
-    for (final sock in room.meltSockets) {
-      final poured = pouredChannels.contains(sock.id);
-      final ch = sock.channel;
-      // The cut trench.
+    // THE CASTING MOAT: a dry channel with a boulder lip at its head, and
+    // the melt that has run down it so far.
+    final moat = room.castingMoat;
+    if (moat != null) {
+      final ch = moat.channel;
       canvas.drawRRect(
-        RRect.fromRectAndRadius(ch, const Radius.circular(4)),
+        RRect.fromRectAndRadius(ch, const Radius.circular(5)),
         Paint()..color = const Color(0xFF191410),
       );
-      if (poured) {
-        // Melt: a bright body under a skinning crust, breathing.
-        final pulse = 0.55 + 0.45 * sin(_moltenPulse * 2.2 + ch.left * 0.05);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(ch.deflate(3), const Radius.circular(4)),
+        Paint()..color = const Color(0xFF2C251D),
+      );
+      for (var y = ch.top + 14; y < ch.bottom - 6; y += 22) {
+        canvas.drawLine(
+          Offset(ch.left + 7, y),
+          Offset(ch.right - 7, y),
+          Paint()
+            ..strokeWidth = 1.0
+            ..color = const Color(0x2EC7B49A),
+        );
+      }
+      // The melt, filling from the head DOWN — the front is where the work
+      // has got to, and it is the thing the player is watching.
+      if (moatFill > 0.004) {
+        final h = ch.height * moatFill.clamp(0.0, 1.0);
+        final run = Rect.fromLTWH(ch.left + 3, ch.top + 3, ch.width - 6, h);
+        final pulse = 0.55 + 0.45 * sin(_moltenPulse * 2.2);
         canvas.drawRRect(
-          RRect.fromRectAndRadius(ch.deflate(2), const Radius.circular(3)),
+          RRect.fromRectAndRadius(run, const Radius.circular(4)),
           Paint()
             ..color = Color.lerp(
               const Color(0xFF8A2E0C),
@@ -1786,71 +1820,62 @@ extension MoltenLabyrinth on PlanetDungeonGame {
               pulse * 0.7,
             )!,
         );
-        for (var k = 0; k < 3; k++) {
-          final y = ch.top + ch.height * (0.25 + 0.25 * k);
+        for (var y = run.top + 12; y < run.bottom - 4; y += 26) {
           canvas.drawLine(
-            Offset(ch.left + 5, y),
-            Offset(ch.right - 5, y + 3),
+            Offset(run.left + 5, y),
+            Offset(run.right - 5, y + 4),
             Paint()
-              ..strokeWidth = 1.6
-              ..color = const Color(0xFFFFC98A).withValues(alpha: 0.55),
+              ..strokeWidth = 1.5
+              ..color = const Color(0xFFFFC98A).withValues(alpha: 0.5),
           );
         }
+        final front = Offset(run.center.dx, run.bottom);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: front, width: run.width, height: 9),
+            const Radius.circular(4),
+          ),
+          Paint()..color = const Color(0xFFFFD9A0).withValues(alpha: 0.85),
+        );
         if (_fx.ready) {
           drawGlow(
             canvas,
             _fx.glow!,
-            ch.center,
-            ch.width * 0.9,
-            const Color(0xFFFF7A33).withValues(alpha: 0.26 + 0.18 * pulse),
-          );
-        }
-      } else {
-        // Dry: a sand-scoured mould with its ribs showing.
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(ch.deflate(3), const Radius.circular(3)),
-          Paint()..color = const Color(0xFF2C251D),
-        );
-        for (var k = 0; k < 3; k++) {
-          final y = ch.top + ch.height * (0.28 + 0.22 * k);
-          canvas.drawLine(
-            Offset(ch.left + 6, y),
-            Offset(ch.right - 6, y),
-            Paint()
-              ..strokeWidth = 1.0
-              ..color = const Color(0x33C7B49A),
+            front,
+            40,
+            const Color(0xFFFF7A33).withValues(alpha: 0.30 + 0.20 * pulse),
           );
         }
       }
-      // The lip, and whatever is standing on it.
+      // The lip, and the rock on it — which visibly wears down as it melts.
       canvas.drawCircle(
-        sock.position,
-        13,
+        moat.boulderAt,
+        15,
         Paint()..color = const Color(0xFF3A322A),
       );
       canvas.drawCircle(
-        sock.position,
-        13,
+        moat.boulderAt,
+        15,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2
-          ..color = poured ? const Color(0xFFE0A46A) : const Color(0xFF7C6A54),
+          ..color = const Color(0xFF7C6A54),
       );
-      if (raisedBoulders.contains(sock.id)) {
-        // A rough stone, waiting on a flame.
+      if (boulderCharge > 0.05) {
+        final r = 9 + 8 * boulderCharge;
         canvas.drawCircle(
-          sock.position - const Offset(0, 6),
-          15,
+          moat.boulderAt - const Offset(0, 6),
+          r,
           Paint()..color = const Color(0xFF6A5F50),
         );
         canvas.drawCircle(
-          sock.position - const Offset(0, 10),
-          9,
+          moat.boulderAt - Offset(0, 6 + r * 0.35),
+          r * 0.55,
           Paint()..color = const Color(0xFF7E7161),
         );
         canvas.drawCircle(
-          sock.position - const Offset(0, 6),
-          15,
+          moat.boulderAt - const Offset(0, 6),
+          r,
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.6

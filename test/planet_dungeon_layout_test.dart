@@ -1932,15 +1932,26 @@ void main() {
       );
       // And what waits on the far side is Earth's and Fire's work, which is
       // why Steam is the one that can be spared to stay.
-      expect(forge.meltSockets.length, 3, reason: 'three runs to pour');
-      for (final m in forge.meltSockets) {
-        expect(
-          forge.platforms.last.inflate(4).contains(m.position),
-          isTrue,
-          reason: '${m.id} must be ON the far shore',
-        );
-        expect(forge.platforms.last.inflate(4).overlaps(m.channel), isTrue);
-      }
+      final moat = forge.castingMoat;
+      expect(moat, isNotNull, reason: 'the far shore is a casting moat');
+      final far = forge.platforms.last;
+      expect(
+        far.inflate(4).contains(moat!.boulderAt),
+        isTrue,
+        reason: 'the lip stands ON the far shore',
+      );
+      expect(far.inflate(4).overlaps(moat.channel), isTrue);
+      // The moat runs DOWN to the pedestal — head above it, foot at it.
+      expect(
+        moat.boulderAt.dy,
+        lessThan(moat.channel.top + 2),
+        reason: 'the lip is at the HEAD of the channel',
+      );
+      expect(
+        forge.capstone!.position.dy,
+        greaterThan(moat.channel.bottom - 2),
+        reason: 'and the pedestal waits at its foot',
+      );
       expect(forge.platforms.length, 2, reason: 'two shores, one chasm');
 
       // THE ARITHMETIC IS THE LESSON. A throw is 120 + 55 per mouth held.

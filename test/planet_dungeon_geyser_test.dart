@@ -382,20 +382,50 @@ void main() {
         reason: 'and Steam is still holding the field on the near shore',
       );
 
-      // THE CASTING: Earth heaves a boulder into each run, Fire melts it.
-      for (final sock in room.meltSockets) {
-        game.setActive(1); // Earth
-        _stand(game, 1, sock.position);
+      // THE CASTING: a rock on the lip, a flame under it, and keep going.
+      // A rock is worth about three pours and the moat wants more than one,
+      // so the pair over there have a rhythm to keep.
+      final moat = room.castingMoat!;
+      var guard = 0;
+      while (game.moatFill < 1.0 && guard++ < 40) {
+        if (game.boulderCharge <= 0.05) {
+          game.setActive(1); // Earth feeds it
+          _stand(game, 1, moat.boulderAt);
+          game.activateAbility();
+          expect(game.boulderCharge, greaterThan(0.9));
+        }
+        game.setActive(2); // Fire works it
+        _stand(game, 2, moat.boulderAt);
         game.activateAbility();
-        expect(game.raisedBoulders, contains(sock.id));
-        game.setActive(2); // Fire
-        _stand(game, 2, sock.position);
-        game.activateAbility();
-        expect(game.pouredChannels, contains(sock.id));
       }
+      expect(game.moatFill, 1.0, reason: 'the melt reached the foot');
+
       _step(game, 0.5);
       expect(game.hasStar(1), isTrue);
       expect(earned, [1]);
+    });
+
+    test('riding from the far lip of the throat buys you NOTHING — the throw '
+        'leaves the mouth', () {
+      // You may ride from anywhere within reach of the throat, and the throw
+      // used to be measured from the BODY: standing on the east lip handed
+      // you 44px of free distance against a 25px margin, so half a held field
+      // was enough to clear the chasm. It leaves the mouth now.
+      final game = atForge();
+      final room = forge(game);
+      final far = room.platforms.last;
+      final throat = riser(game, 'r_riser').position;
+      _stand(game, 0, riser(game, 'r_hob_b').position); // one mouth only
+      _stand(game, 1, throat + const Offset(40, 0)); // as far east as allowed
+      game.creatures[1].aimAngle = 0;
+      _step(game);
+      expect(game.geyserHead, lessThan(99));
+      _step(game, 8);
+      expect(
+        far.inflate(2).contains(game.creatures[1].position),
+        isFalse,
+        reason: 'half a head still falls short, wherever you stood',
+      );
     });
 
     test('a half-held field throws you SHORT — you watch it fall in', () {
@@ -424,28 +454,48 @@ void main() {
       expect(game.hasStar(1), isFalse);
     });
 
+    test('an unfed moat creeps back up the hill', () {
+      final game = atForge();
+      final moat = forge(game).castingMoat!;
+      game.setActive(1);
+      _stand(game, 1, moat.boulderAt);
+      game.activateAbility();
+      game.setActive(2);
+      _stand(game, 2, moat.boulderAt);
+      game.activateAbility();
+      final ran = game.moatFill;
+      expect(ran, greaterThan(0));
+      // Walk away and the front skins over.
+      _stand(game, 2, const Offset(520, 700));
+      _step(game, 4);
+      expect(
+        game.moatFill,
+        lessThan(ran),
+        reason: 'the front of a run of lava does not wait for you',
+      );
+    });
+
     test('Steam cannot do the casting — it is Earth\'s and Fire\'s work, and '
         'Steam is the one that has to stay', () {
       final game = atForge();
-      final room = forge(game);
-      final sock = room.meltSockets.first;
-      // Steam at a dry lip: no stone to heave.
+      final moat = forge(game).castingMoat!;
+      // Steam at a bare lip: no stone to heave.
       game.setActive(0);
-      _stand(game, 0, sock.position);
+      _stand(game, 0, moat.boulderAt);
       game.activateAbility();
-      expect(game.raisedBoulders, isEmpty);
+      expect(game.boulderCharge, 0);
       // Earth loads it; Steam still cannot melt it.
       game.setActive(1);
-      _stand(game, 1, sock.position);
+      _stand(game, 1, moat.boulderAt);
       game.activateAbility();
-      expect(game.raisedBoulders, contains(sock.id));
+      expect(game.boulderCharge, greaterThan(0.9));
       game.setActive(0);
-      _stand(game, 0, sock.position);
+      _stand(game, 0, moat.boulderAt);
       game.activateAbility();
       expect(
-        game.pouredChannels,
-        isEmpty,
-        reason: 'only a flame melts the boulder down',
+        game.moatFill,
+        0,
+        reason: 'only a flame takes the rock down to melt',
       );
     });
   });

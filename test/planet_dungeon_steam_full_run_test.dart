@@ -359,22 +359,25 @@ void main() {
       reason: 'Steam is still holding the field on the near shore',
     );
 
-    // THE CASTING: a boulder in each run, and a flame under it.
-    for (final sock in forgeRoom0.meltSockets) {
-      game.setActive(earth);
-      place(earth, sock.position);
-      game.activateAbility();
-      expect(game.raisedBoulders, contains(sock.id));
+    // THE CASTING: a rock on the lip, a flame under it, and keep it running.
+    final moat = forgeRoom0.castingMoat!;
+    var castGuard = 0;
+    while (game.moatFill < 1.0 && castGuard++ < 40) {
+      if (game.boulderCharge <= 0.05) {
+        game.setActive(earth);
+        place(earth, moat.boulderAt);
+        game.activateAbility();
+      }
       game.setActive(fire);
-      place(fire, sock.position);
+      place(fire, moat.boulderAt);
       game.activateAbility();
-      expect(game.pouredChannels, contains(sock.id));
     }
+    expect(game.moatFill, 1.0);
     step();
     expect(
       game.hasStar(1),
       isTrue,
-      reason: 'the mould brims — the pedestal yields',
+      reason: 'the melt reaches the foot — the pedestal yields',
     );
     clearWisps();
 

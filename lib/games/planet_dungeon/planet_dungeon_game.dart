@@ -1422,10 +1422,12 @@ class PlanetDungeonGame extends FlameGame {
   /// from one that did nothing at all.
   final Map<int, GeyserFlight> geyserFlights = {};
 
-  /// The Cinder Forge's casting mould: boulders Earth has heaved into the
-  /// channel lips, and the runs Fire has since melted them down into.
-  final Set<String> raisedBoulders = {};
-  final Set<String> pouredChannels = {};
+  /// The Cinder Forge's casting moat: how far down the channel the melt has
+  /// run (0..1), how much rock is left on the lip to feed it (0..1), and how
+  /// long since anyone last worked it.
+  double moatFill = 0;
+  double boulderCharge = 0;
+  double _moatIdle = 0;
 
   /// Said once, the first time anyone comes down on the far shore.
   bool castingGreeted = false;
