@@ -2003,24 +2003,22 @@ void main() {
       expect(sg!.encounter?.mysticId, 'Boilrog');
     });
 
-    test('Steam S3 — the crucible band really does offer a CHOICE: of each '
-        'pair of gates one is wet and one is dry, and the wet one is the one '
-        'nearest the pedestal', () {
+    test('Steam S3 — the crucible band offers two SOURCES and a door, and a '
+        'pour started from either can be made to reach the mould', () {
       final game = _steamProbe();
       final wet = game.gateWetness('crucible');
-      expect(wet.length, 4, reason: 'four gates in two pairs: $wet');
+      expect(wet.length, 3, reason: 'two sources and a door: $wet');
       expect(
         wet.entries.where((e) => e.value).map((e) => e.key),
-        unorderedEquals(['5,5', '7,5']),
+        unorderedEquals(['3,3', '11,3']),
         reason:
-            'the INNER gate of each pair — the short way to the pedestal — is '
-            'the one with a cistern behind it, so the greedy breach is the '
-            'punished one',
+            'the two outer gates have a cistern above them — those are the '
+            'SOURCES a pour is started from',
       );
       expect(
         wet.entries.where((e) => !e.value).map((e) => e.key),
-        unorderedEquals(['4,5', '8,5']),
-        reason: 'and the long way round is the safe one',
+        unorderedEquals(['7,3']),
+        reason: 'and the middle one is dry: a door, not a source',
       );
       // THE FAULT THIS GUARDS. The cisterns shipped one column off, sitting
       // diagonally beside the gates rather than orthogonally behind them.

@@ -1436,8 +1436,16 @@ class PlanetDungeonGame extends FlameGame {
   /// every other beat is pressure. It is the planet's own gauge now: bring
   /// the furnace to heat and HOLD it there while the chamber works against
   /// you.
-  double crucibleHeat = 0;
-  double crucibleBandT = 0;
+  /// THE POUR (§9.5). The live front of a run of melt, how many cells of it
+  /// are left before it congeals, and whether one is running at all.
+  ///
+  /// Nothing in the crucible moves until you commit: you build the channel
+  /// cold with Earth's walls, break a wet gate with Fire, and the melt falls
+  /// on its own down the only route you left it. A wrong answer costs a
+  /// re-plan, never a re-flex.
+  final Set<int> pourFront = {};
+  int pourVolume = 0;
+  bool pourRunning = false;
 
   double moatFill = 0;
   double boulderCharge = 0;

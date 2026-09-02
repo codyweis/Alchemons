@@ -4617,11 +4617,28 @@ const DungeonLayout _steamLayout = DungeonLayout(
       stokePort: Offset(550, 140),
     ),
 
-    // The Crucible — the ring's CENTRE, and the rite (null star index): a
-    // bedrock band walls the pedestal off; its only doors are the meltable
-    // gates, flanked by sleeping cisterns on BOTH sides. Bunker your gate,
-    // break through, quench the spill at its source, take the pedestal —
-    // Boilrog heaves up from the furnace beyond.
+    // The Crucible — the ring's CENTRE, and the rite (null star index):
+    // THE POUR. A cold chamber that does not move until you commit to it.
+    //
+    // Two cisterns sit above the band and the mould waits at the bottom of a
+    // fall. Earth's walls are the CHANNEL — built at leisure, with nothing
+    // running — and Fire breaking a WET gate releases the melt behind it. It
+    // then falls on its own: south while it can, sideways when it cannot, and
+    // BOTH ways at once if both are open. It is worth a fixed number of cells
+    // before it congeals, and that number is bought with the main.
+    //
+    // The trade, and it is the whole room:
+    //   · LEFT gate, no thought ……… reaches the mould, 16 cells
+    //   · RIGHT gate, no walls at all … 10 cells
+    //   · LEFT gate, two walls ……… 8 cells
+    // A run is 5 cells plus one per 6 of head, so a lean main forces you to
+    // plan and a fat one lets you brute-force it. Ledges at rows 5 and 7 are
+    // what make the left side need shaping.
+    //
+    // WHAT THIS REPLACES (twice): a quenching whose win condition was a
+    // flood-fill the player could not see, and then a hold-the-needle act —
+    // which was simply the wrong KIND of difficulty. Knowing the answer has
+    // to be enough; see docs §9.5.
     'crucible': DungeonRoom(
       id: 'crucible',
       bounds: Rect.fromLTWH(0, 0, 910, 700),
@@ -4646,24 +4663,13 @@ const DungeonLayout _steamLayout = DungeonLayout(
         rows: [
           'XXXXXXXXXXXXX',
           'X...........X',
+          'X..L.......LX',
+          'XXX#XXX#XXX#X',
           'X...........X',
-          'X....LLL....X',
+          'X..XX...XX..X',
           'X...........X',
-          // THE BAND, and the choice it is supposed to offer. Four gates in
-          // two pairs — and the cistern behind each pair sits under the INNER
-          // gate, so of every pair the one nearest the pedestal is WET and the
-          // long way round is dry. The greedy breach is the punished one.
-          //
-          // (The cisterns used to sit at cols 3 and 9 — diagonally off the
-          // gates rather than orthogonally behind them. `_wallIsWet` only
-          // looks at the four orthogonal neighbours, so NO gate on this planet
-          // was ever wet: choose-your-breach, which docs call this dungeon's
-          // first lesson, had no instance anywhere in the built game. Two
-          // characters.)
-          'XXXX##X##XXXX',
-          'X....L.L....X',
+          'X.XXX...XXX.X',
           'X.....P.....X',
-          'X...........X',
           'XXXXXXXXXXXXX',
         ],
       ),
