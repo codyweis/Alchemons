@@ -236,6 +236,41 @@ class StormRod {
 /// The live storm-cell's circuit around the altar. The cell is always aloft;
 /// gusts shove it along the ring, which is how the leader's starting point —
 /// and therefore the staircase it must climb — is chosen.
+/// One corner of the Crucible, and the thing that shuts it.
+///
+/// THE CRUCIBLE IS FOUR CORNERS AND A CENTRE. Each corner's vents bleed the
+/// main until the corner is SEALED, and a sealed corner plugs them for good —
+/// so every corner you finish makes every later throw stronger. That is why
+/// the centre waits for all four: it is not a gate bolted on, it is the only
+/// state in which the head is high enough to be anywhere else at all.
+///
+/// And a throw needs the head over the redline, which with the boiler you
+/// arrive on means TWO VENTS HELD. With three Alchemons that is exactly one
+/// mover and two standing on mouths — so whoever lands has to take a vent on
+/// the far side or nobody can follow. Who is where IS the pressure.
+class CrucibleSeal {
+  final String id;
+
+  /// Where the seal is worked, on its own corner.
+  final Offset position;
+
+  /// The vents this corner owns; sealing plugs them permanently.
+  final List<String> vents;
+
+  /// The element that shuts it — and, for the last corner, the second pair of
+  /// hands it also needs, which is only affordable once the others are done.
+  final String element;
+  final String? second;
+
+  const CrucibleSeal({
+    required this.id,
+    required this.position,
+    required this.vents,
+    required this.element,
+    this.second,
+  });
+}
+
 /// A creature mid-throw, arcing from a riser to wherever the field's head can
 /// put it. Held by the game, advanced each frame; the landing is whatever the
 /// arc ends on, solid ground or not.
@@ -1200,6 +1235,12 @@ class DungeonRoom {
   /// The Cinder Forge's casting moat, on its far shore.
   final CastingMoat? castingMoat;
 
+  /// The Crucible's four corners.
+  final List<CrucibleSeal> crucibleSeals;
+
+  /// Its centre plinth — not there at all until every corner is sealed.
+  final Rect? centrePlinth;
+
   /// The span the finished cast lays across a chasm — the way home, earned.
   /// Impassable until the room's star is banked; it IS the thing you made.
   final Rect? castSpan;
@@ -1363,6 +1404,8 @@ class DungeonRoom {
     this.geysers = const [],
     this.castingMoat,
     this.castSpan,
+    this.crucibleSeals = const [],
+    this.centrePlinth,
     this.capstone,
     this.molten,
     this.steamVent,
@@ -4607,7 +4650,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(495, 396, 110, 24),
           targetRoomId: 'crucible',
-          targetSpawn: Offset(455, 105),
+          targetSpawn: Offset(240, 140), // the NW corner, clear of its mouths
         ),
       ],
       pressureSeals: [
@@ -4617,69 +4660,110 @@ const DungeonLayout _steamLayout = DungeonLayout(
       stokePort: Offset(550, 140),
     ),
 
-    // The Crucible — the ring's CENTRE, and the rite (null star index):
-    // THE POUR. A cold chamber that does not move until you commit to it.
+    // THE CRUCIBLE — the ring's CENTRE, and the rite. Four corners around a
+    // plinth, and the party is the pressure.
     //
-    // Two cisterns sit above the band and the mould waits at the bottom of a
-    // fall. Earth's walls are the CHANNEL — built at leisure, with nothing
-    // running — and Fire breaking a WET gate releases the melt behind it. It
-    // then falls on its own: south while it can, sideways when it cannot, and
-    // BOTH ways at once if both are open. It is worth a fixed number of cells
-    // before it congeals, and that number is bought with the main.
+    // Every corner's vents BLEED the main until that corner is sealed, and a
+    // sealed corner plugs them for good — so each one you finish makes every
+    // later throw stronger. A throw needs the head over the rated 99, which
+    // on the boiler you arrive with means TWO VENTS HELD: with three
+    // Alchemons that is exactly one mover and two standing on mouths, so
+    // whoever lands has to take a vent on the far side or nobody else can
+    // follow. Who is standing where is the whole resource.
     //
-    // THE MOULD SITS IN A POCKET (row 8 is bedrock either side of it), and
-    // that is load-bearing: with an open bottom row ANY run that reached the
-    // floor simply crawled along it into the mould, so breaking the right
-    // gate and doing nothing at all won the room. Melt has to be steered into
-    // the middle chimney (cols 5-7) and dropped in.
+    // What that opens, in order (simulated, not estimated):
+    //   · arrive NW ………… only the vertical hop (300px) is in reach
+    //   · 2 corners sealed … the horizontal opens (460px), so the east pair
+    //   · 3 sealed ………………… the long diagonal (549px)
+    // A body standing on an ALREADY-SEALED vent adds nothing, so once the
+    // west pair is shut there is nothing left over there to hold: the
+    // crossing has to be bought with head, not with hands. That deadlocked
+    // the first tuning of this room and is why the surplus buys so much.
+    //   · 4 sealed ………………… THE CENTRE EXISTS, and you hop to it
+    // The centre is gated by EXISTING rather than by distance — it sits
+    // between the corners, so it is always the shortest throw and could never
+    // have been gated by reach. Same trick as the forge's cast span.
     //
-    // The trade, measured against the real fall rule, not estimated:
-    //   · LEFT gate + one wall at (2,4) …… 8 cells   (main ≥ 18)
-    //   · RIGHT gate + one wall at (11,6) … 10 cells  (main ≥ 30)
-    //   · LEFT gate, no walls at all ……… 16 cells  (main ≥ 66)
-    //   · RIGHT gate, no walls ………………… never; it dead-ends
-    // A run is 5 cells plus one per 6 of head, so at least one wall has to go
-    // down unless the boiler is enormous — and WHERE it goes is the choice.
-    // Ledges at rows 5 and 7 are what make the left side need shaping.
+    // Each corner wants a different hand, so the routing has teeth: Steam
+    // cools one shut, Earth caps one, Fire slags one, and the last wants
+    // Earth AND Fire together — two Alchemons on one corner, which is only
+    // affordable once the other three are sealed and the head has slack.
     //
-    // WHAT THIS REPLACES (twice): a quenching whose win condition was a
-    // flood-fill the player could not see, and then a hold-the-needle act —
-    // which was simply the wrong KIND of difficulty. Knowing the answer has
-    // to be enough; see docs §9.5.
+    // WHAT THIS REPLACES (three times): a quenching whose win condition was a
+    // flood-fill nobody could see; a hold-the-needle act that was the wrong
+    // KIND of difficulty; and a pour that could be skipped entirely by
+    // melting the middle gate and walking out the bottom. See docs §9.5.
     'crucible': DungeonRoom(
       id: 'crucible',
-      bounds: Rect.fromLTWH(0, 0, 910, 700),
+      bounds: Rect.fromLTWH(0, 0, 1120, 840),
       doors: [
-        // Up to the north manifold.
+        // In, from the north manifold — lands on the NW corner. The rect sits
+        // ON the platform: in a room made of platforms a door standing off the
+        // end of one cannot be walked into at all.
         DungeonDoor(
-          rect: Rect.fromLTWH(400, 0, 110, 24),
+          rect: Rect.fromLTWH(150, 92, 110, 24),
           targetRoomId: 'manifold_north',
           targetSpawn: Offset(550, 310),
         ),
-        // Down to the furnace-heart — beyond the rite.
+        // Out, from the CENTRE — so the way on genuinely is the rite.
         DungeonDoor(
-          rect: Rect.fromLTWH(400, 676, 110, 24),
+          rect: Rect.fromLTWH(525, 494, 110, 24),
           targetRoomId: 'boiler_heart',
           targetSpawn: Offset(410, 110),
         ),
       ],
-      // 13×10 grid (cells 70×70). Entry field on top; band row 5 with the
-      // twin '##' gates; pedestal field below with its own cisterns.
-      molten: MoltenGrid(
-        starIndex: null,
-        rows: [
-          'XXXXXXXXXXXXX',
-          'X...........X',
-          'X..L.......LX',
-          'XXX#XXX#XXX#X',
-          'X...........X',
-          'X..XX...XX..X',
-          'X...........X',
-          'X.XXX...XXX.X',
-          'X.XXX.P.XXX.X',
-          'XXXXXXXXXXXXX',
-        ],
-      ),
+      platforms: [
+        Rect.fromLTWH(80, 90, 260, 220), // NW — where you arrive
+        Rect.fromLTWH(780, 90, 260, 220), // NE
+        Rect.fromLTWH(80, 530, 260, 220), // SW
+        Rect.fromLTWH(780, 530, 260, 220), // SE
+        Rect.fromLTWH(490, 320, 180, 200), // the CENTRE, until four seals
+      ],
+      centrePlinth: Rect.fromLTWH(490, 320, 180, 200),
+      geysers: [
+        // Two vents and a riser to each corner. The risers sit on the inner
+        // edges, so a throw aimed across the room leaves from the near side.
+        GeyserMouth(id: 'nw_a', position: Offset(140, 150)),
+        GeyserMouth(id: 'nw_b', position: Offset(140, 250)),
+        GeyserMouth(id: 'nw_r', position: Offset(330, 270), isRiser: true),
+        GeyserMouth(id: 'ne_a', position: Offset(980, 150)),
+        GeyserMouth(id: 'ne_b', position: Offset(980, 250)),
+        GeyserMouth(id: 'ne_r', position: Offset(790, 270), isRiser: true),
+        GeyserMouth(id: 'sw_a', position: Offset(140, 590)),
+        GeyserMouth(id: 'sw_b', position: Offset(140, 690)),
+        GeyserMouth(id: 'sw_r', position: Offset(330, 570), isRiser: true),
+        GeyserMouth(id: 'se_a', position: Offset(980, 590)),
+        GeyserMouth(id: 'se_b', position: Offset(980, 690)),
+        GeyserMouth(id: 'se_r', position: Offset(790, 570), isRiser: true),
+      ],
+      crucibleSeals: [
+        CrucibleSeal(
+          id: 'nw',
+          position: Offset(210, 200),
+          vents: ['nw_a', 'nw_b'],
+          element: 'Steam',
+        ),
+        CrucibleSeal(
+          id: 'sw',
+          position: Offset(210, 640),
+          vents: ['sw_a', 'sw_b'],
+          element: 'Earth',
+        ),
+        CrucibleSeal(
+          id: 'ne',
+          position: Offset(910, 200),
+          vents: ['ne_a', 'ne_b'],
+          element: 'Fire',
+        ),
+        // The last one wants two hands, which is why it is across the room.
+        CrucibleSeal(
+          id: 'se',
+          position: Offset(910, 640),
+          vents: ['se_a', 'se_b'],
+          element: 'Earth',
+          second: 'Fire',
+        ),
+      ],
     ),
 
     // Burst Vault — the treasury behind the burst-disc. There is no key and
@@ -4708,7 +4792,8 @@ const DungeonLayout _steamLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(355, 0, 110, 24),
           targetRoomId: 'crucible',
-          targetSpawn: Offset(455, 595),
+          // Back onto the PLINTH — the only ground the onward door stands on.
+          targetSpawn: Offset(580, 455),
         ),
       ],
       guardian: GuardianNode(

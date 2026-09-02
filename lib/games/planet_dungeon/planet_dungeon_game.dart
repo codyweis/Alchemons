@@ -1443,6 +1443,18 @@ class PlanetDungeonGame extends FlameGame {
   /// cold with Earth's walls, break a wet gate with Fire, and the melt falls
   /// on its own down the only route you left it. A wrong answer costs a
   /// re-plan, never a re-flex.
+  /// THE CRUCIBLE'S SEALED CORNERS. A sealed corner plugs its own vents for
+  /// good, so the room's head climbs as you finish it — which is what makes
+  /// the far corners reachable at all and what finally puts the centre there.
+  /// The Steam room last ticked, so a throw cannot stay in the air across a
+  /// doorway.
+  String? _vaporPrevRoomId;
+
+  final Set<String> sealedCorners = {};
+
+  /// Throws that fell into the void. The Hidden Harmony asks for none.
+  int shortThrows = 0;
+
   final Set<int> pourFront = {};
   int pourVolume = 0;
   bool pourRunning = false;

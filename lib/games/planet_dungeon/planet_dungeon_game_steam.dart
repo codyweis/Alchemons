@@ -107,6 +107,23 @@ const int _kPourPerHead = 6;
 /// How close Fire must stand to a gate to work it.
 const double _kPourReach = 74.0;
 
+/// How close a body must stand to a corner's seal to work it.
+const double _kSealReach = 74.0;
+
+/// The crucible's own throw: its corners are further apart than the forge's
+/// chasm is wide, so it clears more at the redline and gains more per unit of
+/// surplus. (Tuning the FORGE's numbers to suit this room would have moved a
+/// chasm that already plays.)
+const double _kCrucibleClear = 340.0;
+const double _kCrucibleLob = 190.0;
+
+/// …and it gains MORE per unit of surplus than the forge does, because the
+/// surplus is the only thing that can carry a body across the room once the
+/// near corners are sealed. A body standing on an already-sealed vent adds
+/// nothing — that is what deadlocked the first tuning of this room, and it is
+/// why the crossing has to be bought with head rather than with hands.
+const double _kCruciblePerOver = 1.8;
+
 /// How far one press of flame runs the melt down the moat, how much of the
 /// boulder it spends doing it, and how fast an unfed front skins over.
 const double _kMoatPerPour = 0.25;
@@ -140,6 +157,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     earthRock = null;
     earthRockRaise = 0;
     burstCapstoneRooms.clear();
+    sealedCorners.clear();
+    shortThrows = 0;
     pourFront.clear();
     pourVolume = 0;
     pourRunning = false;
@@ -191,8 +210,18 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// Over 99 is an overpressure. Under it the throw is a lob into the chasm.
   /// The bleed is what makes both plugs NECESSARY rather than merely helpful.
   int get launchHead {
-    final field = currentRoom.geysers.where((g) => !g.isRiser).length;
+    final room = currentRoom;
     final held = cappedFieldMouths;
+    // THE BLEED IS FOR A SMALL FIELD. It exists so a fat boiler cannot buy its
+    // way past a mouth left open in the Cinder Forge, where there are two of
+    // them. The crucible has EIGHT, and charging 45 for each still-open one
+    // put the head at −150 on arrival: nothing could ever fly. There the
+    // pressure comes from what is HELD, and the redline does the same job —
+    // two vents held or nobody moves.
+    if (room.crucibleSeals.isNotEmpty) {
+      return boilerPressure + kSteamCapHead * held;
+    }
+    final field = room.geysers.where((g) => !g.isRiser).length;
     return boilerPressure +
         kSteamCapHead * held -
         kSteamVentBleed * (field - held);
@@ -241,6 +270,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         // happen to be steering. You watch the arc drop into the chasm and
         // the body scrambles back onto the shore it left.
         if (!_onSolidGround(f.to, currentRoom)) {
+          shortThrows++;
           cr.position = cr.lastSafe;
           _setBlockedHint(
             'The head was not enough — the throw falls short of the shore',
@@ -262,8 +292,15 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// the world each frame (§ state is never an intention).
   void _recomputeCaps(DungeonRoom room) {
     cappedGeysers.clear();
+    // A SEALED CORNER holds its own vents, with nobody standing on them. That
+    // is the whole engine of the crucible: finishing a corner permanently
+    // raises the room's head, so the next throw goes further than the last.
+    final sealedVents = <String>{
+      for (final seal in room.crucibleSeals)
+        if (sealedCorners.contains(seal.id)) ...seal.vents,
+    };
     for (final gy in room.geysers) {
-      if (gy.blockedAtStart) {
+      if (sealedVents.contains(gy.id) || gy.blockedAtStart) {
         cappedGeysers.add(gy.id);
         continue;
       }
@@ -296,7 +333,21 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       earthRockRaise = min(1.0, earthRockRaise + dt / _kRockRaiseSeconds);
     }
     _updateCastingMoat(room, dt);
-    _updateGeyserFlights(dt);
+    // Standing on the plinth performs the rite — you only get there by having
+    // shut all four, so the rite cannot be walked past the way it once could.
+    final plinth = room.centrePlinth;
+    if (plinth != null &&
+        !moltenRiteDone &&
+        sealedCorners.length >= room.crucibleSeals.length &&
+        creatures.any((c) => c.alive && plinth.contains(c.position))) {
+      moltenRiteDone = true;
+      _setHint(
+        'You stand in the crucible\'s heart — Boilrog heaves up beyond it',
+        4.0,
+      );
+      _maybeEarnHiddenHarmony(room);
+      onChanged();
+    }
     if (geyserFlightActive) return; // let the arc finish before anything reads
     final wasBlasting = _geyserBlasting;
     geyserCycle += dt;
@@ -363,9 +414,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           if (!cr.alive) continue;
           if ((cr.position - gy.position).distance > _kGeyserReach) continue;
           final over = launchHead - kSteamPressureMax;
+          final corners = room.crucibleSeals.isNotEmpty;
           final reach = over > 0
-              ? _kThrowClear + over * _kThrowPerOver
-              : _kThrowLob;
+              ? (corners ? _kCrucibleClear : _kThrowClear) +
+                    over * (corners ? _kCruciblePerOver : _kThrowPerOver)
+              : (corners ? _kCrucibleLob : _kThrowLob);
           final aim = Offset(cos(cr.aimAngle), sin(cr.aimAngle));
           // THE THROW LEAVES THE MOUTH, not the body. You may ride from
           // anywhere within `_kGeyserReach` (44) of the throat, and measuring
@@ -438,6 +491,14 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// Is this creature standing at something the ring-main answers for — a
   /// clamped junction, a stoke port, or the burst disc?
   bool _nearPressureFixture(DungeonCreature a, DungeonRoom room) {
+    // A corner's seal is a fixture too — without this the stone verb swallows
+    // every non-Earth press in the crucible (it is a geyser room), so Steam
+    // and Fire could never shut their own corners. Third time this exact
+    // refusal has eaten a legal action; the rule stands: a refusal must never
+    // outrank a thing that would actually work.
+    for (final seal in room.crucibleSeals) {
+      if ((a.position - seal.position).distance <= _kSealReach) return true;
+    }
     final moat = room.castingMoat;
     if (moat != null && (a.position - moat.boulderAt).distance <= _kCastReach) {
       return true;
@@ -465,6 +526,14 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (!_isVapor) return false;
     final room = currentRoom;
     if (room.geysers.isEmpty) return false;
+    // At a corner's seal, Earth's press belongs to `_trySeal`. (The
+    // non-Earth branch above already stands back for these; EARTH's own
+    // branch did not, so Earth walked up to a corner it was meant to cap and
+    // raised a field stone instead. Fourth time this verb has eaten another
+    // one's press.)
+    for (final seal in room.crucibleSeals) {
+      if ((a.position - seal.position).distance <= _kSealReach) return false;
+    }
     // At the moat's lip, Earth's stone is a BOULDER for the casting — that
     // press belongs to `_tryCasting`, not to the field.
     final moat = room.castingMoat;
@@ -561,6 +630,14 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   ///
   /// The way to the heart is the cast. Fill the mould and it opens.
   bool _vaporRiteDoorShut(DungeonRoom room, DungeonDoor door) {
+    // The corner room's way on stands ON the centre plinth, which does not
+    // exist until all four are sealed — so it is unreachable rather than
+    // locked. Saying so out loud matters anyway: anything that asks "is this
+    // door open" (the on-foot sweep included) should get the truth.
+    if (room.centrePlinth != null && room.crucibleSeals.isNotEmpty) {
+      if (door.targetRoomId != room.doors.last.targetRoomId) return false;
+      return sealedCorners.length < room.crucibleSeals.length && !hasStar(2);
+    }
     final g = room.molten;
     if (g == null || g.starIndex != null) return false;
     if (door.targetRoomId != room.doors.last.targetRoomId) {
@@ -712,7 +789,21 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   void _updatePressure(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isVapor) return;
+    // A BODY THAT HAS LEFT THE ROOM IS NOT STILL IN THE AIR. Flights used to
+    // tick only from the geyser update, so a throw taken in the Cinder Forge
+    // stayed live all the way to the crucible: `geyserFlightActive` never
+    // cleared, the cap recompute never ran, and the crucible was still
+    // counting the FORGE's mouths. A stale flight could also seize a
+    // creature's position in a room it was never thrown in.
+    if (_vaporPrevRoomId != room.id) {
+      _vaporPrevRoomId = room.id;
+      geyserFlights.clear();
+      cappedGeysers.clear();
+    }
     _moltenPulse = (_moltenPulse + dt) % 1000.0;
+    // …and they tick for EVERY Steam room, so one can never hang mid-arc
+    // because the party walked somewhere with no geysers in it.
+    _updateGeyserFlights(dt);
     // The guardian wakes once the rite is done, even from the (grid-less) heart.
     _maybeWakeBoilrog(room);
     // The furnace runs in the crucible, which has no geyser field — so it
@@ -948,7 +1039,16 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   }
 
   void _maybeWakeBoilrog(DungeonRoom room) {
-    final guardian = room.guardian;
+    // The rite is performed in the CRUCIBLE, but Boilrog sleeps in the heart
+    // next door — and waking him only from inside his own room sealed that
+    // room forever: `_guardianDoorSealed` holds the door shut until he is
+    // awake, and he could not wake until someone was already through it. So
+    // the antechamber wakes him too, which is what the rite's own hint has
+    // always claimed happens ("Boilrog heaves up BEYOND it").
+    var guardian = room.guardian;
+    if (guardian == null && room.doors.isNotEmpty) {
+      guardian = layout.rooms[room.doors.last.targetRoomId]?.guardian;
+    }
     if (guardian == null || guardianAwake || hasStar(guardian.starIndex)) {
       return;
     }
@@ -973,9 +1073,14 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// creature's footing. Zero scalds, one run. Checked as the rite completes.
   void _maybeEarnHiddenHarmony(DungeonRoom room) {
     if (discoveredClouds.contains(kSteamHiddenHarmonyEggId)) return;
-    if (moltenScalds != 0) return;
+    // ZERO SHORT THROWS. It used to ask for zero scalds, which was a fine
+    // question while the labyrinth was three tile-grid chambers — it is one
+    // room now and the crucible has no grid at all, so the old condition had
+    // quietly become free. What the planet actually asks of you is pressure
+    // discipline: never send a body on a head that could not carry it.
+    if (shortThrows != 0 || moltenScalds != 0) return;
     // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    _setHint('The molten never once touched you', 4.0);
+    _setHint('Not one of them was ever thrown short', 4.0);
     beginMaximRite(kSteamHiddenHarmonyEggId, room.bounds.center);
     _spawnAlchemyBurst(
       room.bounds.center,
@@ -1127,6 +1232,65 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     onChanged();
   }
 
+  /// Shut a corner. Each wants its own hand; the last wants two, which is why
+  /// it is the one across the room.
+  bool _trySeal(DungeonCreature a) {
+    final room = currentRoom;
+    if (room.crucibleSeals.isEmpty) return false;
+    for (final seal in room.crucibleSeals) {
+      if ((a.position - seal.position).distance > _kSealReach) continue;
+      if (sealedCorners.contains(seal.id)) {
+        _setHint('This corner is shut — its vents hold themselves now');
+        return true;
+      }
+      final needs = <String>[
+        seal.element,
+        if (seal.second != null) seal.second!,
+      ];
+      if (!needs.contains(a.member.element)) {
+        _setBlockedHint(
+          needs.length > 1
+              ? 'This one wants ${needs.first} and ${needs.last} both'
+              : 'Only ${seal.element} shuts this one',
+        );
+        return true;
+      }
+      // A two-handed corner needs the other pair of hands ON the corner.
+      if (needs.length > 1) {
+        final other = needs.firstWhere((e) => e != a.member.element);
+        final present = creatures.any(
+          (c) =>
+              c.alive &&
+              c.member.element == other &&
+              (c.position - seal.position).distance <= _kSealReach,
+        );
+        if (!present) {
+          _setBlockedHint('It wants $other here as well — bring them across');
+          return true;
+        }
+      }
+      sealedCorners.add(seal.id);
+      _recomputeCaps(room);
+      final left = room.crucibleSeals.length - sealedCorners.length;
+      _setHint(
+        left == 0
+            ? 'The last corner shuts — every vent holds, and the plinth stands '
+                  'up out of the dark'
+            : 'The corner shuts, and its vents hold themselves — $left to go',
+        3.6,
+      );
+      _spawnAlchemyBurst(
+        seal.position,
+        producedElement: a.member.element,
+        particleCount: 20,
+        intensity: 1.0,
+      );
+      onChanged();
+      return true;
+    }
+    return false;
+  }
+
   /// THE CASTING, on the Cinder Forge's far shore. Earth heaves a rock onto
   /// the lip at the head of the moat; Fire melts it and the melt runs down.
   /// Every press pushes the front a little further; left alone it skins over
@@ -1209,6 +1373,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   bool _tryPressure(DungeonCreature a) {
     if (!_isVapor) return false;
     final room = currentRoom;
+    if (_trySeal(a)) return true;
     if (_tryPour(a)) return true;
     if (_tryCasting(a)) return true;
 
@@ -1493,6 +1658,31 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   // ── Insight (Mask) ───────────────────────────────────────
 
+  /// The crucible's reading. All of it is answerable standing still.
+  void _crucibleReveal(DungeonCreature a, DungeonRoom room) {
+    final tier = revealHintTier(a.member.statIntelligence);
+    final left = room.crucibleSeals.length - sealedCorners.length;
+    final want = room.crucibleSeals
+        .where((s) => !sealedCorners.contains(s.id))
+        .map((s) => s.second == null ? s.element : '${s.element}+${s.second}')
+        .join(', ');
+    _setHint(
+      tier >= 2
+          ? 'A shut corner holds its own vents for ever, so each one you '
+                'finish throws the next further. Nothing reaches the far side '
+                'until two are shut — and the corner wanting two hands is the '
+                'one to leave until last, when there is head to spare'
+          : tier >= 1
+          ? 'A throw wants the main past $kSteamPressureMax, and on this '
+                'boiler that means TWO vents held — so one of you moves and '
+                'two of you stand. Whoever lands must take a vent, or nobody '
+                'follows ($left corner${left == 1 ? '' : 's'} still open: $want)'
+          : 'Four corners bleeding the main, and a plinth in the middle that '
+                'is not there yet',
+      5.5,
+    );
+  }
+
   /// The field's own reading, tiered: what the room IS, then the rule that
   /// governs it, then the shape of the answer — never the answer itself.
   void _steamGeyserReveal(DungeonCreature a, DungeonRoom room) {
@@ -1550,6 +1740,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       // reading below — a paragraph about junction costs and burst discs,
       // asked for while standing in front of a field of geysers. The hint
       // never once spoke about the puzzle the player was looking at.
+      if (room.crucibleSeals.isNotEmpty) {
+        _crucibleReveal(a, room);
+        return;
+      }
       if (room.geysers.isNotEmpty) {
         _steamGeyserReveal(a, room);
         return;
@@ -1570,7 +1764,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       return;
     }
     if (g.starIndex == null) {
-      // THE CRUCIBLE, tiered. Never a hurry: everything here can be worked
+      // (retired with the pour chamber) Never a hurry: everything here can be worked
       // out standing still, which is the whole point of the room.
       final tier = revealHintTier(a.member.statIntelligence);
       _setHint(
@@ -1617,6 +1811,19 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     // star is banked — at which point the melt has set and the span is the
     // way home. (Blocking it rather than adding a platform at runtime keeps
     // the room's geometry authored in one place.)
+    // THE CENTRE IS NOT THERE YET. It is listed with the corners so the walk
+    // will accept it, and held shut until every corner is sealed — gated by
+    // EXISTING rather than by distance, because it sits between the corners
+    // and is always the shortest throw of the room.
+    final plinth = room.centrePlinth;
+    if (plinth != null &&
+        plinth.inflate(2).contains(center) &&
+        sealedCorners.length < room.crucibleSeals.length &&
+        !hasStar(2)) {
+      // Solved is solved: once the guardian is down the plinth stays, so the
+      // room never re-locks behind a finished run.
+      return true;
+    }
     final span = room.castSpan;
     if (span != null && span.inflate(2).contains(center)) {
       final cap = room.capstone;
@@ -1726,7 +1933,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     return switch (g.starIndex) {
       0 => 'Ember Causeway — five mouths vent the field, and one is choked',
       1 => 'Cinder Forge — the far shore is across a chasm nothing can leap',
-      _ => 'The Crucible — a cold furnace, and a mould that wants it running',
+      _ =>
+        'The Crucible — four corners bleeding, and a centre that is not there',
     };
   }
 
@@ -2133,10 +2341,16 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         final h = ch.height * moatFill.clamp(0.0, 1.0);
         final run = Rect.fromLTWH(ch.left + 3, ch.top + 3, ch.width - 6, h);
         final pulse = 0.55 + 0.45 * sin(_moltenPulse * 2.2);
-        final rr = RRect.fromRectAndRadius(run, const Radius.circular(9));
-        canvas.drawRRect(rr, Paint()..color = const Color(0xFF3A1206));
+        // The tongue must not lick past the end of the channel once the run
+        // has bottomed out — a full moat is a full moat, not an overflow.
+        final rr = _moltenRunPath(
+          run,
+          _moltenPulse * 0.9,
+          tongue: (ch.bottom - 4 - run.bottom).clamp(0.0, 7.0),
+        );
+        canvas.drawPath(rr, Paint()..color = const Color(0xFF3A1206));
         canvas.save();
-        canvas.clipRRect(rr);
+        canvas.clipPath(rr);
         canvas.drawRect(
           run,
           Paint()
@@ -2173,7 +2387,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           );
         }
         canvas.restore();
-        canvas.drawRRect(
+        canvas.drawPath(
           rr,
           Paint()
             ..style = PaintingStyle.stroke
@@ -3239,9 +3453,220 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     }
   }
 
+  /// The shape of a run of melt in a channel.
+  ///
+  /// A rounded rectangle is a progress bar. Molten rock crawling down a stone
+  /// gutter is not: it wets one wall more than the other, and it leads with a
+  /// TONGUE. So both edges wobble on a slow travelling phase and the front
+  /// bulges past the fill line — which is also the honest read, because the
+  /// front is the part the player is actually watching.
+  Path _moltenRunPath(Rect run, double phase, {double tongue = 7}) {
+    const steps = 16;
+    const wob = 2.6;
+    final p = Path()..moveTo(run.left + 3, run.top);
+    for (var i = 1; i <= steps; i++) {
+      final t = i / steps;
+      p.lineTo(
+        run.left + 3 + sin(t * 5.4 + phase) * wob,
+        run.top + run.height * t,
+      );
+    }
+    p.quadraticBezierTo(
+      run.center.dx,
+      run.bottom + tongue,
+      run.right - 3,
+      run.bottom,
+    );
+    for (var i = steps - 1; i >= 0; i--) {
+      final t = i / steps;
+      p.lineTo(
+        run.right - 3 - sin(t * 5.4 + phase + 1.7) * wob,
+        run.top + run.height * t,
+      );
+    }
+    return p..close();
+  }
+
+  /// The four corner seals, and the heart that is not there yet.
+  ///
+  /// A corner is a SOCKET in the rock: a ring of old iron with one arc per
+  /// element it wants. Reading the room has to work before any of it is
+  /// touched — you should be able to look at a corner from across the void
+  /// and know it wants Fire, or Earth AND Fire, without walking over. So the
+  /// arcs carry the element's own colour, and a two-handed corner is split
+  /// down the middle rather than being some blended third colour that reads
+  /// as a fourth element nobody has.
+  void _drawCrucibleSeals(Canvas canvas, DungeonRoom room) {
+    if (room.crucibleSeals.isEmpty) return;
+
+    for (final seal in room.crucibleSeals) {
+      final shut = sealedCorners.contains(seal.id);
+      final c = seal.position;
+      const rOuter = 26.0;
+
+      // The socket itself — iron sunk into the terrace, always visible.
+      canvas.drawCircle(
+        c,
+        rOuter + 5,
+        Paint()..color = const Color(0xFF15171C).withValues(alpha: 0.85),
+      );
+      canvas.drawCircle(
+        c,
+        rOuter + 5,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = const Color(
+            0xFF4A4038,
+          ).withValues(alpha: shut ? 0.95 : 0.6),
+      );
+      // Four bolts, so a sealed cap has something to have been bolted TO.
+      for (var k = 0; k < 4; k++) {
+        final a = k * pi / 2 + pi / 4;
+        canvas.drawCircle(
+          c + Offset(cos(a), sin(a)) * (rOuter + 5),
+          2.2,
+          Paint()..color = const Color(0xFF6B5B47).withValues(alpha: 0.9),
+        );
+      }
+
+      // One arc per element wanted. One element takes the whole ring; two
+      // split it, each half in its own colour.
+      final wants = <String>[
+        seal.element,
+        if (seal.second != null) seal.second!,
+      ];
+      final sweep = 2 * pi / wants.length;
+      for (var i = 0; i < wants.length; i++) {
+        // Lifted toward white: Earth's brown and Steam's grey-blue both sit
+        // close enough to the terrace stone that at reading distance an
+        // unlit socket looked like an EMPTY socket. The corner has to name
+        // its element from across the void or the room is not a plan.
+        final col = Color.lerp(elementColor(wants[i]), Colors.white, 0.22)!;
+        final start = -pi / 2 + i * sweep + (wants.length > 1 ? 0.10 : 0.0);
+        final span = sweep - (wants.length > 1 ? 0.20 : 0.0);
+        canvas.drawArc(
+          Rect.fromCircle(center: c, radius: rOuter),
+          start,
+          span,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = shut ? 5 : 3.5
+            ..color = col.withValues(alpha: shut ? 0.98 : 0.72),
+        );
+      }
+
+      if (shut) {
+        // A bolted plate, cross-braced. Flat and final — the corner is spent,
+        // and nothing about it should still look like it wants something.
+        canvas.drawCircle(
+          c,
+          rOuter - 6,
+          Paint()..color = const Color(0xFF2A2118).withValues(alpha: 0.95),
+        );
+        final brace = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..color = const Color(0xFF8A7355).withValues(alpha: 0.9);
+        // A CROSS, not a saltire. The braces first went on at 45° and the
+        // sealed corners read as four big red X's — and this planet has
+        // already taught, once, that a player asked "why did some x out?"
+        // A cross-braced cap is a plug; an X is a refusal.
+        for (var k = 0; k < 2; k++) {
+          final a = k * pi / 2;
+          canvas.drawLine(
+            c - Offset(cos(a), sin(a)) * (rOuter - 8),
+            c + Offset(cos(a), sin(a)) * (rOuter - 8),
+            brace,
+          );
+        }
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            c,
+            rOuter + 10,
+            const Color(0xFFE0A24A).withValues(alpha: 0.20),
+          );
+        }
+      } else {
+        // Open: a slow sweep round the socket, so an untouched corner reads
+        // as WAITING rather than as decoration.
+        final a = _moltenPulse * 1.1 + c.dx * 0.01;
+        canvas.drawCircle(
+          c + Offset(cos(a), sin(a)) * (rOuter - 7),
+          3.0,
+          Paint()..color = elementColor(seal.element).withValues(alpha: 0.75),
+        );
+        canvas.drawCircle(
+          c,
+          rOuter - 7,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1
+            ..color = const Color(0xFF6E6558).withValues(alpha: 0.35),
+        );
+      }
+    }
+
+    // THE HEART. It is real ground only once all four are shut, so before
+    // that it is drawn as a thing being ASSEMBLED — one quarter of its rim
+    // for each corner already held — rather than as floor you could walk on
+    // and are mysteriously blocked from. The block is honest; the art has to
+    // be too.
+    final plinth = room.centrePlinth;
+    if (plinth == null) return;
+    final shutCount = sealedCorners.length;
+    final total = room.crucibleSeals.length;
+    if (shutCount < total) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(plinth, const Radius.circular(16)),
+        Paint()
+          ..color = const Color(
+            0xFF06070A,
+          ).withValues(alpha: 0.62 - 0.10 * shutCount),
+      );
+    }
+    // Inside the stone, and with real gaps: at 0.52 the ring spilled off the
+    // plinth's short side and the four arcs closed into one unbroken ellipse,
+    // which is exactly the one thing this ring must never look like.
+    final rim = Rect.fromCircle(
+      center: plinth.center,
+      radius: plinth.shortestSide * 0.40,
+    );
+    for (var i = 0; i < total; i++) {
+      final held = i < shutCount;
+      canvas.drawArc(
+        rim,
+        -pi / 2 + i * (2 * pi / total) + 0.22,
+        2 * pi / total - 0.44,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = held ? 4 : 1.6
+          ..color = const Color(
+            0xFFE0A24A,
+          ).withValues(alpha: held ? 0.85 : 0.22),
+      );
+    }
+    if (shutCount >= total && _fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        plinth.center,
+        plinth.shortestSide * 0.7,
+        const Color(0xFFE0A24A).withValues(alpha: 0.26),
+      );
+    }
+  }
+
   void _renderSteam(Canvas canvas, DungeonRoom room) {
     _renderPressureFixtures(canvas, room);
     _drawGeyserField(canvas, room);
+    _drawCrucibleSeals(canvas, room);
     final g = room.molten;
     if (g == null) {
       // The entry vent wheel.

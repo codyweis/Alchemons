@@ -2151,6 +2151,28 @@ Air's hub, Water's reflection court, Earth's palm hollow, four of Lava's seven
 rooms, and Lightning's hub, which made the planet unstartable. Tests never
 catch it because they call `activateAbility()` past the HUD's gate.
 
+  · ✅ **STAR 3 IS FOUR CORNERS NOW** — §9.5. The pour was the right KIND of
+    puzzle and still the wrong room: a board on a floor rather than somewhere
+    three creatures are. The crucible is a void with four terraces, each with
+    two mouths, a riser and a socket naming the element that shuts it; held
+    mouths feed the main, the main buys reach, and **the room opens only as
+    you shut it**. The ladder (2 held → the hop, 4 → the crossing, 6 → the
+    diagonal) is a layout test, so the geometry and the arithmetic cannot
+    drift. Its worst bug was a DEADLOCK I costed wrong on paper: a body
+    standing on an already-sealed mouth adds nothing, so "two sealed plus two
+    holders" was really just two sealed, and the room could not be finished
+    from the inside.
+  · ✅ **BOILROG COULD NEVER BE REACHED.** A guardian's door stays shut until
+    the guardian wakes, and Boilrog only woke from inside his own room. Every
+    test that had ever reached the heart got there by teleport, so nothing
+    had asked the door to open. The rite wakes him from the antechamber now.
+  · ✅ **THE LAVA RUNS.** A growing rounded rectangle is a progress bar; melt
+    in a stone gutter wobbles along both walls and leads with a tongue. Applied
+    to the forge's casting moat and to the chamber grids, which merge into one
+    mass instead of a field of tiles.
+  · ⬜ CARRIED: device playtest of the whole planet, and the four-corner room
+    in particular — it has been simulated and rendered, never played.
+
 **The twelve left**: Steam, Lava, Poison, Mud, Dust, Crystal, Plant, Spirit,
 Dark, Light, Blood — all BUILT and proved, none through a polish pass. Their secrets are the queue in §7's maxim
 table (only four of seventeen clear the standard). Steam additionally carries
@@ -2442,7 +2464,7 @@ crosses vat B on its way to dying in the east wall.
 > things freely. The proof seams they used were `solveSpireOpenings` and
 > `solveSpireRoutes`, in this file's history.
 
-### §9.5 STEAM'S FINALE — the pour, and it is PLANNED
+### §9.5 STEAM'S FINALE — four corners, and the room opens only as you shut it
 
 **Two rewrites, and the second one was the wrong KIND of fix.**
 
@@ -2459,63 +2481,109 @@ against a clock. The reply was the design note that now governs every planet
 left: *"I don't like games where I have to be mechanically good, I like
 strategy."*
 
-**THE POUR.** Nothing in the crucible moves until you commit to it.
+**THE POUR** followed, and it was *right in kind* — everything answerable
+standing still — but it was still a board on a floor: two cisterns, a band of
+gates, a mould at the bottom of a fall, and a run of melt that fell on its own
+once you committed. It played as a puzzle you solved with walls rather than as
+a room three creatures were in. The design note that replaced it came straight
+from play: *"what if we did more of the geysers jumping over things with
+pressure … leaving rocks and lava one side and having to plan sides out before
+jumping back and forth"*, and then, exactly: *"you plan geysers on both sides
+to create strategy on who and when you send certain alchemons across."*
 
-  · Two cisterns sit above the band; the mould waits at the bottom of a fall.
-  · **Earth's walls are the channel**, built cold and at leisure with nothing
-    running anywhere.
-  · **Fire breaking a WET gate is the commit** — the only thing that starts
-    anything. The two outer gates have a cistern above them and are sources;
-    the middle one is dry, and is simply a door.
-  · The melt then falls **on its own**: south while it can, sideways when it
-    cannot, and BOTH ways at once if both are open — which is why walling the
-    branch you do not want is worth as much as opening the one you do.
-  · A run is worth **5 cells plus one per 6 of head**, so the MAIN buys reach.
-    It reads the gauge but never spends it, so a re-plan costs nothing.
+(The pour's own lessons are kept below the rule — they were paid for and they
+generalise. Its machinery survives in code for star grids; no room authored
+today has one.)
 
-**The trade is the room**, and it is all answerable standing still:
+**THE FOUR CORNERS.** The crucible is a void with four terraces in it and a
+heart that is not there yet. Each corner carries two field mouths, one riser
+to be thrown from, and one SOCKET naming the element that shuts it: Steam at
+the north-west where you arrive, Earth south-west, Fire north-east, and Earth
+AND Fire together at the far south-east. Sealing a corner caps its two mouths
+for good.
 
-| route | cost | needs |
-|---|---|---|
-| left gate + one wall at (2,4) | 8 cells | main ≥ 18 |
-| right gate + one wall at (11,6) | 10 cells | main ≥ 30 |
-| left gate, no walls at all | 16 cells | main ≥ 66 |
-| right gate, no walls | — | never; it dead-ends |
+**The head is the whole puzzle, and it is a ladder.** A mouth that is HELD —
+by a body standing on it, or by a corner that has been sealed — feeds the main
+40 instead of bleeding it, and a throw clears `340 + 1.8` per unit over 99. So:
 
-So at least one wall has to go down unless the boiler is enormous, and WHERE
-it goes is the choice. Bedrock ledges at rows 5 and 7 are what make the left
-side need shaping. Every number above is measured against the real fall rule,
-not estimated.
+| held | head | reach | what it buys |
+|---|---|---|---|
+| 2 | 100 | 342 | the 300px hop to the corner below |
+| 4 | 180 | 486 | the 460px crossing east |
+| 6 | 260 | 630 | the 549px diagonal to the far corner |
 
-**THE SOURCES HAVE TO LOOK LIKE SOURCES.** Three doors in a wall, and only
-two of them give you melt — which door you break is the room's first decision
-and it was being made blind. Thin ember cracks on a grey block, in a chamber
-already full of orange, said nothing: reported from play as breaking one and
-getting *"just one square of fire"*, which was correct behaviour and unreadable.
-A wet gate is lit from behind now and the cistern leaning on it visibly FEEDS
-it — a molten throat through the rock joining the two — so the pairing reads
-from across the room. And breaking the dry one says what it is rather than
-leaving you with a square of melt and no explanation: *nothing behind this one
-— it is a door.*
+You arrive with one corner's worth of hands and the short hop is the only
+thing on. The room opens **only as you shut it** — every rung is bought by
+sealing the corner you are standing on, which is what makes the order of
+travel the decision rather than the aim of a throw.
 
-**THE MOULD SITS IN A POCKET**, and that is load-bearing. Row 8 was open all
-the way across, so any run that reached the floor simply crawled along it into
-the mould — breaking the right gate and doing nothing else won the room
-outright. Melt has to be steered into the middle chimney (cols 5-7) and dropped
-in. A test now fires a bare pour from BOTH gates and requires each to fall
-short.
+**A BODY ON AN ALREADY-SEALED MOUTH ADDS NOTHING**, and that is the trap the
+first tuning fell into: I costed the crossing as "two corners sealed plus two
+holders" and the holders were standing on mouths the seals had already capped.
+Head stalled at 180 with nothing left on the west side to hold, and the room
+was unwinnable from the inside. The ladder above is now the layout test —
+`reach(2) > vertical`, `reach(2) < horizontal`, `reach(4) > horizontal`,
+`reach(4) < diagonal`, `reach(6) > diagonal` — so the geometry and the
+arithmetic cannot drift apart again. The last rung also asserts that the heart
+is reachable from **any** corner on the thinnest head, because by then there is
+nothing left to seal to buy more, and a room whose final hop can strand you is
+a room that lied.
 
-**Nothing can go wrong except a wasted run.** Steam cools any congealed melt
-back to floor, Fire melts a wall away, Earth raises another, and a gate pours
-again as often as you like. A wrong answer costs a re-plan, never a run.
+**THE HEART.** With all four shut, a plinth exists in the middle; standing in
+it is the rite. Before that it is drawn as a thing being ASSEMBLED — one
+quarter of its rim lit per corner held, under a scrim that lifts as you go —
+rather than as floor you can see and are mysteriously blocked from. The block
+is honest, so the art is too.
 
-  · The crucible does NOT creep. Ambient flood is gone from it entirely — its
-    melt only ever moves as a pour you started, which is what lets the whole
-    room be worked out without pressure. (`_spreadLava` survives for star
-    grids; no room authored today has one.)
-  · Breaking a wet gate from below means the run comes down into the cell you
-    broke it from — on the next beat, which is warning enough to step clear
-    and is why Hidden Harmony survives a pour at all.
+**AND THE CORNERS HAVE TO NAME THEMSELVES FROM ACROSS THE VOID.** You are
+planning who to send where before anyone moves, so a socket has to be readable
+at distance: element-coloured arcs, split down the middle when a corner wants
+two, lifted toward white because Earth's brown and Steam's grey-blue both sit
+too close to the terrace stone to read unlit. Sealed corners become bolted
+caps — **cross-braced, not saltire**: at 45° the four sealed corners read as
+four big red X's, and this planet has already been told once, in play, *"why
+did some x out?"* A cross-braced cap is a plug; an X is a refusal.
+
+**Nothing can go wrong except a wasted throw.** A short throw drops the
+creature back where it launched from rather than into the void, and the room
+has no timer, no creep and no failure state — the plan is the entire game.
+Hidden Harmony is keyed to taking the room with no short throw at all.
+
+**WHAT ATE THE SEAL PRESS, TWICE.** `_tryEarthRock` swallowed the seal button
+for a non-Earth hand and then again inside Earth's own branch. That is the
+FOURTH time on this planet that one verb's refusal has eaten another verb's
+legal press. The rule stands and is worth restating: *a refusal must never
+outrank a thing that would actually work.*
+
+**AND BOILROG COULD NEVER BE REACHED.** `_guardianDoorSealed` holds a
+guardian's door shut until the guardian is awake, but Boilrog only woke from
+INSIDE his own room — so the finale door was sealed by a condition that could
+only be met on the far side of it. The rite wakes him from the antechamber
+now, which is what the rite's own hint had always claimed happened ("Boilrog
+heaves up BEYOND it"). No test caught it because every test that reached the
+heart got there by teleport; the full run now opens that door by asking.
+
+**LAVA HAS TO LOOK LIKE IT IS RUNNING.** The forge's casting moat was a
+rounded rectangle that grew — which is a progress bar. Molten rock crawling
+down a stone gutter wets one wall more than the other and leads with a TONGUE,
+so both edges wobble on a travelling phase and the front bulges past the fill
+line (clamped at the channel's end, because a full moat is a full moat and not
+an overflow). The same treatment merged the chamber grids into one mass with
+rounded outer corners instead of a field of separate tiles.
+
+---
+
+**KEPT FROM THE POUR**, because they generalise:
+
+  · **The sources had to look like sources.** Three doors in a wall and only
+    two giving melt is a decision made blind unless the pairing is drawn: a
+    wet gate lit from behind, with a molten throat joining it to the cistern
+    leaning on it. Reported from play as breaking one and getting *"just one
+    square of fire"* — correct behaviour, unreadable.
+  · **The mould sat in a pocket.** With row 8 open across, any run that
+    reached the floor crawled into the mould and the room won itself.
+  · **A wrong answer cost a re-plan, never a run** — the property the four
+    corners inherited whole.
 
 ### A GAUGE CAN BE WRONG WITH EVERY NUMBER RIGHT
 

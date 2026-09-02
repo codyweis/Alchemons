@@ -1993,43 +1993,107 @@ void main() {
             'and half a head does not — the short throw is the room telling '
             'you, by letting you watch it fall in',
       );
-      // Rite: the Crucible grid wakes the guardian (null star index).
-      final crucible = steam.rooms['crucible']!.molten;
-      expect(crucible, isNotNull);
-      expect(crucible!.starIndex, isNull);
+      // Rite: standing in the Crucible's heart wakes the guardian, and the
+      // heart only exists once all four corners are sealed.
+      final crucible = steam.rooms['crucible']!;
+      expect(crucible.crucibleSeals.length, 4);
+      expect(crucible.centrePlinth, isNotNull);
       // Star 2: Boilrog beyond, in the furnace-heart.
       final sg = steam.rooms['boiler_heart']!.guardian;
       expect(sg, isNotNull);
       expect(sg!.encounter?.mysticId, 'Boilrog');
     });
 
-    test('Steam S3 — the crucible band offers two SOURCES and a door, and a '
-        'pour started from either can be made to reach the mould', () {
-      final game = _steamProbe();
-      final wet = game.gateWetness('crucible');
-      expect(wet.length, 3, reason: 'two sources and a door: $wet');
+    test('Steam S3 — the crucible is four corners and a heart, and the '
+        'arithmetic of the throws is the whole puzzle', () {
+      final cruc = kPlanetDungeonLayouts['Steam']!.rooms['crucible']!;
+      expect(cruc.platforms.length, 5, reason: 'four corners and the heart');
+      final plinth = cruc.centrePlinth!;
       expect(
-        wet.entries.where((e) => e.value).map((e) => e.key),
-        unorderedEquals(['3,3', '11,3']),
-        reason:
-            'the two outer gates have a cistern above them — those are the '
-            'SOURCES a pour is started from',
-      );
-      expect(
-        wet.entries.where((e) => !e.value).map((e) => e.key),
-        unorderedEquals(['7,3']),
-        reason: 'and the middle one is dry: a door, not a source',
-      );
-      // THE FAULT THIS GUARDS. The cisterns shipped one column off, sitting
-      // diagonally beside the gates rather than orthogonally behind them.
-      // `_wallIsWet` looks at the four orthogonal neighbours only, so every
-      // gate on the planet was dry and choose-your-breach — the dungeon's
-      // first lesson per §6 — had no instance anywhere in the built game.
-      expect(
-        wet.values.any((v) => v),
+        cruc.platforms.any((p) => p == plinth),
         isTrue,
-        reason: 'a band with no wet gate is a band with no decision in it',
+        reason: 'the heart is real ground once it exists',
       );
+
+      // Every seal names vents that exist, and sits on its own corner.
+      for (final seal in cruc.crucibleSeals) {
+        expect(seal.vents.length, 2, reason: '${seal.id} holds two mouths');
+        for (final v in seal.vents) {
+          expect(
+            cruc.geysers.any((g) => g.id == v && !g.isRiser),
+            isTrue,
+            reason: '${seal.id} names a field mouth $v that does not exist',
+          );
+        }
+        expect(
+          cruc.platforms.any(
+            (p) => p != plinth && p.inflate(4).contains(seal.position),
+          ),
+          isTrue,
+          reason: '${seal.id} must stand on a corner, not in the void',
+        );
+      }
+      // Each corner has its own riser to be thrown from.
+      final risers = cruc.geysers.where((g) => g.isRiser).toList();
+      expect(risers.length, 4);
+      for (final p in cruc.platforms.where((p) => p != plinth)) {
+        expect(
+          risers.where((r) => p.inflate(4).contains(r.position)).length,
+          1,
+          reason: 'every corner is a launch pad exactly once',
+        );
+      }
+
+      // THE ARITHMETIC IS THE LESSON, and here it is a LADDER: head is
+      // 20 + 40 per mouth held, and a throw clears 340 + 1.8 per unit over 99.
+      // A body standing on an ALREADY-SEALED mouth adds nothing — which is
+      // why each rung has to be bought by sealing, not by hands.
+      double reach(int held) {
+        final over = 20 + 40 * held - 99;
+        return over > 0 ? 340 + 1.8 * over : 190;
+      }
+
+      final byId = {for (final r in risers) r.id: r.position};
+      final vertical = (byId['nw_r']! - byId['sw_r']!).distance;
+      final horizontal = (byId['nw_r']! - byId['ne_r']!).distance;
+      final diagonal = (byId['nw_r']! - byId['se_r']!).distance;
+      expect(vertical, lessThan(horizontal));
+      expect(horizontal, lessThan(diagonal));
+
+      expect(
+        reach(2),
+        greaterThan(vertical),
+        reason: 'arriving with one corner in hand, the short hop is on',
+      );
+      expect(
+        reach(2),
+        lessThan(horizontal),
+        reason: 'and nothing else is — the room opens only as you shut it',
+      );
+      expect(
+        reach(4),
+        greaterThan(horizontal),
+        reason: 'two corners sealed buys the crossing',
+      );
+      expect(
+        reach(4),
+        lessThan(diagonal),
+        reason: 'but not the long one, so the third corner still matters',
+      );
+      expect(
+        reach(6),
+        greaterThan(diagonal),
+        reason: 'three sealed buys the last corner',
+      );
+      // And the heart is reachable from any corner even on the thinnest head,
+      // because by then there is nothing left to seal to buy more.
+      for (final r in risers) {
+        expect(
+          (r.position - plinth.center).distance,
+          lessThan(reach(2)),
+          reason: 'the last hop must never be the one that strands you',
+        );
+      }
     });
 
     test(
