@@ -2634,6 +2634,21 @@ split is the scald cellar, an undercroft the foundry forgot, with the maxim
 lying on a plinth. Take it and step back into the pipe — the way out costs
 nothing, because a maxim you cannot carry home is not a reward.
 
+**AND THE ROOM SENDS YOU HOME.** Chromeless art has a cost, and it landed
+within a minute of the cellar first existing: *"how do I get back?"* The way
+out is a hole in a wall with no door frame on it, so it cannot announce
+itself. Two answers, both needed. The mouth is DRAWN now — a riveted collar
+round a dark throat that breathes, the only moving thing in a dead room, which
+is what makes the eye find it from the far end. And the cellar returns you
+itself three seconds after the rite settles: three seconds of HAVING the thing,
+not three seconds of watching the reaction. A player who has just been paid
+should not then have to hunt for the exit.
+
+(That needed one extraction: the whole door transit — per-planet transit
+bookkeeping, the anchor the regroup button recalls to, the hint reset — used to
+live inline inside the walk-into-a-rect check. It is `passThroughDoor` now, so
+a room that sends you somewhere does everything walking there would have done.)
+
 **Why this is the RIGHT question for this planet.** Steam's whole economy is
 one shared budget: the main holds forty and every junction costs fifteen.
 Everything you have ever spent it on has been a *door*. The maxim asks you to

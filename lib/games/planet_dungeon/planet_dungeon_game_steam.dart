@@ -127,6 +127,11 @@ const double _kCruciblePerOver = 1.8;
 /// How close you have to stand to a lost maxim to take it.
 const double _kMaximReach = 60.0;
 
+/// And how long the room lets you stand there afterwards before the pipe
+/// takes you home. Measured from the moment the rite settles, so it is three
+/// seconds of having the thing, not three seconds of watching the reaction.
+const double _kMaximExitSeconds = 3.0;
+
 /// How far one press of flame runs the melt down the moat, how much of the
 /// boulder it spends doing it, and how fast an unfed front skins over.
 const double _kMoatPerPour = 0.25;
@@ -162,6 +167,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     burstCapstoneRooms.clear();
     sealedCorners.clear();
     shortThrows = 0;
+    maximExitTimer = 0;
     pourFront.clear();
     pourVolume = 0;
     pourRunning = false;
@@ -822,7 +828,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     // cleared, the cap recompute never ran, and the crucible was still
     // counting the FORGE's mouths. A stale flight could also seize a
     // creature's position in a room it was never thrown in.
-    _maybeTakeMaxim(room, a);
+    _maybeTakeMaxim(room, a, dt);
     if (_vaporPrevRoomId != room.id) {
       _vaporPrevRoomId = room.id;
       geyserFlights.clear();
@@ -1111,10 +1117,28 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// body at FULL BLAST. Spending the whole budget on something that is not a
   /// door is the question, and stoking to 99 draws wisps each time, so it is
   /// a real price and not a walk.
-  void _maybeTakeMaxim(DungeonRoom room, DungeonCreature a) {
+  void _maybeTakeMaxim(DungeonRoom room, DungeonCreature a, double dt) {
     final cache = room.maximCache;
     if (cache == null) return;
-    if (discoveredClouds.contains(kSteamHiddenHarmonyEggId)) return;
+    if (discoveredClouds.contains(kSteamHiddenHarmonyEggId)) {
+      // AND THE PIPE TAKES YOU BACK. The way out is the mouth you were blown
+      // in through, which is a hole in a wall and not a door — the one thing
+      // it cannot do is announce itself, and a player who has just been paid
+      // should not then have to hunt for the exit. So the cellar returns you
+      // itself, a beat after the rite settles.
+      if (room.doors.isEmpty) return;
+      final was = maximExitTimer;
+      maximExitTimer += dt;
+      if (was < _kMaximExitSeconds * 0.35 &&
+          maximExitTimer >= _kMaximExitSeconds * 0.35) {
+        _setHint('The split draws its breath back — and you with it', 2.6);
+      }
+      if (maximExitTimer >= _kMaximExitSeconds) {
+        maximExitTimer = 0;
+        passThroughDoor(room.doors.first);
+      }
+      return;
+    }
     if ((a.position - cache).distance > _kMaximReach) return;
     _setHint('The foundry forgot this room. You did not.', 4.0);
     beginMaximRite(kSteamHiddenHarmonyEggId, cache);
@@ -3704,6 +3728,55 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           stops: const [0.42, 1.0],
         ).createShader(b),
     );
+
+    // THE MOUTH YOU CAME IN BY, and it has to be findable. Chromeless means
+    // the engine paints no frame on it, which is right — it is a hole, not a
+    // door — but it also means that if this renderer says nothing, the way
+    // home is invisible. Reported from play, immediately: *"how do I get
+    // back?"*
+    for (final d in room.doors) {
+      if (!d.chromeless) continue;
+      final m = d.rect.center;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          d.rect.inflate(7),
+          Radius.circular(d.rect.shortestSide * 0.5),
+        ),
+        Paint()..color = const Color(0xFF3A332B),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          d.rect.deflate(1),
+          Radius.circular(d.rect.shortestSide * 0.45),
+        ),
+        Paint()..color = const Color(0xFF05070A),
+      );
+      // Rivets round the collar, so it reads as pipe and not as a cave.
+      for (var k = 0; k < 8; k++) {
+        final ang = k * pi / 4;
+        canvas.drawCircle(
+          m + Offset(cos(ang), sin(ang)) * (d.rect.shortestSide * 0.5 + 4),
+          2.0,
+          Paint()..color = const Color(0xFF6B5B47),
+        );
+      }
+      // And it BREATHES — the only moving thing in a dead room, which is what
+      // makes the eye find it from the far end.
+      if (_fx.ready) {
+        for (var i = 0; i < 4; i++) {
+          final life = ((_moltenPulse * 0.28 + i / 4) % 1.0);
+          drawPuff(
+            canvas,
+            _fx.puff!,
+            m + Offset(16 + 26 * life, -6 - 14 * life),
+            14 + 22 * life,
+            const Color(
+              0xFFE6F7FF,
+            ).withValues(alpha: 0.13 * pow(1 - life, 1.2).toDouble()),
+          );
+        }
+      }
+    }
 
     // A low plinth of the same dressed block the foundry is built of.
     final base = Rect.fromCenter(

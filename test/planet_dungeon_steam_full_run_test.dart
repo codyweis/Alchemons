@@ -818,8 +818,11 @@ void main() {
         reason: 'standing at the cache takes the maxim',
       );
 
-      // AND THE WAY OUT IS THE PIPE YOU CAME IN BY — no pressure required,
-      // because a maxim you cannot carry home is not a reward.
+      // AND THE ROOM SENDS YOU HOME ITSELF, three seconds after the rite
+      // settles. The way out is a hole in a wall with no door chrome on it,
+      // so it cannot announce itself — reported from play the moment the
+      // cellar first existed: *"how do I get back?"* A spent main must never
+      // strand you either, so the pipe home asks for no pressure at all.
       final back = cellar.doors.single;
       expect(game.isDoorLocked(cellar, back), isFalse);
       game.boilerPressure = 0;
@@ -827,6 +830,24 @@ void main() {
         game.isDoorLocked(cellar, back),
         isFalse,
         reason: 'a spent main must never strand you down here',
+      );
+      expect(
+        game.currentRoomId,
+        'scald_cellar',
+        reason: 'you get a beat to look at what you took',
+      );
+      for (var i = 0; i < 60 * 4; i++) {
+        game.update(1 / 60);
+      }
+      expect(
+        game.currentRoomId,
+        'manifold_north',
+        reason: 'and then the pipe draws its breath back, and you with it',
+      );
+      // Back beside the split, on the spur — not at the far end of the room.
+      expect(
+        (game.creatures.single.position - back.targetSpawn).distance,
+        lessThan(60),
       );
     },
   );

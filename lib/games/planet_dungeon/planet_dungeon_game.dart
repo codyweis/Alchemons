@@ -1455,6 +1455,10 @@ class PlanetDungeonGame extends FlameGame {
   /// Throws that fell into the void. The Hidden Harmony asks for none.
   int shortThrows = 0;
 
+  /// Seconds since a lost maxim was taken, for rooms that send you home
+  /// themselves. Reset with the rest of the planet's state.
+  double maximExitTimer = 0;
+
   final Set<int> pourFront = {};
   int pourVolume = 0;
   bool pourRunning = false;
@@ -8431,36 +8435,44 @@ class PlanetDungeonGame extends FlameGame {
         continue;
       }
       if (d.rect.contains(a.position)) {
-        // Ice: the ride SCOURS the flue and the rimefall THAWS the shaft —
-        // bookkeeping that has to happen on the transit itself.
-        if (_isShaft) _onShaftTransit(currentRoom, d);
-        // Mud: climbing a risen wallow HEAVES the fen back to its opening
-        // state — bookkeeping that has to happen on the transit itself.
-        if (_isBog) _onBogTransit(currentRoom, d);
-        currentRoomId = d.targetRoomId;
-        _roomEntryAnchor = d.targetSpawn;
-        _spreadCreaturesAround(d.targetSpawn);
-        _carryPursuersThroughDoor(d.targetSpawn);
-        // Don't carry loom clouds out of the loom.
-        carriedCloudId = null;
-        carriedCloudType = null;
-        _doorCooldown = 0.5;
-        // A new room is a new subject: the previous room's line (and every
-        // attempt edge that referred to its objects) is void, so the entry
-        // objective is never swallowed by a refusal you already walked away
-        // from.
-        _clearHints();
-        // The objective line is dropped unasked-for (§ the dungeon does not
-        // narrate) — kept as the call so a HINT press still has it to say.
-        final hint = _roomObjectiveHint(currentRoomId);
-        if (hint != null) _setObjectiveHint(hint);
-        _teachRoom(currentRoom);
-        _maybeSpawnGuardianCombat(currentRoom);
-        onChanged();
+        passThroughDoor(d);
         return;
       }
     }
     _releaseBlockedExcept(_doorBlockPrefix, leaning);
+  }
+
+  /// Take a door — the whole transit, wherever it is triggered from.
+  ///
+  /// Walking into the rect is the usual way, but not the only one: a room can
+  /// send you back itself (Steam's scald cellar returns you up the pipe once
+  /// the maxim is taken). Anything that moves the party between rooms has to
+  /// do ALL of this — the per-planet transit bookkeeping, the anchor the
+  /// regroup button recalls to, the hint reset — so there is one copy of it.
+  void passThroughDoor(DungeonDoor d) {
+    // Ice: the ride SCOURS the flue and the rimefall THAWS the shaft.
+    if (_isShaft) _onShaftTransit(currentRoom, d);
+    // Mud: climbing a risen wallow HEAVES the fen back to its opening state.
+    if (_isBog) _onBogTransit(currentRoom, d);
+    currentRoomId = d.targetRoomId;
+    _roomEntryAnchor = d.targetSpawn;
+    _spreadCreaturesAround(d.targetSpawn);
+    _carryPursuersThroughDoor(d.targetSpawn);
+    // Don't carry loom clouds out of the loom.
+    carriedCloudId = null;
+    carriedCloudType = null;
+    _doorCooldown = 0.5;
+    // A new room is a new subject: the previous room's line (and every
+    // attempt edge that referred to its objects) is void, so the entry
+    // objective is never swallowed by a refusal you already walked away from.
+    _clearHints();
+    // The objective line is dropped unasked-for (§ the dungeon does not
+    // narrate) — kept as the call so a HINT press still has it to say.
+    final hint = _roomObjectiveHint(currentRoomId);
+    if (hint != null) _setObjectiveHint(hint);
+    _teachRoom(currentRoom);
+    _maybeSpawnGuardianCombat(currentRoom);
+    onChanged();
   }
 
   static const String _doorBlockPrefix = 'door:';
