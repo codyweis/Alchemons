@@ -2218,6 +2218,56 @@ climb out of one) but never checked on a device, and the doorway invariant
 exempts them on that assumption. And **`MaskFilter.blur` in per-frame paint**
 is still the repo's main jank source, ~310 sites, mostly cosmic.
 
+### 🔧 LAVA — in progress (2026-09-02)
+
+**The line was built well and drawn as a diagram.** Fifteen channels, fourteen
+nodes, five levers, a solver that walks the real map — and on screen a vertical
+gradient with a 96px SQUARE GRID ruled over it, flat orange bars for the
+runners, and grey rectangles for the crucible, the drop hammer, the
+accumulator and the purge cowl. Twenty-two tests, all green, none of which can
+see any of that.
+
+  · ✅ **THE FLOOR IS PLATE, NOT GRAPH PAPER.** Cast iron in running bond,
+    bolted down, bevelled so a plate reads as a plate; scorch stained along
+    every channel run, and frozen splatter where ladles have slopped. The
+    ruled grid was the same fault Steam shipped, and worse here: on the
+    planet whose whole premise is a production LINE, a regular lattice
+    competes with the one thing in the room that is meant to read as a
+    DIRECTION. (First pass swung the plate tones too wide and made a
+    chessboard — which is the grid again in a different coat.)
+  · ✅ **AND THE RUNNERS RUN.** Refractory lip in courses, a glazed inner
+    edge, a narrow burning core with cooling shoulders, and broken crust that
+    does not reach both banks — even slabs of one length read as conveyor
+    treads. The bands travel **the way the metal actually goes**: the segment
+    model has always known (`reverse`) and that knowledge had never once
+    reached the screen. It is the single most useful thing this planet can
+    draw, because the puzzle is re-routing a line and now the route can be
+    read off the floor instead of guessed at a lever.
+  · ✅ **THE FIXTURES GOT MATERIAL.** The silhouettes were right and are
+    untouched; what they had no trace of was what they are made of. A
+    crucible hung in a trunnion frame with a pouring lip, a drop hammer on
+    guide columns with collars and a crown, a riveted accumulator with hoop
+    bands, a hooded purge stack with louvres (it was a flat green triangle
+    and read as a Christmas tree), a slag pit with a ragged crusted rim, and
+    flasks with a parting line and corner clamps instead of dark boxes.
+  · ✅ **EVERY LEVER SHOWS ITS WAYS.** A notched quadrant with one notch per
+    setting and the handle in the notch it is actually in — so a three-way
+    sluice announces that it is three-way before you throw it to find out.
+  · ✅ **THE STAR IS AN INGOT.** Still hot, stamped, on a pallet. It was a
+    flat trapezoid: the shape of an ingot with none of the substance. On a
+    planet whose entire fiction is casting, the reward has to look like the
+    product.
+  · ✅ **THE HEART CIRCULATES.** The guardian's ring was the last thing still
+    drawn in the old flat style — one orange stroke with grey ticks — in the
+    one room the player fights in. It is a circular runner now, with the
+    metal travelling round it and launders on the rim that go dark while
+    they cool.
+  · ⬜ CARRIED: the maxim. §7's table grades **Black Glass** ⬜ *"one verb,
+    three times"* — quench three times with Ice. That is an achievement, not
+    a puzzle, and Steam has just shown what the fix looks like (§9.6): a
+    maxim has to be a PLACE.
+  · ⬜ CARRIED: device playtest. Nothing here has been played.
+
 ### ✅ FIRE — complete (2026-08-31)
 
 The reference. What "complete" meant, so the next planet has a target:

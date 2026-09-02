@@ -69,7 +69,6 @@ const double _kHeadCooldown = 2.2;
 // glow, cold castings in Ice-blue, and slag in a dead grey-green. Everything
 // here is a hard edge or a right angle; nothing flickers like a candle.
 
-const Color _worksBasalt = Color(0xFF14181C);
 const Color _worksIron = Color(0xFF39424C);
 const Color _worksIronLit = Color(0xFF5E6B78);
 const Color _worksCore = Color(0xFFFFF1CF); // white-hot metal
@@ -820,30 +819,145 @@ extension MoltenReliquary on PlanetDungeonGame {
     }
   }
 
-  /// Basalt flags with an iron grid — a floor that was poured, not laid.
+  /// THE PLATE FLOOR. A works has a floor you could drop a ladle on: cast
+  /// iron plates in running bond, bolted down, scorched where the metal has
+  /// been over them for years.
+  ///
+  /// It was a vertical gradient with a 96px SQUARE GRID ruled across it,
+  /// which is the same fault Steam shipped and the same lesson: on the planet
+  /// whose whole premise is a production LINE, the loudest thing in every
+  /// room was graph paper. Nothing about a grid says foundry, and worse, a
+  /// regular lattice competes with the channels — the one thing in the room
+  /// that is actually meant to read as a direction.
   void _renderWorksFloor(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
     canvas.drawRect(
       b,
       Paint()
         ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, const [
-          Color(0xFF191E24),
-          Color(0xFF0E1216),
+          Color(0xFF1B1E22),
+          Color(0xFF0D1013),
         ]),
     );
-    final seam = Paint()
-      ..color = const Color(0x18708090)
-      ..strokeWidth = 1.0;
-    const step = 96.0;
-    for (var x = b.left + step; x < b.right; x += step) {
-      canvas.drawLine(Offset(x, b.top + 10), Offset(x, b.bottom - 10), seam);
+
+    const pw = 148.0, ph = 92.0;
+    final rows = (b.height / ph).ceil() + 1;
+    final cols = (b.width / pw).ceil() + 2;
+    for (var r = 0; r < rows; r++) {
+      // Running bond: every other course steps half a plate, so the seams
+      // never line up into the ruled grid this replaced.
+      final offset = r.isOdd ? pw * 0.5 : 0.0;
+      for (var c = -1; c < cols; c++) {
+        final x = b.left + c * pw - offset;
+        final y = b.top + r * ph;
+        final plate = Rect.fromLTWH(x + 1, y + 1, pw - 2, ph - 2);
+        if (!plate.overlaps(b)) continue;
+        // Cast iron is not one colour: each plate cooled on its own.
+        final n = ((r * 31 + c * 17) % 11) / 11.0;
+        canvas.drawRect(
+          plate,
+          Paint()
+            // A TIGHT range. The first pass swung from #23282D to #171B1F
+            // and the floor came out as a chessboard of big panels — which
+            // is the ruled grid again, drawn a different way.
+            ..color = Color.lerp(
+              const Color(0xFF1D2126),
+              const Color(0xFF191D21),
+              n,
+            )!,
+        );
+        // Lit top lip and shadowed foot: the bevel is what makes a plate a
+        // PLATE and not a rectangle of a slightly different grey.
+        canvas.drawRect(
+          Rect.fromLTWH(plate.left, plate.top, plate.width, 2),
+          Paint()..color = const Color(0xFF343B42).withValues(alpha: 0.42),
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(plate.left, plate.bottom - 2, plate.width, 2),
+          Paint()..color = const Color(0xFF0C0E11).withValues(alpha: 0.5),
+        );
+        // Four bolts.
+        final bolt = Paint()
+          ..color = const Color(0xFF39424A).withValues(alpha: 0.7);
+        for (final o in const [
+          Offset(11, 11),
+          Offset(-11, 11),
+          Offset(11, -11),
+          Offset(-11, -11),
+        ]) {
+          canvas.drawCircle(
+            Offset(
+              o.dx > 0 ? plate.left + o.dx : plate.right + o.dx,
+              o.dy > 0 ? plate.top + o.dy : plate.bottom + o.dy,
+            ),
+            2.2,
+            bolt,
+          );
+        }
+        // Tread: a few diagonal cleats, not a texture on every plate.
+        if ((r + c) % 3 == 0) {
+          final cleat = Paint()
+            ..strokeWidth = 2
+            ..color = const Color(0xFF272D33).withValues(alpha: 0.55);
+          for (var k = 0; k < 4; k++) {
+            final cx = plate.left + 22 + k * 30.0;
+            canvas.drawLine(
+              Offset(cx, plate.top + 26),
+              Offset(cx + 16, plate.bottom - 26),
+              cleat,
+            );
+          }
+        }
+      }
     }
-    for (var y = b.top + step; y < b.bottom; y += step) {
-      canvas.drawLine(Offset(b.left + 10, y), Offset(b.right - 10, y), seam);
+
+    // SCORCH. Years of metal running the same lines leaves the floor stained
+    // along them, which is also a free second reading of where the line goes.
+    for (final ch in works.line.line.channelsIn(room.id)) {
+      for (final seg in ch.segments) {
+        if (seg.roomId != room.id) continue;
+        canvas.drawRect(
+          seg.rect.inflate(26),
+          Paint()..color = const Color(0xFF2A1B12).withValues(alpha: 0.34),
+        );
+        canvas.drawRect(
+          seg.rect.inflate(13),
+          Paint()..color = const Color(0xFF3A2114).withValues(alpha: 0.34),
+        );
+      }
+    }
+
+    // SPILL. Frozen splatter where a ladle has slopped, deterministic from
+    // the room so it never crawls between frames.
+    final seed = room.id.codeUnits.fold<int>(7, (a, c) => (a * 31 + c) % 9973);
+    for (var i = 0; i < 14; i++) {
+      final h = (seed + i * 613) % 9973;
+      final x = b.left + (h % 977) / 977.0 * b.width;
+      final y = b.top + ((h ~/ 977) % 811) / 811.0 * b.height;
+      final rad = 3.0 + (h % 5);
+      canvas.drawCircle(
+        Offset(x, y),
+        rad,
+        Paint()..color = const Color(0xFF2B2016).withValues(alpha: 0.7),
+      );
+      canvas.drawCircle(
+        Offset(x + rad * 0.4, y - rad * 0.4),
+        rad * 0.45,
+        Paint()..color = const Color(0xFF4A382A).withValues(alpha: 0.55),
+      );
     }
   }
 
-  /// A trough: black brick lip, white-hot run, iron sleepers laid across it.
+  /// A RUNNER, and it RUNS. Refractory lip, a crust with the bright body
+  /// showing through it, and bands travelling the way the metal actually
+  /// goes — the segment model already knows (`reverse`), and until now that
+  /// knowledge never reached the screen.
+  ///
+  /// That direction is the single most useful thing this planet can draw. The
+  /// whole puzzle is re-routing a line; a player who can see which way each
+  /// runner carries can read the route off the floor instead of guessing it
+  /// at a lever. It replaces flat fill plus tick marks, which said "channel"
+  /// and nothing else.
   void _renderChannels(Canvas canvas, DungeonRoom room) {
     final s = works.line;
     final pulse = 0.5 + 0.5 * sin(works.clock * 1.4);
@@ -851,40 +965,155 @@ extension MoltenReliquary on PlanetDungeonGame {
       for (final seg in ch.segments) {
         if (seg.roomId != room.id) continue;
         final r = seg.rect;
-        canvas.drawRect(r.inflate(5), Paint()..color = _worksBasalt);
-        canvas.drawRect(
-          r.deflate(3),
-          Paint()
-            ..color = Color.lerp(_worksEdge, _worksCore, 0.25 + 0.2 * pulse)!,
-        );
-        canvas.drawRect(
-          seg.horizontal
-              ? Rect.fromLTWH(r.left, r.center.dy - 3, r.width, 6)
-              : Rect.fromLTWH(r.center.dx - 3, r.top, 6, r.height),
-          Paint()..color = _worksCore.withValues(alpha: 0.75),
-        );
-        // Sleepers: the geometry that makes this read as plant, not lava-flow.
-        final bars = Paint()
-          ..color = _worksIron
-          ..strokeWidth = 3;
-        final span = seg.horizontal ? r.width : r.height;
-        final n = (span / 44).floor().clamp(1, 40);
-        for (var k = 1; k < n; k++) {
-          if (seg.horizontal) {
-            final x = r.left + span * k / n;
+        final horiz = seg.horizontal;
+
+        // REFRACTORY LIP — firebrick, laid in courses along the run, with a
+        // lit inner edge where the heat has glazed it.
+        canvas.drawRect(r.inflate(9), Paint()..color = const Color(0xFF15181B));
+        canvas.drawRect(r.inflate(7), Paint()..color = const Color(0xFF2C2620));
+        final course = Paint()
+          ..strokeWidth = 1
+          ..color = const Color(0xFF15110D).withValues(alpha: 0.8);
+        final span = horiz ? r.width : r.height;
+        for (var k = 22.0; k < span; k += 26) {
+          if (horiz) {
             canvas.drawLine(
-              Offset(x, r.top - 4),
-              Offset(x, r.bottom + 4),
-              bars,
+              Offset(r.left + k, r.top - 7),
+              Offset(r.left + k, r.top - 1),
+              course,
+            );
+            canvas.drawLine(
+              Offset(r.left + k, r.bottom + 1),
+              Offset(r.left + k, r.bottom + 7),
+              course,
             );
           } else {
-            final y = r.top + span * k / n;
             canvas.drawLine(
-              Offset(r.left - 4, y),
-              Offset(r.right + 4, y),
-              bars,
+              Offset(r.left - 7, r.top + k),
+              Offset(r.left - 1, r.top + k),
+              course,
+            );
+            canvas.drawLine(
+              Offset(r.right + 1, r.top + k),
+              Offset(r.right + 7, r.top + k),
+              course,
             );
           }
+        }
+        // The glaze: hot brick right at the metal.
+        canvas.drawRect(
+          r.inflate(2),
+          Paint()..color = const Color(0xFF6B3411).withValues(alpha: 0.85),
+        );
+
+        // THE METAL. A dark crust with the body burning through it, not a
+        // flat orange bar.
+        canvas.drawRect(r, Paint()..color = const Color(0xFF6E2408));
+        canvas.save();
+        canvas.clipRect(r);
+        canvas.drawRect(
+          r,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              horiz ? r.topCenter : r.centerLeft,
+              horiz ? r.bottomCenter : r.centerRight,
+              [
+                const Color(0xFF4E1704),
+                const Color(0xFF9C3A0A),
+                Color.lerp(_worksEdge, _worksCore, 0.52 + 0.22 * pulse)!,
+                const Color(0xFF9C3A0A),
+                const Color(0xFF4E1704),
+              ],
+              // A NARROW hot core with cooling shoulders. An even three-stop
+              // ramp made the whole runner one mid-orange, which reads as
+              // copper pipe rather than as metal that is burning.
+              const [0.0, 0.30, 0.5, 0.70, 1.0],
+            ),
+        );
+
+        // TRAVELLING BANDS — the flow, and its DIRECTION. `reverse` means the
+        // metal runs the other way down this segment, so the bands do too.
+        final dir = seg.reverse ? -1.0 : 1.0;
+        for (var i = 0; i < 6; i++) {
+          final t = ((works.clock * 0.22 * dir + i / 6) % 1.0 + 1.0) % 1.0;
+          final at = span * t;
+          final a = 0.30 * sin(t * pi).clamp(0.0, 1.0);
+          final band = Paint()
+            ..color = _worksCore.withValues(alpha: a)
+            ..strokeWidth = 5
+            ..strokeCap = StrokeCap.round;
+          if (horiz) {
+            canvas.drawLine(
+              Offset(r.left + at, r.top + 2),
+              Offset(r.left + at + 9 * dir, r.bottom - 2),
+              band,
+            );
+          } else {
+            canvas.drawLine(
+              Offset(r.left + 2, r.top + at),
+              Offset(r.right - 2, r.top + at + 9 * dir),
+              band,
+            );
+          }
+        }
+        // CRUST: cooled skin riding the surface. Evenly spaced slabs of one
+        // length read as conveyor treads — a ladder laid in the trough — so
+        // the spacing and the length both vary, deterministically, and the
+        // skin never covers the same fraction twice running.
+        final skin = Paint()
+          ..color = const Color(0xFF23100A).withValues(alpha: 0.62);
+        // Slabs that do not all reach both banks: some ride the near side,
+        // some the far, some the whole width. Full-width pills of one length
+        // read as sausage links; skin breaks unevenly and the metal shows
+        // past it, which is the whole reason to draw skin at all.
+        final thick = horiz ? r.height : r.width;
+        var k = 10.0;
+        var i = 0;
+        while (k < span) {
+          final len = 8.0 + ((i * 37) % 9) * 4.0;
+          final side = (i * 29) % 3; // 0 near bank, 1 far bank, 2 full
+          final near = side == 1 ? thick * 0.42 : 3.0;
+          final far = side == 0 ? thick * 0.42 : 3.0;
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              horiz
+                  ? Rect.fromLTWH(
+                      r.left + k,
+                      r.top + near,
+                      len,
+                      thick - near - far,
+                    )
+                  : Rect.fromLTWH(
+                      r.left + near,
+                      r.top + k,
+                      thick - near - far,
+                      len,
+                    ),
+              const Radius.circular(2.5),
+            ),
+            skin,
+          );
+          k += len + 9.0 + ((i * 53) % 7) * 5.0;
+          i++;
+        }
+        canvas.restore();
+
+        // The hot rim, brightest where the metal meets its brick.
+        canvas.drawRect(
+          r,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = _worksCore.withValues(alpha: 0.28 + 0.14 * pulse),
+        );
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            r.center,
+            (horiz ? r.width : r.height) * 0.42,
+            _worksEdge.withValues(alpha: 0.10),
+          );
         }
       }
     }
@@ -914,132 +1143,358 @@ extension MoltenReliquary on PlanetDungeonGame {
     }
   }
 
+  /// A PLATE OF IRON with a bevel, which is what every fixture on this planet
+  /// is made of. Flat single-colour rectangles read as placeholder geometry;
+  /// a lit top lip and a shadowed foot are the whole difference between a
+  /// grey box and a thing cast in a works.
+  void _ironPlate(
+    Canvas canvas,
+    Rect r, {
+    double radius = 3,
+    bool lit = false,
+  }) {
+    final rr = RRect.fromRectAndRadius(r, Radius.circular(radius));
+    canvas.drawRRect(rr, Paint()..color = lit ? _worksIronLit : _worksIron);
+    canvas.drawRect(
+      Rect.fromLTWH(r.left + 2, r.top, r.width - 4, 2.5),
+      Paint()
+        ..color = const Color(0xFF7C8B99).withValues(alpha: lit ? 0.8 : 0.5),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(r.left + 2, r.bottom - 2.5, r.width - 4, 2.5),
+      Paint()..color = const Color(0xFF0C0F12).withValues(alpha: 0.7),
+    );
+  }
+
+  void _rivets(Canvas canvas, Rect r, {double inset = 7}) {
+    final paint = Paint()
+      ..color = const Color(0xFF778796).withValues(alpha: 0.6);
+    for (final o in [
+      Offset(r.left + inset, r.top + inset),
+      Offset(r.right - inset, r.top + inset),
+      Offset(r.left + inset, r.bottom - inset),
+      Offset(r.right - inset, r.bottom - inset),
+    ]) {
+      canvas.drawCircle(o, 2.0, paint);
+    }
+  }
+
   /// The stations, the molds and the levers — each with its own silhouette so
   /// the line can be read at a glance instead of memorised.
+  ///
+  /// The silhouettes were right from the start and are untouched. What they
+  /// had no trace of was MATERIAL: a crucible, a drop hammer, a purge cowl
+  /// and an accumulator were four flat grey rectangles and one flat green
+  /// triangle, which is a diagram of a foundry rather than a foundry.
   void _renderFixtures(Canvas canvas, DungeonRoom room) {
     final s = works.line;
     final iron = Paint()..color = _worksIron;
-    final lit = Paint()..color = _worksIronLit;
     for (final n in s.line.nodesIn(room.id)) {
       final p = n.position;
       switch (n.kind) {
         case FoundryNodeKind.source:
-          // The crucible: a squat iron vessel over the font.
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromCenter(
-                center: p - const Offset(0, 34),
-                width: 96,
-                height: 56,
-              ),
-              const Radius.circular(8),
-            ),
+          // THE CRUCIBLE: a bellied vessel hung in a trunnion frame, with a
+          // pouring lip. The frame is what says it can be TIPPED, which is
+          // what a crucible is for.
+          for (final side in const [-1.0, 1.0]) {
+            _ironPlate(
+              canvas,
+              Rect.fromLTWH(p.dx + side * 56 - 5, p.dy - 76, 10, 82),
+            );
+          }
+          final belly = Rect.fromCenter(
+            center: p - const Offset(0, 34),
+            width: 96,
+            height: 60,
+          );
+          canvas.drawPath(
+            Path()
+              ..moveTo(belly.left, belly.top)
+              ..lineTo(belly.right, belly.top)
+              ..lineTo(belly.right - 9, belly.bottom)
+              ..lineTo(belly.left + 9, belly.bottom)
+              ..close(),
             iron,
           );
           canvas.drawRect(
+            Rect.fromLTWH(belly.left - 4, belly.top - 7, belly.width + 8, 9),
+            Paint()..color = _worksIronLit,
+          );
+          _rivets(canvas, belly, inset: 13);
+          // Trunnion pins.
+          for (final side in const [-1.0, 1.0]) {
+            canvas.drawCircle(
+              Offset(p.dx + side * 52, belly.center.dy),
+              6,
+              Paint()..color = _worksIronLit,
+            );
+          }
+          // The spout, and what comes out of it.
+          canvas.drawRect(
             Rect.fromCenter(
               center: p - const Offset(0, 4),
-              width: 22,
-              height: 26,
-            ),
-            Paint()..color = s.tapWoken ? _worksCore : _worksIronLit,
-          );
-          if (s.tapWoken && _fx.ready) {
-            drawGlow(canvas, _fx.glow!, p, 44, const Color(0x40FF7A22));
-          }
-        case FoundryNodeKind.chiller:
-          // The shroud: a hood on rails, down or up.
-          final down = s.settingOf('chiller') == 1;
-          canvas.drawRect(
-            Rect.fromCenter(
-              center: Offset(p.dx, p.dy - (down ? 6 : 44)),
-              width: 108,
+              width: 26,
               height: 30,
             ),
-            down ? (Paint()..color = _worksCold) : iron,
+            Paint()..color = s.tapWoken ? _worksCore : const Color(0xFF1B2026),
           );
-          canvas.drawRect(Rect.fromLTWH(p.dx - 56, p.dy - 78, 6, 78), lit);
-          canvas.drawRect(Rect.fromLTWH(p.dx + 50, p.dy - 78, 6, 78), lit);
-        case FoundryNodeKind.stamper:
-          // The die: a hammer block over the channel, live or dead.
-          canvas.drawRect(
-            Rect.fromCenter(
-              center: Offset(
-                p.dx,
-                p.dy -
-                    44 +
-                    (s.dieWoken ? 10 * (0.5 + 0.5 * sin(works.clock * 6)) : 0),
-              ),
-              width: 74,
-              height: 46,
-            ),
-            s.dieWoken ? lit : iron,
-          );
-          canvas.drawRect(Rect.fromLTWH(p.dx - 46, p.dy - 96, 92, 10), iron);
-          if (!s.dieWoken) {
+          if (s.tapWoken) {
             canvas.drawRect(
-              Rect.fromCenter(center: kLavaAccumulator, width: 46, height: 62),
-              iron,
+              Rect.fromCenter(
+                center: p + const Offset(0, 14),
+                width: 14,
+                height: 26,
+              ),
+              Paint()..color = _worksEdge.withValues(alpha: 0.85),
             );
-          } else if (_fx.ready) {
+            if (_fx.ready) {
+              drawGlow(canvas, _fx.glow!, p, 52, const Color(0x55FF7A22));
+            }
+          }
+        case FoundryNodeKind.chiller:
+          // THE SHROUD: a corrugated hood on two rails, with stops. Down, it
+          // frosts; up, it is just iron in the roof.
+          final down = s.settingOf('chiller') == 1;
+          for (final side in const [-56.0, 50.0]) {
+            _ironPlate(canvas, Rect.fromLTWH(p.dx + side, p.dy - 84, 7, 84));
+            for (var y = p.dy - 76.0; y < p.dy; y += 18) {
+              canvas.drawRect(
+                Rect.fromLTWH(p.dx + side - 3, y, 13, 3),
+                Paint()
+                  ..color = const Color(0xFF6E7C89).withValues(alpha: 0.55),
+              );
+            }
+          }
+          final hood = Rect.fromCenter(
+            center: Offset(p.dx, p.dy - (down ? 6 : 46)),
+            width: 112,
+            height: 34,
+          );
+          _ironPlate(canvas, hood, radius: 5, lit: down);
+          final corr = Paint()
+            ..strokeWidth = 2
+            ..color = const Color(0xFF10141A).withValues(alpha: 0.55);
+          for (var x = hood.left + 9; x < hood.right - 4; x += 11) {
+            canvas.drawLine(
+              Offset(x, hood.top + 5),
+              Offset(x, hood.bottom - 5),
+              corr,
+            );
+          }
+          if (down) {
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(
+                hood.inflate(4),
+                const Radius.circular(7),
+              ),
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 2
+                ..color = _worksCold.withValues(alpha: 0.85),
+            );
+            // Frost feathering off the lip — the only cold thing on the planet.
+            for (var i = 0; i < 7; i++) {
+              final x = hood.left + 12 + i * (hood.width - 24) / 6;
+              canvas.drawLine(
+                Offset(x, hood.bottom),
+                Offset(x + (i.isEven ? 4 : -4), hood.bottom + 9),
+                Paint()
+                  ..strokeWidth = 2
+                  ..color = _worksCold.withValues(alpha: 0.5),
+              );
+            }
+          }
+        case FoundryNodeKind.stamper:
+          // THE DROP HAMMER: two guide columns with collars, a crown, and a
+          // tup that rides between them.
+          for (final side in const [-44.0, 36.0]) {
+            _ironPlate(canvas, Rect.fromLTWH(p.dx + side, p.dy - 104, 8, 104));
+            canvas.drawRect(
+              Rect.fromLTWH(p.dx + side - 3, p.dy - 62, 14, 6),
+              Paint()..color = _worksIronLit,
+            );
+          }
+          final crown = Rect.fromLTWH(p.dx - 52, p.dy - 116, 104, 14);
+          _ironPlate(canvas, crown, radius: 3);
+          _rivets(canvas, crown, inset: 9);
+          final lift = s.dieWoken
+              ? 10 * (0.5 + 0.5 * sin(works.clock * 6))
+              : 0.0;
+          final tup = Rect.fromCenter(
+            center: Offset(p.dx, p.dy - 44 + lift),
+            width: 74,
+            height: 46,
+          );
+          _ironPlate(canvas, tup, radius: 2, lit: s.dieWoken);
+          _rivets(canvas, tup, inset: 10);
+          // The die face — the part that actually hits metal.
+          canvas.drawRect(
+            Rect.fromLTWH(tup.left + 8, tup.bottom - 5, tup.width - 16, 5),
+            Paint()
+              ..color = s.dieWoken
+                  ? const Color(0xFFBFD4E2)
+                  : const Color(0xFF1A1F24),
+          );
+          // THE ACCUMULATOR: a riveted pressure vessel with hoop bands.
+          final acc = Rect.fromCenter(
+            center: kLavaAccumulator,
+            width: 46,
+            height: 66,
+          );
+          _ironPlate(canvas, acc, radius: 10);
+          for (var y = acc.top + 14; y < acc.bottom - 8; y += 17) {
+            canvas.drawRect(
+              Rect.fromLTWH(acc.left - 3, y, acc.width + 6, 4),
+              Paint()..color = _worksIronLit.withValues(alpha: 0.8),
+            );
+          }
+          canvas.drawCircle(
+            Offset(acc.center.dx, acc.top + 9),
+            5,
+            Paint()
+              ..color = s.dieWoken
+                  ? const Color(0xFFBFE0EA)
+                  : const Color(0xFF12161A),
+          );
+          if (s.dieWoken && _fx.ready) {
             drawGlow(
               canvas,
               _fx.glow!,
               kLavaAccumulator,
-              26,
-              const Color(0x33BFE0EA),
+              30,
+              const Color(0x44BFE0EA),
             );
           }
         case FoundryNodeKind.vent:
-          // The purge cowl, always audibly open or shut.
+          // THE PURGE COWL: a hooded stack with louvres, not a flat triangle
+          // — which is what it was, and it read as a Christmas tree.
           final open = s.settingOf('damper') == 1;
           canvas.drawPath(
             Path()
-              ..moveTo(p.dx - 34, p.dy + 16)
-              ..lineTo(p.dx, p.dy - 34)
-              ..lineTo(p.dx + 34, p.dy + 16)
+              ..moveTo(p.dx - 40, p.dy + 20)
+              ..lineTo(p.dx - 17, p.dy - 30)
+              ..lineTo(p.dx + 17, p.dy - 30)
+              ..lineTo(p.dx + 40, p.dy + 20)
               ..close(),
-            open ? (Paint()..color = _worksDamp.withValues(alpha: 0.8)) : iron,
+            iron,
+          );
+          _ironPlate(
+            canvas,
+            Rect.fromLTWH(p.dx - 19, p.dy - 62, 38, 34),
+            radius: 2,
+          );
+          // Louvres: shut they are dark slots, open they show the flue.
+          for (var i = 0; i < 4; i++) {
+            final y = p.dy - 24 + i * 11.0;
+            final half = 34 - i * 5.0;
+            canvas.drawRect(
+              Rect.fromLTRB(p.dx - half, y, p.dx + half, y + 5),
+              Paint()
+                ..color = open
+                    ? _worksDamp.withValues(alpha: 0.55)
+                    : const Color(0xFF12161A),
+            );
+          }
+          canvas.drawRect(
+            Rect.fromLTWH(p.dx - 44, p.dy + 20, 88, 7),
+            Paint()..color = _worksIronLit,
           );
         case FoundryNodeKind.mold:
           _renderMold(canvas, n);
         case FoundryNodeKind.sink:
-          canvas.drawOval(
-            Rect.fromCenter(center: p, width: 120, height: 74),
-            Paint()..color = _worksSlag.withValues(alpha: 0.85),
+          // THE SLAG PIT: a ragged crusted rim round a dark hole. An oval on
+          // an oval read as a puddle; slag cools in lumps.
+          final rim = Path();
+          for (var i = 0; i <= 16; i++) {
+            final a = i * 2 * pi / 16;
+            final wob = 1.0 + 0.12 * sin(i * 2.7);
+            final pt = p + Offset(cos(a) * 62 * wob, sin(a) * 38 * wob);
+            i == 0 ? rim.moveTo(pt.dx, pt.dy) : rim.lineTo(pt.dx, pt.dy);
+          }
+          rim.close();
+          canvas.drawPath(
+            rim,
+            Paint()..color = _worksSlag.withValues(alpha: 0.9),
+          );
+          canvas.drawPath(
+            rim,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2
+              ..color = const Color(0xFF3D473C),
           );
           canvas.drawOval(
-            Rect.fromCenter(center: p, width: 92, height: 52),
-            Paint()..color = const Color(0xFF2B322B),
+            Rect.fromCenter(center: p, width: 88, height: 48),
+            Paint()..color = const Color(0xFF171C18),
           );
+          // Lumps of cold slag on the rim.
+          for (var i = 0; i < 6; i++) {
+            final a = i * 2 * pi / 6 + 0.4;
+            canvas.drawCircle(
+              p + Offset(cos(a) * 56, sin(a) * 34),
+              4.0 + (i % 3),
+              Paint()..color = const Color(0xFF525E50),
+            );
+          }
         case FoundryNodeKind.junction:
         case FoundryNodeKind.relay:
           break;
       }
-      // The lever, if this node has one.
+      // THE LEVER, if this node has one: a cast stand, a notched quadrant
+      // with one notch per setting, and a handle in the notch it is actually
+      // in. The quadrant is the point — you can see how many ways this switch
+      // goes, and which way it is set, without throwing it to find out.
       final lever = n.leverAt;
       if (lever != null) {
         final set = s.settingOf(n.switchId!);
-        canvas.drawRect(
+        final ways = max(1, n.switchLabels.length);
+        _ironPlate(
+          canvas,
           Rect.fromCenter(
-            center: lever + const Offset(0, 12),
-            width: 30,
-            height: 12,
+            center: lever + const Offset(0, 15),
+            width: 40,
+            height: 14,
           ),
-          iron,
         );
-        final ang = -pi / 2 + (set - 1) * 0.5;
+        final quad = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5
+          ..color = _worksIron;
+        canvas.drawArc(
+          Rect.fromCircle(center: lever + const Offset(0, 10), radius: 26),
+          pi + 0.45,
+          pi - 0.9,
+          false,
+          quad,
+        );
+        for (var i = 0; i < ways; i++) {
+          final a = pi + 0.45 + (pi - 0.9) * (ways == 1 ? 0.5 : i / (ways - 1));
+          final at = lever + const Offset(0, 10) + Offset(cos(a), sin(a)) * 26;
+          canvas.drawCircle(
+            at,
+            3.0,
+            Paint()
+              ..color = i == set
+                  ? const Color(0xFFFFC98A)
+                  : _worksIronLit.withValues(alpha: 0.7),
+          );
+        }
+        final ang =
+            pi + 0.45 + (pi - 0.9) * (ways == 1 ? 0.5 : set / (ways - 1));
+        final tip =
+            lever + const Offset(0, 10) + Offset(cos(ang), sin(ang)) * 32;
         canvas.drawLine(
           lever + const Offset(0, 10),
-          lever + Offset(cos(ang), sin(ang)) * 30,
+          tip,
           Paint()
             ..color = _worksIronLit
             ..strokeWidth = 5
             ..strokeCap = StrokeCap.round,
         );
+        canvas.drawCircle(tip, 5, Paint()..color = const Color(0xFF8E5A34));
         _drawTinyLabel(
           canvas,
-          lever + const Offset(0, 30),
+          lever + const Offset(0, 34),
           n.switchLabels[set.clamp(0, n.switchLabels.length - 1)],
         );
       }
@@ -1050,18 +1505,48 @@ extension MoltenReliquary on PlanetDungeonGame {
     final s = works.line;
     final held = s.molds[n.id];
     final cavity = Rect.fromCenter(center: n.position, width: 76, height: 52);
-    canvas.drawRect(cavity.inflate(4), Paint()..color = _worksBasalt);
-    canvas.drawRect(
-      cavity,
-      Paint()..color = const Color(0xFF241E18), // sand
+    // THE FLASK: the two-part box a sand mold is rammed up in, with corner
+    // clamps holding the halves together. A plain dark rect said nothing
+    // about how casting works.
+    _ironPlate(canvas, cavity.inflate(7), radius: 2);
+    canvas.drawRect(cavity, Paint()..color = const Color(0xFF2A2119)); // sand
+    // The parting line across the middle of the flask.
+    canvas.drawLine(
+      Offset(cavity.left - 7, cavity.center.dy),
+      Offset(cavity.right + 7, cavity.center.dy),
+      Paint()
+        ..strokeWidth = 1.5
+        ..color = const Color(0xFF11151A).withValues(alpha: 0.8),
     );
+    for (final o in [
+      cavity.topLeft,
+      cavity.topRight,
+      cavity.bottomLeft,
+      cavity.bottomRight,
+    ]) {
+      canvas.drawRect(
+        Rect.fromCenter(center: o, width: 10, height: 10),
+        Paint()..color = _worksIronLit.withValues(alpha: 0.75),
+      );
+    }
     if (held == null) {
+      // An EMPTY cavity: sand cut to the shape of the thing that belongs
+      // here, and dark, because there is nothing in it.
+      canvas.drawRect(
+        cavity.deflate(10),
+        Paint()..color = const Color(0xFF15110C),
+      );
       canvas.drawRect(
         cavity.deflate(10),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2
-          ..color = _worksIronLit.withValues(alpha: 0.7),
+          ..color = _worksIronLit.withValues(alpha: 0.55),
+      );
+      // The sprue — where the metal would come in.
+      canvas.drawRect(
+        Rect.fromLTWH(cavity.center.dx - 4, cavity.top - 7, 8, 9),
+        Paint()..color = const Color(0xFF15110C),
       );
       return;
     }
@@ -1069,6 +1554,15 @@ extension MoltenReliquary on PlanetDungeonGame {
     canvas.drawRect(
       cavity.deflate(8),
       Paint()..color = spoiled ? _worksSlag : _worksCold,
+    );
+    canvas.drawRect(
+      cavity.deflate(8),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = spoiled
+            ? const Color(0xFF3E463C)
+            : const Color(0xFFDCF0FA).withValues(alpha: 0.7),
     );
     if (!spoiled && _fx.ready) {
       drawGlow(canvas, _fx.glow!, n.position, 30, const Color(0x3388D8F0));
@@ -1123,72 +1617,217 @@ extension MoltenReliquary on PlanetDungeonGame {
   }
 
   /// The heart: one ring conveyor, and the two heads that stop what rides it.
+  /// THE HEART: a circular runner, and it runs the same way every other
+  /// runner on this planet does. It was drawn in the old flat style — one
+  /// orange stroke with grey ticks laid across it — which by the end of the
+  /// art pass was the only thing left in the works that still looked like a
+  /// diagram, in the one room the player fights in.
   void _renderHeartRing(Canvas canvas, DungeonRoom room) {
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 34
-      ..color = _worksBasalt;
-    canvas.drawCircle(kLavaHeartCentre, kLavaHeartRadius, ring);
+    final pulse = 0.5 + 0.5 * sin(works.clock * 1.6);
+    const r = kLavaHeartRadius;
+    final c = kLavaHeartCentre;
+
+    // Refractory ring, and the courses of brick that make it up.
     canvas.drawCircle(
-      kLavaHeartCentre,
-      kLavaHeartRadius,
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 42
+        ..color = const Color(0xFF15181B),
+    );
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 36
+        ..color = const Color(0xFF2C2620),
+    );
+    final course = Paint()
+      ..strokeWidth = 1
+      ..color = const Color(0xFF15110D).withValues(alpha: 0.85);
+    for (var k = 0; k < 64; k++) {
+      final a = k * pi / 32;
+      final d = Offset(cos(a), sin(a));
+      canvas.drawLine(c + d * (r + 11), c + d * (r + 18), course);
+      canvas.drawLine(c + d * (r - 18), c + d * (r - 11), course);
+    }
+    // The glaze where brick meets metal.
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 26
+        ..color = const Color(0xFF6B3411),
+    );
+
+    // The metal: cooling shoulders, a narrow burning core.
+    canvas.drawCircle(
+      c,
+      r,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 22
-        ..color = Color.lerp(
-          _worksEdge,
-          _worksCore,
-          0.3 + 0.2 * sin(works.clock * 1.6),
-        )!,
+        ..color = const Color(0xFF6E2408),
     );
-    // Sleepers around the ring.
-    final bars = Paint()
-      ..color = _worksIron
-      ..strokeWidth = 4;
-    for (var k = 0; k < 40; k++) {
-      final a = k * pi / 20;
-      final d = Offset(cos(a), sin(a));
-      canvas.drawLine(
-        kLavaHeartCentre + d * (kLavaHeartRadius - 20),
-        kLavaHeartCentre + d * (kLavaHeartRadius + 20),
-        bars,
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 13
+        ..color = const Color(0xFF9C3A0A),
+    );
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..color = Color.lerp(_worksEdge, _worksCore, 0.52 + 0.22 * pulse)!,
+    );
+
+    // Broken crust riding round, uneven, some of it only on one bank.
+    final skin = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.butt
+      ..color = const Color(0xFF23100A).withValues(alpha: 0.62);
+    for (var i = 0; i < 22; i++) {
+      final a0 = i * 2 * pi / 22;
+      final span = 0.05 + ((i * 37) % 7) * 0.012;
+      skin.strokeWidth = (i % 3 == 2) ? 20 : 10;
+      final off = (i % 3 == 0) ? 5.0 : ((i % 3 == 1) ? -5.0 : 0.0);
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r + off),
+        a0,
+        span,
+        false,
+        skin,
       );
     }
+
+    // And it FLOWS — bands travelling round the ring, so the heart reads as
+    // circulating metal rather than as a drawn circle.
+    for (var i = 0; i < 9; i++) {
+      final t = ((works.clock * 0.06 + i / 9) % 1.0);
+      final a = t * 2 * pi;
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r),
+        a,
+        0.10,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 16
+          ..color = _worksCore.withValues(alpha: 0.16),
+      );
+    }
+
+    // THE POUR HEADS: launders on the rim, live or cooling.
     for (final head in kLavaHeartHeads) {
       final live = works.headCool <= 0;
-      canvas.drawRect(
-        Rect.fromCenter(center: head, width: 84, height: 34),
-        Paint()..color = live ? _worksIronLit : _worksIron,
-      );
-      canvas.drawRect(
+      final body = Rect.fromCenter(center: head, width: 84, height: 34);
+      _ironPlate(canvas, body, radius: 3, lit: live);
+      _rivets(canvas, body, inset: 9);
+      _ironPlate(
+        canvas,
         Rect.fromCenter(
           center: head - const Offset(0, 30),
-          width: 22,
-          height: 34,
+          width: 24,
+          height: 36,
         ),
-        Paint()..color = _worksIron,
+        radius: 2,
       );
+      // The lip: bright while it can pour, dark while it is cooling off.
+      canvas.drawRect(
+        Rect.fromLTWH(body.left + 6, body.bottom - 5, body.width - 12, 5),
+        Paint()..color = live ? _worksCore : const Color(0xFF1A1F24),
+      );
+      if (live && _fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          head,
+          40,
+          _worksEdge.withValues(alpha: 0.22),
+        );
+      }
     }
     if (works.beached > 0 && _fx.ready) {
       drawGlow(canvas, _fx.glow!, works.beachedAt, 90, const Color(0x3AA8E6F5));
     }
   }
 
-  /// The star, drawn as a cast ingot standing on end — the works' own idea of
-  /// treasure.
+  /// THE STAR IS AN INGOT — the thing this works exists to make, still hot,
+  /// stamped, standing on a pallet. It was a flat trapezoid, which is the
+  /// SHAPE of an ingot and none of the substance: no top face, no thickness,
+  /// no heat. On a planet whose entire fiction is casting, the reward has to
+  /// look like the product.
   void _renderWorksStar(Canvas canvas, Offset at) {
     final pulse = 0.5 + 0.5 * sin(works.clock * 2.2);
     if (_fx.ready) {
-      drawGlow(canvas, _fx.glow!, at, 52 + 8 * pulse, const Color(0x55FFB24A));
+      drawGlow(canvas, _fx.glow!, at, 58 + 10 * pulse, const Color(0x55FFB24A));
     }
+    // The pallet it was set down on.
+    _ironPlate(
+      canvas,
+      Rect.fromCenter(center: at + const Offset(0, 22), width: 62, height: 10),
+    );
+
+    final hot = Color.lerp(_worksEdge, _worksCore, 0.34 + 0.22 * pulse)!;
+    // The near face: a wedge, wider at the foot, as a cast bar is.
     canvas.drawPath(
       Path()
-        ..moveTo(at.dx - 20, at.dy + 16)
-        ..lineTo(at.dx - 13, at.dy - 16)
-        ..lineTo(at.dx + 13, at.dy - 16)
-        ..lineTo(at.dx + 20, at.dy + 16)
+        ..moveTo(at.dx - 26, at.dy + 17)
+        ..lineTo(at.dx - 19, at.dy - 7)
+        ..lineTo(at.dx + 19, at.dy - 7)
+        ..lineTo(at.dx + 26, at.dy + 17)
         ..close(),
-      Paint()..color = Color.lerp(_worksEdge, _worksCore, 0.4 + 0.3 * pulse)!,
+      Paint()..color = hot,
     );
+    // The top face, brighter and set back — this is what makes it a SOLID.
+    canvas.drawPath(
+      Path()
+        ..moveTo(at.dx - 19, at.dy - 7)
+        ..lineTo(at.dx - 11, at.dy - 19)
+        ..lineTo(at.dx + 27, at.dy - 19)
+        ..lineTo(at.dx + 19, at.dy - 7)
+        ..close(),
+      Paint()..color = Color.lerp(hot, _worksCore, 0.55)!,
+    );
+    // The far side, in shadow.
+    canvas.drawPath(
+      Path()
+        ..moveTo(at.dx + 19, at.dy - 7)
+        ..lineTo(at.dx + 27, at.dy - 19)
+        ..lineTo(at.dx + 33, at.dy + 12)
+        ..lineTo(at.dx + 26, at.dy + 17)
+        ..close(),
+      Paint()..color = Color.lerp(hot, const Color(0xFF6E2408), 0.55)!,
+    );
+    // The founder's mark, stamped into the top while it was soft.
+    canvas.drawCircle(
+      at + const Offset(4, -13),
+      5,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = const Color(0xFF7A3208).withValues(alpha: 0.8),
+    );
+    // Heat coming off it.
+    for (var i = 0; i < 3; i++) {
+      final t = ((works.clock * 0.5 + i / 3) % 1.0);
+      canvas.drawLine(
+        Offset(at.dx - 14 + i * 14, at.dy - 22 - 14 * t),
+        Offset(at.dx - 11 + i * 14, at.dy - 32 - 14 * t),
+        Paint()
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round
+          ..color = _worksCore.withValues(alpha: 0.30 * (1 - t)),
+      );
+    }
   }
 }
