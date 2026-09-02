@@ -2640,6 +2640,26 @@ Everything you have ever spent it on has been a *door*. The maxim asks you to
 carry the entire budget somewhere that is not one — and stoking to 99 draws two
 wisps a time, so it is a real price and not a walk.
 
+**A DOOR PAINTED OVER THE THING YOU ARE MEANT TO READ.** The engine's door
+chrome — frame, locked slab, rune — is drawn on top of the room's own art, so
+the split came out as a door with a pipe behind it and every readable thing
+about it was hidden underneath. `DungeonDoor.chromeless` says *the planet's
+renderer owns the whole appearance of this way through*, and the minimap
+honours it too: a secret way draws no mark on the chart and no thread between
+its rooms. (The cellar itself is left on the chart on purpose — a player who
+opens it and finds a room with nothing joining it has been invited to explore,
+which is the point.)
+
+**AND THE STEAM HAS TO BE COUNTABLE.** The first jet was a translucent lozenge
+with hard circles rising through it, which read as cartoon smoke beside the
+sprite-puff plume every other vent on the planet uses. It is that same plume
+now — and it is quantised to the gauge: **one mark of steam per mark of
+pressure**, a wisp at twenty and a column at ninety-nine, so you can read the
+main off the pipe without looking at the gauge, and a little pressure visibly
+does a little something. At the tear itself there is a tight hot slot, because
+steam is only fog once it has spent itself; at the hole it is a hard fast
+thing, and that is the part that says PRESSURE rather than weather.
+
 **AND THE SPUR HAS TO SAY SOMETHING.** Six hundred pixels of nothing is a bug;
 six hundred pixels of a spur that was CLOSED is a story. A capped dead end, a
 seized stop-valve and a dead gauge with its needle slack at the pin are the

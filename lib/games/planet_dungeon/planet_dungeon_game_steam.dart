@@ -3504,7 +3504,6 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     }
     if (split == null) return;
     final c = split.rect.center;
-    final t = (boilerPressure / kSteamPressureMax).clamp(0.0, 1.0);
     final full = boilerPressure >= kSteamPressureMax;
 
     // The spur itself, running east back toward the ring.
@@ -3597,44 +3596,64 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       );
     }
 
-    // THE JET.
-    final h = 26 + 150 * t * t;
-    final w = 9 + 20 * t;
-    final jet = Path()
-      ..moveTo(c.dx - w * 0.5, c.dy)
-      ..quadraticBezierTo(
-        c.dx - w * 1.5,
-        c.dy - h * 0.6,
-        c.dx - w * 0.7,
-        c.dy - h,
-      )
-      ..lineTo(c.dx + w * 0.7, c.dy - h)
-      ..quadraticBezierTo(c.dx + w * 1.5, c.dy - h * 0.6, c.dx + w * 0.5, c.dy)
-      ..close();
-    canvas.drawPath(
-      jet,
+    // THE JET, AND IT IS COUNTABLE. One mark of steam per mark on the gauge:
+    // a wisp at twenty, a column at ninety-nine. That is what makes the spur
+    // legible on the FIRST walk down here — you can see the pipe answering
+    // the main long before you have the main to open it, and you can read the
+    // gauge off the plume without looking at the gauge.
+    //
+    // It is drawn with the same sprite puff every other vent on this planet
+    // uses. It was a translucent lozenge with hard circles rising through it
+    // to begin with, which read as cartoon smoke next to the real thing.
+    final marks = boilerPressure <= 0
+        ? 0
+        : max(1, (boilerPressure / 20).round());
+    if (marks == 0) return;
+    final h = 22.0 + 26.0 * marks;
+
+    // The throat: a tight hot slot right at the tear. Steam is only fog once
+    // it has spent itself — at the hole it is a hard, fast thing, and this is
+    // the part that says PRESSURE rather than weather.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: c - Offset(0, 3 + 1.6 * marks),
+          width: 7 + 1.9 * marks,
+          height: 10 + 5.0 * marks,
+        ),
+        const Radius.circular(6),
+      ),
       Paint()
-        ..color = const Color(0xFFBFE9F2).withValues(alpha: 0.10 + 0.34 * t),
+        ..color = const Color(
+          0xFFDCF4FA,
+        ).withValues(alpha: 0.20 + 0.11 * marks),
     );
-    for (var i = 0; i < 4; i++) {
-      final k = ((_moltenPulse * (0.8 + 0.5 * t) + i / 4) % 1.0);
-      canvas.drawCircle(
-        Offset(c.dx + sin(k * 6.0 + i) * (5 + 12 * t), c.dy - h * k),
-        (3 + 7 * t) * (1 - k * 0.5),
-        Paint()
-          ..color = const Color(
-            0xFFEAF7FA,
-          ).withValues(alpha: (0.30 + 0.35 * t) * (1 - k)),
-      );
-    }
-    if (full && _fx.ready) {
-      drawGlow(
-        canvas,
-        _fx.glow!,
-        Offset(c.dx, c.dy - h * 0.4),
-        h * 0.7,
-        const Color(0xFF8FE0EC).withValues(alpha: 0.26),
-      );
+
+    if (_fx.ready) {
+      final puffs = 3 * marks;
+      for (var i = 0; i < puffs; i++) {
+        final life = ((_moltenPulse * (0.34 + 0.05 * marks) + i / puffs) % 1.0);
+        final rise = h * life;
+        final sway = sin(life * 3.1 + i * 1.7) * (5 + 2.2 * marks) * life;
+        final w = (9 + 2.6 * marks) + (15 + 4.0 * marks) * life;
+        final alpha = (0.09 + 0.055 * marks) * pow(1 - life, 1.3).toDouble();
+        drawPuff(
+          canvas,
+          _fx.puff!,
+          Offset(c.dx + sway, c.dy - rise),
+          w,
+          const Color(0xFFE6F7FF).withValues(alpha: alpha),
+        );
+      }
+      if (full) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          Offset(c.dx, c.dy - h * 0.35),
+          h * 0.6,
+          const Color(0xFF8FE0EC).withValues(alpha: 0.24),
+        );
+      }
     }
   }
 

@@ -12842,6 +12842,10 @@ class PlanetDungeonGame extends FlameGame {
     const amber = Color(0xFFC4A35A);
     for (final d in room.doors) {
       if (isDoorHidden(room, d)) continue;
+      // Chromeless: the planet's own art IS this way through (see
+      // [DungeonDoor.chromeless]). Painting a frame over it hides the thing
+      // the player is meant to read.
+      if (d.chromeless) continue;
       final r = d.rect;
       // Sealed star-gated door: a dark slab. The FINALE door reads as a
       // barred ritual seal that SHOWS PROGRESS — one star gem per required

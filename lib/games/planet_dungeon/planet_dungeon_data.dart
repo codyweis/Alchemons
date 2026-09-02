@@ -63,10 +63,19 @@ class DungeonDoor {
   final String targetRoomId;
   final Offset targetSpawn;
 
+  /// A way through that is NOT a door in fiction, and must not be painted as
+  /// one. The engine's door chrome — the frame, the locked slab, the rune —
+  /// is drawn on top of the room's own art, so a split in a steam pipe came
+  /// out as a door with a pipe behind it and every readable thing about it
+  /// (the tear, the jet that counts the gauge) was hidden underneath.
+  /// The planet's renderer owns the whole appearance of one of these.
+  final bool chromeless;
+
   const DungeonDoor({
     required this.rect,
     required this.targetRoomId,
     required this.targetSpawn,
+    this.chromeless = false,
   });
 }
 
@@ -4667,6 +4676,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
         // to carry a body down it. Nothing in the dungeon points here.
         DungeonDoor(
           rect: Rect.fromLTWH(110, 180, 60, 60),
+          chromeless: true, // it is a hole in a pipe, not a door
           targetRoomId: 'scald_cellar',
           targetSpawn: Offset(250, 230),
         ),
@@ -4699,6 +4709,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
         // The pipe mouth you came in by, and the only way out.
         DungeonDoor(
           rect: Rect.fromLTWH(60, 200, 60, 60),
+          chromeless: true, // the pipe mouth you were blown in through
           targetRoomId: 'manifold_north',
           // Back beside the split, not on top of it.
           targetSpawn: Offset(250, 210),

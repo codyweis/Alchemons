@@ -395,6 +395,10 @@ class _DungeonMiniMapPainter extends CustomPainter {
       ..color = const Color(0xFFC4A35A).withValues(alpha: 0.45);
     for (final d in room.doors) {
       if (game.isDoorHidden(room, d)) continue;
+      // A chromeless way through is not painted as a door in the room, and
+      // must not be painted as one here either — the chart would give away
+      // a secret the room deliberately does not.
+      if (d.chromeless) continue;
       canvas.drawRect(
         Rect.fromPoints(map(d.rect.topLeft), map(d.rect.bottomRight)),
         game.isDoorLocked(room, d) ? lockedPaint : doorPaint,
@@ -886,6 +890,7 @@ class _DungeonFullMapPainter extends CustomPainter {
       final from = positions[room.id];
       if (from == null) continue;
       for (final door in room.doors) {
+        if (door.chromeless) continue; // secret ways draw no thread
         final to = positions[door.targetRoomId];
         if (to == null) continue;
         final key = room.id.compareTo(door.targetRoomId) < 0
