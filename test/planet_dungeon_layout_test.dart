@@ -1393,6 +1393,11 @@ void main() {
       expect(pylon.beamReceiver, isNotNull);
       expect(pylon.beamReceivers, isEmpty, reason: 'one mast, not three');
       expect(pylon.walls, isNotEmpty, reason: 'the pillar that eats a bolt');
+      expect(
+        pylon.fulminateVats.length,
+        2,
+        reason: 'the half-blind lesson lives here now',
+      );
       // The Mirror Gallery (§9.3): three echoes, three panes, three DIFFERENT
       // wings — and never the gallery's own, which would light the room and
       // drown them.
@@ -1443,17 +1448,33 @@ void main() {
       expect(works.cellSockets.length, 3);
       expect(works.cellSockets.where((s) => s.requiresHeat).length, 1);
       expect(lightning.rooms['mirror_gallery']!.stormCells.length, 3);
-      // Star 3 (§9.2): the same braid at spire scale — seven conductors,
-      // THREE masts to crown at once, and fulminate only the charged half
-      // may not cross.
+      // Star 3 (§9.4): a switchyard LATTICE — four columns by three rows,
+      // every conductor/mast/vent on a point, every converter on an edge.
       final maze = lightning.rooms['overload_maze']!;
-      expect(maze.beamEmitters.length, 4); // Wind Vents (incl. the decoy VD)
-      expect(maze.beamConverters.length, 4); // converters (incl. the decoy FD)
+      expect(maze.beamEmitters.length, 4);
+      expect(maze.beamConverters.length, 4);
       expect(maze.beamMirrors.length, 7);
       expect(maze.beamReceiver, isNull, reason: 'the Spire has masts, plural');
       expect(maze.beamReceivers.length, 3);
-      expect(maze.fulminateVats.length, 3);
+      expect(
+        maze.fulminateVats,
+        isEmpty,
+        reason:
+            'fulminate is INERT on this lattice — every position that bites '
+            'kills every solution, so the half-blind lesson lives in Pylon '
+            'Hall, where the geometry has slack',
+      );
       expect(maze.poweredBarriers.length, 1, reason: 'just the core gate');
+      const cols = [250.0, 480.0, 710.0, 940.0];
+      const rows = [170.0, 370.0, 540.0];
+      for (final m in maze.beamMirrors) {
+        expect(cols, contains(m.position.dx), reason: 'conductor ${m.id}');
+        expect(rows, contains(m.position.dy), reason: 'conductor ${m.id}');
+      }
+      for (final r in maze.beamReceivers) {
+        expect(cols, contains(r.dx));
+        expect(rows, contains(r.dy));
+      }
       final guardian = lightning.rooms['storm_core']!.guardian;
       expect(guardian, isNotNull);
       expect(guardian!.encounter?.mysticId, 'Raikuma');
@@ -1599,34 +1620,47 @@ void main() {
       }, reason: r'the authored answer: pa=\ pb=/ pc=\ pd=\');
     });
 
-    test('Lightning S3 — the spire braid is PROVABLY UNIQUE too, and the '
-        'dead-aligned east pair is impossible in all 128 configurations', () {
+    test('Lightning S3 — the Spire is a DECISION, not a search: no run takes '
+        'all three masts, and some openings strand you', () {
       final game = _lightningProbe();
-      final spire = game.layout.rooms['overload_maze']!;
-      final works = <String>[];
-      ({int searched, int satisfying, Map<String, int>? solution})? only;
-      for (var v = 0; v < spire.beamEmitters.length; v++) {
-        for (var c = 0; c < spire.beamConverters.length; c++) {
-          final r = game.solveBeamHall(
-            roomId: 'overload_maze',
-            ventIndex: v,
-            converterIndex: c,
-          );
-          expect(r.searched, 128, reason: '7 conductors → 2^7 configurations');
-          if (r.satisfying > 0) {
-            works.add('V$v+F$c×${r.satisfying}');
-            only = r;
-          }
-        }
-      }
+      final r = game.solveSpireOpenings();
       expect(
-        works,
-        ['V0+F0×1'],
+        r.maxPerRun,
+        2,
         reason:
-            'one pairing, one conductor set — and in particular the decoy '
-            'V3+F3 crowns nothing in any of the 128',
+            'if one run could crown all three, welding would never bite and '
+            'the room would be a search again: ${r.lines}',
       );
-      // Named explicitly: eliminating the decoy is geometry, not grinding.
+      expect(r.openings, 7, reason: r.lines.join('\n'));
+      expect(
+        r.alive,
+        greaterThan(0),
+        reason: 'the room must be finishable at all',
+      );
+      expect(
+        r.dead,
+        greaterThan(0),
+        reason:
+            'a puzzle whose every first move works is not a decision — some '
+            'opening has to strand you:\n${r.lines.join("\n")}',
+      );
+      // The exact shape is the design, so it is pinned: the SAME two masts
+      // crowned two different ways, three irons spent surviving and five
+      // stranding you, and the south mast a trap taken on its own.
+      expect(r.lines, [
+        'crowns [0, 2] welds [D, E, F, G] → alive',
+        'crowns [0] welds [B, D, E] → alive',
+        'crowns [1, 2] welds [B, D, E, F, G] → DEAD',
+        'crowns [1, 2] welds [E, F, G] → alive',
+        'crowns [1] welds [B, E] → alive',
+        'crowns [2] welds [B, D, E, F, G] → DEAD',
+        'crowns [2] welds [F, G] → DEAD',
+      ]);
+    });
+
+    test('Lightning S3 — the dead-aligned east pair crowns nothing in any of '
+        'the 128 conductor sets', () {
+      final game = _lightningProbe();
       expect(
         game
             .solveBeamHall(
@@ -1637,15 +1671,6 @@ void main() {
             .satisfying,
         0,
       );
-      expect(only!.solution, {
-        'A': 1,
-        'B': 0,
-        'C': 1,
-        'D': 1,
-        'E': 0,
-        'F': 0,
-        'G': 1,
-      });
     });
 
     test(

@@ -1333,6 +1333,18 @@ class PlanetDungeonGame extends FlameGame {
   bool _beamLatched = false;
   double _beamSparkT = 0;
 
+  /// STORM SPIRE (§9.4): the masts already crowned, and the conductors those
+  /// crownings FUSED SHUT. Iron is spent, not borrowed — a bolt that crowns a
+  /// mast welds every pivot it turned on, so the order you take the masts in
+  /// decides whether the last one is still reachable. Cutting the core trunk
+  /// anneals both sets cold (the reset), and winning latches them for good.
+  final Set<int> crownedMasts = {};
+  final Set<String> fusedConductors = {};
+
+  /// Set the frame a crowning leaves nothing that can reach a dark mast, so
+  /// the room can say so once instead of every frame.
+  bool spireFused = false;
+
   /// ZERO-SUM DYNAMO (rework §9.1): the trunk the dynamo currently feeds
   /// (null = grounded — every trunk dark). Selected at the hub breakers;
   /// Raikuma seizes it while feeding.

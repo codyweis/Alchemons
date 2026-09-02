@@ -97,6 +97,9 @@ extension StormCircuit on PlanetDungeonGame {
     _anvilCellWaiting.clear();
     _vatFuse.clear();
     _beamLatched = false;
+    crownedMasts.clear();
+    fusedConductors.clear();
+    spireFused = false;
     _raikumaFed = false;
     _raikumaLullLeft = 0;
     _darkWispTimer = 0;
@@ -411,19 +414,21 @@ extension StormCircuit on PlanetDungeonGame {
 
   void _updateBeamMaze(DungeonRoom room, double dt) {
     final starIdx = room.circuitStarIndex;
-    // The hall banks a star (Pylon Hall) or throws the core gate (the Spire).
-    final solved = starIdx != null ? hasStar(starIdx) : _beamLatched;
-    // A star hall stands on its own trunk: a dead wing can be staged in the
-    // dark, but the wind never blows and nothing is ever crowned there.
-    final fed = starIdx == null || circuitRoomLit(room.id);
+    final spire = room.beamReceivers.isNotEmpty;
+    final solved = spire ? _beamLatched : (starIdx != null && hasStar(starIdx));
+    // BOTH halls stand on their own trunk. For the Spire that is also the
+    // reset: cut the core wing and the welds anneal cold.
+    final fed = circuitRoomLit(room.id);
+    if (spire && !fed && !solved) _annealSpire();
+
     final vent = _activeVent(room);
     final conv = _activeConverter(room);
 
     if (!solved && fed && vent != null && conv != null) {
       final path = _computeBeam(room, vent);
       final split = _beamConvertSplit(path, conv);
-      // The wind must pass THROUGH the stationed converter, and the LIGHTNING
-      // half born there must lie on every terminal at once.
+      // The wind must pass THROUGH the stationed converter; the LIGHTNING half
+      // born there is the only thing that crowns anything.
       if (split != null) {
         // A real arc at the moment of conversion — air becomes lightning here.
         _beamSparkT += dt;
@@ -441,34 +446,23 @@ extension StormCircuit on PlanetDungeonGame {
         final lightning = <Offset>[split.at, ...path.sublist(split.seg + 1)];
         // Wind crosses fulminate freely; the charged half never may.
         if (_cookVats(room, lightning, dt)) return;
-        final crowns = beamTerminalsOf(room);
-        if (crowns.isNotEmpty && crowns.every((t) => _beamHits(lightning, t))) {
-          for (final t in crowns) {
+
+        if (spire) {
+          _crownSpireMasts(room, lightning);
+        } else {
+          final mast = room.beamReceiver;
+          if (mast != null && _beamHits(lightning, mast)) {
             _spawnAlchemyBurst(
-              t,
+              mast,
               producedElement: 'Lightning',
               reagentElements: const ['Air', 'Fire'],
               unstable: true,
-              particleCount: crowns.length > 1 ? 18 : 34,
+              particleCount: 34,
               intensity: 1.3,
             );
-          }
-          if (starIdx != null) {
             _setHint('One braided bolt wakes the mast — the hall runs true');
-            earnStar(starIdx);
-          } else {
-            _beamLatched = true;
-            _setHint(
-              'Every terminal crowned at once — the gate to the core throws '
-              'open',
-              3.6,
-            );
+            if (starIdx != null) earnStar(starIdx);
           }
-
-          // (The Thunderbolt used to fire HERE, off this very beam, if a
-          // Lightning Horn happened to be standing in the room — a secret
-          // that rode a star's coat-tails and asked nothing of its own. It is
-          // its own chain at the dynamo now; see `_tryThunderbolt`.)
         }
       } else {
         _coolVatFuses(dt);
@@ -493,6 +487,129 @@ extension StormCircuit on PlanetDungeonGame {
     _maybeWakeRaikuma(room);
   }
 
+  /// Cutting the core wing lets the spire cool: welds anneal, crowns go dark.
+  /// Costs a round trip and everything you had — which is the whole reason to
+  /// plan the order before spending the first iron.
+  void _annealSpire() {
+    if (crownedMasts.isEmpty && fusedConductors.isEmpty) return;
+    crownedMasts.clear();
+    fusedConductors.clear();
+    spireFused = false;
+    _setHint('The spire cools — the welds let go and the masts go dark', 3.0);
+  }
+
+  /// Did the charged run turn on this conductor? (Its polyline has a corner
+  /// standing exactly on the pivot.)
+  bool _boltTurnedOn(List<Offset> bolt, BeamMirror m) {
+    for (var i = 1; i < bolt.length; i++) {
+      if ((bolt[i] - m.position).distance < 1.0) return true;
+    }
+    return false;
+  }
+
+  /// Crown whatever dark masts this charged run lies on — and FUSE every
+  /// conductor it turned on to get there.
+  void _crownSpireMasts(DungeonRoom room, List<Offset> bolt) {
+    final newly = <int>[];
+    for (var i = 0; i < room.beamReceivers.length; i++) {
+      if (crownedMasts.contains(i)) continue;
+      if (_beamHits(bolt, room.beamReceivers[i])) newly.add(i);
+    }
+    if (newly.isEmpty) return;
+
+    final fused = <String>[];
+    for (final m in room.beamMirrors) {
+      if (fusedConductors.contains(m.id)) continue;
+      if (_boltTurnedOn(bolt, m)) {
+        fusedConductors.add(m.id);
+        fused.add(m.id);
+      }
+    }
+    crownedMasts.addAll(newly);
+    for (final i in newly) {
+      _spawnAlchemyBurst(
+        room.beamReceivers[i],
+        producedElement: 'Lightning',
+        reagentElements: const ['Air', 'Fire'],
+        unstable: true,
+        particleCount: 22,
+        intensity: 1.2,
+      );
+    }
+    for (final id in fused) {
+      final m = room.beamMirrors.firstWhere((x) => x.id == id);
+      _spawnAlchemyBurst(
+        m.position,
+        producedElement: 'Fire',
+        particleCount: 8,
+        intensity: 0.6,
+      );
+    }
+
+    if (crownedMasts.length == room.beamReceivers.length) {
+      _beamLatched = true;
+      _setHint(
+        'Every mast crowned — the gate to the core throws open',
+        3.6,
+      );
+      return;
+    }
+    final left = room.beamReceivers.length - crownedMasts.length;
+    // Never a soft-lock: if nothing left to turn can reach a dark mast, the
+    // room says so rather than leaving the player to discover it by despair.
+    spireFused = !_spireCanStillReach(room);
+    _setHint(
+      spireFused
+          ? 'Fused white, and $left mast${left == 1 ? '' : 's'} still dark — '
+                'nothing left to turn will reach them. Cut the core wing and '
+                'let the spire cool'
+          : '${fused.length} conductor${fused.length == 1 ? '' : 's'} fuse '
+                'shut — $left mast${left == 1 ? '' : 's'} to go on what is '
+                'left',
+      3.4,
+    );
+  }
+
+  /// Can any route the FREE conductors still allow crown a dark mast? Run once
+  /// at the moment of a crowning, never per frame.
+  bool _spireCanStillReach(DungeonRoom room) {
+    final free = room.beamMirrors
+        .where((m) => !fusedConductors.contains(m.id))
+        .toList(growable: false);
+    final saved = Map<String, int>.from(mirrorOrient);
+    var found = false;
+    outer:
+    for (final vent in room.beamEmitters) {
+      for (final conv in room.beamConverters) {
+        for (var mask = 0; mask < (1 << free.length); mask++) {
+          for (var i = 0; i < free.length; i++) {
+            mirrorOrient[free[i].id] = (mask >> i) & 1;
+          }
+          final path = _computeBeam(room, vent);
+          final split = _beamConvertSplit(path, conv);
+          if (split == null) continue;
+          final bolt = <Offset>[split.at, ...path.sublist(split.seg + 1)];
+          if (room.fulminateVats.any(
+            (v) => _beamHits(bolt, v.position, _kVatRadius),
+          )) {
+            continue;
+          }
+          for (var i = 0; i < room.beamReceivers.length; i++) {
+            if (crownedMasts.contains(i)) continue;
+            if (_beamHits(bolt, room.beamReceivers[i])) {
+              found = true;
+              break outer;
+            }
+          }
+        }
+      }
+    }
+    mirrorOrient
+      ..clear()
+      ..addAll(saved);
+    return found;
+  }
+
   /// Every terminal the charged half of the braid has to lie on — the single
   /// mast of the first hall, or the Spire's three at once.
   List<Offset> beamTerminalsOf(DungeonRoom room) => <Offset>[
@@ -506,6 +623,12 @@ extension StormCircuit on PlanetDungeonGame {
       if ((a.position - m.position).distance <= 52) {
         if (a.member.element != 'Lightning') {
           _setBlockedHint('Only Lightning turns the conductor');
+          return true;
+        }
+        if (fusedConductors.contains(m.id)) {
+          _setBlockedHint(
+            'The pivot is fused white — a crowning spent this iron',
+          );
           return true;
         }
         mirrorOrient[m.id] = ((mirrorOrient[m.id] ?? 0) + 1) % 2;
@@ -681,6 +804,141 @@ extension StormCircuit on PlanetDungeonGame {
       ..clear()
       ..addAll(saved);
     return (searched: configs, satisfying: satisfying, solution: solution);
+  }
+
+  /// One attempt at the Spire, resolved: which dark masts it crowns and which
+  /// conductors that crowning would fuse. Null when it crowns nothing.
+  ({List<int> crowns, List<String> fuses})? _spireAttempt(
+    DungeonRoom room,
+    BeamEmitter vent,
+    Offset conv,
+    Set<int> crowned,
+  ) {
+    final path = _computeBeam(room, vent);
+    final split = _beamConvertSplit(path, conv);
+    if (split == null) return null;
+    final bolt = <Offset>[split.at, ...path.sublist(split.seg + 1)];
+    if (room.fulminateVats.any(
+      (v) => _beamHits(bolt, v.position, _kVatRadius),
+    )) {
+      return null;
+    }
+    final crowns = <int>[];
+    for (var i = 0; i < room.beamReceivers.length; i++) {
+      if (crowned.contains(i)) continue;
+      if (_beamHits(bolt, room.beamReceivers[i])) crowns.add(i);
+    }
+    if (crowns.isEmpty) return null;
+    final fuses = <String>[
+      for (final m in room.beamMirrors)
+        if (_boltTurnedOn(bolt, m)) m.id,
+    ];
+    return (crowns: crowns, fuses: fuses);
+  }
+
+  bool _spireFinishable(
+    DungeonRoom room,
+    Map<String, int> welded,
+    Set<int> crowned,
+    int depth,
+  ) {
+    if (crowned.length == room.beamReceivers.length) return true;
+    if (depth >= 3) return false;
+    final free = room.beamMirrors
+        .where((m) => !welded.containsKey(m.id))
+        .toList(growable: false);
+    for (final vent in room.beamEmitters) {
+      for (final conv in room.beamConverters) {
+        for (var mask = 0; mask < (1 << free.length); mask++) {
+          mirrorOrient
+            ..clear()
+            ..addAll(welded);
+          for (var i = 0; i < free.length; i++) {
+            mirrorOrient[free[i].id] = (mask >> i) & 1;
+          }
+          final r = _spireAttempt(room, vent, conv, crowned);
+          if (r == null) continue;
+          final w2 = Map<String, int>.from(welded);
+          for (final id in r.fuses) {
+            w2[id] = mirrorOrient[id]!;
+          }
+          if (_spireFinishable(
+            room,
+            w2,
+            {...crowned, ...r.crowns},
+            depth + 1,
+          )) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  /// THE SPIRE'S STRATEGY, PROVED (§9.4). Sweeps every opening — every
+  /// vent × converter × conductor set that crowns anything at all — collapses
+  /// them to the distinct (what it crowns, what it welds) outcomes, and asks
+  /// of each whether the room can still be finished afterwards.
+  ///
+  /// The layout test asserts that no single run takes all three masts (so the
+  /// welding always bites), that some openings survive, and that some STRAND
+  /// you — because a puzzle where every first move works is a search, not a
+  /// decision.
+  ({int maxPerRun, int openings, int alive, int dead, List<String> lines})
+  solveSpireOpenings() {
+    final room = layout.rooms['overload_maze']!;
+    final saved = Map<String, int>.from(mirrorOrient);
+    final mirrors = room.beamMirrors;
+    final seen = <String, ({List<int> crowns, Map<String, int> welds})>{};
+    var maxPerRun = 0;
+    for (final vent in room.beamEmitters) {
+      for (final conv in room.beamConverters) {
+        for (var mask = 0; mask < (1 << mirrors.length); mask++) {
+          for (var i = 0; i < mirrors.length; i++) {
+            mirrorOrient[mirrors[i].id] = (mask >> i) & 1;
+          }
+          final r = _spireAttempt(room, vent, conv, const {});
+          if (r == null) continue;
+          maxPerRun = max(maxPerRun, r.crowns.length);
+          final welds = {for (final id in r.fuses) id: mirrorOrient[id]!};
+          final key =
+              '${r.crowns.join(",")}|'
+              '${(welds.entries.map((e) => "${e.key}${e.value}").toList()..sort()).join(",")}';
+          seen[key] = (crowns: r.crowns, welds: welds);
+        }
+      }
+    }
+    var alive = 0, dead = 0;
+    final lines = <String>[];
+    for (final e in seen.entries) {
+      final ok = _spireFinishable(
+        room,
+        e.value.welds,
+        e.value.crowns.toSet(),
+        1,
+      );
+      if (ok) {
+        alive++;
+      } else {
+        dead++;
+      }
+      lines.add(
+        'crowns ${e.value.crowns} welds ${e.value.welds.keys.toList()..sort()}'
+        ' → ${ok ? "alive" : "DEAD"}',
+      );
+    }
+    mirrorOrient
+      ..clear()
+      ..addAll(saved);
+    lines.sort();
+    return (
+      maxPerRun: maxPerRun,
+      openings: seen.length,
+      alive: alive,
+      dead: dead,
+      lines: lines,
+    );
   }
 
   // ── Per-frame update ─────────────────────────────────────
@@ -1492,20 +1750,29 @@ extension StormCircuit on PlanetDungeonGame {
       );
       return;
     }
-    // Star 3 — the Spire. Three masts, one bolt, and fulminate that only the
-    // charged half can set off.
+    // Star 3 — the Spire. Tiered: t0 the shape, t1 the RULE, t2 the shape of
+    // the mistake. Never the plan — the plan is the whole puzzle.
     if (room.beamEmitters.isNotEmpty) {
+      if (!circuitRoomLit(room.id)) {
+        _setHint('The spire is cold — the dynamo must feed the core wing');
+        return;
+      }
       _setHint(
         tier >= 2
-            ? 'Convert high on the long east fall — everything after it is '
-                  'charged, and the charged run must thread all three masts '
-                  'while missing every vat. The east aisle runs clear of all '
-                  'iron: that pair is a lie'
+            ? (spireFused
+                  ? 'Fused. Nothing left will reach — cut the core wing at the '
+                        'dynamo and let it cool'
+                  : 'Plan in WIND: with no flame stationed the run crowns '
+                        'nothing, so the whole route can be laid out for free. '
+                        'Then count the iron before you light it — the same '
+                        'two masts can cost three conductors or five, and five '
+                        'strands you')
             : tier >= 1
-            ? 'One bolt must lie on all three masts at once, and the charged '
-                  'half must never cross fulminate — the wind half may'
-            : 'Three masts, one braid. Where the flame stands decides how '
-                  'much of the run is lightning',
+            ? 'Crowning a mast FUSES every conductor that bolt turned on. No '
+                  'run reaches all three, so the order is the puzzle: spend '
+                  'iron you will not need again'
+            : 'Three masts, and iron enough for all of them only if none is '
+                  'wasted',
       );
       return;
     }
@@ -1633,6 +1900,14 @@ extension StormCircuit on PlanetDungeonGame {
     if (room.beamEmitters.isNotEmpty &&
         !(room.circuitStarIndex == 0 ? hasStar(0) : _beamLatched)) {
       final terminals = beamTerminalsOf(room);
+      // The Spire counts what is CROWNED — crowns are banked, not live.
+      if (room.beamReceivers.isNotEmpty) {
+        return DungeonProgressReadout(
+          label: spireFused ? 'MASTS · FUSED' : 'MASTS',
+          value: '${crownedMasts.length}/${terminals.length}',
+          fraction: crownedMasts.length / terminals.length,
+        );
+      }
       var lit = 0;
       final vent = _activeVent(room);
       final conv = _activeConverter(room);
@@ -2612,6 +2887,31 @@ extension StormCircuit on PlanetDungeonGame {
     final live = vent != null;
     for (final m in room.beamMirrors) {
       _drawBeamMirror(canvas, m, live);
+      if (!fusedConductors.contains(m.id)) continue;
+      // Spent iron: a hot weld bead across the pivot, and a ring saying this
+      // one will not turn again until the wing is cut.
+      canvas.drawCircle(
+        m.position,
+        19,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..color = const Color(0xFFE0A46A).withValues(alpha: 0.8),
+      );
+      final bead = Paint()
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 4.5
+        ..color = const Color(0xFFFFD9A0);
+      canvas.drawLine(
+        m.position + const Offset(-11, -11),
+        m.position + const Offset(11, 11),
+        bead,
+      );
+      canvas.drawLine(
+        m.position + const Offset(-11, 11),
+        m.position + const Offset(11, -11),
+        bead,
+      );
     }
 
     // Fulminate vats — the negative constraints, seething when cooked. Note
@@ -2621,8 +2921,12 @@ extension StormCircuit on PlanetDungeonGame {
     }
 
     // The masts the bolt has to crown.
-    for (final recv in terminals) {
-      final lit = solved || (bolt.isNotEmpty && _beamHits(bolt, recv));
+    for (var ti = 0; ti < terminals.length; ti++) {
+      final recv = terminals[ti];
+      final lit =
+          solved ||
+          crownedMasts.contains(ti) ||
+          (bolt.isNotEmpty && _beamHits(bolt, recv));
       // Mast body — the lone hall mast stands tall; the Spire's three are
       // shorter iron so the room does not read as three towers.
       final h = terminals.length > 1 ? 62.0 : 90.0;

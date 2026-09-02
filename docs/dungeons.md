@@ -2099,6 +2099,72 @@ of storm-glass into three grey slabs — it skips storm panes now. And the
 "borrowed light" first went in as a flat translucent rect between pane and
 image, which reads as a grey box lying on the floor; light has to travel.
 
+### §9.4 THE STORM SPIRE — a decision, not a search
+
+Star 3 was provably unique, which made it unambiguous and not hard. Every
+attempt was free: the wind previews the whole route, so you flipped conductors
+and hill-climbed to the one answer without ever making a choice. And it looked
+like what it was, seven conductors at coordinates picked to make a snake path
+work.
+
+**IT IS A LATTICE.** Four columns (250·480·710·940) by three rows
+(170·370·540). Every conductor, mast and vent stands on a lattice point, every
+converter on a lattice edge. The lanes can be read off the floor before you
+touch anything, and the layout test asserts the lattice so it cannot drift back
+into scatter.
+
+**IRON IS SPENT, NOT BORROWED.** No single run crowns all three masts — two is
+the most any route reaches. When the charged bolt crowns a mast, every
+conductor that bolt turned on **fuses shut** for the rest of the attempt. The
+question stops being *what is the answer* and becomes *what can I afford to
+spend getting there*.
+
+There are exactly **seven distinct openings and three of them strand you**:
+
+| crowns | welds | |
+|---|---|---|
+| 1 + 2 | E·F·G | alive |
+| 0 + 2 | D·E·F·G | alive |
+| 2 | F·G | **DEAD** |
+| 0 | B·D·E | alive |
+| 1 | B·E | alive |
+| 1 + 2 | B·D·E·F·G | **DEAD** |
+| 2 | B·D·E·F·G | **DEAD** |
+
+Read the pairs. The *same two masts*, crowned two different ways — three irons
+spent survives, five strands you. And the south mast taken on its own is a trap
+however you reach it. **Greed is the failure mode**, which is what makes it a
+decision.
+
+**PLANNING IS FREE, COMMITTING IS NOT.** With Air on a vent and nobody on a
+converter there is no charged half, so the wind draws the entire route and
+crowns nothing. You lay the plan in wind and spend it in flame.
+
+**AND WIND COSTS NOTHING EITHER.** Only the charged half fuses what it turns
+on, so a conductor used while the bolt was still wind stays free. That is a
+second, quieter trade the room never states: convert late and keep more iron,
+convert early and reach further. The frugal opening is exactly this — it turns
+D as wind and pays only for E, F and G.
+
+**THE RESET** is the planet's own. The spire stands on the core trunk, so
+cutting that wing at the dynamo anneals the welds cold and the masts go dark.
+It costs a round trip and the crowns you had, which is why thinking first pays
+— and it is never a soft-lock: the moment nothing left to turn can reach a dark
+mast, the room says so.
+
+**FULMINATE MOVED OUT.** Every vat position on this lattice that bites kills
+every solution — the routes are too tight — so the Spire has none, and the
+half-blind lesson went to Pylon Hall where the geometry has slack. There vat A
+sits on the WIND leg of the correct answer (so solving it properly means
+running wind over fulminate and watching nothing happen), sixteen wrong charged
+routes cook each of the two, and the hall's teaching lie now bites: vent VB
+with converter FC in front of it makes a real bolt that crosses vat B on its
+way to dying in the east wall.
+
+`solveSpireOpenings()` proves all of it against the real engine — max masts per
+run, the opening count, and which openings survive — and the test pins the
+exact table above, because that table IS the design.
+
 ### DOORS — where you come out matters as much as where you go in
 
 A door's `targetSpawn` is where you land in the next room. Three ways that

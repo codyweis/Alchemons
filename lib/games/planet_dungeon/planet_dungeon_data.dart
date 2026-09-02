@@ -1060,6 +1060,7 @@ class DungeonRoom {
   // Air Star 1 (WAKE THE WINDS): the wind graph + its shrines.
   final List<WindLedge> windLedges;
   final List<WindRoute> windRoutes;
+
   /// The four rune pillars ringing the hub compass — the Four Winds.
   ///
   /// Authored rather than computed on a radius so they are a THING IN THE
@@ -2683,7 +2684,8 @@ const DungeonLayout _fireLayout = DungeonLayout(
     // logic; no collidables needed.)
     'scriptorium': DungeonRoom(
       id: 'scriptorium',
-      teach: 'Soot on a dark wall. Light the four corners before you try to read it.',
+      teach:
+          'Soot on a dark wall. Light the four corners before you try to read it.',
       bounds: Rect.fromLTWH(0, 0, 640, 520),
       // Four corner torches. The mural is soot on a dark wall in a room with
       // no window: unlit, there is nothing to read, and the panel says so.
@@ -2713,7 +2715,8 @@ const DungeonLayout _fireLayout = DungeonLayout(
     // must point at ONE unmistakable neighbour each.
     'choir': DungeonRoom(
       id: 'choir',
-      teach: 'The rite\'s order is not written anywhere. The iron wears it: wax, soot and drifted ash.',
+      teach:
+          'The rite\'s order is not written anywhere. The iron wears it: wax, soot and drifted ash.',
       bounds: Rect.fromLTWH(0, 0, 900, 640),
       doors: [
         DungeonDoor(
@@ -2744,7 +2747,8 @@ const DungeonLayout _fireLayout = DungeonLayout(
     // lost, only paid for.
     'cloister': DungeonRoom(
       id: 'cloister',
-      teach: 'Lay vine, strike ONCE, and turn the wind to walk the flame — every square must burn from that single fire, and burnt ground never takes vine again.',
+      teach:
+          'Lay vine, strike ONCE, and turn the wind to walk the flame — every square must burn from that single fire, and burnt ground never takes vine again.',
       bounds: Rect.fromLTWH(0, 0, 820, 740),
       doors: [
         DungeonDoor(
@@ -2789,13 +2793,7 @@ const DungeonLayout _fireLayout = DungeonLayout(
         // Up in the room, with the fountain and its vane standing below the
         // garden rather than in the middle of it.
         centre: Offset(410, 310),
-        art: [
-          '......',
-          '.#..#.',
-          '......',
-          '.#..#.',
-          '......',
-        ],
+        art: ['......', '.#..#.', '......', '.#..#.', '......'],
       ),
       windVane: Offset(410, 596),
     ),
@@ -3864,7 +3862,7 @@ const DungeonLayout _lightningLayout = DungeonLayout(
     // line together, so the tempting pair really does catch — the flame
     // lights, a real bolt is born, and it dies in the east wall. Making
     // lightning is not the puzzle; landing it is.
-'pylon_hall': DungeonRoom(
+    'pylon_hall': DungeonRoom(
       id: 'pylon_hall',
       bounds: Rect.fromLTWH(0, 0, 1040, 720),
       doors: [
@@ -3909,6 +3907,14 @@ const DungeonLayout _lightningLayout = DungeonLayout(
         BeamMirror(id: 'pd', position: Offset(400, 250)), // up→left
       ],
       beamReceiver: Offset(200, 250), // the hall's terminal mast
+      // FULMINATE IS HALF-BLIND, and this hall is where you learn it: vat A
+      // sits ON the true route's WIND leg, so the correct answer runs wind
+      // straight over fulminate and nothing happens. Sixteen of the wrong
+      // charged routes cook each of the two.
+      fulminateVats: [
+        FulminateVat(id: 'vat_a', position: Offset(720, 160)),
+        FulminateVat(id: 'vat_b', position: Offset(960, 480)),
+      ],
       circuitStarIndex: 0,
     ),
 
@@ -4104,37 +4110,60 @@ const DungeonLayout _lightningLayout = DungeonLayout(
       ],
     ),
 
-    // Room G — The Storm Spire. Star 3, behind the breaker gate (§9.2): THE
-    // SAME BRAID AT SCALE. Everything Pylon Hall taught, with the screws
-    // turned: four vents, four converters, SEVEN conductors, three pillars —
-    // and THREE MASTS that must all be crowned at once.
-    //  • AIR opens a vent; FIRE standing in the wind turns it to lightning
-    //    there; LIGHTNING turns the conductors around the pillars.
-    // THE ORDERING CONSTRAINT is what makes it hard, not the extra corners.
-    // There is one beam and the converter is a point ON it, so the flame's
-    // position decides how much of the run is charged — and crowning three
-    // masts with the charged half forces the conversion HIGH on the east
-    // fall, leaving nearly the whole route lightning.
-    // Solver-proven unique — 16 pairings × 128 conductor sets, one answer:
-    //   VA(170,140) →A'\'(980,140) ↓ FA(980,300) ↓ MAST(980,470) ↓
-    //   →B'/'(980,620) →C'\'(760,620) ↑ →D'\'(760,430) → MAST(610,430) →
-    //   →E'/'(450,430) ↓ →F'/'(450,560) →G'\'(340,560) ↑ MAST(340,300) ↑ out.
-    // (Wind for the first leg only; everything from FA onward is lightning.)
-    // FULMINATE IS HALF-BLIND: wind may lie across a vat all day, the charged
-    // half cooks it off in 1.6s and trips the dynamo dark. Vat A(560,140)
-    // hangs in plain sight on the very first leg so the player runs wind over
-    // fulminate before they know it should frighten them. Four of the 128
-    // sets detonate, one of them a single conductor from the answer. Note the
-    // vats are HAZARDS, not the uniqueness constraint — the geometry alone is
-    // already unique, which is the stronger guarantee.
-    // DECOY PAIR: vent VD(1000,660) runs the east aisle 20px clear of every
-    // conductor, so it can never be bent, and converter FD(1010,380) sits
-    // right in that aisle — the only pair that line up perfectly, and a lie.
-    // Its elimination is pure geometry (the layout test brute-forces all 128
-    // conductor sets to prove it crowns nothing).
-    // (The Thunderbolt no longer rides this beam — it is its own chain at the
-    // dynamo now; see `_tryThunderbolt`.)
-'overload_maze': DungeonRoom(
+    // Room G — The Storm Spire. Star 3, behind the breaker gate (§9.4).
+    //
+    // WHAT THIS REPLACES: the same braid as Pylon Hall, only bigger — seven
+    // conductors at coordinates picked to make one snake path work, and
+    // exactly one answer. Being PROVABLY UNIQUE made it unambiguous, not hard:
+    // every attempt was free and the wind previews the whole route, so you
+    // flipped conductors and hill-climbed to the answer without once making a
+    // decision. It also looked like what it was — things placed at random.
+    //
+    // THE ROOM IS A SWITCHYARD LATTICE now. Four columns (250·480·710·940) by
+    // three rows (170·370·540); every conductor, mast and vent stands on a
+    // lattice point and every converter on a lattice edge, so the lanes read
+    // off the floor before you touch anything.
+    //
+    // AND IRON IS SPENT, NOT BORROWED. No single run can crown all three
+    // masts — two is the most any route reaches. When the charged bolt crowns
+    // a mast, EVERY CONDUCTOR THAT BOLT TURNED ON FUSES SHUT for the rest of
+    // the attempt. The question stops being "what is the answer" and becomes
+    // "what can I afford to spend getting there".
+    //
+    // Exactly SEVEN distinct openings exist and THREE strand you:
+    //   crowns 1+2, welds E·F·G        → alive
+    //   crowns 0+2, welds D·E·F·G      → alive
+    //   crowns 2,   welds F·G          → DEAD
+    //   crowns 0,   welds B·D·E        → alive
+    //   crowns 1,   welds B·E          → alive
+    //   crowns 1+2, welds B·D·E·F·G    → DEAD
+    //   crowns 2,   welds B·D·E·F·G    → DEAD
+    // Read the pairs: the SAME two masts crowned two different ways — three
+    // irons spent survives, five strands you. And the south mast taken on its
+    // own is a trap however you reach it. Greed is the failure mode, which is
+    // what makes it a decision instead of a search.
+    //
+    // PLANNING IS FREE, COMMITTING IS NOT. With Air on a vent and nobody on a
+    // converter there is no charged half, so the wind draws the whole route
+    // and crowns nothing. You lay the plan in wind and spend it in flame.
+    //
+    // AND WIND COSTS NOTHING EITHER. Only the CHARGED half fuses what it turns
+    // on, so a conductor the bolt used while it was still wind stays free —
+    // which is a second, quieter trade the room never states: convert late and
+    // you keep more iron, convert early and you reach further. The opening
+    // that crowns 1+2 for only three conductors is exactly this: it turns on
+    // D as wind and pays for E, F and G.
+    //
+    // THE RESET is the planet's own: the spire stands on the CORE trunk, so
+    // cutting that wing at the dynamo anneals the welds cold and the masts go
+    // dark. It costs a round trip and the crowns you had, which is exactly why
+    // it is worth thinking first — and it is never a soft-lock, because when
+    // nothing left to turn can reach a dark mast the room says so.
+    //
+    // DECOY PAIR: vent VD(1040,650) runs the east aisle clear of every
+    // conductor and converter FD(1040,470) sits in it — zero crownings across
+    // all 128 conductor sets.
+    'overload_maze': DungeonRoom(
       id: 'overload_maze',
       bounds: Rect.fromLTWH(0, 0, 1120, 720),
       doors: [
@@ -4149,58 +4178,44 @@ const DungeonLayout _lightningLayout = DungeonLayout(
           targetSpawn: Offset(110, 380),
         ),
       ],
-      // The spire floor proper: border iron and three cast pillars that eat
-      // any bolt run across them.
+      // Border iron, and three cast blocks standing in lattice GAPS — they
+      // never sit on a lane, they close the shortcuts between lanes.
       walls: [
         Rect.fromLTWH(0, 0, 24, 720),
         Rect.fromLTWH(1096, 0, 24, 720),
         Rect.fromLTWH(0, 0, 1120, 24),
         Rect.fromLTWH(0, 696, 1120, 24),
-        Rect.fromLTWH(540, 220, 120, 120),
-        Rect.fromLTWH(150, 320, 130, 110),
-        Rect.fromLTWH(840, 380, 110, 120),
+        Rect.fromLTWH(330, 430, 110, 90),
+        Rect.fromLTWH(820, 430, 90, 90),
+        Rect.fromLTWH(540, 60, 110, 70),
       ],
       beamEmitters: [
-        BeamEmitter(position: Offset(170, 140), dir: Offset(1, 0)), // viable
-        BeamEmitter(position: Offset(170, 470), dir: Offset(1, 0)), // → pillar
-        BeamEmitter(position: Offset(560, 660), dir: Offset(0, -1)), // → pillar
-        // The DECOY: it runs the east aisle 20px clear of every conductor, so
-        // it can never be bent — and its converter sits right in that aisle.
-        BeamEmitter(position: Offset(1000, 660), dir: Offset(0, -1)),
+        BeamEmitter(position: Offset(90, 170), dir: Offset(1, 0)),
+        BeamEmitter(position: Offset(90, 370), dir: Offset(1, 0)),
+        BeamEmitter(position: Offset(480, 650), dir: Offset(0, -1)),
+        BeamEmitter(position: Offset(1040, 650), dir: Offset(0, -1)), // decoy
       ],
       beamConverters: [
-        Offset(980, 300), // FA: on the viable route's long fall
-        Offset(700, 180), // FB: off every route
-        Offset(620, 560), // FC: off every route
-        Offset(1010, 380), // FD: the decoy's partner (see above)
+        Offset(940, 270),
+        Offset(595, 170),
+        Offset(250, 470),
+        Offset(1040, 470), // the decoy's partner, out in the east aisle
       ],
       beamMirrors: [
-        BeamMirror(id: 'A', position: Offset(980, 140)), // right→down
-        BeamMirror(id: 'B', position: Offset(980, 620)), // down→left
-        BeamMirror(id: 'C', position: Offset(760, 620)), // left→up
-        BeamMirror(id: 'D', position: Offset(760, 430)), // up→left
-        BeamMirror(id: 'E', position: Offset(450, 430)), // left→down
-        BeamMirror(id: 'F', position: Offset(450, 560)), // down→left
-        BeamMirror(id: 'G', position: Offset(340, 560)), // left→up
+        BeamMirror(id: 'A', position: Offset(940, 170)),
+        BeamMirror(id: 'B', position: Offset(710, 170)),
+        BeamMirror(id: 'C', position: Offset(480, 170)),
+        BeamMirror(id: 'D', position: Offset(250, 370)),
+        BeamMirror(id: 'E', position: Offset(710, 370)),
+        BeamMirror(id: 'F', position: Offset(250, 540)),
+        BeamMirror(id: 'G', position: Offset(710, 540)),
       ],
-      // THREE terminals, and the LIGHTNING half of the braid must lie on all
-      // of them at once — so the conversion has to happen early in the run
-      // and the whole remaining route is charged.
       beamReceivers: [
-        Offset(980, 470), // on the long fall, below the converter
-        Offset(610, 430), // on the westward reach
-        Offset(340, 300), // on the last climb
-      ],
-      // Fulminate: WIND may cross it, LIGHTNING may not. The vat sitting in
-      // plain sight on the very first leg is the lesson.
-      fulminateVats: [
-        FulminateVat(id: 'vat_a', position: Offset(560, 140)),
-        FulminateVat(id: 'vat_b', position: Offset(450, 300)),
-        FulminateVat(id: 'vat_c', position: Offset(760, 240)),
+        Offset(250, 170), // NORTH-WEST, behind the north row's converter
+        Offset(940, 370), // EAST
+        Offset(480, 540), // SOUTH — a trap taken on its own
       ],
       poweredBarriers: [
-        // The gate to the storm core — thrown when every terminal is crowned
-        // (nodeId 'beam_core', held live by the engine).
         PoweredBarrier(
           rect: Rect.fromLTWH(200, 600, 120, 22),
           nodeId: 'beam_core',

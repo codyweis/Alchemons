@@ -345,43 +345,86 @@ void main() {
       reason: 'Circuit and Storm open the breaker gate',
     );
 
-    // ── Storm Spire: the same braid, three masts wide ──
+    // ── Storm Spire: iron is spent, not borrowed ──
+    // No run crowns all three masts, and every crowning FUSES the conductors
+    // that bolt turned on — so the star is a two-run plan, not one answer.
+    throwTrunk('trunk_core'); // the spire stands on the core wing
     final maze = room('overload_maze');
-    void pinStations() {
-      // Air on the vent, Fire on the converter — held there (swap-control
-      // placement) while we control Lightning.
-      game.creatures[1].position = maze.beamEmitters[0].position; // Air wing
-      game.creatures[2].position = maze.beamConverters[0]; // Fire pip
-    }
-
-    game.setActive(0); // Lightning horn turns the heavy conductors
     Offset mirror(String id) =>
         maze.beamMirrors.firstWhere((m) => m.id == id).position;
-    void flip(String id, int target) {
-      teleport('overload_maze', mirror(id));
-      var guard = 0;
-      while ((game.mirrorOrient[id] ?? 0) != target && guard++ < 4) {
-        game.activateAbility();
-      }
-      expect(game.mirrorOrient[id], target, reason: '$id set to $target');
+    void aim(Map<String, int> want) {
+      game.setActive(0); // the Lightning horn turns the heavy conductors
+      want.forEach((id, target) {
+        teleport('overload_maze', mirror(id));
+        var guard = 0;
+        while ((game.mirrorOrient[id] ?? 0) != target && guard++ < 4) {
+          game.activateAbility();
+        }
+        expect(game.mirrorOrient[id], target, reason: '$id to $target');
+      });
     }
 
-    // The conductors are aimed FIRST, with nobody stationed — so no half-
-    // braided bolt ever lies across a fulminate vat on the way.
-    // Solution: A='\\' B='/' C='\\' D='\\' E='/' F='/' G='\\'.
-    flip('A', 1);
-    flip('C', 1);
-    flip('D', 1);
-    flip('G', 1);
-    // Park Lightning clear of the pads and the run; then braid it.
-    teleport('overload_maze', const Offset(420, 200));
-    pinStations();
+    void station(int ventIdx, int convIdx) {
+      game.creatures[1].position = maze.beamEmitters[ventIdx].position;
+      game.creatures[2].position = maze.beamConverters[convIdx];
+    }
+
+    // Planning is free: with Air out but no flame stationed, the wind draws
+    // the whole route and crowns nothing at all.
+    aim({'D': 1, 'F': 1});
+    teleport('overload_maze', const Offset(480, 300));
+    game.creatures[1].position = maze.beamEmitters[1].position;
+    for (var i = 0; i < 60; i++) {
+      game.update(1 / 60);
+    }
+    expect(
+      game.crownedMasts,
+      isEmpty,
+      reason: 'wind alone commits nothing — that is what makes planning free',
+    );
+
+    // RUN ONE — the frugal opening: crowns the east and south masts for the
+    // price of three conductors (E, F and G). The greedy version of the same
+    // pair spends five and strands you; see the layout test's proof.
+    station(1, 2);
+    teleport('overload_maze', const Offset(480, 300));
+    station(1, 2);
     step();
     expect(
-      game.currentRoom.beamReceivers.length,
-      3,
-      reason: 'all three masts are the win condition now',
+      game.crownedMasts,
+      containsAll(<int>[1, 2]),
+      reason: 'the charged half lies on both masts at once',
     );
+    expect(
+      game.fusedConductors,
+      containsAll(<String>['E', 'F', 'G']),
+      reason: 'every conductor that bolt turned on fuses shut',
+    );
+    expect(
+      game.fusedConductors,
+      isNot(contains('B')),
+      reason: 'iron it never touched stays free — that is the whole budget',
+    );
+    expect(game.spireFused, isFalse, reason: 'the last mast is still reachable');
+
+    // A fused pivot will not turn again.
+    teleport('overload_maze', mirror('E'));
+    final wasE = game.mirrorOrient['E'];
+    game.activateAbility();
+    expect(game.mirrorOrient['E'], wasE, reason: 'fused white');
+
+    // RUN TWO — the last mast, on what is left.
+    aim({'B': 1});
+    station(2, 1);
+    teleport('overload_maze', const Offset(880, 620));
+    station(2, 1);
+    step();
+    expect(
+      game.crownedMasts.length,
+      3,
+      reason: 'the plan pays: all three masts crowned in two runs',
+    );
+
     // THE THUNDERBOLT NO LONGER RIDES THIS BEAM. It used to fire right here
     // if a Lightning Horn happened to be in the room when the tower lit —
     // a secret that asked nothing of its own. It is its own chain at the
@@ -677,20 +720,21 @@ void main() {
     );
   });
 
-  test('fulminate is HALF-blind: the wind may lie across a vat all day, and '
-      'the charged half cooks it off in a second and a half', () {
-    // The Spire hangs vat A right in the middle of the very first leg, so the
-    // first thing the player ever does is run wind straight over fulminate
-    // and watch nothing happen. That is the lesson the room is built on.
+  test('fulminate is HALF-blind: the wind lies across a vat on the ANSWER\'s '
+      'own route, and the charged half cooks one off', () {
+    // Pylon Hall hangs vat A at (720,160), right on the wind leg of the one
+    // correct answer — so solving the hall properly means running wind
+    // straight over fulminate and watching nothing happen.
     final wind = _harness([
       _member(0, 'Lightning', 'horn'),
       _member(1, 'Air', 'wing'),
     ]);
-    final maze = wind.layout.rooms['overload_maze']!;
-    wind.currentRoomId = 'overload_maze';
-    wind.mirrorOrient.addAll({'A': 1, 'C': 1, 'D': 1, 'G': 1});
+    wind.activeTrunk = 'trunk_pylon';
+    wind.currentRoomId = 'pylon_hall';
+    final hall = wind.layout.rooms['pylon_hall']!;
+    wind.mirrorOrient.addAll({'pa': 1, 'pb': 0, 'pc': 1, 'pd': 1});
     for (var i = 0; i < 60 * 2; i++) {
-      wind.creatures[1].position = maze.beamEmitters[0].position;
+      wind.creatures[1].position = hall.beamEmitters[0].position;
       wind.update(1 / 60);
       for (final c in wind.creatures) {
         if (c.alive) c.hp = c.maxHp;
@@ -698,31 +742,23 @@ void main() {
     }
     expect(
       wind.activeTrunk,
-      isNotNull,
+      'trunk_pylon',
       reason: 'unconverted wind lying on a vat is inert — no trip',
     );
 
-    // Now the charged half. Conductor set 29 (E turned, G not) is one of the
-    // four of 128 whose lightning run crosses vat B — near enough to the
-    // answer that a player really does find it by fiddling.
+    // And the teaching lie BITES. Vent VB with converter FC in front of it
+    // makes a real bolt that dies in the east wall — crossing vat B on the
+    // way, which trips the dynamo dark.
     final bolt = _harness([
       _member(0, 'Lightning', 'horn'),
       _member(1, 'Air', 'wing'),
       _member(2, 'Fire', 'pip'),
     ]);
-    bolt.currentRoomId = 'overload_maze';
-    bolt.mirrorOrient.addAll({
-      'A': 1,
-      'B': 0,
-      'C': 1,
-      'D': 1,
-      'E': 1,
-      'F': 0,
-      'G': 0,
-    });
+    bolt.activeTrunk = 'trunk_pylon';
+    bolt.currentRoomId = 'pylon_hall';
     for (var i = 0; i < 60 * 2; i++) {
-      bolt.creatures[1].position = maze.beamEmitters[0].position;
-      bolt.creatures[2].position = maze.beamConverters[0];
+      bolt.creatures[1].position = hall.beamEmitters[1].position; // VB
+      bolt.creatures[2].position = hall.beamConverters[2]; // FC
       bolt.update(1 / 60);
       for (final c in bolt.creatures) {
         if (c.alive) c.hp = c.maxHp;
@@ -738,6 +774,7 @@ void main() {
       isNotEmpty,
       reason: 'the detonation spits spark wisps',
     );
+    expect(bolt.hasStar(0), isFalse);
   });
 
   test('the ring circuit is element-only: every Lightning family charges a '
@@ -946,118 +983,78 @@ void main() {
     );
   });
 
-  test(
-    'the Spire masts need BOTH Air on the vent and Fire on the converter',
-    () {
-      // Aim the mirrors correctly, then test the stationing requirement: only
-      // when Air AND Fire are both placed does the tower light (the gate opens).
-      String passGate(PlanetDungeonGame game) {
-        game.currentRoomId = 'overload_maze';
-        game.creatures[0]
-          ..position = const Offset(230, 545)
-          ..lastSafe = const Offset(230, 545);
-        game.joystickDirection = const Offset(0, 1);
-        for (var i = 0; i < 240; i++) {
-          game.update(1 / 60);
-          if (game.currentRoomId != 'overload_maze') break;
-          for (final cr in game.creatures) {
-            if (cr.alive) cr.hp = cr.maxHp;
-          }
-        }
-        return game.currentRoomId;
-      }
-
-      final game = _harness([
+  test('the Spire crowns nothing without BOTH Air on a vent and Fire in its '
+      'wind — and nothing at all while the core wing is dark', () {
+    PlanetDungeonGame spire() {
+      final g = _harness([
         _member(0, 'Lightning', 'horn'),
         _member(1, 'Air', 'wing'),
         _member(2, 'Fire', 'pip'),
       ]);
-      final maze = game.layout.rooms['overload_maze']!;
-      game.currentRoomId = 'overload_maze';
-      game.mirrorOrient['A'] = 1;
-      game.mirrorOrient['C'] = 1;
-      game.mirrorOrient['D'] = 1;
-      game.mirrorOrient['G'] = 1;
-
-      // Air stationed, but NOT Fire → the beam stays "air", tower dark.
-      game.creatures[1].position = maze.beamEmitters[0].position;
-      game.creatures[2].position = const Offset(900, 300); // Fire parked away
-      for (var i = 0; i < 30; i++) {
-        game.update(1 / 60);
-      }
-      expect(
-        passGate(game),
-        'overload_maze',
-        reason: 'no Fire on the converter → no lightning → tower stays dark',
-      );
-
-      // Now station Fire too → conversion → tower lights → gate opens.
-      game.creatures[1].position = maze.beamEmitters[0].position;
-      game.creatures[2].position = maze.beamConverters[0];
-      for (var i = 0; i < 30; i++) {
-        game.update(1 / 60);
-        game.creatures[1].position = maze.beamEmitters[0].position;
-        game.creatures[2].position = maze.beamConverters[0];
-      }
-      expect(
-        passGate(game),
-        'storm_core',
-        reason: 'Air+Fire both stationed → the bolt crowns the tower',
-      );
-    },
-  );
-
-  test('only the right vent + converter combination crowns the Spire', () {
-    // The solution uses vent 0 (VA) + converter 0 (FA). A decoy vent or a decoy
-    // converter — even with the mirrors solved — must NOT light the tower.
-    bool litWith(int ventIdx, int convIdx) {
-      final game = _harness([
-        _member(0, 'Lightning', 'horn'),
-        _member(1, 'Air', 'wing'),
-        _member(2, 'Fire', 'pip'),
-      ]);
-      final maze = game.layout.rooms['overload_maze']!;
-      game.currentRoomId = 'overload_maze';
-      game.mirrorOrient['A'] = 1;
-      game.mirrorOrient['C'] = 1;
-      game.mirrorOrient['D'] = 1;
-      game.mirrorOrient['G'] = 1; // the solution config
-      for (var i = 0; i < 40; i++) {
-        game.creatures[1].position = maze.beamEmitters[ventIdx].position;
-        game.creatures[2].position = maze.beamConverters[convIdx];
-        game.update(1 / 60);
-      }
-      // Did the gate open (tower lit)? Drive up-through it.
-      game.creatures[0]
-        ..position = const Offset(230, 545)
-        ..lastSafe = const Offset(230, 545);
-      game.joystickDirection = const Offset(0, 1);
-      for (var i = 0; i < 240; i++) {
-        game.update(1 / 60);
-        if (game.currentRoomId != 'overload_maze') break;
-        for (final c in game.creatures) {
-          if (c.alive) c.hp = c.maxHp;
-        }
-      }
-      return game.currentRoomId == 'storm_core';
+      g.currentRoomId = 'overload_maze';
+      g.mirrorOrient.addAll({'D': 1, 'F': 1});
+      return g;
     }
 
-    expect(litWith(0, 0), isTrue, reason: 'VA + FA is the viable chain');
-    expect(litWith(1, 0), isFalse, reason: 'decoy vent VB cannot be routed');
-    expect(litWith(2, 0), isFalse, reason: 'decoy vent VC escapes the arena');
-    expect(litWith(0, 1), isFalse, reason: 'converter FB is off the beam path');
+    void hold(PlanetDungeonGame g, {int? vent, int? conv}) {
+      final maze = g.layout.rooms['overload_maze']!;
+      for (var i = 0; i < 90; i++) {
+        if (vent != null) {
+          g.creatures[1].position = maze.beamEmitters[vent].position;
+        }
+        if (conv != null) g.creatures[2].position = maze.beamConverters[conv];
+        g.update(1 / 60);
+      }
+    }
+
+    // Dark wing: even the whole braid stationed correctly does nothing.
+    final dark = spire()..activeTrunk = 'trunk_pylon';
+    hold(dark, vent: 1, conv: 2);
     expect(
-      litWith(0, 2),
-      isFalse,
-      reason: 'converter FC stands off every route',
+      dark.crownedMasts,
+      isEmpty,
+      reason: 'the spire stands on the core wing; a dark spire crowns nothing',
     );
+
+    // Fed, but wind only — this is the free planning state.
+    final windOnly = spire()..activeTrunk = 'trunk_core';
+    hold(windOnly, vent: 1);
     expect(
-      litWith(3, 3),
-      isFalse,
-      reason:
-          'the dead-aligned decoy pair VD+FD is a geometric lie — '
-          'no conductor waits beyond FD',
+      windOnly.crownedMasts,
+      isEmpty,
+      reason: 'no flame, no charge, no crown',
     );
+
+    // Fed, and braided.
+    final braided = spire()..activeTrunk = 'trunk_core';
+    hold(braided, vent: 1, conv: 2);
+    expect(braided.crownedMasts, containsAll(<int>[1, 2]));
+  });
+
+  test('only the right vent + converter pairings crown anything — the '
+      'dead-aligned east pair never does', () {
+    final game = _harness([
+      _member(0, 'Lightning', 'horn'),
+      _member(1, 'Air', 'wing'),
+      _member(2, 'Fire', 'pip'),
+    ]);
+    // Proved exhaustively against the engine: the decoy crowns nothing in any
+    // of the 128 conductor sets, and the room as a whole has exactly seven
+    // openings of which three strand you.
+    expect(
+      game
+          .solveBeamHall(
+            roomId: 'overload_maze',
+            ventIndex: 3,
+            converterIndex: 3,
+          )
+          .satisfying,
+      0,
+      reason: 'VD + FD is a geometric lie',
+    );
+    final r = game.solveSpireOpenings();
+    expect(r.maxPerRun, 2);
+    expect(r.dead, greaterThan(0), reason: r.lines.join('\n'));
   });
 
   test('the entry-rite bus stays lit after the charge would have decayed', () {
