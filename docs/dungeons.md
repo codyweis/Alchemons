@@ -1829,6 +1829,13 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
+**SIX of seventeen (2026-09-02): Fire · Air · Water · Earth · Lightning ·
+Steam.** The through-line of all six is that the suite was green the whole
+time. Every fault that mattered came out of a device session or a rendered
+screenshot — arrivals, doorways, unreachable ground, art that reads as
+something it is not — and none of them out of a test that already existed.
+Write the test AFTER play tells you what to look for; then it bites forever.
+
 ### ✅ LIGHTNING — complete (2026-09-01)
 
 **It began as the inverse of Earth — the puzzles the strongest of the
@@ -1917,7 +1924,7 @@ mechanics are actually made of. The art pass came first, then the puzzles:
     lever is a mast that wants WIND rather than lightning, which squeezes the
     flame into a window instead of an extreme — verified buildable, not built.
 
-### 🔧 STEAM — in progress (2026-09-01)
+### ✅ STEAM — complete (2026-09-02)
 
 **The record and the game had come apart.** On 2026-08-14 both star rooms were
 rebuilt from tile-lava chambers into geyser fields. That rework reached the
@@ -2192,14 +2199,24 @@ catch it because they call `activateAbility()` past the HUD's gate.
     PLACED a body on the plinth instead of throwing one, and the landing
     check asked `_onSolidGround`, which does not know that the heart is not
     there yet.
-  · ⬜ CARRIED: device playtest of the whole planet, and the four-corner room
-    in particular — it has been simulated and rendered, never played.
+  · ✅ **PLAYED, and the playing is what found the rest of it.** Every
+    remaining fault on this planet came out of a device session and none of
+    them out of the suite: arriving inside a doorway, terraces with no floor
+    left for Earth's stone, a jet that read as cartoon smoke, a way home with
+    no art on it, and a last hop that could not be made at all. Simulated and
+    rendered is not played.
 
-**The twelve left**: Steam, Lava, Poison, Mud, Dust, Crystal, Plant, Spirit,
-Dark, Light, Blood — all BUILT and proved, none through a polish pass. Their secrets are the queue in §7's maxim
-table (only four of seventeen clear the standard). Steam additionally carries
-**8 of the 10 known test failures** in this repo and should be read as the
-riskiest of the thirteen, not the tidiest.
+**The eleven left**: Lava, Poison, Mud, Dust, Crystal, Plant, Spirit, Dark,
+Light, Blood, Ice — all BUILT and proved, none through a polish pass. Their
+secrets are the queue in §7's maxim table, and Steam moved that count: five of
+seventeen clear the standard now, because a maxim that is a PLACE is the shape
+the other twelve should be reaching for (§9.6).
+
+Two carried faults belong to that queue rather than to any one planet. **Mud's
+fane arrivals land inside their wallow hatches** — deliberate as fiction (you
+climb out of one) but never checked on a device, and the doorway invariant
+exempts them on that assumption. And **`MaskFilter.blur` in per-frame paint**
+is still the repo's main jank source, ~310 sites, mostly cosmic.
 
 ### ✅ FIRE — complete (2026-08-31)
 
