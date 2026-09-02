@@ -2227,14 +2227,21 @@ runners, and grey rectangles for the crucible, the drop hammer, the
 accumulator and the purge cowl. Twenty-two tests, all green, none of which can
 see any of that.
 
-  · ✅ **THE FLOOR IS PLATE, NOT GRAPH PAPER.** Cast iron in running bond,
-    bolted down, bevelled so a plate reads as a plate; scorch stained along
-    every channel run, and frozen splatter where ladles have slopped. The
-    ruled grid was the same fault Steam shipped, and worse here: on the
-    planet whose whole premise is a production LINE, a regular lattice
-    competes with the one thing in the room that is meant to read as a
-    DIRECTION. (First pass swung the plate tones too wide and made a
-    chessboard — which is the grid again in a different coat.)
+  · ✅ **THE FLOOR IS A CRUST WITH SOMETHING UNDER IT** — and it took three
+    goes to get there, wrong the same way twice. First a 96px ruled GRID.
+    Then cast-iron plates in running bond: better material, still a lattice,
+    reported from play as *"too tiley"* with the note that matters beside it
+    — **it needs to look dangerous.** That is the general lesson and it is
+    worth more than the floor: **regular anything reads as safe**, because
+    regularity is what people build. A room you are meant to be careful in
+    cannot be tiled. It is black basalt now, split by wandering fissures
+    that branch, mostly cold scars with a few carrying real heat and
+    breathing on their own phases, ash and cinder over the top, and embers
+    drifting up off it. The runs bloom the ground around them, so heat still
+    marks where the line goes.
+    (Bloom is faked with a wide low-alpha stroke, never `MaskFilter.blur` —
+    that is this repo's main per-frame jank source and the floor draws every
+    frame.)
   · ✅ **AND THE RUNNERS RUN.** Refractory lip in courses, a glazed inner
     edge, a narrow burning core with cooling shoulders, and broken crust that
     does not reach both banks — even slabs of one length read as conveyor

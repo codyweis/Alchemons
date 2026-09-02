@@ -819,131 +819,213 @@ extension MoltenReliquary on PlanetDungeonGame {
     }
   }
 
-  /// THE PLATE FLOOR. A works has a floor you could drop a ladle on: cast
-  /// iron plates in running bond, bolted down, scorched where the metal has
-  /// been over them for years.
+  /// A CRUST WITH SOMETHING UNDER IT. The floor of this works is not a floor
+  /// that was laid — it is the top of a flow that stopped, and it has not
+  /// finished cooling. Black basalt, split by a network of fissures with heat
+  /// still in them, breathing.
   ///
-  /// It was a vertical gradient with a 96px SQUARE GRID ruled across it,
-  /// which is the same fault Steam shipped and the same lesson: on the planet
-  /// whose whole premise is a production LINE, the loudest thing in every
-  /// room was graph paper. Nothing about a grid says foundry, and worse, a
-  /// regular lattice competes with the channels — the one thing in the room
-  /// that is actually meant to read as a direction.
+  /// It has been wrong twice, the same way both times. First a 96px ruled
+  /// GRID; then cast-iron plates in running bond, which was better material
+  /// and still a lattice — reported from play as *"too tiley"*, and the note
+  /// that matters with it: **it needs to look dangerous.** Regular anything
+  /// reads as safe, because regularity is what people build. A room you are
+  /// meant to be careful in cannot be tiled.
   void _renderWorksFloor(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
+    // Heat from below: the ground is darkest where it is thickest, and the
+    // glow rises toward the bottom of the room where the flow is shallow.
     canvas.drawRect(
       b,
       Paint()
-        ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, const [
-          Color(0xFF1B1E22),
-          Color(0xFF0D1013),
-        ]),
+        ..shader = ui.Gradient.linear(
+          b.topCenter,
+          b.bottomCenter,
+          const [Color(0xFF0A0907), Color(0xFF16100C), Color(0xFF241410)],
+          const [0.0, 0.55, 1.0],
+        ),
     );
 
-    const pw = 148.0, ph = 92.0;
-    final rows = (b.height / ph).ceil() + 1;
-    final cols = (b.width / pw).ceil() + 2;
-    for (var r = 0; r < rows; r++) {
-      // Running bond: every other course steps half a plate, so the seams
-      // never line up into the ruled grid this replaced.
-      final offset = r.isOdd ? pw * 0.5 : 0.0;
-      for (var c = -1; c < cols; c++) {
-        final x = b.left + c * pw - offset;
-        final y = b.top + r * ph;
-        final plate = Rect.fromLTWH(x + 1, y + 1, pw - 2, ph - 2);
-        if (!plate.overlaps(b)) continue;
-        // Cast iron is not one colour: each plate cooled on its own.
-        final n = ((r * 31 + c * 17) % 11) / 11.0;
-        canvas.drawRect(
-          plate,
+    // Deterministic per room, so nothing crawls between frames.
+    var seed = room.id.codeUnits.fold<int>(97, (a, c) => (a * 131 + c) % 65521);
+    double rnd() {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    }
+
+    final pulse = 0.5 + 0.5 * sin(works.clock * 0.8);
+
+    // COOLED PLATES OF CRUST — irregular polygons, not tiles. Each is a
+    // slightly different black, and none of them share an edge direction.
+    for (var i = 0; i < 26; i++) {
+      final cx = b.left + rnd() * b.width;
+      final cy = b.top + rnd() * b.height;
+      final rx = 70 + rnd() * 130;
+      final ry = 50 + rnd() * 90;
+      final rot = rnd() * pi;
+      final sides = 5 + (rnd() * 3).floor();
+      final path = Path();
+      for (var k = 0; k <= sides; k++) {
+        final a = rot + k * 2 * pi / sides;
+        final wob = 0.72 + rnd() * 0.5;
+        final pt = Offset(cx + cos(a) * rx * wob, cy + sin(a) * ry * wob);
+        k == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
+      }
+      path.close();
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = Color.lerp(
+            const Color(0xFF15120F),
+            const Color(0xFF0B0A09),
+            rnd(),
+          )!,
+      );
+    }
+
+    // THE FISSURES. Wandering cracks with heat in them — parted dark
+    // shoulders, a bright seam, each breathing on its own phase.
+    //
+    // The first cut of these ran nearly straight and nearly as long as the
+    // room, which came out as a game of pick-up-sticks: rock does not split
+    // in straight lines that long. They meander now, over more and shorter
+    // steps, and the big ones throw off branches, because a crack that
+    // forks is the difference between a fissure and a scratch.
+    void crack(Offset from, double len, double angle, double heat, int idx) {
+      final steps = 7;
+      var at = from;
+      var a = angle;
+      final pts = <Offset>[at];
+      for (var k = 0; k < steps; k++) {
+        a += (rnd() - 0.5) * 0.8; // it wanders as it goes
+        at = at + Offset(cos(a), sin(a)) * (len / steps);
+        pts.add(at);
+      }
+      final breath = 0.55 + 0.45 * sin(works.clock * (0.5 + heat) + idx * 1.3);
+      final path = Path()..moveTo(pts.first.dx, pts.first.dy);
+      for (final pt in pts.skip(1)) {
+        path.lineTo(pt.dx, pt.dy);
+      }
+      // Thin and mostly DEAD. Uniformly thick, uniformly bright cracks
+      // read as painted worms; a crust is mostly cold, and what makes the
+      // hot ones frightening is that they are the exception.
+      final w = 1.6 + 4.2 * heat * heat;
+      // The parted shoulders.
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w + 4
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..color = const Color(0xFF070605).withValues(alpha: 0.9),
+      );
+      // The bloom, faked with a wide low-alpha pass — no blur filter, which
+      // is this repo's main source of per-frame jank.
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w + 7
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..color = _worksEdge.withValues(alpha: 0.05 + 0.09 * heat * breath),
+      );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..color = Color.lerp(
+            const Color(0xFF3A1304),
+            _worksEdge,
+            heat * heat * breath,
+          )!.withValues(alpha: 0.42 + 0.42 * heat),
+      );
+      if (heat > 0.55) {
+        canvas.drawPath(
+          path,
           Paint()
-            // A TIGHT range. The first pass swung from #23282D to #171B1F
-            // and the floor came out as a chessboard of big panels — which
-            // is the ruled grid again, drawn a different way.
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..strokeCap = StrokeCap.round
             ..color = Color.lerp(
-              const Color(0xFF1D2126),
-              const Color(0xFF191D21),
-              n,
-            )!,
+              _worksEdge,
+              _worksCore,
+              0.5 * breath,
+            )!.withValues(alpha: 0.45 * heat),
         );
-        // Lit top lip and shadowed foot: the bevel is what makes a plate a
-        // PLATE and not a rectangle of a slightly different grey.
-        canvas.drawRect(
-          Rect.fromLTWH(plate.left, plate.top, plate.width, 2),
-          Paint()..color = const Color(0xFF343B42).withValues(alpha: 0.42),
+      }
+      // A branch off the middle of the bigger ones.
+      if (len > 120 && idx % 3 != 2) {
+        // Recurses exactly one level: a branch is 0.45 of its parent and
+        // the longest parent is 200, so the child is always under the 120
+        // that gates this.
+        crack(
+          pts[3],
+          len * 0.45,
+          a + (rnd() < 0.5 ? 1.1 : -1.1),
+          heat * 0.7,
+          idx + 41,
         );
-        canvas.drawRect(
-          Rect.fromLTWH(plate.left, plate.bottom - 2, plate.width, 2),
-          Paint()..color = const Color(0xFF0C0E11).withValues(alpha: 0.5),
-        );
-        // Four bolts.
-        final bolt = Paint()
-          ..color = const Color(0xFF39424A).withValues(alpha: 0.7);
-        for (final o in const [
-          Offset(11, 11),
-          Offset(-11, 11),
-          Offset(11, -11),
-          Offset(-11, -11),
-        ]) {
-          canvas.drawCircle(
-            Offset(
-              o.dx > 0 ? plate.left + o.dx : plate.right + o.dx,
-              o.dy > 0 ? plate.top + o.dy : plate.bottom + o.dy,
-            ),
-            2.2,
-            bolt,
-          );
-        }
-        // Tread: a few diagonal cleats, not a texture on every plate.
-        if ((r + c) % 3 == 0) {
-          final cleat = Paint()
-            ..strokeWidth = 2
-            ..color = const Color(0xFF272D33).withValues(alpha: 0.55);
-          for (var k = 0; k < 4; k++) {
-            final cx = plate.left + 22 + k * 30.0;
-            canvas.drawLine(
-              Offset(cx, plate.top + 26),
-              Offset(cx + 16, plate.bottom - 26),
-              cleat,
-            );
-          }
-        }
       }
     }
 
-    // SCORCH. Years of metal running the same lines leaves the floor stained
-    // along them, which is also a free second reading of where the line goes.
+    for (var i = 0; i < 34; i++) {
+      crack(
+        Offset(b.left + rnd() * b.width, b.top + rnd() * b.height),
+        70 + rnd() * 130,
+        rnd() * 2 * pi,
+        // Skewed low: a few fissures carry real heat and most are scars.
+        pow(rnd(), 1.7).toDouble(),
+        i,
+      );
+    }
+
+    // ASH AND CINDER on top of it all, so the crust is not clean.
+    for (var i = 0; i < 30; i++) {
+      final at = Offset(b.left + rnd() * b.width, b.top + rnd() * b.height);
+      canvas.drawCircle(
+        at,
+        2.0 + rnd() * 5,
+        Paint()
+          ..color = const Color(
+            0xFF2A241E,
+          ).withValues(alpha: 0.35 + rnd() * 0.3),
+      );
+    }
+
+    // The runs are hotter than anything around them, and the ground knows.
     for (final ch in works.line.line.channelsIn(room.id)) {
       for (final seg in ch.segments) {
         if (seg.roomId != room.id) continue;
         canvas.drawRect(
-          seg.rect.inflate(26),
-          Paint()..color = const Color(0xFF2A1B12).withValues(alpha: 0.34),
+          seg.rect.inflate(34),
+          Paint()..color = const Color(0xFF491A08).withValues(alpha: 0.18),
         );
         canvas.drawRect(
-          seg.rect.inflate(13),
-          Paint()..color = const Color(0xFF3A2114).withValues(alpha: 0.34),
+          seg.rect.inflate(15),
+          Paint()..color = const Color(0xFF5E2109).withValues(alpha: 0.22),
         );
       }
     }
 
-    // SPILL. Frozen splatter where a ladle has slopped, deterministic from
-    // the room so it never crawls between frames.
-    final seed = room.id.codeUnits.fold<int>(7, (a, c) => (a * 31 + c) % 9973);
-    for (var i = 0; i < 14; i++) {
-      final h = (seed + i * 613) % 9973;
-      final x = b.left + (h % 977) / 977.0 * b.width;
-      final y = b.top + ((h ~/ 977) % 811) / 811.0 * b.height;
-      final rad = 3.0 + (h % 5);
+    // EMBERS drifting up off the crust. A handful, cheap, and the thing that
+    // makes a still image of this floor read as a place that is still burning.
+    for (var i = 0; i < 16; i++) {
+      final ex = b.left + rnd() * b.width;
+      final base = b.top + rnd() * b.height;
+      final t = ((works.clock * (0.10 + 0.06 * (i % 4)) + i / 16) % 1.0);
       canvas.drawCircle(
-        Offset(x, y),
-        rad,
-        Paint()..color = const Color(0xFF2B2016).withValues(alpha: 0.7),
-      );
-      canvas.drawCircle(
-        Offset(x + rad * 0.4, y - rad * 0.4),
-        rad * 0.45,
-        Paint()..color = const Color(0xFF4A382A).withValues(alpha: 0.55),
+        Offset(ex + sin(t * 5 + i) * 9, base - 54 * t),
+        1.6 + 1.4 * (1 - t),
+        Paint()
+          ..color = Color.lerp(
+            _worksCore,
+            _worksEdge,
+            t,
+          )!.withValues(alpha: 0.42 * (1 - t) * pulse),
       );
     }
   }
