@@ -1453,7 +1453,7 @@ void main() {
       final maze = lightning.rooms['overload_maze']!;
       expect(maze.beamEmitters.length, 4);
       expect(maze.beamConverters.length, 4);
-      expect(maze.beamMirrors.length, 7);
+      expect(maze.beamMirrors.length, 5);
       expect(maze.beamReceiver, isNull, reason: 'the Spire has masts, plural');
       expect(maze.beamReceivers.length, 3);
       expect(
@@ -1620,24 +1620,52 @@ void main() {
       }, reason: r'the authored answer: pa=\ pb=/ pc=\ pd=\');
     });
 
-    test('Lightning S3 — no one route takes all three masts, and every mast '
-        'is reachable', () {
+    test('Lightning S3 — one chain lights all three masts, and it is PROVABLY '
+        'UNIQUE: one pairing, one conductor set', () {
       final game = _lightningProbe();
-      final r = game.solveSpireRoutes();
-      expect(
-        r.maxPerRun,
-        2,
-        reason:
-            'if a single route could crown all three the room would collapse '
-            'back into one answer; two firings minimum is the shape',
-      );
-      for (var i = 0; i < r.routesToEachMast.length; i++) {
-        expect(
-          r.routesToEachMast[i],
-          greaterThan(0),
-          reason: 'mast $i must be crownable by SOME route',
-        );
+      final spire = game.layout.rooms['overload_maze']!;
+      final works = <String>[];
+      ({int searched, int satisfying, Map<String, int>? solution})? only;
+      for (var v = 0; v < spire.beamEmitters.length; v++) {
+        for (var c = 0; c < spire.beamConverters.length; c++) {
+          final r = game.solveBeamHall(
+            roomId: 'overload_maze',
+            ventIndex: v,
+            converterIndex: c,
+          );
+          expect(r.searched, 32, reason: '5 conductors → 2^5 sets');
+          if (r.satisfying > 0) {
+            works.add('V$v+F$c×${r.satisfying}');
+            only = r;
+          }
+        }
       }
+      expect(
+        works,
+        ['V0+F0×1'],
+        reason:
+            'one vent, one converter, one conductor set lights all three at '
+            'once — and in particular ONLY the earliest converter on the '
+            'route leaves enough of it charged',
+      );
+      expect(only!.solution, {'A': 1, 'B': 0, 'C': 1, 'D': 1, 'E': 0});
+
+      // The last mast stands ON the core gate, so the thing you power and the
+      // thing it opens are one object.
+      final gate = spire.poweredBarriers.single.rect;
+      final onGate = spire.beamReceivers.where(
+        (m) => m.dx > gate.left && m.dx < gate.right && m.dy < gate.top,
+      );
+      expect(
+        onGate.length,
+        1,
+        reason: 'exactly one mast stands over the gate: ${spire.beamReceivers}',
+      );
+      expect(
+        gate.top - onGate.single.dy,
+        lessThan(90),
+        reason: 'and close enough above it to read as standing on it',
+      );
     });
 
     test('Lightning S3 — the dead-aligned east pair crowns nothing in any of '

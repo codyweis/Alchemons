@@ -345,9 +345,7 @@ void main() {
       reason: 'Circuit and Storm open the breaker gate',
     );
 
-    // ── Storm Spire: iron is spent, not borrowed ──
-    // No run crowns all three masts, and every crowning FUSES the conductors
-    // that bolt turned on — so the star is a two-run plan, not one answer.
+    // ── Storm Spire: one chain, all three masts, into the gate ──
     throwTrunk('trunk_core'); // the spire stands on the core wing
     final maze = room('overload_maze');
     Offset mirror(String id) =>
@@ -364,58 +362,59 @@ void main() {
       });
     }
 
-    void station(int ventIdx, int convIdx) {
-      game.creatures[1].position = maze.beamEmitters[ventIdx].position;
-      game.creatures[2].position = maze.beamConverters[convIdx];
+    void station(int? ventIdx, int? convIdx) {
+      if (ventIdx != null) {
+        game.creatures[1].position = maze.beamEmitters[ventIdx].position;
+      }
+      if (convIdx != null) {
+        game.creatures[2].position = maze.beamConverters[convIdx];
+      }
     }
 
-    // Planning is free: with Air out but no flame stationed, the wind draws
-    // the whole route and crowns nothing at all.
-    aim({'D': 1, 'F': 1});
-    teleport('overload_maze', const Offset(480, 300));
-    game.creatures[1].position = maze.beamEmitters[1].position;
+    // The inward spiral: A='\\' B='/' C='\\' D='\\' E='/'.
+    aim({'A': 1, 'C': 1, 'D': 1});
+
+    // Planning is free: wind alone draws the whole spiral and lights nothing.
+    teleport('overload_maze', const Offset(160, 620));
+    station(0, null);
     for (var i = 0; i < 60; i++) {
       game.update(1 / 60);
     }
     expect(
-      game.crownedMasts,
-      isEmpty,
-      reason: 'wind alone commits nothing — that is what makes planning free',
+      game.isDoorLocked(
+        maze,
+        maze.doors.firstWhere((d) => d.targetRoomId == 'storm_core'),
+      ),
+      isTrue,
+      reason: 'no flame, no charge, no gate',
     );
 
-    // RUN ONE — this route crowns the east and south masts together (two is
-    // the most any single route reaches).
-    station(1, 2);
-    teleport('overload_maze', const Offset(480, 300));
-    station(1, 2);
+    // Converting LATE makes a real bolt that reaches too little of the route.
+    station(0, 2); // FC, most of the way down the east column
+    teleport('overload_maze', const Offset(160, 620));
+    station(0, 2);
     step();
     expect(
-      game.crownedMasts,
-      containsAll(<int>[1, 2]),
-      reason: 'the charged half lies on both masts at once',
+      game.isDoorLocked(
+        maze,
+        maze.doors.firstWhere((d) => d.targetRoomId == 'storm_core'),
+      ),
+      isTrue,
+      reason: 'everything before the flame is only wind — two masts stay dark',
     );
 
-    // Every conductor stays free — try as many routes as you like.
-    teleport('overload_maze', mirror('E'));
-    final wasE = game.mirrorOrient['E'] ?? 0;
-    game.activateAbility();
-    expect(
-      game.mirrorOrient['E'],
-      1 - wasE,
-      reason: 'nothing locks behind a crowning',
-    );
-    game.activateAbility(); // and back
-
-    // RUN TWO — the last mast. Crowns persist while you re-aim.
-    aim({'B': 1});
-    station(2, 1);
-    teleport('overload_maze', const Offset(880, 620));
-    station(2, 1);
+    // The flame stood as early as the route allows: all three at once.
+    station(0, 0);
+    teleport('overload_maze', const Offset(160, 620));
+    station(0, 0);
     step();
     expect(
-      game.crownedMasts.length,
-      3,
-      reason: 'all three masts crowned across two firings',
+      game.isDoorLocked(
+        maze,
+        maze.doors.firstWhere((d) => d.targetRoomId == 'storm_core'),
+      ),
+      isFalse,
+      reason: 'one chain on all three masts drives the gate open',
     );
 
     // THE THUNDERBOLT NO LONGER RIDES THIS BEAM. It used to fire right here
@@ -976,20 +975,17 @@ void main() {
     );
   });
 
-  test('the Spire crowns nothing without BOTH Air on a vent and Fire in its '
+  test('the Spire lights nothing without BOTH Air on a vent and Fire in its '
       'wind — and nothing at all while the core wing is dark', () {
-    PlanetDungeonGame spire() {
+    bool gateOpen(String? trunk, {int? vent, int? conv}) {
       final g = _harness([
         _member(0, 'Lightning', 'horn'),
         _member(1, 'Air', 'wing'),
         _member(2, 'Fire', 'pip'),
       ]);
       g.currentRoomId = 'overload_maze';
-      g.mirrorOrient.addAll({'D': 1, 'F': 1});
-      return g;
-    }
-
-    void hold(PlanetDungeonGame g, {int? vent, int? conv}) {
+      g.activeTrunk = trunk;
+      g.mirrorOrient.addAll({'A': 1, 'C': 1, 'D': 1});
       final maze = g.layout.rooms['overload_maze']!;
       for (var i = 0; i < 90; i++) {
         if (vent != null) {
@@ -998,30 +994,23 @@ void main() {
         if (conv != null) g.creatures[2].position = maze.beamConverters[conv];
         g.update(1 / 60);
       }
+      return !g.isDoorLocked(
+        maze,
+        maze.doors.firstWhere((d) => d.targetRoomId == 'storm_core'),
+      );
     }
 
-    // Dark wing: even the whole braid stationed correctly does nothing.
-    final dark = spire()..activeTrunk = 'trunk_pylon';
-    hold(dark, vent: 1, conv: 2);
     expect(
-      dark.crownedMasts,
-      isEmpty,
-      reason: 'the spire stands on the core wing; a dark spire crowns nothing',
+      gateOpen('trunk_pylon', vent: 0, conv: 0),
+      isFalse,
+      reason: 'the spire stands on the core wing; a dark spire lights nothing',
     );
-
-    // Fed, but wind only — this is the free planning state.
-    final windOnly = spire()..activeTrunk = 'trunk_core';
-    hold(windOnly, vent: 1);
     expect(
-      windOnly.crownedMasts,
-      isEmpty,
-      reason: 'no flame, no charge, no crown',
+      gateOpen('trunk_core', vent: 0),
+      isFalse,
+      reason: 'no flame, no charge — this is the free planning state',
     );
-
-    // Fed, and braided.
-    final braided = spire()..activeTrunk = 'trunk_core';
-    hold(braided, vent: 1, conv: 2);
-    expect(braided.crownedMasts, containsAll(<int>[1, 2]));
+    expect(gateOpen('trunk_core', vent: 0, conv: 0), isTrue);
   });
 
   test('only the right vent + converter pairings crown anything — the '
@@ -1045,8 +1034,13 @@ void main() {
       0,
       reason: 'VD + FD is a geometric lie',
     );
-    final r = game.solveSpireRoutes();
-    expect(r.maxPerRun, 2, reason: 'two firings minimum, always');
+    expect(
+      game
+          .solveBeamHall(roomId: 'overload_maze', ventIndex: 0, converterIndex: 0)
+          .satisfying,
+      1,
+      reason: 'VA + FA is the one chain that lights all three',
+    );
   });
 
   test('the entry-rite bus stays lit after the charge would have decayed', () {

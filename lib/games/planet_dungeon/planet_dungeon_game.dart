@@ -1334,15 +1334,6 @@ class PlanetDungeonGame extends FlameGame {
   bool _beamLatched = false;
   double _beamSparkT = 0;
 
-  /// STORM SPIRE (§9.4): the masts already crowned. Crowns PERSIST across
-  /// firings, and must — no single route reaches all three, so the star is
-  /// always more than one bolt. Nothing else is kept: every conductor stays
-  /// free to turn, every route free to try. (A welding rule briefly rode
-  /// alongside this, fusing the iron a crowning had spent so that the order
-  /// became a budget. It made the room strategic and it made a wrong guess
-  /// expensive; the room is for trying things, so it went.)
-  final Set<int> crownedMasts = {};
-
   /// ZERO-SUM DYNAMO (rework §9.1): the trunk the dynamo currently feeds
   /// (null = grounded — every trunk dark). Selected at the hub breakers;
   /// Raikuma seizes it while feeding.

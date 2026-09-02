@@ -97,7 +97,6 @@ extension StormCircuit on PlanetDungeonGame {
     _anvilCellWaiting.clear();
     _vatFuse.clear();
     _beamLatched = false;
-    crownedMasts.clear();
     _raikumaFed = false;
     _raikumaLullLeft = 0;
     _darkWispTimer = 0;
@@ -443,19 +442,26 @@ extension StormCircuit on PlanetDungeonGame {
         // Wind crosses fulminate freely; the charged half never may.
         if (_cookVats(room, lightning, dt)) return;
 
-        if (spire) {
-          _crownSpireMasts(room, lightning);
-        } else {
-          final mast = room.beamReceiver;
-          if (mast != null && _beamHits(lightning, mast)) {
+        final crowns = beamTerminalsOf(room);
+        if (crowns.isNotEmpty && crowns.every((t) => _beamHits(lightning, t))) {
+          for (final t in crowns) {
             _spawnAlchemyBurst(
-              mast,
+              t,
               producedElement: 'Lightning',
               reagentElements: const ['Air', 'Fire'],
               unstable: true,
-              particleCount: 34,
+              particleCount: crowns.length > 1 ? 20 : 34,
               intensity: 1.3,
             );
+          }
+          if (spire) {
+            _beamLatched = true;
+            _setHint(
+              'One chain, every mast at once — the bolt drives into the gate '
+              'and it throws open',
+              3.6,
+            );
+          } else {
             _setHint('One braided bolt wakes the mast — the hall runs true');
             if (starIdx != null) earnStar(starIdx);
           }
@@ -481,49 +487,6 @@ extension StormCircuit on PlanetDungeonGame {
     }
 
     _maybeWakeRaikuma(room);
-  }
-
-  /// Crown whatever dark masts this charged run lies on.
-  ///
-  /// Crowns PERSIST across runs, and they have to: no single route reaches all
-  /// three masts, so the star is always at least two firings. Nothing else is
-  /// kept — every conductor may be re-turned as often as you like and as many
-  /// routes fired as you like. (A welding rule briefly lived here, fusing
-  /// every conductor a crowning bolt had turned on, so that the ORDER became a
-  /// budget and greed was the failure mode. It made the room a decision rather
-  /// than a search — and it also made a wrong guess expensive, which is the
-  /// part that had to go. This room is for trying things.)
-  void _crownSpireMasts(DungeonRoom room, List<Offset> bolt) {
-    final newly = <int>[];
-    for (var i = 0; i < room.beamReceivers.length; i++) {
-      if (crownedMasts.contains(i)) continue;
-      if (_beamHits(bolt, room.beamReceivers[i])) newly.add(i);
-    }
-    if (newly.isEmpty) return;
-
-    crownedMasts.addAll(newly);
-    for (final i in newly) {
-      _spawnAlchemyBurst(
-        room.beamReceivers[i],
-        producedElement: 'Lightning',
-        reagentElements: const ['Air', 'Fire'],
-        unstable: true,
-        particleCount: 22,
-        intensity: 1.2,
-      );
-    }
-
-    if (crownedMasts.length == room.beamReceivers.length) {
-      _beamLatched = true;
-      _setHint('Every mast crowned — the gate to the core throws open', 3.6);
-      return;
-    }
-    final left = room.beamReceivers.length - crownedMasts.length;
-    _setHint(
-      'The mast holds its crown — $left to go, and every conductor is still '
-      'yours to turn',
-      3.0,
-    );
   }
 
   /// Every terminal the charged half of the braid has to lie on — the single
@@ -714,66 +677,6 @@ extension StormCircuit on PlanetDungeonGame {
       ..clear()
       ..addAll(saved);
     return (searched: configs, satisfying: satisfying, solution: solution);
-  }
-
-  /// One attempt at the Spire, resolved: which dark masts it crowns and which
-  /// conductors that crowning would fuse. Null when it crowns nothing.
-  ({List<int> crowns})? _spireAttempt(
-    DungeonRoom room,
-    BeamEmitter vent,
-    Offset conv,
-    Set<int> crowned,
-  ) {
-    final path = _computeBeam(room, vent);
-    final split = _beamConvertSplit(path, conv);
-    if (split == null) return null;
-    final bolt = <Offset>[split.at, ...path.sublist(split.seg + 1)];
-    if (room.fulminateVats.any(
-      (v) => _beamHits(bolt, v.position, _kVatRadius),
-    )) {
-      return null;
-    }
-    final crowns = <int>[];
-    for (var i = 0; i < room.beamReceivers.length; i++) {
-      if (crowned.contains(i)) continue;
-      if (_beamHits(bolt, room.beamReceivers[i])) crowns.add(i);
-    }
-    if (crowns.isEmpty) return null;
-    return (crowns: crowns);
-  }
-
-  /// THE SPIRE'S SHAPE, PROVED (§9.4). Sweeps every vent × converter ×
-  /// conductor set and reports the most masts any ONE route can crown, plus
-  /// how many routes reach each mast.
-  ///
-  /// The layout test asserts max-per-run is 2 — if one route could take all
-  /// three, the room would collapse back into a single answer — and that every
-  /// mast is reachable, so no crown is ever impossible.
-  ({int maxPerRun, List<int> routesToEachMast}) solveSpireRoutes() {
-    final room = layout.rooms['overload_maze']!;
-    final saved = Map<String, int>.from(mirrorOrient);
-    final mirrors = room.beamMirrors;
-    final reach = List<int>.filled(room.beamReceivers.length, 0);
-    var maxPerRun = 0;
-    for (final vent in room.beamEmitters) {
-      for (final conv in room.beamConverters) {
-        for (var mask = 0; mask < (1 << mirrors.length); mask++) {
-          for (var i = 0; i < mirrors.length; i++) {
-            mirrorOrient[mirrors[i].id] = (mask >> i) & 1;
-          }
-          final r = _spireAttempt(room, vent, conv, const {});
-          if (r == null) continue;
-          maxPerRun = max(maxPerRun, r.crowns.length);
-          for (final i in r.crowns) {
-            reach[i]++;
-          }
-        }
-      }
-    }
-    mirrorOrient
-      ..clear()
-      ..addAll(saved);
-    return (maxPerRun: maxPerRun, routesToEachMast: reach);
   }
 
   // ── Per-frame update ─────────────────────────────────────
@@ -1585,8 +1488,8 @@ extension StormCircuit on PlanetDungeonGame {
       );
       return;
     }
-    // Star 3 — the Spire. Tiered: t0 the shape, t1 why one run is not enough,
-    // t2 the free-planning trick and the decoy.
+    // Star 3 — the Spire. Tiered: t0 the shape, t1 the real question (how
+    // early the flame stands), t2 the free-planning trick and the decoy.
     if (room.beamEmitters.isNotEmpty) {
       if (!circuitRoomLit(room.id)) {
         _setHint('The spire is cold — the dynamo must feed the core wing');
@@ -1594,15 +1497,17 @@ extension StormCircuit on PlanetDungeonGame {
       }
       _setHint(
         tier >= 2
-            ? 'Plan in WIND: with no flame stationed the run crowns nothing, '
-                  'so a whole route can be laid out and looked over for free. '
-                  'And the east aisle runs clear of every conductor — that '
-                  'pair is a lie'
+            ? 'Plan in WIND: with no flame stationed the run lights nothing, '
+                  'so the whole spiral can be laid out and looked over for '
+                  'free. And the column with no conductor in it is a lie, '
+                  'however well its pair line up'
             : tier >= 1
-            ? 'No one route reaches all three masts, so it takes more than one '
-                  'firing — a crowned mast keeps its crown while you go and '
-                  'aim the next'
-            : 'Three masts on the switchyard, and one bolt at a time',
+            ? 'Three converters stand on the route at different depths, and '
+                  'every one of them makes a real bolt. Everything BEFORE the '
+                  'flame is only wind — so the question is how early you can '
+                  'stand it'
+            : 'One chain must lie on all three masts at once, and the last of '
+                  'them stands on the gate',
       );
       return;
     }
@@ -1730,14 +1635,6 @@ extension StormCircuit on PlanetDungeonGame {
     if (room.beamEmitters.isNotEmpty &&
         !(room.circuitStarIndex == 0 ? hasStar(0) : _beamLatched)) {
       final terminals = beamTerminalsOf(room);
-      // The Spire counts what is CROWNED — crowns are banked, not live.
-      if (room.beamReceivers.isNotEmpty) {
-        return DungeonProgressReadout(
-          label: 'MASTS',
-          value: '${crownedMasts.length}/${terminals.length}',
-          fraction: crownedMasts.length / terminals.length,
-        );
-      }
       var lit = 0;
       final vent = _activeVent(room);
       final conv = _activeConverter(room);
@@ -2721,12 +2618,8 @@ extension StormCircuit on PlanetDungeonGame {
     }
 
     // The masts the bolt has to crown.
-    for (var ti = 0; ti < terminals.length; ti++) {
-      final recv = terminals[ti];
-      final lit =
-          solved ||
-          crownedMasts.contains(ti) ||
-          (bolt.isNotEmpty && _beamHits(bolt, recv));
+    for (final recv in terminals) {
+      final lit = solved || (bolt.isNotEmpty && _beamHits(bolt, recv));
       // Mast body — the lone hall mast stands tall; the Spire's three are
       // shorter iron so the room does not read as three towers.
       final h = terminals.length > 1 ? 62.0 : 90.0;

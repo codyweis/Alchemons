@@ -2099,52 +2099,78 @@ of storm-glass into three grey slabs — it skips storm panes now. And the
 "borrowed light" first went in as a flat translucent rect between pane and
 image, which reads as a grey box lying on the floor; light has to travel.
 
-### §9.4 THE STORM SPIRE — a decision, not a search
+### §9.4 THE STORM SPIRE — one chain, and the last mast stands on the gate
 
-Star 3 was provably unique, which made it unambiguous and not hard. Every
-attempt was free: the wind previews the whole route, so you flipped conductors
-and hill-climbed to the one answer without ever making a choice. And it looked
-like what it was, seven conductors at coordinates picked to make a snake path
-work.
+Star 3 was provably unique, which made it unambiguous and not hard — you
+flipped conductors and hill-climbed to the one answer — and it was laid out at
+coordinates chosen to make a snake path work, so it looked like scatter.
 
 **IT IS A LATTICE.** Four columns (250·480·710·940) by three rows
-(170·370·540). Every conductor, mast and vent stands on a lattice point, every
-converter on a lattice edge. The lanes can be read off the floor before you
-touch anything, and the layout test asserts the lattice so it cannot drift back
-into scatter.
+(170·370·540). Every conductor, mast and vent on a lattice point, every
+converter on a lattice edge, three cast blocks standing in the gaps. The lanes
+read off the floor before you touch anything, and the layout test asserts the
+lattice so it cannot drift back into scatter.
 
-**NO ONE ROUTE TAKES ALL THREE MASTS** — two is the most any route reaches —
-so the star is always at least two firings, and a crowned mast keeps its crown
-while you go and aim the next. Everything else stays free: every conductor
-re-turnable, every route re-fireable, as often as you like.
+**ONE CHAIN, ALL THREE MASTS, AT ONCE**, and the answer is an inward spiral:
 
-**PLANNING IS FREE TOO.** With Air on a vent and nobody on a converter there is
-no charged half, so the wind draws the entire route and crowns nothing. A route
-can be laid out and looked over before it is lit.
+```
+VA(90,170) →──────────────────────────────→ A(940,170) '\' ↓
+              converts at FA(595,170)
+   ↓ MAST(940,370) ↓ B(940,540) '/' ←──────────────────────
+   ← MAST(710,540) ← C(480,540) '\' ↑
+   ↑ D(480,370) '\' ← E(250,370) '/' ↓ MAST(250,540) ↓ THE GATE
+```
 
-> **A WELDING RULE briefly lived here and was removed on purpose.** Crowning a
-> mast fused every conductor that bolt had turned on. Since no run reaches all
-> three, the ORDER became a budget: seven distinct openings, three of which
-> stranded you, and the *same two masts* costing three irons or five depending
-> how you took them — greed as the failure mode. It genuinely made the room a
-> decision rather than a search. It also made a wrong guess expensive, and the
-> call was that this room is for trying things. Recorded here because the
-> trade-off is real and may be worth revisiting: without it the Spire is
-> free iteration again, just with more to do than one path. The proof seam it
-> used was `solveSpireOpenings`, in this file's history.
+Sixteen vent/converter pairings × 32 conductor sets; exactly one combination
+lights all three at once.
 
-**FULMINATE MOVED OUT.** Every vat position on this lattice that bites kills
-every solution — the routes are too tight — so the Spire has none, and the
-half-blind lesson went to Pylon Hall where the geometry has slack. There vat A
-sits on the WIND leg of the correct answer (so solving it properly means
-running wind over fulminate and watching nothing happen), sixteen wrong charged
-routes cook each of the two, and the hall's teaching lie now bites: vent VB
-with converter FC in front of it makes a real bolt that crosses vat B on its
-way to dying in the east wall.
+**THE LAST MAST STANDS ON THE CORE GATE.** It sits at (250,540), centred over
+the barrier at (200,600), so the bolt drives down into the mast and through
+the doorway below it — the thing you are powering and the thing it opens are
+one object. A layout invariant asserts that exactly one mast stands over the
+gate and close enough above it to read as standing on it.
 
-`solveSpireOpenings()` proves all of it against the real engine — max masts per
-run, the opening count, and which openings survive — and the test pins the
-exact table above, because that table IS the design.
+**THE REAL QUESTION IS HOW EARLY YOU CONVERT.** Three of the four converters
+sit *on* the true route at different depths — FA(595,170) on the opening run,
+FC(940,455) most of the way down the east column, FB(365,370) near the end.
+Standing Fire on any of them makes a real bolt. Only the earliest leaves enough
+of the route charged to reach all three, **because everything before the flame
+is merely wind**. That is the insight the room is built around, and it is not
+something you stumble into by flipping conductors.
+
+**PLANNING IS FREE.** With Air on a vent and nobody on a converter there is no
+charged half, so the wind draws the whole spiral and lights nothing. Lay a
+route out, look it over, then decide where the flame goes.
+
+**THE DECOY IS TEMPTING FOR A REASON.** Vent VD(710,650) fires straight up a
+column holding no conductor at all and converter FD(710,270) stands dead in it,
+so the flame really does catch and a real bolt is born. The lie is that the
+column's mast (710,540) sits *below* the converter: the wind passes it on the
+way up and the bolt is only born above it, so that chain crowns nothing and
+dies in the ceiling. It is the room's own lesson read backwards.
+  · Lane discipline matters here. Two cast blocks first went in straddling
+    column 710 and swallowed the decoy's wind before it left the vent, which
+    quietly turned a tempting lie into a dead prop. The blocks live in the
+    x-bands 540–650 and 790–900 now, clear of all four columns.
+
+**FULMINATE LIVES IN PYLON HALL.** Every vat position on this lattice that
+bites kills every solution — the routes are too tight — and an inert vat is
+worse than none. So the half-blind lesson went to the teaching hall, where the
+geometry has slack: vat A sits on the WIND leg of the correct answer (solving
+it properly means running wind over fulminate and watching nothing happen),
+sixteen wrong charged routes cook each of the two, and the hall's teaching lie
+now bites — vent VB with converter FC in front of it makes a real bolt that
+crosses vat B on its way to dying in the east wall.
+
+> **TWO MECHANICS WERE BUILT HERE AND REMOVED, recorded because the trade-offs
+> are real.** First, *welding*: crowning a mast fused every conductor that bolt
+> had turned on, so with no run reaching all three the ORDER became a budget —
+> seven distinct openings, three of which stranded you, the same two masts
+> costing three irons or five. It made the room a decision rather than a
+> search, and it made a wrong guess expensive. Second, *banked crowns across
+> multiple firings*. Both went for the same reason: this room is for trying
+> things freely. The proof seams they used were `solveSpireOpenings` and
+> `solveSpireRoutes`, in this file's history.
 
 ### DOORS — where you come out matters as much as where you go in
 
