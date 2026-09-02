@@ -1415,6 +1415,21 @@ class PlanetDungeonGame extends FlameGame {
   double geyserCycle = 0;
 
   /// The one rock an Earth hand can hold in the world at a time (null = none).
+  /// A body in the air, thrown by a riser: where it left, where it will come
+  /// down, and how far along it is. The throw used to TELEPORT — the creature
+  /// simply appeared on the far shore — which made the one spectacular thing
+  /// in the room invisible, and made a throw that fell short indistinguishable
+  /// from one that did nothing at all.
+  final Map<int, GeyserFlight> geyserFlights = {};
+
+  /// The Cinder Forge's casting mould: boulders Earth has heaved into the
+  /// channel lips, and the runs Fire has since melted them down into.
+  final Set<String> raisedBoulders = {};
+  final Set<String> pouredChannels = {};
+
+  /// Said once, the first time anyone comes down on the far shore.
+  bool castingGreeted = false;
+
   /// THE STONE AND THE SLAB BELONG TO A ROOM, NOT TO THE RUN. Both were plain
   /// run-globals, which broke Steam twice over: a stone raised to cap a mouth
   /// in the Ember Causeway was still standing in the Cinder Forge (so Earth

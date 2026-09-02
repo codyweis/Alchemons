@@ -295,27 +295,15 @@ void main() {
     // income before the crucible.
     expect(game.boilerPressure, kSteamStartPressure - 30);
 
-    // ── STAR 2: THE CINDER FORGE — cap the hobs, ride the risers ──
-    // WHAT THIS REPLACES: a molten forge with a two-thick plug, two pours
-    // boxed in bedrock, and a vault pedestal behind it. That room was retired
-    // on 2026-08-14 and rebuilt as a geyser field with a chasm across it, so
-    // the script below was playing furniture that no longer exists.
-    //
-    // The field's own puzzle is a DECAY. Every capped mouth sends its head to
-    // the ones still open, so a riser throws further the more of the field is
-    // held — and each body you send across the chasm is one fewer body holding
-    // it down for the next. The far throw has to be taken FIRST, while the
-    // field is at its fullest, and Earth's one stone is what frees a third
-    // body to ride at all.
+    // ── STAR 2: THE CINDER FORGE — hold the field, split the party, pour ──
+    // Two mouths can be covered and three Alchemons want to cross, so one has
+    // to stay holding the field: the stone takes one mouth, Steam takes the
+    // other, and Earth and Fire ride the wide throat together. What waits on
+    // the far shore is a dry casting mould — Earth's boulder, Fire's flame —
+    // which is why Steam is the one that can be spared.
     final forgeRoom0 = room('cinder_forge');
     game.currentRoomId = 'cinder_forge';
-    expect(
-      game.earthRock,
-      isNull,
-      reason:
-          'the causeway keeps its own stone — a stone belongs to the floor it '
-          'came out of, so Earth can raise a fresh one here',
-    );
+    expect(game.earthRock, isNull, reason: 'the causeway keeps its own stone');
     Offset mouth(String id) =>
         forgeRoom0.geysers.firstWhere((g) => g.id == id).position;
     final farShore = forgeRoom0.platforms.last;
@@ -331,88 +319,62 @@ void main() {
       }
     }
 
-    /// Hold everyone still through the field's next eruption.
-    void rideTheBlast(List<int> holders, Map<int, Offset> stations) {
-      var frames = 0;
-      final before = Map<int, Offset>.fromEntries(
-        stations.keys.map((k) => MapEntry(k, game.creatures[k].position)),
-      );
-      while (frames++ < 60 * 9) {
-        for (final h in holders) {
-          place(h, stations[h]!);
-        }
-        game.update(1 / 60);
-        for (final cr in game.creatures) {
-          if (cr.alive) cr.hp = cr.maxHp;
-        }
-        final moved = stations.keys.any(
-          (k) =>
-              !holders.contains(k) &&
-              (game.creatures[k].position - before[k]!).distance > 40,
-        );
-        if (moved) break;
-      }
-    }
-
-    // Earth heaves its one stone onto a hob — that is the third capper, and
-    // without it nobody is free to ride.
+    // Earth's stone smothers one mouth.
     game.setActive(earth);
     place(earth, mouth('r_hob_a') + const Offset(0, 60), aim: -pi / 2);
     game.activateAbility();
     expect(game.earthRock, isNotNull);
     step(0.8);
-    expect(
-      game.cappedGeysers,
-      contains('r_hob_a'),
-      reason: 'the stone smothers the hob it was pushed onto',
-    );
+    expect(game.cappedGeysers, contains('r_hob_a'));
 
-    // The fullest field the room allows: the stone on one hob, bodies on two
-    // more, and the third rides the one mouth that cannot be covered.
+    // Steam holds the other, and stays there for good.
     place(steam, mouth('r_hob_b'));
-    place(fire, mouth('r_hob_c'));
-    place(earth, mouth('r_riser'), aim: 0); // the chasm runs east
-    game.update(1 / 60);
-    expect(
-      game.geyserPressure,
-      4,
-      reason: 'choked + stone + two bodies — every mouth but the risers',
-    );
-    rideTheBlast([steam, fire], {
-      steam: mouth('r_hob_b'),
-      fire: mouth('r_hob_c'),
-      earth: mouth('r_riser'),
-    });
+    step();
+    expect(game.geyserHead, 99, reason: 'both mouths held is a full head');
+
+    // Earth and Fire ride together, east.
+    for (final slot in [earth, fire]) {
+      place(slot, mouth('r_riser'), aim: 0);
+    }
+    var frames = 0;
+    while (frames++ < 60 * 10) {
+      place(steam, mouth('r_hob_b'));
+      game.update(1 / 60);
+      for (final cr in game.creatures) {
+        if (cr.alive) cr.hp = cr.maxHp;
+      }
+      if (farShore.inflate(2).contains(game.creatures[earth].position) &&
+          farShore.inflate(2).contains(game.creatures[fire].position)) {
+        break;
+      }
+    }
     expect(
       farShore.inflate(2).contains(game.creatures[earth].position),
       isTrue,
-      reason: 'a full field throws the rider clear across the chasm',
     );
-
-    // Each body sent over is one fewer holding the field, so every crossing
-    // after the first is thrown by a weaker one.
-    place(steam, mouth('r_riser'), aim: 0);
-    game.update(1 / 60);
-    expect(game.geyserPressure, 3, reason: 'a capper left to ride');
-    rideTheBlast([fire], {fire: mouth('r_hob_c'), steam: mouth('r_riser')});
+    expect(farShore.inflate(2).contains(game.creatures[fire].position), isTrue);
     expect(
       farShore.inflate(2).contains(game.creatures[steam].position),
-      isTrue,
+      isFalse,
+      reason: 'Steam is still holding the field on the near shore',
     );
 
-    // The last body rides on the stone and the rubble alone — which is
-    // exactly enough, and is not without the stone (see the geyser tests).
-    place(fire, mouth('r_riser'), aim: 0);
-    game.update(1 / 60);
-    expect(game.geyserPressure, 2, reason: 'only the choked mouth and stone');
-    rideTheBlast([], {fire: mouth('r_riser')});
-    expect(farShore.inflate(2).contains(game.creatures[fire].position), isTrue);
-
+    // THE CASTING: a boulder in each run, and a flame under it.
+    for (final sock in forgeRoom0.meltSockets) {
+      game.setActive(earth);
+      place(earth, sock.position);
+      game.activateAbility();
+      expect(game.raisedBoulders, contains(sock.id));
+      game.setActive(fire);
+      place(fire, sock.position);
+      game.activateAbility();
+      expect(game.pouredChannels, contains(sock.id));
+    }
     step();
     expect(
       game.hasStar(1),
       isTrue,
-      reason: 'the whole party on the far shore yields the pedestal',
+      reason: 'the mould brims — the pedestal yields',
     );
     clearWisps();
 

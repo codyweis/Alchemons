@@ -342,87 +342,111 @@ void main() {
       );
     });
 
-    test('THE SOLVE: the stone stays behind so the last body still has a '
-        'field to ride', () {
+    test('THE SOLVE: two mouths held, two bodies over, and the pour is the '
+        'star', () {
       final earned = <int>[];
       final game = atForge(onStar: earned.add);
-      final far = forge(game).platforms.last;
+      final room = forge(game);
+      final far = room.platforms.last;
 
-      // The stone caps first — it is the one hold that never has to leave.
+      // Earth's stone smothers one mouth; Steam's body holds the other. Two
+      // caps is every mouth that CAN be capped, which is a full head.
       game.setActive(1);
-      final hobC = riser(game, 'r_hob_c').position;
-      _stand(game, 1, hobC + const Offset(0, -60));
-      game.creatures[1].aimAngle = 1.5708;
+      final hobA = riser(game, 'r_hob_a').position;
+      _stand(game, 1, hobA + const Offset(0, 60));
+      game.creatures[1].aimAngle = -1.5708;
       game.activateAbility();
       _step(game, 0.8);
-      expect(game.cappedGeysers, contains('r_hob_c'));
-
-      // Two bodies hold two more hobs; the third rides. Four mouths held.
-      _stand(game, 1, riser(game, 'r_hob_a').position);
-      _stand(game, 2, riser(game, 'r_hob_b').position);
-      _stand(game, 0, riser(game, 'r_riser').position);
-      game.creatures[0].aimAngle = 0; // east, across the chasm
-      _step(game); // caps are recomputed on the tick, not on placement
-      expect(game.geyserPressure, 4);
-      _step(game, 6);
-      expect(far.inflate(2).contains(game.creatures[0].position), isTrue);
-
-      // Then a capper leaves, and the throw is weaker for it.
-      _stand(game, 1, riser(game, 'r_riser').position);
-      game.creatures[1].aimAngle = 0;
-      _step(game, 6);
-      expect(far.inflate(2).contains(game.creatures[1].position), isTrue);
-
-      // And the last body rides on the stone and the rubble alone.
-      _stand(game, 2, riser(game, 'r_riser').position);
-      game.creatures[2].aimAngle = 0;
+      _stand(game, 0, riser(game, 'r_hob_b').position); // Steam stays
       _step(game);
+      expect(game.cappedGeysers, containsAll(<String>['r_hob_a', 'r_hob_b']));
+      expect(game.geyserHead, 99, reason: 'the gauge reads a full head');
+
+      // Earth and Fire ride the wide throat TOGETHER.
+      final riserAt = riser(game, 'r_riser').position;
+      for (final i in [1, 2]) {
+        _stand(game, i, riserAt);
+        game.creatures[i].aimAngle = 0; // east
+      }
+      _step(game, 8);
+      for (final i in [1, 2]) {
+        expect(
+          far.inflate(2).contains(game.creatures[i].position),
+          isTrue,
+          reason: 'creature $i should be across',
+        );
+      }
       expect(
-        game.geyserPressure,
-        2,
-        reason: 'the stone and the choked mouth are all that is left holding',
-      );
-      _step(game, 6);
-      expect(
-        far.inflate(2).contains(game.creatures[2].position),
-        isTrue,
-        reason: 'which is exactly enough — and is not, without the stone',
+        far.inflate(2).contains(game.creatures[0].position),
+        isFalse,
+        reason: 'and Steam is still holding the field on the near shore',
       );
 
+      // THE CASTING: Earth heaves a boulder into each run, Fire melts it.
+      for (final sock in room.meltSockets) {
+        game.setActive(1); // Earth
+        _stand(game, 1, sock.position);
+        game.activateAbility();
+        expect(game.raisedBoulders, contains(sock.id));
+        game.setActive(2); // Fire
+        _stand(game, 2, sock.position);
+        game.activateAbility();
+        expect(game.pouredChannels, contains(sock.id));
+      }
       _step(game, 0.5);
       expect(game.hasStar(1), isTrue);
       expect(earned, [1]);
     });
 
-    test('WITHOUT the stone the last body is stranded', () {
+    test('a half-held field throws you SHORT — you watch it fall in', () {
       final game = atForge();
-      final far = forge(game).platforms.last;
-      // Same crossings, no stone: each one holds a mouth fewer.
-      _stand(game, 1, riser(game, 'r_hob_a').position);
-      _stand(game, 2, riser(game, 'r_hob_b').position);
-      _stand(game, 0, riser(game, 'r_riser').position);
-      game.creatures[0].aimAngle = 0;
-      _step(game, 6);
-      expect(far.inflate(2).contains(game.creatures[0].position), isTrue);
+      final room = forge(game);
+      final far = room.platforms.last;
+      final near = room.platforms.first;
 
+      // Only one mouth covered.
+      _stand(game, 0, riser(game, 'r_hob_b').position);
       _stand(game, 1, riser(game, 'r_riser').position);
       game.creatures[1].aimAngle = 0;
-      _step(game, 6);
-      expect(far.inflate(2).contains(game.creatures[1].position), isTrue);
-
-      _stand(game, 2, riser(game, 'r_riser').position);
-      game.creatures[2].aimAngle = 0;
       _step(game);
-      expect(game.geyserPressure, 1, reason: 'only the rubble is holding');
-      _step(game, 6);
+      expect(game.geyserHead, lessThan(99));
+      _step(game, 8);
       expect(
-        far.inflate(2).contains(game.creatures[2].position),
+        far.inflate(2).contains(game.creatures[1].position),
         isFalse,
-        reason:
-            'the last throw falls short of the shore — which is what makes '
-            "Earth's stone the point of the room rather than a convenience",
+        reason: 'half a head does not clear the chasm',
+      );
+      expect(
+        near.inflate(2).contains(game.creatures[1].position),
+        isTrue,
+        reason: 'and the fall puts it back on the shore it left',
       );
       expect(game.hasStar(1), isFalse);
+    });
+
+    test('Steam cannot do the casting — it is Earth\'s and Fire\'s work, and '
+        'Steam is the one that has to stay', () {
+      final game = atForge();
+      final room = forge(game);
+      final sock = room.meltSockets.first;
+      // Steam at a dry lip: no stone to heave.
+      game.setActive(0);
+      _stand(game, 0, sock.position);
+      game.activateAbility();
+      expect(game.raisedBoulders, isEmpty);
+      // Earth loads it; Steam still cannot melt it.
+      game.setActive(1);
+      _stand(game, 1, sock.position);
+      game.activateAbility();
+      expect(game.raisedBoulders, contains(sock.id));
+      game.setActive(0);
+      _stand(game, 0, sock.position);
+      game.activateAbility();
+      expect(
+        game.pouredChannels,
+        isEmpty,
+        reason: 'only a flame melts the boulder down',
+      );
     });
   });
 }

@@ -72,6 +72,12 @@ const double _kBlastReach = 96.0;
 /// A riser's throw: this far, plus this much again for every mouth shut.
 const double _kThrowBase = 120.0;
 const double _kThrowPerCap = 55.0;
+
+/// Seconds a thrown body spends in the air.
+const double _kFlightSeconds = 0.75;
+
+/// How close a body must stand to a channel lip to work it.
+const double _kCastReach = 62.0;
 const int _kBodyHoldLimit = 3;
 const double _kRockRaiseSeconds = 0.55;
 const double _kRockReach = 46.0;
@@ -99,6 +105,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     earthRock = null;
     earthRockRaise = 0;
     burstCapstoneRooms.clear();
+    raisedBoulders.clear();
+    pouredChannels.clear();
+    castingGreeted = false;
+    geyserFlights.clear();
   }
 
   // ── STAR 1 · THE GEYSER FIELD ────────────────────────────
@@ -132,6 +142,63 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   /// How many mouths are shut right now — the system's pressure.
   int get geyserPressure => cappedGeysers.length;
+
+  /// The field's head as the gauge shows it: 0 when nothing is covered, 99
+  /// when every mouth that CAN be covered is. Counting mouths is the physics;
+  /// this is what the room tells the player, and "the riser needs 99" is a
+  /// far better thing to know than "the riser needs two".
+  int get geyserHead {
+    final room = currentRoom;
+    final cappable = room.geysers.where((g) => !g.isRiser).length;
+    if (cappable == 0) return 0;
+    final held = cappedGeysers.where((id) {
+      final g = room.geysers.where((m) => m.id == id);
+      return g.isNotEmpty && !g.first.isRiser;
+    }).length;
+    return ((held / cappable) * kSteamPressureMax).round();
+  }
+
+  /// Bodies in the air. While a creature is flying its position belongs to
+  /// the arc and nothing else — walking input, shoves and caps all wait.
+  void _updateGeyserFlights(double dt) {
+    if (geyserFlights.isEmpty) return;
+    final done = <int>[];
+    for (final e in geyserFlights.entries) {
+      final f = e.value;
+      f.t = min(1.0, f.t + dt / _kFlightSeconds);
+      final cr = e.key < creatures.length ? creatures[e.key] : null;
+      if (cr == null) {
+        done.add(e.key);
+        continue;
+      }
+      final ease = Curves.easeInOutSine.transform(f.t);
+      final along = Offset.lerp(f.from, f.to, ease)!;
+      cr.position = along - Offset(0, sin(pi * f.t) * f.lift);
+      if (f.t >= 1.0) {
+        cr.position = f.to;
+        done.add(e.key);
+        // A THROW THAT FALLS SHORT is the room's whole way of saying "not
+        // enough head" — so it is answered here rather than left to the
+        // generic fall recovery, which only ever speaks for the creature you
+        // happen to be steering. You watch the arc drop into the chasm and
+        // the body scrambles back onto the shore it left.
+        if (!_onSolidGround(f.to, currentRoom)) {
+          cr.position = cr.lastSafe;
+          _setBlockedHint(
+            'The head was not enough — the throw falls short of the shore',
+            3.0,
+          );
+        }
+      }
+    }
+    for (final k in done) {
+      geyserFlights.remove(k);
+    }
+  }
+
+  /// Is anyone still in the air? (Caps and the win check both wait for the
+  /// room to settle, so a body counts where it LANDS, not where it passes.)
+  bool get geyserFlightActive => geyserFlights.isNotEmpty;
 
   /// Every mouth a body, the rock or the rubble is holding, recomputed from
   /// the world each frame (§ state is never an intention).
@@ -170,6 +237,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (earthRockRaise < 1 && earthRock != null) {
       earthRockRaise = min(1.0, earthRockRaise + dt / _kRockRaiseSeconds);
     }
+    _updateGeyserFlights(dt);
+    if (geyserFlightActive) return; // let the arc finish before anything reads
     final wasBlasting = _geyserBlasting;
     geyserCycle += dt;
     _recomputeCaps(room);
@@ -201,24 +270,22 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     // THE BLAST, on the edge where it opens: everything still open throws.
     if (!wasBlasting && _geyserBlasting) _eruptGeysers(room);
 
-    // STAR 2 — THE LAUNCH: the room is won when the whole party stands on the
-    // far shore. (Its capstone is the pedestal there, not a pressure lock.)
-    if (cap != null && room.geysers.any((g) => g.isRiser) && !capstoneBurst) {
-      final far = room.platforms.isEmpty ? null : room.platforms.last;
-      if (far != null &&
-          creatures.every(
-            (c) => !c.alive || far.inflate(2).contains(c.position),
-          ) &&
-          creatures.any((c) => c.alive)) {
-        capstoneBurst = true;
-        _setHint(
-          'The whole party stands on the far shore — the pedestal '
-          'yields',
-          4.0,
-        );
-        if (!hasStar(cap.starIndex)) earnStar(cap.starIndex);
-        onChanged();
-      }
+    // STAR 2 — THE CASTING. It used to bank when the WHOLE PARTY stood on the
+    // far shore, which cannot happen any more: the field needs a body holding
+    // it or nobody gets across at all. The pour is the win now (see
+    // `_tryCasting`); all this does is greet whoever comes down over there,
+    // once, because a party arriving mid-air on an unfamiliar shore should be
+    // told what the shore is for.
+    final far = room.platforms.isEmpty ? null : room.platforms.last;
+    if (!castingGreeted &&
+        far != null &&
+        room.meltSockets.isNotEmpty &&
+        creatures.any((c) => c.alive && far.inflate(2).contains(c.position))) {
+      castingGreeted = true;
+      _setObjectiveHint(
+        'A dry casting mould — heave a boulder into each run and melt it '
+        'down',
+      );
     }
   }
 
@@ -239,9 +306,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           final reach = _kThrowBase + _kThrowPerCap * p;
           final aim = Offset(cos(cr.aimAngle), sin(cr.aimAngle));
           final to = _clampToBounds(cr.position + aim * reach, room);
-          cr
-            ..position = to
-            ..lastSafe = _onSolidGround(to, room) ? to : cr.lastSafe;
+          // ARC, don't teleport. The landing is identical; what changes is
+          // that a short throw can now be WATCHED falling short, which is the
+          // room's only way of saying "not enough head" without a line of
+          // text. (`_updateGeyserFlights` owns the position until it lands.)
+          final i = creatures.indexOf(cr);
+          if (i >= 0) geyserFlights[i] = GeyserFlight(cr.position, to);
+          cr.lastSafe = _onSolidGround(to, room) ? to : cr.lastSafe;
           _spawnAlchemyBurst(
             gy.position,
             producedElement: 'Steam',
@@ -298,6 +369,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// Is this creature standing at something the ring-main answers for — a
   /// clamped junction, a stoke port, or the burst disc?
   bool _nearPressureFixture(DungeonCreature a, DungeonRoom room) {
+    for (final sock in room.meltSockets) {
+      if ((a.position - sock.position).distance <= _kCastReach) return true;
+    }
     final port = room.stokePort;
     if (port != null && (a.position - port).distance <= _kPressureReach) {
       return true;
@@ -321,6 +395,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (!_isVapor) return false;
     final room = currentRoom;
     if (room.geysers.isEmpty) return false;
+    // At a channel lip, Earth's stone is a BOULDER for the mould — the
+    // casting owns that press (see `_tryCasting`).
+    for (final sock in room.meltSockets) {
+      if ((a.position - sock.position).distance <= _kCastReach) return false;
+    }
     if (a.member.element != 'Earth') {
       // A REFUSAL MUST NEVER OUTRANK A THING THAT WOULD ACTUALLY WORK. Earth's
       // stone answers before the ring-main's fixtures on purpose, but this
@@ -826,9 +905,88 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   // ── Action button ────────────────────────────────────────
 
+  /// THE CASTING, on the Cinder Forge's far shore. Earth heaves a boulder
+  /// onto a channel lip; Fire melts it down and the run fills. Three runs
+  /// poured and the cast is made.
+  bool _tryCasting(DungeonCreature a) {
+    final room = currentRoom;
+    if (room.meltSockets.isEmpty) return false;
+    // The NEAREST lip in reach, never merely the first in the list — two runs
+    // close enough to both be in range would otherwise always answer as the
+    // earlier one, and the later ones could not be worked at all.
+    MeltSocket? best;
+    var bestD = double.infinity;
+    for (final sock in room.meltSockets) {
+      final d = (a.position - sock.position).distance;
+      if (d <= _kCastReach && d < bestD) {
+        bestD = d;
+        best = sock;
+      }
+    }
+    for (final sock in [if (best != null) best]) {
+      if (pouredChannels.contains(sock.id)) {
+        _setBlockedHint('That run is already poured');
+        return true;
+      }
+      final loaded = raisedBoulders.contains(sock.id);
+      if (!loaded) {
+        if (a.member.element != 'Earth') {
+          _setBlockedHint('The channel is dry — it wants a stone in it first');
+          return true;
+        }
+        raisedBoulders.add(sock.id);
+        _setHint('Earth heaves a boulder onto the lip — it wants melting');
+        _spawnAlchemyBurst(
+          sock.position,
+          producedElement: 'Earth',
+          particleCount: 14,
+          intensity: 0.7,
+        );
+        onChanged();
+        return true;
+      }
+      if (a.member.element == 'Earth') {
+        // Your own stone, taken back — nothing here can strand.
+        raisedBoulders.remove(sock.id);
+        _setHint('The boulder sinks back out of the channel');
+        onChanged();
+        return true;
+      }
+      if (a.member.element != 'Fire') {
+        _setBlockedHint('The boulder waits on a flame');
+        return true;
+      }
+      raisedBoulders.remove(sock.id);
+      pouredChannels.add(sock.id);
+      _spawnAlchemyBurst(
+        sock.position,
+        producedElement: 'Lava',
+        reagentElements: const ['Earth', 'Fire'],
+        unstable: true,
+        particleCount: 24,
+        intensity: 1.1,
+      );
+      final left = room.meltSockets.length - pouredChannels.length;
+      final cap = room.capstone;
+      if (left == 0 && cap != null && !hasStar(cap.starIndex)) {
+        _setHint(
+          'The last run fills and the mould brims — the pedestal yields',
+          4.0,
+        );
+        earnStar(cap.starIndex);
+      } else {
+        _setHint('The stone goes to melt and the run fills — $left still dry');
+      }
+      onChanged();
+      return true;
+    }
+    return false;
+  }
+
   bool _tryPressure(DungeonCreature a) {
     if (!_isVapor) return false;
     final room = currentRoom;
+    if (_tryCasting(a)) return true;
 
     // Entry rite: a Steam creature cracks the gate vent → the seal hisses open.
     final vent = room.steamVent;
@@ -1084,7 +1242,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final tier = revealHintTier(a.member.statIntelligence);
     final riser = room.geysers.where((g) => g.isRiser).length;
     final shut = cappedGeysers.length;
-    final total = room.geysers.length;
+    final total = room.geysers.where((g) => !g.isRiser).length;
 
     if (riser == 0) {
       // The Causeway: shut everything, and the field fights you for it.
@@ -1107,19 +1265,20 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     }
 
     // The Forge: one mouth cannot be covered, and that is the way across.
+    final head = geyserHead;
     _setHint(
       tier >= 2
-          ? 'Count what will still be holding when the LAST body rides: only '
-                'the rubble, and whatever you left behind that does not have '
-                'to walk. Earth\'s stone is the one cap that never leaves — '
-                'without it the last throw falls short of the shore'
+          ? 'Both mouths, or nothing: at half a head the throw falls into the '
+                'chasm. The stone holds one and a body holds the other, which '
+                'leaves TWO to ride — and the mould on the far shore wants a '
+                'boulder and a flame, so it is Steam that can be spared'
           : tier >= 1
           ? 'The wide throat cannot be smothered — stand on it and it throws '
-                'you instead, as far as the rest of the field is quiet. Every '
-                'body you send over is one fewer holding it down, so the '
-                'throws weaken as you go ($shut of $total held)'
-          : 'Four mouths can be covered. The wide one cannot, and the far '
-                'shore is past it',
+                'you instead, as far as the rest of the field is quiet. It '
+                'takes a FULL head to clear the chasm (the gauge reads $head '
+                'of $kSteamPressureMax)'
+          : 'Two mouths can be covered and one cannot, and the far shore is '
+                'past the one that cannot',
       5.0,
     );
   }
@@ -1601,6 +1760,101 @@ extension MoltenLabyrinth on PlanetDungeonGame {
               Offset(cos(a0) * (26 + 44 * f), -230 * (1 - f) + 60 * f * f),
           4.0,
           const Color(0xFFF2FCFF).withValues(alpha: 0.34 * (1 - f)),
+        );
+      }
+    }
+
+    // THE CASTING MOULD: dry channels, boulders on their lips, and the runs
+    // that have been poured.
+    for (final sock in room.meltSockets) {
+      final poured = pouredChannels.contains(sock.id);
+      final ch = sock.channel;
+      // The cut trench.
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(ch, const Radius.circular(4)),
+        Paint()..color = const Color(0xFF191410),
+      );
+      if (poured) {
+        // Melt: a bright body under a skinning crust, breathing.
+        final pulse = 0.55 + 0.45 * sin(_moltenPulse * 2.2 + ch.left * 0.05);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(ch.deflate(2), const Radius.circular(3)),
+          Paint()
+            ..color = Color.lerp(
+              const Color(0xFF8A2E0C),
+              const Color(0xFFD9611A),
+              pulse * 0.7,
+            )!,
+        );
+        for (var k = 0; k < 3; k++) {
+          final y = ch.top + ch.height * (0.25 + 0.25 * k);
+          canvas.drawLine(
+            Offset(ch.left + 5, y),
+            Offset(ch.right - 5, y + 3),
+            Paint()
+              ..strokeWidth = 1.6
+              ..color = const Color(0xFFFFC98A).withValues(alpha: 0.55),
+          );
+        }
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            ch.center,
+            ch.width * 0.9,
+            const Color(0xFFFF7A33).withValues(alpha: 0.26 + 0.18 * pulse),
+          );
+        }
+      } else {
+        // Dry: a sand-scoured mould with its ribs showing.
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(ch.deflate(3), const Radius.circular(3)),
+          Paint()..color = const Color(0xFF2C251D),
+        );
+        for (var k = 0; k < 3; k++) {
+          final y = ch.top + ch.height * (0.28 + 0.22 * k);
+          canvas.drawLine(
+            Offset(ch.left + 6, y),
+            Offset(ch.right - 6, y),
+            Paint()
+              ..strokeWidth = 1.0
+              ..color = const Color(0x33C7B49A),
+          );
+        }
+      }
+      // The lip, and whatever is standing on it.
+      canvas.drawCircle(
+        sock.position,
+        13,
+        Paint()..color = const Color(0xFF3A322A),
+      );
+      canvas.drawCircle(
+        sock.position,
+        13,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = poured ? const Color(0xFFE0A46A) : const Color(0xFF7C6A54),
+      );
+      if (raisedBoulders.contains(sock.id)) {
+        // A rough stone, waiting on a flame.
+        canvas.drawCircle(
+          sock.position - const Offset(0, 6),
+          15,
+          Paint()..color = const Color(0xFF6A5F50),
+        );
+        canvas.drawCircle(
+          sock.position - const Offset(0, 10),
+          9,
+          Paint()..color = const Color(0xFF7E7161),
+        );
+        canvas.drawCircle(
+          sock.position - const Offset(0, 6),
+          15,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = const Color(0xFF463C31),
         );
       }
     }

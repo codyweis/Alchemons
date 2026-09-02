@@ -1924,27 +1924,39 @@ void main() {
       );
       expect(
         forge.geysers.where((g) => !g.isRiser && !g.blockedAtStart).length,
-        4,
-        reason: 'four hobs to cover — three bodies and the stone',
+        2,
+        reason:
+            'TWO mouths to cover — the stone on one and a body on the other. '
+            'Two caps against three Alchemons is what splits the party: one '
+            'stays holding the field and the other two ride together',
       );
+      // And what waits on the far side is Earth's and Fire's work, which is
+      // why Steam is the one that can be spared to stay.
+      expect(forge.meltSockets.length, 3, reason: 'three runs to pour');
+      for (final m in forge.meltSockets) {
+        expect(
+          forge.platforms.last.inflate(4).contains(m.position),
+          isTrue,
+          reason: '${m.id} must be ON the far shore',
+        );
+        expect(forge.platforms.last.inflate(4).overlaps(m.channel), isTrue);
+      }
       expect(forge.platforms.length, 2, reason: 'two shores, one chasm');
 
-      // THE STONE IS MANDATORY, and the arithmetic is what makes it so. A
-      // throw is 120 + 55 per mouth held. On the last crossing only the
-      // stone and the choked mouth are still holding (2 → 230), and without
-      // the stone only the choked one is (1 → 175). The first reaches the far
-      // shore; the second lands in the chasm.
+      // THE ARITHMETIC IS THE LESSON. A throw is 120 + 55 per mouth held.
       final riser = forge.geysers.firstWhere((g) => g.isRiser).position.dx;
       final shore = forge.platforms.last.left;
       expect(
         riser + 120 + 55 * 2,
         greaterThan(shore),
-        reason: 'the last body across makes it WITH the stone',
+        reason: 'a FULL head (both mouths, so 99) clears the chasm',
       );
       expect(
         riser + 120 + 55 * 1,
         lessThan(shore),
-        reason: 'and does not without it — which is the room\'s whole lesson',
+        reason:
+            'and half a head does not — the short throw is the room telling '
+            'you, by letting you watch it fall in',
       );
       // Rite: the Crucible grid wakes the guardian (null star index).
       final crucible = steam.rooms['crucible']!.molten;

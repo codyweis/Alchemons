@@ -236,6 +236,44 @@ class StormRod {
 /// The live storm-cell's circuit around the altar. The cell is always aloft;
 /// gusts shove it along the ring, which is how the leader's starting point —
 /// and therefore the staircase it must climb — is chosen.
+/// A creature mid-throw, arcing from a riser to wherever the field's head can
+/// put it. Held by the game, advanced each frame; the landing is whatever the
+/// arc ends on, solid ground or not.
+/// A section of the Cinder Forge's casting mould, on the FAR shore.
+///
+/// The room throws two of your three across a chasm and keeps the third
+/// holding the field, so whatever waits over there has to be finishable by
+/// the two who went — and it is deliberately Earth's and Fire's work: Earth
+/// heaves a boulder into the channel, Fire melts it down
+/// (**Earth+Fire→Lava**), and the run of melt fills. Steam is the one element
+/// that would ruin it, and Steam is the one that cannot come.
+class MeltSocket {
+  final String id;
+
+  /// Where the boulder stands, at the channel's lip.
+  final Offset position;
+
+  /// The run of mould this boulder fills when it is melted down.
+  final Rect channel;
+
+  const MeltSocket({
+    required this.id,
+    required this.position,
+    required this.channel,
+  });
+}
+
+class GeyserFlight {
+  final Offset from;
+  final Offset to;
+  double t = 0;
+  GeyserFlight(this.from, this.to);
+
+  /// Height of the arc at its peak — taller for a longer throw, so a weak one
+  /// visibly lobs and a full-head one visibly flies.
+  double get lift => (to - from).distance * 0.30;
+}
+
 class StormCellOrbit {
   final Offset center;
   final double radius;
@@ -1159,6 +1197,9 @@ class DungeonRoom {
 
   /// Steam Star 1: the geyser field and the capstone at its heart.
   final List<GeyserMouth> geysers;
+
+  /// The Cinder Forge's casting mould, on its far shore.
+  final List<MeltSocket> meltSockets;
   final GeyserCapstone? capstone;
 
   final MoltenGrid? molten; // a star room's spreading-lava grid
@@ -1317,6 +1358,7 @@ class DungeonRoom {
     this.coreBreaker,
     this.garth,
     this.geysers = const [],
+    this.meltSockets = const [],
     this.capstone,
     this.molten,
     this.steamVent,
@@ -4482,50 +4524,63 @@ const DungeonLayout _steamLayout = DungeonLayout(
         PressureSeal(targetRoomId: 'manifold_south', cost: 15),
         PressureSeal(targetRoomId: 'manifold_north', cost: 15),
       ],
-      // STAR 2 — THE LAUNCH. A chasm splits the forge and the pedestal
-      // stands on the far side. FOUR hobs can be smothered; the fifth mouth
-      // is a RISER, too wide to cover, and every mouth held sends its head to
-      // it — so the one thing you cannot shut is the one thing that throws
-      // you, and it throws as hard as the rest of the field is quiet.
+      // STAR 2 — THE LAUNCH. Two mouths can be covered and one cannot, and
+      // the one that cannot is how you get across. Cover BOTH — Earth's stone
+      // on one, a body on the other — and the field is at full head; ride the
+      // wide throat and it throws you clear. Cover one and it throws you into
+      // the chasm, which is the room teaching you by letting you watch.
       //
-      // (It had TWO risers and three hobs, which read on a device as five
-      // near-identical holes with no way to tell which was which. One big
-      // obvious riser and a row of hobs is the same puzzle, legible.)
+      // WHO STAYS. Two caps and three Alchemons means exactly one body is
+      // spent holding the field while the other two ride together, and the
+      // stone frees nobody else — so the party SPLITS, and the far shore has
+      // to be finished by whoever went. Steam is the one that stays (the
+      // casting over there is Earth's and Fire's work), which is why the far
+      // side asks for no cooling.
       //
-      // THE DECAY IS THE PUZZLE. Every body sent across is one fewer holding
-      // the field, so the throws weaken as you go: 4 mouths held for the
-      // first crossing, 3 for the second, 2 for the last. A throw is
-      // 120 + 55 per mouth held, the riser stands at x=290 and the far shore
-      // begins at x=490 — so the last crossing needs 200 and gets 230.
-      //
-      // WHICH MAKES THE STONE MANDATORY, and that is the whole lesson. Earth's
-      // stone is the one cap that never has to leave. Without it the last body
-      // over holds only the choked mouth, throws 175, and lands 25px short of
-      // the shore — so the run is planned around a rock or it strands.
-      //
-      // The gap is 70px of void, narrow enough to SEE the far shore from the
-      // near one. It was 180 and the other side simply was not on screen, so
-      // nothing about the room said "you have to cross".
+      // A throw is 120 + 55 per mouth held. The riser stands at x=290 and the
+      // far shore begins at x=490: full head (2) throws 230 and lands, one
+      // mouth (1) throws 175 and falls 25px short into the void, none (0)
+      // throws 120 and barely leaves the near shore.
       platforms: [
         Rect.fromLTWH(40, 0, 380, 840), // the near shore (both doors)
-        Rect.fromLTWH(490, 40, 170, 760), // the far shore (pedestal)
+        Rect.fromLTWH(490, 40, 170, 760), // the far shore (the casting floor)
       ],
       geysers: [
-        // Four hobs — the ones a body or the stone can smother.
-        GeyserMouth(id: 'r_hob_a', position: Offset(100, 140)),
-        GeyserMouth(id: 'r_hob_b', position: Offset(100, 420)),
-        GeyserMouth(id: 'r_hob_c', position: Offset(100, 700)),
-        GeyserMouth(id: 'r_hob_d', position: Offset(300, 140)),
-        // Already plugged with rubble — a free hold, and visibly shut.
-        GeyserMouth(
-          id: 'r_choked',
-          position: Offset(300, 700),
-          blockedAtStart: true,
-        ),
-        // THE RISER. One, big, and the only way across.
+        GeyserMouth(id: 'r_hob_a', position: Offset(110, 200)),
+        GeyserMouth(id: 'r_hob_b', position: Offset(110, 640)),
+        // THE RISER. Too wide to smother; stand on it and it throws you.
         GeyserMouth(id: 'r_riser', position: Offset(290, 420), isRiser: true),
       ],
-      capstone: GeyserCapstone(position: Offset(580, 420), starIndex: 1),
+      // THE CASTING MOULD, on the far shore — three runs of dry channel and a
+      // boulder lip at each. Earth heaves the stone in, Fire melts it down,
+      // and the melt fills that run. All three poured and the cast is made.
+      //
+      // The star is no longer "stand the whole party on the far shore": the
+      // field needs a body holding it, so the party CANNOT all be over there.
+      // What the room asks for now is the pour, which is Earth's and Fire's
+      // work and would be spoiled by the one element that has to stay behind.
+      // Stacked DOWN the shore, not across it. Side by side they sat 56px
+      // apart against a 62px working reach, so standing at one put you in
+      // range of its neighbour and the runs could not be addressed
+      // separately. The shore is tall and narrow; so is the mould.
+      meltSockets: [
+        MeltSocket(
+          id: 'm_a',
+          position: Offset(575, 170),
+          channel: Rect.fromLTWH(505, 205, 140, 50),
+        ),
+        MeltSocket(
+          id: 'm_b',
+          position: Offset(575, 330),
+          channel: Rect.fromLTWH(505, 365, 140, 40),
+        ),
+        MeltSocket(
+          id: 'm_c',
+          position: Offset(575, 500),
+          channel: Rect.fromLTWH(505, 535, 140, 50),
+        ),
+      ],
+      capstone: GeyserCapstone(position: Offset(575, 690), starIndex: 1),
     ),
 
     // North Manifold — the ring's top segment. The rite-sealed crucible gate
