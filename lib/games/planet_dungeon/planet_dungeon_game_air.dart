@@ -1490,11 +1490,7 @@ extension WindCrownSpire on PlanetDungeonGame {
           Offset(cx + 5 * d, y - 6),
           nib,
         );
-        canvas.drawLine(
-          Offset(cx + 5 * d, y - 6),
-          Offset(cx - 5 * d, y),
-          nib,
-        );
+        canvas.drawLine(Offset(cx + 5 * d, y - 6), Offset(cx - 5 * d, y), nib);
       }
 
       if (swept) _drawScour(canvas, path);
@@ -2091,7 +2087,8 @@ extension PlanetDungeonFourWinds on PlanetDungeonGame {
     // jittered so the four faces are never the same four faces twice.
     final wear = List<double>.filled(n, 0);
     for (var i = 0; i < n; i++) {
-      wear[firstWindOrder[i]] = 0.93 - i * 0.23 + (rng.nextDouble() - 0.5) * 0.05;
+      wear[firstWindOrder[i]] =
+          0.93 - i * 0.23 + (rng.nextDouble() - 0.5) * 0.05;
     }
     firstWindWear.addAll(wear);
     for (var i = 0; i < _kRoseShards; i++) {
@@ -2348,8 +2345,11 @@ extension PlanetDungeonFourWindsRender on PlanetDungeonGame {
       // Once the maxim is found the ring turns for good, and the pillars ride
       // it — the same perpetual orbit the hub has always had as its proof.
       final drift = _firstWindWoken ? _time * 0.05 : 0.0;
-      final a = atan2(pos.dy - currentRoom.bounds.center.dy,
-              pos.dx - currentRoom.bounds.center.dx) +
+      final a =
+          atan2(
+            pos.dy - currentRoom.bounds.center.dy,
+            pos.dx - currentRoom.bounds.center.dx,
+          ) +
           drift;
       final r = (pos - currentRoom.bounds.center).distance;
       final at = _firstWindWoken
@@ -2374,9 +2374,9 @@ extension PlanetDungeonFourWindsRender on PlanetDungeonGame {
       final edge = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = spoken ? 1.8 : 1.0
-        ..color = const Color(0xFF5BC8E8).withValues(
-          alpha: spoken ? 0.75 : 0.2 + flare * 0.5,
-        );
+        ..color = const Color(
+          0xFF5BC8E8,
+        ).withValues(alpha: spoken ? 0.75 : 0.2 + flare * 0.5);
       canvas.drawRRect(
         RRect.fromRectAndRadius(body, const Radius.circular(8)),
         edge,
@@ -2435,8 +2435,7 @@ extension PlanetDungeonFourWindsRender on PlanetDungeonGame {
         canvas.drawCircle(
           head,
           2.6,
-          Paint()
-            ..color = const Color(0xFFFFF6C8).withValues(alpha: 0.8 * arc),
+          Paint()..color = const Color(0xFFFFF6C8).withValues(alpha: 0.8 * arc),
         );
       }
     }
@@ -2458,27 +2457,33 @@ extension PlanetDungeonFourWindsInsight on PlanetDungeonGame {
     switch (firstWindStage) {
       case 0:
         return switch (tier) {
-          <= 0 => 'Four stones ring the compass — and the compass is a '
-              'mechanism, not a mural',
-          1 => 'The mechanism is cold. Its heart wants CURRENT, not a hand '
-              'on its stones',
-          _ => 'The mechanism is cold, and the stones are rimed shut. Put '
-              'current through the heart and the ring will answer',
+          <= 0 =>
+            'Four stones ring the compass — and the compass is a '
+                'mechanism, not a mural',
+          1 =>
+            'The mechanism is cold. Its heart wants CURRENT, not a hand '
+                'on its stones',
+          _ =>
+            'The mechanism is cold, and the stones are rimed shut. Put '
+                'current through the heart and the ring will answer',
         };
       case 1:
         return switch (tier) {
           <= 0 => 'The ring is live, and every face is still rimed over',
-          _ => 'Rime hides the four faces. Burn it off and there will be '
-              'something to compare',
+          _ =>
+            'Rime hides the four faces. Burn it off and there will be '
+                'something to compare',
         };
       case 2:
         final left = firstWindOrder.length - firstWindSpoken.length;
         return switch (tier) {
           <= 0 => 'The faces are bare, and no two are worn alike',
-          1 => 'The wind has eaten the four faces unequally — $left still '
-              'sleep',
-          _ => 'The wind has eaten the four faces unequally, and it has been '
-              'blowing longest on one of them',
+          1 =>
+            'The wind has eaten the four faces unequally — $left still '
+                'sleep',
+          _ =>
+            'The wind has eaten the four faces unequally, and it has been '
+                'blowing longest on one of them',
         };
       default:
         return 'The winds gather';

@@ -2365,7 +2365,6 @@ extension CinderCathedral on PlanetDungeonGame {
     return null;
   }
 
-
   // ── Ambient hints / objectives / mood ───────────────────
 
   /// Fire's progress readout — STATE, glanceable beside the star tracker,
@@ -2911,7 +2910,11 @@ extension CinderCathedral on PlanetDungeonGame {
       ..strokeWidth = 1
       ..color = const Color(0xFF2C2219).withValues(alpha: 0.55);
     for (var x = b.left + 90; x < b.right - 40; x += 96) {
-      canvas.drawLine(Offset(x, b.top + 210), Offset(x, runner.top - 12), joint);
+      canvas.drawLine(
+        Offset(x, b.top + 210),
+        Offset(x, runner.top - 12),
+        joint,
+      );
       canvas.drawLine(
         Offset(x, runner.bottom + 12),
         Offset(x, b.bottom - 210),
@@ -2928,7 +2931,12 @@ extension CinderCathedral on PlanetDungeonGame {
       // mirrored row read as furniture that had fallen over.
       _drawPier(canvas, Offset(x, b.top + 112), 66);
       _drawPier(canvas, Offset(x, b.bottom - 190), 66);
-      _drawCandleStand(canvas, Offset(x, b.top + 188), naveCandles[i * 2] ?? 0, i);
+      _drawCandleStand(
+        canvas,
+        Offset(x, b.top + 188),
+        naveCandles[i * 2] ?? 0,
+        i,
+      );
       _drawCandleStand(
         canvas,
         Offset(x, b.bottom - 114),
@@ -3070,11 +3078,7 @@ extension CinderCathedral on PlanetDungeonGame {
       if (lit <= 0.01) {
         // A cold wick — small, but it is the difference between "unlit" and
         // "scenery".
-        canvas.drawCircle(
-          tip,
-          1.4,
-          Paint()..color = const Color(0xFF2A2118),
-        );
+        canvas.drawCircle(tip, 1.4, Paint()..color = const Color(0xFF2A2118));
         continue;
       }
       final ph = _time * 4.6 + k * 2.3 + seed * 0.9;
@@ -3082,8 +3086,18 @@ extension CinderCathedral on PlanetDungeonGame {
       canvas.drawPath(
         Path()
           ..moveTo(tip.dx - 2.2, tip.dy)
-          ..quadraticBezierTo(tip.dx - 1.6, tip.dy - fh * 0.6, tip.dx, tip.dy - fh)
-          ..quadraticBezierTo(tip.dx + 1.6, tip.dy - fh * 0.6, tip.dx + 2.2, tip.dy)
+          ..quadraticBezierTo(
+            tip.dx - 1.6,
+            tip.dy - fh * 0.6,
+            tip.dx,
+            tip.dy - fh,
+          )
+          ..quadraticBezierTo(
+            tip.dx + 1.6,
+            tip.dy - fh * 0.6,
+            tip.dx + 2.2,
+            tip.dy,
+          )
           ..close(),
         Paint()..color = const Color(0xFFFFC46A).withValues(alpha: 0.9 * lit),
       );
@@ -3562,7 +3576,8 @@ extension CinderCathedral on PlanetDungeonGame {
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round
       ..color = const Color(0xFF443325).withValues(alpha: 0.8);
-    final seat = Paint()..color = const Color(0xFF241A13).withValues(alpha: 0.75);
+    final seat = Paint()
+      ..color = const Color(0xFF241A13).withValues(alpha: 0.75);
     final divide = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4
@@ -5153,9 +5168,7 @@ extension CinderCathedral on PlanetDungeonGame {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.6
-          ..color = (chosen
-                  ? const Color(0xFFE4C16A)
-                  : const Color(0xFF74613A))
+          ..color = (chosen ? const Color(0xFFE4C16A) : const Color(0xFF74613A))
               .withValues(alpha: chosen ? 0.7 : 0.4),
       );
       canvas.drawOval(
@@ -5290,8 +5303,7 @@ extension CinderCathedral on PlanetDungeonGame {
           final t = k / steps;
           // Point on the same quadratic, and its tangent.
           final u = 1 - t;
-          final pt =
-              a * (u * u) + mid * (2 * u * t) + bp * (t * t);
+          final pt = a * (u * u) + mid * (2 * u * t) + bp * (t * t);
           final tan = (mid - a) * (2 * u) + (bp - mid) * (2 * t);
           final len = tan.distance;
           if (len < 0.01) continue;
@@ -5303,9 +5315,9 @@ extension CinderCathedral on PlanetDungeonGame {
       for (var i = 0; i < nodes.length; i++) {
         final p = nodes[i];
         final reached = rung || i <= checkpoint;
-        final iron = (reached
-            ? const Color(0xFFC4A35A)
-            : const Color(0xFF4A382C)).withValues(alpha: 0.9);
+        final iron =
+            (reached ? const Color(0xFFC4A35A) : const Color(0xFF4A382C))
+                .withValues(alpha: 0.9);
         // A censer is a lidded cup on a swivel, not a 9px half-disc: the
         // canopy over it is what makes a row of them read as hanging iron.
         canvas.drawLine(
@@ -5375,7 +5387,11 @@ extension CinderCathedral on PlanetDungeonGame {
       // The headstock it swings in — a bell with nothing over it floats.
       final bp = chain.bellPosition;
       canvas.drawRect(
-        Rect.fromCenter(center: bp + const Offset(0, -20), width: 30, height: 7),
+        Rect.fromCenter(
+          center: bp + const Offset(0, -20),
+          width: 30,
+          height: 7,
+        ),
         Paint()..color = const Color(0xFF31251B),
       );
       canvas.drawLine(

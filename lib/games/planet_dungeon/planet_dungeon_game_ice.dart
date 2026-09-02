@@ -45,7 +45,6 @@ part of 'planet_dungeon_game.dart';
 /// Ice's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kIceStarWalkerEggId = 'egg:ice_star_walker';
 
-
 // ── Device-tunable knobs ───────────────────────────────────
 // Ice has never been on a device; every number the feel depends on is named
 // here so a tuning pass is edit-one-block.

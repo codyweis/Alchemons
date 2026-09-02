@@ -2170,6 +2170,15 @@ catch it because they call `activateAbility()` past the HUD's gate.
     in a stone gutter wobbles along both walls and leads with a tongue. Applied
     to the forge's casting moat and to the chamber grids, which merge into one
     mass instead of a field of tiles.
+  · ✅ **AND YOU ARRIVED STANDING IN THE DOORWAY.** Reported from the first
+    play of the four-corner room: the crucible's arrival sat 24px below the
+    sill and the 34px spread ring put a body back inside the frame. The rule
+    is now an invariant — an arrival stands 32px clear of any WALL door in
+    the room it lands in — and it caught four more the same shape, in three
+    other planets: Air's lower spire (16px) and both cloud-platform arrivals,
+    Dust's three side doors and Dark's shade gallery (all 16px). A floor
+    HATCH is exempt on purpose: Mud's risen wallows are climbed out of, so
+    arriving on top of one is the fiction rather than a fault.
   · ⬜ CARRIED: device playtest of the whole planet, and the four-corner room
     in particular — it has been simulated and rendered, never played.
 

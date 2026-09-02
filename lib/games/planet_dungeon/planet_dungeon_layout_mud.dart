@@ -549,7 +549,6 @@ class BogFen {
 /// Mud's lost maxim (§6 easter eggs #9, "No Mud, No Lotus").
 const String kMudLotusEggId = 'egg:mud_no_lotus';
 
-
 /// PALUSIA — THE SINKING ALTAR, the Mud dungeon.
 ///
 /// Stars (§7: one core mechanic + one consequence + one success, each):

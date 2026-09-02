@@ -1191,6 +1191,48 @@ void main() {
       });
     });
 
+    test('and you never arrive STANDING IN A DOORWAY', () {
+      // Reported from play, in the crucible: *"we need to move the door back
+      // a bit, I'm spawning in the door."* The arrival sat 24px below the
+      // sill and the 34px spread ring put a body back inside the frame.
+      // Everywhere else in the game an arrival stands 36px clear or more, so
+      // 32 is the floor and the outlier was the bug.
+      //
+      // A WALL DOOR is a thin band painted into stone, and standing in one
+      // reads as being stuck in it. A FLOOR HATCH is roughly square and is
+      // climbed out of — Mud's risen wallows are authored to be arrived on
+      // top of, and that is the fiction, not a fault. So the rule is about
+      // thin doors only.
+      final tooClose = <String>[];
+      for (final element in kPlanetDungeonLayouts.keys) {
+        final layout = kPlanetDungeonLayouts[element]!;
+        for (final room in layout.rooms.values) {
+          for (final door in room.doors) {
+            final target = layout.rooms[door.targetRoomId]!;
+            for (final other in target.doors) {
+              final r = other.rect;
+              final isWallDoor = r.shortestSide <= 30;
+              if (!isWallDoor) continue;
+              final p = door.targetSpawn;
+              final dx = p.dx < r.left
+                  ? r.left - p.dx
+                  : (p.dx > r.right ? p.dx - r.right : 0.0);
+              final dy = p.dy < r.top
+                  ? r.top - p.dy
+                  : (p.dy > r.bottom ? p.dy - r.bottom : 0.0);
+              if (dx * dx + dy * dy < 32.0 * 32.0) {
+                tooClose.add(
+                  '$element ${room.id} → ${target.id}: arrives at $p, which '
+                  'is inside or against the doorway $r',
+                );
+              }
+            }
+          }
+        }
+      }
+      expect(tooClose, isEmpty, reason: tooClose.join('\n'));
+    });
+
     test('and you never ARRIVE on the goal — no door drops you inside a '
         "room's own win region", () {
       // Steam's Cinder Forge is won by standing the whole party on the far

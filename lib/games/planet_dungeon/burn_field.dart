@@ -195,9 +195,8 @@ class BurnField {
   bool get poolFull => burntThisFire >= coverageGoal && coverageGoal > 0;
 
   /// Fraction of the pool, for the render — of the CURRENT fire.
-  double get poolFraction => coverageGoal <= 0
-      ? 0
-      : (burntThisFire / coverageGoal).clamp(0.0, 1.0);
+  double get poolFraction =>
+      coverageGoal <= 0 ? 0 : (burntThisFire / coverageGoal).clamp(0.0, 1.0);
 
   /// ONE BEAT of the flame.
   BurnStep step() {
@@ -234,8 +233,7 @@ class BurnField {
     var found = false;
     var visits = 0;
 
-    bool open(int j) =>
-        walls[j] == BurnCell.soil || walls[j] == BurnCell.vine;
+    bool open(int j) => walls[j] == BurnCell.soil || walls[j] == BurnCell.vine;
 
     List<int> nbrs(int i) {
       final c0 = colOf(i), r0 = rowOf(i);

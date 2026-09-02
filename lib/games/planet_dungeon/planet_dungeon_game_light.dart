@@ -57,7 +57,6 @@ part of 'planet_dungeon_game.dart';
 /// Light's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kLightAfraidEggId = 'egg:light_afraid';
 
-
 // ── Device-tunable knobs ───────────────────────────────────
 // Light has never been on a device; every number the feel depends on is named
 // here so a tuning pass is edit-one-block.

@@ -2082,12 +2082,14 @@ const DungeonLayout _airLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(0, 250, 30, 100),
           targetRoomId: 'lower_spire',
-          targetSpawn: Offset(560, 120),
+          // 36 clear of the sill, like everywhere else: at 16 the spread ring
+          // put a body back inside the door frame.
+          targetSpawn: Offset(560, 136),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(900, 250, 30, 100),
           targetRoomId: 'cloud_platforms',
-          targetSpawn: Offset(245, 820),
+          targetSpawn: Offset(245, 812),
         ),
       ],
       platforms: [
@@ -2236,7 +2238,7 @@ const DungeonLayout _airLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(320, 560, 120, 30),
           targetRoomId: 'cloud_platforms',
-          targetSpawn: Offset(405, 115),
+          targetSpawn: Offset(405, 128),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(700, 255, 30, 110),
@@ -4650,7 +4652,9 @@ const DungeonLayout _steamLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(495, 396, 110, 24),
           targetRoomId: 'crucible',
-          targetSpawn: Offset(240, 140), // the NW corner, clear of its mouths
+          // The NW terrace, clear of its mouths AND well down from the sill:
+          // at 24px the party arrived standing in the doorway itself.
+          targetSpawn: Offset(250, 205),
         ),
       ],
       pressureSeals: [
@@ -4792,8 +4796,10 @@ const DungeonLayout _steamLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(355, 0, 110, 24),
           targetRoomId: 'crucible',
-          // Back onto the PLINTH — the only ground the onward door stands on.
-          targetSpawn: Offset(580, 455),
+          // Back onto the PLINTH — the only ground the onward door stands on,
+          // and high enough on it that the spread does not put anyone back on
+          // the sill they just came through.
+          targetSpawn: Offset(580, 430),
         ),
       ],
       guardian: GuardianNode(

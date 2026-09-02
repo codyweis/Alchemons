@@ -1040,7 +1040,7 @@ const DungeonLayout darkLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(0, 120, 24, 110),
           targetRoomId: 'shade_gallery',
-          targetSpawn: Offset(820, 260),
+          targetSpawn: Offset(800, 260),
         ),
         // The lych-way back to the court (shadow-way, quarter II).
         DungeonDoor(

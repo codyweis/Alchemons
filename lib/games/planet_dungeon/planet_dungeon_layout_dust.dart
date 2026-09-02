@@ -709,7 +709,7 @@ const DungeonLayout dustLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(696, 190, 24, 110),
           targetRoomId: 'seal_street',
-          targetSpawn: Offset(40, 300),
+          targetSpawn: Offset(60, 300),
         ),
         // The wind-tower's stair.
         DungeonDoor(
@@ -742,7 +742,7 @@ const DungeonLayout dustLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(876, 240, 24, 110),
           targetRoomId: 'roof_walk',
-          targetSpawn: Offset(40, 290),
+          targetSpawn: Offset(60, 290),
         ),
         // Up the agora's dune — only while m_agora is drifted.
         DungeonDoor(
@@ -774,7 +774,7 @@ const DungeonLayout dustLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(796, 200, 24, 110),
           targetRoomId: 'sand_court',
-          targetSpawn: Offset(40, 260),
+          targetSpawn: Offset(60, 260),
         ),
         // Down through the stripped roof — only while m_roof is bared.
         DungeonDoor(

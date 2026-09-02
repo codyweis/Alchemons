@@ -50,7 +50,6 @@ const Offset kBarrowLintel = Offset(330, 265);
 /// The giant's open hand in the palm hollow.
 const Offset kGiantsPalm = Offset(320, 310);
 
-
 /// Where each scale-stone's truth is RECORDED in the giant's body. The
 /// per-run answer isn't noise to binary-search — it is physically written
 /// into four subtle marks across the anatomy, each leaning toward its
@@ -664,9 +663,7 @@ extension BuriedGiant on PlanetDungeonGame {
     final ribs = room.fossilRibs;
     final i = ribs.indexWhere((r) => r.id == ribId);
     if (i < 0) return null;
-    final out = {
-      for (final r in ribs) r.id: (ribNotches[r.id] ?? 0),
-    };
+    final out = {for (final r in ribs) r.id: (ribNotches[r.id] ?? 0)};
     out[ribId] = out[ribId]! + step;
     for (final j in _ribNeighbours(room, i)) {
       out[ribs[j].id] = out[ribs[j].id]! - step;
@@ -781,7 +778,6 @@ extension BuriedGiant on PlanetDungeonGame {
     room.bounds.center.dx,
     room.bounds.top + (i + 0.5) / kSpineSteps * room.bounds.height,
   );
-
 
   /// Has the walk been finished, and the crypt opened?
   bool get cryptOpen => spineLatched.length >= kSpineSteps;
@@ -957,7 +953,9 @@ extension BuriedGiant on PlanetDungeonGame {
         return true;
       }
       if (_pillarCharge.containsKey(id)) {
-        _setHint('The socket is charging — hold the marrow off until it lights');
+        _setHint(
+          'The socket is charging — hold the marrow off until it lights',
+        );
         return true;
       }
       if (element != 'Lightning') {
@@ -980,11 +978,15 @@ extension BuriedGiant on PlanetDungeonGame {
         count: 2,
         announce: false,
       );
-      _setHint('The spark slips clean into the socket — defend its charge', 3.0);
+      _setHint(
+        'The spark slips clean into the socket — defend its charge',
+        3.0,
+      );
       return true;
     }
     return false;
   }
+
   /// Star 3: toggle a scale weight between pans. The eye counts the truth.
   bool _tryScaleWeight(DungeonCreature a, DungeonRoom room) {
     final scale = room.stoneScale;
@@ -1240,27 +1242,27 @@ extension BuriedGiant on PlanetDungeonGame {
         // is the sentence that turns four lit sockets into a plan. It names
         // the SYSTEM and never an order, the same way the sternum court names
         // the scale's marks without naming a single lean.
-        _setHint(
-          switch (revealTier) {
-            <= 0 => cryptOpen
+        _setHint(switch (revealTier) {
+          <= 0 =>
+            cryptOpen
                 ? 'Four sockets, open to the storm — more Intelligence would '
                       'read what they want'
                 : 'The giant\'s back runs the length of this crypt, and it '
                       'is not taking any weight',
-            1 => cryptOpen
+          1 =>
+            cryptOpen
                 ? 'Storm-spark wakes a socket as crystal — and the giant '
                       'takes it back'
                 : 'Seat the vertebrae and the back will bear what is buried '
                       'under it',
-            _ => cryptOpen
+          _ =>
+            cryptOpen
                 ? 'Storm-spark wakes a socket as crystal and the giant takes '
                       'it back. Crystal only SEALS where crystal already '
                       'burns on both sides of it'
                 : 'Earth\'s weight seats a vertebra. Seat them all and the '
                       'back will bear what is buried under it',
-          },
-          4.4,
-        );
+        }, 4.4);
         return;
       case 'skull_antechamber':
         _setHint(
@@ -1571,10 +1573,9 @@ extension BuriedGiant on PlanetDungeonGame {
       canvas.drawPath(
         path,
         Paint()
-          ..color = (i.isEven
-                  ? const Color(0xFF241B12)
-                  : const Color(0xFF1A140D))
-              .withValues(alpha: 0.34),
+          ..color =
+              (i.isEven ? const Color(0xFF241B12) : const Color(0xFF1A140D))
+                  .withValues(alpha: 0.34),
       );
       // The seam itself: a pale line of older grit pressed between the ages.
       final seam = Path()..moveTo(b.left, y + wob(i, b.left));
@@ -1593,7 +1594,8 @@ extension BuriedGiant on PlanetDungeonGame {
     // BONE FLECK AND ROOT. What is actually in the dirt over a giant: chips
     // of it, and the roots that came down looking for it. Sparse, small and
     // deterministic — this is texture, not a particle system.
-    final chip = Paint()..color = const Color(0xFFB8A070).withValues(alpha: 0.13);
+    final chip = Paint()
+      ..color = const Color(0xFFB8A070).withValues(alpha: 0.13);
     final root = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
@@ -1602,8 +1604,10 @@ extension BuriedGiant on PlanetDungeonGame {
     for (var i = 0; i < 34; i++) {
       final u = ((i * 2654435761) % 1000) / 1000.0;
       final v = ((i * 40503 + seed) % 997) / 997.0;
-      final at = Offset(b.left + 20 + u * (b.width - 40),
-          b.top + 20 + v * (b.height - 40));
+      final at = Offset(
+        b.left + 20 + u * (b.width - 40),
+        b.top + 20 + v * (b.height - 40),
+      );
       if (i % 4 == 0) {
         // A root thread, feeling downward.
         canvas.drawPath(
@@ -1624,7 +1628,11 @@ extension BuriedGiant on PlanetDungeonGame {
         canvas.rotate(u * pi);
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromCenter(center: Offset.zero, width: 5 + (i % 3) * 2.0, height: 2),
+            Rect.fromCenter(
+              center: Offset.zero,
+              width: 5 + (i % 3) * 2.0,
+              height: 2,
+            ),
             const Radius.circular(1),
           ),
           chip,
@@ -1801,7 +1809,11 @@ extension BuriedGiant on PlanetDungeonGame {
         canvas.drawLine(c + Offset(0, -r * 0.9), c + Offset(0, r * 0.9), p);
         for (var i = -1; i <= 1; i++) {
           final y = c.dy + i * r * 0.62;
-          canvas.drawLine(Offset(c.dx - r * 0.62, y), Offset(c.dx + r * 0.62, y), p);
+          canvas.drawLine(
+            Offset(c.dx - r * 0.62, y),
+            Offset(c.dx + r * 0.62, y),
+            p,
+          );
         }
         break;
     }
@@ -2211,7 +2223,6 @@ extension BuriedGiant on PlanetDungeonGame {
     }
   }
 
-
   void _drawRibHall(Canvas canvas, DungeonRoom room) {
     // The marrow chasm: a dark pit with glowing marrow veins down its walls.
     _drawRibcageWalls(canvas, room);
@@ -2328,18 +2339,24 @@ extension BuriedGiant on PlanetDungeonGame {
       for (final side in const [-1.0, 1.0]) {
         canvas.drawPath(
           Path()
-            ..moveTo(rect.center.dx - rect.width * 0.26,
-                rect.center.dy + side * rect.height * 0.5)
+            ..moveTo(
+              rect.center.dx - rect.width * 0.26,
+              rect.center.dy + side * rect.height * 0.5,
+            )
             ..quadraticBezierTo(
               rect.center.dx,
               rect.center.dy + side * rect.height * 0.28,
               rect.center.dx + rect.width * 0.26,
               rect.center.dy + side * rect.height * 0.5,
             )
-            ..lineTo(rect.center.dx + rect.width * 0.26,
-                rect.center.dy + side * rect.height * 0.52)
-            ..lineTo(rect.center.dx - rect.width * 0.26,
-                rect.center.dy + side * rect.height * 0.52)
+            ..lineTo(
+              rect.center.dx + rect.width * 0.26,
+              rect.center.dy + side * rect.height * 0.52,
+            )
+            ..lineTo(
+              rect.center.dx - rect.width * 0.26,
+              rect.center.dy + side * rect.height * 0.52,
+            )
             ..close(),
           Paint()..color = const Color(0xFF17100A).withValues(alpha: 0.55),
         );
@@ -2498,8 +2515,9 @@ extension BuriedGiant on PlanetDungeonGame {
     // stand: cold, WARM under an Earth creature's feet, or LATCHED and lit
     // for good. The column is the puzzle's first beat, so it has to read as
     // something you climb rather than as scenery down the middle.
-    final walked = cryptOpen || (room.pillarStarIndex != null &&
-        hasStar(room.pillarStarIndex!));
+    final walked =
+        cryptOpen ||
+        (room.pillarStarIndex != null && hasStar(room.pillarStarIndex!));
     for (var i = 0; i < kSpineSteps; i++) {
       final at = spineStepAt(room, i);
       final y = at.dy;
@@ -2525,10 +2543,9 @@ extension BuriedGiant on PlanetDungeonGame {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = latched ? 2.0 : 1.3
-          ..color = (latched
-                  ? const Color(0xFFD8F0EA)
-                  : const Color(0xFFC6AC78))
-              .withValues(alpha: 0.22 + 0.55 * warm),
+          ..color =
+              (latched ? const Color(0xFFD8F0EA) : const Color(0xFFC6AC78))
+                  .withValues(alpha: 0.22 + 0.55 * warm),
       );
       if (warm > 0.02 && _fx.ready) {
         drawGlow(
@@ -2552,7 +2569,6 @@ extension BuriedGiant on PlanetDungeonGame {
       }
     }
   }
-
 
   /// THE RING, DRAWN. The seal rule is "both ring neighbours must be
   /// holding", and until this the ring was invisible: nothing in the room
@@ -2590,9 +2606,7 @@ extension BuriedGiant on PlanetDungeonGame {
             // vanished into the strata, and the ring is the one thing that
             // has to be readable BEFORE anything is lit — a player cannot
             // plan an order out of relationships they cannot see.
-            ..color = (live
-                    ? const Color(0xFFB8E0D8)
-                    : const Color(0xFF9A7E52))
+            ..color = (live ? const Color(0xFFB8E0D8) : const Color(0xFF9A7E52))
                 .withValues(alpha: live ? 0.6 : 0.38),
         );
         if (live) {
@@ -2608,8 +2622,7 @@ extension BuriedGiant on PlanetDungeonGame {
             canvas.drawCircle(
               at,
               2.4,
-              Paint()
-                ..color = const Color(0xFFD8F0EA).withValues(alpha: 0.75),
+              Paint()..color = const Color(0xFFD8F0EA).withValues(alpha: 0.75),
             );
           }
         }
@@ -2625,7 +2638,9 @@ extension BuriedGiant on PlanetDungeonGame {
     // THE PILLARS ARE UNDER THE FLOOR until the spine has been walked, then
     // they come up — the payoff of the first beat, and the reason the room is
     // empty enough at the start to notice the column at all.
-    final rise = done ? 1.0 : Curves.easeOutCubic.transform(cryptRise.clamp(0.0, 1.0));
+    final rise = done
+        ? 1.0
+        : Curves.easeOutCubic.transform(cryptRise.clamp(0.0, 1.0));
     if (rise < 0.02) return;
     for (final pillar in room.fossilPillars) {
       final locked = done || lockedPillars.contains(pillar.id);
@@ -2701,9 +2716,10 @@ extension BuriedGiant on PlanetDungeonGame {
         // BURNING, AND BLEEDING BACK. The arc is the socket's remaining life,
         // draining widdershins — the race is the puzzle, so the clock is on
         // the thing that is racing rather than in a corner of the HUD.
-        final left =
-            ((pillarLife[pillar.id] ?? 0) / kPillarLifeSeconds)
-                .clamp(0.0, 1.0);
+        final left = ((pillarLife[pillar.id] ?? 0) / kPillarLifeSeconds).clamp(
+          0.0,
+          1.0,
+        );
         canvas.drawArc(
           Rect.fromCircle(center: at, radius: 15),
           -pi / 2,
@@ -3007,7 +3023,11 @@ extension BuriedGiant on PlanetDungeonGame {
       final coreAt = c + Offset(0, 14 - 8 * rise);
       final r = 20.0 * rise;
       canvas.drawOval(
-        Rect.fromCenter(center: coreAt + const Offset(2, 6), width: r * 2.3, height: r * 0.7),
+        Rect.fromCenter(
+          center: coreAt + const Offset(2, 6),
+          width: r * 2.3,
+          height: r * 0.7,
+        ),
         Paint()..color = const Color(0xFF0E0A06).withValues(alpha: 0.5),
       );
       final rough = Path();
@@ -3021,20 +3041,22 @@ extension BuriedGiant on PlanetDungeonGame {
       canvas.drawPath(
         rough,
         Paint()
-          ..color = (palmStage >= 2
-                  ? const Color(0xFF3E6A66)
-                  : const Color(0xFF6B5636))
-              .withValues(alpha: 0.9),
+          ..color =
+              (palmStage >= 2
+                      ? const Color(0xFF3E6A66)
+                      : const Color(0xFF6B5636))
+                  .withValues(alpha: 0.9),
       );
       canvas.drawPath(
         rough,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.4
-          ..color = (palmStage >= 2
-                  ? const Color(0xFFB8E0D8)
-                  : const Color(0xFFC6AC78))
-              .withValues(alpha: 0.5),
+          ..color =
+              (palmStage >= 2
+                      ? const Color(0xFFB8E0D8)
+                      : const Color(0xFFC6AC78))
+                  .withValues(alpha: 0.5),
       );
       if (palmStage >= 2) {
         // THE SEED, waking. It pulses until it is given somewhere to go.
@@ -3163,6 +3185,7 @@ extension BuriedGiant on PlanetDungeonGame {
       );
     }
   }
+
   void _drawBoneMural(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
     final panel = Rect.fromCenter(

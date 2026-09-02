@@ -86,7 +86,6 @@ const double kMirrorMergeSeconds = 1.35;
 /// How far a creature may drift and still count as standing.
 const double _kStillTolerance = 0.6;
 
-
 // Tide tunables. The swing is deliberately watchable: a full low↔high flood
 // takes ~4.5s, one step ~2.3s.
 const double _kTideRate = 0.22; // fraction/s
@@ -349,8 +348,7 @@ extension MirrorTide on PlanetDungeonGame {
   bool get mirrorIsGlass => mirrorStillT >= kMirrorStillSeconds;
 
   /// Have the pieces finished travelling back into one moon?
-  bool get mirrorIsWhole =>
-      mirrorIsTrue && mirrorMergeT >= kMirrorMergeSeconds;
+  bool get mirrorIsWhole => mirrorIsTrue && mirrorMergeT >= kMirrorMergeSeconds;
 
   /// Is the reflection finally showing the moon that hangs over it?
   bool get mirrorIsTrue =>
@@ -1274,7 +1272,6 @@ extension MirrorTide on PlanetDungeonGame {
     );
     return true;
   }
-
 
   /// The Lost Maxim: freeze the moon's drifting reflection (Ice, exactly on
   /// the glint, mid tide only). Wordless until won; the maxim is the fanfare.
@@ -2756,8 +2753,9 @@ extension MirrorTide on PlanetDungeonGame {
             ..lineTo(target.dx - foot, moonAt.dy + reachY + 46)
             ..close(),
           Paint()
-            ..color = const Color(0xFFBFD9E8)
-                .withValues(alpha: 0.012 + 0.030 * reach),
+            ..color = const Color(
+              0xFFBFD9E8,
+            ).withValues(alpha: 0.012 + 0.030 * reach),
         );
       }
       // Where the beam lands: a pale oval on the water, widening with the
@@ -2769,8 +2767,9 @@ extension MirrorTide on PlanetDungeonGame {
           height: 60 + 26 * reach,
         ),
         Paint()
-          ..color = const Color(0xFFBFD9E8)
-              .withValues(alpha: 0.020 + 0.055 * reach),
+          ..color = const Color(
+            0xFFBFD9E8,
+          ).withValues(alpha: 0.020 + 0.055 * reach),
       );
       // Motes riding down the beam, few and slow.
       for (var i = 0; i < 5; i++) {
@@ -2782,8 +2781,9 @@ extension MirrorTide on PlanetDungeonGame {
           ),
           1.5,
           Paint()
-            ..color = const Color(0xFFEAF2F8)
-                .withValues(alpha: (0.34 * (1 - t) * reach).clamp(0.0, 0.34)),
+            ..color = const Color(
+              0xFFEAF2F8,
+            ).withValues(alpha: (0.34 * (1 - t) * reach).clamp(0.0, 0.34)),
         );
       }
     }
@@ -2857,9 +2857,7 @@ extension MirrorTide on PlanetDungeonGame {
       for (var i = 0; i < 3; i++) {
         final wob = sin(_time * 0.55 + i * 1.9) * 2.8;
         canvas.save();
-        canvas.clipRect(
-          Rect.fromLTWH(c.dx - 32, c.dy - 30 + i * 20.0, 64, 20),
-        );
+        canvas.clipRect(Rect.fromLTWH(c.dx - 32, c.dy - 30 + i * 20.0, 64, 20));
         canvas.save();
         canvas.translate(c.dx + wob, c.dy);
         canvas.scale(1, -1);
@@ -2904,11 +2902,13 @@ extension MirrorTide on PlanetDungeonGame {
       final pool = Rect.fromLTWH(200, 240, 240, 180);
       canvas.drawRRect(
         RRect.fromRectAndRadius(pool, const Radius.circular(10)),
-        Paint()
-          ..color = const Color(0xFFBFD9E8).withValues(alpha: 0.05 * g),
+        Paint()..color = const Color(0xFFBFD9E8).withValues(alpha: 0.05 * g),
       );
       canvas.drawRRect(
-        RRect.fromRectAndRadius(pool.deflate(4 - 4 * g), const Radius.circular(10)),
+        RRect.fromRectAndRadius(
+          pool.deflate(4 - 4 * g),
+          const Radius.circular(10),
+        ),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.0 + 1.4 * g
@@ -2926,8 +2926,9 @@ extension MirrorTide on PlanetDungeonGame {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1
-            ..color = const Color(0xFF8FE0EC)
-                .withValues(alpha: 0.16 * (1 - t) * (1 - g)),
+            ..color = const Color(
+              0xFF8FE0EC,
+            ).withValues(alpha: 0.16 * (1 - t) * (1 - g)),
         );
       }
     }
@@ -2978,8 +2979,13 @@ extension MirrorTide on PlanetDungeonGame {
       // Turned true, the pieces are one moon again — whole, still, and ready
       // to be taken.
       if (mirrorGlass > 0.15 && (mirrorIsWhole || mirrorShards.isEmpty)) {
-        _drawTheMoon(canvas, glint, 9 + 13 * mirrorGlass, 1.0,
-            opacity: mirrorGlass);
+        _drawTheMoon(
+          canvas,
+          glint,
+          9 + 13 * mirrorGlass,
+          1.0,
+          opacity: mirrorGlass,
+        );
       }
       if (_fx.ready) {
         drawGlow(
@@ -3087,15 +3093,17 @@ extension MirrorTide on PlanetDungeonGame {
         c,
         r + i * 9.0 + _moonWaxFx * 4,
         Paint()
-          ..color = const Color(0xFFDCE8F0)
-              .withValues(alpha: (0.045 + 0.02 * _moonWaxFx) / i * opacity),
+          ..color = const Color(
+            0xFFDCE8F0,
+          ).withValues(alpha: (0.045 + 0.02 * _moonWaxFx) / i * opacity),
       );
     }
     // The dark body first, so the lit part is laid ON a sphere.
     canvas.drawCircle(
       c,
       r,
-      Paint()..color = const Color(0xFF14202C).withValues(alpha: 0.96 * opacity),
+      Paint()
+        ..color = const Color(0xFF14202C).withValues(alpha: 0.96 * opacity),
     );
     // Earthshine: the unlit limb, barely there.
     canvas.drawCircle(
@@ -3154,7 +3162,9 @@ extension MirrorTide on PlanetDungeonGame {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0
-        ..color = Colors.white.withValues(alpha: (0.10 + 0.35 * phase) * opacity),
+        ..color = Colors.white.withValues(
+          alpha: (0.10 + 0.35 * phase) * opacity,
+        ),
     );
   }
 
@@ -3195,8 +3205,9 @@ extension MirrorTide on PlanetDungeonGame {
         canvas.drawPath(
           shaft,
           Paint()
-            ..color = const Color(0xFFBFD9E8)
-                .withValues(alpha: (0.010 + 0.018 * phase)),
+            ..color = const Color(
+              0xFFBFD9E8,
+            ).withValues(alpha: (0.010 + 0.018 * phase)),
         );
       }
       // Motes riding the beam — slow, few, and cheap.
@@ -3209,8 +3220,9 @@ extension MirrorTide on PlanetDungeonGame {
           Offset(x, y),
           1.6,
           Paint()
-            ..color = const Color(0xFFEAF2F8)
-                .withValues(alpha: (0.30 * (1 - t) * phase).clamp(0.0, 0.3)),
+            ..color = const Color(
+              0xFFEAF2F8,
+            ).withValues(alpha: (0.30 * (1 - t) * phase).clamp(0.0, 0.3)),
         );
       }
     }
@@ -3231,8 +3243,9 @@ extension MirrorTide on PlanetDungeonGame {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0 + _moonDialFx * 1.6
-        ..color = const Color(0xFF8FE0EC)
-            .withValues(alpha: 0.45 + 0.45 * _moonDialFx),
+        ..color = const Color(
+          0xFF8FE0EC,
+        ).withValues(alpha: 0.45 + 0.45 * _moonDialFx),
     );
     for (var i = 0; i < kMoonNotches; i++) {
       // Laid out along the TOP arc, waning left to waxing right, so the ring
@@ -3245,8 +3258,9 @@ extension MirrorTide on PlanetDungeonGame {
         at,
         here ? 5.0 : 3.0,
         Paint()
-          ..color = const Color(0xFFEAF2F8)
-              .withValues(alpha: here ? 0.95 : 0.16 + 0.24 * ph),
+          ..color = const Color(
+            0xFFEAF2F8,
+          ).withValues(alpha: here ? 0.95 : 0.16 + 0.24 * ph),
       );
       if (here) {
         canvas.drawCircle(
@@ -3303,7 +3317,9 @@ extension MirrorTide on PlanetDungeonGame {
       for (var i = 0; i < 3; i++) {
         final wob = sin(_time * 0.9 + i * 1.9) * 4.0;
         canvas.save();
-        canvas.clipRect(Rect.fromLTWH(c.dx - 52, c.dy - 26 + i * 17.0, 104, 17));
+        canvas.clipRect(
+          Rect.fromLTWH(c.dx - 52, c.dy - 26 + i * 17.0, 104, 17),
+        );
         canvas.save();
         canvas.translate(c.dx + wob, c.dy);
         canvas.scale(1, -1);
@@ -3366,9 +3382,21 @@ extension MirrorTide on PlanetDungeonGame {
         final crack = Paint()
           ..strokeWidth = 1
           ..color = Colors.white.withValues(alpha: 0.45);
-        canvas.drawLine(p + const Offset(-22, -10), p + const Offset(-9, -2), crack);
-        canvas.drawLine(p + const Offset(20, 12), p + const Offset(8, 4), crack);
-        canvas.drawLine(p + const Offset(-4, 24), p + const Offset(2, 12), crack);
+        canvas.drawLine(
+          p + const Offset(-22, -10),
+          p + const Offset(-9, -2),
+          crack,
+        );
+        canvas.drawLine(
+          p + const Offset(20, 12),
+          p + const Offset(8, 4),
+          crack,
+        );
+        canvas.drawLine(
+          p + const Offset(-4, 24),
+          p + const Offset(2, 12),
+          crack,
+        );
         continue;
       }
 
@@ -3407,8 +3435,7 @@ extension MirrorTide on PlanetDungeonGame {
         // approaches, complete and bright the moment the basin would take it.
         final off = (moonNotch - want).abs();
         final near = (1 - off / 3).clamp(0.0, 1.0);
-        final ready =
-            off == 0 && moonHoldT >= _kPoolHold && wellAgreesWithMoon;
+        final ready = off == 0 && moonHoldT >= _kPoolHold && wellAgreesWithMoon;
         canvas.drawArc(
           Rect.fromCircle(center: p, radius: 24),
           -pi / 2,
@@ -3427,8 +3454,9 @@ extension MirrorTide on PlanetDungeonGame {
             _fx.glow!,
             p,
             42,
-            const Color(0xFFDCE8F0)
-                .withValues(alpha: 0.16 + 0.10 * sin(_time * 3.4)),
+            const Color(
+              0xFFDCE8F0,
+            ).withValues(alpha: 0.16 + 0.10 * sin(_time * 3.4)),
           );
         }
       } else {
@@ -3440,8 +3468,9 @@ extension MirrorTide on PlanetDungeonGame {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.2
-            ..color = const Color(0xFF8FE0EC)
-                .withValues(alpha: 0.10 + 0.06 * shimmer),
+            ..color = const Color(
+              0xFF8FE0EC,
+            ).withValues(alpha: 0.10 + 0.06 * shimmer),
         );
       }
 
@@ -3497,8 +3526,9 @@ extension MirrorTide on PlanetDungeonGame {
                 Offset(0, 58 * t * t * open),
             1.7,
             Paint()
-              ..color = const Color(0xFFBFE4F0)
-                  .withValues(alpha: 0.38 * (1 - t) * open),
+              ..color = const Color(
+                0xFFBFE4F0,
+              ).withValues(alpha: 0.38 * (1 - t) * open),
           );
         }
       }
@@ -3545,7 +3575,6 @@ extension MirrorTide on PlanetDungeonGame {
       }
     }
   }
-
 
   void _drawLeviathanDepths(Canvas canvas, DungeonRoom room) {
     final g = room.guardian;
@@ -3759,7 +3788,11 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
     // bleeding against.
     if (!_moonSynced) {
       _moonSynced = true;
-      moonNotch = switch (tideLevel) { 0 => 1, 1 => 3, _ => 5 };
+      moonNotch = switch (tideLevel) {
+        0 => 1,
+        1 => 3,
+        _ => 5,
+      };
       moonWaxT = 0;
       moonHoldT = 0;
     }
@@ -3805,7 +3838,8 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
     // and while the sky is waxing it runs on AHEAD of it, so the face is
     // never still while the well is turning.
     final target =
-        (moonNotch + (moonNotch < kMoonNotches - 1 ? moonWaxT / _kMoonWaxSeconds : 0)) /
+        (moonNotch +
+            (moonNotch < kMoonNotches - 1 ? moonWaxT / _kMoonWaxSeconds : 0)) /
         (kMoonNotches - 1);
     moonPhaseAnim += (target - moonPhaseAnim) * min(1.0, dt * 5.5);
 
@@ -3892,7 +3926,6 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
     );
     return true;
   }
-
 
   /// ICE at a basin: lock it, if the moon is standing where it wants.
   bool _tryMoonBasin(DungeonCreature a, DungeonRoom room) {
@@ -4102,8 +4135,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
           'one open and it will come back down';
     }
     return switch (tier) {
-      <= 0 =>
-        'All four basins are listening, and no two want the same moon',
+      <= 0 => 'All four basins are listening, and no two want the same moon',
       1 =>
         '${open.length} basins are still empty, and the nearest of them wants '
             '${phase(open.map((e) => e.value).reduce((x, y) => (x - moonNotch).abs() <= (y - moonNotch).abs() ? x : y))}',
@@ -4112,5 +4144,4 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
             '${wellHasRisen ? "" : " — and ice takes up room in a closed well"}',
     };
   }
-
 }

@@ -748,9 +748,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
               textAlign: TextAlign.center,
               maxLines: 2,
               style: TextStyle(
-                color: selected
-                    ? _C.text.withValues(alpha: 0.8)
-                    : _C.muted,
+                color: selected ? _C.text.withValues(alpha: 0.8) : _C.muted,
                 fontSize: 9,
                 height: 1.3,
               ),

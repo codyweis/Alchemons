@@ -48,7 +48,6 @@ part of 'planet_dungeon_game.dart';
 /// Dust's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kDustNothingPerishesEggId = 'egg:dust_nothing_perishes';
 
-
 // ── Device-tunable knobs ───────────────────────────────────
 // Dust has never been on a device; every number the feel depends on is named
 // here so a tuning pass is edit-one-block.

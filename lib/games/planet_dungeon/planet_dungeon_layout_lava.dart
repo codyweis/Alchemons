@@ -60,7 +60,6 @@ const double kLavaPourSecondsPer100 = 0.62;
 const String kLavaBlackGlassEggId = 'egg:lava_black_glass';
 const String kLavaTapRuneId = 'rune:lava_tap';
 
-
 // ── The line, as a graph ────────────────────────────────────
 
 /// What a node does to (or with) the pour that reaches it.
