@@ -4367,7 +4367,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
           // The near shore, low (you came up from the south manifold) — NOT
           // (385,665), which was on the far shore and is the star's own win
           // region, so arriving there banked Star 2 on the first tick.
-          targetSpawn: Offset(170, 700),
+          targetSpawn: Offset(200, 660),
         ),
         // The vault shaft — hidden behind the burst-disc until it blows.
         DungeonDoor(
@@ -4482,52 +4482,50 @@ const DungeonLayout _steamLayout = DungeonLayout(
         PressureSeal(targetRoomId: 'manifold_south', cost: 15),
         PressureSeal(targetRoomId: 'manifold_north', cost: 15),
       ],
-      // STAR 2 — THE LAUNCH (2026-08-14). A chasm splits the forge; the
-      // pedestal stands on the far shore and there is no bridge. RISERS throw
-      // whoever stands on them across the void, and how far a riser throws
-      // depends on how much of the field is SHUT — so the party is both the
-      // fuel and the cargo.
+      // STAR 2 — THE LAUNCH. A chasm splits the forge and the pedestal
+      // stands on the far side. FOUR hobs can be smothered; the fifth mouth
+      // is a RISER, too wide to cover, and every mouth held sends its head to
+      // it — so the one thing you cannot shut is the one thing that throws
+      // you, and it throws as hard as the rest of the field is quiet.
       //
-      // The trap is that pressure DECAYS as you solve it: every Alchemon you
-      // send across is one fewer body capping on this side, so the throws get
-      // weaker the further you get, and the LAST one over has almost nothing
-      // holding the field. The stone is the answer — it caps without needing
-      // to come along — so the order is: hold the far riser for the crossing
-      // that still has bodies behind it, and leave the near riser, the one
-      // that needs least, for whoever goes last.
+      // (It had TWO risers and three hobs, which read on a device as five
+      // near-identical holes with no way to tell which was which. One big
+      // obvious riser and a row of hobs is the same puzzle, legible.)
       //
-      // The numbers: a throw is 120 + 55 per shut mouth, and the far shore
-      // begins at x=480. r_long(140) needs 340 — four mouths held, which is
-      // the choked one plus the stone plus two bodies, every mouth there is.
-      // r_short(250) needs 230, which is two. So the long crossing is only
-      // available while nobody has gone yet.
-      // THE NEAR SHORE REACHES BOTH DOOR MOUTHS. In a room with platforms
-      // only a platform is solid ground, so a door standing off the end of
-      // one cannot be walked into at all — you step into the void and the
-      // fall puts you back. The forge's doors sit in the north and south
-      // walls, so its shore has to run the full height of the room to meet
-      // them; a shore stopping at y=40/800 left both of them unreachable and
-      // the room could only be LEFT by teleport, which is to say not at all.
+      // THE DECAY IS THE PUZZLE. Every body sent across is one fewer holding
+      // the field, so the throws weaken as you go: 4 mouths held for the
+      // first crossing, 3 for the second, 2 for the last. A throw is
+      // 120 + 55 per mouth held, the riser stands at x=290 and the far shore
+      // begins at x=490 — so the last crossing needs 200 and gets 230.
+      //
+      // WHICH MAKES THE STONE MANDATORY, and that is the whole lesson. Earth's
+      // stone is the one cap that never has to leave. Without it the last body
+      // over holds only the choked mouth, throws 175, and lands 25px short of
+      // the shore — so the run is planned around a rock or it strands.
+      //
+      // The gap is 70px of void, narrow enough to SEE the far shore from the
+      // near one. It was 180 and the other side simply was not on screen, so
+      // nothing about the room said "you have to cross".
       platforms: [
-        Rect.fromLTWH(40, 0, 260, 840), // the near shore (both doors)
-        Rect.fromLTWH(480, 40, 180, 760), // the far shore (pedestal)
+        Rect.fromLTWH(40, 0, 380, 840), // the near shore (both doors)
+        Rect.fromLTWH(490, 40, 170, 760), // the far shore (pedestal)
       ],
       geysers: [
-        // Cappable mouths down the near shore — the fuel.
-        GeyserMouth(id: 'r_hob_a', position: Offset(80, 120)),
-        GeyserMouth(id: 'r_hob_b', position: Offset(80, 420)),
-        GeyserMouth(id: 'r_hob_c', position: Offset(80, 700)),
+        // Four hobs — the ones a body or the stone can smother.
+        GeyserMouth(id: 'r_hob_a', position: Offset(100, 140)),
+        GeyserMouth(id: 'r_hob_b', position: Offset(100, 420)),
+        GeyserMouth(id: 'r_hob_c', position: Offset(100, 700)),
+        GeyserMouth(id: 'r_hob_d', position: Offset(300, 140)),
+        // Already plugged with rubble — a free hold, and visibly shut.
         GeyserMouth(
           id: 'r_choked',
-          position: Offset(240, 120),
+          position: Offset(300, 700),
           blockedAtStart: true,
         ),
-        // The two risers. The far one needs a full field behind it; the near
-        // one is the short hop anyone can take.
-        GeyserMouth(id: 'r_long', position: Offset(140, 240), isRiser: true),
-        GeyserMouth(id: 'r_short', position: Offset(250, 560), isRiser: true),
+        // THE RISER. One, big, and the only way across.
+        GeyserMouth(id: 'r_riser', position: Offset(290, 420), isRiser: true),
       ],
-      capstone: GeyserCapstone(position: Offset(570, 420), starIndex: 1),
+      capstone: GeyserCapstone(position: Offset(580, 420), starIndex: 1),
     ),
 
     // North Manifold — the ring's top segment. The rite-sealed crucible gate
@@ -4547,7 +4545,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(860, 396, 110, 24),
           targetRoomId: 'cinder_forge',
-          targetSpawn: Offset(170, 150), // the near shore, high
+          targetSpawn: Offset(200, 180), // the near shore, high
         ),
         // The crucible gate — rite-sealed until Causeway + Cinder bank.
         DungeonDoor(

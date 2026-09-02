@@ -2004,6 +2004,31 @@ of old stone bars the way"** in a room that had not had one for weeks.
       hidden, so a gated door stays a design decision and an unreachable one
       is a bug.
 
+  · ✅ **THE FORGE IS LEGIBLE NOW.** Three faults, all reported from play.
+      **Five holes and no way to tell them apart.** It had three hobs and TWO
+      risers, and the whole puzzle turns on which is which — on a device that
+      is five near-identical circles. It is FOUR hobs and ONE riser: the big
+      one in the middle is the only mouth you cannot cover, and it is the way
+      across. Same puzzle, readable at a glance.
+      **The far shore was off-screen.** The chasm was 180px with the far
+      platform beyond it, so nothing about the room said "you have to cross".
+      The gap is 70px now, both shores in view — and the PEDESTAL is drawn,
+      which it never was: the capstone body only rendered in non-riser rooms,
+      so in the one room whose entire point is *get over there*, there was
+      nothing over there to look at.
+      **The hint talked about something else.** Both geyser rooms carry
+      pressure seals on their doors, so they fell straight through to the
+      ring-economy reading — junction costs and burst discs, asked for while
+      standing in front of a field of geysers. They have their own tiered
+      reading now: what the field is, then that a held mouth feeds the ones
+      still open, then the shape of the answer.
+      **And the stone is now load-bearing, provably.** A throw is 120 + 55 per
+      mouth held; the riser stands at x=290 and the far shore begins at x=490.
+      The last body across holds only the stone and the rubble (2 → 230, it
+      lands) or only the rubble (1 → 175, it does not). Both halves are
+      asserted, and there is a test that walks the whole crossing WITHOUT the
+      stone and requires it to strand.
+
   · ⬜ **The ring's economy shifted and nobody noticed.** Both star rooms used
     to make you cool lava on the way through, and cooling pays the main back.
     Geyser fields pay nothing, so Fire's stoke port is the only income before

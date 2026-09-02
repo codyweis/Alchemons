@@ -273,19 +273,28 @@ void main() {
       final game = atForge();
       final room = forge(game);
       expect(room.platforms.length, 2);
-      // The void between the shores is not standable.
-      expect(room.platforms.first.contains(const Offset(350, 450)), isFalse);
-      expect(room.platforms.last.contains(const Offset(350, 450)), isFalse);
+      // The void between the shores is not standable. (Computed, not a fixed
+      // point: the shores have moved twice and a hard-coded probe silently
+      // ended up on dry land.)
+      final near = room.platforms.first, far = room.platforms.last;
+      expect(
+        far.left - near.right,
+        greaterThan(40),
+        reason: 'there has to BE a gap',
+      );
+      final mid = Offset((near.right + far.left) / 2, 450);
+      expect(near.contains(mid), isFalse);
+      expect(far.contains(mid), isFalse);
     });
 
     test('a body does NOT cap a riser — it rides it', () {
       final game = atForge();
-      final r = riser(game, 'r_short');
+      final r = riser(game, 'r_riser');
       _stand(game, 0, r.position);
       _step(game);
       expect(
         game.cappedGeysers,
-        isNot(contains('r_short')),
+        isNot(contains('r_riser')),
         reason: "a riser's throat is too wide for one body",
       );
     });
@@ -293,21 +302,21 @@ void main() {
     test('the stone DOES cap a riser', () {
       final game = atForge();
       game.setActive(1);
-      final r = riser(game, 'r_short');
+      final r = riser(game, 'r_riser');
       _stand(game, 1, r.position + const Offset(0, -60));
       game.creatures[1].aimAngle = 1.5708; // face down at the riser
       game.activateAbility();
       _step(game, 0.8);
-      _stand(game, 1, const Offset(350, 120));
+      _stand(game, 1, const Offset(390, 120));
       _step(game);
-      expect(game.cappedGeysers, contains('r_short'));
+      expect(game.cappedGeysers, contains('r_riser'));
     });
 
     test('the throw is only as long as the field you are holding', () {
       // One body riding, the others parked OFF the mouths: a weak field.
       final game = atForge();
-      final r = riser(game, 'r_short');
-      _stand(game, 1, const Offset(620, 60));
+      final r = riser(game, 'r_riser');
+      _stand(game, 1, const Offset(390, 60));
       _stand(game, 2, const Offset(60, 60));
       _stand(game, 0, r.position);
       game.creatures[0].aimAngle = 0; // aimed east at the far shore
@@ -317,7 +326,7 @@ void main() {
 
       // Now the same rider with the whole field shut behind him.
       final game2 = atForge();
-      final r2 = riser(game2, 'r_short');
+      final r2 = riser(game2, 'r_riser');
       _stand(game2, 1, riser(game2, 'r_hob_a').position);
       _stand(game2, 2, riser(game2, 'r_hob_b').position);
       _stand(game2, 0, r2.position);
@@ -333,50 +342,87 @@ void main() {
       );
     });
 
-    test('THE SOLVE: send them in the order the decaying field allows', () {
+    test('THE SOLVE: the stone stays behind so the last body still has a '
+        'field to ride', () {
       final earned = <int>[];
       final game = atForge(onStar: earned.add);
       final far = forge(game).platforms.last;
 
-      // The stone caps first — it is the one cap that never has to leave.
+      // The stone caps first — it is the one hold that never has to leave.
       game.setActive(1);
       final hobC = riser(game, 'r_hob_c').position;
       _stand(game, 1, hobC + const Offset(0, -60));
       game.creatures[1].aimAngle = 1.5708;
       game.activateAbility();
       _step(game, 0.8);
+      expect(game.cappedGeysers, contains('r_hob_c'));
 
-      // Rider 0 takes the LONG riser while two bodies still hold the field.
+      // Two bodies hold two more hobs; the third rides. Four mouths held.
       _stand(game, 1, riser(game, 'r_hob_a').position);
       _stand(game, 2, riser(game, 'r_hob_b').position);
-      _stand(game, 0, riser(game, 'r_long').position);
-      game.creatures[0].aimAngle = 0; // the chasm runs east now
+      _stand(game, 0, riser(game, 'r_riser').position);
+      game.creatures[0].aimAngle = 0; // east, across the chasm
+      _step(game); // caps are recomputed on the tick, not on placement
+      expect(game.geyserPressure, 4);
       _step(game, 6);
-      expect(
-        far.inflate(2).contains(game.creatures[0].position),
-        isTrue,
-        reason: 'the long throw needs the fullest field',
-      );
+      expect(far.inflate(2).contains(game.creatures[0].position), isTrue);
 
-      // Then rider 1, with one body left behind plus the stone.
-      _stand(game, 1, riser(game, 'r_short').position);
+      // Then a capper leaves, and the throw is weaker for it.
+      _stand(game, 1, riser(game, 'r_riser').position);
       game.creatures[1].aimAngle = 0;
       _step(game, 6);
       expect(far.inflate(2).contains(game.creatures[1].position), isTrue);
 
-      // And the last one over, with only the stone and the rubble holding.
-      _stand(game, 2, riser(game, 'r_short').position);
+      // And the last body rides on the stone and the rubble alone.
+      _stand(game, 2, riser(game, 'r_riser').position);
       game.creatures[2].aimAngle = 0;
+      _step(game);
+      expect(
+        game.geyserPressure,
+        2,
+        reason: 'the stone and the choked mouth are all that is left holding',
+      );
       _step(game, 6);
       expect(
         far.inflate(2).contains(game.creatures[2].position),
         isTrue,
-        reason: 'the short riser is what the last body can still afford',
+        reason: 'which is exactly enough — and is not, without the stone',
       );
 
       _step(game, 0.5);
       expect(game.hasStar(1), isTrue);
       expect(earned, [1]);
+    });
+
+    test('WITHOUT the stone the last body is stranded', () {
+      final game = atForge();
+      final far = forge(game).platforms.last;
+      // Same crossings, no stone: each one holds a mouth fewer.
+      _stand(game, 1, riser(game, 'r_hob_a').position);
+      _stand(game, 2, riser(game, 'r_hob_b').position);
+      _stand(game, 0, riser(game, 'r_riser').position);
+      game.creatures[0].aimAngle = 0;
+      _step(game, 6);
+      expect(far.inflate(2).contains(game.creatures[0].position), isTrue);
+
+      _stand(game, 1, riser(game, 'r_riser').position);
+      game.creatures[1].aimAngle = 0;
+      _step(game, 6);
+      expect(far.inflate(2).contains(game.creatures[1].position), isTrue);
+
+      _stand(game, 2, riser(game, 'r_riser').position);
+      game.creatures[2].aimAngle = 0;
+      _step(game);
+      expect(game.geyserPressure, 1, reason: 'only the rubble is holding');
+      _step(game, 6);
+      expect(
+        far.inflate(2).contains(game.creatures[2].position),
+        isFalse,
+        reason:
+            'the last throw falls short of the shore — which is what makes '
+            "Earth's stone the point of the room rather than a convenience",
+      );
+      expect(game.hasStar(1), isFalse);
     });
   });
 }

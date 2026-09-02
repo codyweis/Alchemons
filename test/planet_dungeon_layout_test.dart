@@ -1914,12 +1914,38 @@ void main() {
       // pedestal on the far shore (the forge's tile-lava grid is retired).
       final forge = steam.rooms['cinder_forge']!;
       expect(forge.capstone?.starIndex, 1);
+      // ONE riser, four hobs. Two risers and three hobs read on a device as
+      // five near-identical holes with no way to tell which was which; one
+      // big obvious riser and a row of hobs is the same puzzle, legible.
       expect(
         forge.geysers.where((g) => g.isRiser).length,
-        2,
-        reason: 'a long crossing and a short one — the ordering is the room',
+        1,
+        reason: 'the one mouth you cannot cover is the one that throws you',
+      );
+      expect(
+        forge.geysers.where((g) => !g.isRiser && !g.blockedAtStart).length,
+        4,
+        reason: 'four hobs to cover — three bodies and the stone',
       );
       expect(forge.platforms.length, 2, reason: 'two shores, one chasm');
+
+      // THE STONE IS MANDATORY, and the arithmetic is what makes it so. A
+      // throw is 120 + 55 per mouth held. On the last crossing only the
+      // stone and the choked mouth are still holding (2 → 230), and without
+      // the stone only the choked one is (1 → 175). The first reaches the far
+      // shore; the second lands in the chasm.
+      final riser = forge.geysers.firstWhere((g) => g.isRiser).position.dx;
+      final shore = forge.platforms.last.left;
+      expect(
+        riser + 120 + 55 * 2,
+        greaterThan(shore),
+        reason: 'the last body across makes it WITH the stone',
+      );
+      expect(
+        riser + 120 + 55 * 1,
+        lessThan(shore),
+        reason: 'and does not without it — which is the room\'s whole lesson',
+      );
       // Rite: the Crucible grid wakes the guardian (null star index).
       final crucible = steam.rooms['crucible']!.molten;
       expect(crucible, isNotNull);

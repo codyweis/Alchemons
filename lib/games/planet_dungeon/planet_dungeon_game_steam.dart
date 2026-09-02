@@ -1078,9 +1078,64 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   // ── Insight (Mask) ───────────────────────────────────────
 
+  /// The field's own reading, tiered: what the room IS, then the rule that
+  /// governs it, then the shape of the answer — never the answer itself.
+  void _steamGeyserReveal(DungeonCreature a, DungeonRoom room) {
+    final tier = revealHintTier(a.member.statIntelligence);
+    final riser = room.geysers.where((g) => g.isRiser).length;
+    final shut = cappedGeysers.length;
+    final total = room.geysers.length;
+
+    if (riser == 0) {
+      // The Causeway: shut everything, and the field fights you for it.
+      _setHint(
+        tier >= 2
+            ? 'Every mouth you hold sends its head to the ones still open, so '
+                  'the last are the fiercest — and only the stone is heavy '
+                  'enough to sit on a mouth at full pressure. Raise it and '
+                  'push it into place EARLY, while the floor is still calm '
+                  'enough to cross'
+            : tier >= 1
+            ? 'A body standing on a mouth smothers it, and a stone does just '
+                  'as well. Shut every one and the head has nowhere left to '
+                  'go but the heart ($shut of $total held)'
+            : 'The field breathes on a beat, and one mouth is already choked '
+                  'with rubble',
+        5.0,
+      );
+      return;
+    }
+
+    // The Forge: one mouth cannot be covered, and that is the way across.
+    _setHint(
+      tier >= 2
+          ? 'Count what will still be holding when the LAST body rides: only '
+                'the rubble, and whatever you left behind that does not have '
+                'to walk. Earth\'s stone is the one cap that never leaves — '
+                'without it the last throw falls short of the shore'
+          : tier >= 1
+          ? 'The wide throat cannot be smothered — stand on it and it throws '
+                'you instead, as far as the rest of the field is quiet. Every '
+                'body you send over is one fewer holding it down, so the '
+                'throws weaken as you go ($shut of $total held)'
+          : 'Four mouths can be covered. The wide one cannot, and the far '
+                'shore is past it',
+      5.0,
+    );
+  }
+
   void _steamReveal(DungeonCreature a, DungeonRoom room) {
     final g = room.molten;
     if (g == null) {
+      // THE GEYSER ROOMS FIRST. Both of them carry pressure seals on their
+      // doors, so they used to fall straight through to the ring-economy
+      // reading below — a paragraph about junction costs and burst discs,
+      // asked for while standing in front of a field of geysers. The hint
+      // never once spoke about the puzzle the player was looking at.
+      if (room.geysers.isNotEmpty) {
+        _steamGeyserReveal(a, room);
+        return;
+      }
       // The manifolds: insight reads the ring's ECONOMY, not a grid.
       if (room.pressureSeals.isNotEmpty || room.burstDisc != null) {
         _setHint(
@@ -1548,6 +1603,86 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           const Color(0xFFF2FCFF).withValues(alpha: 0.34 * (1 - f)),
         );
       }
+    }
+
+    // THE PEDESTAL on the far shore. In a RISER room the capstone is not a
+    // slab to be blown off, it is the thing you are crossing TO — and nothing
+    // drew it at all, so the far side of the chasm was bare floor and the room
+    // gave the player no reason to look at it. A room whose whole point is
+    // "get over there" has to show you what is over there.
+    final ped = room.capstone;
+    if (ped != null && room.geysers.any((g) => g.isRiser)) {
+      final taken = hasStar(ped.starIndex);
+      // A squat plinth: base step, drum, lip.
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: ped.position + const Offset(0, 20),
+          width: 76,
+          height: 26,
+        ),
+        Paint()..color = const Color(0x66000000),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: ped.position + const Offset(0, 12),
+            width: 70,
+            height: 22,
+          ),
+          const Radius.circular(5),
+        ),
+        Paint()..color = const Color(0xFF3A3229),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: ped.position, width: 54, height: 40),
+          const Radius.circular(6),
+        ),
+        Paint()..color = const Color(0xFF4A4136),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: ped.position - const Offset(0, 18),
+            width: 62,
+            height: 14,
+          ),
+          const Radius.circular(4),
+        ),
+        Paint()..color = const Color(0xFF5B5044),
+      );
+      // Lit top face, so it stands rather than lies.
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: ped.position - const Offset(0, 21),
+            width: 54,
+            height: 5,
+          ),
+          const Radius.circular(2),
+        ),
+        Paint()..color = const Color(0x66E4C16A),
+      );
+      // Unclaimed, it breathes a beacon — the one bright thing across the
+      // gap, which is how the room says "there".
+      if (_fx.ready) {
+        final pulse = taken ? 0.34 : 0.24 + 0.16 * sin(_moltenPulse * 1.6);
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          ped.position - const Offset(0, 24),
+          taken ? 54 : 46,
+          const Color(0xFFE4C16A).withValues(alpha: pulse),
+        );
+      }
+      canvas.drawCircle(
+        ped.position - const Offset(0, 24),
+        7,
+        Paint()
+          ..color = taken
+              ? const Color(0xFFFFEAB8)
+              : const Color(0xFFE4C16A).withValues(alpha: 0.85),
+      );
     }
 
     // THE CAPSTONE at the heart: the slab, cracking wider with the head.

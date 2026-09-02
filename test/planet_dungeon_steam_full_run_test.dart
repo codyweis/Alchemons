@@ -367,11 +367,11 @@ void main() {
       reason: 'the stone smothers the hob it was pushed onto',
     );
 
-    // THE LONG THROW, taken while the field is fullest: bodies on the other
-    // two hobs, and Earth rides the far riser.
+    // The fullest field the room allows: the stone on one hob, bodies on two
+    // more, and the third rides the one mouth that cannot be covered.
     place(steam, mouth('r_hob_b'));
     place(fire, mouth('r_hob_c'));
-    place(earth, mouth('r_long'), aim: 0); // the chasm runs east
+    place(earth, mouth('r_riser'), aim: 0); // the chasm runs east
     game.update(1 / 60);
     expect(
       game.geyserPressure,
@@ -381,30 +381,31 @@ void main() {
     rideTheBlast([steam, fire], {
       steam: mouth('r_hob_b'),
       fire: mouth('r_hob_c'),
-      earth: mouth('r_long'),
+      earth: mouth('r_riser'),
     });
     expect(
       farShore.inflate(2).contains(game.creatures[earth].position),
       isTrue,
-      reason: 'a full field throws the long riser clear across the chasm',
+      reason: 'a full field throws the rider clear across the chasm',
     );
 
-    // Now the field is one body weaker, and the long riser can no longer make
-    // it — the short one at the lip is the only crossing left.
-    place(steam, mouth('r_short'), aim: 0);
+    // Each body sent over is one fewer holding the field, so every crossing
+    // after the first is thrown by a weaker one.
+    place(steam, mouth('r_riser'), aim: 0);
     game.update(1 / 60);
     expect(game.geyserPressure, 3, reason: 'a capper left to ride');
-    rideTheBlast([fire], {fire: mouth('r_hob_c'), steam: mouth('r_short')});
+    rideTheBlast([fire], {fire: mouth('r_hob_c'), steam: mouth('r_riser')});
     expect(
       farShore.inflate(2).contains(game.creatures[steam].position),
       isTrue,
     );
 
-    // And the last body across rides on the weakest field of all.
-    place(fire, mouth('r_short'), aim: 0);
+    // The last body rides on the stone and the rubble alone — which is
+    // exactly enough, and is not without the stone (see the geyser tests).
+    place(fire, mouth('r_riser'), aim: 0);
     game.update(1 / 60);
     expect(game.geyserPressure, 2, reason: 'only the choked mouth and stone');
-    rideTheBlast([], {fire: mouth('r_short')});
+    rideTheBlast([], {fire: mouth('r_riser')});
     expect(farShore.inflate(2).contains(game.creatures[fire].position), isTrue);
 
     step();
