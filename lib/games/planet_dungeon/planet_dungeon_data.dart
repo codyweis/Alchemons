@@ -4124,41 +4124,27 @@ const DungeonLayout _lightningLayout = DungeonLayout(
     // lattice point and every converter on a lattice edge, so the lanes read
     // off the floor before you touch anything.
     //
-    // AND IRON IS SPENT, NOT BORROWED. No single run can crown all three
-    // masts — two is the most any route reaches. When the charged bolt crowns
-    // a mast, EVERY CONDUCTOR THAT BOLT TURNED ON FUSES SHUT for the rest of
-    // the attempt. The question stops being "what is the answer" and becomes
-    // "what can I afford to spend getting there".
+    // NO ONE ROUTE TAKES ALL THREE MASTS — two is the most any route reaches
+    // — so the star is always at least two firings, and a crowned mast KEEPS
+    // its crown while you go and aim the next. Everything else stays free:
+    // every conductor re-turnable, every route re-fireable, as often as you
+    // like. The room is for trying things.
     //
-    // Exactly SEVEN distinct openings exist and THREE strand you:
-    //   crowns 1+2, welds E·F·G        → alive
-    //   crowns 0+2, welds D·E·F·G      → alive
-    //   crowns 2,   welds F·G          → DEAD
-    //   crowns 0,   welds B·D·E        → alive
-    //   crowns 1,   welds B·E          → alive
-    //   crowns 1+2, welds B·D·E·F·G    → DEAD
-    //   crowns 2,   welds B·D·E·F·G    → DEAD
-    // Read the pairs: the SAME two masts crowned two different ways — three
-    // irons spent survives, five strands you. And the south mast taken on its
-    // own is a trap however you reach it. Greed is the failure mode, which is
-    // what makes it a decision instead of a search.
+    // (A WELDING RULE briefly lived here. Crowning a mast fused every
+    // conductor that bolt had turned on, so no run reaching all three meant
+    // the ORDER became a budget: seven distinct openings, three of which
+    // stranded you, and the same two masts costing three irons or five
+    // depending how you took them. It made the room a decision instead of a
+    // search — and it made a wrong guess expensive, which is why it is gone.
+    // If it is ever wanted back, the shape it had is recorded in this file's
+    // history and the solver seam it was proved with was `solveSpireOpenings`.)
     //
-    // PLANNING IS FREE, COMMITTING IS NOT. With Air on a vent and nobody on a
-    // converter there is no charged half, so the wind draws the whole route
-    // and crowns nothing. You lay the plan in wind and spend it in flame.
+    // PLANNING IS FREE ANYWAY: with Air on a vent and nobody on a converter
+    // there is no charged half, so the wind draws the whole route and crowns
+    // nothing. A route can be laid out and looked over before it is lit.
     //
-    // AND WIND COSTS NOTHING EITHER. Only the CHARGED half fuses what it turns
-    // on, so a conductor the bolt used while it was still wind stays free —
-    // which is a second, quieter trade the room never states: convert late and
-    // you keep more iron, convert early and you reach further. The opening
-    // that crowns 1+2 for only three conductors is exactly this: it turns on
-    // D as wind and pays for E, F and G.
-    //
-    // THE RESET is the planet's own: the spire stands on the CORE trunk, so
-    // cutting that wing at the dynamo anneals the welds cold and the masts go
-    // dark. It costs a round trip and the crowns you had, which is exactly why
-    // it is worth thinking first — and it is never a soft-lock, because when
-    // nothing left to turn can reach a dark mast the room says so.
+    // The spire stands on the CORE trunk, so it wants that wing fed — the same
+    // rule every other hall on this planet follows.
     //
     // DECOY PAIR: vent VD(1040,650) runs the east aisle clear of every
     // conductor and converter FD(1040,470) sits in it — zero crownings across

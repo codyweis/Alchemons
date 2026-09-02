@@ -383,9 +383,8 @@ void main() {
       reason: 'wind alone commits nothing — that is what makes planning free',
     );
 
-    // RUN ONE — the frugal opening: crowns the east and south masts for the
-    // price of three conductors (E, F and G). The greedy version of the same
-    // pair spends five and strands you; see the layout test's proof.
+    // RUN ONE — this route crowns the east and south masts together (two is
+    // the most any single route reaches).
     station(1, 2);
     teleport('overload_maze', const Offset(480, 300));
     station(1, 2);
@@ -395,25 +394,19 @@ void main() {
       containsAll(<int>[1, 2]),
       reason: 'the charged half lies on both masts at once',
     );
-    expect(
-      game.fusedConductors,
-      containsAll(<String>['E', 'F', 'G']),
-      reason: 'every conductor that bolt turned on fuses shut',
-    );
-    expect(
-      game.fusedConductors,
-      isNot(contains('B')),
-      reason: 'iron it never touched stays free — that is the whole budget',
-    );
-    expect(game.spireFused, isFalse, reason: 'the last mast is still reachable');
 
-    // A fused pivot will not turn again.
+    // Every conductor stays free — try as many routes as you like.
     teleport('overload_maze', mirror('E'));
-    final wasE = game.mirrorOrient['E'];
+    final wasE = game.mirrorOrient['E'] ?? 0;
     game.activateAbility();
-    expect(game.mirrorOrient['E'], wasE, reason: 'fused white');
+    expect(
+      game.mirrorOrient['E'],
+      1 - wasE,
+      reason: 'nothing locks behind a crowning',
+    );
+    game.activateAbility(); // and back
 
-    // RUN TWO — the last mast, on what is left.
+    // RUN TWO — the last mast. Crowns persist while you re-aim.
     aim({'B': 1});
     station(2, 1);
     teleport('overload_maze', const Offset(880, 620));
@@ -422,7 +415,7 @@ void main() {
     expect(
       game.crownedMasts.length,
       3,
-      reason: 'the plan pays: all three masts crowned in two runs',
+      reason: 'all three masts crowned across two firings',
     );
 
     // THE THUNDERBOLT NO LONGER RIDES THIS BEAM. It used to fire right here
@@ -1052,9 +1045,8 @@ void main() {
       0,
       reason: 'VD + FD is a geometric lie',
     );
-    final r = game.solveSpireOpenings();
-    expect(r.maxPerRun, 2);
-    expect(r.dead, greaterThan(0), reason: r.lines.join('\n'));
+    final r = game.solveSpireRoutes();
+    expect(r.maxPerRun, 2, reason: 'two firings minimum, always');
   });
 
   test('the entry-rite bus stays lit after the charge would have decayed', () {

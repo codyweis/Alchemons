@@ -1620,42 +1620,24 @@ void main() {
       }, reason: r'the authored answer: pa=\ pb=/ pc=\ pd=\');
     });
 
-    test('Lightning S3 — the Spire is a DECISION, not a search: no run takes '
-        'all three masts, and some openings strand you', () {
+    test('Lightning S3 — no one route takes all three masts, and every mast '
+        'is reachable', () {
       final game = _lightningProbe();
-      final r = game.solveSpireOpenings();
+      final r = game.solveSpireRoutes();
       expect(
         r.maxPerRun,
         2,
         reason:
-            'if one run could crown all three, welding would never bite and '
-            'the room would be a search again: ${r.lines}',
+            'if a single route could crown all three the room would collapse '
+            'back into one answer; two firings minimum is the shape',
       );
-      expect(r.openings, 7, reason: r.lines.join('\n'));
-      expect(
-        r.alive,
-        greaterThan(0),
-        reason: 'the room must be finishable at all',
-      );
-      expect(
-        r.dead,
-        greaterThan(0),
-        reason:
-            'a puzzle whose every first move works is not a decision — some '
-            'opening has to strand you:\n${r.lines.join("\n")}',
-      );
-      // The exact shape is the design, so it is pinned: the SAME two masts
-      // crowned two different ways, three irons spent surviving and five
-      // stranding you, and the south mast a trap taken on its own.
-      expect(r.lines, [
-        'crowns [0, 2] welds [D, E, F, G] → alive',
-        'crowns [0] welds [B, D, E] → alive',
-        'crowns [1, 2] welds [B, D, E, F, G] → DEAD',
-        'crowns [1, 2] welds [E, F, G] → alive',
-        'crowns [1] welds [B, E] → alive',
-        'crowns [2] welds [B, D, E, F, G] → DEAD',
-        'crowns [2] welds [F, G] → DEAD',
-      ]);
+      for (var i = 0; i < r.routesToEachMast.length; i++) {
+        expect(
+          r.routesToEachMast[i],
+          greaterThan(0),
+          reason: 'mast $i must be crownable by SOME route',
+        );
+      }
     });
 
     test('Lightning S3 — the dead-aligned east pair crowns nothing in any of '

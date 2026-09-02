@@ -809,6 +809,7 @@ class PlanetDungeonGame extends FlameGame {
   /// t2 annotates (the rank whose step to rank+1 is drawn out). Knowledge:
   /// both survive death, like the mural reading.
   double _testimonyMark = 0;
+
   /// Whether the choir's physical testimony (wax, soot, ash) is drawn.
   ///
   /// Always. It was a flag a Mask reading switched on; wax, soot and ash are
@@ -1333,17 +1334,14 @@ class PlanetDungeonGame extends FlameGame {
   bool _beamLatched = false;
   double _beamSparkT = 0;
 
-  /// STORM SPIRE (§9.4): the masts already crowned, and the conductors those
-  /// crownings FUSED SHUT. Iron is spent, not borrowed — a bolt that crowns a
-  /// mast welds every pivot it turned on, so the order you take the masts in
-  /// decides whether the last one is still reachable. Cutting the core trunk
-  /// anneals both sets cold (the reset), and winning latches them for good.
+  /// STORM SPIRE (§9.4): the masts already crowned. Crowns PERSIST across
+  /// firings, and must — no single route reaches all three, so the star is
+  /// always more than one bolt. Nothing else is kept: every conductor stays
+  /// free to turn, every route free to try. (A welding rule briefly rode
+  /// alongside this, fusing the iron a crowning had spent so that the order
+  /// became a budget. It made the room strategic and it made a wrong guess
+  /// expensive; the room is for trying things, so it went.)
   final Set<int> crownedMasts = {};
-  final Set<String> fusedConductors = {};
-
-  /// Set the frame a crowning leaves nothing that can reach a dark mast, so
-  /// the room can say so once instead of every frame.
-  bool spireFused = false;
 
   /// ZERO-SUM DYNAMO (rework §9.1): the trunk the dynamo currently feeds
   /// (null = grounded — every trunk dark). Selected at the hub breakers;
@@ -1911,6 +1909,7 @@ class PlanetDungeonGame extends FlameGame {
     if (!isRaid && !inGuardianFight) return true;
     return currentRoom.hasVerbsBesidesGuardian;
   }
+
   double get autoCooldownFraction {
     final c = activeCombat;
     if (c == null) return 0;
@@ -10009,10 +10008,9 @@ class PlanetDungeonGame extends FlameGame {
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
           ..strokeWidth = cardinal ? 2.6 : 1.1
-          ..color = (cardinal
-                  ? const Color(0xFFC4A35A)
-                  : const Color(0xFF5BC8E8))
-              .withValues(alpha: cardinal ? 0.42 : 0.20),
+          ..color =
+              (cardinal ? const Color(0xFFC4A35A) : const Color(0xFF5BC8E8))
+                  .withValues(alpha: cardinal ? 0.42 : 0.20),
       );
     }
 
@@ -10509,7 +10507,9 @@ class PlanetDungeonGame extends FlameGame {
             final t = ((_time * 0.05 + i / 6 + k * 0.11) % 1.0);
             final rr = 10 + t * 100;
             final a =
-                k * pi * 2 / 3 + (rr / 1.5) * 0.27 + spin * (1 + 40 / (rr + 40));
+                k * pi * 2 / 3 +
+                (rr / 1.5) * 0.27 +
+                spin * (1 + 40 / (rr + 40));
             canvas.drawCircle(
               c + Offset(cos(a), sin(a)) * rr,
               1.4 + 1.4 * (1 - t),
@@ -10537,7 +10537,11 @@ class PlanetDungeonGame extends FlameGame {
             Paint()..color = hot.withValues(alpha: 0.30 / i),
           );
         }
-        canvas.drawCircle(c, 4, Paint()..color = Colors.white.withValues(alpha: 0.75));
+        canvas.drawCircle(
+          c,
+          4,
+          Paint()..color = Colors.white.withValues(alpha: 0.75),
+        );
         break;
       case 'Ring':
         _drawRuneCircle(
@@ -11343,11 +11347,7 @@ class PlanetDungeonGame extends FlameGame {
         for (var i = 0; i < 4; i++) {
           final a = i * pi / 2 + pi / 4;
           final u = Offset(cos(a), sin(a));
-          canvas.drawLine(
-            an.position + u * 17,
-            an.position + u * 25,
-            jaw,
-          );
+          canvas.drawLine(an.position + u * 17, an.position + u * 25, jaw);
         }
       }
       if (filled) {
@@ -12521,7 +12521,12 @@ class PlanetDungeonGame extends FlameGame {
           rect.bottom,
         )
         ..lineTo(rect.left + radius, rect.bottom)
-        ..quadraticBezierTo(rect.left, rect.bottom, rect.left, rect.bottom - radius)
+        ..quadraticBezierTo(
+          rect.left,
+          rect.bottom,
+          rect.left,
+          rect.bottom - radius,
+        )
         ..close();
 
       final underside = Path()
@@ -13199,12 +13204,16 @@ class PlanetDungeonGame extends FlameGame {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.2
-          ..color = const Color(0xFFF0C36B).withValues(alpha: (0.22 + 0.3 * bind) * bf),
+          ..color = const Color(
+            0xFFF0C36B,
+          ).withValues(alpha: (0.22 + 0.3 * bind) * bf),
       );
       final tick = Paint()
         ..strokeWidth = 1.1
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFF0C36B).withValues(alpha: (0.3 + 0.35 * bind) * bf);
+        ..color = const Color(
+          0xFFF0C36B,
+        ).withValues(alpha: (0.3 + 0.35 * bind) * bf);
       for (var k = 0; k < 12; k++) {
         final a = k * pi / 6 + spin;
         final u = Offset(cos(a), sin(a));
@@ -13227,8 +13236,9 @@ class PlanetDungeonGame extends FlameGame {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.2 + bind * 1.6
-            ..color = const Color(0xFFFFF3DC)
-                .withValues(alpha: (0.3 + 0.55 * bind) * bf),
+            ..color = const Color(
+              0xFFFFF3DC,
+            ).withValues(alpha: (0.3 + 0.55 * bind) * bf),
         );
         // Late in the bind the opposed figure comes up through it — three
         // elements held against each other, which is what the rite is.

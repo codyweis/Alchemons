@@ -98,8 +98,6 @@ extension StormCircuit on PlanetDungeonGame {
     _vatFuse.clear();
     _beamLatched = false;
     crownedMasts.clear();
-    fusedConductors.clear();
-    spireFused = false;
     _raikumaFed = false;
     _raikumaLullLeft = 0;
     _darkWispTimer = 0;
@@ -416,10 +414,8 @@ extension StormCircuit on PlanetDungeonGame {
     final starIdx = room.circuitStarIndex;
     final spire = room.beamReceivers.isNotEmpty;
     final solved = spire ? _beamLatched : (starIdx != null && hasStar(starIdx));
-    // BOTH halls stand on their own trunk. For the Spire that is also the
-    // reset: cut the core wing and the welds anneal cold.
+    // Both halls stand on their own trunk.
     final fed = circuitRoomLit(room.id);
-    if (spire && !fed && !solved) _annealSpire();
 
     final vent = _activeVent(room);
     final conv = _activeConverter(room);
@@ -487,28 +483,16 @@ extension StormCircuit on PlanetDungeonGame {
     _maybeWakeRaikuma(room);
   }
 
-  /// Cutting the core wing lets the spire cool: welds anneal, crowns go dark.
-  /// Costs a round trip and everything you had — which is the whole reason to
-  /// plan the order before spending the first iron.
-  void _annealSpire() {
-    if (crownedMasts.isEmpty && fusedConductors.isEmpty) return;
-    crownedMasts.clear();
-    fusedConductors.clear();
-    spireFused = false;
-    _setHint('The spire cools — the welds let go and the masts go dark', 3.0);
-  }
-
-  /// Did the charged run turn on this conductor? (Its polyline has a corner
-  /// standing exactly on the pivot.)
-  bool _boltTurnedOn(List<Offset> bolt, BeamMirror m) {
-    for (var i = 1; i < bolt.length; i++) {
-      if ((bolt[i] - m.position).distance < 1.0) return true;
-    }
-    return false;
-  }
-
-  /// Crown whatever dark masts this charged run lies on — and FUSE every
-  /// conductor it turned on to get there.
+  /// Crown whatever dark masts this charged run lies on.
+  ///
+  /// Crowns PERSIST across runs, and they have to: no single route reaches all
+  /// three masts, so the star is always at least two firings. Nothing else is
+  /// kept — every conductor may be re-turned as often as you like and as many
+  /// routes fired as you like. (A welding rule briefly lived here, fusing
+  /// every conductor a crowning bolt had turned on, so that the ORDER became a
+  /// budget and greed was the failure mode. It made the room a decision rather
+  /// than a search — and it also made a wrong guess expensive, which is the
+  /// part that had to go. This room is for trying things.)
   void _crownSpireMasts(DungeonRoom room, List<Offset> bolt) {
     final newly = <int>[];
     for (var i = 0; i < room.beamReceivers.length; i++) {
@@ -517,14 +501,6 @@ extension StormCircuit on PlanetDungeonGame {
     }
     if (newly.isEmpty) return;
 
-    final fused = <String>[];
-    for (final m in room.beamMirrors) {
-      if (fusedConductors.contains(m.id)) continue;
-      if (_boltTurnedOn(bolt, m)) {
-        fusedConductors.add(m.id);
-        fused.add(m.id);
-      }
-    }
     crownedMasts.addAll(newly);
     for (final i in newly) {
       _spawnAlchemyBurst(
@@ -536,78 +512,18 @@ extension StormCircuit on PlanetDungeonGame {
         intensity: 1.2,
       );
     }
-    for (final id in fused) {
-      final m = room.beamMirrors.firstWhere((x) => x.id == id);
-      _spawnAlchemyBurst(
-        m.position,
-        producedElement: 'Fire',
-        particleCount: 8,
-        intensity: 0.6,
-      );
-    }
 
     if (crownedMasts.length == room.beamReceivers.length) {
       _beamLatched = true;
-      _setHint(
-        'Every mast crowned — the gate to the core throws open',
-        3.6,
-      );
+      _setHint('Every mast crowned — the gate to the core throws open', 3.6);
       return;
     }
     final left = room.beamReceivers.length - crownedMasts.length;
-    // Never a soft-lock: if nothing left to turn can reach a dark mast, the
-    // room says so rather than leaving the player to discover it by despair.
-    spireFused = !_spireCanStillReach(room);
     _setHint(
-      spireFused
-          ? 'Fused white, and $left mast${left == 1 ? '' : 's'} still dark — '
-                'nothing left to turn will reach them. Cut the core wing and '
-                'let the spire cool'
-          : '${fused.length} conductor${fused.length == 1 ? '' : 's'} fuse '
-                'shut — $left mast${left == 1 ? '' : 's'} to go on what is '
-                'left',
-      3.4,
+      'The mast holds its crown — $left to go, and every conductor is still '
+      'yours to turn',
+      3.0,
     );
-  }
-
-  /// Can any route the FREE conductors still allow crown a dark mast? Run once
-  /// at the moment of a crowning, never per frame.
-  bool _spireCanStillReach(DungeonRoom room) {
-    final free = room.beamMirrors
-        .where((m) => !fusedConductors.contains(m.id))
-        .toList(growable: false);
-    final saved = Map<String, int>.from(mirrorOrient);
-    var found = false;
-    outer:
-    for (final vent in room.beamEmitters) {
-      for (final conv in room.beamConverters) {
-        for (var mask = 0; mask < (1 << free.length); mask++) {
-          for (var i = 0; i < free.length; i++) {
-            mirrorOrient[free[i].id] = (mask >> i) & 1;
-          }
-          final path = _computeBeam(room, vent);
-          final split = _beamConvertSplit(path, conv);
-          if (split == null) continue;
-          final bolt = <Offset>[split.at, ...path.sublist(split.seg + 1)];
-          if (room.fulminateVats.any(
-            (v) => _beamHits(bolt, v.position, _kVatRadius),
-          )) {
-            continue;
-          }
-          for (var i = 0; i < room.beamReceivers.length; i++) {
-            if (crownedMasts.contains(i)) continue;
-            if (_beamHits(bolt, room.beamReceivers[i])) {
-              found = true;
-              break outer;
-            }
-          }
-        }
-      }
-    }
-    mirrorOrient
-      ..clear()
-      ..addAll(saved);
-    return found;
   }
 
   /// Every terminal the charged half of the braid has to lie on — the single
@@ -623,12 +539,6 @@ extension StormCircuit on PlanetDungeonGame {
       if ((a.position - m.position).distance <= 52) {
         if (a.member.element != 'Lightning') {
           _setBlockedHint('Only Lightning turns the conductor');
-          return true;
-        }
-        if (fusedConductors.contains(m.id)) {
-          _setBlockedHint(
-            'The pivot is fused white — a crowning spent this iron',
-          );
           return true;
         }
         mirrorOrient[m.id] = ((mirrorOrient[m.id] ?? 0) + 1) % 2;
@@ -808,7 +718,7 @@ extension StormCircuit on PlanetDungeonGame {
 
   /// One attempt at the Spire, resolved: which dark masts it crowns and which
   /// conductors that crowning would fuse. Null when it crowns nothing.
-  ({List<int> crowns, List<String> fuses})? _spireAttempt(
+  ({List<int> crowns})? _spireAttempt(
     DungeonRoom room,
     BeamEmitter vent,
     Offset conv,
@@ -829,68 +739,21 @@ extension StormCircuit on PlanetDungeonGame {
       if (_beamHits(bolt, room.beamReceivers[i])) crowns.add(i);
     }
     if (crowns.isEmpty) return null;
-    final fuses = <String>[
-      for (final m in room.beamMirrors)
-        if (_boltTurnedOn(bolt, m)) m.id,
-    ];
-    return (crowns: crowns, fuses: fuses);
+    return (crowns: crowns);
   }
 
-  bool _spireFinishable(
-    DungeonRoom room,
-    Map<String, int> welded,
-    Set<int> crowned,
-    int depth,
-  ) {
-    if (crowned.length == room.beamReceivers.length) return true;
-    if (depth >= 3) return false;
-    final free = room.beamMirrors
-        .where((m) => !welded.containsKey(m.id))
-        .toList(growable: false);
-    for (final vent in room.beamEmitters) {
-      for (final conv in room.beamConverters) {
-        for (var mask = 0; mask < (1 << free.length); mask++) {
-          mirrorOrient
-            ..clear()
-            ..addAll(welded);
-          for (var i = 0; i < free.length; i++) {
-            mirrorOrient[free[i].id] = (mask >> i) & 1;
-          }
-          final r = _spireAttempt(room, vent, conv, crowned);
-          if (r == null) continue;
-          final w2 = Map<String, int>.from(welded);
-          for (final id in r.fuses) {
-            w2[id] = mirrorOrient[id]!;
-          }
-          if (_spireFinishable(
-            room,
-            w2,
-            {...crowned, ...r.crowns},
-            depth + 1,
-          )) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-
-  /// THE SPIRE'S STRATEGY, PROVED (§9.4). Sweeps every opening — every
-  /// vent × converter × conductor set that crowns anything at all — collapses
-  /// them to the distinct (what it crowns, what it welds) outcomes, and asks
-  /// of each whether the room can still be finished afterwards.
+  /// THE SPIRE'S SHAPE, PROVED (§9.4). Sweeps every vent × converter ×
+  /// conductor set and reports the most masts any ONE route can crown, plus
+  /// how many routes reach each mast.
   ///
-  /// The layout test asserts that no single run takes all three masts (so the
-  /// welding always bites), that some openings survive, and that some STRAND
-  /// you — because a puzzle where every first move works is a search, not a
-  /// decision.
-  ({int maxPerRun, int openings, int alive, int dead, List<String> lines})
-  solveSpireOpenings() {
+  /// The layout test asserts max-per-run is 2 — if one route could take all
+  /// three, the room would collapse back into a single answer — and that every
+  /// mast is reachable, so no crown is ever impossible.
+  ({int maxPerRun, List<int> routesToEachMast}) solveSpireRoutes() {
     final room = layout.rooms['overload_maze']!;
     final saved = Map<String, int>.from(mirrorOrient);
     final mirrors = room.beamMirrors;
-    final seen = <String, ({List<int> crowns, Map<String, int> welds})>{};
+    final reach = List<int>.filled(room.beamReceivers.length, 0);
     var maxPerRun = 0;
     for (final vent in room.beamEmitters) {
       for (final conv in room.beamConverters) {
@@ -901,44 +764,16 @@ extension StormCircuit on PlanetDungeonGame {
           final r = _spireAttempt(room, vent, conv, const {});
           if (r == null) continue;
           maxPerRun = max(maxPerRun, r.crowns.length);
-          final welds = {for (final id in r.fuses) id: mirrorOrient[id]!};
-          final key =
-              '${r.crowns.join(",")}|'
-              '${(welds.entries.map((e) => "${e.key}${e.value}").toList()..sort()).join(",")}';
-          seen[key] = (crowns: r.crowns, welds: welds);
+          for (final i in r.crowns) {
+            reach[i]++;
+          }
         }
       }
-    }
-    var alive = 0, dead = 0;
-    final lines = <String>[];
-    for (final e in seen.entries) {
-      final ok = _spireFinishable(
-        room,
-        e.value.welds,
-        e.value.crowns.toSet(),
-        1,
-      );
-      if (ok) {
-        alive++;
-      } else {
-        dead++;
-      }
-      lines.add(
-        'crowns ${e.value.crowns} welds ${e.value.welds.keys.toList()..sort()}'
-        ' → ${ok ? "alive" : "DEAD"}',
-      );
     }
     mirrorOrient
       ..clear()
       ..addAll(saved);
-    lines.sort();
-    return (
-      maxPerRun: maxPerRun,
-      openings: seen.length,
-      alive: alive,
-      dead: dead,
-      lines: lines,
-    );
+    return (maxPerRun: maxPerRun, routesToEachMast: reach);
   }
 
   // ── Per-frame update ─────────────────────────────────────
@@ -1750,8 +1585,8 @@ extension StormCircuit on PlanetDungeonGame {
       );
       return;
     }
-    // Star 3 — the Spire. Tiered: t0 the shape, t1 the RULE, t2 the shape of
-    // the mistake. Never the plan — the plan is the whole puzzle.
+    // Star 3 — the Spire. Tiered: t0 the shape, t1 why one run is not enough,
+    // t2 the free-planning trick and the decoy.
     if (room.beamEmitters.isNotEmpty) {
       if (!circuitRoomLit(room.id)) {
         _setHint('The spire is cold — the dynamo must feed the core wing');
@@ -1759,20 +1594,15 @@ extension StormCircuit on PlanetDungeonGame {
       }
       _setHint(
         tier >= 2
-            ? (spireFused
-                  ? 'Fused. Nothing left will reach — cut the core wing at the '
-                        'dynamo and let it cool'
-                  : 'Plan in WIND: with no flame stationed the run crowns '
-                        'nothing, so the whole route can be laid out for free. '
-                        'Then count the iron before you light it — the same '
-                        'two masts can cost three conductors or five, and five '
-                        'strands you')
+            ? 'Plan in WIND: with no flame stationed the run crowns nothing, '
+                  'so a whole route can be laid out and looked over for free. '
+                  'And the east aisle runs clear of every conductor — that '
+                  'pair is a lie'
             : tier >= 1
-            ? 'Crowning a mast FUSES every conductor that bolt turned on. No '
-                  'run reaches all three, so the order is the puzzle: spend '
-                  'iron you will not need again'
-            : 'Three masts, and iron enough for all of them only if none is '
-                  'wasted',
+            ? 'No one route reaches all three masts, so it takes more than one '
+                  'firing — a crowned mast keeps its crown while you go and '
+                  'aim the next'
+            : 'Three masts on the switchyard, and one bolt at a time',
       );
       return;
     }
@@ -1903,7 +1733,7 @@ extension StormCircuit on PlanetDungeonGame {
       // The Spire counts what is CROWNED — crowns are banked, not live.
       if (room.beamReceivers.isNotEmpty) {
         return DungeonProgressReadout(
-          label: spireFused ? 'MASTS · FUSED' : 'MASTS',
+          label: 'MASTS',
           value: '${crownedMasts.length}/${terminals.length}',
           fraction: crownedMasts.length / terminals.length,
         );
@@ -2087,10 +1917,9 @@ extension StormCircuit on PlanetDungeonGame {
       canvas.drawRect(
         Rect.fromLTWH(b.left, y, b.width, h),
         Paint()
-          ..color = (row.isEven
-                  ? const Color(0xFF10161F)
-                  : const Color(0xFF0C1219))
-              .withValues(alpha: 0.5),
+          ..color =
+              (row.isEven ? const Color(0xFF10161F) : const Color(0xFF0C1219))
+                  .withValues(alpha: 0.5),
       );
       // The course join, and a lit top edge so the plate has thickness.
       canvas.drawLine(
@@ -2185,16 +2014,12 @@ extension StormCircuit on PlanetDungeonGame {
           Path()
             ..moveTo(at.dx, at.dy)
             ..lineTo(mid.dx, mid.dy)
-            ..lineTo(
-              mid.dx + cos(a + 0.7) * 13,
-              mid.dy + sin(a + 0.7) * 13,
-            ),
+            ..lineTo(mid.dx + cos(a + 0.7) * 13, mid.dy + sin(a + 0.7) * 13),
           scar,
         );
       }
     }
   }
-
 
   /// The zero-sum darkness overlay: one cheap eased tint over a dead wing's
   /// fabric (alpha-capped so the storm shader still glows through). Drawn
@@ -2331,9 +2156,10 @@ extension StormCircuit on PlanetDungeonGame {
           ..color = const Color(0xFF54708F),
       );
       // Feet, so the pane stands on the floor instead of floating.
-      for (final foot in cell.paneVertical
-          ? [rect.topCenter, rect.bottomCenter]
-          : [rect.centerLeft, rect.centerRight]) {
+      for (final foot
+          in cell.paneVertical
+              ? [rect.topCenter, rect.bottomCenter]
+              : [rect.centerLeft, rect.centerRight]) {
         canvas.drawCircle(foot, 5, Paint()..color = const Color(0xFF2A3646));
       }
 
@@ -2472,7 +2298,11 @@ extension StormCircuit on PlanetDungeonGame {
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(center: c + const Offset(0, 54), width: 176, height: 30),
+        Rect.fromCenter(
+          center: c + const Offset(0, 54),
+          width: 176,
+          height: 30,
+        ),
         const Radius.circular(5),
       ),
       Paint()..color = const Color(0xFF17202B),
@@ -2521,7 +2351,10 @@ extension StormCircuit on PlanetDungeonGame {
         canvas.drawPath(
           Path()
             ..moveTo(c.dx + u.dx * 58, c.dy + u.dy * 58)
-            ..lineTo(c.dx + u.dx * 104 + u.dy * 16, c.dy + u.dy * 104 - u.dx * 16)
+            ..lineTo(
+              c.dx + u.dx * 104 + u.dy * 16,
+              c.dy + u.dy * 104 - u.dx * 16,
+            )
             ..lineTo(c.dx + u.dx * 168, c.dy + u.dy * 168),
           burn,
         );
@@ -2532,9 +2365,9 @@ extension StormCircuit on PlanetDungeonGame {
           _fx.glow!,
           c,
           120,
-          const Color(0xFF6BA8FF).withValues(
-            alpha: 0.10 + 0.04 * sin(_time * 1.1),
-          ),
+          const Color(
+            0xFF6BA8FF,
+          ).withValues(alpha: 0.10 + 0.04 * sin(_time * 1.1)),
         );
       }
     }
@@ -2626,7 +2459,11 @@ extension StormCircuit on PlanetDungeonGame {
       // ceramic handle on a hinge, and a plate underneath saying which wing.
       _drawCircuitPost(canvas, bp, const Color(0xFFE9D27A), sel);
       final board = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: bp + const Offset(0, -6), width: 54, height: 40),
+        Rect.fromCenter(
+          center: bp + const Offset(0, -6),
+          width: 54,
+          height: 40,
+        ),
         const Radius.circular(5),
       );
       canvas.drawRRect(
@@ -2645,11 +2482,7 @@ extension StormCircuit on PlanetDungeonGame {
       for (final dx in const [-15.0, 15.0]) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromCenter(
-              center: bp + Offset(dx, -4),
-              width: 9,
-              height: 16,
-            ),
+            Rect.fromCenter(center: bp + Offset(dx, -4), width: 9, height: 16),
             const Radius.circular(2),
           ),
           Paint()
@@ -2673,11 +2506,7 @@ extension StormCircuit on PlanetDungeonGame {
           ..color = sel ? const Color(0xFFEAF6FF) : const Color(0xFF8FB8E0),
       );
       // The ceramic grip at the end of it.
-      canvas.drawCircle(
-        tip,
-        4.6,
-        Paint()..color = const Color(0xFFD8B878),
-      );
+      canvas.drawCircle(tip, 4.6, Paint()..color = const Color(0xFFD8B878));
       canvas.drawCircle(hinge, 3.2, Paint()..color = const Color(0xFFBFE6FF));
       if (welded) {
         // The weld bead across the far jaw, still hot.
@@ -2687,20 +2516,16 @@ extension StormCircuit on PlanetDungeonGame {
           5.0,
           Paint()..color = const Color(0xFFFFB46B).withValues(alpha: 0.85),
         );
-        canvas.drawCircle(
-          bead,
-          2.2,
-          Paint()..color = const Color(0xFFFFF0D0),
-        );
+        canvas.drawCircle(bead, 2.2, Paint()..color = const Color(0xFFFFF0D0));
         if (_fx.ready) {
           drawGlow(
             canvas,
             _fx.glow!,
             bead,
             16,
-            const Color(0xFFFF9A4A).withValues(
-              alpha: 0.20 + 0.10 * sin(_time * 2.2 + bp.dx),
-            ),
+            const Color(
+              0xFFFF9A4A,
+            ).withValues(alpha: 0.20 + 0.10 * sin(_time * 2.2 + bp.dx)),
           );
         }
       }
@@ -2887,31 +2712,6 @@ extension StormCircuit on PlanetDungeonGame {
     final live = vent != null;
     for (final m in room.beamMirrors) {
       _drawBeamMirror(canvas, m, live);
-      if (!fusedConductors.contains(m.id)) continue;
-      // Spent iron: a hot weld bead across the pivot, and a ring saying this
-      // one will not turn again until the wing is cut.
-      canvas.drawCircle(
-        m.position,
-        19,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4
-          ..color = const Color(0xFFE0A46A).withValues(alpha: 0.8),
-      );
-      final bead = Paint()
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 4.5
-        ..color = const Color(0xFFFFD9A0);
-      canvas.drawLine(
-        m.position + const Offset(-11, -11),
-        m.position + const Offset(11, 11),
-        bead,
-      );
-      canvas.drawLine(
-        m.position + const Offset(-11, 11),
-        m.position + const Offset(11, -11),
-        bead,
-      );
     }
 
     // Fulminate vats — the negative constraints, seething when cooked. Note
@@ -3024,7 +2824,11 @@ extension StormCircuit on PlanetDungeonGame {
     // The bolted base plate.
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(center: at + const Offset(0, 21), width: 44, height: 13),
+        Rect.fromCenter(
+          center: at + const Offset(0, 21),
+          width: 44,
+          height: 13,
+        ),
         const Radius.circular(3),
       ),
       Paint()..color = const Color(0xFF1A222C),
@@ -3055,15 +2859,18 @@ extension StormCircuit on PlanetDungeonGame {
       canvas.drawOval(
         Rect.fromCenter(center: Offset(at.dx, y), width: w, height: 7),
         Paint()
-          ..color = (live ? tone : const Color(0xFF8A9AAA))
-              .withValues(alpha: live ? 0.42 : 0.28),
+          ..color = (live ? tone : const Color(0xFF8A9AAA)).withValues(
+            alpha: live ? 0.42 : 0.28,
+          ),
       );
       canvas.drawOval(
         Rect.fromCenter(center: Offset(at.dx, y - 1.5), width: w, height: 7),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1
-          ..color = const Color(0xFFDCEAF6).withValues(alpha: live ? 0.30 : 0.14),
+          ..color = const Color(
+            0xFFDCEAF6,
+          ).withValues(alpha: live ? 0.30 : 0.14),
       );
     }
   }

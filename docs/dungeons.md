@@ -2113,44 +2113,25 @@ converter on a lattice edge. The lanes can be read off the floor before you
 touch anything, and the layout test asserts the lattice so it cannot drift back
 into scatter.
 
-**IRON IS SPENT, NOT BORROWED.** No single run crowns all three masts — two is
-the most any route reaches. When the charged bolt crowns a mast, every
-conductor that bolt turned on **fuses shut** for the rest of the attempt. The
-question stops being *what is the answer* and becomes *what can I afford to
-spend getting there*.
+**NO ONE ROUTE TAKES ALL THREE MASTS** — two is the most any route reaches —
+so the star is always at least two firings, and a crowned mast keeps its crown
+while you go and aim the next. Everything else stays free: every conductor
+re-turnable, every route re-fireable, as often as you like.
 
-There are exactly **seven distinct openings and three of them strand you**:
+**PLANNING IS FREE TOO.** With Air on a vent and nobody on a converter there is
+no charged half, so the wind draws the entire route and crowns nothing. A route
+can be laid out and looked over before it is lit.
 
-| crowns | welds | |
-|---|---|---|
-| 1 + 2 | E·F·G | alive |
-| 0 + 2 | D·E·F·G | alive |
-| 2 | F·G | **DEAD** |
-| 0 | B·D·E | alive |
-| 1 | B·E | alive |
-| 1 + 2 | B·D·E·F·G | **DEAD** |
-| 2 | B·D·E·F·G | **DEAD** |
-
-Read the pairs. The *same two masts*, crowned two different ways — three irons
-spent survives, five strands you. And the south mast taken on its own is a trap
-however you reach it. **Greed is the failure mode**, which is what makes it a
-decision.
-
-**PLANNING IS FREE, COMMITTING IS NOT.** With Air on a vent and nobody on a
-converter there is no charged half, so the wind draws the entire route and
-crowns nothing. You lay the plan in wind and spend it in flame.
-
-**AND WIND COSTS NOTHING EITHER.** Only the charged half fuses what it turns
-on, so a conductor used while the bolt was still wind stays free. That is a
-second, quieter trade the room never states: convert late and keep more iron,
-convert early and reach further. The frugal opening is exactly this — it turns
-D as wind and pays only for E, F and G.
-
-**THE RESET** is the planet's own. The spire stands on the core trunk, so
-cutting that wing at the dynamo anneals the welds cold and the masts go dark.
-It costs a round trip and the crowns you had, which is why thinking first pays
-— and it is never a soft-lock: the moment nothing left to turn can reach a dark
-mast, the room says so.
+> **A WELDING RULE briefly lived here and was removed on purpose.** Crowning a
+> mast fused every conductor that bolt had turned on. Since no run reaches all
+> three, the ORDER became a budget: seven distinct openings, three of which
+> stranded you, and the *same two masts* costing three irons or five depending
+> how you took them — greed as the failure mode. It genuinely made the room a
+> decision rather than a search. It also made a wrong guess expensive, and the
+> call was that this room is for trying things. Recorded here because the
+> trade-off is real and may be worth revisiting: without it the Spire is
+> free iteration again, just with more to do than one path. The proof seam it
+> used was `solveSpireOpenings`, in this file's history.
 
 **FULMINATE MOVED OUT.** Every vat position on this lattice that bites kills
 every solution — the routes are too tight — so the Spire has none, and the
