@@ -549,6 +549,10 @@ class PlanetDungeonGame extends FlameGame {
 
   double _time = 0;
   double _doorCooldown = 0;
+
+  /// Where this room was entered — the door's own arrival point, or the
+  /// dungeon's entrance spawn. [regroup] falls the party back to it.
+  Offset? _roomEntryAnchor;
   final Set<int> _earnedStars = {};
 
   // ── Verb / puzzle run-state ──
@@ -2427,6 +2431,7 @@ class PlanetDungeonGame extends FlameGame {
 
   void _placeAtEntrance() {
     currentRoomId = layout.entranceRoomId;
+    _roomEntryAnchor = layout.entranceSpawn;
     _spreadCreaturesAround(layout.entranceSpawn);
     for (final c in creatures) {
       c.hp = c.maxHp;
@@ -2566,42 +2571,27 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
-  /// Snap the inactive creatures next to the active one (QoL traversal aid).
+  /// RECALL THE PARTY TO WHERE THEY CAME IN.
   ///
-  /// EXPLOIT FIX (2026-08-14, playtest): this used to check only the room
-  /// bounds and open sky, so a regroup beside a wall posted the party INSIDE
-  /// the stone — and since movement only forbids ENTERING something solid,
-  /// never leaving it, they then walked out the far side. That teleported the
-  /// party through walls, tide ledges, fossil ribs, powered barriers and
-  /// pistons alike: every gate in the game, including straight into a star.
-  /// Placement now has to be somewhere a body could actually stand, reached
-  /// from the active creature without crossing anything solid.
+  /// This used to snap the inactive creatures next to the ACTIVE one, which
+  /// is a traversal aid and not a way out of anything: a party split across a
+  /// chasm — which the Cinder Forge now does on purpose — could regroup on
+  /// the wrong side and be no better off. Putting everyone back on the room's
+  /// own doorstep is the honest undo. It costs whatever the room had given
+  /// you (you are back at the door), so it can never be an exploit, and it is
+  /// the one control that guarantees no room can strand a run.
+  ///
+  /// (The old placement search is kept below, because the anchor still has to
+  /// be somewhere a body could stand: an earlier version checked only the
+  /// room bounds and open sky, so a regroup beside a wall posted the party
+  /// INSIDE the stone — and since movement forbids ENTERING something solid
+  /// but never leaving it, they then walked out the far side, through tide
+  /// ledges, fossil ribs, powered barriers and straight into stars.)
   void regroup() {
-    final a = active;
-    if (a == null) return;
-    var k = 0;
-    final others = creatures.length - 1;
-    for (var i = 0; i < creatures.length; i++) {
-      if (i == activeIndex || !creatures[i].alive) continue;
-      // Walk the ring for the first spot that is honestly reachable; the
-      // active creature's own footing is the always-valid fallback (it is
-      // standing there, so it cannot be inside anything).
-      var p = a.position;
-      for (var probe = 0; probe < 8; probe++) {
-        final ang = (k / max(1, others)) * pi * 2 + probe * pi / 4;
-        final c = _clampToBounds(
-          a.position + Offset(cos(ang), sin(ang)) * 36.0,
-          currentRoom,
-        );
-        if (_canPlaceBody(c, a.position, currentRoom)) {
-          p = c;
-          break;
-        }
-      }
-      creatures[i].position = p;
-      creatures[i].lastSafe = p;
-      k++;
-    }
+    final anchor = _roomEntryAnchor ?? active?.position;
+    if (anchor == null) return;
+    _spreadCreaturesAround(anchor);
+    _setHint('The party falls back to the way in');
     onChanged();
   }
 
@@ -8418,6 +8408,7 @@ class PlanetDungeonGame extends FlameGame {
         // state — bookkeeping that has to happen on the transit itself.
         if (_isBog) _onBogTransit(currentRoom, d);
         currentRoomId = d.targetRoomId;
+        _roomEntryAnchor = d.targetSpawn;
         _spreadCreaturesAround(d.targetSpawn);
         _carryPursuersThroughDoor(d.targetSpawn);
         // Don't carry loom clouds out of the loom.

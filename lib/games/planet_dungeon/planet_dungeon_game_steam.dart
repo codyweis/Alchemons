@@ -1386,7 +1386,22 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   // ── Collision ────────────────────────────────────────────
 
   /// Walls, bedrock, and lava block movement; cleared rooms are open footing.
+  /// Test seam for the Steam collision rules (the cast span in particular).
+  @visibleForTesting
+  bool steamBlocksAtForTest(Offset center) =>
+      _steamBlocksAt(center, currentRoom);
+
   bool _steamBlocksAt(Offset center, DungeonRoom room) {
+    // THE CAST SPAN is a platform that does not exist yet. It is listed with
+    // the shores so the walk will accept it, and held shut here until the
+    // star is banked — at which point the melt has set and the span is the
+    // way home. (Blocking it rather than adding a platform at runtime keeps
+    // the room's geometry authored in one place.)
+    final span = room.castSpan;
+    if (span != null && span.inflate(2).contains(center)) {
+      final cap = room.capstone;
+      if (cap == null || !hasStar(cap.starIndex)) return true;
+    }
     final g = room.molten;
     if (g == null || flightActive) return false;
     final grid = _moltenFor(room);
@@ -1818,6 +1833,54 @@ extension MoltenLabyrinth on PlanetDungeonGame {
               Offset(cos(a0) * (26 + 44 * f), -230 * (1 - f) + 60 * f * f),
           4.0,
           const Color(0xFFF2FCFF).withValues(alpha: 0.34 * (1 - f)),
+        );
+      }
+    }
+
+    // THE CAST SPAN: a raw channel while the mould is still being worked, and
+    // a set casting — the way home — once the star is banked.
+    final span = room.castSpan;
+    if (span != null) {
+      final cap = room.capstone;
+      final set = cap != null && hasStar(cap.starIndex);
+      if (set) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            span.translate(0, 4).inflate(2),
+            const Radius.circular(6),
+          ),
+          Paint()..color = const Color(0x88000000),
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(span, const Radius.circular(5)),
+          Paint()..color = const Color(0xFF4A4136),
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(span.left, span.top, span.width, 5),
+            const Radius.circular(3),
+          ),
+          Paint()..color = const Color(0x66E4C16A),
+        );
+        // Still warm along its seams, so it reads as something poured.
+        for (var i = 0; i < 3; i++) {
+          final y = span.top + span.height * (0.3 + 0.22 * i);
+          canvas.drawLine(
+            Offset(span.left + 5, y),
+            Offset(span.right - 5, y),
+            Paint()
+              ..strokeWidth = 1.2
+              ..color = const Color(0x55C9702A),
+          );
+        }
+      } else {
+        // Not yet: the empty run-off where the cast will set.
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(span, const Radius.circular(5)),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..color = const Color(0x3AC7B49A),
         );
       }
     }

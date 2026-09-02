@@ -272,10 +272,10 @@ void main() {
     test('the chasm is real: the far shore cannot be walked to', () {
       final game = atForge();
       final room = forge(game);
-      expect(room.platforms.length, 2);
-      // The void between the shores is not standable. (Computed, not a fixed
-      // point: the shores have moved twice and a hard-coded probe silently
-      // ended up on dry land.)
+      // Three platforms: the two shores and the CAST SPAN between them, which
+      // does not exist until the star is banked (see `_steamBlocksAt`).
+      expect(room.platforms.length, 3);
+      expect(room.castSpan, isNotNull);
       final near = room.platforms.first, far = room.platforms.last;
       expect(
         far.left - near.right,
@@ -285,6 +285,18 @@ void main() {
       final mid = Offset((near.right + far.left) / 2, 450);
       expect(near.contains(mid), isFalse);
       expect(far.contains(mid), isFalse);
+      expect(
+        room.castSpan!.contains(mid),
+        isFalse,
+        reason: 'and the span crosses lower down, not through the middle',
+      );
+      // The span is SHUT until the cast is made.
+      final game2 = atForge();
+      expect(
+        game2.steamBlocksAtForTest(room.castSpan!.center),
+        isTrue,
+        reason: 'no way home until the mould is poured',
+      );
     });
 
     test('a body does NOT cap a riser — it rides it', () {
@@ -497,6 +509,33 @@ void main() {
         reason: 'and the fall puts it back on the shore it left',
       );
       expect(game.hasStar(1), isFalse);
+    });
+
+    test('the cast is the way home: the span opens with the star', () {
+      final game = atForge();
+      final room = forge(game);
+      final span = room.castSpan!;
+      expect(game.steamBlocksAtForTest(span.center), isTrue);
+
+      // Pour the mould.
+      final moat = room.castingMoat!;
+      var guard = 0;
+      while (game.moatFill < 1.0 && guard++ < 40) {
+        if (game.boulderCharge <= 0.05) {
+          game.setActive(1);
+          _stand(game, 1, moat.boulderAt);
+          game.activateAbility();
+        }
+        game.setActive(2);
+        _stand(game, 2, moat.boulderAt);
+        game.activateAbility();
+      }
+      expect(game.hasStar(1), isTrue);
+      expect(
+        game.steamBlocksAtForTest(span.center),
+        isFalse,
+        reason: 'the melt has set — the pair on the far shore can walk back',
+      );
     });
 
     test('an unfed moat creeps back up the hill', () {

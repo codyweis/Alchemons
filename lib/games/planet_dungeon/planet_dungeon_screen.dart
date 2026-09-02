@@ -930,10 +930,13 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                       ),
                       const SizedBox(height: 8),
                       _iconButton(
-                        Icons.workspaces_rounded,
+                        // It recalls the party to the door they came in by
+                        // rather than snapping them to whoever is active, so
+                        // the icon is a way back rather than a huddle.
+                        Icons.restore_rounded,
                         _C.amber,
                         () => game.regroup(),
-                        semantics: 'Regroup the party',
+                        semantics: 'Recall the party to the way in',
                       ),
                       // Pull back and read the whole room, and drag to look
                       // around while pulled back. Any movement snaps it home

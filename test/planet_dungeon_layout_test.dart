@@ -1952,7 +1952,31 @@ void main() {
         greaterThan(moat.channel.bottom - 2),
         reason: 'and the pedestal waits at its foot',
       );
-      expect(forge.platforms.length, 2, reason: 'two shores, one chasm');
+      expect(
+        forge.platforms.length,
+        3,
+        reason: 'two shores, one chasm, and the cast span between them',
+      );
+      expect(
+        forge.castSpan,
+        isNotNull,
+        reason:
+            'the way home is the thing you made — nothing else carries a body '
+            'back across, since the riser is on the near shore',
+      );
+      expect(
+        forge.platforms.last,
+        isNot(forge.castSpan),
+        reason: 'the span is listed BEFORE the far shore, which stays .last',
+      );
+      expect(
+        forge.castSpan!.left,
+        greaterThanOrEqualTo(forge.platforms.first.right - 2),
+      );
+      expect(
+        forge.castSpan!.right,
+        lessThanOrEqualTo(forge.platforms.last.left + 2),
+      );
 
       // THE ARITHMETIC IS THE LESSON. A throw is 120 + 55 per mouth held.
       final riser = forge.geysers.firstWhere((g) => g.isRiser).position.dx;

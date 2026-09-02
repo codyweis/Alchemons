@@ -2071,6 +2071,25 @@ of old stone bars the way"** in a room that had not had one for weeks.
       the shore now, and the verb takes the NEAREST lip rather than the first
       in the list.
 
+  · ✅ **THE WAY HOME IS THE THING YOU MADE.** Splitting the party leaves two
+    Alchemons on the far shore with nothing to carry them back — the riser is
+    on the near one. The finished cast runs out of the moat's foot and sets as
+    a SPAN between the shores: impassable while the mould is still being
+    worked, walkable the moment the star banks. (A door on the far shore would
+    have done the job too; this is the same job done by the room's own
+    fiction, and it is visibly the thing you just poured.) It is authored as a
+    platform listed BETWEEN the two shores — so `platforms.last` is still the
+    far shore, which the greeting and the win region both read — and held shut
+    in the collision rules rather than added at runtime, so the geometry stays
+    in one place.
+  · ✅ **REGROUP RECALLS TO THE WAY IN.** It used to snap the inactive
+    creatures next to the ACTIVE one, which is a traversal aid and not a way
+    out of anything: a party split across a chasm could regroup on the wrong
+    side and be no better off. It puts everyone back on the room's own
+    doorstep now — the door's arrival point, or the entrance spawn. That costs
+    you whatever the room had given you, so it can never be an exploit, and it
+    is the one control that guarantees no room can strand a run.
+
   · ⬜ **The ring's economy shifted and nobody noticed.** Both star rooms used
     to make you cool lava on the way through, and cooling pays the main back.
     Geyser fields pay nothing, so Fire's stoke port is the only income before

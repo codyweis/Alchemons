@@ -1199,6 +1199,10 @@ class DungeonRoom {
 
   /// The Cinder Forge's casting moat, on its far shore.
   final CastingMoat? castingMoat;
+
+  /// The span the finished cast lays across a chasm — the way home, earned.
+  /// Impassable until the room's star is banked; it IS the thing you made.
+  final Rect? castSpan;
   final GeyserCapstone? capstone;
 
   final MoltenGrid? molten; // a star room's spreading-lava grid
@@ -1358,6 +1362,7 @@ class DungeonRoom {
     this.garth,
     this.geysers = const [],
     this.castingMoat,
+    this.castSpan,
     this.capstone,
     this.molten,
     this.steamVent,
@@ -4540,10 +4545,21 @@ const DungeonLayout _steamLayout = DungeonLayout(
       // far shore begins at x=490: full head (2) throws 230 and lands, one
       // mouth (1) throws 175 and falls 25px short into the void, none (0)
       // throws 120 and barely leaves the near shore.
+      // THE WAY HOME IS THE THING YOU MADE. Nothing carries a body back across
+      // the chasm — the riser is on the near shore — so the finished cast
+      // runs out of the moat's foot and sets as a span between the two
+      // shores. It is impassable until the star is banked, and it is the
+      // room's own answer to "how do we get back", which a door would have
+      // been too, but a duller one.
+      //
+      // Listed in the MIDDLE so `platforms.last` is still the far shore (the
+      // greeting and the win region both read it).
       platforms: [
         Rect.fromLTWH(40, 0, 380, 840), // the near shore (both doors)
+        Rect.fromLTWH(420, 690, 72, 62), // the cast span (after the star)
         Rect.fromLTWH(490, 40, 170, 760), // the far shore (the casting floor)
       ],
+      castSpan: Rect.fromLTWH(420, 690, 72, 62),
       geysers: [
         GeyserMouth(id: 'r_hob_a', position: Offset(110, 200)),
         GeyserMouth(id: 'r_hob_b', position: Offset(110, 640)),
