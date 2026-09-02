@@ -2942,98 +2942,79 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   /// The boiler-pressure gauge (always on for Steam) plus, in live molten
   /// rooms, a compact legend of the three verbs + the creep-beat pulse.
+  /// Test seam: the HUD paints straight to a canvas so the gauge can be
+  /// LOOKED AT. It ran off the edge of a phone screen and no test could have
+  /// told me — the numbers were all correct.
+  @visibleForTesting
+  void drawSteamHudForDebug(Canvas canvas, Size vp) =>
+      _drawSteamPhaseHud(canvas, vp);
+
   void _drawSteamPhaseHud(Canvas canvas, Size vp) {
     // ── The main's gauge — the run's one budget, always visible ──
-    // In a geyser room it reads the LAUNCH HEAD, because plugged mouths stop
-    // venting and put their head back into the main: the bar shows the boiler
-    // in amber with the plugs stacked on in cyan, and anything past the rated
-    // 99 spills out beyond the redline as an overpressure. That spill is the
-    // one state in which a riser clears the chasm, so it has to be the most
-    // obvious thing on the screen.
+    //
+    // Rebuilt after it ran off the edge of a phone: the header was drawn from
+    // a fixed left position, so "HEAD 20 · 1 VENTING" simply walked off the
+    // screen, and the bleed was painted as a red segment ON TOP of the amber
+    // and cyan ones, which read as a single broken bar rather than a boiler,
+    // its plugs and its leak. It is right-ALIGNED to the bar now, the venting
+    // count has its own line, and the bar shows one number.
     final field = layout.rooms[currentRoomId]?.geysers ?? const [];
     final onField = field.isNotEmpty;
     final head = onField ? launchHead : boilerPressure;
-    final gx = vp.width - 116.0;
-    final gy = vp.height * 0.5 - 64;
-    final gaugeTp = TextPainter(
-      text: TextSpan(
-        text: onField
-            ? (openFieldMouths > 0
-                  ? 'HEAD $head · $openFieldMouths VENTING'
-                  : 'HEAD $head')
-            : 'MAIN $boilerPressure',
-        style: TextStyle(
-          color: head > kSteamPressureMax
-              ? const Color(0xFFFF9A4A)
-              : const Color(0xFFE4C16A),
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.0,
+    final over = head > kSteamPressureMax;
+    final gaugeBar = Rect.fromLTWH(
+      vp.width - 128.0,
+      vp.height * 0.5 - 62,
+      100,
+      7,
+    );
+
+    void label(String text, Color colour, double dy, double size) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            color: colour,
+            fontSize: size,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.0,
+          ),
         ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    gaugeTp.paint(canvas, Offset(gx, gy - 14));
-    final gaugeBar = Rect.fromLTWH(gx - 2, gy + 2, 100, 7);
+        textDirection: TextDirection.ltr,
+      )..layout();
+      // Right-aligned to the bar, so it can never walk off the screen.
+      tp.paint(canvas, Offset(gaugeBar.right - tp.width, gaugeBar.top + dy));
+    }
+
+    label(
+      onField ? 'HEAD $head' : 'MAIN $boilerPressure',
+      over ? const Color(0xFFFF9A4A) : const Color(0xFFE4C16A),
+      -16,
+      11,
+    );
+
     canvas.drawRRect(
       RRect.fromRectAndRadius(gaugeBar, const Radius.circular(3)),
       Paint()..color = const Color(0x6606141C),
     );
-    void seg(double from, double to, Color c) {
-      final a0 = (from / kSteamPressureMax).clamp(0.0, 1.0);
-      final a1 = (to / kSteamPressureMax).clamp(0.0, 1.0);
-      if (a1 <= a0) return;
+    final headFrac = (head / kSteamPressureMax).clamp(0.0, 1.0).toDouble();
+    if (headFrac > 0) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(
-            gaugeBar.left + gaugeBar.width * a0,
+            gaugeBar.left,
             gaugeBar.top,
-            gaugeBar.width * (a1 - a0),
+            gaugeBar.width * headFrac,
             gaugeBar.height,
           ),
           const Radius.circular(3),
         ),
-        Paint()..color = c,
+        Paint()
+          ..color = over ? const Color(0xFFFF7A33) : const Color(0xD9E4C16A),
       );
     }
-
-    if (onField) {
-      // Amber: the boiler. Cyan on top: what the plugs put back. And a dark
-      // RED bite taken out of the end for every mouth still roaring, because
-      // an open mouth vents the main — that bite is why a fat boiler cannot
-      // buy its way past a mouth you never covered.
-      final gross = boilerPressure + kSteamCapHead * cappedFieldMouths;
-      seg(0, boilerPressure.toDouble(), const Color(0xD9E4C16A));
-      seg(boilerPressure.toDouble(), gross.toDouble(), const Color(0xD98FE0EC));
-      if (openFieldMouths > 0) {
-        seg(head.toDouble(), gross.toDouble(), const Color(0xCC7A1F14));
-      }
-    } else {
-      seg(0, boilerPressure.toDouble(), const Color(0xD9E4C16A));
-    }
-    // The OVERPRESSURE: past the rated maximum, spilling out beyond the bar.
-    if (head > kSteamPressureMax) {
-      final over = (head - kSteamPressureMax) / kSteamPressureMax;
-      final w = (gaugeBar.width * over).clamp(3.0, 44.0);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(gaugeBar.right + 2, gaugeBar.top - 1, w, 9),
-          const Radius.circular(3),
-        ),
-        Paint()..color = const Color(0xFFFF7A33),
-      );
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          Offset(gaugeBar.right + 2 + w * 0.5, gaugeBar.center.dy),
-          22,
-          const Color(0xFFFF7A33).withValues(alpha: 0.5),
-        );
-      }
-    }
-    // The REDLINE at the rated maximum, and (off the field) the burst-disc
-    // tick that the vault answers to.
+    // The rated maximum. Past it the whole bar burns and the number carries
+    // the surplus — no nub hanging off the end pretending to be a reading.
     canvas.drawLine(
       Offset(gaugeBar.right, gaugeBar.top - 3),
       Offset(gaugeBar.right, gaugeBar.bottom + 3),
@@ -3041,6 +3022,24 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         ..color = const Color(0xFFFF7A33)
         ..strokeWidth = 2,
     );
+    if (over && _fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        gaugeBar.centerRight,
+        26,
+        const Color(0xFFFF7A33).withValues(alpha: 0.45),
+      );
+    }
+    // What is leaking, on its own line, so the header never has to carry it.
+    if (onField && openFieldMouths > 0) {
+      label(
+        '$openFieldMouths VENTING',
+        const Color(0xFFE06A55),
+        gaugeBar.height + 4,
+        9,
+      );
+    }
     if (!onField) {
       const burstTick = 60 / kSteamPressureMax;
       canvas.drawLine(

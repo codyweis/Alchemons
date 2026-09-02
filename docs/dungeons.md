@@ -2418,6 +2418,41 @@ crosses vat B on its way to dying in the east wall.
 > things freely. The proof seams they used were `solveSpireOpenings` and
 > `solveSpireRoutes`, in this file's history.
 
+### A GAUGE CAN BE WRONG WITH EVERY NUMBER RIGHT
+
+Steam's pressure gauge ran off the right-hand edge of a phone. Every value in
+it was correct and no test could have caught it, because nothing rendered it.
+Two faults, both invisible to arithmetic:
+
+  · The header was painted from a FIXED LEFT ORIGIN, so a longer reading —
+    `HEAD 20 · 1 VENTING` rather than `MAIN 40` — simply walked off the
+    screen. It is right-ALIGNED to the bar now, and the venting count has its
+    own line so the header can never grow.
+  · The bleed was drawn as a red segment ON TOP of the amber and cyan ones,
+    which read as one broken bar rather than a boiler, its plugs and its leak.
+
+`planet_dungeon_steam_hud_test.dart` renders the HUD at three viewports × three
+field states and asserts nothing is painted in the right-hand margin — the
+pixels, not the numbers. Confirmed to bite by putting the fixed origin back.
+
+**The general rule: any HUD element whose text length depends on game state
+needs to be laid out from the edge it is anchored to, and needs a rendered
+test.** A readout that grows is the one that escapes.
+
+### A ROLLED PUZZLE MAKES A TEST THAT PASSES ALONE AND FLAKES IN THE SUITE
+
+Water's moon well flaked about one full-suite run in three and passed every
+time its file was run on its own — which reads like test pollution and is
+nothing of the kind. Its basins' wanted moons are ROLLED PER RUN, and the
+moon does not stand still: settling the well takes time and the sky keeps
+turning through it. The test named a basin up front and assumed the moon would
+still be wrong for it by the time Ice pressed, which held on most rolls and
+failed on any roll where that basin wanted the very next notch.
+
+The fix is the shape of every fix for a rolled puzzle: **read the state at the
+moment you act on it, never before.** The test now reads the sky at the press
+and picks a basin the sky is genuinely wrong for.
+
 ### DOORS — where you come out matters as much as where you go in
 
 A door's `targetSpawn` is where you land in the next room. Three ways that

@@ -152,7 +152,6 @@ void _parkMoon(PlanetDungeonGame g, int notch) {
   g.moonHoldT = 99;
 }
 
-
 /// A gallery harness: the party stands in the Lantern Gallery's south-east
 /// floor, clear of every basin and every sluice wheel, so a press means what
 /// the test says it means and nothing else.
@@ -504,15 +503,28 @@ void main() {
     }
 
     // A basin refuses a moon that is not its own.
+    //
+    // THE MOON DOES NOT STAND STILL. Settling the well takes time and the sky
+    // keeps turning through it, so this used to name a basin up front and
+    // assume the moon would still be wrong for it by the time Ice pressed —
+    // which failed on any roll where that basin happened to want the very
+    // next notch. (Rolled per run, so it flaked about one run in three and
+    // passed every time the file was run on its own.) Read the sky at the
+    // moment of the press and pick a basin it is genuinely wrong for.
     final ids = wants.keys.toList();
     moonTo(wants[ids[0]]!);
+    final sky = game.moonNotch;
+    final wrongId = ids.firstWhere(
+      (id) => wants[id] != sky,
+      orElse: () => ids[1],
+    );
     game.setActive(2); // Ice
-    teleport('moon_well', poolAt(ids[1]));
+    teleport('moon_well', poolAt(wrongId));
     game.activateAbility();
     expect(
-      game.poolStates[ids[1]] ?? 0,
+      game.poolStates[wrongId] ?? 0,
       0,
-      reason: 'this basin is waiting for a different moon',
+      reason: 'this basin wants ${wants[wrongId]} and the moon stands at $sky',
     );
     expect(
       game.combatEnemies.where((e) => !e.isDead),
