@@ -2511,6 +2511,17 @@ the north-west where you arrive, Earth south-west, Fire north-east, and Earth
 AND Fire together at the far south-east. Sealing a corner caps its two mouths
 for good.
 
+**A TERRACE HAS TO BE MOSTLY EMPTY.** They were built 260x220 and every one of
+them was ALL furniture — two mouths, a riser, and a socket whose 74px reach is
+a dead zone for Earth's stone, which between them left nowhere on the terrace
+a stone could actually come out of. Reported from the first play as *"I can't
+even build a rock with earth guy."* They are 400x340 now, with the mouths
+pushed onto the outer edge and the socket set high, so the middle-bottom of
+every corner is open floor. The room grew with them (1280x1000), and the risers
+did NOT move relative to each other — the ladder below is exactly what it was,
+which is the point of having it written down as arithmetic rather than as
+positions.
+
 **The head is the whole puzzle, and it is a ladder.** A mouth that is HELD —
 by a body standing on it, or by a corner that has been sealed — feeds the main
 40 instead of bleeding it, and a throw clears `340 + 1.8` per unit over 99. So:

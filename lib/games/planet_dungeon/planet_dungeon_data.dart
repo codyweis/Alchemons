@@ -4652,9 +4652,9 @@ const DungeonLayout _steamLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(495, 396, 110, 24),
           targetRoomId: 'crucible',
-          // The NW terrace, clear of its mouths AND well down from the sill:
-          // at 24px the party arrived standing in the doorway itself.
-          targetSpawn: Offset(250, 205),
+          // The middle of the NW terrace: clear of the sill, of both mouths
+          // and of the socket, on the open floor the corner now has.
+          targetSpawn: Offset(240, 240),
         ),
       ],
       pressureSeals: [
@@ -4699,70 +4699,76 @@ const DungeonLayout _steamLayout = DungeonLayout(
     // melting the middle gate and walking out the bottom. See docs §9.5.
     'crucible': DungeonRoom(
       id: 'crucible',
-      bounds: Rect.fromLTWH(0, 0, 1120, 840),
+      bounds: Rect.fromLTWH(0, 0, 1280, 1000),
       doors: [
         // In, from the north manifold — lands on the NW corner. The rect sits
         // ON the platform: in a room made of platforms a door standing off the
         // end of one cannot be walked into at all.
         DungeonDoor(
-          rect: Rect.fromLTWH(150, 92, 110, 24),
+          rect: Rect.fromLTWH(170, 60, 110, 24),
           targetRoomId: 'manifold_north',
           targetSpawn: Offset(550, 310),
         ),
         // Out, from the CENTRE — so the way on genuinely is the rite.
         DungeonDoor(
-          rect: Rect.fromLTWH(525, 494, 110, 24),
+          rect: Rect.fromLTWH(585, 576, 110, 24),
           targetRoomId: 'boiler_heart',
           targetSpawn: Offset(410, 110),
         ),
       ],
       platforms: [
-        Rect.fromLTWH(80, 90, 260, 220), // NW — where you arrive
-        Rect.fromLTWH(780, 90, 260, 220), // NE
-        Rect.fromLTWH(80, 530, 260, 220), // SW
-        Rect.fromLTWH(780, 530, 260, 220), // SE
-        Rect.fromLTWH(490, 320, 180, 200), // the CENTRE, until four seals
+        // 400x340 EACH. At 260x220 a corner was all furniture: two mouths,
+        // a riser and a socket whose 74px reach is a dead zone for Earth's
+        // stone, which left nowhere on the terrace to actually raise one.
+        // Reported from play as *"I can't even build a rock with earth guy."*
+        Rect.fromLTWH(50, 55, 400, 340), // NW — where you arrive
+        Rect.fromLTWH(830, 55, 400, 340), // NE
+        Rect.fromLTWH(50, 605, 400, 340), // SW
+        Rect.fromLTWH(830, 605, 400, 340), // SE
+        Rect.fromLTWH(540, 400, 200, 200), // the CENTRE, until four seals
       ],
-      centrePlinth: Rect.fromLTWH(490, 320, 180, 200),
+      centrePlinth: Rect.fromLTWH(540, 400, 200, 200),
       geysers: [
         // Two vents and a riser to each corner. The risers sit on the inner
         // edges, so a throw aimed across the room leaves from the near side.
-        GeyserMouth(id: 'nw_a', position: Offset(140, 150)),
-        GeyserMouth(id: 'nw_b', position: Offset(140, 250)),
-        GeyserMouth(id: 'nw_r', position: Offset(330, 270), isRiser: true),
-        GeyserMouth(id: 'ne_a', position: Offset(980, 150)),
-        GeyserMouth(id: 'ne_b', position: Offset(980, 250)),
-        GeyserMouth(id: 'ne_r', position: Offset(790, 270), isRiser: true),
-        GeyserMouth(id: 'sw_a', position: Offset(140, 590)),
-        GeyserMouth(id: 'sw_b', position: Offset(140, 690)),
-        GeyserMouth(id: 'sw_r', position: Offset(330, 570), isRiser: true),
-        GeyserMouth(id: 'se_a', position: Offset(980, 590)),
-        GeyserMouth(id: 'se_b', position: Offset(980, 690)),
-        GeyserMouth(id: 'se_r', position: Offset(790, 570), isRiser: true),
+        // The mouths hug the OUTER edge and the socket sits high, so the
+        // middle of every terrace is open floor a stone can come out of.
+        GeyserMouth(id: 'nw_a', position: Offset(130, 140)),
+        GeyserMouth(id: 'nw_b', position: Offset(130, 310)),
+        GeyserMouth(id: 'nw_r', position: Offset(410, 355), isRiser: true),
+        GeyserMouth(id: 'ne_a', position: Offset(1150, 140)),
+        GeyserMouth(id: 'ne_b', position: Offset(1150, 310)),
+        GeyserMouth(id: 'ne_r', position: Offset(870, 355), isRiser: true),
+        GeyserMouth(id: 'sw_a', position: Offset(130, 690)),
+        GeyserMouth(id: 'sw_b', position: Offset(130, 860)),
+        GeyserMouth(id: 'sw_r', position: Offset(410, 645), isRiser: true),
+        GeyserMouth(id: 'se_a', position: Offset(1150, 690)),
+        GeyserMouth(id: 'se_b', position: Offset(1150, 860)),
+        GeyserMouth(id: 'se_r', position: Offset(870, 645), isRiser: true),
       ],
       crucibleSeals: [
         CrucibleSeal(
           id: 'nw',
-          position: Offset(210, 200),
+          position: Offset(300, 140),
           vents: ['nw_a', 'nw_b'],
           element: 'Steam',
         ),
         CrucibleSeal(
           id: 'sw',
-          position: Offset(210, 640),
+          position: Offset(300, 690),
           vents: ['sw_a', 'sw_b'],
           element: 'Earth',
         ),
         CrucibleSeal(
           id: 'ne',
-          position: Offset(910, 200),
+          position: Offset(980, 140),
           vents: ['ne_a', 'ne_b'],
           element: 'Fire',
         ),
         // The last one wants two hands, which is why it is across the room.
         CrucibleSeal(
           id: 'se',
-          position: Offset(910, 640),
+          position: Offset(980, 690),
           vents: ['se_a', 'se_b'],
           element: 'Earth',
           second: 'Fire',
@@ -4799,7 +4805,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
           // Back onto the PLINTH — the only ground the onward door stands on,
           // and high enough on it that the spread does not put anyone back on
           // the sill they just came through.
-          targetSpawn: Offset(580, 430),
+          targetSpawn: Offset(640, 470),
         ),
       ],
       guardian: GuardianNode(
