@@ -4414,11 +4414,9 @@ const DungeonLayout _steamLayout = DungeonLayout(
         PressureSeal(targetRoomId: 'manifold_south', cost: 15),
         PressureSeal(targetRoomId: 'manifold_north', cost: 15),
       ],
-      // 10×12 grid (cells 70×70). South field = entry from the manifold;
-      // dam band rows 4-6; wet pocket slots at cols 2/8 (sealed — pure
-      // traps), the dry passage at col 5. Pedestal on the north field.
       // STAR 1 — THE GEYSER FIELD (2026-08-14 rework; the tile-lava causeway
-      // is retired). Room is 700x840. Five mouths ring the floor and a sixth
+      // is retired, and with it the 10x12 dam grid this comment used to
+      // describe). Room is 700x840. Five mouths ring the floor and a sixth
       // sits at the heart under a slab. One ring mouth is already choked with
       // rubble, so FOUR blow at the start — which is exactly a three-Alchemon
       // party plus the one rock an Earth hand can raise.
@@ -4443,8 +4441,8 @@ const DungeonLayout _steamLayout = DungeonLayout(
       capstone: GeyserCapstone(position: Offset(350, 420), starIndex: 0),
     ),
 
-    // Cinder Forge — the ring's EAST segment, and Star 1 (bunker before you
-    // breach): the pedestal sits in a bedrock sanctuary whose ONLY way in is
+    // Cinder Forge — the ring's EAST segment, and STAR 2 (its capstone banks
+    // index 1): the pedestal sits in a bedrock sanctuary whose ONLY way in is
     // a meltable gate, and the field around it is strewn with sleeping
     // cisterns that all WAKE the moment Fire breaks rock. Wall a bunker
     // around the gate mouth FIRST, then melt, cool the spill, slip inside.

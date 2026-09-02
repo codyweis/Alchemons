@@ -29,7 +29,6 @@ part of 'planet_dungeon_game.dart';
 /// Steam's lost maxim discovery id (screen pays 20 gold on first find).
 const String kSteamHiddenHarmonyEggId = 'egg:steam_hidden_harmony';
 
-
 /// Mutable cell codes for the molten grid.
 const int _mOpen = 0; // walkable floor
 const int _mWall = 1; // meltable rock wall ('#')
@@ -1158,9 +1157,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     }
     // WHAT, never HOW (§5.6): where to breach, when to dam, and how to
     // thread the flood are the foundry's earned readings (_steamReveal).
+    // These three lines described the TILE-LAVA CAUSEWAY, which was retired
+    // on 2026-08-14 and replaced by the geyser field. The first promised the
+    // player 'a dam of old stone' in a room that has not had one for weeks.
     return switch (g.starIndex) {
-      0 => 'Ember Causeway — a dam of old stone bars the way',
-      1 => 'Cinder Forge — the pedestal waits behind walled fire',
+      0 => 'Ember Causeway — five mouths vent the field, and one is choked',
+      1 => 'Cinder Forge — the far shore is across a chasm nothing can leap',
       _ => 'The Crucible — the pedestal stands past the sleeping flood',
     };
   }
@@ -1198,11 +1200,50 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       final capped = cappedGeysers.contains(gy.id);
       final r = gy.isRiser ? 34.0 : 24.0;
 
-      // The stone rim, cut into the floor.
+      // THE MOUTH IS A RENT IN THE ROCK, not a hole punched in a floor.
+      // Everything below is geology; the steam, glow and strain the FX layer
+      // adds on top of it are untouched.
+      //
+      // Sinter: the mineral a hot spring lays down as it dries, in terraces
+      // that build unevenly because one side always runs wetter. Three broken
+      // rings, each nudged off-centre, so no two mouths read alike.
+      for (var t = 3; t >= 1; t--) {
+        final lean = Offset(
+          cos(gy.position.dx * 0.11 + t) * 3.0,
+          sin(gy.position.dy * 0.13 + t) * 3.0,
+        );
+        canvas.drawCircle(
+          gy.position + lean,
+          r + t * 5.0,
+          Paint()
+            ..color = Color.lerp(
+              const Color(0xFF6A5A48),
+              const Color(0xFF3A322A),
+              t / 3,
+            )!.withValues(alpha: 0.55),
+        );
+      }
+      // Wet stain around the lip — dark where it never dries out.
+      canvas.drawCircle(
+        gy.position,
+        r + 7,
+        Paint()..color = const Color(0x33100C08),
+      );
+      // The throat's own broken lip: an irregular ring of stone teeth.
+      for (var i = 0; i < 9; i++) {
+        final a0 = i * (pi * 2 / 9) + gy.position.dx * 0.01;
+        final wob = 0.6 + 0.5 * _forgeNoise(i, gy.id.length + i);
+        canvas.drawCircle(
+          gy.position + Offset(cos(a0), sin(a0)) * (r + 1),
+          2.6 + 3.2 * wob,
+          Paint()..color = const Color(0xFF544A3E),
+        );
+      }
+      // The throat itself, cut into it.
       canvas.drawCircle(
         gy.position,
         r,
-        Paint()..color = const Color(0xFF2A2622),
+        Paint()..color = const Color(0xFF17130F),
       );
       canvas.drawCircle(
         gy.position,
@@ -1588,34 +1629,149 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final g = room.molten;
     if (g == null) {
       _renderPlainFloor(canvas, room.bounds, room.id == layout.entranceRoomId);
-      final grid = Paint()
-        ..color =
-            const Color(0x12C99A6A) // faint ember-warm seams
-        ..strokeWidth = 1.0;
-      const step = 104.0;
-      final b = room.bounds;
-      for (var x = b.left + step; x < b.right; x += step) {
-        canvas.drawLine(Offset(x, b.top + 18), Offset(x, b.bottom - 18), grid);
-      }
-      for (var y = b.top + step; y < b.bottom; y += step) {
-        canvas.drawLine(Offset(b.left + 18, y), Offset(b.right - 18, y), grid);
-      }
+      _drawFoundryFloor(canvas, room);
       _renderForgeAmbient(canvas, room);
       return;
     }
+    // THE FLOOR IS CONTINUOUS, and only the MATERIAL sits on it. Drawing an
+    // outlined tile for every open cell as well is what made the crucible read
+    // as a board game rather than a room — the lattice was the loudest thing
+    // in it. Same grid, same rules; the empty squares are simply floor now.
+    _renderPlainFloor(canvas, room.bounds, false);
+    _drawFoundryFloor(canvas, room);
     final grid = _moltenFor(room);
     final (cw, ch) = _cellSize(room, g);
     final cleared = _moltenCleared(room, g);
     for (var r = 0; r < g.rowCount; r++) {
       for (var c = 0; c < g.cols; c++) {
+        final code = grid[r][c];
+        if (code == _mOpen || (code == _mLava && cleared)) continue;
         final rect = Rect.fromLTWH(
           room.bounds.left + c * cw,
           room.bounds.top + r * ch,
           cw + 0.6,
           ch + 0.6,
         );
-        _renderMoltenCell(canvas, rect, grid[r][c], cleared);
+        _renderMoltenCell(canvas, rect, code, cleared);
       }
+    }
+  }
+
+  /// A stable 0..1 value per grid cell — variation without allocating, and
+  /// identical every frame so the floor never crawls.
+  double _forgeNoise(int x, int y) {
+    var h = x * 374761393 + y * 668265263;
+    h = (h ^ (h >> 13)) * 1274126177;
+    return ((h ^ (h >> 16)) & 0xFFFF) / 65535.0;
+  }
+
+  /// THE FOUNDRY FLOOR. Vaporis was a 104px square lattice under every
+  /// chamber — the same fault Lightning had, and for the same reason: a
+  /// planet whose whole premise is a PRESSURE RING-MAIN was drawing itself as
+  /// graph paper. It is firebrick laid in offset courses now, sooted and
+  /// heat-bloomed, with the ring-main's own pipe runs sunk into it under
+  /// bolted flanges and a condensate grate cut across the low side.
+  void _drawFoundryFloor(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    const bw = 78.0, bh = 34.0;
+    final rows = (b.height / bh).ceil();
+    final brick = Paint();
+    final joint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..color = const Color(0x38120C08);
+
+    // 1) Firebrick courses, every other one offset by half a brick.
+    for (var r = 0; r < rows; r++) {
+      final y = b.top + r * bh;
+      final off = (r.isOdd ? bw * 0.5 : 0.0);
+      for (var x = b.left - off; x < b.right; x += bw) {
+        final c = ((x - b.left) / bw).floor();
+        final n = _forgeNoise(c, r);
+        final cell = Rect.fromLTWH(x, y, bw, bh).intersect(b);
+        if (cell.isEmpty) continue;
+        // Fired clay, kilned unevenly — some bricks darker, some scorched
+        // ruddy where something hot has stood on them.
+        brick.color = Color.lerp(
+          const Color(0xFF2A2119),
+          n > 0.93 ? const Color(0xFF3E2718) : const Color(0xFF322820),
+          n,
+        )!.withValues(alpha: 0.82);
+        canvas.drawRect(cell, brick);
+        canvas.drawRect(cell.deflate(0.5), joint);
+      }
+    }
+
+    // 2) Heat blooms — the floor remembers what has been poured on it.
+    for (var i = 0; i < 5; i++) {
+      final n = _forgeNoise(i * 31, room.id.length * 17);
+      final m = _forgeNoise(i * 57, room.id.length * 13);
+      final c = Offset(b.left + b.width * n, b.top + b.height * m);
+      canvas.drawCircle(
+        c,
+        26 + 40 * n,
+        Paint()..color = const Color(0x14FF7A33),
+      );
+      canvas.drawCircle(
+        c,
+        14 + 22 * m,
+        Paint()..color = const Color(0x12000000),
+      );
+    }
+
+    // 3) THE RING-MAIN ITSELF, sunk into the floor: two heavy pipe runs with
+    // bolted flanges. This planet's one big idea is that pressure travels
+    // between the rooms — so the pipe that carries it is under your feet in
+    // every one of them.
+    for (final run in [
+      Rect.fromLTWH(b.left, b.top + b.height * 0.13, b.width, 26),
+      Rect.fromLTWH(b.left, b.top + b.height * 0.885, b.width, 22),
+    ]) {
+      // The trench it lies in.
+      canvas.drawRect(run.inflate(5), Paint()..color = const Color(0x66120D09));
+      canvas.drawRect(run, Paint()..color = const Color(0xFF3B3B40));
+      // Barrel highlight along the top of the pipe.
+      canvas.drawRect(
+        Rect.fromLTWH(run.left, run.top + 3, run.width, 4),
+        Paint()..color = const Color(0x3AD8E4EA),
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(run.left, run.bottom - 5, run.width, 4),
+        Paint()..color = const Color(0x33000000),
+      );
+      // Flanged joints every 180px, each with its ring of bolts.
+      for (var x = b.left + 90; x < b.right; x += 180) {
+        final fl = Rect.fromLTWH(x - 7, run.top - 4, 14, run.height + 8);
+        canvas.drawRect(fl, Paint()..color = const Color(0xFF4C4C52));
+        canvas.drawRect(
+          fl,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1
+            ..color = const Color(0x55151013),
+        );
+        for (final by in [fl.top + 4.0, fl.bottom - 4.0]) {
+          canvas.drawCircle(
+            Offset(x, by),
+            1.8,
+            Paint()..color = const Color(0xFF8A8A90),
+          );
+        }
+      }
+    }
+
+    // 4) A condensate grate down the low side — where the cooled breath goes.
+    final grate = Rect.fromLTWH(b.left + 26, b.bottom - 40, b.width - 52, 12);
+    canvas.drawRect(grate, Paint()..color = const Color(0xFF15100C));
+    final bar = Paint()
+      ..color = const Color(0xFF44464B)
+      ..strokeWidth = 3;
+    for (var x = grate.left + 5; x < grate.right; x += 13) {
+      canvas.drawLine(
+        Offset(x, grate.top + 1),
+        Offset(x, grate.bottom - 1),
+        bar,
+      );
     }
   }
 
@@ -1712,10 +1868,21 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   }
 
   void _renderMoltenCell(Canvas canvas, Rect rect, int code, bool cleared) {
+    // THE CRUCIBLE WAS A BOARD GAME. Flat orange squares for lava and flat
+    // grey squares for rock, on a checkerboard — the most schematic room on
+    // the planet, and the one the whole third star happens in. Same grid, same
+    // rules, drawn as materials: basalt with mortar-dark joints, and lava as a
+    // cooling crust with a bright core showing through its cracks.
+    final n = _forgeNoise(rect.left.round(), rect.top.round());
     switch (code) {
       case _mOpen:
-        // Translucent floor so the steam shader breathes through (FLOOR RULE).
+        // Translucent floor so the steam shader breathes through (FLOOR RULE),
+        // with the foundry's own soot worked into it.
         canvas.drawRect(rect, Paint()..color = const Color(0x5520282E));
+        canvas.drawRect(
+          rect.deflate(2 + 3 * n),
+          Paint()..color = Color(0x0EFF7A33),
+        );
         canvas.drawRect(
           rect.deflate(0.5),
           Paint()
@@ -1724,62 +1891,124 @@ extension MoltenLabyrinth on PlanetDungeonGame {
             ..color = const Color(0x118FA6B0),
         );
       case _mWall:
+        // Dressed block — the built thing, squared off and mortared.
         final rr = RRect.fromRectAndRadius(
           rect.deflate(2),
-          const Radius.circular(5),
-        );
-        canvas.drawRRect(rr, Paint()..color = const Color(0xFF39434B));
-        canvas.drawRRect(
-          rr,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..color = const Color(0xFF8FA6B0),
-        );
-        canvas.drawLine(
-          Offset(rect.left + 6, rect.top + 6),
-          Offset(rect.right - 6, rect.top + 6),
-          Paint()
-            ..color = const Color(0x44CFE0E6)
-            ..strokeWidth = 1.4,
-        );
-      case _mRock:
-        final rr = RRect.fromRectAndRadius(
-          rect.deflate(1),
           const Radius.circular(3),
         );
-        canvas.drawRRect(rr, Paint()..color = const Color(0xFF20272D));
+        canvas.drawRRect(
+          rr,
+          Paint()
+            ..color = Color.lerp(
+              const Color(0xFF3A4149),
+              const Color(0xFF4A525A),
+              n,
+            )!,
+        );
+        // Lit top face and a shadowed foot, so it stands rather than lies.
+        canvas.drawRect(
+          Rect.fromLTWH(rect.left + 4, rect.top + 3, rect.width - 8, 4),
+          Paint()..color = const Color(0x55CFE0E6),
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(rect.left + 4, rect.bottom - 7, rect.width - 8, 4),
+          Paint()..color = const Color(0x44000000),
+        );
         canvas.drawRRect(
           rr,
           Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5
-            ..color = const Color(0xFF3A444C),
+            ..strokeWidth = 1.6
+            ..color = const Color(0xFF20262B),
+        );
+      case _mRock:
+        // Raw basalt — irregular, dark, split. Never a rounded tile.
+        canvas.drawRect(rect, Paint()..color = const Color(0xFF191F24));
+        final slab = Rect.fromLTWH(
+          rect.left + 1 + n,
+          rect.top + 1 + (1 - n),
+          rect.width - 2 - 2 * n,
+          rect.height - 2,
+        );
+        canvas.drawRect(
+          slab,
+          Paint()
+            ..color = Color.lerp(
+              const Color(0xFF23292F),
+              const Color(0xFF2E353B),
+              n,
+            )!,
+        );
+        // A split across the face, angled by the cell's own noise.
+        canvas.drawLine(
+          Offset(slab.left + slab.width * (0.2 + 0.3 * n), slab.top),
+          Offset(slab.left + slab.width * (0.5 + 0.4 * n), slab.bottom),
+          Paint()
+            ..color = const Color(0x55000000)
+            ..strokeWidth = 1.4,
         );
       case _mLava:
         if (cleared) {
           canvas.drawRect(rect, Paint()..color = const Color(0x5520282E));
           return;
         }
-        canvas.drawRect(rect, Paint()..color = const Color(0xFF3A1206));
-        // A breathing ember body.
+        // A crust that has skinned over, with the bright body showing through
+        // where it has cracked — not a solid orange square.
         final pulse = 0.55 + 0.45 * sin(_moltenPulse * 2.4 + rect.left * 0.03);
+        canvas.drawRect(rect, Paint()..color = const Color(0xFF2A0C04));
         canvas.drawRect(
-          rect.deflate(3),
+          rect.deflate(1),
           Paint()
             ..color = Color.lerp(
-              const Color(0xFFFF6A2A),
-              const Color(0xFFFFC14A),
-              pulse * 0.6,
+              const Color(0xFF7A2A0E),
+              const Color(0xFFB5400F),
+              pulse * 0.5,
             )!,
         );
+        // The cracks: a rough net of hot seams, fixed per cell so the crust
+        // looks like crust rather than crawling.
+        final hot = Paint()
+          ..strokeWidth = 2.2
+          ..strokeCap = StrokeCap.round
+          ..color = Color.lerp(
+            const Color(0xFFFF6A2A),
+            const Color(0xFFFFD98A),
+            pulse,
+          )!;
+        // Short seams meeting at odd angles, each anchored to its own part
+        // of the cell. Three lines drawn corner-to-corner through the middle
+        // read as an asterisk stamped on a tile, which is the opposite of
+        // crust.
+        for (var k = 0; k < 4; k++) {
+          final m = _forgeNoise(
+            rect.left.round() + k * 7,
+            rect.top.round() + k,
+          );
+          final m2 = _forgeNoise(rect.top.round() + k * 13, rect.left.round());
+          final a0 = Offset(
+            rect.left + rect.width * (0.12 + 0.76 * m),
+            rect.top + rect.height * (0.12 + 0.76 * m2),
+          );
+          final ang = (m + m2) * pi;
+          final len = rect.width * (0.18 + 0.22 * m2);
+          // Clamped inside the cell: an unclamped seam runs out across the
+          // floor and reads as a crack in the room rather than in the lava.
+          final raw = a0 + Offset(cos(ang), sin(ang)) * len;
+          final inner = rect.deflate(3);
+          final a1 = Offset(
+            raw.dx.clamp(inner.left, inner.right),
+            raw.dy.clamp(inner.top, inner.bottom),
+          );
+          hot.strokeWidth = 1.6 + 1.2 * m;
+          canvas.drawLine(a0, a1, hot);
+        }
         if (_fx.ready) {
           drawGlow(
             canvas,
             _fx.glow!,
             rect.center,
-            rect.width * 0.6,
-            Color(0x66FF7A33).withValues(alpha: 0.30 + 0.20 * pulse),
+            rect.width * 0.7,
+            const Color(0xFFFF7A33).withValues(alpha: 0.30 + 0.22 * pulse),
           );
         }
     }
