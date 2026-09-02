@@ -2024,16 +2024,23 @@ of old stone bars the way"** in a room that had not had one for weeks.
       lip and requires it to still fall short.
       **PLUGGED MOUTHS FEED THE MAIN, and the riser wants an OVERPRESSURE.**
       A mouth you smother stops venting, so its head goes back into the
-      boiler: the field and the ring are the same gauge. Each plug is worth
-      40, the main is rated 99, and the riser only clears the chasm PAST that
-      rating — so two plugs (80) on a flat main is not enough and the boiler
-      has to be stoked the rest of the way. It is the one place on the planet
+      boiler; a mouth still roaring BLEEDS it. The field and the ring are the
+      same gauge. A plug is worth +40 and an open mouth is worth −45 —
+      deliberately more, so that a boiler at its rated maximum with one mouth
+      left open reads 94 and CANNOT clear the chasm however hard it is stoked.
+      Both plugs are necessary rather than merely helpful, and the main has to
+      be brought past 99 on top of them.
+        (Without the bleed the main simply bought its way past a mouth that
+        had never been covered, and the chasm could be cleared under the
+        redline — reported from play as "it's still letting me bounce over if
+        I'm not at max".) It is the one place on the planet
       where the ring's economy and a star puzzle are the same number, and the
       only place the main is asked to go over its rated maximum.
       The gauge says all of it: the boiler in amber, what the plugs put back
-      stacked on in cyan, a redline at 99, and the surplus spilling out past
-      the end of the bar in hot orange. That spill IS the win condition, so it
-      is the loudest thing on the screen.
+      stacked on in cyan, a dark red bite taken off the end for every mouth
+      still roaring, a redline at 99, and the surplus spilling out past the bar
+      in hot orange. The header counts the venting mouths by name. That spill
+      IS the win condition, so it is the loudest thing on the screen.
       **A short throw is now watchable.** The throw used to TELEPORT — the one
       spectacular thing in the room was invisible, and a throw that fell short
       was indistinguishable from one that did nothing. Bodies arc now, lift

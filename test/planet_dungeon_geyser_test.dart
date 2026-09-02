@@ -413,6 +413,35 @@ void main() {
       expect(earned, [1]);
     });
 
+    test('a FULL boiler cannot stand in for a plug — an open mouth bleeds the '
+        'main harder than a plug feeds it', () {
+      // The hole this closes: the head was boiler + plugs with nothing taken
+      // off for the mouths still roaring, so a well-stoked main simply bought
+      // its way past a mouth that had never been covered and the chasm could
+      // be cleared under the redline.
+      final game = atForge();
+      final room = forge(game);
+      final far = room.platforms.last;
+      game.boilerPressure = kSteamPressureMax; // as full as it can ever be
+      _stand(game, 0, riser(game, 'r_hob_b').position); // ONE mouth covered
+      _stand(game, 1, riser(game, 'r_riser').position);
+      game.creatures[1].aimAngle = 0;
+      _step(game);
+      expect(game.openFieldMouths, 1);
+      expect(
+        game.launchHead,
+        lessThan(kSteamPressureMax),
+        reason: 'the roaring mouth takes out more than the plug puts in',
+      );
+      expect(game.launchOverpressured, isFalse);
+      _step(game, 8);
+      expect(
+        far.inflate(2).contains(game.creatures[1].position),
+        isFalse,
+        reason: 'a full boiler is not a substitute for covering the field',
+      );
+    });
+
     test('riding from the far lip of the throat buys you NOTHING — the throw '
         'leaves the mouth', () {
       // You may ride from anywhere within reach of the throat, and the throw

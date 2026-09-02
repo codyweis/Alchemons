@@ -74,9 +74,15 @@ const double _kBlastReach = 96.0;
 /// Seconds a thrown body spends in the air.
 const double _kFlightSeconds = 0.75;
 
-/// What one plugged mouth puts back into the main. Two of them plus a working
-/// head is what takes the gauge past its rated 99.
+/// What one plugged mouth puts back into the main.
 const int kSteamCapHead = 40;
+
+/// What one mouth STILL ROARING takes out of it. Deliberately more than a plug
+/// puts back: a boiler at its rated maximum with one mouth left open reads 94,
+/// so no amount of stoking can stand in for a plug. Without this the main
+/// could simply buy its way past a mouth you never covered — which is exactly
+/// what it was doing, and why the chasm could be cleared under the redline.
+const int kSteamVentBleed = 45;
 
 /// A throw made on an overpressured main clears the chasm; one made under the
 /// redline is a lob that falls into it. The surplus above 99 adds a little
@@ -167,7 +173,18 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// planet where the main is asked to go past its rated maximum.
   ///
   /// Over 99 is an overpressure. Under it the throw is a lob into the chasm.
-  int get launchHead => boilerPressure + kSteamCapHead * cappedFieldMouths;
+  /// The bleed is what makes both plugs NECESSARY rather than merely helpful.
+  int get launchHead {
+    final field = currentRoom.geysers.where((g) => !g.isRiser).length;
+    final held = cappedFieldMouths;
+    return boilerPressure +
+        kSteamCapHead * held -
+        kSteamVentBleed * (field - held);
+  }
+
+  /// Mouths in this field still roaring — each one bleeding the main.
+  int get openFieldMouths =>
+      currentRoom.geysers.where((g) => !g.isRiser).length - cappedFieldMouths;
 
   /// Mouths held that are not risers (a riser cannot be smothered).
   int get cappedFieldMouths {
@@ -1307,17 +1324,17 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final head = launchHead;
     _setHint(
       tier >= 2
-          ? 'Both mouths AND a working main: two plugs are worth '
-                '${kSteamCapHead * 2}, so the boiler has to bring the rest of '
-                'the way past $kSteamPressureMax itself — stoke it if it is '
-                'flat. The stone holds one mouth and a body the other, which '
-                'leaves two to ride, and the moat over there wants a boulder '
-                'and a flame, so it is Steam that can be spared'
+          ? 'Every mouth covered AND the boiler over $kSteamPressureMax — one '
+                'open mouth takes out more than a plug puts in, so a full '
+                'boiler will not save you. The stone holds one and a body the '
+                'other, which leaves two to ride; the moat over there wants a '
+                'boulder and a flame, so it is Steam that can be spared'
           : tier >= 1
-          ? 'A plugged mouth stops venting and its head goes back into the '
-                'MAIN — so smothering the field raises the gauge. The riser '
-                'only clears the chasm on an OVERPRESSURE, past the rated '
-                '$kSteamPressureMax (it reads $head)'
+          ? 'A plugged mouth puts its head back into the MAIN; one still '
+                'roaring BLEEDS it, and bleeds harder than a plug feeds. So '
+                'every mouth has to be covered AND the boiler brought past '
+                'its rated $kSteamPressureMax — no amount of stoking stands '
+                'in for a plug (it reads $head)'
           : 'Two mouths can be covered and one cannot, and the far shore is '
                 'past the one that cannot',
       5.0,
@@ -2940,7 +2957,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final gy = vp.height * 0.5 - 64;
     final gaugeTp = TextPainter(
       text: TextSpan(
-        text: onField ? 'HEAD $head' : 'MAIN $boilerPressure',
+        text: onField
+            ? (openFieldMouths > 0
+                  ? 'HEAD $head · $openFieldMouths VENTING'
+                  : 'HEAD $head')
+            : 'MAIN $boilerPressure',
         style: TextStyle(
           color: head > kSteamPressureMax
               ? const Color(0xFFFF9A4A)
@@ -2976,13 +2997,19 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       );
     }
 
-    seg(0, boilerPressure.toDouble(), const Color(0xD9E4C16A));
     if (onField) {
-      seg(
-        boilerPressure.toDouble(),
-        head.toDouble(),
-        const Color(0xD98FE0EC), // what the plugs put back
-      );
+      // Amber: the boiler. Cyan on top: what the plugs put back. And a dark
+      // RED bite taken out of the end for every mouth still roaring, because
+      // an open mouth vents the main — that bite is why a fat boiler cannot
+      // buy its way past a mouth you never covered.
+      final gross = boilerPressure + kSteamCapHead * cappedFieldMouths;
+      seg(0, boilerPressure.toDouble(), const Color(0xD9E4C16A));
+      seg(boilerPressure.toDouble(), gross.toDouble(), const Color(0xD98FE0EC));
+      if (openFieldMouths > 0) {
+        seg(head.toDouble(), gross.toDouble(), const Color(0xCC7A1F14));
+      }
+    } else {
+      seg(0, boilerPressure.toDouble(), const Color(0xD9E4C16A));
     }
     // The OVERPRESSURE: past the rated maximum, spilling out beyond the bar.
     if (head > kSteamPressureMax) {
