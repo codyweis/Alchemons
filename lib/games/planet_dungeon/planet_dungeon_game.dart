@@ -1429,6 +1429,16 @@ class PlanetDungeonGame extends FlameGame {
   /// The Cinder Forge's casting moat: how far down the channel the melt has
   /// run (0..1), how much rock is left on the lip to feed it (0..1), and how
   /// long since anyone last worked it.
+  /// THE CRUCIBLE FURNACE (§ Star 3 rebuild). Its heat, how long it has sat
+  /// in the working band, and whether the pour has taken. The rite used to be
+  /// "still every source vein, then touch the pedestal" — a flood-fill rule
+  /// the player could not see, in the only tile-grid room on a planet whose
+  /// every other beat is pressure. It is the planet's own gauge now: bring
+  /// the furnace to heat and HOLD it there while the chamber works against
+  /// you.
+  double crucibleHeat = 0;
+  double crucibleBandT = 0;
+
   double moatFill = 0;
   double boulderCharge = 0;
   double _moatIdle = 0;

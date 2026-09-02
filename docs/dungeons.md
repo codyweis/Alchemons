@@ -925,13 +925,18 @@ or it drifts into Water's seat.
    but every body sent across is one fewer holding the field down, so **the
    longest throw has to be taken first** and the last one across rides the
    weakest field. Star banks when the whole party stands on the far shore.
-   The MOLTEN GRID survives in the crucible alone: Fire melts walls to lava,
-   Steam cools lava to stone (breath-metered), Earth dams the creep, and the
-   flood sleeps until Fire first breaks rock. Its band offers
-   CHOOSE-YOUR-BREACH — of each pair of gates the inner one (the short way to
-   the pedestal) has a cistern behind it and floods your own chamber, the
-   outer is dry. Rite: still the reservoir, break in, quench the rest, take the
-   pedestal → Boilrog.
+   S3 (the Crucible) is THE FURNACE. Its molten grid is the ARENA, not the
+   puzzle: the melt creeps, Steam cools it, Earth dams it, and the band's
+   gates still offer choose-your-breach (of each pair the inner one has a
+   cistern behind it and bursts into your own chamber). What banks the rite is
+   the planet's own gauge — bring the furnace to a working heat and HOLD it
+   there. Fire feeds it OUT OF THE MAIN, so the ring is what fires the finale;
+   Steam trims it for nothing; a cold furnace bleeds, so nobody can leave the
+   tap. The needle has to SIT in the band for eight seconds, not pass through
+   it, which means topping up INSIDE the band — a stoke taken from the floor
+   of it buys six seconds against an eight-second hold. Meanwhile the flood is
+   awake and coming, and Steam is both the trim and the only thing that stops
+   it. → Boilrog.
    NOTE for future builds — verbs Steam now owns: "cool lava into paths"
    (Lava planet must lean into CASTING/molds instead), tile wall raise/remove
    (Mud's reshaping should drag/flow terrain), tile-flood spreading (Poison's
@@ -2436,6 +2441,53 @@ crosses vat B on its way to dying in the east wall.
 > multiple firings*. Both went for the same reason: this room is for trying
 > things freely. The proof seams they used were `solveSpireOpenings` and
 > `solveSpireRoutes`, in this file's history.
+
+### §9.5 STEAM'S FINALE — the crucible runs on the planet's own gauge
+
+**What it replaced.** "Still every source vein, then touch the pedestal",
+where SOURCE meant lava the pedestal's own floor could not reach. A flood-fill
+rule with no expression on screen: the refusal counted veins and never said
+which, the three that counted were drawn exactly like the two that did not,
+and the whole thing lived in the only tile-grid room on a planet whose every
+other beat is pressure. Reported from play as *"how do I even beat star 3?"*,
+which is the fairest possible bug report.
+
+**The arena stays, the puzzle changes.** Keeping the molten grid as terrain
+was the point: nothing is orphaned, the Hidden Harmony egg keeps its meaning
+(zero scalds), Steam's cooling and Earth's damming still matter, and the wet /
+dry gates still teach choose-your-breach on the way in. What the tile grid
+stopped being is the thing you have to *solve*.
+
+**The rite is a hold.** Bring the furnace to a working heat and keep it there
+for eight seconds. Fire feeds it out of the MAIN (12 a stoke), Steam trims it
+for nothing, and a cold furnace bleeds at 5 a second so nobody can walk away
+from the tap. The band is 55–85 and the hold restarts — not pauses — the
+moment the needle leaves it.
+  · The skill is ANTICIPATION. The band is 30 wide and bleeds at 5, so a stoke
+    taken from the floor of it buys six seconds against an eight-second hold:
+    you have to top up INSIDE the band. "Sit in it, do not pass through it."
+  · The scarcity is the RING. Fire spends the main, so the finale is paid for
+    out of the same budget as the junctions and the vault — the first time
+    Star 3 has had anything to do with the thing the planet is about.
+  · The tension is that STEAM IS BOTH HANDS. It trims the needle and it is the
+    only thing that stops the flood, and it cannot do both at once.
+
+**Two faults found by playing it in a test, either of which would have shipped
+an unwinnable room:**
+  · **The melt drowned the mould.** The flood claimed the pedestal cell about
+    4.4 seconds in — before an eight-second hold could ever finish. The plinth
+    stands proud of the floor now and the melt runs around it.
+  · **The flood was exponential.** Every lava cell claimed all four open
+    neighbours every beat: five cells became thirty-four in five seconds and
+    the chamber was simply gone. Nothing Earth can dam keeps up with a
+    doubling, so it was not a pressure, it was a wipe — the same fault the
+    mask trap chain had. It takes three cells a beat now, and it takes the
+    ones NEAREST A BODY, so it visibly comes for you.
+  · And a third that was always there: **a wet breach never actually burst.**
+    "The dam gives way — the reservoir pours through your breach!" was a line
+    of hint text with nothing behind it; the pour was left to the general
+    creep, so it happened eventually, from wherever. Melt behind a wet gate
+    now goes out its far face on the frame you break it.
 
 ### A GAUGE CAN BE WRONG WITH EVERY NUMBER RIGHT
 

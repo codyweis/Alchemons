@@ -449,37 +449,55 @@ void main() {
       reason: 'the ring is open and the main is spent to the last unit',
     );
 
-    // ── Rite: the Crucible — THE SOURCE, QUENCHED (reworked) ──
-    // The pedestal will not sink while one vein still runs, and the cisterns
-    // lie beyond the band — so the order is the rite: still the reservoir
-    // FIRST, while the chamber sleeps, then break in for the rest.
-    standAt('crucible', 5, 4, 5, 3);
+    // ── Rite: the Crucible — BRING THE FURNACE TO HEAT AND HOLD IT ──
+    // WHAT THIS REPLACES: a quenching. The pedestal would not sink while a
+    // "source vein" still ran, where source meant lava the pedestal's own
+    // floor could not reach — a flood-fill rule with no expression on screen,
+    // in the only tile-grid room on a planet whose every other beat is
+    // pressure. The arena is the same; the rite is the gauge now.
+    standAt('crucible', 4, 4, 4, 5);
     step();
     final crucible = game.moltenCells['crucible']!;
-    expect(crucible[3][5], 3, reason: 'the reservoir hangs over the band');
-    for (final c in [5, 6, 7]) {
-      waitForBreath(1);
-      act('crucible', steam, c, 4, c, 3); // quench the reservoir, asleep
-      expect(crucible[3][c], 0);
-    }
-    expect(
-      game.wokeRooms.contains('crucible'),
-      isFalse,
-      reason: 'quenching never wakes anything — only breaking rock does',
-    );
 
-    // Now break in. The breach itself runs molten and counts as a live vein.
+    // Break in through a DRY gate — the outer one of a pair. (The inner ones
+    // have a cistern behind them and burst into your own chamber.)
     waitForBreath(2);
     act('crucible', fire, 4, 4, 4, 5);
-    expect(game.wokeRooms, contains('crucible'));
+    expect(crucible[5][4], 3, reason: 'Fire melts the gate to lava');
     act('crucible', steam, 4, 4, 4, 5);
 
+    // The furnace is cold and the mould will not take. Fire feeds it OUT OF
+    // THE MAIN, so the ring is what fires the finale; Steam trims it free.
+    // The needle has to SIT in the band, not pass through it.
     standAt('crucible', 6, 7, 6, 7);
     step();
     expect(
       game.moltenRiteDone,
+      isFalse,
+      reason: 'a cold furnace pours nothing',
+    );
+
+    var held = 0;
+    while (!game.moltenRiteDone && held++ < 60 * 120) {
+      if (game.crucibleHeat < kCrucibleBandLow + 8) {
+        // Topping up INSIDE the band is the skill: a stoke taken from the
+        // floor of it buys six seconds against an eight-second hold.
+        if (game.boilerPressure < 12) {
+          actAt('manifold_north', fire, north.stokePort! + const Offset(30, 0));
+          clearWisps();
+          standAt('crucible', 6, 7, 6, 7);
+        }
+        act('crucible', fire, 6, 7, 6, 7);
+      } else if (game.crucibleHeat > kCrucibleBandHigh) {
+        act('crucible', steam, 6, 7, 6, 7);
+      }
+      standAt('crucible', 6, 7, 6, 7);
+      step();
+    }
+    expect(
+      game.moltenRiteDone,
       isTrue,
-      reason: 'a stilled chamber performs the guardian rite',
+      reason: 'the melt runs true and the mould takes it',
     );
 
     // ── Hidden Harmony: the whole labyrinth without one scald ──
@@ -492,6 +510,11 @@ void main() {
 
     // ── The burst-disc: stoke the main to a 60-surge, then vent it all ──
     final disc = south.burstDisc!;
+    // The furnace drank the main dry (every stoke of it is spent from the
+    // ring), so put something back before testing that a SHORT surge is
+    // refused — otherwise the refusal proves nothing.
+    actAt('manifold_south', fire, south.stokePort! + const Offset(30, 0));
+    clearWisps();
     // Below threshold the valve refuses and takes NOTHING.
     actAt('manifold_south', steam, disc.position + const Offset(30, 0));
     expect(game.burstDiscBlown, isFalse);
@@ -794,10 +817,12 @@ void main() {
     final g = room.molten!;
     game.currentRoomId = 'crucible';
     void park() {
-      // The north field, on the far side of the band from both cisterns.
+      // The south chamber, near the cisterns. Where the party STANDS decides
+      // which way the melt runs — it comes for you — so a test that wants to
+      // watch the cisterns creep has to stand where they can reach.
       game.creatures.single
-        ..position = _center(room, g, 1, 1)
-        ..lastSafe = _center(room, g, 1, 1);
+        ..position = _center(room, g, 2, 8)
+        ..lastSafe = _center(room, g, 2, 8);
     }
 
     park();
@@ -820,11 +845,28 @@ void main() {
       park();
       game.update(1 / 60);
     }
-    expect(cells[7][5], 3, reason: 'a woken cistern floods its neighbours');
-    expect(cells[7][7], 3, reason: 'and so does the other');
+    // THE CREEP COMES FOR YOU, so which cells it takes depends on where the
+    // party is standing — naming fixed cells here would be asserting the
+    // party's position, not the flood. What matters is that it grew, and that
+    // it grew out of the cisterns.
+    final grown = cells.expand((row) => row).where((c) => c == 3).length;
+    expect(grown, greaterThan(2), reason: 'the flood has spread at all');
+    bool anyNeighbour(int c, int r) => [
+      cells[r - 1][c],
+      cells[r + 1][c],
+      cells[r][c - 1],
+      cells[r][c + 1],
+    ].any((v) => v == 3);
+    expect(anyNeighbour(5, 6), isTrue, reason: 'a woken cistern creeps');
+    expect(anyNeighbour(7, 6), isTrue, reason: 'and so does the other');
   });
 
-  test('the crucible rite is a QUENCHING: the source, before the pedestal', () {
+  test('the crucible rite is a HOLD: the needle has to sit in the band', () {
+    // WHAT THIS REPLACES: a quenching. "Still every source vein, then touch
+    // the pedestal", where SOURCE meant lava the pedestal's floor could not
+    // reach — a flood-fill rule with no expression on screen, in the only
+    // tile-grid room on a pressure planet. The arena is the same; the rite is
+    // the planet's own gauge now.
     final game = _harness([
       _member(0, 'Steam', 'pip'),
       _member(1, 'Earth', 'horn'),
@@ -834,56 +876,129 @@ void main() {
     final g = room.molten!;
     game.currentRoomId = 'crucible';
     game.update(1 / 60);
-    final cells = game.moltenCells['crucible']!;
-
-    void park(int c, int r, int fc, int fr) {
-      final p = _center(room, g, c, r);
-      final ang = atan2((fr - r).toDouble(), (fc - c).toDouble());
-      for (final cr in game.creatures) {
-        cr
-          ..position = p
-          ..lastSafe = p
-          ..angle = ang
-          ..aimAngle = ang;
+    final ped = _center(room, g, 6, 7);
+    void standAll(int active) {
+      game.setActive(active);
+      for (final c in game.creatures) {
+        c
+          ..position = ped
+          ..lastSafe = ped;
       }
     }
 
-    // Break the band and walk to the pedestal with the reservoir still live.
-    game.setActive(2);
-    park(4, 4, 4, 5);
+    // Cold, and touching it does nothing at all — the pedestal is not a
+    // switch any more.
+    standAll(0);
+    game.update(1 / 60);
+    expect(game.moltenRiteDone, isFalse);
+    expect(game.crucibleHeat, 0);
+
+    // FIRE FEEDS IT OUT OF THE MAIN, which is what ties the finale to the
+    // ring: a flat boiler cannot fire the furnace at all.
+    game.boilerPressure = 0;
+    standAll(2);
     game.activateAbility();
-    expect(game.wokeRooms, contains('crucible'));
-    park(6, 7, 6, 7);
-    game.update(1 / 60);
     expect(
-      game.moltenRiteDone,
-      isFalse,
-      reason: 'the pedestal will not sink while the source still runs',
+      game.crucibleHeat,
+      0,
+      reason: 'no main, no furnace — the ring is what fires it',
     );
-    game.askForRoomHint();
-    expect(game.hintChannel, DungeonHintChannel.blocked);
-    game.askForRoomHint();
-    expect(game.hintText, contains('run'));
 
-    // Still the reservoir — the three veins that hang above the band — and
-    // the same pedestal answers. (Quenching never wakes anything; only
-    // breaking rock does, which is why the order is the whole rite.)
-    game.setActive(0);
-    for (final c in [5, 6, 7]) {
-      var guard = 0;
-      while (game.steamBreath < 1 && guard++ < 60 * 10) {
-        game.update(1 / 60);
+    game.boilerPressure = 90;
+    final before = game.boilerPressure;
+    standAll(2);
+    game.activateAbility();
+    expect(game.crucibleHeat, greaterThan(0));
+    expect(
+      game.boilerPressure,
+      lessThan(before),
+      reason: 'every stoke is spent out of the main',
+    );
+    expect(
+      game.wokeRooms,
+      contains('crucible'),
+      reason: 'the first breath of the furnace stirs the chamber',
+    );
+
+    // Steam trims, for nothing.
+    final hot = game.crucibleHeat;
+    standAll(0);
+    game.activateAbility();
+    expect(game.crucibleHeat, lessThan(hot));
+    expect(game.boilerPressure, 90 - 12);
+
+    // Hold it in the band and the mould takes. Feed when it drops under,
+    // trim when it climbs over — which is the act, and it is timed.
+    // ANTICIPATION IS THE SKILL. Waiting until the needle has already fallen
+    // out of the band loses the hold every time — the band is 30 wide and
+    // bleeds at 5 a second, so a stoke taken from the floor of it buys only
+    // six seconds against an eight-second hold. You have to top up INSIDE the
+    // band, which is what "sit in it, do not pass through it" means.
+    var guard = 0;
+    while (!game.moltenRiteDone && guard++ < 60 * 120) {
+      if (game.crucibleHeat < kCrucibleBandLow + 8) {
+        game.boilerPressure = 90; // the ring's budget is tested elsewhere
+        standAll(2);
+        game.activateAbility();
+      } else if (game.crucibleHeat > kCrucibleBandHigh) {
+        standAll(0);
+        game.activateAbility();
       }
-      park(c, 4, c, 3);
-      game.activateAbility();
-      expect(cells[3][c], 0, reason: 'reservoir vein $c stilled');
+      for (final c in game.creatures) {
+        c
+          ..position = ped
+          ..lastSafe = ped
+          ..hp = c.maxHp;
+      }
+      game.update(1 / 60);
     }
-    park(6, 7, 6, 7);
+    expect(game.moltenRiteDone, isTrue, reason: 'the pour takes');
+  });
+
+  test('the hold RESTARTS when the needle drifts out of the band', () {
+    final game = _harness([
+      _member(0, 'Steam', 'pip'),
+      _member(1, 'Earth', 'horn'),
+      _member(2, 'Fire', 'mask'),
+    ]);
+    final room = game.layout.rooms['crucible']!;
+    final g = room.molten!;
+    game.currentRoomId = 'crucible';
+    game.boilerPressure = 90;
+    game.update(1 / 60);
+    final ped = _center(room, g, 6, 7);
+    for (final c in game.creatures) {
+      c
+        ..position = ped
+        ..lastSafe = ped;
+    }
+    game.setActive(2);
+    game.activateAbility();
+    game.activateAbility();
+    game.activateAbility(); // into the band
+    for (var i = 0; i < 60; i++) {
+      for (final c in game.creatures) {
+        c.hp = c.maxHp;
+      }
+      game.update(1 / 60);
+    }
+    expect(game.crucibleBandT, greaterThan(0));
+    // Now overshoot it deliberately.
+    game.setActive(2);
+    for (var i = 0; i < 4; i++) {
+      game.boilerPressure = 90;
+      game.activateAbility();
+    }
     game.update(1 / 60);
     expect(
-      game.moltenRiteDone,
-      isTrue,
-      reason: 'a stilled source performs the rite',
+      game.crucibleHeat,
+      greaterThan(kCrucibleBandHigh),
+      reason: 'thrown past the band',
+    );
+    expect(
+      game.crucibleBandT,
+      0,
+      reason: 'and the hold is lost, not merely paused',
     );
   });
 
@@ -1024,17 +1139,10 @@ void main() {
     game.activateAbility();
     expect(cells[5][5], 3, reason: 'the breach itself runs molten');
 
-    // Stand clear and let the beats pass: what was behind the gate comes
-    // through it, into the chamber you are standing in.
-    final safe = _center(room, g, 1, 1);
-    for (var i = 0; i < 60 * 4; i++) {
-      for (final c in game.creatures) {
-        c
-          ..position = safe
-          ..lastSafe = safe;
-      }
-      game.update(1 / 60);
-    }
+    // AT ONCE, and through the breach: the melt behind the gate goes out its
+    // far face on the frame you break it, into the chamber you are standing
+    // in. (This used to wait on the general creep, which made "the dam gives
+    // way" a line of text with nothing behind it.)
     expect(
       cells[4][5],
       3,

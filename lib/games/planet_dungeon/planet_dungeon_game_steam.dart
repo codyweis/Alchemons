@@ -38,6 +38,10 @@ const int _mLava = 3; // molten — deadly, creeps ('L')
 /// Seconds between lava-creep beats (generous; tune on device).
 const double _kMoltenBeat = 2.2;
 
+/// How many cells the flood may claim on one beat. Uncapped it doubled, which
+/// is not a flood a party can work against — see `_spreadLava`.
+const int _kMoltenSpreadPerBeat = 3;
+
 /// Steam's cooling-breath capacity. One breath per cooled cell, one back per
 /// creep beat — you can quench a lane, never out-cool a whole flood.
 const int kSteamBreathMax = 3;
@@ -94,6 +98,30 @@ const double _kThrowPerOver = 1.2;
 /// How close a body must stand to a channel lip to work it.
 const double _kCastReach = 62.0;
 
+// ── THE CRUCIBLE FURNACE (Star 3) ─────────────────────────
+/// The working band. Below it the melt will not run; above it the furnace
+/// vents and throws its heat away.
+const double kCrucibleBandLow = 55.0;
+const double kCrucibleBandHigh = 85.0;
+
+/// Seconds the needle must sit inside the band for the pour to take.
+const double kCrucibleHoldSeconds = 8.0;
+
+/// A cold furnace bleeds. This is the reason you cannot walk away.
+const double _kCrucibleDecay = 5.0;
+
+/// Fire feeds it — out of the MAIN, which is what ties the finale to the ring
+/// the whole planet runs on. Steam trims it, for nothing.
+const double _kCrucibleStoke = 22.0;
+const int _kCrucibleStokeCost = 12;
+const double _kCrucibleBleed = 14.0;
+
+/// Past this the furnace throws its heat off in a scalding vent.
+const double _kCrucibleVentAt = 100.0;
+
+/// How close a body must stand to the pedestal to work the furnace.
+const double _kFurnaceReach = 74.0;
+
 /// How far one press of flame runs the melt down the moat, how much of the
 /// boulder it spends doing it, and how fast an unfed front skins over.
 const double _kMoatPerPour = 0.25;
@@ -127,6 +155,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     earthRock = null;
     earthRockRaise = 0;
     burstCapstoneRooms.clear();
+    crucibleHeat = 0;
+    crucibleBandT = 0;
     moatFill = 0;
     boulderCharge = 0;
     _moatIdle = 0;
@@ -609,51 +639,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// flood-fill the AUTHORED open ground from the pedestal, and any authored
   /// 'L' the fill cannot see is a source, because the band is what separates
   /// them. (So a re-authored crucible cannot silently drift from this rule.)
-  List<(int, int)> _riteSourceCells(DungeonRoom room, MoltenGrid g) {
-    final ped = _pedestalCell(g);
-    if (ped == null) return const [];
-    final seen = <int>{ped.$2 * g.cols + ped.$1};
-    final queue = <(int, int)>[ped];
-    while (queue.isNotEmpty) {
-      final (c, r) = queue.removeLast();
-      for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
-        final nc = c + dc, nr = r + dr;
-        if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
-        if (!seen.add(nr * g.cols + nc)) continue;
-        final ch = g.rows[nr][nc];
-        // The fill runs over authored floor only: rock and the band stop it,
-        // and molten is a destination, not a corridor.
-        if (ch == 'X' || ch == '#' || ch == 'L') continue;
-        queue.add((nc, nr));
-      }
-    }
-    final out = <(int, int)>[];
-    for (var r = 0; r < g.rowCount; r++) {
-      for (var c = 0; c < g.cols; c++) {
-        if (g.rows[r][c] != 'L') continue;
-        if (seen.contains(r * g.cols + c)) continue; // shares your floor
-        out.add((c, r));
-      }
-    }
-    return out;
-  }
-
-  /// How many SOURCE veins still run. The crucible rite reads this: the
-  /// pedestal will not sink while the thing overhead is still pouring.
-  int _moltenLavaCount(DungeonRoom room, MoltenGrid g) {
-    final grid = _moltenFor(room);
-    var n = 0;
-    for (final (c, r) in _riteSourceCells(room, g)) {
-      if (grid[r][c] == _mLava) n++;
-    }
-    return n;
-  }
-
-  /// §5.6: the refusal names WHAT is owed, never the method — and it counts,
-  /// so the readout is the progress bar for the quenching.
-  String _riteRefusalHint(int live) => live == 1
-      ? 'The crucible will not take you — one last vein still runs'
-      : 'The crucible will not take you — $live veins still run';
+  // (`_riteSourceCells`, `_moltenLavaCount` and `_riteRefusalHint` lived here
+  // and are gone with the quenching rite. They flood-filled from the pedestal
+  // to decide which lava the player was obliged to still — a rule with no
+  // expression anywhere on screen, in a room that drew both kinds of lava
+  // identically. See `_updateCrucibleFurnace` for what replaced it.)
 
   /// The mutable cell grid for [room], built lazily from its authored rows.
   List<List<int>> _moltenFor(DungeonRoom room) {
@@ -720,6 +710,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     _moltenPulse = (_moltenPulse + dt) % 1000.0;
     // The guardian wakes once the rite is done, even from the (grid-less) heart.
     _maybeWakeBoilrog(room);
+    // The furnace runs in the crucible, which has no geyser field — so it
+    // ticks HERE, not inside `_updateGeyserField` where it first went and
+    // was never once called.
+    _updateCrucibleFurnace(room, dt);
     final g = room.molten;
     if (g == null) return;
     final grid = _moltenFor(room);
@@ -799,35 +793,14 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final (col, r) = _cellAt(a.position, room, g);
     final onGrid = col >= 0;
 
-    // Pedestal reached → bank the star, or perform the rite.
+    // Pedestal reached → bank the star (a star grid), or, in the crucible,
+    // stand at the furnace. The RITE is no longer "touch this": see
+    // `_updateCrucibleFurnace`.
     final ped = _pedestalCell(g);
     if (ped != null && onGrid && col == ped.$1 && r == ped.$2) {
       if (g.starIndex != null && !hasStar(g.starIndex!)) {
         _setHint('You stand on the cooled pedestal — the molten yields to you');
         earnStar(g.starIndex!);
-      } else if (g.starIndex == null && !moltenRiteDone) {
-        // THE RITE IS A QUENCHING (reworked 2026-08-14). The pedestal used to
-        // sink for anyone who reached it, which made the crucible a 3.0s walk:
-        // break a band, drop through, touch it — the reservoir overhead and
-        // both cisterns never acted, because a flood that creeps one cell a
-        // beat can never catch a walker who only has to walk once. So the
-        // crucible now demands what this planet has been teaching all along:
-        // the SOURCE, quenched. Every last drop of molten in the chamber must
-        // be stilled — and since the cisterns lie beyond the band, you have to
-        // break in to reach them, which wakes everything you have not yet
-        // dealt with. Order is the whole rite: still the reservoir before you
-        // break, dam what you cannot outpace, and quench the rest.
-        final live = _moltenLavaCount(room, g);
-        if (live > 0) {
-          _setBlockedHint(_riteRefusalHint(live));
-        } else {
-          moltenRiteDone = true;
-          _setHint(
-            'The crucible pedestal sinks — Boilrog heaves up from the heart',
-            4.0,
-          );
-          _maybeEarnHiddenHarmony(room);
-        }
       }
     }
   }
@@ -870,7 +843,22 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   /// One creep step: each lava cell floods its open 4-neighbours (snapshot, so a
   /// single beat advances exactly one ring).
+  /// The creep, and it is a CREEP now.
+  ///
+  /// Every lava cell used to claim all four of its open neighbours on every
+  /// beat, which is exponential: the crucible went from five cells to
+  /// thirty-four in five seconds and the chamber was simply gone. Nothing
+  /// Earth can dam keeps up with a doubling, so the flood was not a pressure,
+  /// it was a wipe — the same fault the mask trap chain had.
+  ///
+  /// It takes the cells NEAREST THE MOULD first, a few a beat, so the melt
+  /// visibly runs downhill toward the thing you are working and a dam in the
+  /// right place is worth something. And it never takes the mould itself: the
+  /// plinth stands proud of the floor and the melt runs around it, which is
+  /// what makes an eight-second hold possible at all.
   void _spreadLava(List<List<int>> grid, MoltenGrid g) {
+    final ped = _pedestalCell(g);
+    final seen = <int>{};
     final next = <(int, int)>[];
     for (var r = 0; r < g.rowCount; r++) {
       for (var c = 0; c < g.cols; c++) {
@@ -878,11 +866,41 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
           final nc = c + dc, nr = r + dr;
           if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
-          if (grid[nr][nc] == _mOpen) next.add((nc, nr));
+          if (grid[nr][nc] != _mOpen) continue;
+          if (ped != null && nc == ped.$1 && nr == ped.$2) continue;
+          if (!seen.add(nr * g.cols + nc)) continue;
+          next.add((nc, nr));
         }
       }
     }
-    for (final (c, r) in next) {
+    // IT COMES FOR YOU. Sorting toward the mould read well but quietly broke
+    // the wet-breach lesson: melt released north of the band would turn round
+    // and run south, so breaching a wet face no longer flooded the chamber
+    // you were standing in. Nearest-to-a-body does both — during the hold you
+    // are AT the mould, so it still crawls toward the work.
+    final room = currentRoom;
+    final (cw, ch) = _cellSize(room, g);
+    final bodies = <(int, int)>[
+      for (final c in creatures)
+        if (c.alive)
+          (
+            ((c.position.dx - room.bounds.left) / cw).floor(),
+            ((c.position.dy - room.bounds.top) / ch).floor(),
+          ),
+    ];
+    if (bodies.isNotEmpty) {
+      int near((int, int) cell) {
+        var best = 1 << 20;
+        for (final b in bodies) {
+          final d = (cell.$1 - b.$1).abs() + (cell.$2 - b.$2).abs();
+          if (d < best) best = d;
+        }
+        return best;
+      }
+
+      next.sort((a, b) => near(a).compareTo(near(b)));
+    }
+    for (final (c, r) in next.take(_kMoltenSpreadPerBeat)) {
       grid[r][c] = _mLava;
     }
   }
@@ -959,6 +977,123 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   }
 
   // ── Action button ────────────────────────────────────────
+
+  /// Where the crucible's furnace is worked — the pedestal at the heart of
+  /// the chamber, past the band.
+  Offset? _furnaceAt(DungeonRoom room) {
+    final g = room.molten;
+    if (g == null || g.starIndex != null) return null;
+    final ped = _pedestalCell(g);
+    if (ped == null) return null;
+    final (cw, ch) = _cellSize(room, g);
+    return Offset(
+      room.bounds.left + (ped.$1 + 0.5) * cw,
+      room.bounds.top + (ped.$2 + 0.5) * ch,
+    );
+  }
+
+  /// THE CRUCIBLE RITE, rebuilt on the planet's own gauge.
+  ///
+  /// WHAT THIS REPLACES: "still every source vein, then touch the pedestal",
+  /// where SOURCE meant lava the pedestal's own floor could not reach — a
+  /// flood-fill rule with no expression on screen. The refusal counted veins
+  /// and nothing said WHICH, the three that counted were drawn exactly like
+  /// the two that did not, and the whole thing lived in the only tile-grid
+  /// room on a planet whose every other beat is pressure.
+  ///
+  /// Now the tile grid is the ARENA and the pressure is the puzzle. The
+  /// furnace must be brought to a working heat and HELD there: Fire feeds it
+  /// out of the main (so the ring you have managed all run is what fires the
+  /// finale), Steam trims it for nothing, and a cold furnace bleeds — so
+  /// nobody can walk away from the tap. Meanwhile the flood is awake and
+  /// creeping, which is Earth's problem and Steam's, and Steam is also the
+  /// trim. That is the finale: one gauge, three hands, and not enough of any
+  /// of them.
+  void _updateCrucibleFurnace(DungeonRoom room, double dt) {
+    if (_furnaceAt(room) == null || moltenRiteDone) return;
+    if (crucibleHeat <= 0 && crucibleBandT <= 0) return; // not lit yet
+    crucibleHeat = max(0.0, crucibleHeat - _kCrucibleDecay * dt);
+    if (crucibleHeat >= kCrucibleBandLow && crucibleHeat <= kCrucibleBandHigh) {
+      crucibleBandT += dt;
+      if (crucibleBandT >= kCrucibleHoldSeconds) {
+        moltenRiteDone = true;
+        _setHint(
+          'The melt runs true and the mould takes it — Boilrog heaves up from '
+          'the heart',
+          4.0,
+        );
+        _maybeEarnHiddenHarmony(room);
+        onChanged();
+      }
+    } else {
+      // Out of the band the hold is lost, not merely paused.
+      crucibleBandT = 0;
+    }
+    if (crucibleHeat >= _kCrucibleVentAt) {
+      crucibleHeat -= 40;
+      _setBlockedHint('The furnace vents — you threw the heat away', 3.0);
+      spawnWispWave(
+        element: 'Steam',
+        center: _furnaceAt(room)!,
+        count: 2,
+        unstable: true,
+        announce: false,
+      );
+    }
+  }
+
+  /// Fire feeds the furnace, Steam trims it. Earth's hands are on the flood.
+  bool _tryFurnace(DungeonCreature a) {
+    final room = currentRoom;
+    final at = _furnaceAt(room);
+    if (at == null || moltenRiteDone) return false;
+    if ((a.position - at).distance > _kFurnaceReach) return false;
+
+    if (a.member.element == 'Fire') {
+      if (boilerPressure < _kCrucibleStokeCost) {
+        _setBlockedHint(
+          'The main is too flat to feed the furnace — it wants '
+          '$_kCrucibleStokeCost',
+        );
+        return true;
+      }
+      boilerPressure -= _kCrucibleStokeCost;
+      crucibleHeat = min(_kCrucibleVentAt, crucibleHeat + _kCrucibleStoke);
+      // The first breath of the furnace stirs everything sleeping in here.
+      if (!wokeRooms.contains(room.id)) {
+        wokeRooms.add(room.id);
+        _setHint('The furnace draws — and the chamber stirs with it', 3.0);
+      } else {
+        _setHint('The furnace takes the feed');
+      }
+      _spawnAlchemyBurst(
+        at,
+        producedElement: 'Fire',
+        particleCount: 14,
+        intensity: 0.8,
+      );
+      onChanged();
+      return true;
+    }
+    if (a.member.element == 'Steam') {
+      if (crucibleHeat <= 0) {
+        _setBlockedHint('There is no heat in it to let out');
+        return true;
+      }
+      crucibleHeat = max(0.0, crucibleHeat - _kCrucibleBleed);
+      _setHint('The relief hisses — the needle falls');
+      _spawnAlchemyBurst(
+        at,
+        producedElement: 'Steam',
+        particleCount: 12,
+        intensity: 0.6,
+      );
+      onChanged();
+      return true;
+    }
+    _setBlockedHint('The furnace answers a flame and a relief, nothing else');
+    return true;
+  }
 
   /// THE CASTING, on the Cinder Forge's far shore. Earth heaves a rock onto
   /// the lip at the head of the moat; Fire melts it and the melt runs down.
@@ -1042,6 +1177,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   bool _tryPressure(DungeonCreature a) {
     if (!_isVapor) return false;
     final room = currentRoom;
+    if (_tryFurnace(a)) return true;
     if (_tryCasting(a)) return true;
 
     // Entry rite: a Steam creature cracks the gate vent → the seal hisses open.
@@ -1175,6 +1311,32 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         if (code == _mWall) {
           final wet = _wallIsWet(grid, g, c, r);
           grid[r][c] = _mLava;
+          // A WET FACE BURSTS AT ONCE, and it bursts THROUGH — straight past
+          // the breach into the chamber you are standing in. This used to be
+          // a line of hint text and nothing else: the pour was left to the
+          // general creep, which meant it happened eventually, from wherever,
+          // and read as no consequence at all. The melt behind the gate goes
+          // out the far side of it, deterministically, on the frame you break
+          // it.
+          if (wet) {
+            for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
+              final bc = c + dc, br = r + dr;
+              if (bc < 0 || br < 0 || bc >= g.cols || br >= g.rowCount) {
+                continue;
+              }
+              if (grid[br][bc] != _mLava) continue;
+              // Straight through, to the cell on the opposite face.
+              final tc = c - dc, tr = r - dr;
+              if (tc < 0 || tr < 0 || tc >= g.cols || tr >= g.rowCount) {
+                continue;
+              }
+              if (grid[tr][tc] == _mOpen) {
+                grid[tr][tc] = _mLava;
+                (freshLava[room.id] ??= <int>{}).add(tr * g.cols + tc);
+              }
+              break;
+            }
+          }
           // The breach RUNS: too hot to quench until it has had its beat.
           // (The clock is deliberately NOT reset here either — resetting it
           // per melt let a player stall the whole flood by breaking rock on a
@@ -1368,6 +1530,27 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       _setHint(_nothingHiddenLine());
       return;
     }
+    if (g.starIndex == null) {
+      // THE CRUCIBLE, tiered: what the room is, then the rule, then the
+      // thing that is actually scarce.
+      final tier = revealHintTier(a.member.statIntelligence);
+      _setHint(
+        tier >= 2
+            ? 'Fire feeds it out of the MAIN, so bring a full boiler and do '
+                  'not waste a stoke overshooting — Steam trims for nothing, '
+                  'and Steam is also the only thing that stops the flood, so '
+                  'the hand on the relief is the hand you do not have'
+            : tier >= 1
+            ? 'The needle has to SIT in the band, not pass through it — '
+                  '${kCrucibleHoldSeconds.toStringAsFixed(0)} seconds of it, '
+                  'and it starts over the moment it drifts out. A cold '
+                  'furnace bleeds, so nobody can leave the tap'
+            : 'A cold furnace and a mould that will not take until it runs '
+                  'true. The gates through the band are the way in',
+        5.5,
+      );
+      return;
+    }
     _setHint(switch (g.starIndex) {
       0 =>
         'The wall is a dam — where the rock glows, molten leans on it; '
@@ -1377,9 +1560,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       1 =>
         'Every cistern wakes the moment you melt the gate — raise your '
             'walls around the gate mouth FIRST, then break through',
-      _ =>
-        'Bunker a gate, break it, and quench the far cistern at its source '
-            'before it multiplies — then take the pedestal',
+      _ => _nothingHiddenLine(),
     });
   }
 
@@ -1506,7 +1687,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     return switch (g.starIndex) {
       0 => 'Ember Causeway — five mouths vent the field, and one is choked',
       1 => 'Cinder Forge — the far shore is across a chasm nothing can leap',
-      _ => 'The Crucible — the pedestal stands past the sleeping flood',
+      _ => 'The Crucible — a cold furnace, and a mould that wants it running',
     };
   }
 
@@ -3112,6 +3293,70 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           ..color = const Color(0xFF8FE0EC)
           ..strokeWidth = 2,
       );
+    }
+
+    // ── THE FURNACE, when you are standing in the crucible ──
+    // One needle, one band, and the hold underneath it. This is the whole win
+    // condition drawn as a single object, which is what the old rite never
+    // had: it counted veins and never said which.
+    final furnaceRoom = layout.rooms[currentRoomId];
+    if (furnaceRoom != null &&
+        furnaceRoom.molten != null &&
+        furnaceRoom.molten!.starIndex == null &&
+        !moltenRiteDone) {
+      final fb = Rect.fromLTWH(gaugeBar.left, gaugeBar.top + 34, 100, 10);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(fb, const Radius.circular(4)),
+        Paint()..color = const Color(0x8806141C),
+      );
+      // The band it has to sit in.
+      final lo = fb.left + fb.width * (kCrucibleBandLow / _kCrucibleVentAt);
+      final hi = fb.left + fb.width * (kCrucibleBandHigh / _kCrucibleVentAt);
+      canvas.drawRect(
+        Rect.fromLTRB(lo, fb.top, hi, fb.bottom),
+        Paint()..color = const Color(0x3358E08A),
+      );
+      canvas.drawRect(
+        Rect.fromLTRB(lo, fb.top, hi, fb.bottom),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = const Color(0x9958E08A),
+      );
+      // The needle.
+      final inBand =
+          crucibleHeat >= kCrucibleBandLow && crucibleHeat <= kCrucibleBandHigh;
+      final nx =
+          fb.left +
+          fb.width * (crucibleHeat / _kCrucibleVentAt).clamp(0.0, 1.0);
+      canvas.drawRect(
+        Rect.fromLTWH(nx - 1.5, fb.top - 3, 3, fb.height + 6),
+        Paint()
+          ..color = inBand ? const Color(0xFF7BF0A8) : const Color(0xFFFF9A4A),
+      );
+      // The hold, filling underneath — the thing you are actually earning.
+      final holdW =
+          fb.width * (crucibleBandT / kCrucibleHoldSeconds).clamp(0.0, 1.0);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(fb.left, fb.bottom + 3, holdW, 4),
+          const Radius.circular(2),
+        ),
+        Paint()..color = const Color(0xFF7BF0A8),
+      );
+      final ftp = TextPainter(
+        text: TextSpan(
+          text: 'FURNACE',
+          style: TextStyle(
+            color: inBand ? const Color(0xFF7BF0A8) : const Color(0xFFE4C16A),
+            fontSize: 9,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.0,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      ftp.paint(canvas, Offset(fb.right - ftp.width, fb.top - 13));
     }
 
     final room = layout.rooms[currentRoomId];
