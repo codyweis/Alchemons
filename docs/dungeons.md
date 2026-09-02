@@ -1812,14 +1812,31 @@ afterwards.
 
 ### ✅ LIGHTNING — complete (2026-09-01)
 
-**The inverse of Earth: the puzzles are the strongest of the unpolished set
-and the art is the problem.** Star 1 threads one bolt through three terminals
-with four rotatable conductors and two fulminate vats as negative constraints,
-and it is PROVABLY UNIQUE — the vat is what kills the second solution. Star 2
-herds storm-cells onto sockets on the Air+Fire→Lightning braid. Star 3 is
-element stationing with a geometrically impossible decoy pair, solver-proven.
-The zero-sum trunk system under all of it (power here = dark there) is good.
-None of that wants touching.
+**It began as the inverse of Earth — the puzzles the strongest of the
+unpolished set, the art the whole problem — and ended up rebuilt twice over
+anyway.** The zero-sum trunk system under everything (power here = dark there)
+was good from the start and still is; it is now what three of the four
+mechanics are actually made of. The art pass came first, then the puzzles:
+
+  · ✅ **THE BEST PUZZLE MOVED TO STAR 1.** The Storm Spire's stationing
+    puzzle was the only one of the two beam halls that is actually alchemy —
+    Air opens a vent, Fire stands in the wind and it becomes lightning AT THE
+    FLAME, Lightning's iron carries it home. It teaches from the front now, in
+    Pylon Hall, small: three vents, three converters, four conductors, one
+    mast, provably unique. Its one deliberate trap is a vent and a converter
+    lying in a line together, so the tempting pair really does catch — a real
+    bolt is born and it dies in the east wall. *Making lightning is not the
+    puzzle; landing it is.* The old threading star was retired rather than
+    kept as a second unrelated mechanic.
+  · ✅ **STAR 3 IS THAT BRAID AT SPIRE SCALE** — §9.4, and rebuilt three times
+    to get there. See that section: one chain on all three masts at once, the
+    last mast standing ON the core gate, a switchyard lattice instead of
+    scattered coordinates, and a decoy net whose whole job is to give the
+    wrong answers somewhere convincing to go.
+  · ✅ **THE MIRROR GALLERY STOPPED PAYING OUT FOR WALKING AROUND** — §9.3.
+    Which wing, and which side of the glass.
+  · ✅ **THE DOORS LED SOMEWHERE** — the mirror gallery's two doors were on
+    exactly the wrong walls, which is what made that wing read as a loop.
 
   · ✅ **THE HUB HAD NO ACTION PAD.** The four trunk breakers are declared on
     the LAYOUT, not on a room, so `hasVerbs` could never see them — and the
@@ -1875,9 +1892,11 @@ None of that wants touching.
     beat. **LIGHTNING** throws a dynamo that has nowhere left to choose, every
     trunk takes at once, and the works lets go. Nothing consumed: Lightning
     blows a weld back off, and a lapsed over-speed costs the walk to the rotor.
-  · ⬜ CARRIED: device playtest. The three star puzzles were deliberately not
-    touched — they are the strongest of the unpolished set and the art was
-    the whole problem.
+  · ⬜ CARRIED: device playtest of the Spire's difficulty specifically. The
+    first lattice was solved in about five minutes; the decoy net is the
+    answer to that and has not been timed yet. If it is still quick, the next
+    lever is a mast that wants WIND rather than lightning, which squeezes the
+    flame into a window instead of an extreme — verified buildable, not built.
 
 ### FIVE DOWN, TWELVE TO GO (2026-09-01)
 
@@ -1898,6 +1917,25 @@ of the art pass Fire set as the reference:
   5. **The room can be navigated.** Lightning added this one: no two doorways
      on a wall close enough to read as one, and a control stands where the
      thing it controls is. Both are layout-test invariants now.
+  6. **You arrive somewhere sensible.** Also Lightning's, and the most
+     embarrassing class of bug found so far: doors on the wrong walls, an
+     arrival landing on another door's hatch, an arrival in the far half of
+     the room, and border iron laid straight across a doorway so the door had
+     no reachable point in it at all. Four invariants across all 17 now, the
+     last of them a flood fill rather than a rectangle test.
+  7. **UNIQUE IS NOT HARD.** The single most useful thing learned in this
+     pass. A provably-unique puzzle is unambiguous, which is a different
+     property from difficult — with a live preview the player steers into the
+     one answer instead of searching for it. Difficulty comes from wrong
+     answers that look right, not from a bigger search space. §9.4 is the
+     worked example.
+  8. **Render the room before you trust it.** Three separate faults this pass
+     were invisible to a green test suite and obvious in one screenshot: a
+     wall painter laying rock over storm-glass, "light" drawn as a flat grey
+     rect on the floor, and — twice — a cast block standing in a lane and
+     eating a decoy's wind before it left the vent. The debug seam has been
+     wrong twice too (no floor, then no walls/doors), so a shot that shows
+     nothing is a claim about the SEAM until proven otherwise.
 
 **AND CHECK THE ACTION PAD FIRST, EVERY TIME.** Five planets shipped with a
 room whose verbs live outside `DungeonRoom` and therefore had no pad at all —
