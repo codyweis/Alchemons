@@ -278,7 +278,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         // generic fall recovery, which only ever speaks for the creature you
         // happen to be steering. You watch the arc drop into the chasm and
         // the body scrambles back onto the shore it left.
-        if (!_onSolidGround(f.to, currentRoom)) {
+        if (_blocksPlacement(f.to, currentRoom)) {
           shortThrows++;
           cr.position = cr.lastSafe;
           _setBlockedHint(
@@ -409,6 +409,45 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   /// Seconds the raised rock takes to heave up out of the floor.
 
+  /// Where a riser's throw actually puts a body: the FIRST ground along the
+  /// aim, or the end of the arc if it crosses none.
+  ///
+  /// It used to land at EXACTLY `reach`, which made too much head as fatal as
+  /// too little. With all four corners of the crucible sealed every mouth is
+  /// capped, the head is 340 and the arc carries 774 — so it sailed five
+  /// hundred pixels past a plinth two hundred and seventy away, and the last
+  /// hop of the room could not be made at all. Reported from play as *"how do
+  /// I get to the middle square?"*, which was a fair question with no answer.
+  ///
+  /// Landing on first ground keeps every rung of the ladder intact: not
+  /// enough head still means the arc ends in the dark, because there is no
+  /// ground on the way. What it removes is a failure mode that could not be
+  /// seen, reasoned about, or fixed by playing better.
+  ///
+  /// It asks `_blocksPlacement`, not `_onSolidGround` — the crucible's centre
+  /// is a PLATFORM in the layout but is not there until four corners are
+  /// sealed, and only the block rule knows that. Ground you cannot stand on
+  /// is not ground to land on.
+  Offset _throwLanding(
+    Offset from,
+    Offset aim,
+    double reach,
+    DungeonRoom room,
+  ) {
+    var left = false;
+    for (var d = 10.0; d <= reach; d += 8.0) {
+      final pt = from + aim * d;
+      final landable = room.bounds.contains(pt) && !_blocksPlacement(pt, room);
+      if (!landable) {
+        left = true;
+        continue;
+      }
+      // Not the lip you launched from — you have to have crossed something.
+      if (left) return pt;
+    }
+    return from + aim * reach;
+  }
+
   void _eruptGeysers(DungeonRoom room) {
     final p = geyserPressure;
     var threw = false;
@@ -435,7 +474,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           // chasm" from "half a head falls in". Standing on the far lip of
           // the ring made a half-held field enough, which is not a choice the
           // room ever meant to offer.
-          final to = _clampToBounds(gy.position + aim * reach, room);
+          final to = _clampToBounds(
+            _throwLanding(gy.position, aim, reach, room),
+            room,
+          );
           // ARC, don't teleport. The landing is identical; what changes is
           // that a short throw can now be WATCHED falling short, which is the
           // room's only way of saying "not enough head" without a line of

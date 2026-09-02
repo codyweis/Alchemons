@@ -2185,6 +2185,13 @@ catch it because they call `activateAbility()` past the HUD's gate.
     the Cinder Forge teaches. The north manifold now runs 600px west into a
     dead spur, the main is split at the end of it, and only a main at 99
     carries a body down. §7's table moves Steam from ⬜ to ✅.
+  · ✅ **THE LAST HOP WAS IMPOSSIBLE** — §9.5. The throw landed at exactly
+    its reach, so four sealed corners (head 340, reach 774) sailed a body
+    five hundred pixels past a heart two hundred and seventy away. It finds
+    the first ground along the aim now. Two things hid it: the full run
+    PLACED a body on the plinth instead of throwing one, and the landing
+    check asked `_onSolidGround`, which does not know that the heart is not
+    there yet.
   · ⬜ CARRIED: device playtest of the whole planet, and the four-corner room
     in particular — it has been simulated and rendered, never played.
 
@@ -2542,6 +2549,29 @@ You arrive with one corner's worth of hands and the short hop is the only
 thing on. The room opens **only as you shut it** — every rung is bought by
 sealing the corner you are standing on, which is what makes the order of
 travel the decision rather than the aim of a throw.
+
+**TOO MUCH HEAD WAS AS FATAL AS TOO LITTLE.** A throw landed at EXACTLY its
+reach — not "up to" it — and with all four corners sealed every mouth is
+capped, so the head is 340 and the arc carries 774. The heart is 272 away.
+The last hop of the room could not be made at all, by anyone, ever: you sailed
+five hundred pixels past it into the far corner. Reported from play as *"how do
+I get to the middle square?"*, which was a fair question with no answer.
+
+A throw finds the **first ground along the aim** now, or ends in the dark if it
+crosses none. Every rung of the ladder survives — not enough head still means
+the arc ends over the void, because there is no ground on the way — and what
+goes away is a failure mode that could not be seen, reasoned about, or beaten
+by playing better. It is also what a launch looks like to anyone who has been
+on one.
+
+Two things made this invisible for as long as it was. The full run *placed* a
+body on the plinth rather than throwing one, so the last hop was the one move
+in the room no test ever made; it throws now, and reverting the fix puts the
+landing at (215, 232) — the opposite corner — so the test bites. And the
+landing test asked `_onSolidGround`, which only knows the platform LIST: the
+heart is a platform in the layout and is not there until four corners are
+sealed. Only the block rule knows that. **Ground you cannot stand on is not
+ground to land on** — a landing asks `_blocksPlacement`.
 
 **A BODY ON AN ALREADY-SEALED MOUTH ADDS NOTHING**, and that is the trap the
 first tuning fell into: I costed the crossing as "two corners sealed plus two

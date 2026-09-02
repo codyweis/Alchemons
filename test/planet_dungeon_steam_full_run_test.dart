@@ -556,7 +556,26 @@ void main() {
     // FOUR SEALED puts the plinth there — but the way on is still shut,
     // because the rite is standing in the heart, not merely being able to.
     expect(game.isDoorLocked(cruc, onward), isTrue);
-    put(steam, cruc.centrePlinth!.center);
+
+    // AND YOU GET THERE BY BEING THROWN, which is the thing this test used to
+    // skip by teleporting a body onto the plinth. It could not have been
+    // thrown: the arc ended at EXACTLY its reach, and with all four corners
+    // sealed the head is 340 and the reach 774 — five hundred pixels past a
+    // plinth two hundred and seventy away. Reported from play as *"how do I
+    // get to the middle square?"* A throw finds the first ground along the
+    // aim now, so the last hop is the same verb as every hop before it.
+    final plinth = cruc.centrePlinth!;
+    final fromRiser = cruc.geysers.firstWhere((g) => g.id == 'se_r').position;
+    final toHeart = plinth.center - fromRiser;
+    fly(steam, 'se_r', atan2(toHeart.dy, toHeart.dx), const []);
+    expect(
+      plinth.inflate(4).contains(game.creatures[steam].position),
+      isTrue,
+      reason:
+          'the riser has to be able to put a body in the heart — it lands at '
+          '${game.creatures[steam].position}, and the heart is $plinth',
+    );
+    expect(game.shortThrows, 0, reason: 'and that is not a short throw');
     step();
     expect(
       game.moltenRiteDone,
