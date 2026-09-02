@@ -1612,18 +1612,78 @@ extension MoltenReliquary on PlanetDungeonGame {
       );
     }
     if (held == null) {
-      // An EMPTY cavity: sand cut to the shape of the thing that belongs
-      // here, and dark, because there is nothing in it.
+      // AN EMPTY CAVITY, CUT TO THE SHAPE IT ACCEPTS.
+      //
+      // Both molds used to draw the same dark rectangle, so a form that
+      // takes PLAIN metal and a form that takes WARDED metal were visually
+      // identical — standing between them you could not tell which was
+      // which, and a puzzle whose whole question is "what do you cast, and
+      // in what order" felt like guessing. The insight line has always said
+      // *"every form wants one kind of metal"*; the floor never showed WHICH.
+      //
+      // Now the cavity is cut to its form and tinted the colour that form
+      // runs down the channel as, so the bead you are watching and the mold
+      // it is heading for are the same colour.
+      final want = n.wants ?? PourForm.plain;
+      final tint = switch (want) {
+        PourForm.plain => _worksCore,
+        PourForm.stamped => const Color(0xFFFFD98A),
+        PourForm.gassed => _worksDamp,
+      };
+      final inner = cavity.deflate(10);
+      canvas.drawRect(inner, Paint()..color = const Color(0xFF15110C));
+      if (want == PourForm.stamped) {
+        // A KEY'S WARDS: teeth cut into the cavity. Warded metal is the only
+        // thing shaped like this, and it looks like the thing it makes.
+        final tooth = Paint()..color = const Color(0xFF15110C);
+        final lit = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = tint.withValues(alpha: 0.6);
+        final bit = Rect.fromLTWH(
+          inner.left,
+          inner.center.dy - 7,
+          inner.width,
+          14,
+        );
+        canvas.drawRect(bit, tooth);
+        canvas.drawRect(bit, lit);
+        for (var k = 0; k < 3; k++) {
+          final tx = inner.left + 10 + k * 15.0;
+          final t = Rect.fromLTWH(tx, inner.center.dy - 18, 9, 12);
+          canvas.drawRect(t, tooth);
+          canvas.drawRect(t, lit);
+        }
+        canvas.drawOval(
+          Rect.fromCircle(
+            center: Offset(inner.right - 9, inner.center.dy),
+            radius: 9,
+          ),
+          tooth,
+        );
+        canvas.drawOval(
+          Rect.fromCircle(
+            center: Offset(inner.right - 9, inner.center.dy),
+            radius: 9,
+          ),
+          lit,
+        );
+      } else {
+        // A PLAIN SLAB: a smooth bar, which is what a span is.
+        canvas.drawRect(
+          inner.deflate(4),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = tint.withValues(alpha: 0.55),
+        );
+      }
       canvas.drawRect(
-        cavity.deflate(10),
-        Paint()..color = const Color(0xFF15110C),
-      );
-      canvas.drawRect(
-        cavity.deflate(10),
+        inner,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2
-          ..color = _worksIronLit.withValues(alpha: 0.55),
+          ..color = tint.withValues(alpha: 0.34),
       );
       // The sprue — where the metal would come in.
       canvas.drawRect(

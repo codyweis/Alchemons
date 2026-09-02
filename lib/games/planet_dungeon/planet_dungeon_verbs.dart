@@ -92,25 +92,13 @@ double abilityStatValue(CosmicPartyMember member, DungeonAbility a) {
   }
 }
 
-String abilityLabel(DungeonAbility a) {
-  switch (a) {
-    case DungeonAbility.aerialTraversal:
-      return 'GLIDE';
-    case DungeonAbility.insight:
-      return 'REVEAL';
-    case DungeonAbility.heavyForce:
-      return 'CHANNEL';
-    case DungeonAbility.ancientStabilize:
-      return 'CALM';
-    case DungeonAbility.smallAccess:
-      return 'SLIP';
-    case DungeonAbility.terrainTrail:
-      return 'TRAIL';
-    case DungeonAbility.guardianRelic:
-    case DungeonAbility.none:
-      return '—';
-  }
-}
+// NO `abilityLabel`. It used to name each family verb for the action pad, and
+// the entry it kept for `DungeonAbility.insight` was 'REVEAL' — a button that
+// has not existed since the HINT button replaced it. Nothing called this, and
+// the dead string was enough on its own to make a reader (me) describe a
+// planet's room readings as "gated behind the Mask insight verb", which is
+// exactly backwards: any party can press HINT. The per-room `_*Reveal`
+// functions are that button's CONTENT, not an ability.
 
 // ── Interaction result ──────────────────────────────────────
 

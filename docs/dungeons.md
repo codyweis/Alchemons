@@ -2269,6 +2269,14 @@ see any of that.
     one room the player fights in. It is a circular runner now, with the
     metal travelling round it and launders on the rim that go dark while
     they cool.
+  · ✅ **A MOLD SHOWS WHAT IT WANTS.** Both forms drew the same dark
+    rectangle, so the one that takes PLAIN metal and the one that takes
+    WARDED metal were visually identical — standing between them you could
+    not tell which was which, and a puzzle whose entire question is *what do
+    you cast, and in what order* felt like guessing. Each cavity is cut to
+    its form now (a smooth slab; a key with its wards and bow) and tinted
+    the colour that metal runs down the channel as, so the bead you are
+    watching and the mold it is heading for are the same colour.
   · ⬜ CARRIED: the maxim. §7's table grades **Black Glass** ⬜ *"one verb,
     three times"* — quench three times with Ice. That is an achievement, not
     a puzzle, and Steam has just shown what the fix looks like (§9.6): a
@@ -2319,6 +2327,25 @@ The reference. What "complete" meant, so the next planet has a target:
   · ⬜ Not chased: `storm_rune_hall` and `storm_altar` came up verb-less in
     the action-pad sweep. They are probably a reading room and a landing, but
     nobody has confirmed it.
+
+### THERE IS NO REVEAL VERB — IT IS THE HINT BUTTON
+
+Say it here once, because it has now been got wrong from inside the project.
+The Mask "insight / REVEAL" ability is **removed**. Every `_<planet>Reveal`
+function still exists and is still the right place for a room's reading, but
+it is the **content of the HINT button** (`askForRoomHint`), tiered by the
+party's Intelligence — not something the player presses on the action pad, and
+not something a Mask creature unlocks. Any party can ask.
+
+`abilityLabel()` kept returning `'REVEAL'` for `DungeonAbility.insight` long
+after the button went, with no callers anywhere. That dead string was enough
+on its own to make a reader describe Lava's room readings as *"gated behind
+the Mask insight verb"* — exactly backwards. It is deleted.
+
+The design question this changes: when a room's information is only available
+through its reading, that is not a gate, it is a HINT. So the right follow-up
+is always *does the room show it too?* — which is what found Lava's two
+identical mold cavities.
 
 ### THE ACTION PAD READS ONLY ROOM DATA — and several planets don't use it
 
