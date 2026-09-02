@@ -330,7 +330,26 @@ void main() {
     // Steam holds the other, and stays there for good.
     place(steam, mouth('r_hob_b'));
     step();
-    expect(game.geyserHead, 99, reason: 'both mouths held is a full head');
+    // A plugged mouth stops venting and its head goes back into the MAIN, so
+    // the field feeds the same gauge the ring does — and the riser only
+    // clears the chasm on an OVERPRESSURE. Two plugs are worth 80; the main
+    // is down to 10 after the junctions, so 90 is not enough and the boiler
+    // has to be stoked before anyone rides. This is the one place the ring's
+    // economy and a star puzzle are the same number.
+    expect(game.launchHead, kSteamStartPressure - 30 + 2 * kSteamCapHead);
+    expect(
+      game.launchOverpressured,
+      isFalse,
+      reason: 'a flat main cannot throw anyone, however well the field is held',
+    );
+    final southPort2 = south.stokePort!;
+    actAt('manifold_south', fire, southPort2 + const Offset(30, 0));
+    clearWisps();
+    game.currentRoomId = 'cinder_forge';
+    place(steam, mouth('r_hob_b'));
+    place(earth, mouth('r_hob_a') + const Offset(0, 60));
+    step();
+    expect(game.launchOverpressured, isTrue, reason: 'stoked past the redline');
 
     // Earth and Fire ride together, east.
     for (final slot in [earth, fire]) {
@@ -390,40 +409,12 @@ void main() {
     final forgeNorthDoor = forgeRoom.doors.firstWhere(
       (d) => d.targetRoomId == 'manifold_north',
     );
-    // THE PINCH MOVED. With both star rooms rebuilt as geyser fields there is
-    // no cooling on the way round any more, so the head does not top itself
-    // up: after two junctions it stands at 10 and the third is already out of
-    // reach. The clamp refuses and takes nothing.
-    expect(game.boilerPressure, lessThan(15));
-    actAt(
-      'cinder_forge',
-      steam,
-      forgeNorthDoor.rect.center + const Offset(0, 40),
-    );
-    expect(
-      game.isDoorLocked(forgeRoom, forgeNorthDoor),
-      isTrue,
-      reason: 'an unaffordable clamp refuses',
-    );
-    expect(
-      game.boilerPressure,
-      kSteamStartPressure - 30,
-      reason: 'and takes nothing for the attempt',
-    );
-
-    // So the ring has to be PAID FOR, and Fire's stoke port is the only
-    // income left before the crucible — at the price of the wisps each roar
-    // pulls in. That is the strategic pinch now: it costs you fights.
-    final southPort = south.stokePort!;
-    actAt('manifold_south', fire, southPort + const Offset(30, 0));
+    // The ring's last two clamps, paid out of what the launch stoke left.
+    // (The main stood at 10 before Star 2 and the third junction was out of
+    // reach; the stoke that took the field over its redline is what also
+    // bought the rest of the ring. One boiler, one budget, and Star 2 spends
+    // from it — which is the whole point of plugged mouths feeding the main.)
     expect(game.boilerPressure, kSteamStartPressure - 30 + kSteamStokeGain);
-    expect(
-      game.combatEnemies.where((e) => !e.isDead),
-      isNotEmpty,
-      reason: 'the stoke roar draws wisps',
-    );
-    clearWisps();
-
     actAt(
       'cinder_forge',
       steam,
@@ -432,11 +423,10 @@ void main() {
     expect(game.isDoorLocked(forgeRoom, forgeNorthDoor), isFalse);
     final afterNorth = kSteamStartPressure - 30 + kSteamStokeGain - 15;
     expect(game.boilerPressure, afterNorth);
-    // Exactly one junction's worth left, and nothing else. The ring CAN be
-    // closed on a single stoke — but doing it empties the main, and the
-    // burst-disc vault wants a 60-surge in one go, so the whole cost of a
-    // fully-open ring is paid again in stokes (and in the wisps each one
-    // brings) before the treasury is even on the table.
+    // Exactly one junction's worth left, and nothing else. Closing the ring
+    // empties the main, and the burst-disc vault wants a 60-surge in one go,
+    // so the whole cost is paid again in stokes — and in the wisps each one
+    // brings — before the treasury is even on the table.
     expect(afterNorth, 15);
     // The last clamp takes exactly what is left, and the ring closes on an
     // empty main. (This used to expect a refusal here — with the causeway's

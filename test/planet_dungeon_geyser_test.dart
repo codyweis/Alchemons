@@ -360,7 +360,15 @@ void main() {
       _stand(game, 0, riser(game, 'r_hob_b').position); // Steam stays
       _step(game);
       expect(game.cappedGeysers, containsAll(<String>['r_hob_a', 'r_hob_b']));
-      expect(game.geyserHead, 99, reason: 'the gauge reads a full head');
+      // A plugged mouth puts its head back into the MAIN, so smothering the
+      // field pushes the gauge past its rated maximum — and only an
+      // overpressured main throws a body clear of the chasm.
+      expect(
+        game.launchHead,
+        greaterThan(kSteamPressureMax),
+        reason: 'two plugs on a working main is an overpressure',
+      );
+      expect(game.launchOverpressured, isTrue);
 
       // Earth and Fire ride the wide throat TOGETHER.
       final riserAt = riser(game, 'r_riser').position;
@@ -419,7 +427,11 @@ void main() {
       _stand(game, 1, throat + const Offset(40, 0)); // as far east as allowed
       game.creatures[1].aimAngle = 0;
       _step(game);
-      expect(game.geyserHead, lessThan(99));
+      expect(
+        game.launchOverpressured,
+        isFalse,
+        reason: 'one plug does not take the main over the redline',
+      );
       _step(game, 8);
       expect(
         far.inflate(2).contains(game.creatures[1].position),
@@ -439,7 +451,11 @@ void main() {
       _stand(game, 1, riser(game, 'r_riser').position);
       game.creatures[1].aimAngle = 0;
       _step(game);
-      expect(game.geyserHead, lessThan(99));
+      expect(
+        game.launchOverpressured,
+        isFalse,
+        reason: 'one plug does not take the main over the redline',
+      );
       _step(game, 8);
       expect(
         far.inflate(2).contains(game.creatures[1].position),

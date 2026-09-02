@@ -70,11 +70,20 @@ const double _kGeyserReach = 44.0;
 const double _kBlastReach = 96.0;
 
 /// A riser's throw: this far, plus this much again for every mouth shut.
-const double _kThrowBase = 120.0;
-const double _kThrowPerCap = 55.0;
 
 /// Seconds a thrown body spends in the air.
 const double _kFlightSeconds = 0.75;
+
+/// What one plugged mouth puts back into the main. Two of them plus a working
+/// head is what takes the gauge past its rated 99.
+const int kSteamCapHead = 40;
+
+/// A throw made on an overpressured main clears the chasm; one made under the
+/// redline is a lob that falls into it. The surplus above 99 adds a little
+/// distance on top, so a fuller main visibly throws you further in.
+const double _kThrowClear = 210.0;
+const double _kThrowLob = 150.0;
+const double _kThrowPerOver = 1.2;
 
 /// How close a body must stand to a channel lip to work it.
 const double _kCastReach = 62.0;
@@ -151,20 +160,28 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// How many mouths are shut right now — the system's pressure.
   int get geyserPressure => cappedGeysers.length;
 
-  /// The field's head as the gauge shows it: 0 when nothing is covered, 99
-  /// when every mouth that CAN be covered is. Counting mouths is the physics;
-  /// this is what the room tells the player, and "the riser needs 99" is a
-  /// far better thing to know than "the riser needs two".
-  int get geyserHead {
+  /// THE LAUNCH HEAD, and it is the boiler's own gauge. A plugged mouth stops
+  /// venting and its head goes back into the main, so smothering the field
+  /// RAISES THE PRESSURE — which means the ring you have been managing all
+  /// run is the thing that throws you, and the riser is the one place on the
+  /// planet where the main is asked to go past its rated maximum.
+  ///
+  /// Over 99 is an overpressure. Under it the throw is a lob into the chasm.
+  int get launchHead => boilerPressure + kSteamCapHead * cappedFieldMouths;
+
+  /// Mouths held that are not risers (a riser cannot be smothered).
+  int get cappedFieldMouths {
     final room = currentRoom;
-    final cappable = room.geysers.where((g) => !g.isRiser).length;
-    if (cappable == 0) return 0;
-    final held = cappedGeysers.where((id) {
+    var n = 0;
+    for (final id in cappedGeysers) {
       final g = room.geysers.where((m) => m.id == id);
-      return g.isNotEmpty && !g.first.isRiser;
-    }).length;
-    return ((held / cappable) * kSteamPressureMax).round();
+      if (g.isNotEmpty && !g.first.isRiser) n++;
+    }
+    return n;
   }
+
+  /// Is the main redlining — the only state in which a riser clears the gap?
+  bool get launchOverpressured => launchHead > kSteamPressureMax;
 
   /// Bodies in the air. While a creature is flying its position belongs to
   /// the arc and nothing else — walking input, shoves and caps all wait.
@@ -312,7 +329,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         for (final cr in creatures) {
           if (!cr.alive) continue;
           if ((cr.position - gy.position).distance > _kGeyserReach) continue;
-          final reach = _kThrowBase + _kThrowPerCap * p;
+          final over = launchHead - kSteamPressureMax;
+          final reach = over > 0
+              ? _kThrowClear + over * _kThrowPerOver
+              : _kThrowLob;
           final aim = Offset(cos(cr.aimAngle), sin(cr.aimAngle));
           // THE THROW LEAVES THE MOUTH, not the body. You may ride from
           // anywhere within `_kGeyserReach` (44) of the throat, and measuring
@@ -1284,18 +1304,20 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     }
 
     // The Forge: one mouth cannot be covered, and that is the way across.
-    final head = geyserHead;
+    final head = launchHead;
     _setHint(
       tier >= 2
-          ? 'Both mouths, or nothing: at half a head the throw falls into the '
-                'chasm. The stone holds one and a body holds the other, which '
-                'leaves TWO to ride — and the mould on the far shore wants a '
-                'boulder and a flame, so it is Steam that can be spared'
+          ? 'Both mouths AND a working main: two plugs are worth '
+                '${kSteamCapHead * 2}, so the boiler has to bring the rest of '
+                'the way past $kSteamPressureMax itself — stoke it if it is '
+                'flat. The stone holds one mouth and a body the other, which '
+                'leaves two to ride, and the moat over there wants a boulder '
+                'and a flame, so it is Steam that can be spared'
           : tier >= 1
-          ? 'The wide throat cannot be smothered — stand on it and it throws '
-                'you instead, as far as the rest of the field is quiet. It '
-                'takes a FULL head to clear the chasm (the gauge reads $head '
-                'of $kSteamPressureMax)'
+          ? 'A plugged mouth stops venting and its head goes back into the '
+                'MAIN — so smothering the field raises the gauge. The riser '
+                'only clears the chasm on an OVERPRESSURE, past the rated '
+                '$kSteamPressureMax (it reads $head)'
           : 'Two mouths can be covered and one cannot, and the far shore is '
                 'past the one that cannot',
       5.0,
@@ -2904,14 +2926,25 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// The boiler-pressure gauge (always on for Steam) plus, in live molten
   /// rooms, a compact legend of the three verbs + the creep-beat pulse.
   void _drawSteamPhaseHud(Canvas canvas, Size vp) {
-    // ── The main's pressure gauge — the run's one budget, always visible ──
+    // ── The main's gauge — the run's one budget, always visible ──
+    // In a geyser room it reads the LAUNCH HEAD, because plugged mouths stop
+    // venting and put their head back into the main: the bar shows the boiler
+    // in amber with the plugs stacked on in cyan, and anything past the rated
+    // 99 spills out beyond the redline as an overpressure. That spill is the
+    // one state in which a riser clears the chasm, so it has to be the most
+    // obvious thing on the screen.
+    final field = layout.rooms[currentRoomId]?.geysers ?? const [];
+    final onField = field.isNotEmpty;
+    final head = onField ? launchHead : boilerPressure;
     final gx = vp.width - 116.0;
     final gy = vp.height * 0.5 - 64;
     final gaugeTp = TextPainter(
       text: TextSpan(
-        text: 'MAIN $boilerPressure',
-        style: const TextStyle(
-          color: Color(0xFFE4C16A),
+        text: onField ? 'HEAD $head' : 'MAIN $boilerPressure',
+        style: TextStyle(
+          color: head > kSteamPressureMax
+              ? const Color(0xFFFF9A4A)
+              : const Color(0xFFE4C16A),
           fontSize: 11,
           fontWeight: FontWeight.w900,
           letterSpacing: 1.0,
@@ -2925,30 +2958,72 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       RRect.fromRectAndRadius(gaugeBar, const Radius.circular(3)),
       Paint()..color = const Color(0x6606141C),
     );
-    final frac0 = (boilerPressure / kSteamPressureMax)
-        .clamp(0.0, 1.0)
-        .toDouble();
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          gaugeBar.left,
-          gaugeBar.top,
-          gaugeBar.width * frac0,
-          gaugeBar.height,
+    void seg(double from, double to, Color c) {
+      final a0 = (from / kSteamPressureMax).clamp(0.0, 1.0);
+      final a1 = (to / kSteamPressureMax).clamp(0.0, 1.0);
+      if (a1 <= a0) return;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            gaugeBar.left + gaugeBar.width * a0,
+            gaugeBar.top,
+            gaugeBar.width * (a1 - a0),
+            gaugeBar.height,
+          ),
+          const Radius.circular(3),
         ),
-        const Radius.circular(3),
-      ),
-      Paint()..color = const Color(0xFFE4C16A).withValues(alpha: 0.85),
-    );
-    // A tick at the burst-disc threshold, so the goal is always legible.
-    const burstTick = 60 / kSteamPressureMax;
+        Paint()..color = c,
+      );
+    }
+
+    seg(0, boilerPressure.toDouble(), const Color(0xD9E4C16A));
+    if (onField) {
+      seg(
+        boilerPressure.toDouble(),
+        head.toDouble(),
+        const Color(0xD98FE0EC), // what the plugs put back
+      );
+    }
+    // The OVERPRESSURE: past the rated maximum, spilling out beyond the bar.
+    if (head > kSteamPressureMax) {
+      final over = (head - kSteamPressureMax) / kSteamPressureMax;
+      final w = (gaugeBar.width * over).clamp(3.0, 44.0);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(gaugeBar.right + 2, gaugeBar.top - 1, w, 9),
+          const Radius.circular(3),
+        ),
+        Paint()..color = const Color(0xFFFF7A33),
+      );
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          Offset(gaugeBar.right + 2 + w * 0.5, gaugeBar.center.dy),
+          22,
+          const Color(0xFFFF7A33).withValues(alpha: 0.5),
+        );
+      }
+    }
+    // The REDLINE at the rated maximum, and (off the field) the burst-disc
+    // tick that the vault answers to.
     canvas.drawLine(
-      Offset(gaugeBar.left + gaugeBar.width * burstTick, gaugeBar.top - 2),
-      Offset(gaugeBar.left + gaugeBar.width * burstTick, gaugeBar.bottom + 2),
+      Offset(gaugeBar.right, gaugeBar.top - 3),
+      Offset(gaugeBar.right, gaugeBar.bottom + 3),
       Paint()
-        ..color = const Color(0xFF8FE0EC)
+        ..color = const Color(0xFFFF7A33)
         ..strokeWidth = 2,
     );
+    if (!onField) {
+      const burstTick = 60 / kSteamPressureMax;
+      canvas.drawLine(
+        Offset(gaugeBar.left + gaugeBar.width * burstTick, gaugeBar.top - 2),
+        Offset(gaugeBar.left + gaugeBar.width * burstTick, gaugeBar.bottom + 2),
+        Paint()
+          ..color = const Color(0xFF8FE0EC)
+          ..strokeWidth = 2,
+      );
+    }
 
     final room = layout.rooms[currentRoomId];
     if (room?.molten == null || _moltenCleared(room!, room.molten!)) return;
