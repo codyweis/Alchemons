@@ -88,6 +88,13 @@ const Color _worksCold = Color(0xFF9FBCCC); // a set casting
 const Color _worksSlag = Color(0xFF6C7A68); // dead, spoiled, wasted
 const Color _worksDamp = Color(0xFFBFE07A); // firedamp
 
+/// WARDED METAL. The die is driven by STEAM, so metal that has been through
+/// it comes out steam-tempered — blue-white instead of the gold it used to
+/// be, which sat close enough to the hot core that "warded" and "just
+/// running" were the same glance. It is the colour the key forms are cut in
+/// too, so the charge you are watching and the form it is heading for match.
+const Color _worksWarded = Color(0xFF9FD8EE);
+
 /// Everything one Lava run tracks. ONE field on the engine (like Poison's
 /// monastery): the pure line state plus the handful of live/visual timers the
 /// rules themselves have no business knowing about.
@@ -120,6 +127,11 @@ class MoltenWorks {
   /// A form REJECTING a charge: 1 → 0 over the throw-back.
   double spoil = 0;
   Offset spoilAt = Offset.zero;
+
+  /// Whether the die's first stamp has been explained. The hit, the steam and
+  /// the colour change carry every one after it — saying it again each time a
+  /// charge passes is the chatter §5.6 exists to stop.
+  bool saidWarded = false;
 }
 
 extension MoltenReliquary on PlanetDungeonGame {
@@ -212,6 +224,33 @@ extension MoltenReliquary on PlanetDungeonGame {
       final wasOccupied =
           dest.kind == FoundryNodeKind.mold && s.molds.containsKey(dest.id);
       final event = s.arrive();
+      // THE DIE COMING DOWN. The charge changes colour on the far side of
+      // this node — gold-hot going in, steam-tempered blue coming out — so
+      // the moment it happens gets a hit and a gout of steam, or the change
+      // reads as the renderer wobbling rather than as the works working.
+      if (dest.kind == FoundryNodeKind.stamper &&
+          arrivedAs == PourForm.plain &&
+          p.form == PourForm.stamped) {
+        works
+          ..flash = 1.0
+          ..flashAt = dest.position;
+        _shake = 3.0;
+        _spawnAlchemyBurst(
+          dest.position,
+          producedElement: 'Steam',
+          reagentElements: const ['Lava'],
+          particleCount: 20,
+          intensity: 0.95,
+        );
+        if (!works.saidWarded) {
+          works.saidWarded = true;
+          speakConsequence(
+            'The die comes down. The charge goes through it WARDED — the '
+            'only metal a key form will take.',
+            3.4,
+          );
+        }
+      }
       _announcePour(
         event,
         dest,
@@ -1257,7 +1296,8 @@ extension MoltenReliquary on PlanetDungeonGame {
       ..flash = 1.0
       ..flashAt = kLavaHeartCentre
       ..firedamp = 0
-      ..headCool = 0;
+      ..headCool = 0
+      ..saidWarded = false;
     final home = layout.rooms[layout.entranceRoomId]!;
     currentRoomId = home.id;
     passThroughDoorless(layout.entranceSpawn);
@@ -2192,7 +2232,7 @@ extension MoltenReliquary on PlanetDungeonGame {
       final want = n.wants ?? PourForm.plain;
       final tint = switch (want) {
         PourForm.plain => _worksCore,
-        PourForm.stamped => const Color(0xFFFFD98A),
+        PourForm.stamped => _worksWarded,
         PourForm.gassed => _worksDamp,
       };
       final inner = cavity.deflate(10);
@@ -2322,7 +2362,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     if (roomId != room.id) return;
     final colour = switch (p.form) {
       PourForm.plain => _worksCore,
-      PourForm.stamped => const Color(0xFFFFD98A),
+      PourForm.stamped => _worksWarded,
       PourForm.gassed => _worksDamp,
     };
     // The tail: three fading beads back along the channel.

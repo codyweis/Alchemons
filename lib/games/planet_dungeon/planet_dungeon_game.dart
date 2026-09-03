@@ -3159,12 +3159,14 @@ class PlanetDungeonGame extends FlameGame {
   /// right for flavour and right for refusals — leaning on a locked door
   /// should not chatter.
   ///
-  /// It is wrong for a CONSEQUENCE. When an action you already committed has
-  /// just cost you something you cannot get back — a charge spoiled in a
-  /// form, vented up a stack, run into the slag — the account of it has to
-  /// arrive with the event. Reported from play as the spoil "not popping up":
-  /// it was never dropped by accident, it was dropped by design, and the
-  /// design had no category for this.
+  /// It is wrong for a CONSEQUENCE: the account of what an action you already
+  /// committed has just DONE — a charge spoiled in a form, vented up a stack,
+  /// run into the slag, or come through the die warded. Reported from play as
+  /// the spoil "not popping up": it was never dropped by accident, it was
+  /// dropped by design, and the design had no category for this.
+  ///
+  /// It is not a licence to narrate. A consequence that can happen over and
+  /// over says itself once and lets its own animation carry the rest.
   void speakConsequence(String msg, [double ttl = 4.6]) => _forceHint(msg, ttl);
 
   void _forceHint(String msg, double ttl) {
