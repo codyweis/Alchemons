@@ -758,7 +758,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         _setInsightHint(switch (t) {
           0 => 'The manifest counts one more mold than this floor holds',
           1 =>
-            'The die wards whatever takes the south arm; the north arm '
+            'The die wards whatever takes the MILL arm; the chill arm '
                 'runs plain',
           _ =>
             'The missing form is installed in the sump under the crucible, '

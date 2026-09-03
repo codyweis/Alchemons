@@ -53,7 +53,18 @@ const int kLavaBlackGlassQuenches = 3;
 
 /// Seconds a pour takes to cross 100px of channel. Slow enough to run ahead of
 /// and re-route (that IS the kinetic layer), fast enough not to be a wait.
-const double kLavaPourSecondsPer100 = 0.62;
+/// How long metal takes to travel, per 100px of channel.
+///
+/// It was 0.62, and nobody had ever added the line up: the key pour took
+/// **25 seconds** to arrive, the span 20, and the reliquary — down the mill,
+/// along the tail, back through the sump — **43 seconds**. Five pours, each
+/// one committed in advance, and then most of a minute of watching a bead
+/// crawl with nothing to decide. In a puzzle whose whole pleasure is planning,
+/// that is not tension, it is dead air.
+///
+/// At 0.20 the same three are 8, 6 and 14 seconds: long enough that the long
+/// way round FEELS like the long way round, short enough to watch.
+const double kLavaPourSecondsPer100 = 0.20;
 
 /// Lost-maxim + entry-rite discovery ids ('egg:'/'rune:' ride the persisted
 /// cloud-discovery channel; the screen pays the maxim's 20 gold).
@@ -624,7 +635,10 @@ const FoundryLine kLavaLine = FoundryLine(
       kind: FoundryNodeKind.junction,
       exits: ['ch_north', 'ch_mill_in'],
       switchId: 'y_yard',
-      switchLabels: ['NORTH', 'SOUTH'],
+      // NAMED FOR WHERE THEY GO. 'NORTH'/'SOUTH' described a compass the
+      // channels did not obey and the doors did not either; the destination
+      // is both truthful and more use to the player than a bearing.
+      switchLabels: ['CHILL', 'MILL'],
       leverAt: Offset(600, 130),
     ),
     FoundryNode(
@@ -743,12 +757,14 @@ const FoundryLine kLavaLine = FoundryLine(
       id: 'ch_north',
       from: 'y_yard',
       to: 'chiller',
+      // THE CHILL ARM LEAVES EAST, because the door to the chill house is on
+      // the east wall. It used to leave NORTH, off the top of the room, while
+      // the player left east — so the metal and the party went different ways
+      // to the same place. Reported from play: set the lever one way, follow
+      // the lit channel, arrive in the room fed by the OTHER arm and find it
+      // dead. On a planet whose puzzle is following metal, that is fatal.
       segments: [
-        FoundrySegment(
-          'switch_yard',
-          Rect.fromLTWH(586, 0, 28, 44),
-          reverse: true,
-        ),
+        FoundrySegment('switch_yard', Rect.fromLTWH(600, 30, 160, 28)),
         FoundrySegment('chill_house', Rect.fromLTWH(0, 330, 430, 34)),
       ],
     ),
@@ -765,9 +781,16 @@ const FoundryLine kLavaLine = FoundryLine(
       id: 'ch_mill_in',
       from: 'y_yard',
       to: 'stamper',
+      // AND THE MILL ARM LEAVES SOUTH, for the same reason: that is where its
+      // door is. A short jog off the junction, then straight down the room.
       segments: [
-        FoundrySegment('switch_yard', Rect.fromLTWH(600, 30, 160, 28)),
-        FoundrySegment('stamp_mill', Rect.fromLTWH(0, 446, 300, 28)),
+        FoundrySegment('switch_yard', Rect.fromLTWH(600, 30, 100, 28)),
+        FoundrySegment('switch_yard', Rect.fromLTWH(672, 58, 28, 502)),
+        // …and it comes INTO the mill through the roof, on the same side the
+        // party comes in by. It used to arrive along the west wall while the
+        // door was in the north, which is the same fault one room over.
+        FoundrySegment('stamp_mill', Rect.fromLTWH(60, 0, 28, 446)),
+        FoundrySegment('stamp_mill', Rect.fromLTWH(60, 446, 240, 28)),
       ],
     ),
     FoundryChannel(
@@ -848,6 +871,15 @@ const FoundryLine kLavaLine = FoundryLine(
         FoundrySegment(
           'mold_floor',
           Rect.fromLTWH(520, 0, 60, 686),
+          reverse: true,
+        ),
+        // West along the top to the wall the chill-house door is on. The
+        // full-height runner is untouched — it is what puts the Ember Star
+        // across a gap you cannot walk round — so this is added ABOVE it
+        // rather than cut into it.
+        FoundrySegment(
+          'mold_floor',
+          Rect.fromLTWH(0, 0, 520, 28),
           reverse: true,
         ),
         FoundrySegment(
@@ -1068,7 +1100,9 @@ const DungeonLayout kLavaLayout = DungeonLayout(
           targetSpawn: Offset(60, 500),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(330, 536, 110, 24),
+          // Under the mill arm, so the way down and the metal going down are
+          // the same corner of the room.
+          rect: Rect.fromLTWH(500, 536, 110, 24),
           targetRoomId: 'stamp_mill',
           targetSpawn: Offset(435, 120),
         ),
@@ -1106,7 +1140,7 @@ const DungeonLayout kLavaLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(380, 0, 110, 24),
           targetRoomId: 'switch_yard',
-          targetSpawn: Offset(385, 420),
+          targetSpawn: Offset(555, 460),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(916, 150, 24, 90),

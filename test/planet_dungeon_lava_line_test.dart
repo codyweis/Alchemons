@@ -29,6 +29,8 @@
 //     the tail lever and the hidden mold are genuinely unreachable until the
 //     casting that opens them exists — the puzzle cannot be walked around.
 
+import 'dart:ui';
+
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
@@ -524,6 +526,74 @@ void main() {
       expect(canWalk(s, 'tap_head', spawn, mold), isTrue);
     });
 
+    test('the metal and the party leave a room by the same side', () {
+      // REPORTED FROM PLAY. In the switch yard you set the lever to the mill
+      // arm, the channel running EAST lit up, you followed it east — and
+      // arrived in the chill house, which is fed by the OTHER arm and was
+      // therefore dark. Three crossings were like this: the metal left by one
+      // wall and the door to the room it fed was in another.
+      //
+      // On a planet whose entire puzzle is following metal, that is not a
+      // blemish, it is the puzzle lying. A channel that crosses between two
+      // rooms must leave by the side their door is on, and arrive by the side
+      // the door on the far end is on.
+      String sideOf(Rect bounds, Rect r) {
+        final d = <String, double>{
+          'W': (r.left - bounds.left).abs(),
+          'E': (bounds.right - r.right).abs(),
+          'N': (r.top - bounds.top).abs(),
+          'S': (bounds.bottom - r.bottom).abs(),
+        };
+        return d.entries.reduce((a, b) => a.value <= b.value ? a : b).key;
+      }
+
+      Rect? doorBetween(String from, String to) {
+        for (final d in kLavaLayout.rooms[from]!.doors) {
+          if (d.targetRoomId == to) return d.rect;
+        }
+        return null;
+      }
+
+      for (final ch in kLavaLine.channels) {
+        // Walk the segments in flow order and find each room hand-off.
+        for (var i = 0; i < ch.segments.length - 1; i++) {
+          final a = ch.segments[i];
+          final b = ch.segments[i + 1];
+          if (a.roomId == b.roomId) continue;
+          final ra = kLavaLayout.rooms[a.roomId]!;
+          final rb = kLavaLayout.rooms[b.roomId]!;
+          final out = sideOf(ra.bounds, a.rect);
+          final into = sideOf(rb.bounds, b.rect);
+
+          final doorOut = doorBetween(a.roomId, b.roomId);
+          final doorIn = doorBetween(b.roomId, a.roomId);
+          expect(
+            doorOut,
+            isNotNull,
+            reason:
+                '${ch.id} runs ${a.roomId} → ${b.roomId} with no door between '
+                'them — metal can get somewhere the party cannot',
+          );
+          expect(
+            sideOf(ra.bounds, doorOut!),
+            out,
+            reason:
+                '${ch.id} leaves ${a.roomId} by $out but the door to '
+                '${b.roomId} is on ${sideOf(ra.bounds, doorOut)}',
+          );
+          if (doorIn != null) {
+            expect(
+              sideOf(rb.bounds, doorIn),
+              into,
+              reason:
+                  '${ch.id} enters ${b.roomId} by $into but the door back to '
+                  '${a.roomId} is on ${sideOf(rb.bounds, doorIn)}',
+            );
+          }
+        }
+      }
+    });
+
     test('every fixture a player must touch stands on walkable ground', () {
       final s = _fresh();
       for (final n in kLavaLine.nodes) {
@@ -657,7 +727,7 @@ void _engineRun() {
     }
 
     /// Let the works run until the charge is spent.
-    void runOut(PlanetDungeonGame g, [double limit = 40]) {
+    void runOut(PlanetDungeonGame g, [double limit = 90]) {
       var t = 0.0;
       while (g.works.line.pour != null && t < limit) {
         g.update(1 / 60);
@@ -667,7 +737,7 @@ void _engineRun() {
     }
 
     /// Let the works run until the charge reaches [channelId].
-    void runTo(PlanetDungeonGame g, String channelId, [double limit = 40]) {
+    void runTo(PlanetDungeonGame g, String channelId, [double limit = 90]) {
       var t = 0.0;
       while (g.works.line.pour != null &&
           g.works.line.pour!.channelId != channelId &&

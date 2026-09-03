@@ -2312,6 +2312,31 @@ see any of that.
     floor now and both are in the hint button. What was nowhere at all was
     why you are here. It is two lines: *"Every road out of this works is
     something you have to cast first. Five pours, never refilled."*
+  · ✅ **THE METAL AND THE PARTY NOW LEAVE BY THE SAME SIDE.** Reported from
+    play, and it is the worst kind of fault this planet can have: *"in switch
+    yard I made lava go south. I go right, where it looks like lava is
+    flowing. In the next room no lava is flowing."* Exactly so — the arm the
+    lever called SOUTH ran EAST out of the room, and the east door led to the
+    chill house, which is the OTHER arm and was therefore dark. An audit found
+    three crossings like it: `ch_mill_in` left east against a south door,
+    `ch_north` left north against an east door, and `ch_tail` left the mould
+    floor north against a west door. On a planet whose puzzle is following
+    metal, that is not a blemish — it is the puzzle lying. All four sides of
+    every crossing agree now, in and out, and **an invariant walks every
+    channel hand-off against the door for that room pair**, so it cannot
+    drift back. The lever labels went with it: `NORTH`/`SOUTH` named a compass
+    the channels did not obey, and they name the destination now — `CHILL` and
+    `MILL` — which is both truthful and more use than a bearing.
+  · ✅ **AND A POUR TOOK FORTY-THREE SECONDS.** Nobody had added the line up.
+    At `kLavaPourSecondsPer100 = 0.62` the key pour ran 25s, the span 20s and
+    the reliquary — mill, tail, sump — **43s**: five pours, each committed in
+    advance, then most of a minute of watching a bead crawl with nothing left
+    to decide. In a puzzle whose whole pleasure is planning, that is dead air,
+    not tension. At 0.20 they are 8s, 6s and 14s. **Measure the thing the
+    player waits on**; a duration nobody has summed is a duration nobody has
+    designed. (The geometry fix above added five seconds to the mill arm and
+    pushed the run test past its 40s cap, which is how the pre-existing 38s
+    came to light at all.)
   · ⬜ CARRIED: the maxim. §7's table grades **Black Glass** ⬜ *"one verb,
     three times"* — quench three times with Ice. That is an achievement, not
     a puzzle, and Steam has just shown what the fix looks like (§9.6): a
