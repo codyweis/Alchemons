@@ -135,17 +135,30 @@ void main() {
       );
 
       for (final p in kPlaguePotions) {
-        final lit = await _shot(g, p.wardId, 'p_${p.wardId}');
+        final lit = await _shot(g, p.wardId!, 'p_${p.wardId}');
         expect(lit, isNonZero, reason: '${p.wardId} drew nothing');
       }
 
       // The cross, empty and then full. An unlit cross beside a lit one is
       // the whole reward moment, and it is the one thing on this planet a
       // player walks the corridor three extra times for.
+      // THE FONT, wanting the vial and then spent — it has to state its own
+      // want before the player owns the answer.
+      final font = poisonLayout.rooms['ambulatory']!.lustralFont!;
+      final asking = await _shot(g, 'ambulatory', 'p_font_asking', at: font);
+      g.monastery.cloisterOpen = true;
+      final spent = await _shot(g, 'ambulatory', 'p_font_spent', at: font);
+      expect(
+        spent,
+        isNot(asking),
+        reason: 'a spent basin must not still be asking',
+      );
+      g.monastery.cloisterOpen = false;
+
       // EVERY POT REACTION, mid-beat. Three recipes that all flashed green
       // would make the receipt worthless, so each one gets looked at.
       final reactions = <int>{};
-      for (final p in kPlaguePotions) {
+      for (final p in kAllBrews) {
         g.monastery
           ..reaction = 0.45
           ..reactionKind = p.pot;
@@ -153,7 +166,7 @@ void main() {
       }
       expect(
         reactions.length,
-        kPlaguePotions.length,
+        kAllBrews.length,
         reason: 'two brews that look identical in the pot are one brew',
       );
       g.monastery
@@ -166,8 +179,8 @@ void main() {
         g.monastery
           ..pour = 0.4
           ..pourPotion = p.id
-          ..pourAt = poisonLayout.rooms[p.wardId]!.ward!.heart;
-        pours.add(await _shot(g, p.wardId, 'p_pour_${p.id}'));
+          ..pourAt = poisonLayout.rooms[p.wardId!]!.ward!.heart;
+        pours.add(await _shot(g, p.wardId!, 'p_pour_${p.id}'));
       }
       expect(pours.length, kPlaguePotions.length);
       g.monastery

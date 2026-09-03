@@ -631,17 +631,39 @@ void main() {
       );
       expect(game.isDoorLocked(amb, bellDoor), isTrue);
 
-      // ── THE THREE PLAGUES. Two hands to the pot, the brew to its own
-      // ward, and the thing wakes and comes out into the walk to be fought.
+      // ── THE KEY FIRST. Poison twice makes the Pure Vial, and the vial
+      // into the font in the middle of the cloister lets every wax seal go
+      // at once. Nothing in the house can be started before this.
       final pot = game.layout.rooms['apothecary']!.apothecary!.cistern;
+      final bench = pot + const Offset(200, 0);
+      final font = game.layout.rooms['ambulatory']!.lustralFont!;
       final slot = {'Poison': poison, 'Plant': plant, 'Mud': mud};
+
+      actAt(game, 'ambulatory', poison, wardDoors['ward_bell']!);
+      expect(
+        t.opened,
+        isEmpty,
+        reason: 'a plague ward does not open to a hand any more',
+      );
+      actAt(game, 'apothecary', poison, pot);
+      actAt(game, 'apothecary', poison, pot);
+      expect(game.monastery.carriedPotion, kPureVial.id);
+      actAt(game, 'ambulatory', poison, font);
+      expect(game.monastery.cloisterOpen, isTrue);
       for (final p in kPlaguePotions) {
-        actAt(game, 'ambulatory', poison, wardDoors[p.wardId]!);
         expect(
           t.opened,
           contains(p.wardId),
-          reason: '${p.wardId} never opened',
+          reason: '${p.wardId} should have opened with the font',
         );
+      }
+
+      // ── THE THREE PLAGUES. Two hands to the pot, the brew to its own
+      // ward, and the thing wakes and comes out into the walk to be fought.
+      for (final p in kPlaguePotions) {
+        if (game.monastery.carriedPotion != null) {
+          actAt(game, 'apothecary', poison, bench);
+        }
 
         actAt(game, 'apothecary', slot[p.first]!, pot);
         actAt(game, 'apothecary', slot[p.second]!, pot);
@@ -651,7 +673,7 @@ void main() {
           reason: '${p.first} + ${p.second} must make ${p.id}',
         );
 
-        actAt(game, p.wardId, poison, censer);
+        actAt(game, p.wardId!, poison, censer);
         expect(game.monastery.woken, contains(p.id));
         // It crawls; it does not appear. Ride the crawl out and kill what
         // lands, in the cloister — never in the ward.
@@ -693,7 +715,9 @@ void main() {
       expect(game.hasStar(1), isTrue);
       expect(earned, containsAllInOrder([0, 1]));
 
-      // ── The dead-house is brick, and only a Plant HORN gets in.
+      // ── The dead-house is brick, and only a Plant HORN gets in — the
+      // font does not touch it.
+      expect(t.opened.contains('ward_charnel'), isFalse);
       actAt(game, 'ambulatory', plant, wardDoors['ward_charnel']!);
       expect(
         t.opened,
@@ -799,9 +823,18 @@ void main() {
       expect(found, contains('gate:plant_horn'));
 
       // The squint: shut for everyone but a Mud mane — and the ambulatory
-      // still reaches the ward, so nothing is walled off.
-      actAt(game, 'ambulatory', 0, wardDoors['ward_bell']!);
-      actAt(game, 'ambulatory', 0, wardDoors['ward_scriptorium']!);
+      // still reaches the ward, so nothing is walled off. The wards open to
+      // the font now, not to a hand at the door.
+      final pot = game.layout.rooms['apothecary']!.apothecary!.cistern;
+      actAt(game, 'apothecary', 0, pot);
+      actAt(game, 'apothecary', 0, pot);
+      actAt(
+        game,
+        'ambulatory',
+        0,
+        game.layout.rooms['ambulatory']!.lustralFont!,
+      );
+      expect(game.monastery.cloisterOpen, isTrue);
       final bell = game.layout.rooms['ward_bell']!;
       final squint = bell.doors.firstWhere(
         (d) => d.targetRoomId == 'ward_scriptorium',

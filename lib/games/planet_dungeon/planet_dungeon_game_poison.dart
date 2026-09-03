@@ -122,6 +122,15 @@ class VenomMonastery {
   /// instanceId → drained until the next plague falls.
   final Set<String> drained = {};
 
+  /// Which bottle the bench hands over next.
+  int benchPick = 0;
+
+  /// The cloister's seals have let go — the pure vial went into the font.
+  bool cloisterOpen = false;
+
+  /// The font taking the vial, 1 → 0.
+  double lustral = 0;
+
   /// Brews standing in their bottles on the laboratory rack. A brew is made
   /// ONCE and lives in glass until it is poured — so a wrong pour can hand
   /// it back without the run losing a hand for it.
@@ -258,6 +267,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.potionHands.clear();
     m.pendingFight = null;
     m.fighting = null;
+    m.benchPick = 0;
+    m.cloisterOpen = false;
+    m.lustral = 0;
     m.bottled.clear();
     m.relicsDropped.clear();
     m.relicAt.clear();
@@ -481,6 +493,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (m.crossLight > 0) {
       m.crossLight = max(0.0, m.crossLight - dt / _kCrossLightSeconds);
     }
+    if (m.lustral > 0) {
+      m.lustral = max(0.0, m.lustral - dt / _kLustralSeconds);
+    }
     m.clock += dt;
     _tickStrains(a, room, dt);
 
@@ -644,6 +659,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     //    IS the still now — the four-tap draught rack survives only in the
     //    crypt, where the carrion font wears the same shape.
     if (room.apothecary != null && room.guardian == null) {
+      if (_tryBottleBench(a, room)) return true;
       if (_tryCauldron(a, room)) return true;
     }
 
@@ -661,6 +677,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (ward != null && _tryOubliette(a, ward)) return true;
 
     // 5) The prior's seal: commit the triage.
+    // 4b) The lustral font in the middle of the cloister: the pure vial
+    //     goes in here and every wax seal on the corridor lets go.
+    if (_tryLustralFont(a, room)) return true;
+
     final seal = room.priorsSeal;
     if (seal != null &&
         (a.position - seal.position).distance <= _kMonasteryReach + 30) {
@@ -687,6 +707,18 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       final ward = target?.ward;
       if (ward == null || t.opened.contains(ward.id)) continue;
       if ((a.position - door.rect.center).distance > 96) continue;
+      // A PLAGUE WARD IS NOT OPENED BY HAND. The wax on those three answers
+      // the font in the middle of the corridor and nothing else; only the
+      // dead-house is still a thing you break into yourself.
+      if (!ward.bricked) {
+        _setBlockedHint(
+          monastery.carriedPotion == kPureVial.id
+              ? 'The wax will not part here — the basin in the middle of the '
+                    'cloister is what the vial is for'
+              : kPureVial.clue,
+        );
+        return true;
+      }
       if (ward.bricked) {
         // §4 HARD GATE: the charnel is brick, not wax. A party with no Lava
         // horn cannot open it — which decides their sacrifice for them, and
@@ -749,6 +781,45 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// slots and the hands come out exactly even, so the question the player is
   /// really answering is not *who* but *when*, because giving DRAINS you
   /// until the plague you woke is down.
+  /// The bottle bench, a table's length along from the pot.
+  ///
+  /// SEPARATE ON PURPOSE. When taking a bottle and giving to the pot were
+  /// the same press at the same spot, the two could not be told apart: with
+  /// anything at all standing in glass, a press always picked the bottle up
+  /// and a new brew could never be started. The pot is where you give; the
+  /// bench is where bottles live.
+  Offset _benchAt(Apothecary still) => still.cistern + const Offset(200, 0);
+
+  bool _tryBottleBench(DungeonCreature a, DungeonRoom room) {
+    final still = room.apothecary;
+    if (still == null || room.guardian != null) return false;
+    final at = _benchAt(still);
+    if ((a.position - at).distance > _kMonasteryReach) return false;
+    final m = monastery;
+    final held = m.carriedPotion;
+    if (held != null) {
+      m.carriedPotion = null;
+      speakConsequence(
+        '${kAllBrews.firstWhere((p) => p.id == held).name} goes back on the '
+        'bench.',
+        3.0,
+      );
+      return true;
+    }
+    if (m.bottled.isEmpty) {
+      _setBlockedHint('The bench is bare — the pot is where brews are made');
+      return true;
+    }
+    // Round-robin, so a bench with three on it can hand over any of them.
+    final ready = kAllBrews.where((p) => m.bottled.contains(p.id)).toList();
+    final i = (m.benchPick % ready.length);
+    m
+      ..benchPick = (m.benchPick + 1) % ready.length
+      ..carriedPotion = ready[i].id;
+    speakConsequence('${ready[i].name} comes off the bench.', 3.0);
+    return true;
+  }
+
   bool _tryCauldron(DungeonCreature a, DungeonRoom room) {
     final still = room.apothecary;
     if (still == null) return false;
@@ -759,41 +830,18 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final el = a.member.element;
     final id = a.member.instanceId;
 
-    // THE BENCH IS A PLACE, NOT A HAND. `bottled` is every brew that exists;
-    // `carriedPotion` says which of them is off the bench right now. So a
-    // brew survives being carried to the wrong door and walked back, which
-    // is the whole point of "the bottle is still full".
+    // THE BENCH IS A PLACE, NOT A HAND. Bottles are taken and set down at
+    // the bench along the wall; the pot only ever takes a give. A full hand
+    // here is a refusal that names where to put it.
     if (m.carriedPotion != null) {
-      // Set it down and take the next one along, so the bench is a rack you
-      // swap at rather than a one-way tap.
-      final down = m.carriedPotion!;
-      final others = kPlaguePotions
-          .where((p) => m.bottled.contains(p.id) && p.id != down)
-          .toList();
-      if (others.isEmpty) {
-        m.carriedPotion = null;
-        speakConsequence(
-          '${kPlaguePotions.firstWhere((p) => p.id == down).name} goes back '
-          'on the bench.',
-          3.0,
-        );
-        return true;
-      }
-      final next = others.first;
-      m.carriedPotion = next.id;
-      speakConsequence('Bottles swapped — ${next.name} is in hand now.', 3.2);
+      _setBlockedHint('Set the bottle on the bench before giving to the pot');
       return true;
     }
-    if (m.pot.isEmpty && m.bottled.isNotEmpty) {
-      final take = kPlaguePotions.firstWhere((p) => m.bottled.contains(p.id));
-      m.carriedPotion = take.id;
-      speakConsequence('${take.name} comes off the bench.', 3.0);
-      return true;
-    }
-    if ((m.given[id] ?? 0) >= kPotionContributionsEach) {
+    final allowed = contributionsAllowedFor(el);
+    if ((m.given[id] ?? 0) >= allowed) {
       _setBlockedHint(
-        '${a.member.displayName} has given to two brews — that is all any '
-        'one of them has in it',
+        '${a.member.displayName} has given $allowed times — that is all it '
+        'has in it',
       );
       return true;
     }
@@ -801,10 +849,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       _setBlockedHint('The pot takes Poison, Plant or Mud. $el is neither.');
       return true;
     }
-    if (m.pot.contains(el)) {
-      _setBlockedHint(
-        'That is already in the pot — a brew wants two DIFFERENT',
-      );
+    // POISON TWICE IS A RECIPE. Everything else wants two different things,
+    // and saying so is the tell that the pure vial exists at all.
+    if (m.pot.contains(el) && el != 'Poison') {
+      _setBlockedHint('$el is already in the pot — this wants something else');
       return true;
     }
 
@@ -828,8 +876,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
 
     // Two in: it either makes something or it does not.
-    final made = kPlaguePotions.where(
-      (p) => p.takes(m.pot[0]) && p.takes(m.pot[1]),
+    final made = kAllBrews.where(
+      (p) =>
+          (p.first == m.pot[0] && p.second == m.pot[1]) ||
+          (p.first == m.pot[1] && p.second == m.pot[0]),
     );
     if (made.isEmpty) {
       m.pot.clear();
@@ -868,6 +918,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     _spawnAlchemyBurst(
       still.cistern,
       producedElement: switch (potion.pot) {
+        CauldronReaction.pure => 'Poison',
         CauldronReaction.bloom => 'Light',
         CauldronReaction.climb => 'Poison',
         CauldronReaction.rot => 'Plant',
@@ -881,6 +932,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   /// What the pot does, in words, to match what it does on screen.
   String _reactionLine(PlaguePotion potion) => switch (potion.pot) {
+    CauldronReaction.pure =>
+      'It goes clear, and perfectly still. Nothing in this house has been '
+          'still.',
     CauldronReaction.bloom =>
       'Flowers come up out of the surface, open, and let go of their spores.',
     CauldronReaction.climb =>
@@ -906,6 +960,63 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         : 1.0;
   }
 
+  /// THE FONT IN THE MIDDLE. One errand that opens three doors.
+  ///
+  /// The wards used to unseal one at a time, by walking up and pressing —
+  /// which was three presses of the same button and taught nothing. Now the
+  /// corridor is shut until pure poison goes into the basin at its centre,
+  /// which makes the vial the first thing anybody brews and the reason the
+  /// Poison alchemon carries four gives instead of two.
+  bool _tryLustralFont(DungeonCreature a, DungeonRoom room) {
+    final at = room.lustralFont;
+    if (at == null) return false;
+    if ((a.position - at).distance > _kMonasteryReach + 14) return false;
+    final m = monastery;
+    if (m.cloisterOpen) {
+      _setBlockedHint('The basin is spent — every seal is already open');
+      return true;
+    }
+    if (m.carriedPotion != kPureVial.id) {
+      _setBlockedHint(
+        m.carriedPotion == null
+            ? kPureVial.clue
+            : 'The basin will not take that. ${kPureVial.clue}',
+      );
+      return true;
+    }
+
+    m
+      ..bottled.remove(kPureVial.id)
+      ..carriedPotion = null
+      ..cloisterOpen = true
+      ..lustral = 1.0;
+    // The hands that made the key come back. The vial spends two of Poison's
+    // four gives, and that arithmetic is the puzzle — but a mandatory first
+    // errand that also handicaps the first fight would be a tax with no
+    // decision inside it, which is the opposite of the point.
+    for (final id in m.potionHands[kPureVial.id] ?? const <String>[]) {
+      m.drained.remove(id);
+    }
+    for (final p in kPlaguePotions) {
+      m.triage.open(p.wardId!);
+    }
+    cutTo(room.id, at, hold: _kLustralSeconds + 0.4);
+    _shake = 6.0;
+    speakConsequence(
+      'The vial goes into the font and the water takes it. All down the '
+      'cloister the wax lets go at once — every ward is open.',
+      5.2,
+    );
+    _spawnAlchemyBurst(
+      at,
+      producedElement: 'Poison',
+      reagentElements: const ['Light'],
+      particleCount: 30,
+      intensity: 1.3,
+    );
+    return true;
+  }
+
   /// GIVE THE BREW TO THE PLAGUE. It wakes, it comes out into the walk, and
   /// then it is a fight — which is the whole shape of this planet now.
   bool _tryWakePlague(PlaguePotion potion, WardCell ward) {
@@ -924,7 +1035,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       return true;
     }
     if (held != potion.id) {
-      final wrong = kPlaguePotions.firstWhere((p) => p.id == held);
+      final wrong = kAllBrews.firstWhere((p) => p.id == held);
       // A WRONG POUR COSTS SOMETHING, AND IT IS NEVER THE BREW. One
       // misreading of a riddle must not be able to make the house
       // unfinishable, so the bottle comes back full — and the room makes you
@@ -962,6 +1073,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       ..pourAt = ward.heart;
     _shake = 4.0;
     switch (wrong.pot) {
+      case CauldronReaction.pure:
+        // The key, poured on a sleeper. It washes the ward and does nothing
+        // else — the cheapest mistake on the planet, and the one the font in
+        // the middle of the cloister exists to prevent.
+        speakConsequence(
+          'Pure poison runs off it clean. This is not what the vial is for — '
+          'and the bottle is still full.',
+          4.6,
+        );
       case CauldronReaction.bloom:
         // Spores off a brew nothing drank: the room fills and it stings.
         spawnWispWave(
@@ -1099,6 +1219,43 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     );
   }
 
+  /// Clear floor in the cloister for a plague to be fought on: away from the
+  /// font in the middle and away from the cross at the end, so neither
+  /// fixture ends up underneath the fight or underneath what it drops.
+  Offset _plagueArena(DungeonRoom walk) {
+    final avoid = <Offset>[
+      if (walk.lustralFont != null) walk.lustralFont!,
+      if (walk.priorsSeal != null) walk.priorsSeal!.position,
+    ];
+    final b = walk.bounds.deflate(70);
+    if (avoid.length < 2) return b.center;
+    // THE STRETCH BETWEEN THE FONT AND THE CROSS. Scanning the whole
+    // corridor for the point farthest from both fixtures put every fight in
+    // the far left corner — clear of everything, and a thousand pixels of
+    // empty floor between the reliquary and the socket it belongs in, three
+    // times. Between them is clear of both and a short carry.
+    final lo = avoid[0].dx < avoid[1].dx ? avoid[0] : avoid[1];
+    final hi = avoid[0].dx < avoid[1].dx ? avoid[1] : avoid[0];
+    var best = Offset((lo.dx + hi.dx) / 2, b.center.dy);
+    // …unless they are too close together for anything to stand between, in
+    // which case fall back to the widest clear spot in the room.
+    var bestScore = min((best - lo).distance, (best - hi).distance);
+    if (bestScore < 130) {
+      for (var i = 0; i <= 16; i++) {
+        final at = Offset(b.left + b.width * i / 16, b.center.dy);
+        final score = min((at - lo).distance, (at - hi).distance);
+        if (score > bestScore) {
+          bestScore = score;
+          best = at;
+        }
+      }
+    }
+    return Offset(
+      best.dx.clamp(b.left, b.right),
+      best.dy.clamp(b.top, b.bottom),
+    );
+  }
+
   /// Where a relic actually comes to rest. The plague dies wherever the
   /// fight ended, which can be inside a wall or on top of the cross — so the
   /// drop is nudged onto ground you can stand on and away from the socket
@@ -1109,13 +1266,19 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       want.dx.clamp(b.left, b.right),
       want.dy.clamp(b.top, b.bottom),
     );
-    final seal = walk.priorsSeal;
-    if (seal != null && (at - seal.position).distance < 110) {
-      final away = at - seal.position;
+    // Clear of EVERY fixture with a verb on it, not just the cross. A relic
+    // inside the font's reach is a relic you cannot pick up, because the
+    // font answers the press first and says the basin is spent.
+    for (final o in <Offset>[
+      if (walk.priorsSeal != null) walk.priorsSeal!.position,
+      if (walk.lustralFont != null) walk.lustralFont!,
+    ]) {
+      if ((at - o).distance >= 110) continue;
+      final away = at - o;
       final unit = away.distance < 1
           ? const Offset(-1, 0)
           : away / away.distance;
-      at = seal.position + unit * 110;
+      at = o + unit * 110;
       at = Offset(at.dx.clamp(b.left, b.right), at.dy.clamp(b.top, b.bottom));
     }
     return at;
@@ -1788,6 +1951,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     _renderSealBurst(canvas);
     _renderCondemnation(canvas);
     _renderWalkInvasion(canvas, room);
+    _renderLustralFont(canvas, room);
     _renderRelics(canvas, room);
     _renderPourOnPlague(canvas, room);
     _renderCarriedPhial(canvas);
@@ -2197,6 +2361,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// as it takes to feel like an arrival rather than an effect.
   static const double _kInvadeSeconds = 5.0;
 
+  /// The font taking the vial and the seals letting go down the corridor.
+  static const double _kLustralSeconds = 2.6;
+
   /// The pot's reaction to a pair landing in it, and a pour landing on a
   /// plague. Both are receipts — long enough to read, short enough that a
   /// player brewing three of them is never waiting on the game.
@@ -2360,9 +2527,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       ..invadeWardFrom = wardRoom?.ward?.heart ?? exit
       ..invadeWardExit = exit
       ..invadeFrom = at
-      // Where a loose strain lives: `_strainHeart` gives the room's centre
-      // for the ambulatory, which has no ward of its own.
-      ..invadeTo = walk.bounds.center;
+      // WHERE IT COMES TO REST, and it is not the room's centre — the
+      // lustral font stands there, and a plague that landed on the basin
+      // dropped its reliquary onto it, where the font's own verb swallowed
+      // every press to pick it up. The fight has its own floor.
+      ..invadeTo = _plagueArena(walk);
     // OPEN IN THE WARD. The shot starts where the party is standing, watches
     // the thing come off the heart and go out through the door beside them,
     // and only then follows it into the walk.
@@ -2559,8 +2728,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (room.apothecary != null && room.guardian == null && !m.cauldronTold) {
       m.cauldronTold = true;
       speakConsequence(
-        'The pot takes two things and makes one. Any alchemon has two brews '
-        'in it and no more — three of them, three brews, and nothing spare.',
+        'The pot takes two things and makes one. Poison has four gives in '
+        'it; the others have two, and there is nothing spare in the house.',
         6.5,
       );
       return;
@@ -2597,8 +2766,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.lastRoomId = room.id;
     final ward = room.ward;
     if (ward == null) return;
-    // Standing in it counts. The seal at the door is ceremony, not a lock,
-    // and the room must never depend on having pressed it.
+    // Standing in it counts — for the dead-house, which you broke into
+    // yourself. The three plague wards are opened by the font, and if you
+    // are inside one at all then the font has already been poured.
     m.triage.open(ward.id);
     if (!m.wakeShown.add(ward.id)) return;
     m
@@ -3275,6 +3445,140 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     return out;
   }
 
+  /// THE LUSTRAL FONT. A basin on a plinth in the middle of the cloister,
+  /// with the one thing the house asks for cut into its rim.
+  ///
+  /// It has to state its want before you have anything to give it — a basin
+  /// you can only understand after brewing the right bottle is a basin you
+  /// walk past three times.
+  void _renderLustralFont(Canvas canvas, DungeonRoom room) {
+    final at = room.lustralFont;
+    if (at == null) return;
+    final m = monastery;
+    final done = m.cloisterOpen;
+
+    // A FOOTPRINT WIDER THAN A CREATURE. At its first size the whole basin
+    // sat behind whoever was standing at it — the same way the cross did —
+    // and a fixture you cannot see while you are using it may as well not be
+    // drawn. So: a stepped kerb on the floor, then the plinth, then a bowl
+    // wide enough to show either side of a body.
+    canvas.drawOval(
+      Rect.fromCenter(center: at + const Offset(0, 30), width: 132, height: 46),
+      Paint()..color = const Color(0xFF191C17),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at + const Offset(0, 30), width: 132, height: 46),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = _venomBronze.withValues(alpha: 0.35),
+    );
+    _stoneBlock(
+      canvas,
+      Rect.fromCenter(center: at + const Offset(0, 24), width: 46, height: 24),
+    );
+    _stoneBlock(
+      canvas,
+      Rect.fromCenter(center: at + const Offset(0, 8), width: 26, height: 28),
+    );
+    final bowl = Rect.fromCenter(center: at, width: 96, height: 38);
+    canvas.drawOval(bowl, Paint()..color = const Color(0xFF23281F));
+    canvas.drawOval(bowl.deflate(4), Paint()..color = const Color(0xFF070A08));
+    // What is standing in it: sick green until the vial goes in, then clear.
+    final water = done ? const Color(0xFFD8F0E4) : _venomSick;
+    canvas.drawOval(
+      bowl.deflate(9),
+      Paint()..color = water.withValues(alpha: done ? 0.55 : 0.30),
+    );
+    for (var i = 0; i < 2; i++) {
+      final k = ((_time * 0.4 + i * 0.5) % 1.0);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: at,
+          width: (bowl.width - 18) * (0.25 + 0.7 * k),
+          height: (bowl.height - 18) * (0.25 + 0.7 * k),
+        ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = water.withValues(alpha: 0.26 * (1 - k)),
+      );
+    }
+    canvas.drawOval(
+      bowl,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..color = (done ? _venomBronzeLit : _venomBronze).withValues(
+          alpha: 0.95,
+        ),
+    );
+
+    if (done) {
+      // Spent, and saying so — no second errand here.
+      _drawTinyLabel(canvas, Offset(at.dx, at.dy - 52), 'THE SEALS ARE OPEN');
+      return;
+    }
+
+    // THE RIM INSCRIPTION. The clue, on the object that wants it.
+    final lines = _wrapTiny(kPureVial.clue, 210);
+    var w = 0.0;
+    for (final l in lines) {
+      w = max(w, _tinyLabelWidth(l));
+    }
+    final plate = Rect.fromCenter(
+      center: Offset(at.dx, at.dy - 50),
+      width: w + 20,
+      height: 12.0 + 15.0 * lines.length,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(plate, const Radius.circular(3)),
+      Paint()..color = const Color(0xFF2A2419),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(plate, const Radius.circular(3)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = _venomBronze.withValues(alpha: 0.9),
+    );
+    for (var i = 0; i < lines.length; i++) {
+      _drawTinyLabel(canvas, Offset(at.dx, plate.top + 3 + 15.0 * i), lines[i]);
+    }
+
+    // Lit while a hand is actually carrying the answer.
+    if (m.carriedPotion == kPureVial.id && _fx.ready) {
+      final pulse = 0.5 + 0.5 * sin(_time * 2.4);
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        at,
+        40 + 10 * pulse,
+        const Color(0xFFD8F0E4).withValues(alpha: 0.18 + 0.12 * pulse),
+      );
+    }
+
+    // THE POUR, and the seals letting go all down the corridor.
+    if (m.lustral > 0) {
+      final k = 1 - m.lustral;
+      for (var i = 0; i < 3; i++) {
+        final r = ((k * 1.5) - i * 0.2).clamp(0.0, 1.0);
+        if (r <= 0) continue;
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: at,
+            width: 40 + 700 * r,
+            height: 16 + 200 * r,
+          ),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 6 * (1 - r)
+            ..color = const Color(0xFFD8F0E4).withValues(alpha: 0.42 * (1 - r)),
+        );
+      }
+    }
+  }
+
   /// A RELIQUARY ON THE STONES. What a plague leaves when it comes apart —
   /// and the only thing in the cloister worth walking back for.
   void _renderRelics(Canvas canvas, DungeonRoom room) {
@@ -3350,6 +3654,21 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
     final f = ((k - 0.34) / 0.66).clamp(0.0, 1.0);
     switch (potion.pot) {
+      case CauldronReaction.pure:
+        // Poured on a sleeper it simply runs off — a wash and a shrug, so
+        // the wrong-bottle complication reads as "nothing happened" on
+        // purpose.
+        for (var i = 0; i < 10; i++) {
+          final t = ((f * 1.4 + i * 0.1) % 1.0);
+          canvas.drawCircle(
+            at + Offset((i * 9.1) % 56 - 28, 6 + 34 * t),
+            2.2 * (1 - t),
+            Paint()
+              ..color = const Color(
+                0xFFD8F0E4,
+              ).withValues(alpha: 0.55 * (1 - t)),
+          );
+        }
       case CauldronReaction.bloom:
         // FLOWERS. Stems shoot off the heart, open, and shed spores.
         for (var i = 0; i < 9; i++) {
@@ -3514,7 +3833,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       canvas.drawCircle(at, 3.4, Paint()..color = col);
       return;
     }
-    final p = kPlaguePotions.firstWhere((x) => x.id == held);
+    final p = kAllBrews.firstWhere((x) => x.id == held);
     final col = _brewColour(p);
     canvas.save();
     canvas.translate(at.dx, at.dy);
@@ -3543,6 +3862,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// A brew's colour, used in the pot, in the bottle, on the plague and on
   /// the relic — one identity in every place it is seen.
   Color _brewColour(PlaguePotion p) => switch (p.pot) {
+    CauldronReaction.pure => const Color(0xFFD8F0E4),
     CauldronReaction.bloom => const Color(0xFFB6E24A),
     CauldronReaction.climb => const Color(0xFF6B4B86),
     CauldronReaction.rot => const Color(0xFF6E7C33),
@@ -3634,14 +3954,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   /// How much of this element the party has already poured away, 0 → 1.
   double _larderSpent(String element) {
+    final allowed = contributionsAllowedFor(element);
     var have = 0, used = 0;
     for (final c in creatures) {
       if (c.member.element != element) continue;
-      have += kPotionContributionsEach;
-      used += min(
-        kPotionContributionsEach,
-        monastery.given[c.member.instanceId] ?? 0,
-      );
+      have += allowed;
+      used += min(allowed, monastery.given[c.member.instanceId] ?? 0);
     }
     if (have == 0) return 1.0;
     return used / have;
@@ -3772,12 +4090,21 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       _renderCauldronReaction(canvas, c, m.reactionKind!, 1 - m.reaction);
     }
 
-    // THE THREE BOTTLES. They stand empty on the bench from the moment you
-    // walk in, which is how the room states its own shape without a word:
-    // three vessels, three plagues, and you can count them.
-    for (var i = 0; i < kPlaguePotions.length; i++) {
-      final potion = kPlaguePotions[i];
-      final at = Offset(c.dx - 52 + i * 52.0, c.dy + 52);
+    // THE BOTTLES, on their own bench along from the pot. They stand empty
+    // from the moment you walk in, which is how the room states its own
+    // shape without a word: four vessels, and you can count them.
+    final bench = c + const Offset(200, 0);
+    canvas.drawRect(
+      Rect.fromLTWH(bench.dx - 78, bench.dy + 13, 156, 7),
+      Paint()..color = const Color(0xFF2A2419),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(bench.dx - 78, bench.dy + 13, 156, 2),
+      Paint()..color = _venomBronze.withValues(alpha: 0.55),
+    );
+    for (var i = 0; i < kAllBrews.length; i++) {
+      final potion = kAllBrews[i];
+      final at = Offset(bench.dx - 60 + i * 40.0, bench.dy);
       final full =
           m.bottled.contains(potion.id) || m.carriedPotion == potion.id;
       final gone = m.woken.contains(potion.id) || m.slain.contains(potion.id);
@@ -3836,6 +4163,47 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   ) {
     final mouth = Offset(c.dx, c.dy - 12);
     switch (kind) {
+      case CauldronReaction.pure:
+        // IT GOES CLEAR AND STOPS. The one reaction that is an absence: the
+        // surface flattens to glass, a ring of it lifts, and everything the
+        // pot was doing quietly ceases. On a planet made of drifting spores
+        // and crawling rot, stillness is the loudest thing available.
+        final settle = Curves.easeOutCubic.transform(k);
+        canvas.drawOval(
+          Rect.fromCenter(center: mouth, width: 66, height: 19),
+          Paint()
+            ..color = Color.lerp(
+              const Color(0xFF4A5A3A),
+              const Color(0xFFD8F0E4),
+              settle,
+            )!.withValues(alpha: 0.9),
+        );
+        for (var i = 0; i < 3; i++) {
+          final r = ((settle * 1.5) - i * 0.22).clamp(0.0, 1.0);
+          if (r <= 0) continue;
+          canvas.drawOval(
+            Rect.fromCenter(
+              center: Offset(mouth.dx, mouth.dy - 26 * r),
+              width: 30 + 54 * r,
+              height: 9 + 16 * r,
+            ),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.0 * (1 - r)
+              ..color = const Color(
+                0xFFE6FFF4,
+              ).withValues(alpha: 0.6 * (1 - r)),
+          );
+        }
+        // A single held highlight on dead-flat liquid.
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(mouth.dx - 12, mouth.dy - 2),
+            width: 18 * settle,
+            height: 4 * settle,
+          ),
+          Paint()..color = Colors.white.withValues(alpha: 0.5 * settle),
+        );
       case CauldronReaction.bloom:
         // Luminous flowers erupt, open, and shed sparkling spores.
         for (var i = 0; i < 7; i++) {

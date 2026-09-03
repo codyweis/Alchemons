@@ -72,9 +72,36 @@ void _press(PlanetDungeonGame g, String element, String room, Offset at) {
 Offset get _pot => poisonLayout.rooms['apothecary']!.apothecary!.cistern;
 Offset _censer(String ward) => poisonLayout.rooms[ward]!.ward!.censer;
 Offset get _cross => poisonLayout.rooms['ambulatory']!.priorsSeal!.position;
+Offset get _font => poisonLayout.rooms['ambulatory']!.lustralFont!;
+Offset get _bench => _pot + const Offset(200, 0);
+
+/// Put whatever is in hand down on the bench, so the pot will take a give.
+void _setDown(PlanetDungeonGame g) {
+  if (g.monastery.carriedPotion == null) return;
+  _press(g, 'Poison', 'apothecary', _bench);
+  expect(g.monastery.carriedPotion, isNull);
+}
+
+/// THE FIRST ERRAND. Poison twice into the pot, the vial into the font, and
+/// every wax seal on the cloister lets go. Nothing else can start until this
+/// has happened, so almost every test below opens with it.
+void _openTheCloister(PlanetDungeonGame g) {
+  _setDown(g);
+  _press(g, 'Poison', 'apothecary', _pot);
+  _press(g, 'Poison', 'apothecary', _pot);
+  expect(
+    g.monastery.carriedPotion,
+    kPureVial.id,
+    reason: 'Poison twice is the pure vial',
+  );
+  _press(g, 'Poison', 'ambulatory', _font);
+  expect(g.monastery.cloisterOpen, isTrue);
+}
 
 /// Brew [potion] from the pot, then carry it to its ward and wake it.
 void _brewAndWake(PlanetDungeonGame g, PlaguePotion potion) {
+  if (!g.monastery.cloisterOpen) _openTheCloister(g);
+  _setDown(g);
   _press(g, potion.first, 'apothecary', _pot);
   _press(g, potion.second, 'apothecary', _pot);
   expect(
@@ -82,7 +109,7 @@ void _brewAndWake(PlanetDungeonGame g, PlaguePotion potion) {
     potion.id,
     reason: '${potion.first} + ${potion.second} must make ${potion.id}',
   );
-  _press(g, 'Poison', potion.wardId, _censer(potion.wardId));
+  _press(g, 'Poison', potion.wardId!, _censer(potion.wardId!));
 }
 
 /// Run the crawl out to the walk, then kill whatever landed.
@@ -120,38 +147,107 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('the three plagues', () {
-    test('a brew is two DIFFERENT things, and the pot says so', () {
+    test('Poison twice is the vial; anything else twice is refused', () {
       final g = _game();
       _press(g, 'Poison', 'apothecary', _pot);
       _press(g, 'Poison', 'apothecary', _pot);
-      expect(g.monastery.pot, ['Poison'], reason: 'the second give is refused');
-      expect(g.monastery.carriedPotion, isNull);
+      expect(
+        g.monastery.carriedPotion,
+        kPureVial.id,
+        reason: 'the one recipe that asks the same hand twice',
+      );
+
+      final h = _game();
+      _press(h, 'Plant', 'apothecary', _pot);
+      _press(h, 'Plant', 'apothecary', _pot);
+      expect(
+        h.monastery.pot,
+        ['Plant'],
+        reason: 'the second Plant is refused — only Poison doubles',
+      );
+      expect(h.monastery.carriedPotion, isNull);
     });
 
-    test('a pair that answers no plague is spent for nothing', () {
-      // There is no such pair among three ingredients whose every pair is a
-      // recipe — so this proves the refusal path exists rather than firing
-      // it, which is the honest thing a three-element larder allows.
+    test('nothing can be woken until the font is poured', () {
+      final g = _game();
+      final p = kPlaguePotions.first;
+      // The wards are shut, so the brew cannot even be carried in — and the
+      // house says what would open them.
+      _press(g, p.first, 'apothecary', _pot);
+      _press(g, p.second, 'apothecary', _pot);
+      expect(g.monastery.carriedPotion, p.id);
+      expect(
+        g.monastery.triage.opened.contains(p.wardId),
+        isFalse,
+        reason: 'a plague ward is not opened by walking up to it any more',
+      );
+      _openTheCloister(g);
+      expect(
+        g.monastery.bottled,
+        contains(p.id),
+        reason: 'the brew already in glass survived the errand',
+      );
+      for (final q in kPlaguePotions) {
+        expect(
+          g.monastery.triage.opened,
+          contains(q.wardId),
+          reason: 'one errand opens all three',
+        );
+      }
+    });
+
+    test('the vial costs two of Poison\'s four but handicaps no fight', () {
+      final g = _game();
+      _openTheCloister(g);
+      expect(
+        g.monastery.given['iPoison'],
+        2,
+        reason: 'the key costs two of Poison\'s four gives',
+      );
+      expect(
+        g.monastery.drained,
+        isEmpty,
+        reason:
+            'a mandatory first errand that also handicaps the first fight '
+            'would be a tax with no decision in it',
+      );
+    });
+
+    test('a pair that answers nothing is spent for nothing', () {
+      // Every pair of the three ingredients is now a recipe, and so is
+      // Poison doubled — so this proves the refusal path exists rather than
+      // firing it, which is the honest thing this larder allows.
       final pairs = <String>{
-        for (final p in kPlaguePotions) ([p.first, p.second]..sort()).join(),
+        for (final p in kAllBrews) ([p.first, p.second]..sort()).join(),
       };
-      expect(pairs.length, 3, reason: 'all three pairs are spoken for');
+      expect(pairs.length, kAllBrews.length);
     });
 
-    test('two brews is all any one alchemon has', () {
+    test('four gives for Poison, two for everyone else, and no more', () {
       final g = _game();
-      // Poison gives to both of its recipes…
+      _openTheCloister(g); // two of Poison's four
       _brewAndWake(g, kPlaguePotions.firstWhere((p) => p.id == 'bloomvenom'));
       _fightItOut(g);
       _brewAndWake(g, kPlaguePotions.firstWhere((p) => p.id == 'mirebane'));
       _fightItOut(g);
-      expect(g.monastery.given['iPoison'], 2);
-      // …and is refused a third time.
+      expect(g.monastery.given['iPoison'], kPoisonContributions);
+      expect(g.monastery.given['iPlant'], 1);
+      // A fifth Poison give is refused…
+      _setDown(g);
       _press(g, 'Poison', 'apothecary', _pot);
       expect(
         g.monastery.pot,
         isEmpty,
         reason: 'a spent hand cannot give again',
+      );
+      // …and Plant still has one left, which is exactly Graverot's half.
+      _press(g, 'Plant', 'apothecary', _pot);
+      expect(g.monastery.pot, ['Plant']);
+      _press(g, 'Mud', 'apothecary', _pot);
+      expect(
+        g.monastery.carriedPotion,
+        'graverot',
+        reason: 'the last two gives in the house make the last brew',
       );
     });
 
@@ -201,12 +297,14 @@ void main() {
       // Brew all three before waking anything — the worst play available —
       // and the party must still be able to fight.
       final g = _game();
+      _openTheCloister(g);
       for (final p in kPlaguePotions) {
+        _setDown(g);
         _press(g, p.first, 'apothecary', _pot);
         _press(g, p.second, 'apothecary', _pot);
         // Only one brew can be carried, so park it at its ward.
         if (g.monastery.carriedPotion != null) {
-          _press(g, 'Poison', p.wardId, _censer(p.wardId));
+          _press(g, 'Poison', p.wardId!, _censer(p.wardId!));
           g.monastery.invading = false;
         }
       }
@@ -221,11 +319,12 @@ void main() {
 
     test('a wrong pour costs a complication and never the bottle', () {
       final g = _game();
+      _openTheCloister(g);
       final potion = kPlaguePotions.firstWhere((p) => p.id == 'bloomvenom');
       final other = kPlaguePotions.firstWhere((p) => p.id == 'mirebane');
       _press(g, potion.first, 'apothecary', _pot);
       _press(g, potion.second, 'apothecary', _pot);
-      _press(g, 'Poison', other.wardId, _censer(other.wardId));
+      _press(g, 'Poison', other.wardId!, _censer(other.wardId!));
       expect(
         g.monastery.carriedPotion,
         potion.id,
@@ -244,20 +343,27 @@ void main() {
 
     test('a bottle set down stays on the bench, and can be taken back', () {
       final g = _game();
+      _openTheCloister(g);
       final potion = kPlaguePotions.first;
       _press(g, potion.first, 'apothecary', _pot);
       _press(g, potion.second, 'apothecary', _pot);
       expect(g.monastery.carriedPotion, potion.id);
-      // Press again with it in hand and nothing else brewed: it goes back.
-      _press(g, 'Poison', 'apothecary', _pot);
+      // Set it down on the bench.
+      _press(g, 'Poison', 'apothecary', _bench);
       expect(g.monastery.carriedPotion, isNull);
       expect(
         g.monastery.bottled,
         contains(potion.id),
         reason: 'a brew is made once and lives in glass until it is poured',
       );
-      // And comes back off the bench.
-      _press(g, 'Poison', 'apothecary', _pot);
+      // And comes back off it.
+      _press(g, 'Poison', 'apothecary', _bench);
+      expect(g.monastery.carriedPotion, potion.id);
+      // The POT, meanwhile, refuses a give from a full hand and says where
+      // to put it — the two used to be the same press, and with anything at
+      // all in glass a new brew could never be started.
+      _press(g, 'Mud', 'apothecary', _pot);
+      expect(g.monastery.pot, isEmpty);
       expect(g.monastery.carriedPotion, potion.id);
     });
 
@@ -319,11 +425,22 @@ void main() {
           isTrue,
           reason: '${p.relic} landed outside the cloister at $at',
         );
-        expect(
-          (at - _cross).distance,
-          greaterThan(90),
-          reason: '${p.relic} landed on top of the cross',
-        );
+        // CLEAR OF EVERY FIXTURE WITH A VERB ON IT, not just the cross.
+        // The plague used to crawl to the room's centre, which is exactly
+        // where the lustral font stands — so the reliquary landed inside the
+        // font's reach and the font answered every press to pick it up with
+        // "the basin is spent". The third star was unreachable and nothing
+        // on screen said why.
+        for (final fixture in {
+          'the cross': _cross,
+          'the font': _font,
+        }.entries) {
+          expect(
+            (at - fixture.value).distance,
+            greaterThan(90),
+            reason: '${p.relic} landed on ${fixture.key}',
+          );
+        }
         _bearRelic(g, p);
       }
     });
@@ -335,6 +452,7 @@ void main() {
       _fightItOut(g);
       // Brew the next one, then try to pick the reliquary up with it in hand.
       final second = kPlaguePotions[1];
+      _setDown(g);
       _press(g, second.first, 'apothecary', _pot);
       _press(g, second.second, 'apothecary', _pot);
       expect(g.monastery.carriedPotion, second.id);

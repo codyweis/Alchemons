@@ -1259,6 +1259,11 @@ class DungeonRoom {
   /// planet's own resource is for.
   final Offset? maximCache;
 
+  /// Poison only: the lustral font in the middle of the cloister. Pure
+  /// poison goes in here, and every wax seal on the corridor lets go at
+  /// once — one errand that opens three doors, rather than three presses.
+  final Offset? lustralFont;
+
   /// The span the finished cast lays across a chasm — the way home, earned.
   /// Impassable until the room's star is banked; it IS the thing you made.
   final Rect? castSpan;
@@ -1425,6 +1430,7 @@ class DungeonRoom {
     this.crucibleSeals = const [],
     this.centrePlinth,
     this.maximCache,
+    this.lustralFont,
     this.capstone,
     this.molten,
     this.steamVent,

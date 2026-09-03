@@ -382,7 +382,9 @@ class PlaguePotion {
   final String second;
 
   /// The ward whose sleeper it wakes, and what that sleeper is called.
-  final String wardId;
+  /// Null for the pure vial, which wakes nothing — it is the key that opens
+  /// every ward at once, poured into the font in the middle of the cloister.
+  final String? wardId;
   final String plague;
 
   /// THE ONLY THING THE HOUSE TELLS YOU. Nailed up in the plague's own room.
@@ -406,6 +408,11 @@ class PlaguePotion {
 /// like in the bottle and on the plague, so a potion reads the same in all
 /// three places it is ever seen.
 enum CauldronReaction {
+  /// Poison + Poison. Nothing happens, loudly: it goes perfectly clear and
+  /// perfectly still, which on this planet is the most alarming thing a pot
+  /// has ever done.
+  pure,
+
   /// Poison + Plant. Luminous flowers erupt off the surface and let go of
   /// sparkling spores.
   bloom,
@@ -425,6 +432,22 @@ const Map<String, String> kPotionIngredientEffect = {
   'Plant': 'grows — green takes root in whatever will hold it',
   'Mud': 'slows — nothing moves quickly through it',
 };
+
+/// THE KEY. Poison and Poison — the one recipe that asks the same hand
+/// twice, which is why the Poison alchemon has four gives in it and the
+/// others two. Poured into the lustral font, every wax seal in the cloister
+/// lets go at once.
+const PlaguePotion kPureVial = PlaguePotion(
+  id: 'purevial',
+  name: 'the Pure Vial',
+  first: 'Poison',
+  second: 'Poison',
+  wardId: null,
+  plague: 'the sealed cloister',
+  clue: 'This PURE poison is required.',
+  relic: 'no reliquary',
+  pot: CauldronReaction.pure,
+);
 
 const List<PlaguePotion> kPlaguePotions = [
   PlaguePotion(
@@ -462,8 +485,21 @@ const List<PlaguePotion> kPlaguePotions = [
   ),
 ];
 
+/// Everything the pot can make: the key first, then the three that wake
+/// something. Order matters only for display.
+const List<PlaguePotion> kAllBrews = [kPureVial, ...kPlaguePotions];
+
 /// How many brews one alchemon can give to.
+///
+/// THE SUMS STILL COME OUT EVEN, which is the whole reason the numbers are
+/// these numbers. Four recipes want Poison ×4 (one each for Bloomvenom and
+/// Mirebane, and BOTH halves of the Pure Vial), Plant ×2 and Mud ×2. The
+/// party has exactly that and not one give more.
 const int kPotionContributionsEach = 2;
+const int kPoisonContributions = 4;
+
+int contributionsAllowedFor(String element) =>
+    element == 'Poison' ? kPoisonContributions : kPotionContributionsEach;
 
 /// The ward the crypt hangs off. It is the one ward with no plague in it —
 /// the bricked dead-house — and the oubliette in its floor is the way down
@@ -688,6 +724,10 @@ const DungeonLayout poisonLayout = DungeonLayout(
           targetSpawn: Offset(360, 120),
         ),
       ],
+      // THE LUSTRAL FONT, dead centre of the corridor and between the two
+      // middle ward doors, so it is the first fixture you meet coming up
+      // from the laboratory and it is on the way to everywhere.
+      lustralFont: Offset(685, 250),
       priorsSeal: PriorsSeal(
         position: Offset(1230, 330),
         diagnosisStarIndex: 0,

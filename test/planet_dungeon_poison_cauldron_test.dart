@@ -14,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('the venom monastery can actually be brewed in', () {
     final larder = <String>{
-      for (final p in kPlaguePotions) ...[p.first, p.second],
+      for (final p in kAllBrews) ...[p.first, p.second],
     };
 
     test(
@@ -69,11 +69,14 @@ void main() {
     });
 
     test('the hands and the recipes come out exactly even', () {
-      // Three creatures × two brews each = six contributions; three recipes
-      // × two ingredients = six. The assignment is forced, which is the
-      // point: the decision the player makes is WHEN to brew, not who.
+      // FOUR recipes now, and the sums still have to land exactly. Poison is
+      // wanted four times — one each for Bloomvenom and Mirebane, and BOTH
+      // halves of the Pure Vial — which is why the Poison alchemon carries
+      // four gives and the other two carry two. One give more anywhere and
+      // the order stops mattering; one fewer and the house cannot be
+      // finished at all.
       final need = <String, int>{};
-      for (final p in kPlaguePotions) {
+      for (final p in kAllBrews) {
         need[p.first] = (need[p.first] ?? 0) + 1;
         need[p.second] = (need[p.second] ?? 0) + 1;
       }
@@ -81,29 +84,47 @@ void main() {
       for (final el in larder) {
         expect(
           need[el],
-          kPotionContributionsEach,
+          contributionsAllowedFor(el),
           reason:
-              '$el is wanted ${need[el]} times but one alchemon can give '
-              '$kPotionContributionsEach — a party of three cannot cover it',
+              '$el is wanted ${need[el]} times and one alchemon can give '
+              '${contributionsAllowedFor(el)} — the party cannot cover it',
         );
       }
+      expect(
+        contributionsAllowedFor('Poison'),
+        kPoisonContributions,
+        reason: 'the double-Poison recipe is the reason for the extra two',
+      );
     });
 
-    test('a recipe never asks one alchemon for both halves', () {
-      for (final p in kPlaguePotions) {
-        expect(
-          p.first == p.second,
-          isFalse,
-          reason: '${p.id} is a brew of one thing — the pot wants two',
-        );
-      }
+    test('exactly one recipe asks the same hand twice', () {
+      final doubles = kAllBrews.where((p) => p.first == p.second).toList();
+      expect(
+        doubles.map((p) => p.id),
+        [kPureVial.id],
+        reason:
+            'the pure vial is the only brew of one thing — if a second '
+            'appears the four-give allowance stops adding up',
+      );
     });
 
     test('no two brews are the same pair', () {
-      final pairs = kPlaguePotions
+      final pairs = kAllBrews
           .map((p) => ([p.first, p.second]..sort()).join('+'))
           .toSet();
-      expect(pairs.length, kPlaguePotions.length);
+      expect(pairs.length, kAllBrews.length);
+    });
+
+    test('the vial wakes nothing, and every plague brew wakes something', () {
+      expect(kPureVial.wardId, isNull);
+      for (final p in kPlaguePotions) {
+        expect(p.wardId, isNotNull, reason: '${p.id} wakes nothing');
+      }
+      expect(
+        kAllBrews.where((p) => p.wardId == null).length,
+        1,
+        reason: 'one key, three answers',
+      );
     });
 
     test('every brew has a ward that exists, and every plague ward a brew', () {
@@ -136,7 +157,7 @@ void main() {
       // in a clue only if it appears in all of them.
       final shared = <String>{
         for (final el in kPotionIngredientEffect.keys)
-          if (kPlaguePotions.every(
+          if (kAllBrews.every(
             (p) => p.clue.toLowerCase().contains(el.toLowerCase()),
           ))
             el.toLowerCase(),
@@ -231,7 +252,7 @@ void main() {
     test('every brew is fully identified', () {
       final ids = <String>{}, names = <String>{}, plagues = <String>{};
       final relics = <String>{}, reactions = <CauldronReaction>{};
-      for (final p in kPlaguePotions) {
+      for (final p in kAllBrews) {
         expect(p.name.trim(), isNotEmpty);
         expect(p.plague.trim(), isNotEmpty);
         expect(p.clue.trim(), isNotEmpty);
@@ -244,13 +265,13 @@ void main() {
       }
       // Nothing shares a name, a plague, a relic or a REACTION — the pot
       // doing the same thing for two recipes would make the receipt useless.
-      expect(ids.length, kPlaguePotions.length);
-      expect(names.length, kPlaguePotions.length);
-      expect(plagues.length, kPlaguePotions.length);
-      expect(relics.length, kPlaguePotions.length);
+      expect(ids.length, kAllBrews.length);
+      expect(names.length, kAllBrews.length);
+      expect(plagues.length, kAllBrews.length);
+      expect(relics.length, kAllBrews.length);
       expect(
         reactions.length,
-        kPlaguePotions.length,
+        kAllBrews.length,
         reason: 'two brews that look alike in the pot are one brew',
       );
     });
