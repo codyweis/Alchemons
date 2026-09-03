@@ -444,7 +444,7 @@ const PlaguePotion kPureVial = PlaguePotion(
   second: 'Poison',
   wardId: null,
   plague: 'the sealed cloister',
-  clue: 'This PURE poison is required.',
+  clue: 'PURE poison is required.',
   relic: 'no reliquary',
   pot: CauldronReaction.pure,
 );
@@ -488,6 +488,21 @@ const List<PlaguePotion> kPlaguePotions = [
 /// Everything the pot can make: the key first, then the three that wake
 /// something. Order matters only for display.
 const List<PlaguePotion> kAllBrews = [kPureVial, ...kPlaguePotions];
+
+/// Look a brew up by id, over EVERY brew and never just the plague three.
+///
+/// A `kPlaguePotions.firstWhere(...)` on a carried brew threw the moment the
+/// Pure Vial existed, because the vial is not one of them — and the site it
+/// threw from was the HUD readout, which runs every frame, so making the
+/// vial crashed the game outright. Returning null makes the caller say what
+/// it wants to happen instead of assuming the id must be in a list.
+PlaguePotion? brewById(String? id) {
+  if (id == null) return null;
+  for (final p in kAllBrews) {
+    if (p.id == id) return p;
+  }
+  return null;
+}
 
 /// How many brews one alchemon can give to.
 ///

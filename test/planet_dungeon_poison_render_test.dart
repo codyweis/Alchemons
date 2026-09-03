@@ -142,6 +142,49 @@ void main() {
       // The cross, empty and then full. An unlit cross beside a lit one is
       // the whole reward moment, and it is the one thing on this planet a
       // player walks the corridor three extra times for.
+      // EVERY BREW, CARRIED. The one that actually shipped broken: making
+      // the Pure Vial crashed the game outright, because the HUD readout
+      // looked the carried brew up in `kPlaguePotions` — which is the three
+      // plague brews and not the vial — and that lookup runs every frame.
+      // Nothing here was a rendering problem; it was a list-membership
+      // assumption, and only carrying each brew in turn finds it.
+      for (final p in kAllBrews) {
+        g.monastery
+          ..bottled.add(p.id)
+          ..carriedPotion = p.id;
+        expect(
+          () => g.progressReadout,
+          returnsNormally,
+          reason: 'carrying ${p.name} throws in the HUD readout',
+        );
+        expect(
+          g.progressReadout?.value,
+          p.name,
+          reason: 'the readout has to name the brew in hand',
+        );
+        expect(
+          await _shot(g, 'apothecary', 'p_carry_${p.id}'),
+          isNonZero,
+          reason: 'carrying ${p.name} throws in the render',
+        );
+        // …and poured on a plague, which is where a WRONG bottle lands.
+        g.monastery
+          ..pour = 0.5
+          ..pourPotion = p.id
+          ..pourAt = poisonLayout.rooms['ward_bell']!.ward!.heart;
+        expect(
+          await _shot(g, 'ward_bell', 'p_wrongpour_${p.id}'),
+          isNonZero,
+          reason: '${p.name} poured on a plague throws in the render',
+        );
+        g.monastery
+          ..pour = 0
+          ..pourPotion = null;
+      }
+      g.monastery
+        ..carriedPotion = null
+        ..bottled.clear();
+
       // THE FONT, wanting the vial and then spent — it has to state its own
       // want before the player owns the answer.
       final font = poisonLayout.rooms['ambulatory']!.lustralFont!;

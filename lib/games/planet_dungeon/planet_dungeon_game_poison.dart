@@ -800,8 +800,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (held != null) {
       m.carriedPotion = null;
       speakConsequence(
-        '${kAllBrews.firstWhere((p) => p.id == held).name} goes back on the '
-        'bench.',
+        '${brewById(held)?.name ?? 'The bottle'} goes back on the bench.',
         3.0,
       );
       return true;
@@ -1035,7 +1034,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       return true;
     }
     if (held != potion.id) {
-      final wrong = kAllBrews.firstWhere((p) => p.id == held);
+      final wrong = brewById(held)!;
       // A WRONG POUR COSTS SOMETHING, AND IT IS NEVER THE BREW. One
       // misreading of a riddle must not be able to make the house
       // unfinishable, so the bottle comes back full — and the room makes you
@@ -1196,7 +1195,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // The hands come back. All of them — a fallen plague clears the whole
     // house's exhaustion, so brewing the next one is a fresh decision.
     m.drained.clear();
-    final potion = kPlaguePotions.firstWhere((p) => p.id == id);
+    final potion = brewById(id);
+    if (potion == null) return;
     // It leaves the relic where it died.
     final walk = layout.rooms['ambulatory'];
     final at = walk == null ? m.invadeTo : _relicRestingPlace(walk, m.invadeTo);
@@ -1316,7 +1316,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final m = monastery;
     final held = m.carriedRelic;
     if (held == null) return _readTheRoll(seal);
-    final potion = kPlaguePotions.firstWhere((p) => p.id == held);
+    final potion = brewById(held);
+    if (potion == null) return _readTheRoll(seal);
     m.carriedRelic = null;
     m.relicsPlaced.add(held);
     _spawnAlchemyBurst(
@@ -1860,12 +1861,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final t = monastery.triage;
     if (t.isEmpty) return null;
     final m = monastery;
-    final held = m.carriedPotion;
+    final held = brewById(m.carriedPotion);
     if (held != null) {
-      return DungeonProgressReadout(
-        label: 'BREW',
-        value: kPlaguePotions.firstWhere((p) => p.id == held).name,
-      );
+      return DungeonProgressReadout(label: 'BREW', value: held.name);
     }
     if (m.pot.isNotEmpty) {
       return DungeonProgressReadout(label: 'POT', value: m.pot.join(' + '));
@@ -3631,10 +3629,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// when it was the wrong bottle.
   void _renderPourOnPlague(Canvas canvas, DungeonRoom room) {
     final m = monastery;
-    final id = m.pourPotion;
-    if (id == null || m.pour <= 0) return;
-    if (room.ward == null) return;
-    final potion = kPlaguePotions.firstWhere((p) => p.id == id);
+    if (m.pour <= 0 || room.ward == null) return;
+    final potion = brewById(m.pourPotion);
+    if (potion == null) return;
     final at = m.pourAt;
     final k = 1 - m.pour; // 0 → 1 over the beat
     final col = _brewColour(potion);
@@ -3812,7 +3809,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (held == null && relic == null) return;
     final at = a.position + Offset(16, -30 + sin(_time * 3.0) * 2.0);
     if (relic != null) {
-      final p = kPlaguePotions.firstWhere((x) => x.id == relic);
+      final p = brewById(relic);
+      if (p == null) return;
       final col = _brewColour(p);
       canvas.drawCircle(at, 13, Paint()..color = col.withValues(alpha: 0.18));
       final body = Path()
@@ -3833,7 +3831,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       canvas.drawCircle(at, 3.4, Paint()..color = col);
       return;
     }
-    final p = kAllBrews.firstWhere((x) => x.id == held);
+    final p = brewById(held);
+    if (p == null) return;
     final col = _brewColour(p);
     canvas.save();
     canvas.translate(at.dx, at.dy);
