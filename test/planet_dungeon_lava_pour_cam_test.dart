@@ -104,6 +104,43 @@ void main() {
     });
   });
 
+  testWidgets('a charge lost speaks WHEN it is lost, not when asked', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      // Reported from play: the spoil "didn't pop up". It never had. §5.6
+      // makes the dungeon refuse to narrate, and `_emitHint` enforces it
+      // hard — unasked objective speech is DROPPED and blocked/insight lines
+      // are only remembered for the next press of HINT. Right for flavour and
+      // for refusals; wrong for a consequence you have already paid for.
+      final g = _game();
+      g.works.line.tapWoken = true;
+      // Aim the mill arm, damper shut, sluice at the KEY form — with the die
+      // still dead, so plain metal reaches a form cut for warded.
+      g.works.line.switches['y_yard'] = 1;
+      g.works.line.switches['damper'] = 0;
+      g.works.line.switches['y_sluice'] = 1;
+      expect(g.works.line.dieWoken, isFalse);
+      expect(g.works.line.tap(), isTrue);
+
+      var frames = 0;
+      while (g.works.line.pour != null && frames++ < 60 * 40) {
+        g.update(1 / 60);
+      }
+      expect(
+        g.works.line.molds['mold_key'],
+        isNotNull,
+        reason: 'the form took the charge and ruined it',
+      );
+      expect(g.hintText, isNotNull, reason: 'and said so, without being asked');
+      expect(
+        g.hintText,
+        contains('STEAM'),
+        reason: 'naming what was missing, not that something was',
+      );
+    });
+  });
+
   testWidgets('STOP gives the view back and KEEPS it back', (tester) async {
     await tester.runAsync(() async {
       final g = _game();

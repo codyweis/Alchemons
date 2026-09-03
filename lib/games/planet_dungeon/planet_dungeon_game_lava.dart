@@ -243,7 +243,10 @@ extension MoltenReliquary on PlanetDungeonGame {
         unstable: true,
         announce: false,
       );
-      _setHint('The purge takes it — the charge goes off as firedamp', 3.2);
+      speakConsequence(
+        'The purge takes it. The charge goes up the stack as firedamp — shut '
+        'the damper to send metal on down the line.',
+      );
     }
     switch (event) {
       case PourEvent.travelling:
@@ -252,9 +255,9 @@ extension MoltenReliquary on PlanetDungeonGame {
         works
           ..flash = 1.0
           ..flashAt = dest.position;
-        _setHint(
-          'The metal sets where it stood — a road, and a plug behind '
-          'it',
+        speakConsequence(
+          'The metal sets where it stood — a road across, and a plug behind '
+          'it. Nothing runs up this arm again.',
         );
         _spawnAlchemyBurst(
           dest.position,
@@ -282,23 +285,22 @@ extension MoltenReliquary on PlanetDungeonGame {
         // NAME THE MISMATCH. "The casting is ruined" says a thing failed and
         // nothing about why, which on a planet where you commit a whole route
         // before you see any of it is the least useful moment to go quiet.
-        _setHint(switch (true) {
+        speakConsequence(switch (true) {
           _ when wasOccupied =>
             'There is already a casting in this form — melt it out with a '
                 'Lava heart before you pour again',
           _
               when dest.wants == PourForm.stamped &&
                   arrivedAs == PourForm.plain =>
-            'The form throws it back — it is cut for WARDED metal. Nothing '
-                'stamped this charge: the mill\'s die is dead iron until '
-                'steam drives it',
+            'This form only takes WARDED metal. The mill\'s die is dead '
+                'iron until STEAM drives it.',
           _
               when dest.wants == PourForm.plain &&
                   arrivedAs == PourForm.stamped =>
-            'The form throws it back — this one takes PLAIN metal, and the '
-                'die warded the charge on its way past',
-          _ => 'The form spits it back — the casting is ruined',
-        }, 4.6);
+            'This form only takes PLAIN metal. The mill\'s die warded this '
+                'charge on the way past.',
+          _ => 'The form throws it back — the casting is ruined.',
+        });
         // IT HAS TO LOOK LIKE A REJECTION. A ruined casting used to arrive as
         // silently as a good one — same tidy slab, a different grey — so the
         // only way to know a charge had failed was to read the line.
@@ -314,12 +316,12 @@ extension MoltenReliquary on PlanetDungeonGame {
           intensity: 1.0,
         );
       case PourEvent.lost:
-        _setHint(
+        speakConsequence(
           dest.kind == FoundryNodeKind.sink
               ? 'The charge goes into the slag — and something in there '
-                    'takes the heat and turns'
-              : 'The charge congeals against cold metal',
-          3.6,
+                    'takes the heat and turns.'
+              : 'The charge congeals against cold metal. Nothing runs up a '
+                    'plugged arm again.',
         );
         if (via.segments.isNotEmpty) {
           _spawnAlchemyBurst(
@@ -1259,10 +1261,10 @@ extension MoltenReliquary on PlanetDungeonGame {
     final home = layout.rooms[layout.entranceRoomId]!;
     currentRoomId = home.id;
     passThroughDoorless(layout.entranceSpawn);
-    _setHint(
+    speakConsequence(
       'The heat goes out of the works. Everything cast breaks out of its '
       'form, and the crucible is charged for another shift.',
-      5.0,
+      5.4,
     );
     onChanged();
   }

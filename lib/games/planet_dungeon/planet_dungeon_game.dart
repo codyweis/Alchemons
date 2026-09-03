@@ -3151,6 +3151,22 @@ class PlanetDungeonGame extends FlameGame {
   /// Speak even though nobody asked. The ONLY callers are the teaches above:
   /// a line shown once in a lifetime is a different thing from narration, and
   /// it is the one exception the silence rule makes room for.
+  /// THE WORLD SPEAKING ABOUT SOMETHING IT JUST TOOK FROM YOU.
+  ///
+  /// §5.6 says the dungeon does not narrate, and `_emitHint` enforces that
+  /// hard: unasked speech on the objective channel is DROPPED, and blocked or
+  /// insight lines are only remembered for the next press of HINT. That is
+  /// right for flavour and right for refusals — leaning on a locked door
+  /// should not chatter.
+  ///
+  /// It is wrong for a CONSEQUENCE. When an action you already committed has
+  /// just cost you something you cannot get back — a charge spoiled in a
+  /// form, vented up a stack, run into the slag — the account of it has to
+  /// arrive with the event. Reported from play as the spoil "not popping up":
+  /// it was never dropped by accident, it was dropped by design, and the
+  /// design had no category for this.
+  void speakConsequence(String msg, [double ttl = 4.6]) => _forceHint(msg, ttl);
+
   void _forceHint(String msg, double ttl) {
     _hintAsked = true;
     try {
