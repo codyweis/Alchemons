@@ -104,7 +104,7 @@ void main() {
     });
   });
 
-  testWidgets('the X gives the view back immediately', (tester) async {
+  testWidgets('STOP gives the view back and KEEPS it back', (tester) async {
     await tester.runAsync(() async {
       final g = _game();
       g.works.line.tapWoken = true;
@@ -113,17 +113,36 @@ void main() {
         g.update(1 / 60);
       }
       expect(g.followingPour, isTrue);
+
       g.cancelPourWatch();
       expect(g.followingPour, isFalse);
-      // And it stays given back while that same charge is still running.
-      expect(g.works.line.pour, isNotNull);
+
+      // THE BUG THIS GUARDS, and it shipped: cancelling only nulled the
+      // follow, and the follow re-took it on the very next frame because the
+      // metal was still running — so the button visibly did nothing. The
+      // first version of this test asserted that re-acquisition as though it
+      // were the design, which is how a no-op ships with a green suite.
+      expect(g.works.line.pour, isNotNull, reason: 'still running');
+      for (var i = 0; i < 60; i++) {
+        g.update(1 / 60);
+        expect(
+          g.followingPour,
+          isFalse,
+          reason: 'waved off means waved off, for the whole charge',
+        );
+        if (g.works.line.pour == null) break;
+      }
+
+      // But it is not a preference: the NEXT charge is a new look.
+      while (g.works.line.pour != null) {
+        g.update(1 / 60);
+      }
+      expect(g.works.line.tap(), isTrue);
       g.update(1 / 60);
       expect(
         g.followingPour,
         isTrue,
-        reason:
-            'the cancel is for THIS look, not a preference — the next frame '
-            'of a live charge picks it up again, and the X is still there',
+        reason: 'declining one pour must not switch the camera off for good',
       );
     });
   });

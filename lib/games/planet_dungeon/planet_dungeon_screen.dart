@@ -877,6 +877,62 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
           children: [
             Positioned.fill(child: GameWidget(game: game)),
 
+            // STOP FOLLOWING THE POUR. Big, centred and translucent, over
+            // the shot itself — because the camera being somewhere else is
+            // the single most disorienting thing this game does, and the way
+            // out of it must be the most obvious thing on screen. It was a
+            // 40px icon in the corner cluster to begin with, which is where
+            // you put something you do not really expect to be pressed.
+            Positioned.fill(
+              child: ValueListenableBuilder<int>(
+                valueListenable: _tick,
+                builder: (_, __, ___) => game.followingPour
+                    ? Center(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            game.cancelPourWatch();
+                          },
+                          child: Container(
+                            width: 190,
+                            height: 76,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.42),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: _C.amber.withValues(alpha: 0.55),
+                                width: 1.6,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.stop_rounded,
+                                  color: _C.amber.withValues(alpha: 0.9),
+                                  size: 26,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'STOP',
+                                  style: TextStyle(
+                                    color: _C.amber.withValues(alpha: 0.9),
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
+
             // Drag to look around, but only while pulled back. A survey with
             // no panning is a fixed portrait of wherever the party happens to
             // stand, which is not much use on the big rooms it exists for.
@@ -980,24 +1036,6 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                           },
                           semantics: 'Hint',
                         ),
-                      ),
-                      // GIVE THE CAMERA BACK. Only while the pour cam is
-                      // riding a charge — it is the one time the view is not
-                      // yours, so the way out of it has to be on screen the
-                      // whole time it is happening, not in a menu.
-                      ValueListenableBuilder<int>(
-                        valueListenable: _tick,
-                        builder: (_, __, ___) => game.followingPour
-                            ? _iconButton(
-                                Icons.close_rounded,
-                                _C.amber,
-                                () {
-                                  HapticFeedback.selectionClick();
-                                  game.cancelPourWatch();
-                                },
-                                semantics: 'Stop following the pour',
-                              )
-                            : const SizedBox.shrink(),
                       ),
                       // Re-lay this room's puzzle from scratch. Shows in
                       // Steam's molten chambers and Fire's garth — the two

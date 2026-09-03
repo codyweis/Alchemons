@@ -110,6 +110,9 @@ class MoltenWorks {
   /// Counting down to a re-lay once the crucible has run dry. Non-zero means
   /// the shift is ending and the works is going cold.
   double relayHold = 0;
+
+  /// Which charge the pour cam has already decided about.
+  int pourWatchSeen = -1;
 }
 
 extension MoltenReliquary on PlanetDungeonGame {
@@ -165,14 +168,21 @@ extension MoltenReliquary on PlanetDungeonGame {
   /// *program a route and commit*, not being shown what your route did is the
   /// one thing that makes the programming feel arbitrary.
   void _followPour() {
-    final p = works.line.pour;
+    final s = works.line;
+    // A new charge is a new look, whatever you decided about the last one.
+    if (works.pourWatchSeen != s.poursSpent) {
+      works.pourWatchSeen = s.poursSpent;
+      pourWatchDeclined = false;
+    }
+    if (pourWatchDeclined) return;
+    final p = s.pour;
     if (p == null) {
       // It has landed: hold on the last thing it touched, then give the
       // camera back.
       if (followingPour) endPourWatch();
       return;
     }
-    final (room, at) = works.line.line.channel(p.channelId).pointAt(p.t);
+    final (room, at) = s.line.channel(p.channelId).pointAt(p.t);
     watchPour(room, at);
   }
 

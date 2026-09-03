@@ -1115,8 +1115,19 @@ class PlanetDungeonGame extends FlameGame {
     followHold = hold;
   }
 
-  /// The X: give the camera back now.
+  /// Set while the player has waved this charge off, so the follow does not
+  /// simply re-acquire it on the very next frame. Cleared when a NEW charge
+  /// is released — declining one look is not a preference.
+  bool pourWatchDeclined = false;
+
+  /// STOP: give the camera back, and keep it back for this charge.
+  ///
+  /// The first cut of this only nulled the follow, and the follow re-took it
+  /// a frame later because the metal was still running — so the button did
+  /// visibly nothing. Worse, I had written a test asserting that as the
+  /// intended behaviour, which is how a no-op ships with a green suite.
   void cancelPourWatch() {
+    pourWatchDeclined = true;
     followRoomId = null;
     followAt = null;
     followHold = 0;
