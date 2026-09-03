@@ -667,13 +667,23 @@ class FoundryState {
 // installed somewhere ELSE on the line).
 
 const Map<String, int> kLavaDefaultSwitches = {
-  // Left as the last shift left it: the plain arm, open, aimed at the span
-  // form. A first, blind pour therefore casts the road across the runner and
-  // teaches the whole line in one go.
-  'y_yard': 0, // 0 = NORTH (plain) · 1 = SOUTH (the mill)
+  // HOW THE LAST SHIFT LEFT IT — and it must not be a solution.
+  //
+  // The sluice used to sit on SPAN, so a first blind pour cast the road
+  // across the runner and the Ember Star came for one button press with no
+  // decision in it at all. Reported from play in those words. It also made
+  // every readable thing added to this planet pointless: why read a line you
+  // can win by tapping?
+  //
+  // It sits on KEY now. Plain metal into a form cut for warded metal SPOILS —
+  // which is rule 3, taught the first time you touch the works, for the price
+  // of one charge and a melt-out. And it is entirely avoidable by looking:
+  // the sluice's quadrant shows three ways and which one it is on, and the
+  // two forms are cut to the metal they take.
+  'y_yard': 0, // 0 = CHILL (plain) · 1 = MILL
   'chiller': 0, // 0 = shroud UP · 1 = shroud DOWN
   'damper': 1, // 0 = SHUT · 1 = PURGE (the works died mid-purge)
-  'y_sluice': 0, // 0 = SPAN · 1 = KEY · 2 = ON
+  'y_sluice': 1, // 0 = SPAN · 1 = KEY · 2 = ON
   'y_return': 0, // 0 = SLAG · 1 = SUMP
 };
 

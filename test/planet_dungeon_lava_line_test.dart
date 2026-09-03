@@ -388,6 +388,34 @@ void main() {
       }
     });
 
+    test('the opening line is not a solution', () {
+      // Reported from play: *"the first pour I do without changing anything
+      // unlocks star 1?"* It did. The works was left with its sluice aimed at
+      // the span form, so one tap cast the road across the runner and the
+      // Ember Star was free — which also made every readable thing on this
+      // planet pointless, because why read a line you can win by tapping.
+      //
+      // A shift left mid-job is good fiction. A shift left mid-job with the
+      // answer already dialled in is not a puzzle.
+      final s = _fresh();
+      s.tapWoken = true;
+      expect(s.tap(), isTrue);
+      // Run the charge wherever the opening levers send it.
+      for (var i = 0; i < 40 && s.pour != null; i++) {
+        s.arrive();
+      }
+      expect(
+        s.cast('span_a'),
+        isFalse,
+        reason: 'a blind first charge must not cast the road',
+      );
+      expect(
+        s.slagTaken,
+        isFalse,
+        reason: 'and it must not hand over the maxim either',
+      );
+    });
+
     test('a cloned state carries the whole crucible with it', () {
       // The solver walks thousands of hypothetical shifts off clones. When
       // the budget was briefly removed and then restored, `clone()` came back
@@ -998,8 +1026,12 @@ void _engineRun() {
       // ── The tail switch hangs over the north channel: not from here.
       expect(s.canSet('y_return'), isFalse);
 
-      // ── POUR 1 — the line as the last shift left it: north arm, shroud up,
-      //    sluice on the span form. A blind first charge casts the road.
+      // ── POUR 1 — and it is NOT blind any more. The last shift left the
+      //    sluice on the key form, which takes warded metal and would spoil
+      //    on the plain charge this arm carries; the Ember Star is one lever
+      //    away, not zero. (It used to be zero: the opening line cast the
+      //    road for you, and the first star came for a single button press.)
+      setLever(g, 'y_sluice', 0);
       actAt(g, 'tap_head', lava, tapAt);
       expect(s.pour, isNotNull);
       standIn(g, 'mold_floor', const Offset(300, 300));
