@@ -5076,6 +5076,58 @@ class PlanetDungeonGame extends FlameGame {
     return null;
   }
 
+  /// A point just OUTSIDE what the player can see, on the side nearest
+  /// [toward], clamped inside the room.
+  ///
+  /// Everything hostile used to appear in a ring 70-116px around whatever
+  /// caused it — which on a planet where the cause is usually a fixture you
+  /// are standing at means enemies materialising on top of you. Nothing about
+  /// that is a fight; it is a tax you cannot see coming. They walk in now.
+  ///
+  /// Off the edge of the VIEWPORT rather than the room: rooms here run to
+  /// 1300px and a wisp entering at the far wall of one would spend ten
+  /// seconds crossing empty floor before it was anybody's problem.
+  Offset offscreenSpawn(DungeonRoom room, Offset toward) {
+    final b = room.bounds;
+    // Headless (every simulation test) there IS no viewport, and asking for
+    // one throws. Fall back to the room's own edge, which is the same
+    // intent — away from the party — measured against the only rectangle
+    // that exists.
+    final view = hasLayout
+        ? (() {
+            final cam = _cameraTopLeft(room, _cameraFocus);
+            return Rect.fromLTWH(
+              cam.dx,
+              cam.dy,
+              size.x / viewZoom,
+              size.y / viewZoom,
+            );
+          })()
+        : b.deflate(8);
+    const margin = 40.0;
+    // Bias the side toward the thing that summoned them, so a wave called up
+    // at the east wall does not arrive from the west.
+    final dx = toward.dx - view.center.dx;
+    final dy = toward.dy - view.center.dy;
+    final horizontal = dx.abs() >= dy.abs()
+        ? true
+        : _combatRng.nextDouble() < 0.25;
+    double x, y;
+    if (horizontal) {
+      x = (dx >= 0 ? view.right + margin : view.left - margin);
+      y = view.top + _combatRng.nextDouble() * view.height;
+    } else {
+      y = (dy >= 0 ? view.bottom + margin : view.top - margin);
+      x = view.left + _combatRng.nextDouble() * view.width;
+    }
+    // A room smaller than the viewport has no off-screen: use its own edge,
+    // which is still further away than landing in the party's lap.
+    return Offset(
+      x.clamp(b.left + 8, b.right - 8),
+      y.clamp(b.top + 8, b.bottom - 8),
+    );
+  }
+
   void spawnWispWave({
     required String element,
     required Offset center,
@@ -5099,11 +5151,9 @@ class PlanetDungeonGame extends FlameGame {
         (1.0 + 0.07 * clearedGuardianCount);
     final speedScale = CosmicSurvivalBalance.enemyWaveSpeedScale(wave);
     for (var i = 0; i < count; i++) {
-      final a = i * pi * 2 / max(1, count) + _combatRng.nextDouble() * 0.45;
-      final r = 70 + _combatRng.nextDouble() * 46;
       combatEnemies.add(
         CosmicSurvivalEnemy(
-          position: center + Offset(cos(a), sin(a)) * r,
+          position: offscreenSpawn(currentRoom, center),
           hp: (unstable ? 34 : 24) * hpScale,
           maxHp: (unstable ? 34 : 24) * hpScale,
           speed: (unstable ? 92 : 76) * speedScale,

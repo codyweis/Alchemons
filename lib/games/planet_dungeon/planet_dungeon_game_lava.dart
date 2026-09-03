@@ -52,6 +52,10 @@ const double _kRelaySeconds = 3.0;
 /// How long a form takes to throw a bad charge back out.
 const double _kSpoilSeconds = 1.1;
 
+/// How many charges the works lets pass before it starts sending anything.
+/// Enough to learn the line on.
+const int _kQuietPours = 2;
+
 /// How close a creature must be to the running pour to set it by hand.
 const double _kChillReach = 104.0;
 
@@ -177,6 +181,35 @@ extension MoltenReliquary on PlanetDungeonGame {
         !hasStar(spot.starIndex) &&
         (a.position - spot.position).distance < 36) {
       earnStar(spot.starIndex);
+    }
+  }
+
+  /// WHAT A POUR COSTS. Every charge draws more out of the dark.
+  ///
+  /// The crucible held five and would not give a sixth, which punished a
+  /// misread room with the whole run. This is the same pressure expressed as
+  /// something you can fight: pour freely, and the works notices. The first
+  /// couple are quiet — you are meant to learn the line — and it climbs from
+  /// there, so an eight-pour plan is paid for in what is standing behind you
+  /// by the end of it.
+  void _pourPressure() {
+    final n = works.line.poursSpent;
+    if (n <= _kQuietPours) return;
+    final over = n - _kQuietPours;
+    final count = min(1 + over ~/ 2, 4);
+    spawnWispWave(
+      element: over >= 4 ? 'Lava' : 'Fire',
+      center: active?.position ?? currentRoom.bounds.center,
+      count: count,
+      unstable: over >= 6,
+      announce: false,
+    );
+    if (over == 1) {
+      speakConsequence(
+        'The works is being watched. Every charge you draw brings more of '
+        'them up out of the dark.',
+        4.0,
+      );
     }
   }
 
@@ -564,10 +597,7 @@ extension MoltenReliquary on PlanetDungeonGame {
       _setBlockedHint('A charge is already down the line');
       return true;
     }
-    if (!s.tap()) {
-      _setBlockedHint('The crucible is dry');
-      return true;
-    }
+    if (!s.tap()) return true;
     _setHint('A charge runs into the line');
     _spawnAlchemyBurst(
       tap.position,
@@ -575,6 +605,8 @@ extension MoltenReliquary on PlanetDungeonGame {
       particleCount: 14,
       intensity: 0.7,
     );
+    // …and the works notices.
+    _pourPressure();
     return true;
   }
 
@@ -955,15 +987,12 @@ extension MoltenReliquary on PlanetDungeonGame {
         },
       );
     }
-    // WHAT IS LEFT, counting down. It briefly read as a tally counting up,
-    // from the stretch where the budget was removed — and a meter that grows
-    // says "score", not "this is running out", which is the one thing the
-    // crucible has to say.
-    return DungeonProgressReadout(
-      label: 'POURS',
-      value: '${s.poursLeft} of $kLavaPourBudget',
-      fraction: (s.poursLeft / kLavaPourBudget).clamp(0.0, 1.0),
-    );
+    // NOTHING. The readout has been a budget counting down and a tally
+    // counting up, and both were the same mistake in opposite directions:
+    // putting a NUMBER on the thing the works charges you for. It charges you
+    // in attention — what a sloppy plan brings out of the dark — and that is
+    // already on screen, walking at you.
+    return null;
   }
 
   double get _foundryMoodTarget => switch (currentRoomId) {
@@ -987,6 +1016,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     _renderFixtures(canvas, room);
     _renderPourBead(canvas, room);
     _renderSpoilBurst(canvas);
+    _renderCarriedKey(canvas);
     if (room.id == 'stamp_mill' && works.firedamp > 0) {
       _renderFiredamp(canvas, room);
     }
@@ -1206,6 +1236,63 @@ extension MoltenReliquary on PlanetDungeonGame {
             t,
           )!.withValues(alpha: 0.42 * (1 - t) * pulse),
       );
+    }
+  }
+
+  /// THE KEY IN HAND. Drawn on whoever is carrying it, every frame they are.
+  ///
+  /// Taking a key out of a form printed one line and then nothing changed
+  /// anywhere: the form emptied, and the only record that you were holding
+  /// the most important object on the planet was a word in a corner readout.
+  /// Walk two rooms and there is no way to tell a party carrying the gantry
+  /// key from one that left it in the sand.
+  void _renderCarriedKey(Canvas canvas) {
+    final what = works.line.carried;
+    if (what == null) return;
+    final a = active;
+    if (a == null || !a.alive) return;
+    // Over the shoulder, bobbing — it is being carried, not worn.
+    final at = a.position + Offset(16, -30 + sin(works.clock * 3.2) * 2.5);
+    final warm = what == 'gantry'
+        ? const Color(0xFFFFD98A)
+        : const Color(0xFFE0A24A);
+
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    canvas.rotate(-0.35 + sin(works.clock * 1.6) * 0.06);
+    // The bit: a bar with teeth, and a bow to hold it by — the same shape the
+    // key forms are cut in, so the thing in your hand and the cavity it came
+    // out of are recognisably one object.
+    final body = Paint()..color = warm;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-13, -2.5, 22, 5),
+        const Radius.circular(2),
+      ),
+      body,
+    );
+    for (var i = 0; i < 3; i++) {
+      canvas.drawRect(Rect.fromLTWH(-11 + i * 6.0, -8, 3.4, 6), body);
+    }
+    canvas.drawCircle(const Offset(13, 0), 6, body);
+    canvas.drawCircle(
+      const Offset(13, 0),
+      3,
+      Paint()..color = const Color(0xFF1A140E),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-13, -2.5, 22, 5),
+        const Radius.circular(2),
+      ),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = const Color(0x99FFF1CF),
+    );
+    canvas.restore();
+    if (_fx.ready) {
+      drawGlow(canvas, _fx.glow!, at, 26, warm.withValues(alpha: 0.30));
     }
   }
 

@@ -13,11 +13,11 @@
 //      cannot walk on running metal — except where the works laid a WALKWAY
 //      over it (`FoundryBridge`), which is what lets the line be plumbed to
 //      the doors instead of around the party.
-//   2. A POUR IS FINITE. The crucible holds [kLavaPourBudget] workable
-//      charges for one shift and never refills. Spending is the game — and
-//      running dry ENDS THE SHIFT rather than stranding you: the heat goes
-//      out, the works cools, and it re-lays (`relayWorks`). Banked stars are
-//      yours; the line is not.
+//   2. A POUR IS NOT RATIONED — IT IS NOTICED. Tap as often as you like;
+//      every charge draws more out of the dark. The cost of a sloppy plan is
+//      what comes to watch you work, not a number ticking down. (Run yourself
+//      into a corner anyway and the re-lay button gives you a fresh line —
+//      banked stars are yours, the works is not.)
 //   3. WHAT A POUR BECOMES IS WHERE IT WENT. The north arm runs plain; the
 //      south arm's drop-hammer STAMPS it (once the die is woken); the purge
 //      vent GASSES it. A mold takes what the line hands it, or spoils.
@@ -51,16 +51,6 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 /// single misroute is survivable, not enough to cast everything the foundry
 /// offers. The Black Glass maxim wants three quenched pours all by itself —
 /// which is the point: you cannot have the maxim and the works in one run.
-/// What the crucible holds in one shift. The works needs four to finish and
-/// the maxim spends a fifth, so the budget is exactly the plan plus its
-/// secret — and a blunder ends the shift.
-///
-/// It was briefly removed, on the grounds that a misread room should not cost
-/// the run. The real answer to that is not to stop counting; it is to make
-/// running dry a THING THAT HAPPENS rather than a dead end you discover by
-/// pressing a button that no longer does anything. See `relayWorks`.
-const int kLavaPourBudget = 5;
-
 /// How many charges the SOLVER will spend looking for a route — a search
 /// bound, not a rule. Kept separate so tightening the budget never silently
 /// narrows the proof.
@@ -381,7 +371,6 @@ class FoundryState {
   LivePour? pour;
 
   /// Every pour ever released this run (the readout counts against this).
-  int poursLeft = kLavaPourBudget;
   int poursSpent = 0;
 
   /// RE-LAY THE WORKS: everything the line remembers goes back to the state
@@ -401,8 +390,9 @@ class FoundryState {
     tapWoken = woke;
   }
 
-  /// Is the shift over — dry crucible, nothing in the line, nothing to do?
-  bool get worksSpent => poursLeft <= 0 && pour == null;
+  /// Nothing can run the works dry any more; the re-lay is the button, for
+  /// when a player has plugged themselves into a corner.
+  bool get worksSpent => false;
 
   void reset() {
     switches
@@ -417,7 +407,6 @@ class FoundryState {
     slagTaken = false;
     tapWoken = false;
     pour = null;
-    poursLeft = kLavaPourBudget;
     poursSpent = 0;
   }
 
@@ -429,7 +418,6 @@ class FoundryState {
       ..dieWoken = dieWoken
       ..quenches = quenches
       ..tapWoken = tapWoken
-      ..poursLeft = poursLeft
       ..poursSpent = poursSpent
       ..slagTaken = slagTaken;
     c.switches
@@ -529,8 +517,13 @@ class FoundryState {
   /// already running (one charge in the line at a time is what makes routing
   /// a decision rather than a spray).
   bool tap() {
-    if (!tapWoken || pour != null || poursLeft <= 0) return false;
-    poursLeft--;
+    // NO BUDGET, AND NO COUNTER. Five charges made a misread room cost the
+    // run; counting them up instead made a meter that says "score". The cost
+    // of a pour is not a number at all — it is that the works NOTICES. Every
+    // charge draws more out of the dark (see `_pourPressure`), so a plan that
+    // takes eight pours is paid for in what comes to watch, which is a price
+    // you feel rather than read.
+    if (!tapWoken || pour != null) return false;
     poursSpent++;
     final src = line.node('tap');
     pour = LivePour(channelId: src.exits.first, form: PourForm.plain);

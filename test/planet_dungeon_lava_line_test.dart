@@ -457,24 +457,22 @@ void main() {
     test('a cloned state carries the whole crucible with it', () {
       // The solver walks thousands of hypothetical shifts off clones. When
       // the budget was briefly removed and then restored, `clone()` came back
-      // without `poursLeft` — so every branch would have started with a full
-      // crucible and the proof would have been of a game nobody plays. It is
-      // the kind of omission no puzzle test notices, because every route it
-      // finds is still a real route; there are just routes it should have
-      // ruled out and did not.
+      // without `poursLeft` when the budget briefly came back. The budget is
+      // gone for good now, but the lesson stands: a clone that quietly drops
+      // a field proves a game nobody plays, and no puzzle test notices,
+      // because every route it finds is still a real route.
       final s = _fresh();
       s.tapWoken = true;
       s.tap();
       s.pour = null;
       s.slagTaken = true;
       final c = s.clone();
-      expect(c.poursLeft, s.poursLeft);
       expect(c.poursSpent, s.poursSpent);
       expect(c.slagTaken, s.slagTaken);
       expect(c.tapWoken, s.tapWoken);
     });
 
-    test('running dry ends the shift instead of ending the run', () {
+    test('the works can always be re-laid, and never runs dry', () {
       // The budget was briefly removed on the grounds that a misread room
       // should not cost the run. That was the wrong fix for a real problem:
       // the works spans seven rooms, a plug is permanent, and five bad
@@ -486,12 +484,16 @@ void main() {
       // answers "must I do it all in one go" — banked stars are untouched.
       final s = _fresh();
       s.tapWoken = true;
-      for (var i = 0; i < kLavaPourBudget; i++) {
-        expect(s.tap(), isTrue);
+      // THE CRUCIBLE NEVER RUNS DRY. It held five, then counted up, and both
+      // were the same mistake in opposite directions: a number on the thing
+      // the works charges you for. It charges in ATTENTION — see
+      // `_pourPressure` — so the re-lay is now a button for a player who has
+      // plugged themselves into a corner, not an end-of-shift.
+      for (var i = 0; i < 12; i++) {
+        expect(s.tap(), isTrue, reason: 'charge ${i + 1} is given like any');
         s.pour = null;
       }
-      expect(s.tap(), isFalse, reason: 'the crucible is dry');
-      expect(s.worksSpent, isTrue);
+      expect(s.worksSpent, isFalse);
 
       s.castings['cast:span_a'] = FoundryCasting(
         id: 'cast:span_a',
@@ -501,7 +503,7 @@ void main() {
       );
       s.wardsTurned.add('gantry');
       s.relayWorks();
-      expect(s.poursLeft, kLavaPourBudget, reason: 'charged for a new shift');
+      expect(s.poursSpent, 0, reason: 'a fresh line, and a fresh count');
       expect(s.castings, isEmpty, reason: 'everything cast breaks out');
       expect(s.wardsTurned, isEmpty);
       expect(
