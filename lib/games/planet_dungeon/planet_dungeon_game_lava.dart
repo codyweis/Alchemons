@@ -139,6 +139,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     if (w.headCool > 0) w.headCool -= dt;
     if (w.flash > 0) w.flash = max(0.0, w.flash - dt * 1.6);
     _advancePour(dt);
+    _followPour();
     _maybeTakeBlackGlass(room, a);
     _maybeEndShift(room);
     if (works.relayHold > 0) {
@@ -154,6 +155,25 @@ extension MoltenReliquary on PlanetDungeonGame {
         (a.position - spot.position).distance < 36) {
       earnStar(spot.starIndex);
     }
+  }
+
+  /// Ride the charge. Called every frame the works ticks.
+  ///
+  /// The camera leaves the party and follows the metal through whatever rooms
+  /// it crosses, then holds a beat on wherever it ended — the form it filled,
+  /// the stack it went up, the pit it died in. On a planet whose whole verb is
+  /// *program a route and commit*, not being shown what your route did is the
+  /// one thing that makes the programming feel arbitrary.
+  void _followPour() {
+    final p = works.line.pour;
+    if (p == null) {
+      // It has landed: hold on the last thing it touched, then give the
+      // camera back.
+      if (followingPour) endPourWatch();
+      return;
+    }
+    final (room, at) = works.line.line.channel(p.channelId).pointAt(p.t);
+    watchPour(room, at);
   }
 
   /// Walk the running pour down its channel, resolving every node it reaches.

@@ -981,6 +981,24 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                           semantics: 'Hint',
                         ),
                       ),
+                      // GIVE THE CAMERA BACK. Only while the pour cam is
+                      // riding a charge — it is the one time the view is not
+                      // yours, so the way out of it has to be on screen the
+                      // whole time it is happening, not in a menu.
+                      ValueListenableBuilder<int>(
+                        valueListenable: _tick,
+                        builder: (_, __, ___) => game.followingPour
+                            ? _iconButton(
+                                Icons.close_rounded,
+                                _C.amber,
+                                () {
+                                  HapticFeedback.selectionClick();
+                                  game.cancelPourWatch();
+                                },
+                                semantics: 'Stop following the pour',
+                              )
+                            : const SizedBox.shrink(),
+                      ),
                       // Re-lay this room's puzzle from scratch. Shows in
                       // Steam's molten chambers and Fire's garth — the two
                       // places a run can be spent into a dead end without

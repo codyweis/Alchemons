@@ -1079,6 +1079,60 @@ class PlanetDungeonGame extends FlameGame {
   /// snap; a room change snaps (different coordinate space).
   Offset? _camFocus;
   String? _camFocusRoom;
+
+  /// THE POUR CAM. While a charge is running, the camera leaves the party and
+  /// rides the metal — through rooms the party is not standing in — because
+  /// the whole point of a programmed line is watching what your programming
+  /// did with it, and a bead that disappears through a doorway two rooms ago
+  /// teaches nothing.
+  ///
+  /// [followRoomId] is the room being WATCHED, which is not `currentRoomId`
+  /// once the charge crosses a door; the party stays exactly where it was and
+  /// simply is not drawn.
+  String? followRoomId;
+  Offset? followAt;
+  double followHold = 0;
+
+  bool get followingPour => followRoomId != null;
+
+  /// Zoom actually in force. The survey's pull-back and the pour cam's are the
+  /// same mechanism; they must never both apply.
+  double get viewZoom => followingPour ? kPourFollowZoom : surveyZoom;
+
+  /// Ride a charge: [room] is where it is, [at] is where in that room.
+  void watchPour(String room, Offset at) {
+    followRoomId = room;
+    followAt = at;
+    followHold = 0;
+  }
+
+  /// Hold the shot a beat on whatever just happened, then let go.
+  void endPourWatch({double hold = 1.1}) {
+    // ONCE. The caller asks every frame after the charge lands, so re-arming
+    // here would push the hold out forever and the camera would never come
+    // back — which is exactly what it did until a test rode a whole pour.
+    if (followRoomId == null || followHold > 0) return;
+    followHold = hold;
+  }
+
+  /// The X: give the camera back now.
+  void cancelPourWatch() {
+    followRoomId = null;
+    followAt = null;
+    followHold = 0;
+    onChanged();
+  }
+
+  void _updatePourWatch(double dt) {
+    if (followHold <= 0) return;
+    followHold -= dt;
+    if (followHold <= 0) {
+      followRoomId = null;
+      followAt = null;
+      onChanged();
+    }
+  }
+
   int _camActiveIndex = 0;
   bool _camPanning = false;
 
@@ -2804,6 +2858,7 @@ class PlanetDungeonGame extends FlameGame {
     }
     _updateEntryReveal(dt);
     _updateCamera(dt);
+    _updatePourWatch(dt);
     _updateRespawns(dt);
     _updateFlight(a, room, dt);
     _updateWinds(a, room, dt);
@@ -8840,7 +8895,7 @@ class PlanetDungeonGame extends FlameGame {
   /// so screen space == viewport space).
   Offset worldToScreen(Offset world) {
     final cam = _cameraTopLeft(currentRoom, _cameraFocus);
-    return (world - cam) * surveyZoom;
+    return (world - cam) * viewZoom;
   }
 
   /// DEBUG: keep the guardian spawnable after its star is banked.
@@ -8982,10 +9037,16 @@ class PlanetDungeonGame extends FlameGame {
   void render(Canvas canvas) {
     super.render(canvas);
     final vp = Size(size.x, size.y);
-    final room = currentRoom;
+    // While the pour cam is up this is the room the METAL is in, not the one
+    // the party is in — everything below draws that room's fabric, and the
+    // living things are gated on it being ours.
+    final watched = followRoomId;
+    final room =
+        (watched == null ? null : layout.rooms[watched]) ?? currentRoom;
+    final here = room.id == currentRoomId;
     // The shake moves the WORLD under a fixed sky — cheaper than shaking
     // everything, and it reads as the ground moving, which is the point.
-    final cam = _cameraTopLeft(room, _cameraFocus) + _shakeOffset();
+    final cam = _cameraTopLeft(room, followAt ?? _cameraFocus) + _shakeOffset();
 
     // Screen-space atmosphere. Background = elemental shader, else gradient.
     if (_sky.ready) {
@@ -9056,7 +9117,7 @@ class PlanetDungeonGame extends FlameGame {
     // Scale FIRST, then translate: the camera top-left is already in world
     // units, so scaling after the translate would move the room as well as
     // shrink it. The sky above is screen-space and deliberately outside this.
-    if (surveying) canvas.scale(surveyZoom);
+    if (viewZoom < 0.999) canvas.scale(viewZoom);
     canvas.translate(-cam.dx, -cam.dy);
 
     _renderIslandAndVoid(canvas, room);
@@ -9094,15 +9155,17 @@ class PlanetDungeonGame extends FlameGame {
     _renderAnchors(canvas, room);
     _renderConduitsAndGuardian(canvas, room);
     _renderStars(canvas, room);
-    _renderGlideTrail(canvas);
-    _renderWingBeams(canvas);
-    _renderKinBeams(canvas);
-    _renderCombatProjectiles(canvas);
-    _renderCombatEnemies(canvas);
-    _renderRefusalPulse(canvas);
-    _renderCreatures(canvas);
-    _renderCarriedCloud(canvas);
-    _renderRelicDrop(canvas);
+    if (here) {
+      _renderGlideTrail(canvas);
+      _renderWingBeams(canvas);
+      _renderKinBeams(canvas);
+      _renderCombatProjectiles(canvas);
+      _renderCombatEnemies(canvas);
+      _renderRefusalPulse(canvas);
+      _renderCreatures(canvas);
+      _renderCarriedCloud(canvas);
+      _renderRelicDrop(canvas);
+    }
     _renderVaultCacheGlow(canvas, room);
     _renderRaidDeath(canvas);
     // Numbers sit above everything they annotate.
@@ -12420,6 +12483,10 @@ class PlanetDungeonGame extends FlameGame {
   /// It is a LOOK, not a mode: any movement snaps it straight back, because a
   /// puzzle read at arm's length and then played at arm's length is a
   /// different (and worse) game than one you step back from to think.
+  /// How far the pour cam pulls back. Gentler than the survey: you are
+  /// meant to read the run, not the map.
+  static const double kPourFollowZoom = 0.82;
+
   double surveyZoom = 1.0;
 
   /// How far back the survey pulls. Chosen so the largest authored room fits
@@ -12448,7 +12515,7 @@ class PlanetDungeonGame extends FlameGame {
     // The viewport is EFFECTIVELY larger while zoomed out, and every clamp
     // below is in world units, so the zoom has to be divided in here or the
     // camera keeps framing for a viewport it no longer has.
-    final vw = size.x / surveyZoom, vh = size.y / surveyZoom;
+    final vw = size.x / viewZoom, vh = size.y / viewZoom;
     final b = room.bounds;
     double camX, camY;
     if (b.width <= vw) {
