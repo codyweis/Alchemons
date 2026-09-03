@@ -627,7 +627,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     for (final spout in still.spouts) {
       if ((a.position - spout.position).distance > _kMonasteryReach) continue;
       if (!_canBrew(a)) {
-        _setBlockedHint('The still answers only Poison');
+        // NAME THE OTHER WAY. "Only Poison" reads as impossible to a party
+        // that has none — the same refusal Steam's accumulator and Lava's
+        // die both used to give. The braid is what it actually wants.
+        _setBlockedHint(
+          'The still answers only Poison — or a Lava and a Mud heart '
+          'standing at it together',
+        );
         return true;
       }
       if (t.carried != null) {
