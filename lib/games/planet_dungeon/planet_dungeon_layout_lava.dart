@@ -10,9 +10,14 @@
 //
 // THE FIVE RULES, and everything else falls out of them:
 //   1. A CHANNEL IS NOT A FLOOR. Every trough on this planet idles hot; you
-//      cannot walk on running metal. The map is cut by its own plumbing.
+//      cannot walk on running metal — except where the works laid a WALKWAY
+//      over it (`FoundryBridge`), which is what lets the line be plumbed to
+//      the doors instead of around the party.
 //   2. A POUR IS FINITE. The crucible holds [kLavaPourBudget] workable
-//      charges for the whole run and never refills. Spending is the game.
+//      charges for one shift and never refills. Spending is the game — and
+//      running dry ENDS THE SHIFT rather than stranding you: the heat goes
+//      out, the works cools, and it re-lays (`relayWorks`). Banked stars are
+//      yours; the line is not.
 //   3. WHAT A POUR BECOMES IS WHERE IT WENT. The north arm runs plain; the
 //      south arm's drop-hammer STAMPS it (once the die is woken); the purge
 //      vent GASSES it. A mold takes what the line hands it, or spoils.
@@ -46,7 +51,20 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 /// single misroute is survivable, not enough to cast everything the foundry
 /// offers. The Black Glass maxim wants three quenched pours all by itself —
 /// which is the point: you cannot have the maxim and the works in one run.
+/// What the crucible holds in one shift. The works needs four to finish and
+/// the maxim spends a fifth, so the budget is exactly the plan plus its
+/// secret — and a blunder ends the shift.
+///
+/// It was briefly removed, on the grounds that a misread room should not cost
+/// the run. The real answer to that is not to stop counting; it is to make
+/// running dry a THING THAT HAPPENS rather than a dead end you discover by
+/// pressing a button that no longer does anything. See `relayWorks`.
 const int kLavaPourBudget = 5;
+
+/// How many charges the SOLVER will spend looking for a route — a search
+/// bound, not a rule. Kept separate so tightening the budget never silently
+/// narrows the proof.
+const int kLavaSolverPourBound = 6;
 
 /// Quenched pours needed for the Lost Maxim (§6 egg 8, "Black Glass").
 
@@ -56,8 +74,8 @@ const int kLavaPourBudget = 5;
 ///
 /// It was 0.62, and nobody had ever added the line up: the key pour took
 /// **25 seconds** to arrive, the span 20, and the reliquary — down the mill,
-/// along the tail, back through the sump — **43 seconds**. Five pours, each
-/// one committed in advance, and then most of a minute of watching a bead
+/// along the tail, back through the sump — **43 seconds**. Every pour is
+/// committed in advance, and then most of a minute of watching a bead
 /// crawl with nothing to decide. In a puzzle whose whole pleasure is planning,
 /// that is not tension, it is dead air.
 ///
@@ -328,7 +346,6 @@ class FoundryState {
   final FoundryLine line;
 
   /// Workable charges left in the crucible.
-  int poursLeft = kLavaPourBudget;
 
   /// nodeId → selected setting.
   final Map<String, int> switches = {};
@@ -364,10 +381,30 @@ class FoundryState {
   LivePour? pour;
 
   /// Every pour ever released this run (the readout counts against this).
+  int poursLeft = kLavaPourBudget;
   int poursSpent = 0;
 
+  /// RE-LAY THE WORKS: everything the line remembers goes back to the state
+  /// the last shift left it in, and the crucible is charged again.
+  ///
+  /// The one thing it does NOT touch is `tapWoken` — you opened the crucible
+  /// once and the works knows it. Making a player redo the entry rite after
+  /// every dry shift is a tax on the part they already understand.
+  ///
+  /// Stars are not the line's to take back: they live on the run, and a
+  /// re-lay leaves every one you have banked exactly where it is. That is the
+  /// answer to "must I do the whole planet in one go" — no. Come back, the
+  /// works runs again, and what you have earned is still earned.
+  void relayWorks() {
+    final woke = tapWoken;
+    reset();
+    tapWoken = woke;
+  }
+
+  /// Is the shift over — dry crucible, nothing in the line, nothing to do?
+  bool get worksSpent => poursLeft <= 0 && pour == null;
+
   void reset() {
-    poursLeft = kLavaPourBudget;
     switches
       ..clear()
       ..addAll(kLavaDefaultSwitches);
@@ -380,6 +417,7 @@ class FoundryState {
     slagTaken = false;
     tapWoken = false;
     pour = null;
+    poursLeft = kLavaPourBudget;
     poursSpent = 0;
   }
 
@@ -387,7 +425,6 @@ class FoundryState {
   /// never share a casting map with the one it came from.
   FoundryState clone() {
     final c = FoundryState(line)
-      ..poursLeft = poursLeft
       ..carried = carried
       ..dieWoken = dieWoken
       ..quenches = quenches
@@ -413,7 +450,7 @@ class FoundryState {
           ..sort();
     final m = molds.entries.map((e) => '${e.key}=${e.value}').toList()..sort();
     final w = wardsTurned.toList()..sort();
-    return '$poursLeft|$dieWoken|${cast.join(',')}|${m.join(',')}|$carried|${w.join(',')}';
+    return '$poursSpent|$dieWoken|${cast.join(',')}|${m.join(',')}|$carried|${w.join(',')}';
   }
 
   // ── Queries ───────────────────────────────────────────────
@@ -1147,9 +1184,15 @@ const DungeonLayout kLavaLayout = DungeonLayout(
   // a runner shows which way it carries, a plugged arm is visibly set solid)
   // and both are in the hint button. What was NOT anywhere was why you are
   // here at all.
+  // GOAL, THEN FIRST ACTION, and nothing else — it is shown once, ever.
+  // The first action used to be a separate `teach` line on the tap head, but
+  // both speak on the same channel and the room's line simply overwrote the
+  // primer, so a first descent got one of the two. The crucible also POINTS
+  // at itself until it has been used (`_renderTapBeacon`), which is the part
+  // that survives a player who was looking at the room instead of the text.
   primer: [
-    'Every road out of this works is something you have to cast first.',
-    'Five pours, never refilled.',
+    'Nothing here runs until a Lava heart opens the crucible.',
+    'Then five charges, and every road out is something you cast with them.',
   ],
   // ONE hard gate (§4 budget: Air 1 · Earth 1 · Water 1 · Lava 1). Star 1 and
   // the guardian stay earnable by ANY correct-element trio; only the hidden

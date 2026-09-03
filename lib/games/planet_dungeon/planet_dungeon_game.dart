@@ -2126,7 +2126,8 @@ class PlanetDungeonGame extends FlameGame {
   /// Two planets author puzzles that can be spent into a dead end without the
   /// run itself being lost — Steam's molten chambers and Fire's garth — and
   /// both need a way back to the authored state that is not death.
-  bool get canRestartRoom => _canRestartVaporRoom || _canRestartGarth;
+  bool get canRestartRoom =>
+      _canRestartVaporRoom || _canRestartGarth || _canRelayWorks;
 
   /// Re-lay the current room's puzzle. Earned stars are untouched.
   void restartRoom() {
@@ -2134,6 +2135,10 @@ class PlanetDungeonGame extends FlameGame {
       _restartVaporRoom();
     } else if (_canRestartGarth) {
       _restartGarth();
+    } else if (_canRelayWorks) {
+      // Lava's valve is works-wide, not room-wide: its line spans seven rooms
+      // and a plug in any of them is permanent.
+      _relayWorks();
     }
   }
 
@@ -8445,6 +8450,18 @@ class PlanetDungeonGame extends FlameGame {
       }
     }
     _releaseBlockedExcept(_doorBlockPrefix, leaning);
+  }
+
+  /// Put the party somewhere in the CURRENT room, with the same bookkeeping a
+  /// door transit does. Used by re-lay valves, which move you home without
+  /// there being a door involved.
+  void passThroughDoorless(Offset spawn) {
+    _roomEntryAnchor = spawn;
+    _spreadCreaturesAround(spawn);
+    _carryPursuersThroughDoor(spawn);
+    _doorCooldown = 0.5;
+    _clearHints();
+    onChanged();
   }
 
   /// Take a door — the whole transit, wherever it is triggered from.

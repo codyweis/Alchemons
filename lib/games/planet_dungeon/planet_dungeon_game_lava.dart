@@ -44,6 +44,11 @@ part of 'planet_dungeon_game.dart';
 /// How far a creature can be from a fixture and still work it.
 const double _kWorksReach = 70.0;
 
+/// How long the works takes to go cold once the crucible is dry — long enough
+/// to read the line that says what is happening, short enough not to be a
+/// wait for something you cannot change.
+const double _kRelaySeconds = 3.0;
+
 /// How close a creature must be to the running pour to set it by hand.
 const double _kChillReach = 104.0;
 
@@ -101,6 +106,10 @@ class MoltenWorks {
   /// Flash on the last casting/lever touched, purely for the render.
   double flash = 0;
   Offset flashAt = Offset.zero;
+
+  /// Counting down to a re-lay once the crucible has run dry. Non-zero means
+  /// the shift is ending and the works is going cold.
+  double relayHold = 0;
 }
 
 extension MoltenReliquary on PlanetDungeonGame {
@@ -131,6 +140,11 @@ extension MoltenReliquary on PlanetDungeonGame {
     if (w.flash > 0) w.flash = max(0.0, w.flash - dt * 1.6);
     _advancePour(dt);
     _maybeTakeBlackGlass(room, a);
+    _maybeEndShift(room);
+    if (works.relayHold > 0) {
+      works.relayHold -= dt;
+      if (works.relayHold <= 0) _relayWorks();
+    }
     _maybeWakeMagmara();
 
     // The star is simply where the line leaves you: no extra ceremony (§7).
@@ -678,8 +692,8 @@ extension MoltenReliquary on PlanetDungeonGame {
       case 'tap_head':
         // The entrance, so this is the planet's own statement of purpose.
         if (!s.tapWoken) {
-          return 'Nothing leaves this works that was not cast here — and '
-              'you have five pours to cast it';
+          return 'Nothing leaves this works that was not cast here. Open '
+              'the crucible: only a Lava heart breaks its seal';
         }
         if (s.carried == 'reliquary') {
           return 'You have the reliquary key — its ward is on the mould floor';
@@ -691,8 +705,8 @@ extension MoltenReliquary on PlanetDungeonGame {
             ? null
             : 'The works drain into a sump you cannot cross';
       case 'switch_yard':
-        return 'Set the whole road before you spend a pour — there are five, '
-            'and the line gives none back';
+        return 'Set the whole road before you tap — five charges to a shift, '
+            'and cold metal never runs again';
       case 'chill_house':
         return s.wardsTurned.contains('gantry')
             ? 'The gantry stands open to the mould floor'
@@ -821,11 +835,11 @@ extension MoltenReliquary on PlanetDungeonGame {
         },
       );
     }
-    return DungeonProgressReadout(
-      label: 'POURS',
-      value: '${s.poursLeft} of $kLavaPourBudget',
-      fraction: (s.poursLeft / kLavaPourBudget).clamp(0.0, 1.0),
-    );
+    // A TALLY, not a budget. It used to read "3 of 5" and count down, which
+    // is a resource meter — and the resource is gone. What is still worth
+    // showing is how many charges this run has spent, because the works
+    // remembers every one of them in cold metal.
+    return DungeonProgressReadout(label: 'POURS', value: '${s.poursSpent}');
   }
 
   double get _foundryMoodTarget => switch (currentRoomId) {
@@ -856,6 +870,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     if (spot != null && !hasStar(spot.starIndex)) {
       _renderWorksStar(canvas, spot.position);
     }
+    _renderTapBeacon(canvas, room);
   }
 
   /// A CRUST WITH SOMETHING UNDER IT. The floor of this works is not a floor
@@ -1065,6 +1080,108 @@ extension MoltenReliquary on PlanetDungeonGame {
             _worksEdge,
             t,
           )!.withValues(alpha: 0.42 * (1 - t) * pulse),
+      );
+    }
+  }
+
+  /// THE WORKS RE-LAYS — Lava's anti-softlock valve, and the answer to what
+  /// happens when a shift is spent.
+  ///
+  /// Fire's garth and Steam's molten chambers each carry one of these because
+  /// each can be worked into a dead end without anybody dying. Lava is the
+  /// worst case of the three: the line spans SEVEN rooms, a plug is
+  /// permanent, and the crucible runs dry. Spend five charges badly and the
+  /// planet is simply over, with no message and no button that does anything.
+  ///
+  /// So it is not room-scoped like the other two — the whole WORKS re-lays.
+  /// And it happens BY ITSELF the moment the crucible runs dry, because a
+  /// dead end you have to recognise and then opt out of is still a dead end
+  /// for the player who does not recognise it.
+  bool get _canRelayWorks => _isFoundry && works.line.poursSpent > 0;
+
+  void _relayWorks() {
+    if (!_isFoundry) return;
+    works.line.relayWorks();
+    works
+      ..flash = 1.0
+      ..flashAt = kLavaHeartCentre
+      ..firedamp = 0
+      ..headCool = 0;
+    final home = layout.rooms[layout.entranceRoomId]!;
+    currentRoomId = home.id;
+    passThroughDoorless(layout.entranceSpawn);
+    _setHint(
+      'The heat goes out of the works. Everything cast breaks out of its '
+      'form, and the crucible is charged for another shift.',
+      5.0,
+    );
+    onChanged();
+  }
+
+  /// Run dry and the shift ends itself.
+  void _maybeEndShift(DungeonRoom room) {
+    if (!works.line.worksSpent) return;
+    if (works.relayHold > 0) return;
+    works.relayHold = _kRelaySeconds;
+  }
+
+  /// THE CRUCIBLE ASKS TO BE PRESSED, until it has been.
+  ///
+  /// A one-time line is not a tutorial: it shows for six seconds on your
+  /// first descent and is then gone for good, and if you were reading the
+  /// room instead of the text you never see it. The works has exactly one
+  /// thing that must happen before anything else can — a Lava heart opens the
+  /// tap — so the tap itself points at itself until it has been opened, and
+  /// then once more until the first charge is actually sent.
+  ///
+  /// It stops the moment it is no longer true, which is the whole discipline
+  /// of an attractor: it must never be pointing at something already done.
+  void _renderTapBeacon(Canvas canvas, DungeonRoom room) {
+    final s = works.line;
+    if (s.poursSpent > 0) return; // taught, and used
+    FoundryNode? tap;
+    for (final n in s.line.nodesIn(room.id)) {
+      if (n.kind == FoundryNodeKind.source) tap = n;
+    }
+    if (tap == null) return;
+    final at = tap.position - const Offset(0, 34);
+    final t = (works.clock * 0.8) % 1.0;
+
+    // Two rings breathing outward, so it reads as a call and not as a state.
+    for (var i = 0; i < 2; i++) {
+      final k = ((t + i * 0.5) % 1.0);
+      canvas.drawCircle(
+        at,
+        44 + 34 * k,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3 * (1 - k)
+          ..color = const Color(0xFFFFC98A).withValues(alpha: 0.55 * (1 - k)),
+      );
+    }
+    // And a chevron above it, pointing down at the thing itself.
+    final bob = sin(works.clock * 2.6) * 4;
+    final tip = at - Offset(0, 78 + bob);
+    final chev = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = const Color(0xFFFFC98A).withValues(alpha: 0.9);
+    canvas.drawPath(
+      Path()
+        ..moveTo(tip.dx - 13, tip.dy)
+        ..lineTo(tip.dx, tip.dy + 14)
+        ..lineTo(tip.dx + 13, tip.dy),
+      chev,
+    );
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        at,
+        70,
+        const Color(0xFFFFB24A).withValues(alpha: 0.18),
       );
     }
   }
@@ -1388,10 +1505,10 @@ extension MoltenReliquary on PlanetDungeonGame {
   /// into the slag pit.** The lever says SLAG, the pit is drawn in the chill
   /// house, and everything about the works says never do that — a charge that
   /// goes in there is simply gone. The budget is what makes it a decision
-  /// rather than a dare: the intended solve costs four of five, so the spare
-  /// pour is exactly affordable, and the planet's whole economy turns out to
-  /// have had one pour in it for the person who wondered what the waste line
-  /// was for. Melt cooled fast in slag is obsidian; the pit gives it back.
+  /// rather than a dare is the WASTE: you set the tail switch to the one
+  /// branch the whole works exists to avoid and watch a charge die on
+  /// purpose, which every instinct the foundry has trained says not to do.
+  /// Melt cooled fast in slag is obsidian; the pit gives it back.
   void _maybeTakeBlackGlass(DungeonRoom room, DungeonCreature a) {
     final s = works.line;
     if (!s.slagTaken) return;

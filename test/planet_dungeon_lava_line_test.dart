@@ -93,7 +93,7 @@ class _Step {
 /// no Ice mane (nothing may be set by hand).
 List<_Step> _explore({
   bool maneAllowed = true,
-  int maxPours = kLavaPourBudget,
+  int maxPours = kLavaSolverPourBound,
 }) {
   final start = _fresh();
   final seen = <String>{start.signature};
@@ -131,7 +131,7 @@ List<_Step> _explore({
     }
 
     // POURS — the only move that costs.
-    if (s.poursLeft <= 0 || kLavaPourBudget - s.poursLeft >= maxPours) continue;
+    if (s.poursSpent >= maxPours) continue;
     for (final cfg in _allConfigs()) {
       for (final freeze in _freezeSpots) {
         if (freeze != null && !maneAllowed) continue;
@@ -147,7 +147,7 @@ List<_Step> _explore({
   return out;
 }
 
-int _poursUsed(FoundryState s) => kLavaPourBudget - s.poursLeft;
+int _poursUsed(FoundryState s) => s.poursSpent;
 
 void main() {
   group('the line', () {
@@ -294,18 +294,21 @@ void main() {
       expect(s.canSet('y_return'), isTrue);
     });
 
-    test('the crucible never refills', () {
+    test('one charge in the line at a time, and that is the only limit', () {
+      // The crucible used to run dry. What it still enforces — and this is
+      // the rule that makes routing a decision rather than a spray — is ONE
+      // charge in the line at once: you commit a whole road before you get
+      // to see any of it work.
       final s = _fresh();
-      for (var i = 0; i < kLavaPourBudget; i++) {
-        expect(s.tap(), isTrue);
-        s.pour = null;
-      }
-      expect(s.tap(), isFalse);
-      expect(s.poursLeft, 0);
+      s.tapWoken = true;
+      expect(s.tap(), isTrue);
+      expect(s.tap(), isFalse, reason: 'not while one is running');
+      s.pour = null;
+      expect(s.tap(), isTrue, reason: 'and always another once it lands');
     });
   });
 
-  group('THE PROOF — the pour budget', () {
+  group('THE PROOF — the routes', () {
     final reachable = _explore();
     final solved = reachable.where((s) => foundryWorksDone(s.state)).toList();
 
@@ -321,15 +324,13 @@ void main() {
             .map((s) => _poursUsed(s.state))
             .reduce((a, b) => a < b ? a : b);
         expect(min, 4, reason: 'the tightest full plan is four pours');
+        // There is no budget to compare it against any more — what this
+        // number is for now is DESIGN: four committed decisions to finish the
+        // works. If it ever drops, a route has opened that skips one of them.
         expect(
           min,
-          lessThan(kLavaPourBudget),
-          reason: 'the crucible must fund the works',
-        );
-        expect(
-          kLavaPourBudget - min,
-          1,
-          reason: 'exactly one spare: a blunder is survivable, two are not',
+          lessThan(kLavaSolverPourBound),
+          reason: 'and the solver must be able to find it',
         );
       },
     );
@@ -387,16 +388,41 @@ void main() {
       }
     });
 
-    test('the Black Glass maxim and the works CAN share one run', () {
-      // The inverse of what this used to assert. Three quenched pours was the
-      // old maxim and it cost three of five against a works that needs four,
-      // so the test asserted the sacrifice: you could not have both. A secret
-      // that can only be bought by forfeiting the dungeon is a price list.
+    test('running dry ends the shift instead of ending the run', () {
+      // The budget was briefly removed on the grounds that a misread room
+      // should not cost the run. That was the wrong fix for a real problem:
+      // the works spans seven rooms, a plug is permanent, and five bad
+      // charges used to leave a planet that was simply over — no message,
+      // and a restart button that did nothing here.
       //
-      // The slag pit costs ONE, which is exactly the spare — the planet's
-      // economy turns out to have had a pour in it all along for whoever
-      // wondered what the waste line was for.
-      expect(kLavaPourBudget - 1, greaterThanOrEqualTo(4));
+      // The budget stays, and running dry is now A THING THAT HAPPENS. The
+      // line re-lays, the crucible is charged again, and — the part that
+      // answers "must I do it all in one go" — banked stars are untouched.
+      final s = _fresh();
+      s.tapWoken = true;
+      for (var i = 0; i < kLavaPourBudget; i++) {
+        expect(s.tap(), isTrue);
+        s.pour = null;
+      }
+      expect(s.tap(), isFalse, reason: 'the crucible is dry');
+      expect(s.worksSpent, isTrue);
+
+      s.castings['cast:span_a'] = FoundryCasting(
+        id: 'cast:span_a',
+        roomId: 'mold_floor',
+        rect: const Rect.fromLTWH(0, 0, 10, 10),
+        channelId: '',
+      );
+      s.wardsTurned.add('gantry');
+      s.relayWorks();
+      expect(s.poursLeft, kLavaPourBudget, reason: 'charged for a new shift');
+      expect(s.castings, isEmpty, reason: 'everything cast breaks out');
+      expect(s.wardsTurned, isEmpty);
+      expect(
+        s.tapWoken,
+        isTrue,
+        reason: 'you opened the crucible once; the works remembers',
+      );
     });
   });
 
@@ -542,15 +568,9 @@ void main() {
       //
       // It is the SLAG PIT now: send one charge down the waste line, which
       // is the single thing the works marks as pure loss, and obsidian cools
-      // in it. The budget is what makes that a decision — the intended solve
-      // costs four of five, so the spare pour is exactly what pays for it.
-      expect(
-        kLavaPourBudget,
-        greaterThanOrEqualTo(5),
-        reason:
-            'four pours to finish the works, one spare — and the spare '
-            'is what the secret costs',
-      );
+      // in it. What makes it a decision is not a budget any more — the budget
+      // is gone — but the WASTE: you set the tail switch to the one branch
+      // the works exists to avoid, and watch a charge die on purpose.
       final s = _fresh();
       expect(s.slagTaken, isFalse);
       // A charge arriving at the sink is lost — and leaves the glass.
@@ -953,11 +973,7 @@ void _engineRun() {
       actAt(g, 'tap_head', lava, tapAt);
       expect(s.tapWoken, isTrue);
       expect(g.entryDoorRevealed, isTrue);
-      expect(
-        s.poursLeft,
-        kLavaPourBudget,
-        reason: 'waking the line is not a charge',
-      );
+      expect(s.poursSpent, 0, reason: 'waking the line is not a charge');
 
       // ── The tail switch hangs over the north channel: not from here.
       expect(s.canSet('y_return'), isFalse);
@@ -969,7 +985,7 @@ void _engineRun() {
       standIn(g, 'mold_floor', const Offset(300, 300));
       runOut(g);
       expect(s.cast('span_a'), isTrue, reason: 'the span form filled');
-      expect(s.poursLeft, kLavaPourBudget - 1);
+      expect(s.poursSpent, 1);
 
       // ── STAR 1: the road is the only way across the runner.
       standIn(
@@ -1037,7 +1053,7 @@ void _engineRun() {
       g.activateAbility();
       expect(s.pour, isNull, reason: 'the mane set it where it ran');
       expect(s.access, contains('sump'));
-      expect(s.poursLeft, kLavaPourBudget - 4, reason: 'four charges, no more');
+      expect(s.poursSpent, 4, reason: 'four charges, no more');
 
       // ── The key, and the ward it was cut for.
       final mold = kLavaLine.node('mold_reliquary');
@@ -1130,7 +1146,7 @@ void _engineRun() {
       standIn(g, 'mold_floor', const Offset(300, 300));
       runOut(g);
       expect(s.cast('span_a'), isTrue);
-      expect(s.poursLeft, kLavaPourBudget - 2);
+      expect(s.poursSpent, 2);
     });
 
     test('the Black Glass is taken from the slag pit, and a full run can '
