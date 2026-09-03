@@ -53,7 +53,11 @@ PlanetDungeonGame _game() {
   g.currentRoomId = g.layout.entranceRoomId;
   final at = g.currentRoom.bounds.center;
   for (final m in party) {
-    g.creatures.add(DungeonCreature(member: m)..position = at..lastSafe = at);
+    g.creatures.add(
+      DungeonCreature(member: m)
+        ..position = at
+        ..lastSafe = at,
+    );
   }
   g.onGameResize(Vector2(412, 915));
   return g;
@@ -83,12 +87,7 @@ Projectile _trap(String element, Offset at) => Projectile(
 
 /// Park a wisp on top of [at] and hold it there for [frames].
 void _standOnIt(PlanetDungeonGame g, Offset at, int frames) {
-  g.spawnWispWave(
-    element: 'Fire',
-    center: at,
-    count: 1,
-    announce: false,
-  );
+  g.spawnWispWave(element: 'Fire', center: at, count: 1, announce: false);
   for (var i = 0; i < frames; i++) {
     for (final e in g.combatEnemies) {
       e.position = at; // it is standing IN the trap, and stays there

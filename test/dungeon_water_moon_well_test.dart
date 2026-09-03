@@ -37,11 +37,7 @@ CosmicPartyMember _m(String e, String f) => CosmicPartyMember(
 
 /// Water's ideal trio, standing in the well with the rite unlocked.
 PlanetDungeonGame _well() {
-  final party = [
-    _m('Water', 'pip'),
-    _m('Spirit', 'mask'),
-    _m('Ice', 'mane'),
-  ];
+  final party = [_m('Water', 'pip'), _m('Spirit', 'mask'), _m('Ice', 'mane')];
   final g = PlanetDungeonGame(
     element: 'Water',
     party: party,
@@ -55,7 +51,11 @@ PlanetDungeonGame _well() {
   g.currentRoomId = 'moon_well';
   final at = g.currentRoom.bounds.center;
   for (final m in party) {
-    g.creatures.add(DungeonCreature(member: m)..position = at..lastSafe = at);
+    g.creatures.add(
+      DungeonCreature(member: m)
+        ..position = at
+        ..lastSafe = at,
+    );
   }
   g.onGameResize(Vector2(412, 915));
   // The pip holds the broken main. Nothing in this room agrees with the sky
@@ -67,8 +67,9 @@ PlanetDungeonGame _well() {
 
 /// Stand the Water pip in the mouth of the broken main.
 void plugSpout(PlanetDungeonGame g) {
-  final valve = g.layout.rooms['moon_well']!.tideValves
-      .firstWhere((v) => v.pipOnly);
+  final valve = g.layout.rooms['moon_well']!.tideValves.firstWhere(
+    (v) => v.pipOnly,
+  );
   final pip = g.creatures.firstWhere((c) => c.member.element == 'Water');
   pip
     ..position = valve.position
@@ -106,10 +107,7 @@ List<String> validOrder(PlanetDungeonGame g) {
   bool fragile(String id) =>
       moonStandForLocks(g.poolWants[id]!, kMoonRiseAfterLocks) !=
       moonStandFor(g.poolWants[id]!);
-  return [
-    ...ids.where(fragile),
-    ...ids.where((id) => !fragile(id)),
-  ];
+  return [...ids.where(fragile), ...ids.where((id) => !fragile(id))];
 }
 
 /// Freeze [id]: bring the moon to it, let the well settle, and lay the ice.
@@ -121,9 +119,8 @@ void takeBasin(PlanetDungeonGame g, String id) {
   _pressAt(g, 'Ice', _poolAt(g, id));
 }
 
-Offset _poolAt(PlanetDungeonGame g, String id) => g.currentRoom.moonPools
-    .firstWhere((p) => p.id == id)
-    .position;
+Offset _poolAt(PlanetDungeonGame g, String id) =>
+    g.currentRoom.moonPools.firstWhere((p) => p.id == id).position;
 
 void main() {
   group('the roll', () {
@@ -140,7 +137,8 @@ void main() {
           expect(
             n,
             inInclusiveRange(1, 5),
-            reason: 'never 0 or 6 — the drift PARKS there, and a target you '
+            reason:
+                'never 0 or 6 — the drift PARKS there, and a target you '
                 'hold by doing nothing is not a target',
           );
         }
@@ -333,7 +331,6 @@ void main() {
     });
   });
 
-
   group('the broken main', () {
     test('only a Water pip plugs it, and only by standing there', () {
       final g = _well();
@@ -449,39 +446,41 @@ void main() {
       expect(g.riteActive, isFalse);
     });
 
-    test('standing still in the pool flattens it, and the moon comes to rest',
-        () {
-      final g = mirrorAtMid();
-      for (var i = 0; i < 60 * 5; i++) {
-        g.update(1 / 60);
-      }
-      expect(g.mirrorIsGlass, isTrue);
-      expect(
-        (g.frozenMoonGlint()! - const Offset(320, 330)).distance,
-        lessThan(6),
-        reason: 'on glass the moon stops running',
-      );
-      // …but a broken reflection still cannot be frozen: three pieces of
-      // moon, each showing its own phase, and Spirit has to turn them true.
-      _pressAt(g, 'Ice', g.frozenMoonGlint()!);
-      expect(g.riteActive, isFalse, reason: 'the pieces do not agree yet');
-      for (var i = 0; i < g.mirrorShards.length; i++) {
-        var guard = 0;
-        while (g.mirrorShards[i] != 6 && guard++ < 12) {
-          _pressAt(g, 'Spirit', kMirrorShardAt[i]);
+    test(
+      'standing still in the pool flattens it, and the moon comes to rest',
+      () {
+        final g = mirrorAtMid();
+        for (var i = 0; i < 60 * 5; i++) {
+          g.update(1 / 60);
         }
-      }
-      expect(g.mirrorIsTrue, isTrue);
-      // The pieces travel back into one moon first, and the ice waits.
-      _pressAt(g, 'Ice', g.frozenMoonGlint()!);
-      expect(g.riteActive, isFalse, reason: 'still coming together');
-      for (var i = 0; i < 120; i++) {
-        g.update(1 / 60);
-      }
-      expect(g.mirrorIsWhole, isTrue);
-      _pressAt(g, 'Ice', g.frozenMoonGlint()!);
-      expect(g.riteActive, isTrue, reason: 'and now it can be taken');
-    });
+        expect(g.mirrorIsGlass, isTrue);
+        expect(
+          (g.frozenMoonGlint()! - const Offset(320, 330)).distance,
+          lessThan(6),
+          reason: 'on glass the moon stops running',
+        );
+        // …but a broken reflection still cannot be frozen: three pieces of
+        // moon, each showing its own phase, and Spirit has to turn them true.
+        _pressAt(g, 'Ice', g.frozenMoonGlint()!);
+        expect(g.riteActive, isFalse, reason: 'the pieces do not agree yet');
+        for (var i = 0; i < g.mirrorShards.length; i++) {
+          var guard = 0;
+          while (g.mirrorShards[i] != 6 && guard++ < 12) {
+            _pressAt(g, 'Spirit', kMirrorShardAt[i]);
+          }
+        }
+        expect(g.mirrorIsTrue, isTrue);
+        // The pieces travel back into one moon first, and the ice waits.
+        _pressAt(g, 'Ice', g.frozenMoonGlint()!);
+        expect(g.riteActive, isFalse, reason: 'still coming together');
+        for (var i = 0; i < 120; i++) {
+          g.update(1 / 60);
+        }
+        expect(g.mirrorIsWhole, isTrue);
+        _pressAt(g, 'Ice', g.frozenMoonGlint()!);
+        expect(g.riteActive, isTrue, reason: 'and now it can be taken');
+      },
+    );
 
     test('Spirit has a job, and it is the mirror', () {
       // The gap this closed: Spirit is the MIRROR-tide's mirror element and
@@ -557,7 +556,6 @@ void main() {
     });
   });
 
-
   group('the ice raises the well, and that is the puzzle', () {
     test('exactly two of the four are drowned by the rise', () {
       // The shape of the decision. One would be trivial, three would leave
@@ -606,8 +604,7 @@ void main() {
       expect(g.creatures.every((c) => c.alive), isTrue);
     });
 
-    test('breaking the ice brings the well back down — nothing can strand',
-        () {
+    test('breaking the ice brings the well back down — nothing can strand', () {
       // The anti-strand argument, walked: get it wrong, undo, get it right.
       final g = _well();
       final order = validOrder(g);
@@ -656,5 +653,4 @@ void main() {
       );
     });
   });
-
 }

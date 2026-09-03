@@ -147,8 +147,7 @@ void main() {
     final crypt = kPlanetDungeonLayouts['Poison']!.rooms['lazar_crypt']!;
     expect(crypt.bounds.height, lessThan(_kViewport.height));
     final cache = crypt.vaultCache!;
-    final at =
-        cache - _cameraClampedTo(crypt.bounds, Alignment.bottomRight);
+    final at = cache - _cameraClampedTo(crypt.bounds, Alignment.bottomRight);
     expect(at.dy + 26, lessThan(685));
   });
 }

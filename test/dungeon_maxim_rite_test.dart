@@ -52,7 +52,11 @@ PlanetDungeonGame _game(String element, List<String> discovered) {
   g.currentRoomId = g.layout.entranceRoomId;
   final at = g.currentRoom.bounds.center;
   for (final m in party) {
-    g.creatures.add(DungeonCreature(member: m)..position = at..lastSafe = at);
+    g.creatures.add(
+      DungeonCreature(member: m)
+        ..position = at
+        ..lastSafe = at,
+    );
   }
   g.onGameResize(Vector2(412, 915));
   return g;

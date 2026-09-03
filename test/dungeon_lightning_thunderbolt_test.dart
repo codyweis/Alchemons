@@ -48,7 +48,11 @@ PlanetDungeonGame _dynamo() {
   g.currentRoomId = g.layout.dynamoRoomId!;
   final at = g.currentRoom.bounds.center;
   for (final m in party) {
-    g.creatures.add(DungeonCreature(member: m)..position = at..lastSafe = at);
+    g.creatures.add(
+      DungeonCreature(member: m)
+        ..position = at
+        ..lastSafe = at,
+    );
   }
   g.onGameResize(Vector2(412, 915));
   return g;
@@ -63,8 +67,7 @@ void _at(PlanetDungeonGame g, String element, Offset p) {
   g.activateAbility();
 }
 
-void _wind(PlanetDungeonGame g) =>
-    _at(g, 'Air', g.currentRoom.bounds.center);
+void _wind(PlanetDungeonGame g) => _at(g, 'Air', g.currentRoom.bounds.center);
 
 void _fuseAll(PlanetDungeonGame g) {
   _wind(g);
@@ -169,8 +172,9 @@ void main() {
       // trunk fed, the rest dark, every wing costing the other three. Break
       // it and it stays broken: every wing lit, this run and every run after.
       final g = _dynamo();
-      final wing = g.layout.dynamoTrunks
-          .firstWhere((t) => t.id != g.layout.initialTrunkId);
+      final wing = g.layout.dynamoTrunks.firstWhere(
+        (t) => t.id != g.layout.initialTrunkId,
+      );
       expect(
         g.circuitRoomLit(wing.roomIds.first),
         isFalse,
@@ -199,10 +203,10 @@ void main() {
       // got every wing lit for good without ever finding the secret.
       final g = _dynamo();
       expect(g.thunderboltWon, isFalse);
-      final wing = g.layout.dynamoTrunks
-          .firstWhere((t) => t.id != g.layout.initialTrunkId);
+      final wing = g.layout.dynamoTrunks.firstWhere(
+        (t) => t.id != g.layout.initialTrunkId,
+      );
       expect(g.circuitRoomLit(wing.roomIds.first), isFalse);
     });
   });
-
 }

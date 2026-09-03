@@ -23,10 +23,9 @@ void main() {
     test('only the destructive one spends a label', () {
       // _pillButton is the labelled control. END RUN cannot be a glyph: it is
       // the one press that throws the run away, and it should have to be read.
-      final labelled = RegExp(r"_pillButton\(\s*'([^']+)'")
-          .allMatches(source)
-          .map((m) => m.group(1))
-          .toList();
+      final labelled = RegExp(
+        r"_pillButton\(\s*'([^']+)'",
+      ).allMatches(source).map((m) => m.group(1)).toList();
       expect(labelled, ['END RUN']);
     });
 
@@ -81,7 +80,9 @@ void main() {
     test('can be dragged only while it is open', () {
       expect(source, contains('onPanUpdate: (d) => game.panSurvey(d.delta)'));
       expect(
-        source.contains('game.surveying\n                    ? GestureDetector'),
+        source.contains(
+          'game.surveying\n                    ? GestureDetector',
+        ),
         isTrue,
         reason: 'a full-screen drag catcher must not exist while closed in',
       );
@@ -236,4 +237,3 @@ void main() {
     });
   });
 }
-

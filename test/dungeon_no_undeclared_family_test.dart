@@ -52,9 +52,7 @@ void main() {
   group('no dungeon demands an undeclared family', () {
     test('every family required in code is a declared gate', () {
       kPlanetDungeonLayouts.forEach((element, layout) {
-        final declared = layout.familyGates
-            .map((g) => g.family)
-            .toSet();
+        final declared = layout.familyGates.map((g) => g.family).toSet();
         for (final family in familiesDemandedInSource(element)) {
           expect(
             declared,

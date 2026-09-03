@@ -2829,7 +2829,8 @@ class PlanetDungeonGame extends FlameGame {
     // Swimming: flooded temple water slows everyone but Water itself.
     final moveSpeed =
         (flightActive ? _speed * _flightSpeedMul : _speed) *
-        (_isTemple ? _templeSpeedMul(a) : 1.0);
+        (_isTemple ? _templeSpeedMul(a) : 1.0) *
+        (_isVenom ? venomDrainMul(a) : 1.0);
     if (dir.distanceSquared > 0.0001 && !castLocked) {
       // Moving ends the survey. Deliberately on INTENT (the stick pushed)
       // rather than on the position changing, so a shove, a gale or a riser
@@ -4794,7 +4795,12 @@ class PlanetDungeonGame extends FlameGame {
     if (_isWake && identical(enemy, _guardianEnemy) && !_wraithInPhase) {
       return 0;
     }
-    return identical(enemy, _guardianEnemy) && !guardianVulnerable ? 0.35 : 1.0;
+    final base = identical(enemy, _guardianEnemy) && !guardianVulnerable
+        ? 0.35
+        : 1.0;
+    // Poison (§8): a hand that gave to the pot is spent until the plague it
+    // woke goes down. The whole strategy of the monastery is WHEN you brew.
+    return _isVenom ? base * venomDrainMul(active) : base;
   }
 
   Offset _wingBeamEnd(_DungeonWingBeam beam) {
@@ -12569,6 +12575,23 @@ class PlanetDungeonGame extends FlameGame {
       ..lineTo(mid.dx, mid.dy)
       ..lineTo(b.dx, b.dy);
     canvas.drawPath(path, p);
+  }
+
+  /// How wide `_drawTinyLabel` will come out, so a sign can be cut to fit
+  /// its own words rather than to a number somebody guessed.
+  double _tinyLabelWidth(String text) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return tp.width + 10;
   }
 
   void _drawTinyLabel(Canvas canvas, Offset center, String text) {

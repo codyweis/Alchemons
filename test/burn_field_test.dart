@@ -143,7 +143,6 @@ void main() {
         reason: 'a field whose goal exceeds its ground is unauthorable',
       );
     });
-
   });
 
   group('the authored garth', () {

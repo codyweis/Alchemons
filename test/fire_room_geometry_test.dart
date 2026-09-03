@@ -57,7 +57,11 @@ PlanetDungeonGame _fire(String room) {
   g.currentRoomId = room;
   final at = g.currentRoom.bounds.center;
   for (final m in party) {
-    g.creatures.add(DungeonCreature(member: m)..position = at..lastSafe = at);
+    g.creatures.add(
+      DungeonCreature(member: m)
+        ..position = at
+        ..lastSafe = at,
+    );
   }
   g.onGameResize(Vector2(_kPortrait.width, _kPortrait.height));
   return g;
@@ -100,9 +104,9 @@ void main() {
       final vane = cloister.windVane!;
       const ringRadius = 54.0 + 11.0; // arc plus the longest tooth
       expect(
-        field.inflate(9).overlaps(
-          Rect.fromCircle(center: vane, radius: ringRadius),
-        ),
+        field
+            .inflate(9)
+            .overlaps(Rect.fromCircle(center: vane, radius: ringRadius)),
         isFalse,
         reason: 'the ring is sitting on the garden again',
       );

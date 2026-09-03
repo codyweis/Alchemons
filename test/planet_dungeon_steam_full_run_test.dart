@@ -102,18 +102,6 @@ PlanetDungeonGame _harness(
   return game;
 }
 
-// ── Grid helpers (mirror the engine's bounds-filling cell math) ──
-(double, double) _cs(DungeonRoom room, MoltenGrid g) =>
-    (room.bounds.width / g.cols, room.bounds.height / g.rowCount);
-
-Offset _center(DungeonRoom room, MoltenGrid g, int c, int r) {
-  final (cw, ch) = _cs(room, g);
-  return Offset(
-    room.bounds.left + (c + 0.5) * cw,
-    room.bounds.top + (r + 0.5) * ch,
-  );
-}
-
 String _sealKeyOf(String a, String b) => ([a, b]..sort()).join('|');
 
 void main() {
@@ -155,30 +143,6 @@ void main() {
         e.isDead = true;
       }
       step();
-    }
-
-    // Park the whole trio on cell (c,r), facing toward (fc,fr).
-    void standAt(String roomId, int c, int r, int fc, int fr) {
-      game.currentRoomId = roomId;
-      final rm = room(roomId);
-      final g = rm.molten!;
-      final p = _center(rm, g, c, r);
-      final ang = atan2((fr - r).toDouble(), (fc - c).toDouble());
-      for (final cr in game.creatures) {
-        cr
-          ..position = p
-          ..lastSafe = p
-          ..angle = ang
-          ..aimAngle = ang;
-      }
-    }
-
-    // Use [idx]'s verb on the faced cell from (c,r).
-    void act(String roomId, int idx, int c, int r, int fc, int fr) {
-      game.setActive(idx);
-      standAt(roomId, c, r, fc, fr);
-      game.activateAbility();
-      game.update(1 / 60);
     }
 
     // Stand the whole trio at [pos] in [roomId] and press ACTION as [idx].

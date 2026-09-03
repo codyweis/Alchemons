@@ -23,8 +23,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final source = File('lib/games/shared/damage_numbers.dart')
-      .readAsStringSync();
+  final source = File(
+    'lib/games/shared/damage_numbers.dart',
+  ).readAsStringSync();
 
   test('no shadow is blurred', () {
     expect(
@@ -37,8 +38,10 @@ void main() {
   test('the shadows are offsets, and there are still some', () {
     // The outline has to survive the fix — white numbers on a bright burst
     // are unreadable without it.
-    expect(RegExp(r'offset:\s*Offset\(').allMatches(source).length,
-        greaterThanOrEqualTo(3));
+    expect(
+      RegExp(r'offset:\s*Offset\(').allMatches(source).length,
+      greaterThanOrEqualTo(3),
+    );
   });
 
   test('the pop-in scale is quantised', () {

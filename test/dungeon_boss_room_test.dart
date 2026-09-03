@@ -50,7 +50,11 @@ PlanetDungeonGame _game(String element) {
   g.currentRoomId = g.layout.entranceRoomId;
   final at = g.currentRoom.bounds.center;
   for (final m in party) {
-    g.creatures.add(DungeonCreature(member: m)..position = at..lastSafe = at);
+    g.creatures.add(
+      DungeonCreature(member: m)
+        ..position = at
+        ..lastSafe = at,
+    );
   }
   g.onGameResize(Vector2(412, 915));
   return g;
@@ -70,11 +74,7 @@ void main() {
   test('the lair alone is not the fight — the guardian has to be up', () {
     final g = _game('Fire');
     g.currentRoomId = _lairOf(g);
-    expect(
-      g.inGuardianFight,
-      isFalse,
-      reason: 'an empty roost is just a room',
-    );
+    expect(g.inGuardianFight, isFalse, reason: 'an empty roost is just a room');
   });
 
   test('it goes while the guardian is up', () {
@@ -232,5 +232,4 @@ void main() {
       expect(g.utilityAvailable, isTrue);
     });
   });
-
 }

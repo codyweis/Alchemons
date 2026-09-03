@@ -53,7 +53,8 @@ void main() {
     expect(
       banked,
       containsAll(<String>['tide_works', 'drowned_court']),
-      reason: 'the tide-works keeps its masters; the court holds the bank '
+      reason:
+          'the tide-works keeps its masters; the court holds the bank '
           'that used to be in the canal gallery',
     );
     expect(

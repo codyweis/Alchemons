@@ -73,7 +73,11 @@ void main() {
       for (var i = 0; i < 120; i++) {
         g.update(1 / 60);
       }
-      expect(g.surveying, isTrue, reason: 'nothing moved, so nothing closed it');
+      expect(
+        g.surveying,
+        isTrue,
+        reason: 'nothing moved, so nothing closed it',
+      );
     });
 
     test('worldToScreen follows the zoom', () {
@@ -144,8 +148,11 @@ void main() {
       for (final element in kPlanetDungeonLayouts.keys) {
         final g = _game(element)..toggleSurvey();
         expect(g.surveying, isTrue, reason: element);
-        expect(() => g.worldToScreen(g.currentRoom.bounds.center),
-            returnsNormally, reason: element);
+        expect(
+          () => g.worldToScreen(g.currentRoom.bounds.center),
+          returnsNormally,
+          reason: element,
+        );
       }
     });
   });
@@ -221,16 +228,22 @@ void main() {
           expect(room.conduits, isEmpty, reason: '$element/${room.id}');
         }
       });
-      expect(checked, greaterThan(0),
-          reason: 'some rooms really are just corridors');
+      expect(
+        checked,
+        greaterThan(0),
+        reason: 'some rooms really are just corridors',
+      );
     });
 
     test('every guardian room offers action', () {
       for (final entry in kPlanetDungeonLayouts.entries) {
         for (final room in entry.value.rooms.values) {
           if (room.guardian == null) continue;
-          expect(room.hasVerbs, isTrue,
-              reason: '${entry.key}/${room.id} holds a guardian');
+          expect(
+            room.hasVerbs,
+            isTrue,
+            reason: '${entry.key}/${room.id} holds a guardian',
+          );
         }
       }
     });

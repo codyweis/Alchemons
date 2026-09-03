@@ -53,7 +53,11 @@ PlanetDungeonGame _barrow(String room) {
   g.currentRoomId = room;
   final at = g.currentRoom.bounds.center;
   for (final m in party) {
-    g.creatures.add(DungeonCreature(member: m)..position = at..lastSafe = at);
+    g.creatures.add(
+      DungeonCreature(member: m)
+        ..position = at
+        ..lastSafe = at,
+    );
   }
   g.onGameResize(Vector2(412, 915));
   return g;
@@ -98,11 +102,11 @@ void main() {
     test('and it is not the same opening every run', () {
       final seen = {
         for (var i = 0; i < 40; i++)
-          _barrow('rib_hall')
-              .let((g) => [
-                    for (final r in g.currentRoom.fossilRibs)
-                      g.ribNotches[r.id] ?? 0,
-                  ].join()),
+          _barrow('rib_hall').let(
+            (g) => [
+              for (final r in g.currentRoom.fossilRibs) g.ribNotches[r.id] ?? 0,
+            ].join(),
+          ),
       };
       expect(seen.length, greaterThan(1), reason: 'rolled, not authored');
     });
@@ -257,7 +261,8 @@ void main() {
         final far = room.fossilPillars
             .where((q) => q.id != p.id)
             .reduce(
-              (x, y) => (x.position - p.position).distance >
+              (x, y) =>
+                  (x.position - p.position).distance >
                       (y.position - p.position).distance
                   ? x
                   : y,
@@ -270,16 +275,18 @@ void main() {
       }
     });
 
-    test('a lit socket with a dark side refuses the seal, and costs nothing',
-        () {
-      final g = crypt();
-      bareAll(g);
-      final p = g.currentRoom.fossilPillars.first;
-      lightIt(g, p);
-      at(g, 'Crystal', p.position);
-      expect(g.pillarSealed, isEmpty);
-      expect(g.lockedPillars, contains(p.id), reason: 'and it stays lit');
-    });
+    test(
+      'a lit socket with a dark side refuses the seal, and costs nothing',
+      () {
+        final g = crypt();
+        bareAll(g);
+        final p = g.currentRoom.fossilPillars.first;
+        lightIt(g, p);
+        at(g, 'Crystal', p.position);
+        expect(g.pillarSealed, isEmpty);
+        expect(g.lockedPillars, contains(p.id), reason: 'and it stays lit');
+      },
+    );
 
     test('flanked on both sides, it seals — and never leaks again', () {
       final g = crypt();

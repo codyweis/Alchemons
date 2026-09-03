@@ -12,7 +12,6 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart'
         // are not in scope — a proof seam added to one then reads as "method
         // isn't defined" while the identical seam in a listed extension
         // resolves fine.
-        MoltenLabyrinth,
         kSteamStartPressure,
         kScaleClueRooms;
 import 'package:flutter_test/flutter_test.dart';
@@ -2313,15 +2312,6 @@ void main() {
 /// uniqueness proof can never drift from what the game actually computes.
 PlanetDungeonGame _waterProbe() => PlanetDungeonGame(
   element: 'Water',
-  party: const [],
-  initialStarMask: 0,
-  onStarEarned: (_) {},
-  onPlayerDown: () {},
-  onChanged: () {},
-);
-
-PlanetDungeonGame _steamProbe() => PlanetDungeonGame(
-  element: 'Steam',
   party: const [],
   initialStarMask: 0,
   onStarEarned: (_) {},

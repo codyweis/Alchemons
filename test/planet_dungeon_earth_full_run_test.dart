@@ -157,8 +157,9 @@ void main() {
     /// way, so the star is no longer six identical shoves — it is a sequence,
     /// and the test walks it with the game's OWN solver rather than a script
     /// that would rot away from the mechanic it is meant to exercise.
-    List<int> board() =>
-        [for (final r in hall.fossilRibs) game.ribNotches[r.id] ?? 0];
+    List<int> board() => [
+      for (final r in hall.fossilRibs) game.ribNotches[r.id] ?? 0,
+    ];
 
     /// Shove rib [i] one notch in [step], and let every grind it causes land.
     void shove(int i, int step) {
@@ -228,6 +229,7 @@ void main() {
     // ── Star 2: charge the sockets — each draws the storm over a window and
     // must be DEFENDED until it lights (Crystal parity + Pip both fast) ──
     final crypt = room('pillar_crypt');
+
     /// EARTH WALKS THE SPINE. Standing on a vertebra warms it; pressing
     /// there seats it for good. Seat all five and the giant's back takes the
     /// weight — the buried pillars come up and their sockets open.

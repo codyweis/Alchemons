@@ -50,7 +50,11 @@ PlanetDungeonGame _spire() {
   g.currentRoomId = 'hub';
   final at = g.currentRoom.bounds.center;
   for (final m in party) {
-    g.creatures.add(DungeonCreature(member: m)..position = at..lastSafe = at);
+    g.creatures.add(
+      DungeonCreature(member: m)
+        ..position = at
+        ..lastSafe = at,
+    );
   }
   g.onGameResize(Vector2(412, 915));
   return g;
@@ -103,7 +107,8 @@ void main() {
       expect(
         hub.windRunes,
         hasLength(4),
-        reason: 'four winds, and they have to be in the DATA — a hub with no '
+        reason:
+            'four winds, and they have to be in the DATA — a hub with no '
             'furniture shows no action pad, which is what made the old '
             'maxim unreachable',
       );
@@ -140,9 +145,7 @@ void main() {
       // is lying and the answer can only be brute-forced.
       for (var run = 0; run < 40; run++) {
         final g = _spire();
-        final wear = [
-          for (final i in g.firstWindOrder) g.firstWindWear[i],
-        ];
+        final wear = [for (final i in g.firstWindOrder) g.firstWindWear[i]];
         for (var i = 1; i < wear.length; i++) {
           expect(
             wear[i],
@@ -157,9 +160,7 @@ void main() {
       // A puzzle about noticing, not measuring.
       for (var run = 0; run < 40; run++) {
         final g = _spire();
-        final wear = [
-          for (final i in g.firstWindOrder) g.firstWindWear[i],
-        ];
+        final wear = [for (final i in g.firstWindOrder) g.firstWindWear[i]];
         for (var i = 1; i < wear.length; i++) {
           expect(wear[i - 1] - wear[i], greaterThan(0.12));
         }
@@ -314,11 +315,7 @@ void main() {
       for (final i in g.firstWindOrder) {
         _press(g, _air(g), i);
       }
-      expect(
-        g.riteActive,
-        isTrue,
-        reason: 'the reaction pays it, not a popup',
-      );
+      expect(g.riteActive, isTrue, reason: 'the reaction pays it, not a popup');
       for (var i = 0; i < 400; i++) {
         g.update(1 / 60);
       }
@@ -381,5 +378,4 @@ void main() {
       expect(g.planetSecretFound, isTrue);
     });
   });
-
 }

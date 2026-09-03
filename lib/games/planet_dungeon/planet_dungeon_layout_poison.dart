@@ -270,12 +270,10 @@ class WardTriage {
   /// A strain loose in the ambulatory: the one you surrendered, plus any you
   /// fed. This is the cost the player carries for the rest of the run.
   Set<WardStrain> get loose {
+    // NOTHING IS LOOSE BY DEFAULT ANY MORE. `surrendered` names the crypt
+    // ward now, not a ward given up, so reading it here put the dead-house's
+    // strain in the cloister for the whole run.
     final out = <WardStrain>{};
-    final s = surrendered;
-    if (s != null) {
-      final st = _strains[s];
-      if (st != null) out.add(st);
-    }
     for (final v in virulent) {
       if (cured.contains(v)) continue; // a cured strain is dead, fed or not
       final st = _strains[v];
@@ -338,6 +336,102 @@ class WardCell {
 }
 
 /// One tap of the still, wearing the fixture that shows what it pours.
+
+// ── THE CAULDRON (2026-09-03 rework) ─────────────────────────────────────
+//
+// The monastery stops being a diagnosis and becomes a WORKING. Three plagues
+// sleep in three wards; each is woken by a potion brewed from two elements,
+// and the brewing is the puzzle:
+//
+//   · An alchemon can contribute to TWO potions and no more. Three of them,
+//     three potions of two ingredients each — six slots against six hands,
+//     which is exactly tight and therefore forced with the ideal trio.
+//   · So the strategy is not WHICH hand but WHEN. Contributing DRAINS that
+//     alchemon until the next plague is down: whoever you spend on a brew is
+//     the one who fights it weakened. Deciding who is fresh for which fight
+//     is the whole of it.
+//   · A woken plague does not stay put. It crawls out to the ambulatory and
+//     waits for you there — so waking two before killing one is a choice you
+//     are allowed to make and will regret.
+
+/// One brew: what it takes, and what it wakes.
+class PlaguePotion {
+  const PlaguePotion({
+    required this.id,
+    required this.name,
+    required this.first,
+    required this.second,
+    required this.wardId,
+    required this.symptom,
+  });
+
+  final String id;
+  final String name;
+
+  /// The two elements it is made of. Order never matters.
+  final String first;
+  final String second;
+
+  /// The ward whose sleeper it wakes.
+  final String wardId;
+
+  /// What the sign in that ward says is WRONG with the thing — never the
+  /// recipe. The cauldron says what each ingredient does; the ward says what
+  /// it is up against; the player puts the two together. (§5.6: the room may
+  /// state a fact, never a method.)
+  final String symptom;
+
+  bool takes(String element) => element == first || element == second;
+}
+
+/// What each ingredient does in the pot, said once, at the cauldron. This is
+/// the half of the deduction the apothecary is allowed to hand over.
+const Map<String, String> kPotionIngredientEffect = {
+  'Poison': 'sickens — it turns a thing against its own body',
+  'Plant': 'deadens — green closes over a sound and it stops',
+  'Mud': 'slows — nothing moves quickly through it',
+};
+
+const List<PlaguePotion> kPlaguePotions = [
+  PlaguePotion(
+    id: 'deafening',
+    name: 'the deafening draught',
+    first: 'Poison',
+    second: 'Plant',
+    wardId: 'ward_bell',
+    symptom: 'It rings. Nothing in here can hear itself, and neither can you.',
+  ),
+  PlaguePotion(
+    id: 'purity',
+    name: 'the draught of pure attributes',
+    first: 'Plant',
+    second: 'Mud',
+    wardId: 'ward_scriptorium',
+    symptom: 'It is not one sickness. Two are braided, and neither is whole.',
+  ),
+  PlaguePotion(
+    id: 'slogging',
+    name: 'the slogging draught',
+    first: 'Poison',
+    second: 'Mud',
+    wardId: 'ward_refectory',
+    symptom: 'It is too fast to be fought. Nothing lands on it.',
+  ),
+];
+
+/// How many brews one alchemon can give to.
+const int kPotionContributionsEach = 2;
+
+/// The ward the crypt hangs off. It is the one ward with no plague in it —
+/// the bricked dead-house — and the oubliette in its floor is the way down
+/// to patient zero.
+///
+/// A CONSTANT, not run state. The triage that used to CHOOSE this ward is
+/// gone, and the first thing that broke when it went was the way down: the
+/// field it used to set is only written in a reset the constructor does not
+/// call, so a fresh game had no crypt at all and capped at two stars.
+const String kCryptWard = 'ward_charnel';
+
 class ApothecarySpout {
   final WardDraught draught;
   final Offset position;
@@ -417,10 +511,12 @@ WardTriage rollWardTriage([Random? rng]) {
 ///  2 · **Blightfang** — patient zero, in the crypt under the ward you let go.
 ///
 /// Family gates (§4, both tied to entry slots, neither blocking a star):
-///  · `ward_charnel_brick` — **Lava HORN**. The bricked charnel. Without one,
-///    the charnel is your surrender: the gate steers the triage, never a star.
+///  · `ward_charnel_brick` — **Plant HORN**. The bricked dead-house. A root
+///    put through a joint is what actually takes a wall apart, and it must be
+///    an element the pot uses: the summons asks for exactly Poison, Plant and
+///    Mud, because those three are the only things the cauldron drinks.
 ///  · `ward_squint` — **Mud MANE**. The inner squints between wards: only a
-///    trail-layer crosses a live ward with a phial still good. The ambulatory
+///    trail-layer crosses a live ward with a brew still good. The ambulatory
 ///    reaches every ward regardless, so this buys a shortcut, not a star.
 const DungeonLayout poisonLayout = DungeonLayout(
   element: 'Poison',
@@ -432,12 +528,12 @@ const DungeonLayout poisonLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Physician\'s Star',
       earnAnnouncement:
-          'The Physician\'s Star is yours — you read the sickness by its habit',
+          'The Physician\'s Star is yours — three brews, three plagues woken',
     ),
     DungeonStarSpec(
       name: 'Triage Star',
       earnAnnouncement:
-          'The Triage Star is yours — three saved, and one crossed off',
+          'The Triage Star is yours — and every ward of the house is quiet',
     ),
     DungeonStarSpec(name: 'Blightfang\'s Star'),
   ],
@@ -445,26 +541,28 @@ const DungeonLayout poisonLayout = DungeonLayout(
   riteAnnouncement:
       'The cross rots off the barred ward — what you gave up lies open',
   guardianSealedHint:
-      'The oubliette will not lift — the house keeps patient zero until the '
-      'triage is done',
+      'The oubliette will not lift — the house keeps patient zero until all '
+      'three plagues are down',
   mercyShrineRoomId: 'apothecary',
-  // Ideal: Poisonmask · Lavahorn · Mudmane — hinted by VERB, never body part
-  // (§4 THE DESCENT RIDDLE): the reading, the breaking, the clean trail.
+  // Ideal: Poisonmask · Planthorn · Mudmane — hinted by VERB, never body part
+  // (§4 THE DESCENT RIDDLE). These three are also THE POT'S WHOLE LARDER, so
+  // the riddle is doing double duty: bring the wrong hands and the cauldron
+  // has nothing to mix.
   riddle: [
-    'Send me Poison: my sicknesses are told by habit, never by colour;',
-    'a Lava Horn, to break in where my brick is thickest;',
-    'and a Mud Mane, to leave a clean road through foul ground.',
+    'Send me Poison, to turn a thing against its own body;',
+    'a Plant Horn, to put a root through my brick and close a sound;',
+    'and a Mud Mane, to leave a clean road, and to slow what runs on it.',
   ],
   primer: [
-    'A strain is told by how it MOVES, never by its colour.',
-    'There is physic for three wards and the monastery has four.',
+    'The pot takes two and makes one. It drinks Poison, Plant and Mud.',
+    'Any alchemon has two brews in it. Three of them, three brews, no spare.',
   ],
   familyGates: [
     DungeonFamilyGate(
       objectId: 'ward_charnel_brick',
-      element: 'Lava',
+      element: 'Plant',
       family: 'Horn',
-      hintLine: 'Only a Lava horn burns through this brick',
+      hintLine: 'Only a Plant horn roots this brick apart',
     ),
     DungeonFamilyGate(
       objectId: 'ward_squint',
@@ -554,10 +652,12 @@ const DungeonLayout poisonLayout = DungeonLayout(
       ),
     ),
 
-    // ── The Apothecary — the still, its four taps, and the house's mercy.
-    // A spout answers Poison, or the monastery's own braid Lava+Mud→Poison
-    // (§6.13) at the price of wisps. The fixtures ARE the labels: a bell that
-    // damps, a kiln that burns off, a pot that fills a gap, bitters that wake.
+    // ── The Apothecary — the cauldron, the larder shelf above it, and the
+    // house's mercy. The still's four taps were taken out with the triage;
+    // what is here now is one pot in the middle of the floor and three
+    // labelled jars on the wall behind it. The pot is centred on purpose:
+    // you walk in at the top, and the thing you came for is dead ahead with
+    // its ingredients written up over it.
     'apothecary': DungeonRoom(
       id: 'apothecary',
       bounds: Rect.fromLTWH(0, 0, 720, 520),
@@ -569,7 +669,7 @@ const DungeonLayout poisonLayout = DungeonLayout(
         ),
       ],
       apothecary: Apothecary(
-        cistern: Offset(360, 110),
+        cistern: Offset(360, 250),
         spouts: [
           ApothecarySpout(
             draught: WardDraught.stilling,

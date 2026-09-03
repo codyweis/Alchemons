@@ -127,14 +127,13 @@ void main() {
       // six points of air each side; a 375pt one ran off the screen.
       await pumpPopup(tester, const [2], logical: const Size(320, 640));
       expect(tester.takeException(), isNull);
-      final panel = tester.getSize(
-        find.byType(DungeonRewardPopup),
-      );
+      final panel = tester.getSize(find.byType(DungeonRewardPopup));
       expect(panel.width, lessThanOrEqualTo(320));
     });
 
-    testWidgets('the heading asks for a choice instead of repeating the star',
-        (tester) async {
+    testWidgets('the heading asks for a choice instead of repeating the star', (
+      tester,
+    ) async {
       // "STAR 3" sat directly under a title that already named the star in
       // inch-high letters, beside a cyan "CONFIRM BELOW" pointing at a button
       // that says the same thing in its own words.

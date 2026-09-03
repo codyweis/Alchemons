@@ -37,8 +37,7 @@ void main() {
     );
     if (strict) return 'strict';
     final verbOnly = layout.familyGates.any(
-      (g) =>
-          !g.needsElement && g.family.toLowerCase() == fams[i].toLowerCase(),
+      (g) => !g.needsElement && g.family.toLowerCase() == fams[i].toLowerCase(),
     );
     return verbOnly ? 'any' : 'element';
   }
@@ -53,8 +52,11 @@ void main() {
   group('a line asks for exactly what its slot demands', () {
     test('one line per entry slot', () {
       kPlanetDungeonLayouts.forEach((element, layout) {
-        expect(layout.riddle.length, kCosmicPlanetEntry[element]!.length,
-            reason: '$element: one verse line per element the descent needs');
+        expect(
+          layout.riddle.length,
+          kCosmicPlanetEntry[element]!.length,
+          reason: '$element: one verse line per element the descent needs',
+        );
       });
     });
 
@@ -63,8 +65,11 @@ void main() {
       kPlanetDungeonLayouts.forEach((element, layout) {
         final els = kCosmicPlanetEntry[element]!;
         for (var i = 0; i < layout.riddle.length; i++) {
-          expect(layout.riddle[i].toLowerCase(), contains(els[i].toLowerCase()),
-              reason: '$element line ${i + 1} should name ${els[i]}');
+          expect(
+            layout.riddle[i].toLowerCase(),
+            contains(els[i].toLowerCase()),
+            reason: '$element line ${i + 1} should name ${els[i]}',
+          );
         }
       });
     });
@@ -80,14 +85,22 @@ void main() {
           final named = families.where((f) => names(line, f)).toList();
           switch (demandFor(element, i)) {
             case 'element':
-              expect(named, isEmpty,
-                  reason: '$element line ${i + 1} is element-only but names '
-                      '${named.join(", ")}');
+              expect(
+                named,
+                isEmpty,
+                reason:
+                    '$element line ${i + 1} is element-only but names '
+                    '${named.join(", ")}',
+              );
             case 'strict':
             case 'any':
-              expect(named, [fams[i].toLowerCase()],
-                  reason: '$element line ${i + 1} should name exactly '
-                      '${fams[i].toLowerCase()}');
+              expect(
+                named,
+                [fams[i].toLowerCase()],
+                reason:
+                    '$element line ${i + 1} should name exactly '
+                    '${fams[i].toLowerCase()}',
+              );
           }
         }
       });
@@ -101,12 +114,19 @@ void main() {
           final line = layout.riddle[i].toLowerCase();
           switch (demandFor(element, i)) {
             case 'any':
-              expect(line, contains('any'),
-                  reason: '$element line ${i + 1} gates on the family alone, '
-                      'so it must not read as an element+family lock');
+              expect(
+                line,
+                contains('any'),
+                reason:
+                    '$element line ${i + 1} gates on the family alone, '
+                    'so it must not read as an element+family lock',
+              );
             case 'strict':
-              expect(line, isNot(contains('any')),
-                  reason: '$element line ${i + 1} is a strict lock');
+              expect(
+                line,
+                isNot(contains('any')),
+                reason: '$element line ${i + 1} is a strict lock',
+              );
             case 'element':
               break;
           }

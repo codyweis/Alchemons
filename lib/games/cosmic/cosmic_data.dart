@@ -1652,11 +1652,13 @@ const Map<String, List<String>> kCosmicPlanetEntry = {
   // and halts its creep) + Earth (Horn dams the flood with raised walls) + Fire
   // (Earth+Fire→Lava melts rock to molten). Each room is a spreading-lava grid.
   'Steam': ['Steam', 'Earth', 'Fire'],
-  // Venom Monastery (Toxica): Poison (the wax seals, the still, the physic) +
-  // Lava (a horn burns through the charnel's brick) + Mud (a mane's trail
-  // carries a live phial clean through a ward). Lava+Mud→Poison brews the
-  // counter-strains when no Poison hand is free.
-  'Poison': ['Poison', 'Lava', 'Mud'],
+  // Venom Monastery (Toxica): Poison (the wax seals, the pot, the physic) +
+  // Plant (a horn roots the charnel's brick apart) + Mud (a mane's trail
+  // carries a live brew clean through a ward). These three are also the
+  // CAULDRON'S ENTIRE LARDER — the three plagues want Poison+Plant,
+  // Plant+Mud and Poison+Mud — so the trio is not flavour here: bring a hand
+  // the pot cannot drink and a brew becomes impossible.
+  'Poison': ['Poison', 'Plant', 'Mud'],
   // Frozen Observatory (Glacius): Ice (freezes flues into stairs, glazes the
   // orrery floor, silvers the mirrors) + Light (melts the mouth's ice cap,
   // thaws a glaze, and its Mask strikes the lodestone) + Air (sweeps the
@@ -1742,7 +1744,7 @@ const Map<String, List<String>> kDungeonIdealFamilies = {
   'Earth': ['Horn', 'Pip', 'Mask'], // Earthhorn · Lightningpip · Crystalmask
   'Lightning': ['Horn', 'Wing', 'Mask'], // Lightninghorn · Airwing · Firemask
   'Steam': ['Pip', 'Horn', 'Mask'], // Steampip · Earthhorn · Firemask
-  'Poison': ['Mask', 'Horn', 'Mane'], // Poisonmask · Lavahorn · Mudmane
+  'Poison': ['Mask', 'Horn', 'Mane'], // Poisonmask · Planthorn · Mudmane
   'Ice': ['Mane', 'Mask', 'Wing'], // Icemane · Lightmask · Airwing
   'Lava': ['Horn', 'Mask', 'Mane'], // Lavahorn · Earthmask · Icemane
   'Mud': ['Mane', 'Pip', 'Mask'], // Mudmane · Plantpip · Watermask

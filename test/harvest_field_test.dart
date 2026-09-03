@@ -46,10 +46,7 @@ Future<(FlameGame, _Target, HarvestFieldEffect)> _rig(
 
 void main() {
   test('it moves the LIVE component, not a copy', () async {
-    final (game, target, _) = await _rig(
-      () async => true,
-      minSeize: 1.0,
-    );
+    final (game, target, _) = await _rig(() async => true, minSeize: 1.0);
     final home = target.position.clone();
     final homeScale = target.scale.clone();
 
@@ -106,26 +103,27 @@ void main() {
     expect(settled, isFalse, reason: 'it cannot be over before it began');
   });
 
-  test('a thrown roll still answers, and does not strand the creature',
-      () async {
-    final (game, target, fx) = await _rig(() async => throw StateError('net'));
-    for (var i = 0; i < 200; i++) {
-      game.update(1 / 60);
-    }
-    expect(await fx.result, isFalse);
-    expect(_inWorld(target), isTrue);
-  });
+  test(
+    'a thrown roll still answers, and does not strand the creature',
+    () async {
+      final (game, target, fx) = await _rig(
+        () async => throw StateError('net'),
+      );
+      for (var i = 0; i < 200; i++) {
+        game.update(1 / 60);
+      }
+      expect(await fx.result, isFalse);
+      expect(_inWorld(target), isTrue);
+    },
+  );
 
   test('removing the effect early never strands the caller', () async {
     // A scene torn down mid-harvest (the player leaves) must not leave an
     // await hanging for ever.
-    final (game, target, fx) = await _rig(
-      () async {
-        await Future<void>.delayed(const Duration(seconds: 5));
-        return true;
-      },
-      minSeize: 5,
-    );
+    final (game, target, fx) = await _rig(() async {
+      await Future<void>.delayed(const Duration(seconds: 5));
+      return true;
+    }, minSeize: 5);
     for (var i = 0; i < 10; i++) {
       game.update(1 / 60);
     }
@@ -239,7 +237,8 @@ void main() {
     expect(
       gap,
       lessThan(startGap * 0.7),
-      reason: 'they have to close in SCREEN space, not local space: '
+      reason:
+          'they have to close in SCREEN space, not local space: '
           '$startGap -> $gap',
     );
   });
