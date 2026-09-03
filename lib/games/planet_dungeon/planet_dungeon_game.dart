@@ -5128,6 +5128,57 @@ class PlanetDungeonGame extends FlameGame {
     );
   }
 
+  /// One hostile, of a stated KIND, walking in from off-screen.
+  ///
+  /// Every dungeon spawned `EnemyTier.wisp` on `charge` or `stalk` and
+  /// nothing else, so seventeen planets' worth of consequence looked and
+  /// played identically — a planet's pressure should feel like that planet.
+  /// This is the primitive each one composes its own ladder from; the shared
+  /// parts are what must not be duplicated: the campaign scaling, the ten-body
+  /// cap, and coming in from outside the view.
+  ///
+  /// Returns false when the room is already at its cap.
+  bool spawnDungeonEnemy({
+    required EnemyTier tier,
+    required EnemyConduct conduct,
+    required String element,
+    required Offset from,
+    double hp = 24,
+    double speed = 76,
+    double damage = 9,
+    double radius = 12,
+    bool steers = false,
+  }) {
+    final live = combatEnemies
+        .where((e) => !e.isDead && !identical(e, _guardianEnemy))
+        .length;
+    if (live >= 10) return false;
+    const wave = 4;
+    final hpScale =
+        CosmicSurvivalBalance.enemyWaveHpScale(wave) *
+        (1.0 + 0.22 * clearedGuardianCount);
+    final damageScale =
+        CosmicSurvivalBalance.enemyWaveDamageScale(wave) *
+        (1.0 + 0.07 * clearedGuardianCount);
+    final speedScale = CosmicSurvivalBalance.enemyWaveSpeedScale(wave);
+    final e = CosmicSurvivalEnemy(
+      position: offscreenSpawn(currentRoom, from),
+      hp: hp * hpScale,
+      maxHp: hp * hpScale,
+      speed: speed * speedScale,
+      damage: damage * damageScale,
+      radius: radius,
+      tier: tier,
+      element: element,
+      conduct: conduct,
+      target: CosmicEnemyTarget.companion,
+    );
+    if (steers) e.flightSteering = FlightSteeringState(_combatRng);
+    combatEnemies.add(e);
+    onChanged();
+    return true;
+  }
+
   void spawnWispWave({
     required String element,
     required Offset center,

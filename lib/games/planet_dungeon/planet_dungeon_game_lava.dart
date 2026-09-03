@@ -184,26 +184,78 @@ extension MoltenReliquary on PlanetDungeonGame {
     }
   }
 
-  /// WHAT A POUR COSTS. Every charge draws more out of the dark.
+  /// WHAT A POUR COSTS. Every charge draws more out of the dark, and what
+  /// comes is a FOUNDRY'S dark — not the same wisp every planet sends.
   ///
   /// The crucible held five and would not give a sixth, which punished a
-  /// misread room with the whole run. This is the same pressure expressed as
-  /// something you can fight: pour freely, and the works notices. The first
-  /// couple are quiet — you are meant to learn the line — and it climbs from
-  /// there, so an eight-pour plan is paid for in what is standing behind you
-  /// by the end of it.
+  /// misread room with the whole run. This is that pressure expressed as
+  /// something you can fight instead of something you can only run out of.
+  /// The first two charges are quiet: you are meant to learn the line on
+  /// them. After that it climbs, and it climbs in KINDS, so the tenth pour
+  /// does not feel like the third with more of it.
+  ///
+  ///   · CINDERS, always — fast, fragile, straight at you. The noise.
+  ///   · SLAG DRONES from the third — glass cannons that dart and trail.
+  ///   · A SPITTER from the fifth — holds off and throws. This one is the
+  ///     real change: standing still at a lever stops being free, which on a
+  ///     planet where every decision is made at a lever is exactly where the
+  ///     pressure belongs.
+  ///   · A CLINKER from the seventh — slow, heavy, enormous. It cannot catch
+  ///     you and is not trying to; it takes the ground you were standing on.
   void _pourPressure() {
     final n = works.line.poursSpent;
     if (n <= _kQuietPours) return;
     final over = n - _kQuietPours;
-    final count = min(1 + over ~/ 2, 4);
-    spawnWispWave(
-      element: over >= 4 ? 'Lava' : 'Fire',
-      center: active?.position ?? currentRoom.bounds.center,
-      count: count,
-      unstable: over >= 6,
-      announce: false,
-    );
+    final at = active?.position ?? currentRoom.bounds.center;
+
+    for (var i = 0; i < min(1 + over ~/ 2, 3); i++) {
+      spawnDungeonEnemy(
+        tier: EnemyTier.wisp,
+        conduct: EnemyConduct.charge,
+        element: 'Fire',
+        from: at,
+        hp: 22,
+        speed: 80,
+        damage: 9,
+      );
+    }
+    if (over >= 2) {
+      spawnDungeonEnemy(
+        tier: EnemyTier.drone,
+        conduct: EnemyConduct.stalk,
+        element: 'Lava',
+        from: at,
+        hp: 20,
+        speed: 120,
+        damage: 12,
+        radius: 10,
+        steers: true,
+      );
+    }
+    if (over >= 4) {
+      spawnDungeonEnemy(
+        tier: EnemyTier.sentinel,
+        conduct: EnemyConduct.standoff,
+        element: 'Lava',
+        from: at,
+        hp: 48,
+        speed: 60,
+        damage: 11,
+        radius: 15,
+      );
+    }
+    if (over >= 6) {
+      spawnDungeonEnemy(
+        tier: EnemyTier.brute,
+        conduct: EnemyConduct.charge,
+        element: 'Lava',
+        from: at,
+        hp: 130,
+        speed: 46,
+        damage: 18,
+        radius: 21,
+      );
+    }
     if (over == 1) {
       speakConsequence(
         'The works is being watched. Every charge you draw brings more of '
@@ -1016,6 +1068,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     _renderFixtures(canvas, room);
     _renderPourBead(canvas, room);
     _renderSpoilBurst(canvas);
+    _renderWardLocks(canvas, room);
     _renderCarriedKey(canvas);
     if (room.id == 'stamp_mill' && works.firedamp > 0) {
       _renderFiredamp(canvas, room);
@@ -1236,6 +1289,92 @@ extension MoltenReliquary on PlanetDungeonGame {
             t,
           )!.withValues(alpha: 0.42 * (1 - t) * pulse),
       );
+    }
+  }
+
+  /// THE WARD PLATE. A lock on the door that answers to a key.
+  ///
+  /// A bolted door looked like every other door: the only thing saying *this
+  /// is where the key goes* was a refusal line you got by walking into it.
+  /// On a planet whose middle act is cast a key, carry it, turn it, the
+  /// keyhole is the single most important piece of signage in the works.
+  ///
+  /// Three states, and the middle one is the point: shut, shut-AND-you-are-
+  /// holding-its-key (lit, pulsing, unmissable from across the room), and
+  /// turned.
+  void _renderWardLocks(Canvas canvas, DungeonRoom room) {
+    for (final d in room.doors) {
+      final ward = _wardIdFor(room, d);
+      if (ward == null) continue;
+      final turned = works.line.wardsTurned.contains(ward);
+      final holding = works.line.carried == ward;
+      final r = d.rect;
+      final b = room.bounds;
+      // Sit the plate on the room side of the doorway.
+      final inward = Offset(
+        r.center.dx < b.center.dx ? 22 : -22,
+        r.center.dy < b.center.dy && r.height < r.width ? 20 : 0,
+      );
+      final at =
+          r.center + (r.width < r.height ? inward : Offset(0, inward.dy));
+
+      final pulse = 0.5 + 0.5 * sin(works.clock * 3.4);
+      final tint = turned
+          ? const Color(0xFF7FBF8A)
+          : holding
+          ? Color.lerp(const Color(0xFFFFD98A), const Color(0xFFFFF3D0), pulse)!
+          : const Color(0xFF8A7355);
+
+      // The plate.
+      _ironPlate(canvas, Rect.fromCenter(center: at, width: 30, height: 36));
+      _rivets(
+        canvas,
+        Rect.fromCenter(center: at, width: 30, height: 36),
+        inset: 5,
+      );
+      // The keyhole: a round ward over a bit-slot — the shape of the key.
+      canvas.drawCircle(
+        at - const Offset(0, 4),
+        6,
+        Paint()..color = const Color(0xFF0B0D10),
+      );
+      canvas.drawPath(
+        Path()
+          ..moveTo(at.dx - 3.4, at.dy - 1)
+          ..lineTo(at.dx + 3.4, at.dy - 1)
+          ..lineTo(at.dx + 2.2, at.dy + 9)
+          ..lineTo(at.dx - 2.2, at.dy + 9)
+          ..close(),
+        Paint()..color = const Color(0xFF0B0D10),
+      );
+      canvas.drawCircle(
+        at - const Offset(0, 4),
+        6,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8
+          ..color = tint,
+      );
+      if (turned) {
+        // Thrown: the bolt is back, and it stays visibly back.
+        canvas.drawLine(
+          at + const Offset(-9, 12),
+          at + const Offset(9, 12),
+          Paint()
+            ..strokeWidth = 3
+            ..strokeCap = StrokeCap.round
+            ..color = tint,
+        );
+      } else if (holding && _fx.ready) {
+        // YOU HAVE THIS ONE. The whole reason the plate exists.
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          at,
+          30 + 8 * pulse,
+          tint.withValues(alpha: 0.42),
+        );
+      }
     }
   }
 

@@ -673,6 +673,30 @@ void main() {
       expect(kLavaLine.node('slag_pit').roomId, 'chill_house');
     });
 
+    test('and never runs THROUGH one', () {
+      // The other half of "meet the doorway", and the half I got wrong first:
+      // both of the mould floor's west runs were routed to the gantry door's
+      // own height, so they crossed it. Two thirds of the way out was running
+      // metal — reported from play as "the door is kind of blocked", which it
+      // literally was. Adjacent is the goal; overlapping is a wall.
+      for (final room in kLavaLayout.rooms.values) {
+        for (final d in room.doors) {
+          for (final ch in kLavaLine.channelsIn(room.id)) {
+            for (final seg in ch.segments) {
+              if (seg.roomId != room.id) continue;
+              expect(
+                seg.rect.overlaps(d.rect),
+                isFalse,
+                reason:
+                    '${ch.id} runs across ${room.id}\'s door to '
+                    '${d.targetRoomId} — metal in a doorway is a shut door',
+              );
+            }
+          }
+        }
+      }
+    });
+
     test('a channel that crosses a doorway MEETS that doorway', () {
       // Reported from play, twice, from two different rooms: *"in tap head
       // there are two flowing pipes, then I come out of the door and they're

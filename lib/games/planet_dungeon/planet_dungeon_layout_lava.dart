@@ -899,8 +899,12 @@ const FoundryLine kLavaLine = FoundryLine(
         // IN AT THE DOOR, THEN DOWN. It used to appear at the very bottom of
         // the mould floor, 466px from the doorway you walked through — the
         // worst crossing in the works, and the same fault the tap head had.
-        FoundrySegment('mold_floor', Rect.fromLTWH(0, 300, 300, 28)),
-        FoundrySegment('mold_floor', Rect.fromLTWH(272, 328, 28, 518)),
+        // ABOVE the gantry doorway (y 300-380), not across it. Routing these
+        // to "meet the door" put them THROUGH it: the feed took its top 28px
+        // and the tail another 28, so two thirds of the way out was running
+        // metal. Adjacent is the goal; overlapping is a blocked door.
+        FoundrySegment('mold_floor', Rect.fromLTWH(0, 250, 300, 28)),
+        FoundrySegment('mold_floor', Rect.fromLTWH(272, 278, 28, 568)),
         FoundrySegment('mold_floor', Rect.fromLTWH(272, 846, 278, 30)),
       ],
     ),
@@ -1014,12 +1018,13 @@ const FoundryLine kLavaLine = FoundryLine(
         ),
         FoundrySegment(
           'mold_floor',
-          Rect.fromLTWH(60, 28, 28, 312),
+          Rect.fromLTWH(60, 28, 28, 372),
           reverse: true,
         ),
+        // …and BELOW it.
         FoundrySegment(
           'mold_floor',
-          Rect.fromLTWH(0, 340, 88, 28),
+          Rect.fromLTWH(0, 400, 88, 28),
           reverse: true,
         ),
         FoundrySegment(
