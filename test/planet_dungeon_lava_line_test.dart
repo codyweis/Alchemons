@@ -388,6 +388,46 @@ void main() {
       }
     });
 
+    test('a frozen arm can always be melted back open', () {
+      // Reported from play: freeze the chill arm, then find the span needs
+      // plain metal and the mill only wards it — "there's no way to undo".
+      // There always was: RULE 5 says the world is never what ends a run, and
+      // a Lava heart melts any casting back out, plugs included.
+      //
+      // What stranded the player was the GAME SAYING OTHERWISE. The line on
+      // freezing read "nothing runs up this arm again", which is simply false
+      // and is the only account of the mechanic they ever got. A rule the
+      // engine does not enforce, stated as though it did, is worse than
+      // silence.
+      final s = _fresh();
+      s.tapWoken = true;
+      s.switches['y_yard'] =
+          0; // the chill arm (the opening line aims at the mill)
+      s.switches['chiller'] = 1;
+      s.tap();
+      for (var i = 0; i < 20 && s.pour != null; i++) {
+        s.arrive();
+      }
+      expect(s.plugged('ch_north'), isTrue, reason: 'the shroud set it');
+
+      final plug = s.castings['plug:ch_north']!;
+      expect(
+        foundryBlocks(s, plug.roomId, plug.rect.center),
+        isFalse,
+        reason: 'you can stand on the road it made — which is how you reach it',
+      );
+      // Nothing else claims that press: the chiller's own lever is further
+      // away than a hand can reach from the plug.
+      final chiller = kLavaLine.node('chiller');
+      expect(
+        (chiller.leverAt! - plug.rect.center).distance,
+        greaterThan(70),
+        reason: 'or the lever would eat the melt',
+      );
+      s.remelt('plug:ch_north');
+      expect(s.plugged('ch_north'), isFalse, reason: 'and the arm runs again');
+    });
+
     test('a ruined casting bears no weight', () {
       // Found while chasing a play report that a spoiled key "looks like the
       // bridge". Keys were only ever safe from this because they are authored

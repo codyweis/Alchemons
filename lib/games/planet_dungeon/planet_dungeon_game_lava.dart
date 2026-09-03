@@ -381,7 +381,7 @@ extension MoltenReliquary on PlanetDungeonGame {
           ..flashAt = dest.position;
         speakConsequence(
           'The metal sets where it stood — a road across, and a plug behind '
-          'it. Nothing runs up this arm again.',
+          'it. Nothing runs up this arm until a Lava heart melts it out.',
         );
         _spawnAlchemyBurst(
           dest.position,
@@ -909,8 +909,8 @@ extension MoltenReliquary on PlanetDungeonGame {
             ? null
             : 'The works drain into a sump you cannot cross';
       case 'switch_yard':
-        return 'Set the whole road before you tap — five charges to a shift, '
-            'and cold metal never runs again';
+        return 'Set the whole road before you tap — one charge at a time, '
+            'and cold metal blocks an arm until Lava melts it back out';
       case 'chill_house':
         return s.wardsTurned.contains('gantry')
             ? 'The gantry stands open to the mould floor'
@@ -1904,6 +1904,41 @@ extension MoltenReliquary on PlanetDungeonGame {
       );
       if (!c.spoiled && _fx.ready) {
         drawGlow(canvas, _fx.glow!, c.rect.center, 34, const Color(0x2288D8F0));
+      }
+      // IT CAN BE UNDONE, and the only thing that ever said so was a line
+      // that said the opposite. A Lava heart in reach warms the casting's
+      // rim: no text, no prompt, just the one element that can melt it
+      // visibly getting a reaction out of it.
+      //
+      // A player who froze the chill arm and then needed plain metal for the
+      // span had, as far as they could tell, ended their run — the game had
+      // told them "nothing runs up this arm again", which was never true.
+      final a = active;
+      if (a != null &&
+          a.alive &&
+          a.member.element == 'Lava' &&
+          (a.position - c.rect.center).distance <= _kWorksReach + 20) {
+        final pulse = 0.5 + 0.5 * sin(works.clock * 3.6);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(c.rect.inflate(2), const Radius.circular(6)),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.4
+            ..color = Color.lerp(
+              _worksEdge,
+              _worksCore,
+              0.35 * pulse,
+            )!.withValues(alpha: 0.55 + 0.35 * pulse),
+        );
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            c.rect.center,
+            40,
+            _worksEdge.withValues(alpha: 0.16 + 0.10 * pulse),
+          );
+        }
       }
     }
   }
