@@ -130,6 +130,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     if (w.headCool > 0) w.headCool -= dt;
     if (w.flash > 0) w.flash = max(0.0, w.flash - dt * 1.6);
     _advancePour(dt);
+    _maybeTakeBlackGlass(room, a);
     _maybeWakeMagmara();
 
     // The star is simply where the line leaves you: no extra ceremony (§7).
@@ -227,9 +228,10 @@ extension MoltenReliquary on PlanetDungeonGame {
       case PourEvent.lost:
         _setHint(
           dest.kind == FoundryNodeKind.sink
-              ? 'The charge runs off into the slag'
+              ? 'The charge goes into the slag — and something in there '
+                    'takes the heat and turns'
               : 'The charge congeals against cold metal',
-          3.0,
+          3.6,
         );
         if (via.segments.isNotEmpty) {
           _spawnAlchemyBurst(
@@ -382,9 +384,11 @@ extension MoltenReliquary on PlanetDungeonGame {
     final s = works.line;
     final el = a.member.element;
 
-    // THE BLACK GLASS RITE (§6 egg 8): quench the font mid-pour. It costs the
-    // charge AND leaves the same cold plug any other freeze does — three of
-    // them is a run given up on purpose, which is the point of the maxim.
+    // Quench the font mid-pour: it costs the charge and leaves the same cold
+    // plug any other freeze does. It is no longer the maxim (see
+    // `_maybeTakeBlackGlass`) — three quenches cost three of five pours, so
+    // the old secret could never be had in the same run as the planet, which
+    // makes it a forfeit rather than a discovery.
     if (s.pour != null && s.pour!.channelId == 'ch_tap') {
       if (el != 'Ice') {
         _setBlockedHint('Only Ice quenches a running font');
@@ -401,14 +405,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         particleCount: 20,
         intensity: 0.9,
       );
-      if (s.quenches >= kLavaBlackGlassQuenches &&
-          !discoveredClouds.contains(kLavaBlackGlassEggId)) {
-        // THE RITE OF THREE pays this out (see `beginMaximRite`).
-        _setHint('Three spoiled keys cool into one black mirror', 4.0);
-        beginMaximRite(kLavaBlackGlassEggId, tap.position);
-      } else {
-        _setHint('The font goes black — the charge dies in the channel');
-      }
+      _setHint('The font goes black — the charge dies in the channel');
       return true;
     }
 
@@ -1377,6 +1374,45 @@ extension MoltenReliquary on PlanetDungeonGame {
     }
   }
 
+  /// THE BLACK GLASS — Lava's lost maxim, and it is a PLACE bought with the
+  /// only thing this planet meters.
+  ///
+  /// It used to be *quench three pours at the font with Ice*: one verb three
+  /// times, which §7's table grades ⬜, and worse than merely weak — three
+  /// quenches cost three of five pours and the works needs four, so the
+  /// secret and the planet could never be had in the same run. A maxim you
+  /// can only take by forfeiting the dungeon is not a discovery, it is a
+  /// price list.
+  ///
+  /// What it asks now is one deliberate act against instinct: **send a pour
+  /// into the slag pit.** The lever says SLAG, the pit is drawn in the chill
+  /// house, and everything about the works says never do that — a charge that
+  /// goes in there is simply gone. The budget is what makes it a decision
+  /// rather than a dare: the intended solve costs four of five, so the spare
+  /// pour is exactly affordable, and the planet's whole economy turns out to
+  /// have had one pour in it for the person who wondered what the waste line
+  /// was for. Melt cooled fast in slag is obsidian; the pit gives it back.
+  void _maybeTakeBlackGlass(DungeonRoom room, DungeonCreature a) {
+    final s = works.line;
+    if (!s.slagTaken) return;
+    if (discoveredClouds.contains(kLavaBlackGlassEggId)) return;
+    for (final n in s.line.nodesIn(room.id)) {
+      if (n.kind != FoundryNodeKind.sink) continue;
+      if ((a.position - n.position).distance > _kWorksReach) continue;
+      _setHint('Cooled too fast to be iron. It gives back your own face.', 4.2);
+      beginMaximRite(kLavaBlackGlassEggId, n.position);
+      _spawnAlchemyBurst(
+        n.position,
+        producedElement: 'Ice',
+        reagentElements: const ['Lava'],
+        unstable: true,
+        particleCount: 30,
+        intensity: 1.1,
+      );
+      return;
+    }
+  }
+
   /// A PLATE OF IRON with a bevel, which is what every fixture on this planet
   /// is made of. Flat single-colour rectangles read as placeholder geometry;
   /// a lit top lip and a shadowed foot are the whole difference between a
@@ -1669,6 +1705,51 @@ extension MoltenReliquary on PlanetDungeonGame {
               4.0 + (i % 3),
               Paint()..color = const Color(0xFF525E50),
             );
+          }
+          // AND WHAT A THROWN-AWAY POUR LEAVES IN IT. Obsidian: melt cooled
+          // too fast to be iron. It has to look like the one thing in this
+          // works that is not hot and not dead — a black mirror, with the
+          // room's own fires moving on it.
+          if (s.slagTaken && !discoveredClouds.contains(kLavaBlackGlassEggId)) {
+            final glass = Path();
+            for (var i = 0; i < 7; i++) {
+              final a = i * 2 * pi / 7 - 0.3;
+              final rr = 20.0 + (i.isEven ? 6 : -4);
+              final pt = p + Offset(cos(a) * rr, sin(a) * rr * 0.62);
+              i == 0 ? glass.moveTo(pt.dx, pt.dy) : glass.lineTo(pt.dx, pt.dy);
+            }
+            glass.close();
+            canvas.drawPath(glass, Paint()..color = const Color(0xFF07070B));
+            canvas.drawPath(
+              glass,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.6
+                ..color = const Color(0xFF6E7A8C).withValues(alpha: 0.75),
+            );
+            // The sheen travelling across the face.
+            final t = (works.clock * 0.22) % 1.0;
+            canvas.save();
+            canvas.clipPath(glass);
+            canvas.drawLine(
+              p + Offset(-26 + 52 * t, -18),
+              p + Offset(-12 + 52 * t, 18),
+              Paint()
+                ..strokeWidth = 5
+                ..color = const Color(
+                  0xFFCFE2F2,
+                ).withValues(alpha: 0.20 * sin(t * pi)),
+            );
+            canvas.restore();
+            if (_fx.ready) {
+              drawGlow(
+                canvas,
+                _fx.glow!,
+                p,
+                44,
+                const Color(0xFF9FBCCC).withValues(alpha: 0.16),
+              );
+            }
           }
         case FoundryNodeKind.junction:
           // THE GATE ITSELF. A junction used to be nothing on the floor —

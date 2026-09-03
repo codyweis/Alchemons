@@ -29,6 +29,7 @@
 //     the tail lever and the hidden mold are genuinely unreachable until the
 //     casting that opens them exists — the puzzle cannot be walked around.
 
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -386,10 +387,16 @@ void main() {
       }
     });
 
-    test('the Black Glass maxim and the works cannot share one run', () {
-      // §6 egg 8 wants three quenched pours. That is the sacrifice, and the
-      // budget is authored so it reads as one.
-      expect(kLavaPourBudget - kLavaBlackGlassQuenches, lessThan(4));
+    test('the Black Glass maxim and the works CAN share one run', () {
+      // The inverse of what this used to assert. Three quenched pours was the
+      // old maxim and it cost three of five against a works that needs four,
+      // so the test asserted the sacrifice: you could not have both. A secret
+      // that can only be bought by forfeiting the dungeon is a price list.
+      //
+      // The slag pit costs ONE, which is exactly the spare — the planet's
+      // economy turns out to have had a pour in it all along for whoever
+      // wondered what the waste line was for.
+      expect(kLavaPourBudget - 1, greaterThanOrEqualTo(4));
     });
   });
 
@@ -524,6 +531,38 @@ void main() {
       s.pour = LivePour(channelId: 'ch_sump', form: PourForm.plain)..t = 0.5;
       s.freezeHere();
       expect(canWalk(s, 'tap_head', spawn, mold), isTrue);
+    });
+
+    test('the lost maxim is the pour you throw away, and it is affordable', () {
+      // WHAT THIS REPLACES. Black Glass was *quench three pours at the font
+      // with Ice*: one verb three times, and three of your five pours. The
+      // works needs four. So the maxim and the planet could never be had in
+      // the same run — a secret you can only take by forfeiting the dungeon
+      // is a price list, not a discovery.
+      //
+      // It is the SLAG PIT now: send one charge down the waste line, which
+      // is the single thing the works marks as pure loss, and obsidian cools
+      // in it. The budget is what makes that a decision — the intended solve
+      // costs four of five, so the spare pour is exactly what pays for it.
+      expect(
+        kLavaPourBudget,
+        greaterThanOrEqualTo(5),
+        reason:
+            'four pours to finish the works, one spare — and the spare '
+            'is what the secret costs',
+      );
+      final s = _fresh();
+      expect(s.slagTaken, isFalse);
+      // A charge arriving at the sink is lost — and leaves the glass.
+      s.pour = LivePour(channelId: 'ch_slag', form: PourForm.plain)..t = 1.0;
+      expect(s.arrive(), PourEvent.lost);
+      expect(
+        s.slagTaken,
+        isTrue,
+        reason: 'the pit keeps what you threw into it',
+      );
+      // And it is in a room you can walk to without spending anything else.
+      expect(kLavaLine.node('slag_pit').roomId, 'chill_house');
     });
 
     test('a channel that crosses a doorway MEETS that doorway', () {
@@ -1094,27 +1133,59 @@ void _engineRun() {
       expect(s.poursLeft, kLavaPourBudget - 2);
     });
 
-    test('the Black Glass rite spends the run on purpose', () {
+    test('the Black Glass is taken from the slag pit, and a full run can '
+        'still afford it', () {
+      // WHAT THIS REPLACES: quench three pours at the font. Three of five,
+      // against a works that needs four — so the maxim and the planet could
+      // never be had in the same run. That is a price list, not a secret.
       final found = <String>[];
       final g = _harness(_idealTrio(), onCloud: found.add);
-      actAt(g, 'tap_head', lava, tapAt); // the first press wakes the line
-      for (var i = 0; i < kLavaBlackGlassQuenches; i++) {
-        actAt(g, 'tap_head', lava, tapAt);
-        expect(g.works.line.pour, isNotNull);
-        actAt(g, 'tap_head', ice, tapAt);
-        g.works.line.remelt('plug:ch_tap'); // clear the spoil and go again
+      final s = g.works.line;
+      actAt(g, 'tap_head', lava, tapAt); // wake the line
+
+      // Send one charge down the waste line: yard to the chill arm, the tail
+      // switch thrown to SLAG. Everything about the works says do not.
+      setLever(g, 'y_return', 0);
+      s.slagTaken = false;
+      s.pour = LivePour(channelId: 'ch_slag', form: PourForm.plain)..t = 1.0;
+      expect(s.arrive(), PourEvent.lost);
+      expect(s.slagTaken, isTrue);
+
+      // Then you go and take what cooled in it.
+      final pit = kLavaLine.node('slag_pit');
+      g.currentRoomId = 'chill_house';
+      for (final c in g.creatures) {
+        c
+          ..position = pit.position + const Offset(-58, 0)
+          ..lastSafe = c.position;
       }
-      expect(g.works.line.quenches, kLavaBlackGlassQuenches);
-      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
-      for (var tick = 0; tick < 200; tick++) {
+      // The Rite of Three settles before the gold lands.
+      for (var tick = 0; tick < 60 * 5; tick++) {
         g.update(1 / 60);
       }
       expect(found, contains(kLavaBlackGlassEggId));
-      expect(g.works.line.poursLeft, kLavaPourBudget - kLavaBlackGlassQuenches);
+    });
+
+    test('there is standable ground within reach of the slag pit', () {
+      // The pit IS the end of its channel, so the node itself is inside the
+      // metal — what has to be true is that you can stand close enough to
+      // take what is in it.
+      final s = _fresh();
+      final pit = kLavaLine.node('slag_pit');
+      var reachable = false;
+      for (var a = 0; a < 16; a++) {
+        for (final r in const [40.0, 58.0, 68.0]) {
+          final at =
+              pit.position + Offset(cos(a * pi / 8) * r, sin(a * pi / 8) * r);
+          if (!kLavaLayout.rooms[pit.roomId]!.bounds.contains(at)) continue;
+          if (foundryBlocks(s, pit.roomId, at)) continue;
+          reachable = true;
+        }
+      }
       expect(
-        g.works.line.poursLeft,
-        lessThan(4),
-        reason: 'and the works cannot be finished on what is left',
+        reachable,
+        isTrue,
+        reason: 'nowhere to stand at the pit means the maxim cannot be taken',
       );
     });
   });

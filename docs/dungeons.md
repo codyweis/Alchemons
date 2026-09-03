@@ -1456,7 +1456,7 @@ queue:
 | **Water** — The Stilled Mirror | 4 | Water (stand still) · Spirit×3 · Ice | ✅ rebuilt 2026-09-01 |
 | **Lightning** — Thunderbolt | 3 | Air · Fire×4 · Lightning | ✅ rebuilt 2026-09-01 |
 | **Steam** — Hidden Harmony | 1 | the whole main, spent on something that is not a door | ✅ §9.6 |
-| **Lava** — Black Glass | 1 | Ice ×3 quenches | ⬜ one verb, three times |
+| **Lava** — Black Glass | 1 | the pour you throw away | ✅ §9.7 |
 | **Poison** — The Dose | 1 | cure the sick wisp | ⬜ one press |
 | **Mud** — No Mud No Lotus | 3 | Plant · Water · Mud | ▶ closest of the rest |
 | **Dust** — Nothing Perishes | 1 | Air sweeps every print | ⬜ one verb, N times |
@@ -2400,7 +2400,10 @@ see any of that.
     report itself suggested — bring the run DOWN to the door before it
     leaves, then along the wall to wherever it is going. An invariant measures
     every hand-off against its door.
-  · ⬜ CARRIED: the maxim. §7's table grades **Black Glass** ⬜ *"one verb,
+  · ✅ **THE MAXIM IS THE POUR YOU THROW AWAY** — §9.7.
+  · ⬜ CARRIED: a device playtest of the whole planet end to end. Everything
+    above came out of play, but nobody has yet run it from the tap head to
+    Magmara in one sitting. §7's table grades **Black Glass** ⬜ *"one verb,
     three times"* — quench three times with Ice. That is an achievement, not
     a puzzle, and Steam has just shown what the fix looks like (§9.6): a
     maxim has to be a PLACE.
@@ -2864,6 +2867,32 @@ rounded outer corners instead of a field of separate tiles.
     reached the floor crawled into the mould and the room won itself.
   · **A wrong answer cost a re-plan, never a run** — the property the four
     corners inherited whole.
+
+### §9.7 LAVA'S LOST MAXIM — the pour you throw away
+
+**A secret you can only buy by forfeiting the dungeon is a price list.** Black
+Glass was *quench three pours at the font with Ice*: one verb three times,
+which §7's table grades ⬜ — and worse than weak, because three quenches cost
+three of five pours against a works that needs four. The maxim and the planet
+could never be had in the same run. There was even a test asserting the
+sacrifice, which is how you know it was deliberate and still wrong: nobody
+gives up a planet to see a reaction.
+
+**It is the SLAG PIT now.** One charge down the waste line — the single thing
+the works marks as pure loss, the branch the tail switch labels SLAG, the
+place a pour is *simply gone* — and obsidian cools in it. Go and take it.
+
+**The budget is what makes it a decision.** The intended solve costs four of
+five, so the spare pour is exactly what this costs: the planet's whole economy
+turns out to have had one pour in it for the person who wondered what the
+waste line was for. It is discoverable from the lever plate, it is one
+deliberate act against every instinct the works has trained, and it does not
+cost you the run. Melt cooled fast in slag is obsidian, and the pit gives it
+back — *"cooled too fast to be iron; it gives back your own face."*
+
+It also sits on a road you already walk: the pit is on the catwalk, which you
+need anyway to throw the tail switch for the Reliquary Star. The secret is not
+a detour, it is a **choice at a junction you were already standing at.**
 
 ### §9.6 STEAM'S LOST MAXIM — a maxim has to be a PLACE
 

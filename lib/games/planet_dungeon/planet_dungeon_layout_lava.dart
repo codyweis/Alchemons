@@ -49,7 +49,6 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 const int kLavaPourBudget = 5;
 
 /// Quenched pours needed for the Lost Maxim (§6 egg 8, "Black Glass").
-const int kLavaBlackGlassQuenches = 3;
 
 /// Seconds a pour takes to cross 100px of channel. Slow enough to run ahead of
 /// and re-route (that IS the kinetic layer), fast enough not to be a wait.
@@ -355,6 +354,10 @@ class FoundryState {
   /// Black Glass: pours quenched at the font this run.
   int quenches = 0;
 
+  /// A pour deliberately thrown away into the slag pit — the one thing the
+  /// works marks as pure waste. What cools in there is the planet's secret.
+  bool slagTaken = false;
+
   /// True once the crucible has been woken (the entry rite).
   bool tapWoken = false;
 
@@ -374,6 +377,7 @@ class FoundryState {
     wardsTurned.clear();
     dieWoken = false;
     quenches = 0;
+    slagTaken = false;
     tapWoken = false;
     pour = null;
     poursSpent = 0;
@@ -518,6 +522,7 @@ class FoundryState {
         final pick = settingOf(at.id).clamp(0, at.exits.length - 1);
         return _leaveBy(at, p, at.exits[pick]);
       case FoundryNodeKind.sink:
+        slagTaken = true;
         pour = null;
         return PourEvent.lost;
       case FoundryNodeKind.mold:
