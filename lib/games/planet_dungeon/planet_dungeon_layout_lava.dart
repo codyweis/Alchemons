@@ -496,6 +496,12 @@ class FoundryState {
   bool spanned(Offset p, String roomId) {
     for (final c in castings.values) {
       if (c.roomId != roomId) continue;
+      // A RUINED CASTING BEARS NO WEIGHT. This did not check `spoiled`, so
+      // warded metal poured into the span form left a failed casting that was
+      // still a full walkable slab across the runner — you crossed it and
+      // took the Ember Star on a cast that had failed. Keys were only safe
+      // from the same bug by being authored 0x0.
+      if (c.spoiled) continue;
       if (c.rect.contains(p)) return true;
     }
     return false;

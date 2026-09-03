@@ -49,6 +49,9 @@ const double _kWorksReach = 70.0;
 /// wait for something you cannot change.
 const double _kRelaySeconds = 3.0;
 
+/// How long a form takes to throw a bad charge back out.
+const double _kSpoilSeconds = 1.1;
+
 /// How close a creature must be to the running pour to set it by hand.
 const double _kChillReach = 104.0;
 
@@ -113,6 +116,10 @@ class MoltenWorks {
 
   /// Which charge the pour cam has already decided about.
   int pourWatchSeen = -1;
+
+  /// A form REJECTING a charge: 1 → 0 over the throw-back.
+  double spoil = 0;
+  Offset spoilAt = Offset.zero;
 }
 
 extension MoltenReliquary on PlanetDungeonGame {
@@ -141,6 +148,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     if (w.firedamp > 0) w.firedamp = max(0.0, w.firedamp - dt);
     if (w.headCool > 0) w.headCool -= dt;
     if (w.flash > 0) w.flash = max(0.0, w.flash - dt * 1.6);
+    if (w.spoil > 0) w.spoil = max(0.0, w.spoil - dt / _kSpoilSeconds);
     _advancePour(dt);
     _followPour();
     _maybeTakeBlackGlass(room, a);
@@ -197,12 +205,20 @@ extension MoltenReliquary on PlanetDungeonGame {
       if (p.t < 1.0) return;
       final dest = s.line.node(ch.to);
       final wasGas = p.form == PourForm.gassed;
+      // Read BEFORE the arrival resolves: `arrive` fills the form, so
+      // afterwards there is no way to tell "wrong metal" from "already full",
+      // and those are completely different mistakes to have made.
+      final arrivedAs = p.form;
+      final wasOccupied =
+          dest.kind == FoundryNodeKind.mold && s.molds.containsKey(dest.id);
       final event = s.arrive();
       _announcePour(
         event,
         dest,
         ch,
         gassedNow: !wasGas && dest.kind == FoundryNodeKind.vent,
+        arrivedAs: arrivedAs,
+        wasOccupied: wasOccupied,
       );
       if (event != PourEvent.travelling) return;
     }
@@ -213,6 +229,8 @@ extension MoltenReliquary on PlanetDungeonGame {
     FoundryNode dest,
     FoundryChannel via, {
     required bool gassedNow,
+    PourForm arrivedAs = PourForm.plain,
+    bool wasOccupied = false,
   }) {
     if (gassedNow) {
       // THE CONSEQUENCE (§7): the purge does exactly what a purge does, and
@@ -261,13 +279,39 @@ extension MoltenReliquary on PlanetDungeonGame {
           intensity: 0.9,
         );
       case PourEvent.spoiled:
-        _setHint('The form spits it back — the casting is ruined', 3.2);
+        // NAME THE MISMATCH. "The casting is ruined" says a thing failed and
+        // nothing about why, which on a planet where you commit a whole route
+        // before you see any of it is the least useful moment to go quiet.
+        _setHint(switch (true) {
+          _ when wasOccupied =>
+            'There is already a casting in this form — melt it out with a '
+                'Lava heart before you pour again',
+          _
+              when dest.wants == PourForm.stamped &&
+                  arrivedAs == PourForm.plain =>
+            'The form throws it back — it is cut for WARDED metal. Nothing '
+                'stamped this charge: the mill\'s die is dead iron until '
+                'steam drives it',
+          _
+              when dest.wants == PourForm.plain &&
+                  arrivedAs == PourForm.stamped =>
+            'The form throws it back — this one takes PLAIN metal, and the '
+                'die warded the charge on its way past',
+          _ => 'The form spits it back — the casting is ruined',
+        }, 4.6);
+        // IT HAS TO LOOK LIKE A REJECTION. A ruined casting used to arrive as
+        // silently as a good one — same tidy slab, a different grey — so the
+        // only way to know a charge had failed was to read the line.
+        works
+          ..spoil = 1.0
+          ..spoilAt = dest.position;
+        _shake = 5.0;
         _spawnAlchemyBurst(
           dest.position,
           producedElement: 'Lava',
           unstable: true,
-          particleCount: 14,
-          intensity: 0.7,
+          particleCount: 24,
+          intensity: 1.0,
         );
       case PourEvent.lost:
         _setHint(
@@ -583,7 +627,12 @@ extension MoltenReliquary on PlanetDungeonGame {
       recipeAvailable: braid,
     );
     if (!interactionSucceeded(r)) {
-      _setBlockedHint('The accumulator wants steam');
+      // NAME THE KEY. "Wants steam" is a refusal that reads as impossible —
+      // no trio on this planet carries Steam. What it wants is the BRAID.
+      _setBlockedHint(
+        'The accumulator wants steam — and steam is Ice and '
+        'Lava, standing here together',
+      );
       return true;
     }
     s.dieWoken = true;
@@ -896,6 +945,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     _renderCastings(canvas, room);
     _renderFixtures(canvas, room);
     _renderPourBead(canvas, room);
+    _renderSpoilBurst(canvas);
     if (room.id == 'stamp_mill' && works.firedamp > 0) {
       _renderFiredamp(canvas, room);
     }
@@ -1114,6 +1164,71 @@ extension MoltenReliquary on PlanetDungeonGame {
             _worksEdge,
             t,
           )!.withValues(alpha: 0.42 * (1 - t) * pulse),
+      );
+    }
+  }
+
+  /// A FORM THROWING A CHARGE BACK OUT. Plays once, where it happened.
+  ///
+  /// The point is that a failure has to be visible from across the room and
+  /// at the moment it occurs — not inferable afterwards from the colour of a
+  /// slab. Reported from play: a spoiled key looked like the span.
+  void _renderSpoilBurst(Canvas canvas) {
+    final t = works.spoil;
+    if (t <= 0) return;
+    final at = works.spoilAt;
+    final k = 1 - t; // 0 → 1 over the throw-back
+
+    // The ring it spits out.
+    canvas.drawCircle(
+      at,
+      18 + 52 * k,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5 * t
+        ..color = const Color(0xFFFF7A3C).withValues(alpha: 0.75 * t),
+    );
+    // Clots thrown clear, falling as they go.
+    for (var i = 0; i < 7; i++) {
+      final a = -pi / 2 + (i - 3) * 0.34;
+      final d = 20 + 66 * k;
+      final p = at + Offset(cos(a) * d, sin(a) * d + 78 * k * k);
+      canvas.drawCircle(
+        p,
+        5.5 * t,
+        Paint()
+          ..color = Color.lerp(
+            _worksEdge,
+            _worksSlag,
+            k,
+          )!.withValues(alpha: 0.9 * t),
+      );
+    }
+    // A hard X over the form for the first half — the one moment it is worth
+    // being blunt, because the charge is already gone.
+    if (t > 0.45) {
+      final x = Paint()
+        ..strokeWidth = 4
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFFF7A3C).withValues(alpha: (t - 0.45) * 1.6);
+      canvas.drawLine(
+        at + const Offset(-16, -16),
+        at + const Offset(16, 16),
+        x,
+      );
+      canvas.drawLine(
+        at + const Offset(16, -16),
+        at + const Offset(-16, 16),
+        x,
+      );
+    }
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        at,
+        40 + 30 * k,
+        const Color(0xFFFF7A3C).withValues(alpha: 0.30 * t),
       );
     }
   }
@@ -2141,20 +2256,57 @@ extension MoltenReliquary on PlanetDungeonGame {
       return;
     }
     final spoiled = !s.cast(held);
-    canvas.drawRect(
-      cavity.deflate(8),
-      Paint()..color = spoiled ? _worksSlag : _worksCold,
-    );
+    if (spoiled) {
+      // RUINED METAL LOOKS RUINED. A spoiled cast used to be the same tidy
+      // slab as a good one in a duller grey, which reads as "a casting" —
+      // reported from play as looking like the bridge. Slag is a lump: it
+      // slumped where it fell, it cracked as it went off, and nothing about
+      // it is square.
+      final inner = cavity.deflate(7);
+      final lump = Path();
+      for (var i = 0; i <= 9; i++) {
+        final a = i * 2 * pi / 9;
+        final wob = 0.62 + ((i * 37) % 5) * 0.09;
+        final pt =
+            inner.center +
+            Offset(
+              cos(a) * inner.width * 0.5 * wob,
+              sin(a) * inner.height * 0.55 * wob,
+            );
+        i == 0 ? lump.moveTo(pt.dx, pt.dy) : lump.lineTo(pt.dx, pt.dy);
+      }
+      lump.close();
+      canvas.drawPath(lump, Paint()..color = _worksSlag);
+      canvas.drawPath(
+        lump,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = const Color(0xFF2A322A),
+      );
+      // Cooling cracks across it.
+      final crack = Paint()
+        ..strokeWidth = 1.4
+        ..color = const Color(0xFF1D231D).withValues(alpha: 0.9);
+      for (var i = 0; i < 3; i++) {
+        final y = inner.top + inner.height * (0.3 + i * 0.2);
+        canvas.drawLine(
+          Offset(inner.left + 4 + i * 3, y),
+          Offset(inner.right - 6 + i * 2, y + (i.isEven ? 5 : -4)),
+          crack,
+        );
+      }
+      return;
+    }
+    canvas.drawRect(cavity.deflate(8), Paint()..color = _worksCold);
     canvas.drawRect(
       cavity.deflate(8),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5
-        ..color = spoiled
-            ? const Color(0xFF3E463C)
-            : const Color(0xFFDCF0FA).withValues(alpha: 0.7),
+        ..color = const Color(0xFFDCF0FA).withValues(alpha: 0.7),
     );
-    if (!spoiled && _fx.ready) {
+    if (_fx.ready) {
       drawGlow(canvas, _fx.glow!, n.position, 30, const Color(0x3388D8F0));
     }
   }

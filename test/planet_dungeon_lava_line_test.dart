@@ -388,6 +388,44 @@ void main() {
       }
     });
 
+    test('a ruined casting bears no weight', () {
+      // Found while chasing a play report that a spoiled key "looks like the
+      // bridge". Keys were only ever safe from this because they are authored
+      // 0x0 — the SPAN was not. `spanned()` never looked at `spoiled`, so
+      // warded metal poured into the span form left a failed casting that was
+      // still a full walkable slab across the runner: you crossed it and took
+      // the Ember Star on a cast that had failed.
+      final s = _fresh();
+      final rect = kLavaCastRects['span_a']!;
+      s.castings['cast:span_a'] = FoundryCasting(
+        id: 'cast:span_a',
+        roomId: 'mold_floor',
+        rect: rect,
+        channelId: '',
+        spoiled: true,
+      );
+      expect(s.cast('span_a'), isFalse);
+      expect(
+        s.spanned(rect.center, 'mold_floor'),
+        isFalse,
+        reason: 'a failed casting is not a road',
+      );
+      expect(
+        foundryBlocks(s, 'mold_floor', rect.center),
+        isTrue,
+        reason: 'and the runner under it is still running metal',
+      );
+
+      // The good one still carries, or the planet is unfinishable.
+      s.castings['cast:span_a'] = FoundryCasting(
+        id: 'cast:span_a',
+        roomId: 'mold_floor',
+        rect: rect,
+        channelId: '',
+      );
+      expect(s.spanned(rect.center, 'mold_floor'), isTrue);
+    });
+
     test('the opening line is not a solution', () {
       // Reported from play: *"the first pour I do without changing anything
       // unlocks star 1?"* It did. The works was left with its sluice aimed at
