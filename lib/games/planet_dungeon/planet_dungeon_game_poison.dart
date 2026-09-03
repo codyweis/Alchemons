@@ -953,8 +953,132 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   static const Color _venomBone = Color(0xFFD8CBA8);
 
   void _renderMonastery(Canvas canvas, DungeonRoom room) {
+    _renderLazarFloor(canvas, room);
     _renderStrains(canvas, room);
     _renderMonasteryFixtures(canvas, room);
+  }
+
+  /// A LAZAR HOUSE FLOOR. Worn flags, lime thrown down against the contagion,
+  /// straw where the sick lay, and a drain cut down one side.
+  ///
+  /// This planet had no floor renderer at all — every room was the engine's
+  /// green gradient with a rounded border and two or three flat primitives on
+  /// it, which is placeholder art rather than a place. It is the same first
+  /// move Steam and Lava each needed, and for the same reason: the ground is
+  /// the only thing in every single room, so it is the cheapest sentence the
+  /// planet can say about what it is.
+  void _renderLazarFloor(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    canvas.drawRect(
+      b,
+      Paint()
+        ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, const [
+          Color(0xFF161A15),
+          Color(0xFF0E120E),
+        ]),
+    );
+
+    var seed = room.id.codeUnits.fold<int>(
+      131,
+      (a, c) => (a * 137 + c) % 65413,
+    );
+    double rnd() {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    }
+
+    // FLAGSTONES. Irregular courses — a monastery floor was laid by hand out
+    // of whatever came off the hill, and a regular grid is the one thing that
+    // reads as a diagram (the lesson Lava's floor cost three attempts).
+    var y = b.top - 10;
+    while (y < b.bottom) {
+      final h = 46 + rnd() * 26;
+      var x = b.left - 20 - rnd() * 40;
+      while (x < b.right) {
+        final w = 60 + rnd() * 70;
+        final slab = Rect.fromLTWH(x + 1.5, y + 1.5, w - 3, h - 3);
+        if (slab.overlaps(b)) {
+          canvas.drawRect(
+            slab,
+            Paint()
+              ..color = Color.lerp(
+                const Color(0xFF20241D),
+                const Color(0xFF171B16),
+                rnd(),
+              )!,
+          );
+          // Lit top edge, so a flag is a flag and not a rectangle.
+          canvas.drawRect(
+            Rect.fromLTWH(slab.left, slab.top, slab.width, 1.6),
+            Paint()..color = const Color(0xFF2E342A).withValues(alpha: 0.6),
+          );
+          // Worn hollow in the middle of the older ones.
+          // A worn hollow, on a few. At a third of all flags these stacked
+          // with the lime into a mottle and the floor read as blotches
+          // rather than as stone.
+          if (rnd() < 0.16) {
+            canvas.drawOval(
+              slab.deflate(slab.width * 0.3),
+              Paint()..color = const Color(0xFF1A1E18).withValues(alpha: 0.5),
+            );
+          }
+        }
+        x += w;
+      }
+      y += h;
+    }
+
+    // QUICKLIME, thrown down against the contagion and never swept up.
+    for (var i = 0; i < 9; i++) {
+      final at = Offset(b.left + rnd() * b.width, b.top + rnd() * b.height);
+      final r = 9 + rnd() * 17;
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: r * 2, height: r * 1.25),
+        Paint()..color = _venomBone.withValues(alpha: 0.035 + rnd() * 0.035),
+      );
+      // A harder scatter at the middle of each throw, so it reads as
+      // something tipped out rather than a stain.
+      for (var k = 0; k < 5; k++) {
+        canvas.drawCircle(
+          at + Offset((rnd() - 0.5) * r * 1.6, (rnd() - 0.5) * r),
+          0.8 + rnd() * 1.4,
+          Paint()..color = _venomBone.withValues(alpha: 0.10 + rnd() * 0.10),
+        );
+      }
+    }
+
+    // STRAW, where the sick were laid — only in the wards.
+    if (room.ward != null) {
+      final straw = Paint()
+        ..strokeWidth = 1.4
+        ..strokeCap = StrokeCap.round;
+      for (var i = 0; i < 90; i++) {
+        final at = Offset(b.left + rnd() * b.width, b.top + rnd() * b.height);
+        final a = rnd() * pi;
+        straw.color = const Color(
+          0xFF6E6242,
+        ).withValues(alpha: 0.10 + rnd() * 0.12);
+        canvas.drawLine(
+          at,
+          at + Offset(cos(a), sin(a)) * (6 + rnd() * 9),
+          straw,
+        );
+      }
+    }
+
+    // THE DRAIN, down the low side. Everything in a lazar house runs somewhere.
+    final drain = Rect.fromLTWH(b.left + 18, b.bottom - 40, b.width - 36, 13);
+    canvas.drawRect(drain, Paint()..color = const Color(0xFF0A0D0A));
+    canvas.drawRect(
+      Rect.fromLTWH(drain.left, drain.top, drain.width, 1.6),
+      Paint()..color = const Color(0xFF2A3026).withValues(alpha: 0.7),
+    );
+    for (var x = drain.left + 12; x < drain.right; x += 26) {
+      canvas.drawRect(
+        Rect.fromLTWH(x, drain.top + 2, 3, drain.height - 4),
+        Paint()..color = const Color(0xFF232922).withValues(alpha: 0.85),
+      );
+    }
   }
 
   void _renderStrains(Canvas canvas, DungeonRoom room) {
