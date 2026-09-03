@@ -2294,6 +2294,24 @@ see any of that.
     arm's start point, which is a zero vector whenever an arm begins exactly
     on its junction — most of them — so it was skipped on precisely the arms
     that needed it. It takes the direction along the segment now.)
+  · ✅ **AND THE ROOMS SAY WHAT YOU ARE FOR.** Every objective line on this
+    planet was an OBSERVATION — *"the line forks under the foreman's board"*,
+    *"the north channel cuts the house in two"*. All true, all scenery.
+    Reported from play, after the art pass had made everything legible:
+    *"the user still doesn't really know what the overall goal is."* A room
+    can be perfectly readable and still leave you with no idea why you are
+    standing in it. They name the thing you WANT now, and they change as you
+    get it — the gantry line goes from bolted to open, the mould floor goes
+    from "the Ember Star stands across the runner" to "the span is laid".
+    Still no method: what you want, never how.
+  · ✅ **THE PRIMER LEADS WITH THE GOAL.** It is shown **once, ever**, joined
+    into one eight-second line on the first descent — so a planet's whole
+    statement of purpose gets one showing and then is gone for good, which
+    is worth knowing before writing another one. Lava's spent half its length
+    on what a pour becomes and what cold metal does; both of those are on the
+    floor now and both are in the hint button. What was nowhere at all was
+    why you are here. It is two lines: *"Every road out of this works is
+    something you have to cast first. Five pours, never refilled."*
   · ⬜ CARRIED: the maxim. §7's table grades **Black Glass** ⬜ *"one verb,
     three times"* — quench three times with Ice. That is an achievement, not
     a puzzle, and Steam has just shown what the fix looks like (§9.6): a

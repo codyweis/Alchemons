@@ -1012,9 +1012,16 @@ const DungeonLayout kLavaLayout = DungeonLayout(
     'Earth, to read the works\' own manifest off the rock;',
     'and a Ice Mane, for only a cold that paves a road behind it will harden my running metal.',
   ],
+  // THE PRIMER IS SHOWN ONCE, EVER, on the first descent — so it has to be
+  // the GOAL and the budget, in that order, and nothing else. It used to
+  // spend half its length on what a pour becomes and what cold metal does;
+  // both of those are on the floor now (a mould is cut to the form it takes,
+  // a runner shows which way it carries, a plugged arm is visibly set solid)
+  // and both are in the hint button. What was NOT anywhere was why you are
+  // here at all.
   primer: [
+    'Every road out of this works is something you have to cast first.',
     'Five pours, never refilled.',
-    'What a pour becomes is decided by where you sent it, and cold metal is both a road and a plug.',
   ],
   // ONE hard gate (§4 budget: Air 1 · Earth 1 · Water 1 · Lava 1). Star 1 and
   // the guardian stay earnable by ANY correct-element trio; only the hidden

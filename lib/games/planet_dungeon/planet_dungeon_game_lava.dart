@@ -664,24 +664,62 @@ extension MoltenReliquary on PlanetDungeonGame {
   // ── Hints (§5.6) ─────────────────────────────────────────
 
   /// OBJECTIVE — one line on room entry, WHAT and never HOW.
+  /// WHAT YOU ARE TRYING TO DO HERE — and it has to be a goal, not a view.
+  ///
+  /// Every one of these used to be an observation: *"the line forks under the
+  /// foreman's board"*, *"the north channel cuts the house in two"*. All true,
+  /// all scenery. Reported from play as knowing what everything WAS and not
+  /// what any of it was FOR. A room can be perfectly legible and still leave
+  /// you with no idea why you are standing in it.
+  ///
+  /// So they name the thing you want, they change as you get it, and the
+  /// first one you ever read frames the whole planet. Still no method: what
+  /// you want, never how — that is the hint button's job (§5.6).
   String? _foundryObjectiveHint(DungeonRoom room) {
     final s = works.line;
     switch (room.id) {
       case 'tap_head':
-        if (!s.tapWoken) return 'The crucible sits sealed and cold';
+        // The entrance, so this is the planet's own statement of purpose.
+        if (!s.tapWoken) {
+          return 'Nothing leaves this works that was not cast here — and '
+              'you have five pours to cast it';
+        }
+        if (s.carried == 'reliquary') {
+          return 'You have the reliquary key — its ward is on the mould floor';
+        }
+        if (s.molds.containsKey('mold_reliquary')) {
+          return 'Something has filled the form on the far side of the sump';
+        }
         return hasStar(1)
             ? null
             : 'The works drain into a sump you cannot cross';
       case 'switch_yard':
-        return 'The line forks under the foreman\'s board';
+        return 'Set the whole road before you spend a pour — there are five, '
+            'and the line gives none back';
       case 'chill_house':
-        return 'The north channel cuts the house in two';
+        return s.wardsTurned.contains('gantry')
+            ? 'The gantry stands open to the mould floor'
+            : 'The gantry to the mould floor is bolted — its ward wants a key';
       case 'stamp_mill':
         return s.dieWoken
-            ? 'The die falls on everything that passes'
-            : 'The mill\'s die hangs dead over the channel';
+            ? 'The die falls on everything that passes down this arm'
+            : 'The mill\'s die hangs dead — nothing here can ward a pour yet';
       case 'mold_floor':
-        return 'The Ember Star stands across the runner';
+        if (!hasStar(0)) {
+          return s.cast('span_a')
+              ? 'The span is laid — the Ember Star is across it'
+              : 'The Ember Star stands across the runner, and nothing walks '
+                    'on running metal';
+        }
+        if (!s.wardsTurned.contains('reliquary')) {
+          return 'The reliquary ward is bolted, and no key on this floor '
+              'was ever cut for it';
+        }
+        return null;
+      case 'slag_reliquary':
+        return hasStar(1)
+            ? null
+            : 'The Reliquary Star, and what it was kept for';
       case 'pour_heart':
         return 'Something enormous rides the heart\'s ring';
     }
