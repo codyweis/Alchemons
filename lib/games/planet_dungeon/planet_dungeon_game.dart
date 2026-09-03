@@ -1938,7 +1938,12 @@ class PlanetDungeonGame extends FlameGame {
   final Map<String, _IslandGeometry> _islandCache = {};
   final Random _combatRng = Random(0xA17);
 
-  static const double _speed = 150.0;
+  /// Walking pace. 150 for the whole build so far, raised 25% on 2026-09-02
+  /// after playing Lava: the rooms are large, the puzzles are worked out
+  /// standing still, and the walk between a lever and the thing it moves was
+  /// dead time in every one of them. Everything derived from it scales too —
+  /// [_flightSpeedMul] is a multiplier on this, not a separate figure.
+  static const double _speed = 187.5;
   static const double _flightSpeedMul = 1.35;
   static const double _radius = 16.0;
   static const double _hazardDps = 60.0;
