@@ -847,6 +847,7 @@ extension MoltenReliquary on PlanetDungeonGame {
   void _renderFoundry(Canvas canvas, DungeonRoom room) {
     _renderWorksFloor(canvas, room);
     _renderChannels(canvas, room);
+    _renderWorksBridges(canvas, room);
     _renderCastings(canvas, room);
     _renderFixtures(canvas, room);
     _renderPourBead(canvas, room);
@@ -854,7 +855,6 @@ extension MoltenReliquary on PlanetDungeonGame {
       _renderFiredamp(canvas, room);
     }
     if (room.guardian != null) _renderHeartRing(canvas, room);
-    _renderWorksSigns(canvas, room);
     final spot = room.foundryStar;
     if (spot != null && !hasStar(spot.starIndex)) {
       _renderWorksStar(canvas, spot.position);
@@ -1072,68 +1072,56 @@ extension MoltenReliquary on PlanetDungeonGame {
     }
   }
 
-  /// WHERE THAT DOOR GOES, cast on a plate over it.
+  /// THE WALKWAYS. A plate laid over a runner, with handrails, so the party
+  /// crosses where the works meant them to.
   ///
-  /// The switch yard's fork has now been re-plumbed three times chasing the
-  /// same complaint — *which door did the metal just go down?* — and each
-  /// arrangement traded one confusion for another, because the room's own
-  /// shape will not let every pairing be adjacent: `ch_tap` walls off the top,
-  /// so both ways out have to live low on the east wall while the chill arm
-  /// crosses at the very top.
-  ///
-  /// Geometry was the wrong tool. A works does not rely on you inferring the
-  /// destination from which pipe passes nearest a doorway — it BOLTS A SIGN
-  /// UP. And the sign can use the same word as the lever's own plate, which
-  /// no amount of pipe alignment can do: throw the switch to MILL and the
-  /// door marked MILL is where that metal went.
-  static const Map<String, String> _worksSigns = {
-    'tap_head': 'TAP',
-    'switch_yard': 'YARD',
-    'chill_house': 'CHILL',
-    'stamp_mill': 'MILL',
-    'mold_floor': 'FLOOR',
-    'slag_reliquary': 'RELIQUARY',
-    'pour_heart': 'HEART',
-  };
-
-  void _renderWorksSigns(Canvas canvas, DungeonRoom room) {
-    for (final d in room.doors) {
-      final name = _worksSigns[d.targetRoomId];
-      if (name == null) continue;
-      if (isDoorHidden(room, d)) continue;
-      final r = d.rect;
-      final b = room.bounds;
-      // Hang the plate INSIDE the room, off the wall the door is in.
-      final left = (r.left - b.left).abs();
-      final right = (b.right - r.right).abs();
-      final top = (r.top - b.top).abs();
-      final bottom = (b.bottom - r.bottom).abs();
-      final m = [left, right, top, bottom].reduce((a, c) => a < c ? a : c);
-      final at = m == left
-          ? r.centerRight + const Offset(40, 0)
-          : m == right
-          ? r.centerLeft - const Offset(40, 0)
-          : m == top
-          ? r.bottomCenter + const Offset(0, 22)
-          : r.topCenter - const Offset(0, 22);
-      // A bolted plate, so it reads as part of the works and not as UI.
-      final tag = Rect.fromCenter(
-        center: at,
-        width: 22.0 + name.length * 7.0,
-        height: 20,
-      );
-      _ironPlate(canvas, tag, radius: 3);
-      canvas.drawCircle(
-        tag.centerLeft + const Offset(5, 0),
-        1.8,
-        Paint()..color = const Color(0xFF8898A6),
-      );
-      canvas.drawCircle(
-        tag.centerRight - const Offset(5, 0),
-        1.8,
-        Paint()..color = const Color(0xFF8898A6),
-      );
-      _drawTinyLabel(canvas, at - const Offset(0, 6), name);
+  /// These are why the line can be laid out honestly at all. Without them a
+  /// channel is an absolute wall and every arm that reaches a wall fences off
+  /// part of it — which is what made the switch yard's fork unreadable
+  /// through three separate re-plumbings, each one trading one confusion for
+  /// another. With a crossing, the junction can sit in the MIDDLE of the room
+  /// and each arm can run to the wall its own door is in. Signs were the
+  /// wrong answer to that; this is the right one.
+  void _renderWorksBridges(Canvas canvas, DungeonRoom room) {
+    for (final b in works.line.line.bridgesIn(room.id)) {
+      final r = b.rect;
+      final acrossX = r.width >= r.height;
+      // The deck.
+      _ironPlate(canvas, r, radius: 2);
+      final grate = Paint()
+        ..strokeWidth = 2
+        ..color = const Color(0xFF10141A).withValues(alpha: 0.7);
+      if (acrossX) {
+        for (var x = r.left + 7; x < r.right - 4; x += 9) {
+          canvas.drawLine(Offset(x, r.top + 4), Offset(x, r.bottom - 4), grate);
+        }
+      } else {
+        for (var y = r.top + 7; y < r.bottom - 4; y += 9) {
+          canvas.drawLine(Offset(r.left + 4, y), Offset(r.right - 4, y), grate);
+        }
+      }
+      // Handrails down the two long sides — the thing that says WALK HERE
+      // rather than "a lid someone left on the trough".
+      final rail = Paint()
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round
+        ..color = _worksIronLit;
+      final posts = Paint()..color = const Color(0xFF8898A6);
+      if (acrossX) {
+        for (final y in [r.top - 5.0, r.bottom + 5.0]) {
+          canvas.drawLine(Offset(r.left + 3, y), Offset(r.right - 3, y), rail);
+          for (var x = r.left + 5; x < r.right - 2; x += 18) {
+            canvas.drawCircle(Offset(x, y), 2.2, posts);
+          }
+        }
+      } else {
+        for (final x in [r.left - 5.0, r.right + 5.0]) {
+          canvas.drawLine(Offset(x, r.top + 3), Offset(x, r.bottom - 3), rail);
+          for (var y = r.top + 5; y < r.bottom - 2; y += 18) {
+            canvas.drawCircle(Offset(x, y), 2.2, posts);
+          }
+        }
+      }
     }
   }
 

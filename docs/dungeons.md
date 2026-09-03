@@ -2366,23 +2366,30 @@ see any of that.
     yard's own shape is what forces the compromise — `ch_tap` runs across the
     top and walls off everything above it, so both doors have to live low on
     the east wall while the chill arm crosses at the very top.
-  · ✅ **AND IN THE END, A SIGN.** The switch yard's fork was re-plumbed three
-    times chasing one complaint — *which door did the metal just go down?* —
-    and every arrangement traded one confusion for another, because the
-    room's own shape will not let every pairing be adjacent: `ch_tap` walls
-    off the top, so both ways out must live low on the east wall while the
-    chill arm crosses at the very top. **Geometry was the wrong tool.** A
-    works does not make you infer a destination from which pipe passes
-    nearest a doorway; it bolts a plate over the door. Every door in the
-    foundry is signed now — TAP, YARD, CHILL, MILL, FLOOR, RELIQUARY, HEART —
-    **and the sign uses the same word as the lever's own plate**, which no
-    amount of pipe alignment can do: throw the switch to MILL and the door
-    marked MILL is where that metal went.
+  · ✅ **WALKWAYS — and they are why the layout works at all.** The switch
+    yard's fork was re-plumbed three times chasing one complaint (*which door
+    did the metal just go down?*) and every arrangement traded one confusion
+    for another. I then tried to talk my way out of it with SIGNS bolted over
+    each door, and that was worse: more furniture saying what the room should
+    have been showing.
 
-    The general lesson, and it cost three attempts to learn: *when a room's
-    layout keeps failing to say something, stop moving the room and let it
-    say the thing out loud.* Spatial inference is a luxury; a label is a
-    guarantee.
+    The actual constraint was self-imposed. **A channel was an absolute wall**,
+    so every arm that reached a wall fenced off part of it, and the layout had
+    to be contorted around that. A foundry has walkways over its runners.
+    `FoundryBridge` is a plate with handrails laid across a channel, and with
+    it the yard is laid out the way it always should have been: the feed comes
+    in the west wall, the junction sits **in the middle of the room**, the
+    chill arm runs east to the east wall with the chill door beside it, the
+    mill arm runs south to the south wall with the mill door beside it, and a
+    walkway crosses the mill arm so the west half still reaches the east wall.
+    You can see the fork, and each arm ends at its own door. Same in the mill:
+    the arm drops in through the roof beside the door and a walkway crosses it.
+
+    **The lesson is the one I got wrong twice.** When a room will not read,
+    the answer is not to relabel it and it is not to shuffle the same pieces —
+    it is to ask which rule is making the layout impossible. Here it was
+    "metal is a wall", and it was never a requirement, just an assumption
+    nobody had written down.
   · ⬜ CARRIED: the maxim. §7's table grades **Black Glass** ⬜ *"one verb,
     three times"* — quench three times with Ice. That is an achievement, not
     a puzzle, and Steam has just shown what the fix looks like (§9.6): a

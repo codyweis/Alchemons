@@ -238,11 +238,35 @@ class FoundryNode {
 }
 
 /// The authored line: nodes + channels, with lookups.
+/// A CROSSING. A plate laid over a runner so the party can walk across it.
+///
+/// Without these a channel is an absolute wall, and the whole works has to be
+/// laid out around that: every arm that reaches a wall fences off part of it,
+/// which is why the switch yard's fork could not be made to read no matter
+/// which way its two arms were pointed. A foundry has walkways over its
+/// runners. With them the line can be laid out the way it should be — the
+/// junction in the middle of the room, each arm running to the wall its own
+/// door is in — and the party goes over the top.
+class FoundryBridge {
+  const FoundryBridge(this.roomId, this.rect);
+
+  final String roomId;
+  final Rect rect;
+}
+
 class FoundryLine {
-  const FoundryLine({required this.nodes, required this.channels});
+  const FoundryLine({
+    required this.nodes,
+    required this.channels,
+    this.bridges = const [],
+  });
 
   final List<FoundryNode> nodes;
   final List<FoundryChannel> channels;
+  final List<FoundryBridge> bridges;
+
+  Iterable<FoundryBridge> bridgesIn(String roomId) =>
+      bridges.where((b) => b.roomId == roomId);
 
   FoundryNode node(String id) => nodes.firstWhere((n) => n.id == id);
   FoundryChannel channel(String id) => channels.firstWhere((c) => c.id == id);
@@ -631,7 +655,7 @@ const FoundryLine kLavaLine = FoundryLine(
     FoundryNode(
       id: 'y_yard',
       roomId: 'switch_yard',
-      position: Offset(600, 44),
+      position: Offset(380, 164),
       kind: FoundryNodeKind.junction,
       exits: ['ch_north', 'ch_mill_in'],
       switchId: 'y_yard',
@@ -639,10 +663,8 @@ const FoundryLine kLavaLine = FoundryLine(
       // channels did not obey and the doors did not either; the destination
       // is both truthful and more use to the player than a bearing.
       switchLabels: ['CHILL', 'MILL'],
-      // West of the drop: at x=600 the lever stood inside the mill arm once
-      // that arm came down through the room. You never reach over running
-      // metal, and you certainly never stand in it.
-      leverAt: Offset(500, 130),
+      // Beside the junction, clear of both arms.
+      leverAt: Offset(300, 250),
     ),
     FoundryNode(
       id: 'chiller',
@@ -756,6 +778,12 @@ const FoundryLine kLavaLine = FoundryLine(
       casts: 'reliquary',
     ),
   ],
+  bridges: [
+    // Over the mill arm, so the yard's west half reaches its east wall.
+    FoundryBridge('switch_yard', Rect.fromLTWH(344, 300, 72, 66)),
+    // Over the mill's drop, so the room is one room.
+    FoundryBridge('stamp_mill', Rect.fromLTWH(222, 140, 64, 66)),
+  ],
   channels: [
     FoundryChannel(
       id: 'ch_tap',
@@ -763,7 +791,10 @@ const FoundryLine kLavaLine = FoundryLine(
       to: 'y_yard',
       segments: [
         FoundrySegment('tap_head', Rect.fromLTWH(190, 40, 710, 28)),
-        FoundrySegment('switch_yard', Rect.fromLTWH(0, 30, 600, 28)),
+        // Into the middle of the yard, not along its ceiling. Run the feed
+        // across the top and it walls off everything above it, which is what
+        // forced both ways out onto one wall and made the fork unreadable.
+        FoundrySegment('switch_yard', Rect.fromLTWH(0, 150, 380, 28)),
       ],
     ),
     FoundryChannel(
@@ -777,7 +808,7 @@ const FoundryLine kLavaLine = FoundryLine(
       // the lit channel, arrive in the room fed by the OTHER arm and find it
       // dead. On a planet whose puzzle is following metal, that is fatal.
       segments: [
-        FoundrySegment('switch_yard', Rect.fromLTWH(600, 30, 160, 28)),
+        FoundrySegment('switch_yard', Rect.fromLTWH(380, 150, 380, 28)),
         FoundrySegment('chill_house', Rect.fromLTWH(0, 330, 430, 34)),
       ],
     ),
@@ -803,21 +834,18 @@ const FoundryLine kLavaLine = FoundryLine(
         // is on the east, so a channel joining the two edges quietly halves
         // the room. (That is what the new "no channel cuts a room in half"
         // invariant caught, one commit after I had introduced it.)
-        FoundrySegment('switch_yard', Rect.fromLTWH(586, 44, 28, 156)),
-        FoundrySegment('switch_yard', Rect.fromLTWH(586, 200, 174, 28)),
+        FoundrySegment('switch_yard', Rect.fromLTWH(366, 178, 28, 382)),
         // …and it comes INTO the mill through the roof, on the same side the
         // party comes in by, AND ON THE SAME SIDE OF THE DOOR. The wall was
         // only half the answer: at x=60 the pipe dropped in far to the LEFT
         // of a door at x=380, while back in the yard the pipe was to the
         // RIGHT of the door you left by. Walk through and the pipe jumps
         // across you. Reported from play in exactly those terms.
-        // The mill's own bottom channel already runs its whole width, so the
-        // room is ALREADY divided into "above the metal" (where every fixture
-        // is) and "below it". Bring the arm in anywhere but along that bottom
-        // line and you divide it a second time, and the west end becomes a
-        // pocket you cannot get out of except under the arm — and then you
-        // are on the wrong side of the bottom channel anyway.
-        FoundrySegment('stamp_mill', Rect.fromLTWH(0, 446, 300, 28)),
+        // …and into the mill through its roof, beside the door, dropping to
+        // the bottom line. A walkway crosses it (see `bridges`), which is the
+        // whole reason this can be laid out honestly now.
+        FoundrySegment('stamp_mill', Rect.fromLTWH(240, 0, 28, 446)),
+        FoundrySegment('stamp_mill', Rect.fromLTWH(268, 446, 32, 28)),
       ],
     ),
     FoundryChannel(
@@ -963,7 +991,12 @@ bool foundryBlocks(FoundryState s, String roomId, Offset p) {
     for (final seg in ch.segments) {
       if (seg.roomId != roomId) continue;
       if (!seg.rect.contains(p)) continue;
-      return !s.spanned(p, roomId);
+      // A cast span you made, or a walkway the works was built with.
+      if (s.spanned(p, roomId)) return false;
+      for (final b in s.line.bridgesIn(roomId)) {
+        if (b.rect.contains(p)) return false;
+      }
+      return true;
     }
   }
   return false;
@@ -1122,21 +1155,19 @@ const DungeonLayout kLavaLayout = DungeonLayout(
           targetSpawn: Offset(820, 280),
         ),
         DungeonDoor(
-          // BELOW BOTH ARMS. The mill arm is the last thing that crosses
-          // this wall, so the door directly under it must be the mill's —
-          // whichever door sits nearest a pipe is the one the eye pairs it
-          // with, and pairing it wrongly is the whole complaint.
-          rect: Rect.fromLTWH(736, 380, 24, 90),
+          // The chill arm crosses this wall right above it.
+          rect: Rect.fromLTWH(736, 200, 24, 90),
           targetRoomId: 'chill_house',
           targetSpawn: Offset(60, 500),
         ),
         DungeonDoor(
           // Under the mill arm — the arm drops past it and goes out the same
           // wall, so the metal and the party leave together.
-          // Directly under the mill arm's crossing.
-          rect: Rect.fromLTWH(736, 250, 24, 90),
+          // In the south wall, beside where the mill arm goes down through
+          // it — the metal and the party leave together.
+          rect: Rect.fromLTWH(240, 536, 110, 24),
           targetRoomId: 'stamp_mill',
-          targetSpawn: Offset(60, 340),
+          targetSpawn: Offset(115, 90),
         ),
       ],
     ),
@@ -1151,10 +1182,7 @@ const DungeonLayout kLavaLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(0, 460, 24, 90),
           targetRoomId: 'switch_yard',
-          // Below the mill arm's run, where both of the yard's doors are.
-          // At (700,165) you landed in the pocket between the two arms and
-          // the east wall, which has no door in it at all.
-          targetSpawn: Offset(690, 425),
+          targetSpawn: Offset(690, 245),
         ),
         // THE GANTRY: an overhead walk from the catwalk out to the mold
         // floor, bolted shut until a key is cast to its ward.
@@ -1173,9 +1201,9 @@ const DungeonLayout kLavaLayout = DungeonLayout(
       bounds: Rect.fromLTWH(0, 0, 940, 520),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 300, 24, 90),
+          rect: Rect.fromLTWH(60, 0, 110, 24),
           targetRoomId: 'switch_yard',
-          targetSpawn: Offset(690, 295),
+          targetSpawn: Offset(295, 480),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(916, 150, 24, 90),
