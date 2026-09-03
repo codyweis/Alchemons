@@ -102,6 +102,11 @@ class VenomMonastery {
   /// what was always in there, the other is what you just made.
   bool burstIsSick = false;
 
+  /// A ward WAKING: 0 → 1 as its contagion establishes itself, and which one.
+  /// Zero means nothing is waking.
+  double wake = 0;
+  String? wakeWard;
+
   /// THE CROSS GOING UP: 1 → 0 over the condemnation. The planet's signature
   /// move — the ward you give up — and it had less ceremony than opening a
   /// door did.
@@ -312,6 +317,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (monastery.condemn > 0) {
       monastery.condemn = max(0.0, monastery.condemn - dt / _kCondemnSeconds);
     }
+    if (monastery.wakeWard != null && monastery.wake < 1) {
+      monastery.wake = min(1.0, monastery.wake + dt / _kWakeSeconds);
+      if (monastery.wake >= 1) monastery.wakeWard = null;
+    }
     if (!_isVenom) return;
     final m = monastery;
     m.clock += dt;
@@ -515,19 +524,22 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         }
       }
       t.open(ward.id);
-      // THE CUT. Hold on the doorway while it comes through — this is the
-      // beat the whole planet turns on (opening a ward is what lets the
-      // contagion in) and it used to be a line of text and a small puff.
+      // THE CUT LOOKS INSIDE. It used to burst out of the doorway into the
+      // cloister, which is the wrong story twice over: opening a ward is not
+      // what puts a strain loose (surrendering one is, and misdosing one is),
+      // and the interesting thing is not the door — it is what has been
+      // sitting in there in the dark. So the camera goes THROUGH, into a
+      // room the party is not in yet, and watches the contagion come up.
       monastery
-        ..sealBurst = 1.0
-        ..sealBurstAt = door.rect.center
-        ..burstIsSick = false;
-      cutTo(room.id, door.rect.center, hold: _kSealBurstSeconds + 0.5);
-      _shake = 6.0;
+        ..wake = 0
+        ..wakeWard = ward.id;
+      cutTo(door.targetRoomId, ward.heart, hold: _kWakeSeconds + 0.6);
+      _shake = 5.0;
       speakConsequence(
         ward.bricked
-            ? 'The brick blows in — something in the dead-house wakes.'
-            : 'The seal parts. Whatever is in there is awake, and it is out.',
+            ? 'The brick blows in. Something in the dead-house has been '
+                  'waiting.'
+            : 'The seal parts, and what is in there wakes.',
         3.6,
       );
       _spawnAlchemyBurst(
@@ -1073,7 +1085,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final virulent = live.any((e) => e.$2);
     final col = virulent ? _venomSick : _venomLive;
     final breath = 0.5 + 0.5 * sin(_time * 0.8);
-    final reach = (virulent ? 300.0 : 210.0) * (0.90 + 0.10 * breath);
+    // WAKING: the same veins, drawn to a fraction of their length, so the
+    // thing grows into the shape it is going to hold rather than snapping
+    // into it. Eased out, because it comes up fast and then settles.
+    final waking = room.ward != null && monastery.wakeWard == room.ward!.id;
+    final grow = waking
+        ? Curves.easeOutCubic.transform(monastery.wake.clamp(0.0, 1.0))
+        : 1.0;
+    if (grow <= 0.01) return;
+    final reach = (virulent ? 300.0 : 210.0) * (0.90 + 0.10 * breath) * grow;
 
     // Inside the room only — a vein crawling out through a wall reads as a
     // render bug, not as sickness.
@@ -1444,6 +1464,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// How long the cross takes to go up. Longer than a seal breaking, because
   /// this is the bigger thing and the pacing should say so.
   static const double _kCondemnSeconds = 2.4;
+
+  /// How long a ward's contagion takes to establish once the wax is broken.
+  static const double _kWakeSeconds = 1.9;
 
   static const Color _venomBronze = Color(0xFF6E6A3E);
   static const Color _venomBronzeLit = Color(0xFF9A9358);
