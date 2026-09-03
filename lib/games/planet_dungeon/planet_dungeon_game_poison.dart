@@ -1073,7 +1073,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final virulent = live.any((e) => e.$2);
     final col = virulent ? _venomSick : _venomLive;
     final breath = 0.5 + 0.5 * sin(_time * 0.8);
-    final reach = (virulent ? 300.0 : 210.0) * (0.94 + 0.06 * breath);
+    final reach = (virulent ? 300.0 : 210.0) * (0.90 + 0.10 * breath);
 
     // Inside the room only — a vein crawling out through a wall reads as a
     // render bug, not as sickness.
@@ -1085,7 +1085,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       canvas.drawCircle(
         heart,
         reach * i / 3,
-        Paint()..color = col.withValues(alpha: 0.035 * (4 - i)),
+        // Lighter than it was: the strains animate ON this, and a bloom
+        // heavy enough to read on its own flattens them into it.
+        Paint()..color = col.withValues(alpha: 0.022 * (4 - i)),
       );
     }
     // VEINS. Deterministic, so the sickness does not crawl between frames —
@@ -1096,26 +1098,36 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       return seed / 2147483648;
     }
 
+    // VEINS, and they PULSE. The geometry stays deterministic — sickness that
+    // rewrites its own shape every frame is a screensaver — but a wave runs
+    // outward along every vein from the heart, so the thing is alive without
+    // ever moving. Drawn flat it was the biggest object in the room and the
+    // only motionless one, which made the strains animating on top of it read
+    // as the static thing. Reported from play as the plague looking frozen.
     for (var i = 0; i < 14; i++) {
       var at = heart;
       var a = rnd() * pi * 2;
-      final path = Path()..moveTo(at.dx, at.dy);
       final len = reach * (0.35 + rnd() * 0.6);
+      final w = 1.2 + rnd() * 2.0;
+      final base = 0.09 + 0.12 * rnd();
       const steps = 6;
       for (var k = 0; k < steps; k++) {
         a += (rnd() - 0.5) * 1.1;
-        at = at + Offset(cos(a), sin(a)) * (len / steps);
-        path.lineTo(at.dx, at.dy);
+        final next = at + Offset(cos(a), sin(a)) * (len / steps);
+        // The wave: one per vein, travelling out, offset per vein so they do
+        // not beat in unison like a heart monitor.
+        final wave = sin(_time * 2.2 - k * 0.9 - i * 0.7);
+        final lit = base + 0.26 * (wave * 0.5 + 0.5) * (wave > 0 ? 1 : 0.35);
+        canvas.drawLine(
+          at,
+          next,
+          Paint()
+            ..strokeWidth = w + 0.9 * (wave.clamp(0.0, 1.0))
+            ..strokeCap = StrokeCap.round
+            ..color = col.withValues(alpha: lit),
+        );
+        at = next;
       }
-      canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2 + rnd() * 2.0
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..color = col.withValues(alpha: 0.10 + 0.16 * rnd()),
-      );
     }
     // And a wet shine at the heart itself.
     if (_fx.ready) {
