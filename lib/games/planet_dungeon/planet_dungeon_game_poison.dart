@@ -1101,9 +1101,14 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     canvas.drawRect(
       b,
       Paint()
-        ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, const [
-          Color(0xFF161A15),
-          Color(0xFF0E120E),
+        // NOT OPAQUE. The floor sits a little off the sky so the planet's own
+        // light comes up through the flags and the miasma behind them keeps
+        // showing — a sealed house that is nonetheless full of something.
+        // Solid, the stage cut the background off and every room was a lit
+        // box with weather happening somewhere you could not see.
+        ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, [
+          const Color(0xFF161A15).withValues(alpha: _kLazarFloorAlpha),
+          const Color(0xFF0E120E).withValues(alpha: _kLazarFloorAlpha),
         ]),
     );
 
@@ -1134,7 +1139,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
                 const Color(0xFF20241D),
                 const Color(0xFF171B16),
                 rnd(),
-              )!,
+              )!.withValues(alpha: _kLazarFloorAlpha),
           );
           // Lit top edge, so a flag is a flag and not a rectangle.
           canvas.drawRect(
@@ -1345,6 +1350,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   /// Old bronze — the censers, the bands, anything that was cast and has been
   /// breathing this air for a century.
+  /// How solid the floor is. Below about 0.6 the flags stop reading as stone
+  /// and the room becomes a window; above about 0.85 the sky may as well not
+  /// be there.
+  static const double _kLazarFloorAlpha = 0.72;
+
   static const Color _venomBronze = Color(0xFF6E6A3E);
   static const Color _venomBronzeLit = Color(0xFF9A9358);
   static const Color _venomIron = Color(0xFF3A3E42);
