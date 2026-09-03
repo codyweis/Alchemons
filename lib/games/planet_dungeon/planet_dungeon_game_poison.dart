@@ -403,7 +403,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       for (final c in creatures) {
         if (c.alive) c.hp = min(c.maxHp, c.hp + c.maxHp * 0.35);
       }
-      _setHint('The sacristy opens — the ward\'s own physic mends you', 3.2);
+      speakConsequence(
+        'The sacristy opens — the ward\'s own physic mends you',
+        3.2,
+      );
       _spawnAlchemyBurst(
         ward.sacristy,
         producedElement: 'Light',
@@ -437,7 +440,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
             .where((s) => s != m.blightStrain)
             .toList();
         m.blightStrain = pool[Random().nextInt(pool.length)];
-        _setHint('Blightfang sheds the strain and takes another', 2.6);
+        speakConsequence('Blightfang sheds the strain and takes another', 2.8);
       }
     } else {
       guardianVulnerable = false;
@@ -463,7 +466,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (habit != null && antidoteFor(habit) == phial) {
       m.blightLull = _kBlightLull;
       guardianVulnerable = true;
-      _setHint('The dose bites — patient zero reels into the lull', 3.2);
+      speakConsequence(
+        'The dose bites — patient zero reels into the lull',
+        3.2,
+      );
       _spawnAlchemyBurst(
         _guardianPosition(g),
         producedElement: 'Poison',
@@ -477,7 +483,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       if (e != null && !e.isDead) {
         e.hp = min(e.maxHp.toDouble(), e.hp + e.maxHp * _kBlightFeedHeal);
       }
-      _setHint('Wrong physic — Blightfang drinks it and swells', 3.2);
+      speakConsequence('Wrong physic — Blightfang drinks it and swells', 3.4);
       _spawnAlchemyBurst(
         _guardianPosition(g),
         producedElement: 'Poison',
@@ -504,7 +510,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         }
         entryDoorRevealed = true;
         _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId);
-        _setHint('The wax softens and runs — the lazaret stands open');
+        speakConsequence(
+          'The wax softens and runs — the lazaret stands open',
+          3.4,
+        );
         _spawnAlchemyBurst(
           door.rect.center,
           producedElement: 'Poison',
@@ -629,14 +638,23 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       if (!ok) {
         // Only ever reachable with three wards already clean: the house has
         // no physic for a fourth, and that is the whole planet.
-        _setBlockedHint('The cistern holds nothing for a fourth ward');
+        // Not a refusal you can fix — it is the planet's whole thesis
+        // arriving — so it is spoken, not remembered.
+        speakConsequence(
+          'The cistern is dry. There was never physic for a fourth ward.',
+          4.2,
+        );
         return true;
       }
       final braid = a.member.element != 'Poison';
-      _setHint(
+      // SAY IT. This was `_setHint`, which for unasked world speech is
+      // DROPPED — so drawing a draught printed nothing, showed nothing, and
+      // put an invisible phial in an invisible hand. Reported from play as
+      // "it doesn't seem like I'm interacting with anything".
+      speakConsequence(
         '${draughtFixtureName(spout.draught)} fills the phial'
-        '${braid ? ' — the braid runs hot' : ''}',
-        3.0,
+        '${braid ? ' — and the braid roars; something heard that' : ''}.',
+        3.4,
       );
       _spawnAlchemyBurst(
         spout.position,
@@ -670,9 +688,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       case DoseOutcome.sealed:
         _setBlockedHint('The ward is still shut');
       case DoseOutcome.settled:
-        _setHint('This ward is settled — nothing here to physic');
+        _setBlockedHint('This ward is settled — nothing here to physic');
       case DoseOutcome.cured:
-        _setHint('The strain lets go — ${ward.name} is clean', 3.6);
+        speakConsequence('The strain lets go — ${ward.name} is clean.', 3.8);
         _spawnAlchemyBurst(
           ward.censer,
           producedElement: 'Light',
@@ -719,7 +737,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   bool _tryCommitTriage(PriorsSeal seal) {
     final t = monastery.triage;
     if (t.surrendered != null) {
-      _setHint('The cross is already up');
+      _setBlockedHint('The cross is already up');
       return true;
     }
     if (!t.canCommit) {
@@ -776,7 +794,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.oublietteOpen = true;
     guardianAwake = true;
     guardianHp = PlanetDungeonGame.maxGuardianHp;
-    _setHint(
+    speakConsequence(
       'The lead runs off the stone — Blightfang stirs in the dark below',
       4.2,
     );
@@ -803,7 +821,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.triage.spend();
     final wisp = m.wisp!;
     if (antidoteFor(m.wispStrain) != phial) {
-      _setHint('The sick wisp shies from the phial — wrong physic', 3.0);
+      speakConsequence(
+        'The sick wisp shies from the phial — wrong physic',
+        3.2,
+      );
       _spawnAlchemyBurst(
         wisp,
         producedElement: 'Poison',
@@ -815,7 +836,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
     m.wisp = null;
     // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    _setHint('The wisp drinks, and quietens', 4.0);
+    speakConsequence('The wisp drinks, and quietens', 4.0);
     beginMaximRite(kPoisonDoseEggId, wisp);
     _spawnAlchemyBurst(
       wisp,
@@ -1104,6 +1125,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     _renderSealBurst(canvas);
     _renderCondemnation(canvas);
     _renderWalkInvasion(canvas, room);
+    _renderCarriedPhial(canvas);
   }
 
   /// WHAT IS IN THE ROOM WITH YOU, on the floor rather than in the air.
@@ -1568,6 +1590,63 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         60 + 90 * k,
         col.withValues(alpha: 0.30 * t),
       );
+    }
+  }
+
+  /// THE PHIAL IN HAND. Drawn on whoever is carrying it, every frame.
+  ///
+  /// Drawing a draught set a field and changed nothing anybody could see:
+  /// no phial, and a success line that the hint system drops unasked. You
+  /// pressed at a still and the room did not react, which is the whole of
+  /// "it doesn't seem like I'm interacting with anything".
+  void _renderCarriedPhial(Canvas canvas) {
+    final d = monastery.triage.carried;
+    if (d == null) return;
+    final a = active;
+    if (a == null || !a.alive) return;
+    final at = a.position + Offset(15, -30 + sin(_time * 3.0) * 2.0);
+    // Coloured by the draught, matching the vessel it came out of, so what
+    // is in your hand and what you took it from are the same thing.
+    final tint = switch (d) {
+      WardDraught.stilling => const Color(0xFFBFD8D0),
+      WardDraught.quicklime => const Color(0xFFEDE7D2),
+      WardDraught.binding => const Color(0xFF6E5A46),
+      WardDraught.rousing => _venomSick,
+    };
+
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    canvas.rotate(sin(_time * 1.4) * 0.10);
+    // Glass, liquid, stopper — small, but a phial and not a dot.
+    final body = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(-6, -9, 12, 20),
+      const Radius.circular(5),
+    );
+    canvas.drawRRect(
+      body,
+      Paint()..color = const Color(0xFF20302C).withValues(alpha: 0.9),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-4.5, -1, 9, 10.5),
+        const Radius.circular(4),
+      ),
+      Paint()..color = tint.withValues(alpha: 0.9),
+    );
+    canvas.drawRect(
+      const Rect.fromLTWH(-3.5, -13, 7, 5),
+      Paint()..color = _venomBronze,
+    );
+    canvas.drawRRect(
+      body,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = _venomBone.withValues(alpha: 0.65),
+    );
+    canvas.restore();
+    if (_fx.ready) {
+      drawGlow(canvas, _fx.glow!, at, 22, tint.withValues(alpha: 0.28));
     }
   }
 
