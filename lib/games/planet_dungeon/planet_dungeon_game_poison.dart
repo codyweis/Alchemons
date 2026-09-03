@@ -1327,6 +1327,28 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     return const Offset(1, 0);
   }
 
+  /// Dressed stone, the material this whole house is built of. A lit top
+  /// edge and a shadowed foot is the whole difference between a block and a
+  /// rectangle of a slightly different colour.
+  void _stoneBlock(Canvas canvas, Rect r, {double radius = 3}) {
+    final rr = RRect.fromRectAndRadius(r, Radius.circular(radius));
+    canvas.drawRRect(rr, Paint()..color = const Color(0xFF262B24));
+    canvas.drawRect(
+      Rect.fromLTWH(r.left + 2, r.top, r.width - 4, 2),
+      Paint()..color = const Color(0xFF3A4136).withValues(alpha: 0.8),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(r.left + 2, r.bottom - 2, r.width - 4, 2),
+      Paint()..color = const Color(0xFF0B0E0A).withValues(alpha: 0.85),
+    );
+  }
+
+  /// Old bronze — the censers, the bands, anything that was cast and has been
+  /// breathing this air for a century.
+  static const Color _venomBronze = Color(0xFF6E6A3E);
+  static const Color _venomBronzeLit = Color(0xFF9A9358);
+  static const Color _venomIron = Color(0xFF3A3E42);
+
   void _renderMonasteryFixtures(Canvas canvas, DungeonRoom room) {
     final t = monastery.triage;
 
@@ -1334,21 +1356,77 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (still != null) {
       // The cistern: a squat vessel with its level showing.
       final carrion = room.guardian != null;
+      // THE CISTERN: a stone tank, iron-banded, with a sight-glass down its
+      // face and a tap at the foot. It was a rounded rect with a green bar
+      // in it — the bar was the only honest part, and even that read as a
+      // progress meter rather than as liquid you are going to spend.
       final c = still.cistern;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: c, width: 62, height: 46),
-          const Radius.circular(8),
-        ),
-        Paint()..color = _venomDeep,
+      final tank = Rect.fromCenter(center: c, width: 66, height: 52);
+      _stoneBlock(canvas, tank, radius: 4);
+      for (final y in [tank.top + 11, tank.bottom - 11]) {
+        canvas.drawRect(
+          Rect.fromLTWH(tank.left - 3, y, tank.width + 6, 5),
+          Paint()..color = _venomIron,
+        );
+        canvas.drawCircle(
+          Offset(tank.left + 4, y + 2.5),
+          1.8,
+          Paint()..color = _venomBronzeLit.withValues(alpha: 0.8),
+        );
+        canvas.drawCircle(
+          Offset(tank.right - 4, y + 2.5),
+          1.8,
+          Paint()..color = _venomBronzeLit.withValues(alpha: 0.8),
+        );
+      }
+      // The sight-glass: a narrow tube where you actually read the level.
+      final glass = Rect.fromLTWH(
+        tank.right - 15,
+        tank.top + 6,
+        9,
+        tank.height - 12,
       );
+      canvas.drawRect(glass, Paint()..color = const Color(0xFF0B0F0B));
       if (!carrion) {
         final fill = (t.cistern / kMonasteryCistern).clamp(0.0, 1.0);
         canvas.drawRect(
-          Rect.fromLTWH(c.dx - 25, c.dy + 17 - 32 * fill, 50, 32 * fill),
-          Paint()..color = _venomLive.withValues(alpha: 0.75),
+          Rect.fromLTWH(
+            glass.left + 1,
+            glass.bottom - (glass.height - 2) * fill - 1,
+            glass.width - 2,
+            (glass.height - 2) * fill,
+          ),
+          Paint()..color = _venomLive.withValues(alpha: 0.85),
+        );
+        // …and the body of it behind the stone, so the tank reads as FULL
+        // rather than as a gauge bolted to a box.
+        canvas.drawRect(
+          Rect.fromLTWH(
+            tank.left + 6,
+            tank.bottom - 8 - (tank.height - 20) * fill,
+            tank.width - 26,
+            (tank.height - 20) * fill,
+          ),
+          Paint()..color = _venomLive.withValues(alpha: 0.18),
         );
       }
+      canvas.drawRect(
+        glass,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = _venomBronze.withValues(alpha: 0.9),
+      );
+      // The tap.
+      canvas.drawRect(
+        Rect.fromLTWH(tank.left - 8, tank.bottom - 14, 10, 5),
+        Paint()..color = _venomBronze,
+      );
+      canvas.drawCircle(
+        Offset(tank.left - 10, tank.bottom - 11.5),
+        4,
+        Paint()..color = _venomBronzeLit,
+      );
       for (final spout in still.spouts) {
         _renderSpout(canvas, spout);
       }
@@ -1357,31 +1435,134 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final ward = room.ward;
     if (ward != null) {
       final cured = t.cured.contains(ward.id);
-      // The censer: a hanging bowl on three chains.
-      canvas.drawCircle(
-        ward.censer,
-        13,
-        Paint()..color = cured ? _venomBone : _venomDeep,
+      // THE CENSER: a pierced bronze bowl hung on three chains, smoking.
+      // It was a circle with a ring round it, which is a token for a censer
+      // rather than one — and this is the thing you burn a ward clean with,
+      // so it has to look like it could.
+      final cen = ward.censer;
+      final swing = sin(_time * 1.1 + cen.dx * 0.01) * 3.0;
+      final hang = Offset(cen.dx + swing, cen.dy);
+      for (final dx in const [-9.0, 0.0, 9.0]) {
+        canvas.drawLine(
+          Offset(cen.dx + dx * 0.35, cen.dy - 54),
+          Offset(hang.dx + dx, hang.dy - 10),
+          Paint()
+            ..strokeWidth = 1.3
+            ..color = _venomIron.withValues(alpha: 0.9),
+        );
+      }
+      // The bowl, and the lid that makes it a censer and not a cup.
+      canvas.drawArc(
+        Rect.fromCenter(center: hang, width: 30, height: 26),
+        0,
+        pi,
+        true,
+        Paint()..color = cured ? _venomBronzeLit : _venomBronze,
       );
-      canvas.drawCircle(
-        ward.censer,
-        13,
+      canvas.drawArc(
+        Rect.fromCenter(
+          center: hang - const Offset(0, 3),
+          width: 28,
+          height: 20,
+        ),
+        pi,
+        pi,
+        true,
+        Paint()
+          ..color = (cured ? _venomBronzeLit : _venomBronze).withValues(
+            alpha: 0.85,
+          ),
+      );
+      for (var i = -1; i <= 1; i++) {
+        canvas.drawCircle(
+          hang + Offset(i * 7.0, -7),
+          1.6,
+          Paint()..color = const Color(0xFF11140F),
+        );
+      }
+      canvas.drawLine(
+        hang + const Offset(-15, -1),
+        hang + const Offset(15, -1),
+        Paint()
+          ..strokeWidth = 2
+          ..color = _venomBone.withValues(alpha: 0.55),
+      );
+      // Smoke: sick and thin while the ward is live, clean and full once it
+      // has been burned through.
+      if (_fx.ready) {
+        for (var i = 0; i < 4; i++) {
+          final k = ((_time * (cured ? 0.34 : 0.20) + i / 4) % 1.0);
+          drawPuff(
+            canvas,
+            _fx.puff!,
+            hang + Offset(sin(k * 5 + i) * (5 + 9 * k), -12 - 46 * k),
+            10 + 26 * k,
+            (cured ? _venomBone : _venomLive).withValues(
+              alpha: (cured ? 0.16 : 0.10) * (1 - k),
+            ),
+          );
+        }
+      }
+      // The sacristy: a small door, sealed until the ward is clean.
+      final taken = t.sacristiesTaken.contains(ward.id);
+      // THE SACRISTY: an arched cupboard set in the wall, iron-banded and
+      // barred while the ward is foul. Three readable states — barred, open
+      // and holding something, emptied — where before all three were one
+      // rounded rectangle in three colours.
+      final sr = Rect.fromCenter(center: ward.sacristy, width: 38, height: 50);
+      _stoneBlock(canvas, sr.inflate(5), radius: 6);
+      final arch = Path()
+        ..moveTo(sr.left, sr.bottom)
+        ..lineTo(sr.left, sr.top + 12)
+        ..arcToPoint(
+          Offset(sr.right, sr.top + 12),
+          radius: Radius.circular(sr.width / 2),
+        )
+        ..lineTo(sr.right, sr.bottom)
+        ..close();
+      canvas.drawPath(
+        arch,
+        Paint()
+          ..color = cured && !taken
+              ? const Color(0xFF1C2A1A)
+              : const Color(0xFF0D110C),
+      );
+      if (!cured) {
+        // BARRED. Iron across the mouth, and it is the bars that say "not
+        // yet" rather than a colour you have to have seen before.
+        for (var i = 0; i < 3; i++) {
+          canvas.drawLine(
+            Offset(sr.left + 3, sr.top + 16 + i * 12.0),
+            Offset(sr.right - 3, sr.top + 16 + i * 12.0),
+            Paint()
+              ..strokeWidth = 3.4
+              ..strokeCap = StrokeCap.round
+              ..color = _venomIron,
+          );
+        }
+      } else if (!taken) {
+        // Open, and there is something in it.
+        canvas.drawCircle(
+          sr.center + const Offset(0, 4),
+          8,
+          Paint()..color = _venomBone.withValues(alpha: 0.9),
+        );
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            sr.center,
+            28,
+            _venomBone.withValues(alpha: 0.22),
+          );
+        }
+      }
+      canvas.drawPath(
+        arch,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2
-          ..color = _venomBone.withValues(alpha: 0.7),
-      );
-      // The sacristy: a small door, sealed until the ward is clean.
-      final taken = t.sacristiesTaken.contains(ward.id);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: ward.sacristy, width: 34, height: 46),
-          const Radius.circular(6),
-        ),
-        Paint()
-          ..color = cured
-              ? (taken ? _venomDeep : _venomBone.withValues(alpha: 0.9))
-              : const Color(0xFF2E2438),
+          ..color = _venomBronze.withValues(alpha: cured ? 0.9 : 0.55),
       );
       if (ward.id == t.surrendered) {
         _renderOubliette(canvas, ward);
@@ -1392,20 +1573,45 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (seal != null) {
       // The prior's seal: a lead cross on a stand, lit once it can be taken.
       final ready = t.canCommit && t.surrendered == null;
+      // THE PRIOR'S SEAL: a lead cross on a stone plinth. Dull while there is
+      // nothing to decide; lit, and worth walking to, the moment the choice
+      // is actually in front of you — which is the whole of this planet's
+      // signature move, so it had better not be two grey lines.
+      final sp = seal.position;
+      _stoneBlock(
+        canvas,
+        Rect.fromCenter(
+          center: sp + const Offset(0, 34),
+          width: 46,
+          height: 18,
+        ),
+      );
       final p = Paint()
-        ..color = (ready ? _venomBone : _venomDeep).withValues(alpha: 0.95)
-        ..strokeWidth = 7
-        ..strokeCap = StrokeCap.round;
+        ..color = (ready ? _venomBone : const Color(0xFF474C52)).withValues(
+          alpha: 0.95,
+        )
+        ..strokeWidth = 8
+        ..strokeCap = StrokeCap.square;
+      canvas.drawLine(sp + const Offset(0, -28), sp + const Offset(0, 26), p);
+      canvas.drawLine(sp + const Offset(-18, -8), sp + const Offset(18, -8), p);
+      // Cast lead is soft and it shows: a bevel down the upright.
       canvas.drawLine(
-        seal.position + const Offset(0, -26),
-        seal.position + const Offset(0, 26),
-        p,
+        sp + const Offset(-2, -26),
+        sp + const Offset(-2, 24),
+        Paint()
+          ..strokeWidth = 2
+          ..color = Colors.white.withValues(alpha: ready ? 0.22 : 0.10),
       );
-      canvas.drawLine(
-        seal.position + const Offset(-18, -6),
-        seal.position + const Offset(18, -6),
-        p,
-      );
+      if (ready && _fx.ready) {
+        final pulse = 0.5 + 0.5 * sin(_time * 2.2);
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          sp,
+          44 + 10 * pulse,
+          _venomBone.withValues(alpha: 0.16 + 0.12 * pulse),
+        );
+      }
     }
 
     final wisp = monastery.wisp;
@@ -1420,66 +1626,175 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
   }
 
+  /// THE FOUR DRAUGHTS, each one a piece of apothecary kit you could name
+  /// with the labels off — which is the whole design: §5.6 says the pairing
+  /// of draught to strain must be deducible from BEHAVIOUR, so the vessel is
+  /// allowed to say what it does and never which sickness it answers.
+  ///
+  /// They were four flat purple shapes. Silhouette alone was carrying it, and
+  /// two of the four (a dome and an oval) are nearly the same silhouette.
   void _renderSpout(Canvas canvas, ApothecarySpout spout) {
     final p = spout.position;
-    final ink = Paint()..color = _venomBone.withValues(alpha: 0.92);
-    final body = Paint()..color = _venomDeep;
+    final glass = Paint()
+      ..color = const Color(0xFF2A3630).withValues(alpha: 0.85);
     switch (spout.draught) {
       case WardDraught.stilling:
-        // A bell jar: a dome that damps whatever is under it.
+        // THE STILLING BELL. A glass dome on a stone foot, and the air inside
+        // it visibly DEAD — no motes, no drift, while the whole room outside
+        // is full of them.
+        _stoneBlock(
+          canvas,
+          Rect.fromCenter(center: p + const Offset(0, 4), width: 52, height: 9),
+        );
+        final dome = Rect.fromCenter(center: p, width: 46, height: 46);
+        canvas.drawArc(dome, pi, pi, true, glass);
         canvas.drawArc(
-          Rect.fromCenter(center: p, width: 46, height: 46),
+          dome,
           pi,
           pi,
-          true,
-          body,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = _venomBone.withValues(alpha: 0.65),
         );
-        canvas.drawLine(
-          p + const Offset(-24, 0),
-          p + const Offset(24, 0),
-          ink..strokeWidth = 3,
-        );
-      case WardDraught.quicklime:
-        // A kiln mouth: a squat arch with a bright throat.
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(center: p, width: 46, height: 38),
-            const Radius.circular(4),
-          ),
-          body,
-        );
-        canvas.drawCircle(
-          p + const Offset(0, 4),
-          9,
-          Paint()..color = const Color(0xFFE8E2CE),
-        );
-      case WardDraught.binding:
-        // A smoke pot: a squat pot with a lattice over its mouth.
-        canvas.drawOval(
+        // The highlight that makes it read as glass rather than as a lid.
+        canvas.drawArc(
           Rect.fromCenter(
-            center: p + const Offset(0, 6),
-            width: 44,
+            center: p + const Offset(-6, 2),
+            width: 26,
             height: 30,
           ),
-          body,
+          pi * 1.15,
+          pi * 0.5,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.4
+            ..color = Colors.white.withValues(alpha: 0.16),
         );
-        for (var i = -1; i <= 1; i++) {
-          canvas.drawLine(
-            p + Offset(i * 12.0, -12),
-            p + Offset(i * 12.0, 4),
-            ink..strokeWidth = 2,
+        canvas.drawCircle(
+          p + const Offset(0, -24),
+          3.5,
+          Paint()..color = _venomBone.withValues(alpha: 0.7),
+        );
+      case WardDraught.quicklime:
+        // THE LIME KILN. A brick mouth with a white-hot throat and lime dust
+        // banked at its foot.
+        final mouth = Rect.fromCenter(center: p, width: 50, height: 40);
+        _stoneBlock(canvas, mouth, radius: 3);
+        final arch = Path()
+          ..moveTo(mouth.left + 9, mouth.bottom - 3)
+          ..lineTo(mouth.left + 9, mouth.center.dy)
+          ..arcToPoint(
+            Offset(mouth.right - 9, mouth.center.dy),
+            radius: const Radius.circular(16),
+          )
+          ..lineTo(mouth.right - 9, mouth.bottom - 3)
+          ..close();
+        canvas.drawPath(arch, Paint()..color = const Color(0xFF0A0C09));
+        canvas.drawCircle(
+          p + const Offset(0, 6),
+          8,
+          Paint()..color = const Color(0xFFEDE7D2),
+        );
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            p + const Offset(0, 6),
+            26,
+            const Color(0xFFEDE7D2).withValues(alpha: 0.22),
           );
         }
+        for (var i = 0; i < 7; i++) {
+          canvas.drawCircle(
+            Offset(mouth.left + 6 + i * 6.5, mouth.bottom + 2.0 + (i % 2)),
+            1.6,
+            Paint()..color = _venomBone.withValues(alpha: 0.5),
+          );
+        }
+      case WardDraught.binding:
+        // THE SMOKE POT. A bellied pot with a pierced lid, and smoke that
+        // spreads SIDEWAYS along the ground — it fills the space between
+        // things, which is exactly what it does to a strain.
+        final pot = Rect.fromCenter(
+          center: p + const Offset(0, 8),
+          width: 44,
+          height: 32,
+        );
+        canvas.drawOval(pot, Paint()..color = const Color(0xFF37302A));
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: pot.center - const Offset(0, 4),
+            width: 40,
+            height: 24,
+          ),
+          Paint()..color = const Color(0xFF241F1B),
+        );
+        canvas.drawOval(
+          Rect.fromCenter(center: pot.topCenter, width: 30, height: 11),
+          Paint()..color = _venomBronze,
+        );
+        for (var i = -1; i <= 1; i++) {
+          canvas.drawCircle(
+            pot.topCenter + Offset(i * 8.0, 0),
+            1.7,
+            Paint()..color = const Color(0xFF10130E),
+          );
+        }
+        if (_fx.ready) {
+          for (var i = 0; i < 3; i++) {
+            final k = ((_time * 0.24 + i / 3) % 1.0);
+            drawPuff(
+              canvas,
+              _fx.puff!,
+              pot.topCenter + Offset((i - 1) * 26.0 * k, -6 - 10 * k),
+              14 + 30 * k,
+              _venomDeep.withValues(alpha: 0.16 * (1 - k)),
+            );
+          }
+        }
       case WardDraught.rousing:
-        // The wake-bitters: a narrow flask with a struck clapper beside it.
+        // THE WAKE-BITTERS. A tall flask, and a clapper on a stand beside it
+        // that is visibly STRUCK — the one draught that makes noise, for the
+        // strain that plays dead.
+        final flask = Rect.fromCenter(center: p, width: 24, height: 44);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(flask, const Radius.circular(11)),
+          glass,
+        );
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromCenter(center: p, width: 22, height: 46),
-            const Radius.circular(10),
+            Rect.fromLTWH(flask.left + 3, flask.center.dy, flask.width - 6, 18),
+            const Radius.circular(8),
           ),
-          body,
+          Paint()..color = _venomSick.withValues(alpha: 0.55),
         );
-        canvas.drawCircle(p + const Offset(20, -12), 6, ink);
+        canvas.drawRect(
+          Rect.fromCenter(center: flask.topCenter, width: 10, height: 8),
+          Paint()..color = _venomBronze,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(flask, const Radius.circular(11)),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = _venomBone.withValues(alpha: 0.6),
+        );
+        final swing = sin(_time * 5.0) * 5;
+        canvas.drawLine(
+          p + const Offset(22, -26),
+          p + Offset(22 + swing, -12),
+          Paint()
+            ..strokeWidth = 1.4
+            ..color = _venomIron,
+        );
+        canvas.drawCircle(
+          p + Offset(22 + swing, -10),
+          5,
+          Paint()..color = _venomBronzeLit,
+        );
     }
   }
 
