@@ -526,6 +526,85 @@ void main() {
       expect(canWalk(s, 'tap_head', spawn, mold), isTrue);
     });
 
+    test('no channel cuts a room in half — every arrival can reach every '
+        'lever and every door in the room it lands in', () {
+      // THE RISK IN MOVING METAL AROUND. A channel is a wall, so re-routing
+      // one to line up with a door can quietly strand the party on the wrong
+      // side of the room it lands in — and nothing else in this file would
+      // notice, because the pour still runs and the solver still solves.
+      //
+      // Fixtures being out of the channel (the test below) is not the same
+      // question: a lever can stand on perfectly good floor that you cannot
+      // walk to.
+      final s = _fresh();
+      for (final room in kLavaLayout.rooms.values) {
+        // Every way you can arrive here.
+        bool wardedPair(String a, String b) {
+          final pair = {a, b};
+          return pair.containsAll({'chill_house', 'mold_floor'}) ||
+              pair.containsAll({'mold_floor', 'slag_reliquary'});
+        }
+
+        // Arrivals you did NOT have to earn. Coming through a warded door
+        // lands you on ground you bought — the gantry puts you on the
+        // catwalk, above the north channel — and what is reachable from
+        // there is the puzzle rather than a severed room.
+        final arrivals = <Offset>[
+          if (room.id == kLavaLayout.entranceRoomId) kLavaLayout.entranceSpawn,
+          for (final other in kLavaLayout.rooms.values)
+            for (final d in other.doors)
+              // …and not out of the guardian's room either: you only stand
+              // in there having crossed the runner, so coming back is an
+              // earned arrival like the warded ones.
+              if (d.targetRoomId == room.id &&
+                  !wardedPair(other.id, room.id) &&
+                  other.guardian == null)
+                d.targetSpawn,
+        ];
+        for (final from in arrivals) {
+          expect(
+            foundryBlocks(s, room.id, from),
+            isFalse,
+            reason: '${room.id}: you arrive at $from inside a channel',
+          );
+          for (final n in kLavaLine.nodesIn(room.id)) {
+            final lever = n.leverAt;
+            if (lever == null) continue;
+            // A lever with `leverAccess` is DELIBERATELY out of reach until
+            // you have earned the token — the tail switch hangs beyond the
+            // north channel and wants the catwalk. That is the puzzle, not a
+            // severed room; the test above it guards that one on purpose.
+            if (n.leverAccess != null) continue;
+            expect(
+              canWalk(s, room.id, from, lever),
+              isTrue,
+              reason:
+                  '${room.id}: arriving at $from you cannot reach '
+                  '${n.id}\'s lever at $lever',
+            );
+          }
+          for (final d in room.doors) {
+            // A WARDED door is earned, and on this planet the way TO it is
+            // often part of what you earn: the gantry hangs beyond the north
+            // channel and wants a road frozen across before you can even
+            // stand at it. Those are gates, not severed rooms.
+            if (wardedPair(room.id, d.targetRoomId)) continue;
+            // The finale door is star-gated and stands beyond the runner on
+            // purpose — the Ember Star and the way to the guardian are the
+            // same side of the same gap, which is the room's whole design.
+            if (kLavaLayout.rooms[d.targetRoomId]!.guardian != null) continue;
+            expect(
+              canWalk(s, room.id, from, d.rect.center),
+              isTrue,
+              reason:
+                  '${room.id}: arriving at $from you cannot reach the door '
+                  'to ${d.targetRoomId}',
+            );
+          }
+        }
+      }
+    });
+
     test('the metal and the party leave a room by the same side', () {
       // REPORTED FROM PLAY. In the switch yard you set the lever to the mill
       // arm, the channel running EAST lit up, you followed it east — and

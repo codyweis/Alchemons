@@ -639,7 +639,10 @@ const FoundryLine kLavaLine = FoundryLine(
       // channels did not obey and the doors did not either; the destination
       // is both truthful and more use to the player than a bearing.
       switchLabels: ['CHILL', 'MILL'],
-      leverAt: Offset(600, 130),
+      // West of the drop: at x=600 the lever stood inside the mill arm once
+      // that arm came down through the room. You never reach over running
+      // metal, and you certainly never stand in it.
+      leverAt: Offset(500, 130),
     ),
     FoundryNode(
       id: 'chiller',
@@ -666,7 +669,17 @@ const FoundryLine kLavaLine = FoundryLine(
       exits: ['ch_damper_clean', 'ch_vent_up'],
       switchId: 'damper',
       switchLabels: ['SHUT', 'PURGE'],
-      leverAt: Offset(690, 400),
+      // WEST OF THE VENT RISER, and this is not cosmetic: at (690,400) the
+      // lever stood in a SEALED POCKET — walled by the riser (x 606-634), the
+      // vent-out run above it, the bottom channel below and the room's own
+      // east wall. Nothing could stand within the 70px reach of it: the
+      // nearest floor outside is 74 away, across running metal.
+      //
+      // The damper starts on PURGE. Both keys need warded metal down the mill
+      // arm, and warded metal that reaches the vent is gassed. So the planet
+      // could not be finished, by anyone, ever — and every test passed,
+      // because tests set levers by hand and never walk to one.
+      leverAt: Offset(570, 400),
     ),
     FoundryNode(
       id: 'vent',
@@ -784,13 +797,27 @@ const FoundryLine kLavaLine = FoundryLine(
       // AND THE MILL ARM LEAVES SOUTH, for the same reason: that is where its
       // door is. A short jog off the junction, then straight down the room.
       segments: [
-        FoundrySegment('switch_yard', Rect.fromLTWH(600, 30, 100, 28)),
-        FoundrySegment('switch_yard', Rect.fromLTWH(672, 58, 28, 502)),
+        // IT DROPS AND THEN GOES EAST, and the drop stops short of the floor.
+        // Run to the south wall and it is a full-height wall: the party
+        // arrives from the tap head on the west side and the chill-house door
+        // is on the east, so a channel joining the two edges quietly halves
+        // the room. (That is what the new "no channel cuts a room in half"
+        // invariant caught, one commit after I had introduced it.)
+        FoundrySegment('switch_yard', Rect.fromLTWH(586, 44, 28, 156)),
+        FoundrySegment('switch_yard', Rect.fromLTWH(586, 200, 174, 28)),
         // …and it comes INTO the mill through the roof, on the same side the
-        // party comes in by. It used to arrive along the west wall while the
-        // door was in the north, which is the same fault one room over.
-        FoundrySegment('stamp_mill', Rect.fromLTWH(60, 0, 28, 446)),
-        FoundrySegment('stamp_mill', Rect.fromLTWH(60, 446, 240, 28)),
+        // party comes in by, AND ON THE SAME SIDE OF THE DOOR. The wall was
+        // only half the answer: at x=60 the pipe dropped in far to the LEFT
+        // of a door at x=380, while back in the yard the pipe was to the
+        // RIGHT of the door you left by. Walk through and the pipe jumps
+        // across you. Reported from play in exactly those terms.
+        // The mill's own bottom channel already runs its whole width, so the
+        // room is ALREADY divided into "above the metal" (where every fixture
+        // is) and "below it". Bring the arm in anywhere but along that bottom
+        // line and you divide it a second time, and the west end becomes a
+        // pocket you cannot get out of except under the arm — and then you
+        // are on the wrong side of the bottom channel anyway.
+        FoundrySegment('stamp_mill', Rect.fromLTWH(0, 446, 300, 28)),
       ],
     ),
     FoundryChannel(
@@ -1095,16 +1122,21 @@ const DungeonLayout kLavaLayout = DungeonLayout(
           targetSpawn: Offset(820, 280),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(736, 120, 24, 90),
+          // BELOW BOTH ARMS. The mill arm is the last thing that crosses
+          // this wall, so the door directly under it must be the mill's —
+          // whichever door sits nearest a pipe is the one the eye pairs it
+          // with, and pairing it wrongly is the whole complaint.
+          rect: Rect.fromLTWH(736, 380, 24, 90),
           targetRoomId: 'chill_house',
           targetSpawn: Offset(60, 500),
         ),
         DungeonDoor(
-          // Under the mill arm, so the way down and the metal going down are
-          // the same corner of the room.
-          rect: Rect.fromLTWH(500, 536, 110, 24),
+          // Under the mill arm — the arm drops past it and goes out the same
+          // wall, so the metal and the party leave together.
+          // Directly under the mill arm's crossing.
+          rect: Rect.fromLTWH(736, 250, 24, 90),
           targetRoomId: 'stamp_mill',
-          targetSpawn: Offset(435, 120),
+          targetSpawn: Offset(60, 340),
         ),
       ],
     ),
@@ -1119,7 +1151,10 @@ const DungeonLayout kLavaLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(0, 460, 24, 90),
           targetRoomId: 'switch_yard',
-          targetSpawn: Offset(700, 165),
+          // Below the mill arm's run, where both of the yard's doors are.
+          // At (700,165) you landed in the pocket between the two arms and
+          // the east wall, which has no door in it at all.
+          targetSpawn: Offset(690, 425),
         ),
         // THE GANTRY: an overhead walk from the catwalk out to the mold
         // floor, bolted shut until a key is cast to its ward.
@@ -1138,9 +1173,9 @@ const DungeonLayout kLavaLayout = DungeonLayout(
       bounds: Rect.fromLTWH(0, 0, 940, 520),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(380, 0, 110, 24),
+          rect: Rect.fromLTWH(0, 300, 24, 90),
           targetRoomId: 'switch_yard',
-          targetSpawn: Offset(555, 460),
+          targetSpawn: Offset(690, 295),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(916, 150, 24, 90),

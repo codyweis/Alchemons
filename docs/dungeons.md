@@ -2337,6 +2337,35 @@ see any of that.
     designed. (The geometry fix above added five seconds to the mill arm and
     pushed the run test past its 40s cap, which is how the pre-existing 38s
     came to light at all.)
+  · ✅ **THE PLANET COULD NOT BE FINISHED.** Chasing the pipe alignment one
+    room further turned up the real thing: **the damper lever stood in a
+    sealed pocket.** Walled by the vent riser (x 606-634), the vent-out run
+    above it, the bottom channel below and the room's own east wall — and
+    nothing could stand within its 70px reach, the nearest floor outside
+    being 74 away across running metal. The damper starts on PURGE. Both keys
+    need warded metal down the mill arm, and warded metal that reaches the
+    vent is gassed. So Lava was unwinnable, by anyone, from the day it was
+    authored. **Twenty-two tests passed the whole time, because a test sets a
+    lever by hand and never walks to one** — the same shape as Steam's
+    Boilrog, who could not be reached because every test teleported into his
+    room.
+  · ✅ **AND A NEW INVARIANT SAYS SO OUT LOUD**: from every arrival you did
+    not have to earn, you can reach every lever and every door in the room
+    you land in. It caught the damper, and it caught two regressions of my
+    own within minutes of being written — a full-height drop that halved the
+    switch yard, and an arrival that landed in the pocket between the two
+    arms and the east wall, which had no door in it at all. What it
+    deliberately does NOT flag: access-gated levers (the tail switch wants
+    the catwalk), warded doors (the gantry hangs beyond the north channel),
+    the star-gated finale, and arrivals that come back THROUGH one of those —
+    those are gates, and a gate is not a severed room.
+  · ✅ **AND THE DOOR UNDER A PIPE IS THAT PIPE'S DOOR.** Wall-level agreement
+    was not enough: the mill arm crossed the yard's east wall and the door
+    immediately beneath it was the CHILL house's. Whichever door sits nearest
+    a pipe is the one the eye pairs with it, so the two were swapped. The
+    yard's own shape is what forces the compromise — `ch_tap` runs across the
+    top and walls off everything above it, so both doors have to live low on
+    the east wall while the chill arm crosses at the very top.
   · ⬜ CARRIED: the maxim. §7's table grades **Black Glass** ⬜ *"one verb,
     three times"* — quench three times with Ice. That is an achievement, not
     a puzzle, and Steam has just shown what the fix looks like (§9.6): a
