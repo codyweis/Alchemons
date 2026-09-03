@@ -2277,6 +2277,23 @@ see any of that.
     its form now (a smooth slab; a key with its wards and bow) and tinted
     the colour that metal runs down the channel as, so the bead you are
     watching and the mold it is heading for are the same colour.
+  · ✅ **A DEAD RUNNER LOOKS DEAD** — the worst thing this planet did to a
+    player. A plugged arm silently EATS a pour (`_leaveBy`: *"it congeals
+    against cold metal and is simply gone"*), one of only five, and the floor
+    drew that arm hot, flowing and glowing right up until the metal vanished
+    into it. Three states are drawn apart now: **live** runs; **shut** (a
+    branch its junction is not feeding) stands still and dark with no
+    travelling bands; **plugged** is cold blue-grey set metal end to end with
+    the shrinkage crack cooling always leaves down the middle.
+  · ✅ **AND A JUNCTION SHOWS ITS GATE.** A junction was nothing on the floor
+    — a place two troughs met, with the answer only on a lever plate some
+    paces off. It is a real switch now: a pivot, the paddle swung back along
+    the arm it feeds, and swung ACROSS the mouth of every arm it does not. At
+    the mill you can see the metal going up the purge and not on down the
+    line, without reading a word. (The paddle first drew from the node to the
+    arm's start point, which is a zero vector whenever an arm begins exactly
+    on its junction — most of them — so it was skipped on precisely the arms
+    that needed it. It takes the direction along the segment now.)
   · ⬜ CARRIED: the maxim. §7's table grades **Black Glass** ⬜ *"one verb,
     three times"* — quench three times with Ice. That is an achievement, not
     a puzzle, and Steam has just shown what the fix looks like (§9.6): a

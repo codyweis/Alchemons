@@ -69,6 +69,9 @@ const double _kHeadCooldown = 2.2;
 // glow, cold castings in Ice-blue, and slag in a dead grey-green. Everything
 // here is a hard edge or a right angle; nothing flickers like a candle.
 
+/// What a runner is doing: carrying, gated off at its junction, or set solid.
+enum _RunState { live, shut, plugged }
+
 const Color _worksIron = Color(0xFF39424C);
 const Color _worksIronLit = Color(0xFF5E6B78);
 const Color _worksCore = Color(0xFFFFF1CF); // white-hot metal
@@ -1030,6 +1033,29 @@ extension MoltenReliquary on PlanetDungeonGame {
     }
   }
 
+  /// Is this channel actually going to carry metal right now?
+  ///
+  /// Three states, and the room used to draw all three identically — every
+  /// channel hot, flowing and glowing whether or not a pour could ever go
+  /// down it. That is the worst thing this planet did to a player: a plugged
+  /// arm silently EATS a pour (`_leaveBy`: "it congeals against cold metal
+  /// and is simply gone"), one of only five, and the floor said the arm was
+  /// open right up until the metal vanished into it.
+  ///
+  /// State, not method (§5.6). The reading still teaches what cold metal DOES;
+  /// the floor now shows where it already is.
+  _RunState _runStateOf(FoundryChannel ch) {
+    final s = works.line;
+    if (s.plugged(ch.id)) return _RunState.plugged;
+    final from = s.line.node(ch.from);
+    final sw = from.switchId;
+    if (sw != null && from.exits.length > 1) {
+      final pick = s.settingOf(sw).clamp(0, from.exits.length - 1);
+      if (from.exits[pick] != ch.id) return _RunState.shut;
+    }
+    return _RunState.live;
+  }
+
   /// A RUNNER, and it RUNS. Refractory lip, a crust with the bright body
   /// showing through it, and bands travelling the way the metal actually
   /// goes — the segment model already knows (`reverse`), and until now that
@@ -1044,6 +1070,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     final s = works.line;
     final pulse = 0.5 + 0.5 * sin(works.clock * 1.4);
     for (final ch in s.line.channelsIn(room.id)) {
+      final state = _runStateOf(ch);
       for (final seg in ch.segments) {
         if (seg.roomId != room.id) continue;
         final r = seg.rect;
@@ -1088,6 +1115,27 @@ extension MoltenReliquary on PlanetDungeonGame {
           Paint()..color = const Color(0xFF6B3411).withValues(alpha: 0.85),
         );
 
+        // PLUGGED: set solid, and it looks it. Cold blue-grey metal filling
+        // the trough end to end, with the shrinkage crack down the middle
+        // that cooling metal always leaves. Nothing runs here again.
+        if (state == _RunState.plugged) {
+          canvas.drawRect(r, Paint()..color = const Color(0xFF3C4A55));
+          canvas.drawRect(
+            horiz
+                ? Rect.fromLTWH(r.left, r.center.dy - 1.5, r.width, 3)
+                : Rect.fromLTWH(r.center.dx - 1.5, r.top, 3, r.height),
+            Paint()..color = const Color(0xFF232C34),
+          );
+          canvas.drawRect(
+            r,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2
+              ..color = _worksCold.withValues(alpha: 0.55),
+          );
+          continue;
+        }
+
         // THE METAL. A dark crust with the body burning through it, not a
         // flat orange bar.
         canvas.drawRect(r, Paint()..color = const Color(0xFF6E2408));
@@ -1115,8 +1163,11 @@ extension MoltenReliquary on PlanetDungeonGame {
 
         // TRAVELLING BANDS — the flow, and its DIRECTION. `reverse` means the
         // metal runs the other way down this segment, so the bands do too.
+        // A SHUT branch has none: its junction is not sending anything this
+        // way, and a still runner beside a moving one is the clearest thing
+        // this planet can say about which route is set.
         final dir = seg.reverse ? -1.0 : 1.0;
-        for (var i = 0; i < 6; i++) {
+        for (var i = 0; state == _RunState.live && i < 6; i++) {
           final t = ((works.clock * 0.22 * dir + i / 6) % 1.0 + 1.0) % 1.0;
           final at = span * t;
           final a = 0.30 * sin(t * pi).clamp(0.0, 1.0);
@@ -1178,6 +1229,13 @@ extension MoltenReliquary on PlanetDungeonGame {
           k += len + 9.0 + ((i * 53) % 7) * 5.0;
           i++;
         }
+        // A shut arm is standing metal: darker, and no longer glowing.
+        if (state == _RunState.shut) {
+          canvas.drawRect(
+            r,
+            Paint()..color = const Color(0xFF120A06).withValues(alpha: 0.55),
+          );
+        }
         canvas.restore();
 
         // The hot rim, brightest where the metal meets its brick.
@@ -1186,9 +1244,11 @@ extension MoltenReliquary on PlanetDungeonGame {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2
-            ..color = _worksCore.withValues(alpha: 0.28 + 0.14 * pulse),
+            ..color = _worksCore.withValues(
+              alpha: state == _RunState.live ? 0.28 + 0.14 * pulse : 0.10,
+            ),
         );
-        if (_fx.ready) {
+        if (state == _RunState.live && _fx.ready) {
           drawGlow(
             canvas,
             _fx.glow!,
@@ -1519,6 +1579,70 @@ extension MoltenReliquary on PlanetDungeonGame {
             );
           }
         case FoundryNodeKind.junction:
+          // THE GATE ITSELF. A junction used to be nothing on the floor —
+          // just a place two troughs met, with the answer only on the lever's
+          // plate a few paces away. It is a real switch now: a pivot on the
+          // rock and a paddle swung ACROSS the mouth of every arm it is not
+          // feeding, so the route is a thing you see rather than a word you
+          // read.
+          canvas.drawCircle(p, 9, Paint()..color = _worksIron);
+          canvas.drawCircle(
+            p,
+            9,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2
+              ..color = _worksIronLit,
+          );
+          final pick = s
+              .settingOf(n.switchId ?? '')
+              .clamp(0, max(0, n.exits.length - 1));
+          for (var e = 0; e < n.exits.length; e++) {
+            final ch = s.line.channel(n.exits[e]);
+            final seg = ch.segments.first;
+            // The direction the arm LEAVES IN, taken along the segment
+            // itself. Measuring from the node to the segment's start point
+            // gave a zero vector whenever an arm begins exactly on its
+            // junction — which is most of them — so the shut paddle was
+            // skipped on precisely the arms it most needed to appear on.
+            final a0 = seg.pointAt(0.0);
+            final a1 = seg.pointAt(0.12);
+            final d = a1 - a0;
+            if (d.distance < 1) continue;
+            final u = d / d.distance;
+            final at = a0 + u * 22;
+            if (e == pick) {
+              // Open: the paddle is swung back along the arm, out of the way.
+              canvas.drawLine(
+                at - Offset(-u.dy, u.dx) * 3,
+                at + u * 16 - Offset(-u.dy, u.dx) * 3,
+                Paint()
+                  ..strokeWidth = 5
+                  ..strokeCap = StrokeCap.round
+                  ..color = _worksIronLit,
+              );
+            } else {
+              // Shut: the paddle lies ACROSS the mouth, and it is cold iron
+              // against a dead arm.
+              final n2 = Offset(-u.dy, u.dx);
+              canvas.drawLine(
+                at - n2 * 17,
+                at + n2 * 17,
+                Paint()
+                  ..strokeWidth = 8
+                  ..strokeCap = StrokeCap.round
+                  ..color = _worksIron,
+              );
+              canvas.drawLine(
+                at - n2 * 17,
+                at + n2 * 17,
+                Paint()
+                  ..strokeWidth = 3
+                  ..strokeCap = StrokeCap.round
+                  ..color = const Color(0xFF7C8B99).withValues(alpha: 0.7),
+              );
+            }
+          }
         case FoundryNodeKind.relay:
           break;
       }
