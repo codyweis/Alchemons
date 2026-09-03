@@ -107,6 +107,13 @@ class VenomMonastery {
   double wake = 0;
   String? wakeWard;
 
+  /// Wards whose waking has already been shown, so it plays once — the first
+  /// time you walk in — and never again on a re-entry.
+  final Set<String> wakeShown = {};
+
+  /// Which room the monastery last saw the party in, for spotting arrivals.
+  String? lastRoomId;
+
   /// THE CROSS GOING UP: 1 → 0 over the condemnation. The planet's signature
   /// move — the ward you give up — and it had less ceremony than opening a
   /// door did.
@@ -321,6 +328,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       monastery.wake = min(1.0, monastery.wake + dt / _kWakeSeconds);
       if (monastery.wake >= 1) monastery.wakeWard = null;
     }
+    _maybeWakeWard(room);
     if (!_isVenom) return;
     final m = monastery;
     m.clock += dt;
@@ -524,17 +532,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         }
       }
       t.open(ward.id);
-      // THE CUT LOOKS INSIDE. It used to burst out of the doorway into the
-      // cloister, which is the wrong story twice over: opening a ward is not
-      // what puts a strain loose (surrendering one is, and misdosing one is),
-      // and the interesting thing is not the door — it is what has been
-      // sitting in there in the dark. So the camera goes THROUGH, into a
-      // room the party is not in yet, and watches the contagion come up.
-      monastery
-        ..wake = 0
-        ..wakeWard = ward.id;
-      cutTo(door.targetRoomId, ward.heart, hold: _kWakeSeconds + 0.6);
-      _shake = 5.0;
+      // NO CUT. Breaking the wax does not take the camera anywhere — the
+      // contagion comes up when you WALK IN and see it, which is the same
+      // animation without stopping the game to show you a room you were
+      // about to enter anyway. (See `_maybeWakeWard`.)
       speakConsequence(
         ward.bricked
             ? 'The brick blows in. Something in the dead-house has been '
@@ -1525,6 +1526,28 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         col.withValues(alpha: 0.30 * t),
       );
     }
+  }
+
+  /// THE CONTAGION COMES UP AS YOU WALK IN.
+  ///
+  /// It used to play as a cut the moment the wax broke: the camera went
+  /// through the door into a room you were not in and held there. The
+  /// animation was right and the cut was not — it stopped the game to show a
+  /// room you were about to walk into under your own steam.
+  ///
+  /// Once per ward, on the first arrival after it is opened. A second visit
+  /// finds it already established, which is also the truth of the place.
+  void _maybeWakeWard(DungeonRoom room) {
+    final m = monastery;
+    if (m.lastRoomId == room.id) return;
+    m.lastRoomId = room.id;
+    final ward = room.ward;
+    if (ward == null) return;
+    if (!m.triage.opened.contains(ward.id)) return;
+    if (!m.wakeShown.add(ward.id)) return;
+    m
+      ..wake = 0
+      ..wakeWard = ward.id;
   }
 
   /// THE CROSS GOING UP. The plague cross planted over a ward you have
