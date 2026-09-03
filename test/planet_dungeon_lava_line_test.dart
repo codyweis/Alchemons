@@ -388,6 +388,44 @@ void main() {
       }
     });
 
+    test('a Lava heart vents the die back to sleep', () {
+      // The die was the one commitment Lava could not take back, and it was
+      // the one that could corner you: once driven, the mill arm wards
+      // EVERYTHING, so a party that had also frozen the chill arm had no
+      // source of plain metal left and no way to make one. The span needs
+      // plain. Two undos for one corner is not redundancy — the plug and the
+      // die are different mistakes, and you can make either one alone.
+      final s = _fresh();
+      s.dieWoken = true;
+      s.tapWoken = true;
+      s.switches['y_yard'] = 1; // the mill
+      s.switches['damper'] = 0; // shut, so it reaches the floor
+      s.tap();
+      for (var i = 0; i < 6 && s.pour != null; i++) {
+        if (s.pour!.channelId == 'ch_mill_mid') break;
+        s.arrive();
+      }
+      expect(
+        s.pour!.form,
+        PourForm.stamped,
+        reason: 'a driven die wards everything down this arm',
+      );
+
+      // Vent it, and the same arm carries plain again.
+      s.pour = null;
+      s.dieWoken = false;
+      s.tap();
+      for (var i = 0; i < 6 && s.pour != null; i++) {
+        if (s.pour!.channelId == 'ch_mill_mid') break;
+        s.arrive();
+      }
+      expect(
+        s.pour!.form,
+        PourForm.plain,
+        reason: 'dead iron stamps nothing — the span has a source again',
+      );
+    });
+
     test('a frozen arm can always be melted back open', () {
       // Reported from play: freeze the chill arm, then find the span needs
       // plain metal and the mill only wards it — "there's no way to undo".

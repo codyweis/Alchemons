@@ -730,7 +730,32 @@ extension MoltenReliquary on PlanetDungeonGame {
   bool _tryWakeDie(DungeonCreature a) {
     final s = works.line;
     if (s.dieWoken) {
-      _setHint('The die is falling — it does not stop now');
+      // A LAVA HEART LETS THE PRESSURE OUT. On this planet Lava is the undo
+      // for everything — it melts a ruined casting out of a form and a plug
+      // out of an arm — and the die was the one commitment it could not take
+      // back. That mattered: once driven, the mill arm wards EVERYTHING, so a
+      // party that had also frozen the chill arm had no source of plain metal
+      // left and no way to make one. Two undos for one corner is not
+      // redundancy; the plug and the die are different mistakes.
+      if (a.member.element == 'Lava') {
+        s.dieWoken = false;
+        works
+          ..flash = 1.0
+          ..flashAt = kLavaAccumulator;
+        _spawnAlchemyBurst(
+          kLavaAccumulator,
+          producedElement: 'Lava',
+          reagentElements: const ['Steam'],
+          particleCount: 18,
+          intensity: 0.8,
+        );
+        speakConsequence(
+          'The accumulator vents. The die goes back to dead iron, and the '
+          'mill arm runs plain again.',
+        );
+        return true;
+      }
+      _setHint('The die is falling. Only a Lava heart lets it back down');
       return true;
     }
     // Ice+Lava→Steam: the braid is TWO bodies at the accumulator, which is
@@ -997,7 +1022,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         _setInsightHint(
           t < 1
               ? 'The die is dead iron, and the purge is standing open'
-              : 'Steam drives the die, and once driven it never sleeps again',
+              : 'Steam drives the die; a Lava heart vents it back to sleep',
         );
       case 'mold_floor':
         _setInsightHint(
