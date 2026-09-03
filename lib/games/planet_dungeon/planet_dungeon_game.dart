@@ -1093,6 +1093,10 @@ class PlanetDungeonGame extends FlameGame {
   Offset? followAt;
   double followHold = 0;
 
+  /// Whether the player is offered a way out of the shot. True for the pour
+  /// cam (a long ride you might not want); false for a cut (a beat).
+  bool followInterruptible = true;
+
   bool get followingPour => followRoomId != null;
 
   /// Zoom actually in force. The survey's pull-back and the pour cam's are the
@@ -1109,6 +1113,11 @@ class PlanetDungeonGame extends FlameGame {
     followRoomId = room;
     followAt = at;
     followHold = hold;
+    // A CUT PLAYS. STOP belongs to the pour cam, which can ride a charge for
+    // fourteen seconds and is a place you might not want to be; a cut is a
+    // beat and a half, and offering to abort it is offering to abort a
+    // flourish nobody is trapped in.
+    followInterruptible = false;
     pourWatchDeclined = false;
     onChanged();
   }
@@ -1118,6 +1127,7 @@ class PlanetDungeonGame extends FlameGame {
     followRoomId = room;
     followAt = at;
     followHold = 0;
+    followInterruptible = true;
   }
 
   /// Hold the shot a beat on whatever just happened, then let go.
@@ -1154,6 +1164,7 @@ class PlanetDungeonGame extends FlameGame {
     if (followHold <= 0) {
       followRoomId = null;
       followAt = null;
+      followInterruptible = true;
       onChanged();
     }
   }

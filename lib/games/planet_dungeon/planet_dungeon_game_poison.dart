@@ -1009,8 +1009,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     _renderStrains(canvas, room);
     _renderMonasteryFixtures(canvas, room);
     _renderWardSeals(canvas, room);
-    _renderSealBurst(canvas);
     _renderLazarGloom(canvas, room);
+    // AFTER the gloom. Drawn under it the burst was darkened by the very
+    // thing it should be lighting — and worse, the gloom centres on the
+    // PARTY, so during the cut the doorway sat in the dark ring and the
+    // whole animation was invisible. Reported from play as "I don't see
+    // anything". Light cuts through dark; that is what light is for.
+    _renderSealBurst(canvas);
   }
 
   /// WHAT IS IN THE ROOM WITH YOU, on the floor rather than in the air.
@@ -1092,7 +1097,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// vignette is a frame, and a frame does not make a room feel enclosed.
   void _renderLazarGloom(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
-    final at = active?.position ?? b.center;
+    // Centred on the SHOT, not the party: while the camera is holding
+    // somewhere else, the light has to be there too or it is looking into a
+    // dark corner of its own making.
+    final at = followAt ?? active?.position ?? b.center;
     canvas.drawRect(
       b,
       Paint()

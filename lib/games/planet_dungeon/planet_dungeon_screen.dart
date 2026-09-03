@@ -886,7 +886,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             Positioned.fill(
               child: ValueListenableBuilder<int>(
                 valueListenable: _tick,
-                builder: (_, __, ___) => game.followingPour
+                builder: (_, __, ___) =>
+                    game.followingPour && game.followInterruptible
                     ? Center(
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
