@@ -596,6 +596,7 @@ void main() {
     };
     const censer = Offset(140, 120);
     const oubliette = Offset(280, 310);
+    final cross = poisonLayout.rooms['ambulatory']!.priorsSeal!.position;
     const poison = 0, plant = 1, mud = 2;
 
     Offset spoutOf(PlanetDungeonGame g, String roomId, WardDraught d) => g
@@ -666,6 +667,19 @@ void main() {
         }
         step(game, 0.1);
         expect(game.monastery.slain, contains(p.id));
+
+        // ── AND IT LEAVES SOMETHING. The kill is not the reward; the walk
+        // back to the cross with what it dropped is.
+        final relic = game.monastery.relicAt[p.id];
+        expect(relic, isNotNull, reason: '${p.id} left no reliquary');
+        actAt(game, 'ambulatory', poison, relic!);
+        expect(
+          game.monastery.carriedRelic,
+          p.id,
+          reason: '${p.relic} would not lift off the stones',
+        );
+        actAt(game, 'ambulatory', poison, cross);
+        expect(game.monastery.relicsPlaced, contains(p.id));
       }
       expect(
         game.isDoorLocked(amb, bellDoor),
@@ -673,7 +687,8 @@ void main() {
         reason: 'an opened ward is walkable',
       );
 
-      // ── Three down is both stars, at once.
+      // ── Three in the stone, the cross takes light, and both stars land.
+      expect(game.monastery.crossLight, greaterThan(0));
       expect(game.hasStar(0), isTrue);
       expect(game.hasStar(1), isTrue);
       expect(earned, containsAllInOrder([0, 1]));

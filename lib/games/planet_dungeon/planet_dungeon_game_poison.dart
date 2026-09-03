@@ -122,6 +122,30 @@ class VenomMonastery {
   /// instanceId → drained until the next plague falls.
   final Set<String> drained = {};
 
+  /// Brews standing in their bottles on the laboratory rack. A brew is made
+  /// ONCE and lives in glass until it is poured — so a wrong pour can hand
+  /// it back without the run losing a hand for it.
+  final Set<String> bottled = {};
+
+  /// Relics off the three plagues: dropped where each one died, carried one
+  /// at a time, socketed at the cross.
+  final Set<String> relicsDropped = {};
+  final Map<String, Offset> relicAt = {};
+  String? carriedRelic;
+  final Set<String> relicsPlaced = {};
+
+  /// The cross lighting, 0 → 1, once all three are socketed.
+  double crossLight = 0;
+
+  /// The pot's reaction, 1 → 0, and which one is playing.
+  double reaction = 0;
+  CauldronReaction? reactionKind;
+
+  /// The pour landing on a plague, 1 → 0, and whose.
+  double pour = 0;
+  String? pourPotion;
+  Offset pourAt = Offset.zero;
+
   /// A plague woken and still crawling — it lands when the crawl ends.
   String? pendingFight;
 
@@ -234,6 +258,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.potionHands.clear();
     m.pendingFight = null;
     m.fighting = null;
+    m.bottled.clear();
+    m.relicsDropped.clear();
+    m.relicAt.clear();
+    m.carriedRelic = null;
+    m.relicsPlaced.clear();
+    m.crossLight = 0;
+    m.reaction = 0;
+    m.reactionKind = null;
+    m.pour = 0;
+    m.pourPotion = null;
     m.cauldronTold = false;
     m.symptomTold.clear();
     m.wispDrift = 0;
@@ -431,11 +465,22 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         }
       }
     }
+    if (!_isVenom) return;
+    final m = monastery;
     _maybeWakeWard(room);
     _tellTheHouse(room);
     _tickPlagueFight();
-    if (!_isVenom) return;
-    final m = monastery;
+    if (m.reaction > 0) {
+      m.reaction = max(0.0, m.reaction - dt / _kReactionSeconds);
+      if (m.reaction == 0) m.reactionKind = null;
+    }
+    if (m.pour > 0) {
+      m.pour = max(0.0, m.pour - dt / _kPourSeconds);
+      if (m.pour == 0) m.pourPotion = null;
+    }
+    if (m.crossLight > 0) {
+      m.crossLight = max(0.0, m.crossLight - dt / _kCrossLightSeconds);
+    }
     m.clock += dt;
     _tickStrains(a, room, dt);
 
@@ -618,9 +663,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // 5) The prior's seal: commit the triage.
     final seal = room.priorsSeal;
     if (seal != null &&
-        (a.position - seal.position).distance <= _kMonasteryReach) {
-      return _readTheRoll(seal);
+        (a.position - seal.position).distance <= _kMonasteryReach + 30) {
+      return _tryCross(seal);
     }
+
+    // 5b) A reliquary lying on the stones where a plague came apart.
+    if (_tryTakeRelic(a, room)) return true;
 
     // 6) The sick wisp — cure it instead of killing it (the lost maxim).
     final wisp = m.wisp;
@@ -711,8 +759,35 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final el = a.member.element;
     final id = a.member.instanceId;
 
+    // THE BENCH IS A PLACE, NOT A HAND. `bottled` is every brew that exists;
+    // `carriedPotion` says which of them is off the bench right now. So a
+    // brew survives being carried to the wrong door and walked back, which
+    // is the whole point of "the bottle is still full".
     if (m.carriedPotion != null) {
-      _setBlockedHint('A hand already carries a brew');
+      // Set it down and take the next one along, so the bench is a rack you
+      // swap at rather than a one-way tap.
+      final down = m.carriedPotion!;
+      final others = kPlaguePotions
+          .where((p) => m.bottled.contains(p.id) && p.id != down)
+          .toList();
+      if (others.isEmpty) {
+        m.carriedPotion = null;
+        speakConsequence(
+          '${kPlaguePotions.firstWhere((p) => p.id == down).name} goes back '
+          'on the bench.',
+          3.0,
+        );
+        return true;
+      }
+      final next = others.first;
+      m.carriedPotion = next.id;
+      speakConsequence('Bottles swapped — ${next.name} is in hand now.', 3.2);
+      return true;
+    }
+    if (m.pot.isEmpty && m.bottled.isNotEmpty) {
+      final take = kPlaguePotions.firstWhere((p) => m.bottled.contains(p.id));
+      m.carriedPotion = take.id;
+      speakConsequence('${take.name} comes off the bench.', 3.0);
       return true;
     }
     if ((m.given[id] ?? 0) >= kPotionContributionsEach) {
@@ -777,17 +852,42 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.pot.clear();
     m.potionHands[potion.id] = List<String>.from(m.potHands);
     m.potHands.clear();
+    m.bottled.add(potion.id);
     m.carriedPotion = potion.id;
-    speakConsequence('The pot settles into ${potion.name}.', 4.0);
+    // THE POT REACTS, AND EACH PAIR REACTS DIFFERENTLY. The receipt is the
+    // whole reason giving to a cauldron feels like anything: three brews
+    // that all made the same green flash would be three presses of one
+    // button.
+    m
+      ..reaction = 1.0
+      ..reactionKind = potion.pot;
+    speakConsequence(
+      '${_reactionLine(potion)} ${potion.name} stands in the glass.',
+      4.4,
+    );
     _spawnAlchemyBurst(
       still.cistern,
-      producedElement: 'Light',
-      reagentElements: const ['Poison'],
+      producedElement: switch (potion.pot) {
+        CauldronReaction.bloom => 'Light',
+        CauldronReaction.climb => 'Poison',
+        CauldronReaction.rot => 'Plant',
+      },
+      reagentElements: [potion.first, potion.second],
       particleCount: 26,
       intensity: 1.1,
     );
     return true;
   }
+
+  /// What the pot does, in words, to match what it does on screen.
+  String _reactionLine(PlaguePotion potion) => switch (potion.pot) {
+    CauldronReaction.bloom =>
+      'Flowers come up out of the surface, open, and let go of their spores.',
+    CauldronReaction.climb =>
+      'It goes black and thick, and starts climbing the glass on its own.',
+    CauldronReaction.rot =>
+      'Roots thread up through the sludge, and rot away as fast as they grew.',
+  };
 
   String _capitalisePoison(String s) =>
       s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
@@ -825,27 +925,105 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
     if (held != potion.id) {
       final wrong = kPlaguePotions.firstWhere((p) => p.id == held);
-      // Not spent — a brew carried to the wrong door is a walk, not a
-      // failure. The scarce thing on this planet is HANDS, and none were
-      // used here.
-      _setBlockedHint(
-        'It shrugs off ${wrong.name} — that was mixed for another door',
-      );
+      // A WRONG POUR COSTS SOMETHING, AND IT IS NEVER THE BREW. One
+      // misreading of a riddle must not be able to make the house
+      // unfinishable, so the bottle comes back full — and the room makes you
+      // pay for the guess in the only currency that cannot strand you.
+      _wrongPour(potion, wrong, ward);
       return true;
     }
 
+    m.bottled.remove(potion.id);
     m.carriedPotion = null;
     m.woken.add(potion.id);
     m.drained.addAll(m.potionHands[potion.id] ?? const <String>[]);
+    m
+      ..pour = 1.0
+      ..pourPotion = potion.id
+      ..pourAt = ward.heart;
     speakConsequence(
-      'It drinks ${potion.name} and comes awake. It is going out into the '
-      'walk — and the hands that mixed it have nothing left in them until '
-      'it falls.',
+      '${_capitalisePoison(potion.plague)} drinks ${potion.name} and comes '
+      'awake. It is going out into the walk — and the hands that mixed it '
+      'have nothing left in them until it falls.',
       5.0,
     );
     _plagueEntersTheWalk(ward.id, sick: false);
     m.pendingFight = potion.id;
     return true;
+  }
+
+  /// THE WRONG BOTTLE. Three complications, one per brew, so which mistake
+  /// you made is legible from what happens — and none of them take the brew.
+  void _wrongPour(PlaguePotion sleeper, PlaguePotion wrong, WardCell ward) {
+    final m = monastery;
+    m
+      ..pour = 1.0
+      ..pourPotion = wrong.id
+      ..pourAt = ward.heart;
+    _shake = 4.0;
+    switch (wrong.pot) {
+      case CauldronReaction.bloom:
+        // Spores off a brew nothing drank: the room fills and it stings.
+        spawnWispWave(
+          element: 'Plant',
+          center: ward.heart,
+          count: 3,
+          unstable: true,
+          announce: false,
+        );
+        speakConsequence(
+          '${_capitalisePoison(wrong.name)} blooms on a thing that will not '
+          'drink it. The spores come off it and find you instead — and the '
+          'bottle is still full.',
+          4.8,
+        );
+      case CauldronReaction.climb:
+        // It climbs the wrong host: something comes up out of the floor.
+        spawnDungeonEnemy(
+          tier: EnemyTier.wisp,
+          conduct: EnemyConduct.charge,
+          element: 'Mud',
+          from: ward.heart,
+          hp: 30,
+          speed: 78,
+          damage: 8,
+          radius: 11,
+        );
+        spawnDungeonEnemy(
+          tier: EnemyTier.wisp,
+          conduct: EnemyConduct.stalk,
+          element: 'Mud',
+          from: ward.heart,
+          hp: 30,
+          speed: 78,
+          damage: 8,
+          radius: 11,
+        );
+        speakConsequence(
+          '${_capitalisePoison(wrong.name)} climbs the wrong thing. What it '
+          'wakes is not the sleeper — and the bottle is still full.',
+          4.8,
+        );
+      case CauldronReaction.rot:
+        // The sleeper stirs, and settles. The cheapest of the three, and
+        // the loudest tell that you were at the wrong door.
+        m.wake = 0;
+        m.wakeWard = ward.id;
+        speakConsequence(
+          '${_capitalisePoison(sleeper.plague)} turns over in its sleep and '
+          'goes under again. ${_capitalisePoison(wrong.name)} is not what it '
+          'is waiting for — and the bottle is still full.',
+          4.8,
+        );
+    }
+    _spawnAlchemyBurst(
+      ward.heart,
+      producedElement: wrong.first,
+      reagentElements: [wrong.second],
+      unstable: true,
+      particleCount: 20,
+      intensity: 1.0,
+    );
   }
 
   /// The plague lands in the cloister at the end of its crawl. Spawned here
@@ -881,7 +1059,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     monastery.fighting = potionId;
   }
 
-  /// The fight is over when nothing of it is left standing in the walk.
+  /// The fight is over when nothing of it is left standing in the walk —
+  /// and what it leaves behind is the point. The stars are not paid out
+  /// here: three relics have to be carried to the cross first, which is the
+  /// one errand that makes the cloister worth crossing again.
   void _tickPlagueFight() {
     final m = monastery;
     final id = m.fighting;
@@ -896,27 +1077,120 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // house's exhaustion, so brewing the next one is a fresh decision.
     m.drained.clear();
     final potion = kPlaguePotions.firstWhere((p) => p.id == id);
-    if (m.slain.length >= kPlaguePotions.length) {
-      speakConsequence(
-        'The last of the three goes down. The lazaret is quiet for the first '
-        'time in a long while.',
-        5.0,
-      );
-      final seal = layout.rooms['ambulatory']?.priorsSeal;
-      if (seal != null) {
-        if (!hasStar(seal.diagnosisStarIndex)) {
-          earnStar(seal.diagnosisStarIndex);
-        }
-        if (!hasStar(seal.triageStarIndex)) earnStar(seal.triageStarIndex);
-      }
-    } else {
-      final left = kPlaguePotions.length - m.slain.length;
-      speakConsequence(
-        'It comes apart. ${_capitalisePoison(potion.name)} is done with — '
-        '$left still sleeping, and every hand is rested.',
-        4.4,
-      );
+    // It leaves the relic where it died.
+    final walk = layout.rooms['ambulatory'];
+    final at = walk == null ? m.invadeTo : _relicRestingPlace(walk, m.invadeTo);
+    m.relicsDropped.add(id);
+    m.relicAt[id] = at;
+    _shake = 5.0;
+    _spawnAlchemyBurst(
+      at,
+      producedElement: 'Light',
+      reagentElements: [potion.first, potion.second],
+      particleCount: 26,
+      intensity: 1.1,
+    );
+    final left = kPlaguePotions.length - m.slain.length;
+    speakConsequence(
+      'It comes apart, and leaves ${potion.relic} on the stones. '
+      '${left == 0 ? 'That is the third.' : '$left still sleeping.'} '
+      'Every hand is rested.',
+      4.8,
+    );
+  }
+
+  /// Where a relic actually comes to rest. The plague dies wherever the
+  /// fight ended, which can be inside a wall or on top of the cross — so the
+  /// drop is nudged onto ground you can stand on and away from the socket
+  /// stones, or picking it up is impossible and nobody can tell why.
+  Offset _relicRestingPlace(DungeonRoom walk, Offset want) {
+    final b = walk.bounds.deflate(46);
+    var at = Offset(
+      want.dx.clamp(b.left, b.right),
+      want.dy.clamp(b.top, b.bottom),
+    );
+    final seal = walk.priorsSeal;
+    if (seal != null && (at - seal.position).distance < 110) {
+      final away = at - seal.position;
+      final unit = away.distance < 1
+          ? const Offset(-1, 0)
+          : away / away.distance;
+      at = seal.position + unit * 110;
+      at = Offset(at.dx.clamp(b.left, b.right), at.dy.clamp(b.top, b.bottom));
     }
+    return at;
+  }
+
+  /// PICK ONE UP. One relic at a time, and never with a bottle in the same
+  /// hand — the walk back to the cross is meant to be its own trip.
+  bool _tryTakeRelic(DungeonCreature a, DungeonRoom room) {
+    final m = monastery;
+    if (room.id != 'ambulatory') return false;
+    for (final p in kPlaguePotions) {
+      if (!m.relicsDropped.contains(p.id)) continue;
+      if (m.relicsPlaced.contains(p.id)) continue;
+      final at = m.relicAt[p.id];
+      if (at == null) continue;
+      if ((a.position - at).distance > _kMonasteryReach) continue;
+      if (m.carriedRelic != null) {
+        _setBlockedHint('A hand already carries a reliquary');
+        return true;
+      }
+      if (m.carriedPotion != null) {
+        _setBlockedHint('Put the bottle down first');
+        return true;
+      }
+      m.carriedRelic = p.id;
+      m.relicAt.remove(p.id);
+      speakConsequence('${_capitalisePoison(p.relic)} is lifted.', 3.2);
+      return true;
+    }
+    return false;
+  }
+
+  /// SOCKET IT. Three stones at the foot of the cross; the third lights it.
+  bool _tryCross(PriorsSeal seal) {
+    final m = monastery;
+    final held = m.carriedRelic;
+    if (held == null) return _readTheRoll(seal);
+    final potion = kPlaguePotions.firstWhere((p) => p.id == held);
+    m.carriedRelic = null;
+    m.relicsPlaced.add(held);
+    _spawnAlchemyBurst(
+      _relicSocket(seal, held),
+      producedElement: 'Light',
+      reagentElements: [potion.first, potion.second],
+      particleCount: 22,
+      intensity: 1.0,
+    );
+    if (m.relicsPlaced.length < kPlaguePotions.length) {
+      final left = kPlaguePotions.length - m.relicsPlaced.length;
+      speakConsequence(
+        '${_capitalisePoison(potion.relic)} goes into the stone. '
+        '$left socket${left == 1 ? '' : 's'} still empty.',
+        4.0,
+      );
+      return true;
+    }
+    // THE CROSS TAKES THE LIGHT.
+    m.crossLight = 1.0;
+    cutTo(currentRoomId, seal.position, hold: _kCrossLightSeconds + 0.4);
+    _shake = 7.0;
+    speakConsequence(
+      'The third goes home and the cross takes light. Three plagues, three '
+      'reliquaries, and the way down is open.',
+      5.4,
+    );
+    if (!hasStar(seal.diagnosisStarIndex)) earnStar(seal.diagnosisStarIndex);
+    if (!hasStar(seal.triageStarIndex)) earnStar(seal.triageStarIndex);
+    return true;
+  }
+
+  /// Where each relic sits at the foot of the cross — three stones in a row,
+  /// in the order the brews are authored so the row reads the same every run.
+  Offset _relicSocket(PriorsSeal seal, String potionId) {
+    final i = kPlaguePotions.indexWhere((p) => p.id == potionId);
+    return Offset(seal.position.dx + (i - 1) * 34, seal.position.dy + 46);
   }
 
   bool _tryDrawDraught(DungeonCreature a, DungeonRoom room) {
@@ -1303,15 +1577,17 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           _setInsightHint('It is not in here any more. It is in the walk.');
           return;
         }
-        // The board already names the pair. What the reading adds is WHY —
-        // and, at the top tier, who is still fit to mix it.
+        // The board states the riddle and nothing else. What the reading
+        // adds is the working: the three verbs off the larder shelf, then —
+        // for a party that has read a lot of books — who can still give.
         _setInsightHint(switch (revealTier) {
-          0 => potion.symptom,
+          0 =>
+            '${_capitalisePoison(potion.plague)} sleeps here. '
+                '${potion.clue}',
           1 =>
-            '${potion.symptom} ${_capitalisePoison(potion.first)} '
-                '${kPotionIngredientEffect[potion.first]}; '
-                '${potion.second.toLowerCase()} '
-                '${kPotionIngredientEffect[potion.second]}.',
+            '${potion.clue} The pot knows three verbs: '
+                '${kPotionIngredientEffect.entries.map((e) => '${e.key} '
+                    '${e.value.split(' ').first}').join(', ')}.',
           _ => _whoIsLeftFor(potion),
         });
         return;
@@ -1512,7 +1788,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     _renderSealBurst(canvas);
     _renderCondemnation(canvas);
     _renderWalkInvasion(canvas, room);
+    _renderRelics(canvas, room);
+    _renderPourOnPlague(canvas, room);
     _renderCarriedPhial(canvas);
+    _renderCarriedBottle(canvas);
   }
 
   /// WHAT IS IN THE ROOM WITH YOU, on the floor rather than in the air.
@@ -1918,6 +2197,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// as it takes to feel like an arrival rather than an effect.
   static const double _kInvadeSeconds = 5.0;
 
+  /// The pot's reaction to a pair landing in it, and a pour landing on a
+  /// plague. Both are receipts — long enough to read, short enough that a
+  /// player brewing three of them is never waiting on the game.
+  static const double _kReactionSeconds = 2.2;
+  static const double _kPourSeconds = 2.0;
+
+  /// The cross taking the light, once the third relic is in.
+  static const double _kCrossLightSeconds = 3.2;
+
   /// What a spent hand is worth — both its damage and its walk.
   static const double _kVenomDrainMul = 0.55;
 
@@ -2287,7 +2575,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       return;
     }
     if (!m.symptomTold.add(potion.first.id)) return;
-    speakConsequence(potion.first.symptom, 5.5);
+    speakConsequence(
+      '${_capitalisePoison(potion.first.plague)} sleeps here. '
+      '${potion.first.clue}',
+      5.5,
+    );
   }
 
   /// THE CONTAGION COMES UP AS YOU WALK IN.
@@ -2770,12 +3062,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
     final seal = room.priorsSeal;
     if (seal != null) {
-      // The prior's seal: a lead cross on a stand, lit once it can be taken.
-      final ready = t.canCommit && t.surrendered == null;
-      // THE PRIOR'S SEAL: a lead cross on a stone plinth. Dull while there is
-      // nothing to decide; lit, and worth walking to, the moment the choice
-      // is actually in front of you — which is the whole of this planet's
-      // signature move, so it had better not be two grey lines.
+      final m = monastery;
+      final placed = m.relicsPlaced.length;
+      final lit = placed >= kPlaguePotions.length;
+      // Ready = there is a reliquary in hand and a socket to put it in. The
+      // old readiness was the triage's, and the triage is gone.
+      final ready = m.carriedRelic != null || lit;
       final sp = seal.position;
       _stoneBlock(
         canvas,
@@ -2785,30 +3077,95 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           height: 18,
         ),
       );
+
+      // THE THREE SOCKETS at the foot of it, cut in the stone from the start
+      // — so an empty cross states what it wants before you have anything to
+      // give it, and a player who has killed one plague knows where to take
+      // what it dropped.
+      for (var i = 0; i < kPlaguePotions.length; i++) {
+        final potion = kPlaguePotions[i];
+        final at = _relicSocket(seal, potion.id);
+        final full = m.relicsPlaced.contains(potion.id);
+        _stoneBlock(
+          canvas,
+          Rect.fromCenter(center: at, width: 26, height: 20),
+          radius: 3,
+        );
+        canvas.drawOval(
+          Rect.fromCenter(center: at, width: 15, height: 11),
+          Paint()..color = const Color(0xFF07090A),
+        );
+        if (!full) continue;
+        final col = _brewColour(potion);
+        canvas.drawOval(
+          Rect.fromCenter(center: at, width: 13, height: 9),
+          Paint()..color = col.withValues(alpha: 0.92),
+        );
+        canvas.drawCircle(
+          at,
+          13 + 3 * sin(_time * 2.0 + i),
+          Paint()..color = col.withValues(alpha: 0.16),
+        );
+      }
+
+      final take = lit
+          ? Curves.easeOutCubic.transform(
+              (1 - monastery.crossLight).clamp(0.0, 1.0),
+            )
+          : 0.0;
       final p = Paint()
-        ..color = (ready ? _venomBone : const Color(0xFF474C52)).withValues(
-          alpha: 0.95,
-        )
+        ..color = Color.lerp(
+          (ready ? _venomBone : const Color(0xFF474C52)),
+          const Color(0xFFF2E7A8),
+          take,
+        )!.withValues(alpha: 0.95)
         ..strokeWidth = 8
         ..strokeCap = StrokeCap.square;
-      canvas.drawLine(sp + const Offset(0, -28), sp + const Offset(0, 26), p);
-      canvas.drawLine(sp + const Offset(-18, -8), sp + const Offset(18, -8), p);
-      // Cast lead is soft and it shows: a bevel down the upright.
+      // TALL ON PURPOSE. At its old height the whole cross sat behind the
+      // creature standing at it — the one fixture on the planet that has to
+      // be legible from the moment it lights, and the party was wearing it.
+      canvas.drawLine(sp + const Offset(0, -66), sp + const Offset(0, 26), p);
       canvas.drawLine(
-        sp + const Offset(-2, -26),
+        sp + const Offset(-24, -40),
+        sp + const Offset(24, -40),
+        p,
+      );
+      canvas.drawLine(
+        sp + const Offset(-2, -64),
         sp + const Offset(-2, 24),
         Paint()
           ..strokeWidth = 2
           ..color = Colors.white.withValues(alpha: ready ? 0.22 : 0.10),
       );
-      if (ready && _fx.ready) {
+
+      // THE CROSS TAKING LIGHT: rings off it, once, as the third goes home.
+      if (monastery.crossLight > 0) {
+        final k = 1 - monastery.crossLight;
+        for (var i = 0; i < 3; i++) {
+          final r = ((k * 1.4) - i * 0.18).clamp(0.0, 1.0);
+          if (r <= 0) continue;
+          canvas.drawCircle(
+            sp + const Offset(0, -20),
+            30 + 170 * r,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 7 * (1 - r)
+              ..color = const Color(
+                0xFFF2E7A8,
+              ).withValues(alpha: 0.5 * (1 - r)),
+          );
+        }
+      }
+      if ((lit || ready) && _fx.ready) {
         final pulse = 0.5 + 0.5 * sin(_time * 2.2);
         drawGlow(
           canvas,
           _fx.glow!,
-          sp,
-          44 + 10 * pulse,
-          _venomBone.withValues(alpha: 0.16 + 0.12 * pulse),
+          sp + const Offset(0, -20),
+          (lit ? 86 : 48) + 10 * pulse,
+          (lit ? const Color(0xFFF2E7A8) : _venomBone).withValues(
+            alpha: (lit ? 0.26 : 0.16) + 0.12 * pulse,
+          ),
         );
       }
     }
@@ -2834,21 +3191,26 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (entry.isEmpty) return;
     final potion = entry.first;
     final done = monastery.slain.contains(potion.id);
-    final at = Offset(ward.censer.dx, ward.censer.dy - 78);
+    final at = Offset(ward.censer.dx, ward.censer.dy - 86);
 
-    final recipe =
-        '${potion.first.toUpperCase()} + '
-        '${potion.second.toUpperCase()}';
-    final under = done ? 'ANSWERED' : potion.name.toUpperCase();
-    // MEASURE, THEN CUT THE PLANK. A fixed 128px board with a 21-character
-    // brew name on it hangs the words off both ends — the first thing the
-    // render showed.
-    final w = max(_tinyLabelWidth(recipe), _tinyLabelWidth(under)) + 22;
+    // THE BOARD IS A RIDDLE NOW, not a recipe. It names the sleeper and says
+    // what the answer must DO — and the larder shelf in the laboratory says
+    // what each of the three things DOES, so the pair falls out of the two
+    // together. Naming the ingredients here made the walk to the pot a
+    // shopping trip.
+    final title = potion.plague.toUpperCase();
+    final lines = _wrapTiny(potion.clue, 230);
+    var w = _tinyLabelWidth(title);
+    for (final l in lines) {
+      w = max(w, _tinyLabelWidth(l));
+    }
+    w += 22;
+    final h = 36.0 + 15.0 * lines.length;
 
     canvas.save();
     canvas.translate(at.dx, at.dy);
-    canvas.rotate(0.025);
-    final plank = Rect.fromCenter(center: Offset.zero, width: w, height: 44);
+    canvas.rotate(0.02);
+    final plank = Rect.fromCenter(center: Offset.zero, width: w, height: h);
     canvas.drawRRect(
       RRect.fromRectAndRadius(plank, const Radius.circular(3)),
       Paint()..color = const Color(0xFF2A2419),
@@ -2860,29 +3222,331 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         ..strokeWidth = 1.6
         ..color = _venomBronze.withValues(alpha: done ? 0.35 : 0.9),
     );
-    for (final dx in [-w / 2 + 8, w / 2 - 8]) {
-      canvas.drawCircle(
-        Offset(dx, -15),
-        1.7,
-        Paint()..color = _venomBronzeLit.withValues(alpha: 0.8),
-      );
-    }
+    // A rule under the title, so the name and the riddle are two things.
+    canvas.drawLine(
+      Offset(-w / 2 + 10, -h / 2 + 19),
+      Offset(w / 2 - 10, -h / 2 + 19),
+      Paint()
+        ..strokeWidth = 1
+        ..color = _venomBronze.withValues(alpha: 0.4),
+    );
     canvas.restore();
 
-    // Two nails and a chain up to the lintel, so it hangs rather than floats.
     for (final dx in [-w / 2 + 8, w / 2 - 8]) {
       canvas.drawLine(
-        Offset(at.dx + dx, at.dy - 34),
-        Offset(at.dx + dx, at.dy - 15),
+        Offset(at.dx + dx, at.dy - h / 2 - 20),
+        Offset(at.dx + dx, at.dy - h / 2),
         Paint()
           ..strokeWidth = 1.2
           ..color = _venomIron.withValues(alpha: 0.85),
       );
     }
 
-    _drawTinyLabel(canvas, Offset(at.dx, at.dy - 15), recipe);
-    _drawTinyLabel(canvas, Offset(at.dx, at.dy + 2), under);
+    _drawTinyLabel(canvas, Offset(at.dx, at.dy - h / 2 + 6), title);
+    if (done) {
+      _drawTinyLabel(canvas, Offset(at.dx, at.dy - h / 2 + 24), 'ANSWERED');
+      return;
+    }
+    for (var i = 0; i < lines.length; i++) {
+      _drawTinyLabel(
+        canvas,
+        Offset(at.dx, at.dy - h / 2 + 24 + 15.0 * i),
+        lines[i],
+      );
+    }
   }
+
+  /// Break [text] into lines no wider than [maxWidth] at `_drawTinyLabel`'s
+  /// size. A sign has to be cut to its own words; guessing a character count
+  /// is how the first one hung off both ends of its plank.
+  List<String> _wrapTiny(String text, double maxWidth) {
+    final out = <String>[];
+    var line = '';
+    for (final word in text.split(' ')) {
+      final tryLine = line.isEmpty ? word : '$line $word';
+      if (line.isNotEmpty && _tinyLabelWidth(tryLine) > maxWidth) {
+        out.add(line);
+        line = word;
+      } else {
+        line = tryLine;
+      }
+    }
+    if (line.isNotEmpty) out.add(line);
+    return out;
+  }
+
+  /// A RELIQUARY ON THE STONES. What a plague leaves when it comes apart —
+  /// and the only thing in the cloister worth walking back for.
+  void _renderRelics(Canvas canvas, DungeonRoom room) {
+    if (room.id != 'ambulatory') return;
+    final m = monastery;
+    for (final p in kPlaguePotions) {
+      final at = m.relicAt[p.id];
+      if (at == null) continue;
+      final col = _brewColour(p);
+      final lift = sin(_time * 1.8 + at.dx * 0.02) * 3.0;
+      final c = Offset(at.dx, at.dy + lift);
+      // Halo on the floor, so it is findable across a dark corridor.
+      canvas.drawCircle(
+        Offset(at.dx, at.dy + 12),
+        22 + 5 * sin(_time * 1.6),
+        Paint()..color = col.withValues(alpha: 0.13),
+      );
+      // A little house-shaped casket on a foot.
+      final body = Path()
+        ..moveTo(c.dx - 11, c.dy + 10)
+        ..lineTo(c.dx - 11, c.dy - 2)
+        ..lineTo(c.dx, c.dy - 13)
+        ..lineTo(c.dx + 11, c.dy - 2)
+        ..lineTo(c.dx + 11, c.dy + 10)
+        ..close();
+      canvas.drawPath(body, Paint()..color = const Color(0xFF1B1E1A));
+      canvas.drawPath(
+        body,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8
+          ..color = _venomBronzeLit,
+      );
+      // The brew's own light behind a grille.
+      canvas.drawCircle(c + const Offset(0, 1), 4.6, Paint()..color = col);
+      for (final dx in const [-3.0, 0.0, 3.0]) {
+        canvas.drawLine(
+          Offset(c.dx + dx, c.dy - 4),
+          Offset(c.dx + dx, c.dy + 6),
+          Paint()
+            ..strokeWidth = 1
+            ..color = const Color(0xFF1B1E1A),
+        );
+      }
+    }
+  }
+
+  /// THE POUR LANDING. Each brew does its own thing on the plague, so what
+  /// went in is legible from across the room — including, and especially,
+  /// when it was the wrong bottle.
+  void _renderPourOnPlague(Canvas canvas, DungeonRoom room) {
+    final m = monastery;
+    final id = m.pourPotion;
+    if (id == null || m.pour <= 0) return;
+    if (room.ward == null) return;
+    final potion = kPlaguePotions.firstWhere((p) => p.id == id);
+    final at = m.pourAt;
+    final k = 1 - m.pour; // 0 → 1 over the beat
+    final col = _brewColour(potion);
+
+    // The bottle's contents arriving: a stream down onto the heart.
+    if (k < 0.34) {
+      final f = k / 0.34;
+      canvas.drawLine(
+        Offset(at.dx, at.dy - 70 + 70 * f),
+        Offset(at.dx, at.dy - 60 + 62 * f),
+        Paint()
+          ..strokeWidth = 4
+          ..strokeCap = StrokeCap.round
+          ..color = col.withValues(alpha: 0.9),
+      );
+      return;
+    }
+    final f = ((k - 0.34) / 0.66).clamp(0.0, 1.0);
+    switch (potion.pot) {
+      case CauldronReaction.bloom:
+        // FLOWERS. Stems shoot off the heart, open, and shed spores.
+        for (var i = 0; i < 9; i++) {
+          final ang = (i / 9) * 2 * pi + 0.3;
+          final len = 16 + 46 * Curves.easeOutCubic.transform(f);
+          final tip = at + Offset(cos(ang), sin(ang) * 0.62) * len;
+          canvas.drawLine(
+            at,
+            tip,
+            Paint()
+              ..strokeWidth = 2.2
+              ..color = const Color(
+                0xFF2E8B4A,
+              ).withValues(alpha: 0.85 * (1 - f * 0.4)),
+          );
+          final open = ((f - 0.35) / 0.65).clamp(0.0, 1.0);
+          if (open <= 0) continue;
+          for (var pet = 0; pet < 5; pet++) {
+            final pa = (pet / 5) * 2 * pi + ang;
+            canvas.drawCircle(
+              tip + Offset(cos(pa), sin(pa)) * 4.2 * open,
+              3.0 * open,
+              Paint()..color = col.withValues(alpha: 0.9 * (1 - f * 0.3)),
+            );
+          }
+        }
+        for (var i = 0; i < 20; i++) {
+          final sp = ((f * 1.4 + i * 0.07) % 1.0);
+          final ang = i * 2.399;
+          canvas.drawCircle(
+            at +
+                Offset(cos(ang), sin(ang) * 0.7) * (24 + 70 * sp) -
+                Offset(0, 46 * sp),
+            1.8 * (1 - sp),
+            Paint()
+              ..color = const Color(
+                0xFFDCEB9A,
+              ).withValues(alpha: 0.7 * (1 - sp)),
+          );
+        }
+      case CauldronReaction.climb:
+        // BLACK, AND CLIMBING THE PLAGUE. Bands sheeting up over the heart,
+        // each with a lit edge so the shape survives a dark room.
+        for (var i = 0; i < 5; i++) {
+          final band = ((f * 1.5) - i * 0.12).clamp(0.0, 1.0);
+          if (band <= 0) continue;
+          final r = RRect.fromRectAndRadius(
+            Rect.fromLTWH(
+              at.dx - 26 + i * 2.0,
+              at.dy + 22 - 66 * band,
+              52 - i * 4.0,
+              66 * band,
+            ),
+            const Radius.circular(9),
+          );
+          canvas.drawRRect(
+            r,
+            Paint()
+              ..color = Color.lerp(
+                const Color(0xFF6B4B86),
+                const Color(0xFF0A0810),
+                0.42 + 0.11 * i,
+              )!.withValues(alpha: 0.8 - 0.09 * i),
+          );
+          canvas.drawLine(
+            Offset(r.left + 4, r.top),
+            Offset(r.right - 4, r.top),
+            Paint()
+              ..strokeWidth = 2
+              ..strokeCap = StrokeCap.round
+              ..color = const Color(
+                0xFFB98FD6,
+              ).withValues(alpha: 0.7 - 0.11 * i),
+          );
+        }
+        for (var i = 0; i < 12; i++) {
+          final t = ((f * 1.2 + i * 0.083) % 1.0);
+          canvas.drawCircle(
+            Offset(at.dx - 22 + (i * 4.1) % 44, at.dy + 20 - 68 * t),
+            1.6 + 1.4 * (1 - t),
+            Paint()
+              ..color = const Color(
+                0xFF9A79B8,
+              ).withValues(alpha: 0.6 * (1 - t)),
+          );
+        }
+      case CauldronReaction.rot:
+        // ROOTS UP, THEN GONE. They thread out and blacken behind themselves.
+        for (var i = 0; i < 7; i++) {
+          final ang = -pi / 2 + (i - 3) * 0.42;
+          final grow = Curves.easeOutQuad.transform(
+            ((f * 1.6) - i * 0.05).clamp(0.0, 1.0),
+          );
+          final decay = ((f - 0.5) / 0.5).clamp(0.0, 1.0);
+          if (grow <= 0) continue;
+          final path = Path()..moveTo(at.dx, at.dy);
+          for (var seg = 1; seg <= 6; seg++) {
+            final t = grow * seg / 6;
+            final wob = sin(seg * 1.7 + i) * 9 * t;
+            path.lineTo(
+              at.dx + cos(ang) * 62 * t + wob,
+              at.dy + sin(ang) * 52 * t,
+            );
+          }
+          canvas.drawPath(
+            path,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 3.0 * (1 - decay * 0.6)
+              ..strokeCap = StrokeCap.round
+              ..color = Color.lerp(
+                const Color(0xFF6B8F3A),
+                const Color(0xFF2A2016),
+                decay,
+              )!.withValues(alpha: 0.9 - 0.55 * decay),
+          );
+        }
+        for (var i = 0; i < 14; i++) {
+          final t = (((f - 0.45) / 0.55).clamp(0.0, 1.0) + i * 0.06) % 1.0;
+          if (f < 0.45) break;
+          canvas.drawCircle(
+            at + Offset((i * 7.3) % 60 - 30, 10 + 30 * t),
+            1.7 * (1 - t),
+            Paint()
+              ..color = const Color(
+                0xFF3A2E1E,
+              ).withValues(alpha: 0.7 * (1 - t)),
+          );
+        }
+    }
+  }
+
+  /// The bottle in hand, wearing its own brew's colour — the same colour it
+  /// had in the pot and will have on the plague.
+  void _renderCarriedBottle(Canvas canvas) {
+    final m = monastery;
+    final a = active;
+    if (a == null || !a.alive) return;
+    final held = m.carriedPotion;
+    final relic = m.carriedRelic;
+    if (held == null && relic == null) return;
+    final at = a.position + Offset(16, -30 + sin(_time * 3.0) * 2.0);
+    if (relic != null) {
+      final p = kPlaguePotions.firstWhere((x) => x.id == relic);
+      final col = _brewColour(p);
+      canvas.drawCircle(at, 13, Paint()..color = col.withValues(alpha: 0.18));
+      final body = Path()
+        ..moveTo(at.dx - 8, at.dy + 8)
+        ..lineTo(at.dx - 8, at.dy - 2)
+        ..lineTo(at.dx, at.dy - 10)
+        ..lineTo(at.dx + 8, at.dy - 2)
+        ..lineTo(at.dx + 8, at.dy + 8)
+        ..close();
+      canvas.drawPath(body, Paint()..color = const Color(0xFF1B1E1A));
+      canvas.drawPath(
+        body,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..color = _venomBronzeLit,
+      );
+      canvas.drawCircle(at, 3.4, Paint()..color = col);
+      return;
+    }
+    final p = kPlaguePotions.firstWhere((x) => x.id == held);
+    final col = _brewColour(p);
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    canvas.rotate(sin(_time * 1.4) * 0.10);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-6.5, -9, 13, 21),
+        const Radius.circular(5),
+      ),
+      Paint()..color = const Color(0xFF20302C).withValues(alpha: 0.92),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-5, -2, 10, 13),
+        const Radius.circular(4),
+      ),
+      Paint()..color = col.withValues(alpha: 0.92),
+    );
+    canvas.drawRect(
+      const Rect.fromLTWH(-3.5, -13, 7, 5),
+      Paint()..color = _venomBronze,
+    );
+    canvas.restore();
+  }
+
+  /// A brew's colour, used in the pot, in the bottle, on the plague and on
+  /// the relic — one identity in every place it is seen.
+  Color _brewColour(PlaguePotion p) => switch (p.pot) {
+    CauldronReaction.bloom => const Color(0xFFB6E24A),
+    CauldronReaction.climb => const Color(0xFF6B4B86),
+    CauldronReaction.rot => const Color(0xFF6E7C33),
+  };
 
   /// THE LARDER SHELF. Three jars on a rack, one per thing the pot drinks,
   /// each labelled with what it DOES rather than what it is.
@@ -3101,35 +3765,221 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         ..color = _venomBronze,
     );
 
-    // A finished brew waits on the rim until somebody picks it up.
-    final made = m.carriedPotion;
-    if (made != null) {
-      final potion = kPlaguePotions.firstWhere((p) => p.id == made);
-      final at = Offset(c.dx + 44, c.dy - 6 + sin(_time * 2.0) * 1.6);
-      final col = Color.lerp(
-        _elementBrewColour(potion.first),
-        _elementBrewColour(potion.second),
-        0.5,
-      )!;
+    // THE REACTION. Three pairs, three unmistakably different things — this
+    // is the receipt for a give, and it is the reason the pot is not a
+    // button.
+    if (m.reaction > 0 && m.reactionKind != null) {
+      _renderCauldronReaction(canvas, c, m.reactionKind!, 1 - m.reaction);
+    }
+
+    // THE THREE BOTTLES. They stand empty on the bench from the moment you
+    // walk in, which is how the room states its own shape without a word:
+    // three vessels, three plagues, and you can count them.
+    for (var i = 0; i < kPlaguePotions.length; i++) {
+      final potion = kPlaguePotions[i];
+      final at = Offset(c.dx - 52 + i * 52.0, c.dy + 52);
+      final full =
+          m.bottled.contains(potion.id) || m.carriedPotion == potion.id;
+      final gone = m.woken.contains(potion.id) || m.slain.contains(potion.id);
+      final inHand = m.carriedPotion == potion.id;
+      final col = _brewColour(potion);
+      final glass = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: at, width: 15, height: 22),
+        const Radius.circular(4),
+      );
       canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: at, width: 11, height: 16),
-          const Radius.circular(3),
-        ),
-        Paint()..color = col,
+        glass,
+        Paint()..color = const Color(0xFF0B0F0B).withValues(alpha: 0.85),
       );
-      canvas.drawRect(
-        Rect.fromCenter(center: Offset(at.dx, at.dy - 11), width: 5, height: 6),
-        Paint()..color = _venomBronzeLit,
-      );
-      canvas.drawCircle(
-        at,
-        13 + 3 * sin(_time * 2.6),
+      if (full) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(at.dx - 5.5, at.dy - 5, 11, 15),
+            const Radius.circular(3),
+          ),
+          Paint()..color = col.withValues(alpha: inHand ? 0.28 : 0.92),
+        );
+      }
+      canvas.drawRRect(
+        glass,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = col.withValues(alpha: 0.34),
+          ..strokeWidth = 1.4
+          ..color = (gone ? _venomIron : _venomBronze).withValues(
+            alpha: gone ? 0.5 : 0.9,
+          ),
       );
+      canvas.drawRect(
+        Rect.fromCenter(center: Offset(at.dx, at.dy - 14), width: 7, height: 5),
+        Paint()..color = _venomBronzeLit.withValues(alpha: gone ? 0.4 : 0.9),
+      );
+      if (full && !inHand) {
+        canvas.drawCircle(
+          at,
+          15 + 3 * sin(_time * 2.6 + i),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.2
+            ..color = col.withValues(alpha: 0.34),
+        );
+      }
+    }
+  }
+
+  /// WHAT THE POT DOES WHEN A PAIR LANDS IN IT. One per recipe, and they are
+  /// meant to be tellable apart at a glance and from across the room.
+  void _renderCauldronReaction(
+    Canvas canvas,
+    Offset c,
+    CauldronReaction kind,
+    double k,
+  ) {
+    final mouth = Offset(c.dx, c.dy - 12);
+    switch (kind) {
+      case CauldronReaction.bloom:
+        // Luminous flowers erupt, open, and shed sparkling spores.
+        for (var i = 0; i < 7; i++) {
+          final ang = -pi / 2 + (i - 3) * 0.34;
+          final grow = Curves.easeOutBack.transform(
+            ((k * 1.7) - i * 0.06).clamp(0.0, 1.0),
+          );
+          if (grow <= 0) continue;
+          final tip = mouth + Offset(cos(ang), sin(ang)) * (46 * grow);
+          canvas.drawLine(
+            mouth,
+            tip,
+            Paint()
+              ..strokeWidth = 2.0
+              ..color = const Color(0xFF2E8B4A).withValues(alpha: 0.9),
+          );
+          final open = ((k - 0.3) / 0.7).clamp(0.0, 1.0);
+          for (var pet = 0; pet < 5; pet++) {
+            final pa = (pet / 5) * 2 * pi + i;
+            canvas.drawCircle(
+              tip + Offset(cos(pa), sin(pa)) * 4.6 * open,
+              3.2 * open,
+              Paint()..color = const Color(0xFFB6E24A).withValues(alpha: 0.92),
+            );
+          }
+        }
+        for (var i = 0; i < 22; i++) {
+          final sp = ((k * 1.3 + i * 0.045) % 1.0);
+          canvas.drawCircle(
+            mouth +
+                Offset(sin(i * 2.4 + k * 3) * (10 + 40 * sp), -20 - 62 * sp),
+            1.9 * (1 - sp),
+            Paint()
+              ..color = const Color(
+                0xFFEAF7B0,
+              ).withValues(alpha: 0.8 * (1 - sp)),
+          );
+        }
+      case CauldronReaction.climb:
+        // IT GOES BLACK AND CLIMBS. Drawn as near-black on a black floor the
+        // whole thing was invisible in the shot — so the substance keeps its
+        // dark violet body and every climbing tongue carries a lit meniscus,
+        // which is what actually reads as liquid going the wrong way.
+        final rise = Curves.easeInOutCubic.transform(k);
+        for (var i = 0; i < 7; i++) {
+          final x = c.dx - 32 + i * 10.7;
+          final h = 62 * rise * (0.55 + 0.45 * sin(i * 1.9 + k * 4));
+          final top = mouth.dy + 6 - h;
+          final p = Path()
+            ..moveTo(x - 4.6, mouth.dy + 8)
+            ..lineTo(x - 3.0, top + 3)
+            ..quadraticBezierTo(x, top - 3, x + 3.0, top + 3)
+            ..lineTo(x + 4.6, mouth.dy + 8)
+            ..close();
+          canvas.drawPath(
+            p,
+            Paint()
+              ..color = Color.lerp(
+                const Color(0xFF6B4B86),
+                const Color(0xFF0D0A12),
+                0.45 + 0.07 * i,
+              )!.withValues(alpha: 0.95),
+          );
+          // The lit head of the tongue — the only bright thing in the beat.
+          canvas.drawCircle(
+            Offset(x, top),
+            2.6,
+            Paint()..color = const Color(0xFFB98FD6).withValues(alpha: 0.9),
+          );
+        }
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: mouth,
+            width: 74 * (0.7 + 0.3 * rise),
+            height: 22 * (0.7 + 0.3 * rise),
+          ),
+          Paint()..color = const Color(0xFF2B1F38).withValues(alpha: 0.95),
+        );
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: mouth,
+            width: 74 * (0.7 + 0.3 * rise),
+            height: 22 * (0.7 + 0.3 * rise),
+          ),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = const Color(0xFF8B6BA6).withValues(alpha: 0.7),
+        );
+        for (var i = 0; i < 10; i++) {
+          final t = ((k * 1.4 + i * 0.1) % 1.0);
+          canvas.drawCircle(
+            Offset(c.dx - 26 + (i * 5.6) % 52, mouth.dy - 62 * t),
+            1.5 + 1.6 * (1 - t),
+            Paint()
+              ..color = const Color(
+                0xFF9A79B8,
+              ).withValues(alpha: 0.55 * (1 - t)),
+          );
+        }
+      case CauldronReaction.rot:
+        // Roots thread up through the sludge and rot away as fast as they
+        // grew — the whole beat is grow-then-blacken, in one gesture.
+        final decay = ((k - 0.45) / 0.55).clamp(0.0, 1.0);
+        for (var i = 0; i < 6; i++) {
+          final ang = -pi / 2 + (i - 2.5) * 0.30;
+          final grow = Curves.easeOutQuad.transform(
+            ((k * 1.9) - i * 0.05).clamp(0.0, 1.0),
+          );
+          if (grow <= 0) continue;
+          final path = Path()..moveTo(mouth.dx, mouth.dy);
+          for (var seg = 1; seg <= 6; seg++) {
+            final t = grow * seg / 6;
+            path.lineTo(
+              mouth.dx + cos(ang) * 50 * t + sin(seg * 1.6 + i) * 7 * t,
+              mouth.dy + sin(ang) * 44 * t,
+            );
+          }
+          canvas.drawPath(
+            path,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 3.0 * (1 - decay * 0.7)
+              ..strokeCap = StrokeCap.round
+              ..color = Color.lerp(
+                const Color(0xFF6B8F3A),
+                const Color(0xFF241C12),
+                decay,
+              )!.withValues(alpha: 0.95 - 0.6 * decay),
+          );
+        }
+        if (decay > 0) {
+          for (var i = 0; i < 12; i++) {
+            final t = ((decay * 1.3 + i * 0.08) % 1.0);
+            canvas.drawCircle(
+              Offset(mouth.dx - 24 + (i * 4.3) % 48, mouth.dy + 18 * t),
+              1.6 * (1 - t),
+              Paint()
+                ..color = const Color(
+                  0xFF33291B,
+                ).withValues(alpha: 0.7 * (1 - t)),
+            );
+          }
+        }
     }
   }
 

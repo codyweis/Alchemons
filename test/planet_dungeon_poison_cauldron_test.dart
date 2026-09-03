@@ -125,15 +125,134 @@ void main() {
       expect(unclaimed, {'ward_charnel'});
     });
 
-    test('the board and the pot together are enough to solve it', () {
-      // The sign names the two ingredients outright, so no brew can be
-      // guess-and-check: a player who reads three boards knows three
-      // recipes. What is left to work out is the ORDER.
+    test('no clue gives away an ingredient it does not share', () {
+      // THE CLUE IS THE PUZZLE. A board that printed "POISON + PLANT" turned
+      // the walk to the pot into a shopping trip.
+      //
+      // But the test cannot simply ban the ingredient words, because all
+      // three clues call the brew "poison" — and a word that appears in
+      // EVERY clue tells the player nothing about which brew is which. So
+      // the real rule is about discrimination: an ingredient name may appear
+      // in a clue only if it appears in all of them.
+      final shared = <String>{
+        for (final el in kPotionIngredientEffect.keys)
+          if (kPlaguePotions.every(
+            (p) => p.clue.toLowerCase().contains(el.toLowerCase()),
+          ))
+            el.toLowerCase(),
+      };
       for (final p in kPlaguePotions) {
-        expect(p.first.isNotEmpty && p.second.isNotEmpty, isTrue);
-        expect(p.name.trim(), isNotEmpty);
-        expect(p.symptom.trim(), isNotEmpty);
+        final clue = p.clue.toLowerCase();
+        for (final el in [p.first, p.second]) {
+          if (shared.contains(el.toLowerCase())) continue;
+          expect(
+            clue.contains(el.toLowerCase()),
+            isFalse,
+            reason:
+                '${p.id} names $el in its own clue, and the other clues do '
+                'not — that is the answer printed on the question',
+          );
+        }
       }
+    });
+
+    test('a clue never says a verb its own brew cannot do', () {
+      // The deduction is: the board says what the answer must DO, the shelf
+      // says what each ingredient DOES, and the player crosses them.
+      //
+      // The first draft of this test demanded the reverse — that every
+      // ingredient's verb appear in some clue that needs it — and Poison
+      // failed it, correctly. Poison is not deduced from "sickens"; it is
+      // the element every brew shares, and the third clue identifies its own
+      // pair by NEGATING it ("pure poison, without its purity"). Demanding a
+      // verb there would have forced a worse riddle to satisfy a test.
+      //
+      // What must hold is the other direction, and it is the one that can
+      // actually rot: if a clue reaches for a shelf verb, the brew it is
+      // written for has to contain that ingredient. Otherwise the house is
+      // not being cryptic — it is lying.
+      for (final p in kPlaguePotions) {
+        final clue = p.clue.toLowerCase();
+        for (final entry in kPotionIngredientEffect.entries) {
+          final verb = entry.value.split(' ').first;
+          final stem = verb.substring(0, verb.length - 1).toLowerCase();
+          if (!clue.contains(stem)) continue;
+          expect(
+            p.takes(entry.key),
+            isTrue,
+            reason:
+                '${p.id} tells the player to "$stem" and takes no '
+                '${entry.key} — the shelf says that is what ${entry.key} '
+                'does, so the board is pointing at the wrong jar',
+          );
+        }
+      }
+    });
+
+    test('the clues discriminate: no two read the same way', () {
+      // Three riddles that all crossed to the same pair would be one riddle
+      // asked three times. Cheap proxy, but it bites on a copy-paste: the
+      // set of shelf verbs each clue reaches for must not be identical
+      // across two brews unless their ingredients differ some other way.
+      String fingerprint(PlaguePotion p) {
+        final clue = p.clue.toLowerCase();
+        return [
+          for (final e in kPotionIngredientEffect.entries)
+            if (clue.contains(
+              e.value
+                  .split(' ')
+                  .first
+                  .substring(0, e.value.split(' ').first.length - 1),
+            ))
+              e.key,
+        ].join('|');
+      }
+
+      final seen = <String, String>{};
+      for (final p in kPlaguePotions) {
+        final f = fingerprint(p);
+        if (f.isEmpty) continue; // the negation clue reaches for no verb
+        expect(
+          seen.containsKey(f),
+          isFalse,
+          reason: '${p.id} and ${seen[f]} read identically off the shelf',
+        );
+        seen[f] = p.id;
+      }
+      expect(
+        seen.length,
+        greaterThanOrEqualTo(2),
+        reason:
+            'at least two clues have to touch the shelf, or there is nothing '
+            'to cross-reference and the puzzle is three guesses',
+      );
+    });
+
+    test('every brew is fully identified', () {
+      final ids = <String>{}, names = <String>{}, plagues = <String>{};
+      final relics = <String>{}, reactions = <CauldronReaction>{};
+      for (final p in kPlaguePotions) {
+        expect(p.name.trim(), isNotEmpty);
+        expect(p.plague.trim(), isNotEmpty);
+        expect(p.clue.trim(), isNotEmpty);
+        expect(p.relic.trim(), isNotEmpty);
+        ids.add(p.id);
+        names.add(p.name);
+        plagues.add(p.plague);
+        relics.add(p.relic);
+        reactions.add(p.pot);
+      }
+      // Nothing shares a name, a plague, a relic or a REACTION — the pot
+      // doing the same thing for two recipes would make the receipt useless.
+      expect(ids.length, kPlaguePotions.length);
+      expect(names.length, kPlaguePotions.length);
+      expect(plagues.length, kPlaguePotions.length);
+      expect(relics.length, kPlaguePotions.length);
+      expect(
+        reactions.length,
+        kPlaguePotions.length,
+        reason: 'two brews that look alike in the pot are one brew',
+      );
     });
   });
 }

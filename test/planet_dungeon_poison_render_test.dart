@@ -17,7 +17,14 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const _out = String.fromEnvironment('OUT');
+/// Where the PNGs go, when anyone wants them.
+///
+/// A DIRECTORY THAT HAS TO ALREADY EXIST, rather than a --dart-define or an
+/// environment variable: `flutter test` in this toolchain passes neither
+/// through to the test isolate, so both spellings compiled fine, passed, and
+/// wrote nothing anywhere. `mkdir -p build/poison_shots` and run the test to
+/// get the pictures; CI has no such directory and writes none.
+const String _out = 'build/poison_shots';
 
 PlanetDungeonGame _game() {
   const els = ['Poison', 'Plant', 'Mud'];
@@ -61,19 +68,24 @@ PlanetDungeonGame _game() {
 /// Renders [room] and returns a checksum of the pixels. The whole canvas is
 /// opaque, so counting lit pixels proves nothing (it is always 900×600) —
 /// what matters is whether the ink CHANGED.
-Future<int> _shot(PlanetDungeonGame g, String room, String name) async {
+Future<int> _shot(
+  PlanetDungeonGame g,
+  String room,
+  String name, {
+  Offset? at,
+}) async {
   g.currentRoomId = room;
-  final b = poisonLayout.rooms[room]!.bounds;
+  final stand = at ?? poisonLayout.rooms[room]!.bounds.center;
   for (final c in g.creatures) {
-    c.position = b.center;
-    c.lastSafe = b.center;
+    c.position = stand;
+    c.lastSafe = stand;
   }
   g.update(1 / 60);
   final rec = ui.PictureRecorder();
   final canvas = Canvas(rec);
   g.render(canvas);
   final img = await rec.endRecording().toImage(900, 600);
-  if (_out.isNotEmpty) {
+  if (Directory(_out).existsSync()) {
     final png = await img.toByteData(format: ui.ImageByteFormat.png);
     File('$_out/$name.png').writeAsBytesSync(png!.buffer.asUint8List());
   }
@@ -124,8 +136,58 @@ void main() {
 
       for (final p in kPlaguePotions) {
         final lit = await _shot(g, p.wardId, 'p_${p.wardId}');
-        expect(lit, isNonZero, reason: '\${p.wardId} drew nothing');
+        expect(lit, isNonZero, reason: '${p.wardId} drew nothing');
       }
+
+      // The cross, empty and then full. An unlit cross beside a lit one is
+      // the whole reward moment, and it is the one thing on this planet a
+      // player walks the corridor three extra times for.
+      // EVERY POT REACTION, mid-beat. Three recipes that all flashed green
+      // would make the receipt worthless, so each one gets looked at.
+      final reactions = <int>{};
+      for (final p in kPlaguePotions) {
+        g.monastery
+          ..reaction = 0.45
+          ..reactionKind = p.pot;
+        reactions.add(await _shot(g, 'apothecary', 'p_react_${p.id}'));
+      }
+      expect(
+        reactions.length,
+        kPlaguePotions.length,
+        reason: 'two brews that look identical in the pot are one brew',
+      );
+      g.monastery
+        ..reaction = 0
+        ..reactionKind = null;
+
+      // …and every pour landing on its plague, likewise.
+      final pours = <int>{};
+      for (final p in kPlaguePotions) {
+        g.monastery
+          ..pour = 0.4
+          ..pourPotion = p.id
+          ..pourAt = poisonLayout.rooms[p.wardId]!.ward!.heart;
+        pours.add(await _shot(g, p.wardId, 'p_pour_${p.id}'));
+      }
+      expect(pours.length, kPlaguePotions.length);
+      g.monastery
+        ..pour = 0
+        ..pourPotion = null;
+
+      // Stand AT the cross: the cloister is wider than the viewport, so a
+      // shot from the room's centre missed the thing it was shooting.
+      final cross = poisonLayout.rooms['ambulatory']!.priorsSeal!.position;
+      final dark = await _shot(g, 'ambulatory', 'p_cross_empty', at: cross);
+      for (final p in kPlaguePotions) {
+        g.monastery.relicsPlaced.add(p.id);
+      }
+      g.monastery.crossLight = 0.5;
+      final blazing = await _shot(g, 'ambulatory', 'p_cross_lit', at: cross);
+      expect(
+        blazing,
+        isNot(dark),
+        reason: 'three reliquaries in the stone have to CHANGE the cross',
+      );
     });
   });
 }

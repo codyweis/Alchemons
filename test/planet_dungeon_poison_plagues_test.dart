@@ -71,6 +71,7 @@ void _press(PlanetDungeonGame g, String element, String room, Offset at) {
 
 Offset get _pot => poisonLayout.rooms['apothecary']!.apothecary!.cistern;
 Offset _censer(String ward) => poisonLayout.rooms[ward]!.ward!.censer;
+Offset get _cross => poisonLayout.rooms['ambulatory']!.priorsSeal!.position;
 
 /// Brew [potion] from the pot, then carry it to its ward and wake it.
 void _brewAndWake(PlanetDungeonGame g, PlaguePotion potion) {
@@ -101,6 +102,20 @@ void _fightItOut(PlanetDungeonGame g) {
   g.update(1 / 60);
 }
 
+/// Carry the reliquary a dead plague dropped over to the cross and socket it.
+void _bearRelic(PlanetDungeonGame g, PlaguePotion potion) {
+  final at = g.monastery.relicAt[potion.id];
+  expect(at, isNotNull, reason: '${potion.id} dropped no reliquary');
+  _press(g, 'Poison', 'ambulatory', at!);
+  expect(
+    g.monastery.carriedRelic,
+    potion.id,
+    reason: '${potion.relic} would not lift',
+  );
+  _press(g, 'Poison', 'ambulatory', _cross);
+  expect(g.monastery.relicsPlaced, contains(potion.id));
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -126,9 +141,9 @@ void main() {
     test('two brews is all any one alchemon has', () {
       final g = _game();
       // Poison gives to both of its recipes…
-      _brewAndWake(g, kPlaguePotions.firstWhere((p) => p.id == 'deafening'));
+      _brewAndWake(g, kPlaguePotions.firstWhere((p) => p.id == 'bloomvenom'));
       _fightItOut(g);
-      _brewAndWake(g, kPlaguePotions.firstWhere((p) => p.id == 'slogging'));
+      _brewAndWake(g, kPlaguePotions.firstWhere((p) => p.id == 'mirebane'));
       _fightItOut(g);
       expect(g.monastery.given['iPoison'], 2);
       // …and is refused a third time.
@@ -161,7 +176,7 @@ void main() {
 
     test('the hands that mixed it are spent until it falls', () {
       final g = _game();
-      final potion = kPlaguePotions.firstWhere((p) => p.id == 'deafening');
+      final potion = kPlaguePotions.firstWhere((p) => p.id == 'bloomvenom');
       _brewAndWake(g, potion);
       expect(g.monastery.drained, containsAll(['iPoison', 'iPlant']));
       expect(
@@ -204,36 +219,130 @@ void main() {
       }
     });
 
-    test('a brew carried to the wrong door is not thrown away', () {
+    test('a wrong pour costs a complication and never the bottle', () {
       final g = _game();
-      final potion = kPlaguePotions.firstWhere((p) => p.id == 'deafening');
-      final other = kPlaguePotions.firstWhere((p) => p.id == 'slogging');
+      final potion = kPlaguePotions.firstWhere((p) => p.id == 'bloomvenom');
+      final other = kPlaguePotions.firstWhere((p) => p.id == 'mirebane');
       _press(g, potion.first, 'apothecary', _pot);
       _press(g, potion.second, 'apothecary', _pot);
       _press(g, 'Poison', other.wardId, _censer(other.wardId));
       expect(
         g.monastery.carriedPotion,
         potion.id,
-        reason: 'wrong door costs a walk, never a hand',
+        reason:
+            'the bottle is still full — one misread riddle must never '
+            'be able to strand the run',
       );
+      expect(g.monastery.bottled, contains(potion.id));
       expect(g.monastery.woken, isEmpty);
+      expect(
+        g.monastery.pour,
+        greaterThan(0),
+        reason: 'and something visibly happened',
+      );
     });
 
-    test('all three down is two stars, at once', () {
+    test('a bottle set down stays on the bench, and can be taken back', () {
       final g = _game();
-      expect(g.hasStar(0), isFalse);
-      expect(g.hasStar(1), isFalse);
+      final potion = kPlaguePotions.first;
+      _press(g, potion.first, 'apothecary', _pot);
+      _press(g, potion.second, 'apothecary', _pot);
+      expect(g.monastery.carriedPotion, potion.id);
+      // Press again with it in hand and nothing else brewed: it goes back.
+      _press(g, 'Poison', 'apothecary', _pot);
+      expect(g.monastery.carriedPotion, isNull);
+      expect(
+        g.monastery.bottled,
+        contains(potion.id),
+        reason: 'a brew is made once and lives in glass until it is poured',
+      );
+      // And comes back off the bench.
+      _press(g, 'Poison', 'apothecary', _pot);
+      expect(g.monastery.carriedPotion, potion.id);
+    });
+
+    test('killing all three is not the stars — the cross is', () {
+      final g = _game();
       for (final p in kPlaguePotions) {
         _brewAndWake(g, p);
         _fightItOut(g);
       }
       expect(g.monastery.slain.length, 3);
-      expect(g.hasStar(0), isTrue, reason: 'two stars for the three plagues');
+      expect(
+        g.hasStar(0),
+        isFalse,
+        reason: 'three corpses and no reliquaries placed is not a star',
+      );
+      expect(g.monastery.relicsDropped.length, 3);
+    });
+
+    test('three reliquaries at the cross lights it, and pays both stars', () {
+      final g = _game();
+      expect(g.hasStar(0), isFalse);
+      expect(g.hasStar(1), isFalse);
+      for (var i = 0; i < kPlaguePotions.length; i++) {
+        final p = kPlaguePotions[i];
+        _brewAndWake(g, p);
+        _fightItOut(g);
+        _bearRelic(g, p);
+        if (i < kPlaguePotions.length - 1) {
+          expect(
+            g.hasStar(0),
+            isFalse,
+            reason: 'the cross pays on the THIRD, never before',
+          );
+        }
+      }
+      expect(g.monastery.relicsPlaced.length, 3);
+      expect(g.monastery.crossLight, greaterThan(0), reason: 'it lights');
+      expect(g.hasStar(0), isTrue);
       expect(g.hasStar(1), isTrue);
       expect(
         g.hasStar(2),
         isFalse,
         reason: 'the third is still Blightfang, down the oubliette',
+      );
+    });
+
+    test('a reliquary never drops where it cannot be picked up', () {
+      // The plague dies wherever the fight ended, which can be inside a wall
+      // or sitting on the cross itself. Either would leave a star
+      // unreachable with nothing on screen to explain why.
+      final g = _game();
+      final walk = poisonLayout.rooms['ambulatory']!;
+      for (final p in kPlaguePotions) {
+        _brewAndWake(g, p);
+        _fightItOut(g);
+        final at = g.monastery.relicAt[p.id]!;
+        expect(
+          walk.bounds.deflate(40).contains(at),
+          isTrue,
+          reason: '${p.relic} landed outside the cloister at $at',
+        );
+        expect(
+          (at - _cross).distance,
+          greaterThan(90),
+          reason: '${p.relic} landed on top of the cross',
+        );
+        _bearRelic(g, p);
+      }
+    });
+
+    test('a hand carries a bottle or a reliquary, never both', () {
+      final g = _game();
+      final first = kPlaguePotions.first;
+      _brewAndWake(g, first);
+      _fightItOut(g);
+      // Brew the next one, then try to pick the reliquary up with it in hand.
+      final second = kPlaguePotions[1];
+      _press(g, second.first, 'apothecary', _pot);
+      _press(g, second.second, 'apothecary', _pot);
+      expect(g.monastery.carriedPotion, second.id);
+      _press(g, 'Poison', 'ambulatory', g.monastery.relicAt[first.id]!);
+      expect(
+        g.monastery.carriedRelic,
+        isNull,
+        reason: 'a bottle in hand blocks the reliquary',
       );
     });
 

@@ -362,60 +362,103 @@ class PlaguePotion {
     required this.first,
     required this.second,
     required this.wardId,
-    required this.symptom,
+    required this.plague,
+    required this.clue,
+    required this.relic,
+    required this.pot,
   });
 
   final String id;
+
+  /// What the pot makes. It has a name because you carry it in a bottle with
+  /// that name on it, and because "the deafening draught" told the player
+  /// what it DOES — which is the answer, handed over.
   final String name;
 
-  /// The two elements it is made of. Order never matters.
+  /// The two elements it is made of. Order never matters (deliberately: the
+  /// three pairings are already the puzzle, and ordering them would only make
+  /// it longer, not better).
   final String first;
   final String second;
 
-  /// The ward whose sleeper it wakes.
+  /// The ward whose sleeper it wakes, and what that sleeper is called.
   final String wardId;
+  final String plague;
 
-  /// What the sign in that ward says is WRONG with the thing — never the
-  /// recipe. The cauldron says what each ingredient does; the ward says what
-  /// it is up against; the player puts the two together. (§5.6: the room may
-  /// state a fact, never a method.)
-  final String symptom;
+  /// THE ONLY THING THE HOUSE TELLS YOU. Nailed up in the plague's own room.
+  /// It names neither ingredient — it says what the answer must DO, and the
+  /// three ingredients are three verbs, so the clue and the larder shelf
+  /// together are a deduction. (§5.6: state a fact, never a method.)
+  final String clue;
+
+  /// What the plague leaves on the floor when it goes down. Three of these
+  /// at the cross is the pair of stars.
+  final String relic;
+
+  /// How the pot behaves the moment this pair comes together — the reaction
+  /// is the receipt, and each one is unmistakably a different brew.
+  final CauldronReaction pot;
 
   bool takes(String element) => element == first || element == second;
 }
 
+/// What the cauldron DOES when a pair lands in it. Also what the brew looks
+/// like in the bottle and on the plague, so a potion reads the same in all
+/// three places it is ever seen.
+enum CauldronReaction {
+  /// Poison + Plant. Luminous flowers erupt off the surface and let go of
+  /// sparkling spores.
+  bloom,
+
+  /// Poison + Mud. It goes black, thickens, and climbs the glass.
+  climb,
+
+  /// Plant + Mud. Roots thread up through the sludge and rot away at once.
+  rot,
+}
+
 /// What each ingredient does in the pot, said once, at the cauldron. This is
-/// the half of the deduction the apothecary is allowed to hand over.
+/// the half of the deduction the apothecary is allowed to hand over — three
+/// verbs against three clues, and the pairing falls out of it.
 const Map<String, String> kPotionIngredientEffect = {
   'Poison': 'sickens — it turns a thing against its own body',
-  'Plant': 'deadens — green closes over a sound and it stops',
+  'Plant': 'grows — green takes root in whatever will hold it',
   'Mud': 'slows — nothing moves quickly through it',
 };
 
 const List<PlaguePotion> kPlaguePotions = [
   PlaguePotion(
-    id: 'deafening',
-    name: 'the deafening draught',
+    id: 'bloomvenom',
+    name: 'Bloomvenom',
     first: 'Poison',
     second: 'Plant',
     wardId: 'ward_bell',
-    symptom: 'It rings. Nothing in here can hear itself, and neither can you.',
+    plague: 'the Plague of Breath',
+    clue: 'This poison must GROW within the plague.',
+    relic: 'the Breath Reliquary',
+    pot: CauldronReaction.bloom,
   ),
   PlaguePotion(
-    id: 'purity',
-    name: 'the draught of pure attributes',
-    first: 'Plant',
-    second: 'Mud',
-    wardId: 'ward_scriptorium',
-    symptom: 'It is not one sickness. Two are braided, and neither is whole.',
-  ),
-  PlaguePotion(
-    id: 'slogging',
-    name: 'the slogging draught',
+    id: 'mirebane',
+    name: 'Mirebane',
     first: 'Poison',
     second: 'Mud',
     wardId: 'ward_refectory',
-    symptom: 'It is too fast to be fought. Nothing lands on it.',
+    plague: 'the Plague of Blood',
+    clue: 'The poison must SLOW this plague to awaken it.',
+    relic: 'the Blood Reliquary',
+    pot: CauldronReaction.climb,
+  ),
+  PlaguePotion(
+    id: 'graverot',
+    name: 'Graverot',
+    first: 'Plant',
+    second: 'Mud',
+    wardId: 'ward_scriptorium',
+    plague: 'the Plague of Decay',
+    clue: 'Pure poison, WITHOUT its purity, must be used here.',
+    relic: 'the Decay Reliquary',
+    pot: CauldronReaction.rot,
   ),
 ];
 
