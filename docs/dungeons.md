@@ -2366,6 +2366,23 @@ see any of that.
     yard's own shape is what forces the compromise — `ch_tap` runs across the
     top and walls off everything above it, so both doors have to live low on
     the east wall while the chill arm crosses at the very top.
+  · ✅ **AND IN THE END, A SIGN.** The switch yard's fork was re-plumbed three
+    times chasing one complaint — *which door did the metal just go down?* —
+    and every arrangement traded one confusion for another, because the
+    room's own shape will not let every pairing be adjacent: `ch_tap` walls
+    off the top, so both ways out must live low on the east wall while the
+    chill arm crosses at the very top. **Geometry was the wrong tool.** A
+    works does not make you infer a destination from which pipe passes
+    nearest a doorway; it bolts a plate over the door. Every door in the
+    foundry is signed now — TAP, YARD, CHILL, MILL, FLOOR, RELIQUARY, HEART —
+    **and the sign uses the same word as the lever's own plate**, which no
+    amount of pipe alignment can do: throw the switch to MILL and the door
+    marked MILL is where that metal went.
+
+    The general lesson, and it cost three attempts to learn: *when a room's
+    layout keeps failing to say something, stop moving the room and let it
+    say the thing out loud.* Spatial inference is a luxury; a label is a
+    guarantee.
   · ⬜ CARRIED: the maxim. §7's table grades **Black Glass** ⬜ *"one verb,
     three times"* — quench three times with Ice. That is an achievement, not
     a puzzle, and Steam has just shown what the fix looks like (§9.6): a

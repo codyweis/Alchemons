@@ -854,6 +854,7 @@ extension MoltenReliquary on PlanetDungeonGame {
       _renderFiredamp(canvas, room);
     }
     if (room.guardian != null) _renderHeartRing(canvas, room);
+    _renderWorksSigns(canvas, room);
     final spot = room.foundryStar;
     if (spot != null && !hasStar(spot.starIndex)) {
       _renderWorksStar(canvas, spot.position);
@@ -1068,6 +1069,71 @@ extension MoltenReliquary on PlanetDungeonGame {
             t,
           )!.withValues(alpha: 0.42 * (1 - t) * pulse),
       );
+    }
+  }
+
+  /// WHERE THAT DOOR GOES, cast on a plate over it.
+  ///
+  /// The switch yard's fork has now been re-plumbed three times chasing the
+  /// same complaint — *which door did the metal just go down?* — and each
+  /// arrangement traded one confusion for another, because the room's own
+  /// shape will not let every pairing be adjacent: `ch_tap` walls off the top,
+  /// so both ways out have to live low on the east wall while the chill arm
+  /// crosses at the very top.
+  ///
+  /// Geometry was the wrong tool. A works does not rely on you inferring the
+  /// destination from which pipe passes nearest a doorway — it BOLTS A SIGN
+  /// UP. And the sign can use the same word as the lever's own plate, which
+  /// no amount of pipe alignment can do: throw the switch to MILL and the
+  /// door marked MILL is where that metal went.
+  static const Map<String, String> _worksSigns = {
+    'tap_head': 'TAP',
+    'switch_yard': 'YARD',
+    'chill_house': 'CHILL',
+    'stamp_mill': 'MILL',
+    'mold_floor': 'FLOOR',
+    'slag_reliquary': 'RELIQUARY',
+    'pour_heart': 'HEART',
+  };
+
+  void _renderWorksSigns(Canvas canvas, DungeonRoom room) {
+    for (final d in room.doors) {
+      final name = _worksSigns[d.targetRoomId];
+      if (name == null) continue;
+      if (isDoorHidden(room, d)) continue;
+      final r = d.rect;
+      final b = room.bounds;
+      // Hang the plate INSIDE the room, off the wall the door is in.
+      final left = (r.left - b.left).abs();
+      final right = (b.right - r.right).abs();
+      final top = (r.top - b.top).abs();
+      final bottom = (b.bottom - r.bottom).abs();
+      final m = [left, right, top, bottom].reduce((a, c) => a < c ? a : c);
+      final at = m == left
+          ? r.centerRight + const Offset(40, 0)
+          : m == right
+          ? r.centerLeft - const Offset(40, 0)
+          : m == top
+          ? r.bottomCenter + const Offset(0, 22)
+          : r.topCenter - const Offset(0, 22);
+      // A bolted plate, so it reads as part of the works and not as UI.
+      final tag = Rect.fromCenter(
+        center: at,
+        width: 22.0 + name.length * 7.0,
+        height: 20,
+      );
+      _ironPlate(canvas, tag, radius: 3);
+      canvas.drawCircle(
+        tag.centerLeft + const Offset(5, 0),
+        1.8,
+        Paint()..color = const Color(0xFF8898A6),
+      );
+      canvas.drawCircle(
+        tag.centerRight - const Offset(5, 0),
+        1.8,
+        Paint()..color = const Color(0xFF8898A6),
+      );
+      _drawTinyLabel(canvas, at - const Offset(0, 6), name);
     }
   }
 
