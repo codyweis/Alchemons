@@ -114,6 +114,10 @@ class VenomMonastery {
   /// Which room the monastery last saw the party in, for spotting arrivals.
   String? lastRoomId;
 
+  /// A ward whose sickness is about to come out into the walk, once whatever
+  /// is playing now has finished. Chains the condemnation into it.
+  String? pendingWalk;
+
   /// THE CROSS GOING UP: 1 → 0 over the condemnation. The planet's signature
   /// move — the ward you give up — and it had less ceremony than opening a
   /// door did.
@@ -323,6 +327,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
     if (monastery.condemn > 0) {
       monastery.condemn = max(0.0, monastery.condemn - dt / _kCondemnSeconds);
+      // …and when the cross has landed, the second beat: what was in that
+      // ward comes out of its door into the cloister. Two shots, because
+      // they are two different facts — you gave it up, and now you live
+      // beside it.
+      if (monastery.condemn == 0 && monastery.pendingWalk != null) {
+        final w = monastery.pendingWalk;
+        monastery.pendingWalk = null;
+        if (w != null) _plagueEntersTheWalk(w, sick: false);
+      }
     }
     if (monastery.wakeWard != null && monastery.wake < 1) {
       monastery.wake = min(1.0, monastery.wake + dt / _kWakeSeconds);
@@ -654,13 +667,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         // quieter of the two by a long way. It is permanent unless you come
         // back and cure this ward, and it walks the cloister meanwhile — so
         // it gets the shot and the shake, like the cross does.
-        monastery
-          ..condemn = 0.0
-          ..sealBurst = 1.0
-          ..sealBurstAt = ward.heart
-          ..burstIsSick = true;
-        cutTo(currentRoomId, ward.heart, hold: _kSealBurstSeconds + 0.4);
-        _shake = 5.0;
+        _plagueEntersTheWalk(currentRoomId, sick: true);
         speakConsequence(
           'Wrong physic. The strain drinks it and doubles — and it is loose '
           'in the walk until this ward is cured.',
@@ -707,7 +714,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     monastery
       ..condemn = 1.0
       ..condemnAt = seal.position;
-    cutTo(currentRoomId, seal.position, hold: _kCondemnSeconds + 0.6);
+    cutTo(currentRoomId, seal.position, hold: _kCondemnSeconds + 0.4);
+    monastery.pendingWalk = given;
     _shake = 7.0;
     speakConsequence(
       'The cross goes up over ${ward?.name ?? 'the last ward'}. It is given '
@@ -1526,6 +1534,32 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         col.withValues(alpha: 0.30 * t),
       );
     }
+  }
+
+  /// THE PLAGUE COMES OUT INTO THE WALK.
+  ///
+  /// The one thing on this planet that genuinely escapes into the main room,
+  /// and the only two ways it happens are a ward you gave up and a ward you
+  /// dosed wrong. Both are a press, both are permanent, and both used to
+  /// resolve somewhere you were not looking.
+  ///
+  /// So the camera goes to the cloister and watches it come through that
+  /// ward's own door: the door you broke, now with the thing you failed to
+  /// deal with walking out of it into the corridor you have to keep using.
+  void _plagueEntersTheWalk(String wardRoomId, {required bool sick}) {
+    final walk = layout.rooms['ambulatory'];
+    if (walk == null) return;
+    Offset? at;
+    for (final d in walk.doors) {
+      if (d.targetRoomId == wardRoomId) at = d.rect.center;
+    }
+    if (at == null) return;
+    monastery
+      ..sealBurst = 1.0
+      ..sealBurstAt = at
+      ..burstIsSick = sick;
+    cutTo('ambulatory', at, hold: _kSealBurstSeconds + 0.5);
+    _shake = 6.0;
   }
 
   /// THE CONTAGION COMES UP AS YOU WALK IN.
