@@ -552,8 +552,14 @@ class FoundryState {
         if (dieWoken && p.form == PourForm.plain) p.form = PourForm.stamped;
         return _leaveBy(at, p, at.exits.first);
       case FoundryNodeKind.vent:
+        // THE PURGE EATS THE CHARGE. It used to gas it and then send it on
+        // down the line, so a purged pour still arrived at whatever form the
+        // sluice was pointing at and CLOGGED it — punishing one mistake
+        // twice, and leaving a hot lava run drawn out of a stack that only
+        // ever carried gas. A vent vents. The charge goes up and is gone.
         p.form = PourForm.gassed;
-        return _leaveBy(at, p, at.exits.first);
+        pour = null;
+        return PourEvent.lost;
       case FoundryNodeKind.relay:
       case FoundryNodeKind.source:
         return _leaveBy(at, p, at.exits.first);
@@ -675,15 +681,19 @@ const Map<String, int> kLavaDefaultSwitches = {
   // every readable thing added to this planet pointless: why read a line you
   // can win by tapping?
   //
-  // It sits on KEY now. Plain metal into a form cut for warded metal SPOILS —
-  // which is rule 3, taught the first time you touch the works, for the price
-  // of one charge and a melt-out. And it is entirely avoidable by looking:
-  // the sluice's quadrant shows three ways and which one it is on, and the
-  // two forms are cut to the metal they take.
-  'y_yard': 0, // 0 = CHILL (plain) · 1 = MILL
+  // It is aimed DOWN THE MILL AND OUT THE PURGE now — the works died
+  // mid-purge, which is why the cowl is standing open. A blind first charge
+  // goes up the stack and is gone: one lesson, no lasting damage, and it is
+  // the planet's nastiest trap taught at the cheapest possible moment.
+  //
+  // One lesson at a time. Throw the damper to SHUT and the next charge runs
+  // the mill clean to the sluice, which IS aimed at the span form — so
+  // fixing the thing you just learned about earns the Ember Star. What is
+  // gone is the version where you earned it having learned nothing.
+  'y_yard': 1, // 0 = CHILL (plain) · 1 = MILL
   'chiller': 0, // 0 = shroud UP · 1 = shroud DOWN
   'damper': 1, // 0 = SHUT · 1 = PURGE (the works died mid-purge)
-  'y_sluice': 1, // 0 = SPAN · 1 = KEY · 2 = ON
+  'y_sluice': 0, // 0 = SPAN · 1 = KEY · 2 = ON
   'y_return': 0, // 0 = SLAG · 1 = SUMP
 };
 
@@ -762,7 +772,7 @@ const FoundryLine kLavaLine = FoundryLine(
       roomId: 'stamp_mill',
       position: Offset(620, 354),
       kind: FoundryNodeKind.vent,
-      exits: ['ch_vent_out'],
+      exits: [],
     ),
     FoundryNode(
       id: 'floor_in',
@@ -949,15 +959,6 @@ const FoundryLine kLavaLine = FoundryLine(
           Rect.fromLTWH(606, 340, 28, 106),
           reverse: true,
         ),
-      ],
-    ),
-    FoundryChannel(
-      id: 'ch_vent_out',
-      from: 'vent',
-      to: 'floor_in',
-      segments: [
-        FoundrySegment('stamp_mill', Rect.fromLTWH(620, 340, 320, 28)),
-        FoundrySegment('mold_floor', Rect.fromLTWH(0, 846, 550, 30)),
       ],
     ),
     FoundryChannel(

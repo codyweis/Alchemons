@@ -1026,12 +1026,13 @@ void _engineRun() {
       // ── The tail switch hangs over the north channel: not from here.
       expect(s.canSet('y_return'), isFalse);
 
-      // ── POUR 1 — and it is NOT blind any more. The last shift left the
-      //    sluice on the key form, which takes warded metal and would spoil
-      //    on the plain charge this arm carries; the Ember Star is one lever
-      //    away, not zero. (It used to be zero: the opening line cast the
-      //    road for you, and the first star came for a single button press.)
-      setLever(g, 'y_sluice', 0);
+      // ── POUR 1 — and it is NOT blind any more. The works died mid-purge
+      //    with the mill arm selected, so an untouched line sends the charge
+      //    up the stack and loses it. Shut the damper and the same arm runs
+      //    clean to the sluice — which IS on the span form, so fixing the
+      //    thing you just learned about earns the Ember Star. (It used to be
+      //    zero levers: the opening line cast the road for you.)
+      setLever(g, 'damper', 0);
       actAt(g, 'tap_head', lava, tapAt);
       expect(s.pour, isNotNull);
       standIn(g, 'mold_floor', const Offset(300, 300));
@@ -1062,10 +1063,16 @@ void _engineRun() {
       // ── The points are Earth's: element-only, and nothing else shifts them.
       final yard = kLavaLine.node('y_yard');
       actAt(g, 'switch_yard', ice, yard.leverAt!);
-      expect(s.settingOf('y_yard'), 0, reason: 'slag-seized against cold');
+      expect(
+        s.settingOf('y_yard'),
+        1,
+        reason: 'slag-seized against cold — still where the shift left it',
+      );
 
-      // ── POUR 2 — shroud DOWN: the charge sets in the north channel. That
-      //    is the catwalk stair, and it kills the plain arm for good.
+      // ── POUR 2 — over to the chill arm, shroud DOWN: the charge sets in
+      //    the north channel. That is the catwalk stair, and it kills the
+      //    plain arm for good.
+      setLever(g, 'y_yard', 0);
       setLever(g, 'chiller', 1);
       actAt(g, 'tap_head', lava, tapAt);
       standIn(g, 'chill_house', const Offset(430, 470));
@@ -1177,21 +1184,26 @@ void _engineRun() {
       final s = g.works.line;
       actAt(g, 'tap_head', lava, tapAt);
 
-      // The purge is standing open, so the south arm gasses what it takes.
-      setLever(g, 'y_yard', 1);
-      setLever(g, 'y_sluice', 0);
+      // The purge is standing open — the line's opening state — so the mill
+      // arm sends what it takes up the stack.
+      expect(s.settingOf('y_yard'), 1, reason: 'aimed down the mill');
       expect(s.settingOf('damper'), 1, reason: 'the works died mid-purge');
       actAt(g, 'tap_head', lava, tapAt);
       standIn(g, 'stamp_mill', const Offset(200, 150));
       runOut(g);
       expect(s.cast('span_a'), isFalse);
       expect(g.works.firedamp, greaterThan(0), reason: 'and gas in the room');
-      expect(s.molds['mold_span_a'], isNotNull, reason: 'the form is fouled');
-
-      // A Lava heart melts the ruin out; the form takes again. The charge,
-      // though, is gone forever — that is the whole economy.
-      actAt(g, 'mold_floor', lava, kLavaLine.node('mold_span_a').position);
-      expect(s.molds['mold_span_a'], isNull);
+      // THE PURGE EATS IT. It used to gas the charge and pass it on, so a
+      // purged pour still arrived at whatever the sluice was aimed at and
+      // fouled that form — one mistake charged for twice, and a form you
+      // then had to melt out. A vent vents: the charge is gone and nothing
+      // downstream is touched.
+      expect(
+        s.molds['mold_span_a'],
+        isNull,
+        reason: 'nothing reaches the floor through a stack',
+      );
+      expect(s.pour, isNull);
       setLever(g, 'y_yard', 0);
       setLever(g, 'damper', 0);
       actAt(g, 'tap_head', lava, tapAt);
