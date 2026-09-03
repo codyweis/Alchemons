@@ -388,6 +388,26 @@ void main() {
       }
     });
 
+    test('a cloned state carries the whole crucible with it', () {
+      // The solver walks thousands of hypothetical shifts off clones. When
+      // the budget was briefly removed and then restored, `clone()` came back
+      // without `poursLeft` — so every branch would have started with a full
+      // crucible and the proof would have been of a game nobody plays. It is
+      // the kind of omission no puzzle test notices, because every route it
+      // finds is still a real route; there are just routes it should have
+      // ruled out and did not.
+      final s = _fresh();
+      s.tapWoken = true;
+      s.tap();
+      s.pour = null;
+      s.slagTaken = true;
+      final c = s.clone();
+      expect(c.poursLeft, s.poursLeft);
+      expect(c.poursSpent, s.poursSpent);
+      expect(c.slagTaken, s.slagTaken);
+      expect(c.tapWoken, s.tapWoken);
+    });
+
     test('running dry ends the shift instead of ending the run', () {
       // The budget was briefly removed on the grounds that a misread room
       // should not cost the run. That was the wrong fix for a real problem:

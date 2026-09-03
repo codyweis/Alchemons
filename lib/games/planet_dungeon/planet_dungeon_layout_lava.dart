@@ -429,7 +429,9 @@ class FoundryState {
       ..dieWoken = dieWoken
       ..quenches = quenches
       ..tapWoken = tapWoken
-      ..poursSpent = poursSpent;
+      ..poursLeft = poursLeft
+      ..poursSpent = poursSpent
+      ..slagTaken = slagTaken;
     c.switches
       ..clear()
       ..addAll(switches);

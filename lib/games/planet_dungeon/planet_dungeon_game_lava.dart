@@ -835,11 +835,15 @@ extension MoltenReliquary on PlanetDungeonGame {
         },
       );
     }
-    // A TALLY, not a budget. It used to read "3 of 5" and count down, which
-    // is a resource meter — and the resource is gone. What is still worth
-    // showing is how many charges this run has spent, because the works
-    // remembers every one of them in cold metal.
-    return DungeonProgressReadout(label: 'POURS', value: '${s.poursSpent}');
+    // WHAT IS LEFT, counting down. It briefly read as a tally counting up,
+    // from the stretch where the budget was removed — and a meter that grows
+    // says "score", not "this is running out", which is the one thing the
+    // crucible has to say.
+    return DungeonProgressReadout(
+      label: 'POURS',
+      value: '${s.poursLeft} of $kLavaPourBudget',
+      fraction: (s.poursLeft / kLavaPourBudget).clamp(0.0, 1.0),
+    );
   }
 
   double get _foundryMoodTarget => switch (currentRoomId) {
