@@ -1829,8 +1829,8 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
-**SIX of seventeen (2026-09-02): Fire · Air · Water · Earth · Lightning ·
-Steam.** The through-line of all six is that the suite was green the whole
+**SEVEN of seventeen (2026-09-03): Fire · Air · Water · Earth · Lightning ·
+Steam · Lava.** The through-line of all six is that the suite was green the whole
 time. Every fault that mattered came out of a device session or a rendered
 screenshot — arrivals, doorways, unreachable ground, art that reads as
 something it is not — and none of them out of a test that already existed.
@@ -2206,7 +2206,7 @@ catch it because they call `activateAbility()` past the HUD's gate.
     no art on it, and a last hop that could not be made at all. Simulated and
     rendered is not played.
 
-**The eleven left**: Lava, Poison, Mud, Dust, Crystal, Plant, Spirit, Dark,
+**The ten left**: Poison, Mud, Dust, Crystal, Plant, Spirit, Dark,
 Light, Blood, Ice — all BUILT and proved, none through a polish pass. Their
 secrets are the queue in §7's maxim table, and Steam moved that count: five of
 seventeen clear the standard now, because a maxim that is a PLACE is the shape
@@ -2218,7 +2218,7 @@ climb out of one) but never checked on a device, and the doorway invariant
 exempts them on that assumption. And **`MaskFilter.blur` in per-frame paint**
 is still the repo's main jank source, ~310 sites, mostly cosmic.
 
-### 🔧 LAVA — in progress (2026-09-02)
+### ✅ LAVA — complete (2026-09-03)
 
 **The line was built well and drawn as a diagram.** Fifteen channels, fourteen
 nodes, five levers, a solver that walks the real map — and on screen a vertical
@@ -2401,9 +2401,12 @@ see any of that.
     leaves, then along the wall to wherever it is going. An invariant measures
     every hand-off against its door.
   · ✅ **THE MAXIM IS THE POUR YOU THROW AWAY** — §9.7.
-  · ⬜ CARRIED: a device playtest of the whole planet end to end. Everything
-    above came out of play, but nobody has yet run it from the tap head to
-    Magmara in one sitting. §7's table grades **Black Glass** ⬜ *"one verb,
+  · ✅ **PLAYED, room by room, and that is where all of it came from.** Not
+    one item above was found by reading the code or by the suite: the tiley
+    floor, the metal leaving by the wrong wall, the pipe that jumped through
+    a doorway, the unwinnable damper, the free first star, the spoil that
+    said nothing, the plug the game lied about, the door you could see and
+    not reach. The tests were green throughout. §7's table grades **Black Glass** ⬜ *"one verb,
     three times"* — quench three times with Ice. That is an achievement, not
     a puzzle, and Steam has just shown what the fix looks like (§9.6): a
     maxim has to be a PLACE.
