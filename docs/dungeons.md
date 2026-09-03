@@ -2454,6 +2454,40 @@ The reference. What "complete" meant, so the next planet has a target:
     the action-pad sweep. They are probably a reading room and a landing, but
     nobody has confirmed it.
 
+### A RULE THE ENGINE DOES NOT ENFORCE, STATED AS THOUGH IT DOES
+
+Worse than saying nothing, and the hardest class of copy bug to notice: the
+line is well written, it is in the right channel, it fires at the right
+moment, and it is **false**. The player believes it, stops trying, and
+abandons a run that was never lost.
+
+Found from play on Lava. Freezing an arm printed *"a road, and a plug behind
+it. Nothing runs up this arm again."* A Lava heart melts any casting back out,
+plugs included — RULE 5 on that planet is literally *the world is never what
+ends a run* — and every part of the mechanic worked. The only account of it
+anyone ever got said the opposite.
+
+**A sweep of the six polished planets found one more, and it is starker.**
+Lightning's welded breaker says *"This one is fused — it will not open
+again"*, eight lines above a branch whose own comment reads *"A FUSED BREAKER
+IS NOT STUCK. The storm blows the weld off it, which is the undo the whole
+rite needs in order to be allowed a wrong turn."* And the dynamo court's
+ambient line said *"The great rotor never slows"* — about the very rotor an
+Air heart winds past its limit, which IS the Thunderbolt rite. Atmosphere is
+allowed to be evocative; it is not allowed to make a mechanical promise, and
+certainly not a false one.
+
+The rest checked out, and it is worth recording that they did: Fire's wet
+vine never catches (wet is authored and nothing dries it), Air's woken gales
+never sleep (`wokenGales` is cleared only on a run reset), Earth's sealed
+pillars are sealed for good (same), and Steam's ring genuinely cannot be
+bought whole (4 × 15 against a head of 40).
+
+**The check, whenever a line claims something is permanent:** find the code
+that would undo it. If it exists, the line is a bug. If it does not, say so
+plainly — a real irreversibility is worth stating, and is the reason this
+kind of copy exists at all.
+
 ### THERE IS NO REVEAL VERB — IT IS THE HINT BUTTON
 
 Say it here once, because it has now been got wrong from inside the project.

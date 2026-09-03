@@ -1341,7 +1341,12 @@ extension StormCircuit on PlanetDungeonGame {
       if (el == 'Fire' &&
           !discoveredClouds.contains(kLightningThunderboltEggId)) {
         if (weldedBreakers.contains(t.id)) {
-          _setHint('This one is fused — it will not open again');
+          // NAME THE UNDO. This said "it will not open again" — eight lines
+          // below the branch whose own comment reads "A FUSED BREAKER IS NOT
+          // STUCK … the undo the whole rite needs in order to be allowed a
+          // wrong turn". A player who welds the wrong breaker was told the
+          // rite was over.
+          _setHint('This one is fused — only Lightning blows a weld off');
           return true;
         }
         if (rotorOverspeed <= 0) {
@@ -1635,7 +1640,12 @@ extension StormCircuit on PlanetDungeonGame {
       return;
     }
     if (room.id == layout.dynamoRoomId) {
-      _setAmbientHint('The great rotor never slows');
+      // NOT "never slows". The rotor in this very room is the one an Air
+      // heart winds past its limit, and that over-speed is the Thunderbolt
+      // rite — so the atmosphere line was telling the player the planet's own
+      // secret was impossible. Ambient is allowed to be evocative; it is not
+      // allowed to make a mechanical promise, least of all a false one.
+      _setAmbientHint('The great rotor fills the court with one long note');
       return;
     }
     if (room.circuitNodes.isNotEmpty || room.beamEmitters.isNotEmpty) {
