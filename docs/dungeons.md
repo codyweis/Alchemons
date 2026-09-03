@@ -2390,6 +2390,16 @@ see any of that.
     it is to ask which rule is making the layout impossible. Here it was
     "metal is a wall", and it was never a requirement, just an assumption
     nobody had written down.
+  · ✅ **AND A CROSSING MEETS ITS DOORWAY.** Same wall was not enough. From
+    play, with screenshots: *"in tap head there are two flowing pipes, then I
+    come out of the door and they're both gone and there's one right above
+    me."* The feed ran along the tap head's CEILING and entered the yard just
+    above the doorway, so it appeared to jump as you walked through. Measured
+    across the works, the gaps were 62 · 22 · **466** · 16 · **206** · 100 ·
+    **272** px. Every one is now ≤ 100 and most are under 20, by the fix the
+    report itself suggested — bring the run DOWN to the door before it
+    leaves, then along the wall to wherever it is going. An invariant measures
+    every hand-off against its door.
   · ⬜ CARRIED: the maxim. §7's table grades **Black Glass** ⬜ *"one verb,
     three times"* — quench three times with Ice. That is an achievement, not
     a puzzle, and Steam has just shown what the fix looks like (§9.6): a

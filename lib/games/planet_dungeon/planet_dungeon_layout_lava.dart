@@ -783,6 +783,13 @@ const FoundryLine kLavaLine = FoundryLine(
     FoundryBridge('switch_yard', Rect.fromLTWH(344, 300, 72, 66)),
     // Over the mill's drop, so the room is one room.
     FoundryBridge('stamp_mill', Rect.fromLTWH(222, 140, 64, 66)),
+    // Over the chill feed's descent on the mould floor, so the west side
+    // (both doors) still reaches the sluice.
+    FoundryBridge('mold_floor', Rect.fromLTWH(256, 470, 60, 66)),
+    // Over the purge riser, into the corner the mill's east door stands in.
+    // That corner was the sealed pocket the damper lever used to be locked
+    // inside; a crossing is what makes it a place instead of a trap.
+    FoundryBridge('stamp_mill', Rect.fromLTWH(590, 378, 60, 62)),
   ],
   channels: [
     FoundryChannel(
@@ -790,7 +797,15 @@ const FoundryLine kLavaLine = FoundryLine(
       from: 'tap',
       to: 'y_yard',
       segments: [
-        FoundrySegment('tap_head', Rect.fromLTWH(190, 40, 710, 28)),
+        // ACROSS THE ROOF, THEN DOWN TO THE DOOR. It used to leave the tap
+        // head at ceiling height — about 170px above the doorway — and enter
+        // the yard just above it, so the feed appeared to JUMP as you walked
+        // through. Reported from play: two pipes in the tap head, then you
+        // step through and both are gone and there is one right above you.
+        // A channel that crosses a doorway has to meet the wall beside it.
+        FoundrySegment('tap_head', Rect.fromLTWH(190, 40, 682, 28)),
+        FoundrySegment('tap_head', Rect.fromLTWH(844, 68, 28, 110)),
+        FoundrySegment('tap_head', Rect.fromLTWH(844, 150, 56, 28)),
         // Into the middle of the yard, not along its ceiling. Run the feed
         // across the top and it walls off everything above it, which is what
         // forced both ways out onto one wall and made the fork unreadable.
@@ -818,7 +833,12 @@ const FoundryLine kLavaLine = FoundryLine(
       to: 'floor_in',
       segments: [
         FoundrySegment('chill_house', Rect.fromLTWH(430, 330, 430, 34)),
-        FoundrySegment('mold_floor', Rect.fromLTWH(0, 846, 550, 30)),
+        // IN AT THE DOOR, THEN DOWN. It used to appear at the very bottom of
+        // the mould floor, 466px from the doorway you walked through — the
+        // worst crossing in the works, and the same fault the tap head had.
+        FoundrySegment('mold_floor', Rect.fromLTWH(0, 300, 300, 28)),
+        FoundrySegment('mold_floor', Rect.fromLTWH(272, 328, 28, 518)),
+        FoundrySegment('mold_floor', Rect.fromLTWH(272, 846, 278, 30)),
       ],
     ),
     FoundryChannel(
@@ -928,13 +948,24 @@ const FoundryLine kLavaLine = FoundryLine(
           Rect.fromLTWH(520, 0, 60, 686),
           reverse: true,
         ),
-        // West along the top to the wall the chill-house door is on. The
-        // full-height runner is untouched — it is what puts the Ember Star
-        // across a gap you cannot walk round — so this is added ABOVE it
-        // rather than cut into it.
+        // West along the top, then DOWN to the doorway — arriving beside the
+        // chill feed rather than 272px above it, so the two runs meet the
+        // door together: one going out, one coming in. The full-height
+        // runner is untouched — it is what puts the Ember Star across a gap
+        // you cannot walk round.
         FoundrySegment(
           'mold_floor',
-          Rect.fromLTWH(0, 0, 520, 28),
+          Rect.fromLTWH(60, 0, 460, 28),
+          reverse: true,
+        ),
+        FoundrySegment(
+          'mold_floor',
+          Rect.fromLTWH(60, 28, 28, 312),
+          reverse: true,
+        ),
+        FoundrySegment(
+          'mold_floor',
+          Rect.fromLTWH(0, 340, 88, 28),
           reverse: true,
         ),
         FoundrySegment(
@@ -1189,7 +1220,7 @@ const DungeonLayout kLavaLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(836, 210, 24, 80),
           targetRoomId: 'mold_floor',
-          targetSpawn: Offset(60, 340),
+          targetSpawn: Offset(130, 400),
         ),
       ],
     ),
@@ -1206,9 +1237,11 @@ const DungeonLayout kLavaLayout = DungeonLayout(
           targetSpawn: Offset(295, 480),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(916, 150, 24, 90),
+          // BETWEEN the two runs that leave this wall — the purge line above
+          // and the clean line below — instead of 200px above both of them.
+          rect: Rect.fromLTWH(916, 376, 24, 64),
           targetRoomId: 'mold_floor',
-          targetSpawn: Offset(60, 685),
+          targetSpawn: Offset(60, 795),
         ),
       ],
     ),
@@ -1221,9 +1254,10 @@ const DungeonLayout kLavaLayout = DungeonLayout(
       bounds: Rect.fromLTWH(0, 0, 1180, 880),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 640, 24, 90),
+          // Beside the inlet manifold the mill's runs arrive on.
+          rect: Rect.fromLTWH(0, 750, 24, 90),
           targetRoomId: 'stamp_mill',
-          targetSpawn: Offset(880, 195),
+          targetSpawn: Offset(880, 408),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(0, 300, 24, 80),

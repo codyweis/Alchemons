@@ -526,6 +526,66 @@ void main() {
       expect(canWalk(s, 'tap_head', spawn, mold), isTrue);
     });
 
+    test('a channel that crosses a doorway MEETS that doorway', () {
+      // Reported from play, twice, from two different rooms: *"in tap head
+      // there are two flowing pipes, then I come out of the door and they're
+      // both gone and there's one right above me."* The metal was leaving by
+      // the correct WALL and arriving on the correct wall — and still made no
+      // sense, because it met that wall a long way from the door you walked
+      // through. Worst case was 466px; the tap head's own feed ran along the
+      // ceiling and entered the yard just above the doorway, so it appeared
+      // to jump as you crossed.
+      //
+      // The fix in every case is the one the report suggested: bring the run
+      // DOWN to the door before it leaves. Which is only possible because a
+      // channel is no longer an absolute wall (see `FoundryBridge`).
+      double gapTo(Rect a, Rect b) {
+        final dx = a.right < b.left
+            ? b.left - a.right
+            : (b.right < a.left ? a.left - b.right : 0.0);
+        final dy = a.bottom < b.top
+            ? b.top - a.bottom
+            : (b.bottom < a.top ? a.top - b.bottom : 0.0);
+        return dx > dy ? dx : dy;
+      }
+
+      Rect? doorBetween2(String from, String to) {
+        for (final d in kLavaLayout.rooms[from]!.doors) {
+          if (d.targetRoomId == to) return d.rect;
+        }
+        return null;
+      }
+
+      const tolerance = 100.0;
+      for (final ch in kLavaLine.channels) {
+        for (var i = 0; i < ch.segments.length - 1; i++) {
+          final a = ch.segments[i], b = ch.segments[i + 1];
+          if (a.roomId == b.roomId) continue;
+          final out = doorBetween2(a.roomId, b.roomId);
+          final into = doorBetween2(b.roomId, a.roomId);
+          if (out != null) {
+            expect(
+              gapTo(a.rect, out),
+              lessThanOrEqualTo(tolerance),
+              reason:
+                  '${ch.id} leaves ${a.roomId} ${gapTo(a.rect, out).toInt()}px '
+                  'from the door it crosses — the metal will look like it '
+                  'jumps when you walk through',
+            );
+          }
+          if (into != null) {
+            expect(
+              gapTo(b.rect, into),
+              lessThanOrEqualTo(tolerance),
+              reason:
+                  '${ch.id} arrives in ${b.roomId} ${gapTo(b.rect, into).toInt()}px '
+                  'from the door you came through',
+            );
+          }
+        }
+      }
+    });
+
     test('no channel cuts a room in half — every arrival can reach every '
         'lever and every door in the room it lands in', () {
       // THE RISK IN MOVING METAL AROUND. A channel is a wall, so re-routing
