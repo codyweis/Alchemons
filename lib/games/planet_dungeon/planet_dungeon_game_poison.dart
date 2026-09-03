@@ -952,10 +952,139 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   static const Color _venomSick = Color(0xFFB86FE0);
   static const Color _venomBone = Color(0xFFD8CBA8);
 
+  /// SPORES, going up. Slow, uneven, lit — the air in a plague house is not
+  /// still, it is FULL, and the one thing that has to read from a still frame
+  /// is that you are breathing it.
+  ///
+  /// Screen-space, like every other planet's air: it is the room you are IN
+  /// rather than a thing at a place, and it must not scroll with the camera
+  /// or it becomes scenery you could walk away from.
+  void _drawSporeDrift(Canvas canvas, Size vp) {
+    for (var i = 0; i < 26; i++) {
+      final seed = i * 79;
+      final speed = 0.020 + (seed % 7) * 0.004;
+      final t = ((_time * speed) + (seed % 100) / 100.0) % 1.0;
+      final x =
+          ((seed * 37) % vp.width.toInt()).toDouble() +
+          sin(_time * 0.5 + i) * 16;
+      final y = vp.height * (1.08 - 1.16 * t);
+      final r = 1.1 + (seed % 5) * 0.5;
+      // Most are the dull green of the place; a few are the sick violet, and
+      // those are the ones the eye keeps catching.
+      final sick = i % 7 == 0;
+      canvas.drawCircle(
+        Offset(x % vp.width, y),
+        r,
+        Paint()
+          ..color = (sick ? _venomSick : _venomLive).withValues(
+            alpha: (sick ? 0.30 : 0.16) * sin(t * pi).clamp(0.0, 1.0),
+          ),
+      );
+    }
+  }
+
   void _renderMonastery(Canvas canvas, DungeonRoom room) {
     _renderLazarFloor(canvas, room);
+    _renderContagion(canvas, room);
     _renderStrains(canvas, room);
     _renderMonasteryFixtures(canvas, room);
+    _renderLazarGloom(canvas, room);
+  }
+
+  /// WHAT IS IN THE ROOM WITH YOU, on the floor rather than in the air.
+  ///
+  /// A ward with a live strain has it growing out from the heart: bloom on
+  /// the flags, veins running into the mortar, and a wet shine where it is
+  /// thickest. A VIRULENT one — one you fed the wrong draught — goes violet
+  /// and reaches further, so the mistake is a thing you can see from the door
+  /// rather than a word in a readout.
+  void _renderContagion(Canvas canvas, DungeonRoom room) {
+    final live = _liveStrains(room);
+    if (live.isEmpty) return;
+    final heart = _strainHeart(room);
+    final virulent = live.any((e) => e.$2);
+    final col = virulent ? _venomSick : _venomLive;
+    final breath = 0.5 + 0.5 * sin(_time * 0.8);
+    final reach = (virulent ? 300.0 : 210.0) * (0.94 + 0.06 * breath);
+
+    // Inside the room only — a vein crawling out through a wall reads as a
+    // render bug, not as sickness.
+    canvas.save();
+    canvas.clipRect(room.bounds);
+
+    // The bloom: three soft rings, darkest at the heart.
+    for (var i = 3; i >= 1; i--) {
+      canvas.drawCircle(
+        heart,
+        reach * i / 3,
+        Paint()..color = col.withValues(alpha: 0.035 * (4 - i)),
+      );
+    }
+    // VEINS. Deterministic, so the sickness does not crawl between frames —
+    // it grows when the ward changes, and only then.
+    var seed = room.id.codeUnits.fold<int>(53, (a, c) => (a * 31 + c) % 30011);
+    double rnd() {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    }
+
+    for (var i = 0; i < 14; i++) {
+      var at = heart;
+      var a = rnd() * pi * 2;
+      final path = Path()..moveTo(at.dx, at.dy);
+      final len = reach * (0.35 + rnd() * 0.6);
+      const steps = 6;
+      for (var k = 0; k < steps; k++) {
+        a += (rnd() - 0.5) * 1.1;
+        at = at + Offset(cos(a), sin(a)) * (len / steps);
+        path.lineTo(at.dx, at.dy);
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2 + rnd() * 2.0
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..color = col.withValues(alpha: 0.10 + 0.16 * rnd()),
+      );
+    }
+    // And a wet shine at the heart itself.
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        heart,
+        70 + 18 * breath,
+        col.withValues(alpha: virulent ? 0.26 : 0.16),
+      );
+    }
+    canvas.restore();
+  }
+
+  /// THE DARK CLOSING IN. A lazar house is lit by whatever somebody carried
+  /// in, so the room is bright where the party is and black at the edges.
+  ///
+  /// Drawn in WORLD space, over the room's own fabric and under everything
+  /// living, so it darkens the place rather than the picture — the screen
+  /// vignette is a frame, and a frame does not make a room feel enclosed.
+  void _renderLazarGloom(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    final at = active?.position ?? b.center;
+    canvas.drawRect(
+      b,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          at,
+          460,
+          [
+            const Color(0x00000000),
+            const Color(0x66070A06),
+            const Color(0xCC040604),
+          ],
+          const [0.0, 0.58, 1.0],
+        ),
+    );
   }
 
   /// A LAZAR HOUSE FLOOR. Worn flags, lime thrown down against the contagion,

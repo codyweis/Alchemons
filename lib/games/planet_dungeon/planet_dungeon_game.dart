@@ -9229,6 +9229,22 @@ class PlanetDungeonGame extends FlameGame {
         puff: _fx.puff,
       );
       _drawDustSift(canvas, vp);
+    } else if (_isVenom) {
+      // A SEALED HOUSE FULL OF SICKNESS. Not sky — miasma lying in the room
+      // with you, and spores going up through it. This planet fell through to
+      // the generic branch below, which gave a sealed quarantine faction
+      // clouds and WIND STREAKS: open-air weather, indoors.
+      drawDriftingClouds(
+        canvas,
+        vp,
+        _time,
+        primary: const Color(0xFF2A3A22),
+        secondary: const Color(0xFF3E2A4A),
+        count: 7,
+        maxAlpha: 0.13,
+        puff: _fx.puff,
+      );
+      _drawSporeDrift(canvas, vp);
     } else {
       drawDriftingClouds(
         canvas,
