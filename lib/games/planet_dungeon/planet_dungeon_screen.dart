@@ -894,37 +894,63 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                             HapticFeedback.selectionClick();
                             game.cancelPourWatch();
                           },
-                          child: Container(
-                            width: 190,
-                            height: 76,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.42),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: _C.amber.withValues(alpha: 0.55),
-                                width: 1.6,
-                              ),
+                          // The house chrome at size: hard corners, the same
+                          // bracket painter every other control wears, and
+                          // the monospace caps. It was a rounded Material
+                          // capsule, which is the one thing in this HUD that
+                          // looked like it came from a different game.
+                          child: CustomPaint(
+                            painter: _HudBracketPainter(
+                              color: _C.amber.withValues(alpha: 0.8),
+                              bracketSize: 12,
+                              strokeWidth: 1.6,
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.stop_rounded,
-                                  color: _C.amber.withValues(alpha: 0.9),
-                                  size: 26,
+                            child: Container(
+                              width: 196,
+                              height: 74,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: _C.bg.withValues(alpha: 0.72),
+                                border: Border.all(
+                                  color: _C.border.withValues(alpha: 0.5),
                                 ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'STOP',
-                                  style: TextStyle(
-                                    color: _C.amber.withValues(alpha: 0.9),
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 3,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _C.amber.withValues(alpha: 0.12),
+                                    blurRadius: 14,
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.stop_rounded,
+                                    color: _C.amberBright,
+                                    size: 20,
+                                    shadows: [
+                                      Shadow(
+                                        color: _C.amberBright.withValues(
+                                          alpha: 0.55,
+                                        ),
+                                        blurRadius: 8,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'STOP',
+                                    style: TextStyle(
+                                      color: _C.amberBright,
+                                      fontFamily: 'monospace',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 3.2,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -1519,98 +1545,116 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// alongside the star tracker. Generalized from the per-planet gauges, so
   /// counters never have to borrow the hint capsule to be seen.
   Widget _progressReadout(DungeonProgressReadout r) {
+    // SQUARE AND BRACKETED, like END RUN and every action pill. It was a
+    // 16px stadium, which is the one shape nothing else in this HUD uses.
     return Container(
       margin: const EdgeInsets.only(left: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: _C.bg.withValues(alpha: 0.62),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _C.border.withValues(alpha: 0.45)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: CustomPaint(
+        painter: _HudBracketPainter(
+          color: _C.amber.withValues(alpha: 0.55),
+          bracketSize: 5,
+          strokeWidth: 1.1,
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: _C.bg.withValues(alpha: 0.82),
+            border: Border.all(color: _C.border.withValues(alpha: 0.4)),
+          ),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                r.label,
-                style: TextStyle(
-                  color: _C.amber.withValues(alpha: 0.7),
-                  fontFamily: 'monospace',
-                  fontSize: 8,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
-                  height: 1,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    r.label,
+                    style: TextStyle(
+                      color: _C.amber.withValues(alpha: 0.7),
+                      fontFamily: 'monospace',
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    r.value,
+                    style: const TextStyle(
+                      color: _C.amberBright,
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.6,
+                      height: 1,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 6),
-              Text(
-                r.value,
-                style: const TextStyle(
-                  color: _C.amberBright,
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.6,
-                  height: 1,
+              if (r.fraction != null) ...[
+                const SizedBox(height: 3),
+                SizedBox(
+                  width: 48,
+                  height: 2,
+                  child: ColoredBox(
+                    color: _C.border.withValues(alpha: 0.35),
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: r.fraction!.clamp(0.0, 1.0),
+                      heightFactor: 1,
+                      child: const ColoredBox(color: _C.amberBright),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
-          if (r.fraction != null) ...[
-            const SizedBox(height: 3),
-            SizedBox(
-              width: 48,
-              height: 2,
-              child: ColoredBox(
-                color: _C.border.withValues(alpha: 0.35),
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: r.fraction!.clamp(0.0, 1.0),
-                  heightFactor: 1,
-                  child: const ColoredBox(color: _C.amberBright),
-                ),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
 
   Widget _starTracker(PlanetDungeonGame game) {
-    // Compact pill — sized so it clears the minimap (left) and the action
-    // pills (right) on narrow phones instead of colliding with them.
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: _C.bg.withValues(alpha: 0.62),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _C.border.withValues(alpha: 0.45)),
+    // Sized so it clears the minimap (left) and the action pills (right) on
+    // narrow phones. Square and bracketed to match the rest of the chrome —
+    // it was a stadium, and a rounded capsule next to a row of hard-cornered
+    // bracketed chips reads as a control from a different game.
+    return CustomPaint(
+      painter: _HudBracketPainter(
+        color: _C.amber.withValues(alpha: 0.55),
+        bracketSize: 5,
+        strokeWidth: 1.1,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < game.totalStars; i++)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Icon(
-                game.hasStar(i)
-                    ? Icons.star_rounded
-                    : Icons.star_border_rounded,
-                // Hide the slot that's mid-flight until it lands.
-                color: (game.hasStar(i) && _flyStar != i)
-                    ? _C.amberBright
-                    : _C.border.withValues(alpha: 0.8),
-                size: 20,
-                shadows: (game.hasStar(i) && _flyStar != i)
-                    ? const [Shadow(color: _C.amberBright, blurRadius: 8)]
-                    : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: _C.bg.withValues(alpha: 0.82),
+          border: Border.all(color: _C.border.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < game.totalStars; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(
+                  game.hasStar(i)
+                      ? Icons.star_rounded
+                      : Icons.star_border_rounded,
+                  // Hide the slot that's mid-flight until it lands.
+                  color: (game.hasStar(i) && _flyStar != i)
+                      ? _C.amberBright
+                      : _C.border.withValues(alpha: 0.8),
+                  size: 20,
+                  shadows: (game.hasStar(i) && _flyStar != i)
+                      ? const [Shadow(color: _C.amberBright, blurRadius: 8)]
+                      : null,
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2070,32 +2114,44 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       label: semantics,
       child: GestureDetector(
         onTap: onTap,
-        // The circle is 36 but the tap target is padded out to 44, so a
+        // The box is 36 but the tap target is padded out to 44, so a
         // slimmer button is not a harder one to hit.
         behavior: HitTestBehavior.opaque,
+        // SQUARE AND BRACKETED, like every labelled control beside it. These
+        // were circles: five of them in a rail down the edge of a HUD whose
+        // every other element is a hard-cornered bracketed box.
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _C.bg.withValues(alpha: 0.82),
-              border: Border.all(
-                color: color.withValues(alpha: 0.6),
-                width: 1.1,
-              ),
-              boxShadow: [
-                BoxShadow(color: color.withValues(alpha: 0.10), blurRadius: 9),
-              ],
+          child: CustomPaint(
+            painter: _HudBracketPainter(
+              color: color.withValues(alpha: 0.7),
+              bracketSize: 6,
+              strokeWidth: 1.1,
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 17,
-              shadows: [
-                Shadow(color: color.withValues(alpha: 0.55), blurRadius: 7),
-              ],
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _C.bg.withValues(alpha: 0.82),
+                border: Border.all(
+                  color: _C.border.withValues(alpha: 0.4),
+                  width: 1.1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.10),
+                    blurRadius: 9,
+                  ),
+                ],
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 17,
+                shadows: [
+                  Shadow(color: color.withValues(alpha: 0.55), blurRadius: 7),
+                ],
+              ),
             ),
           ),
         ),
