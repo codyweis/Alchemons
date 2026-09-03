@@ -673,6 +673,52 @@ void main() {
       expect(kLavaLine.node('slag_pit').roomId, 'chill_house');
     });
 
+    test('a warded door can be walked up to, on the side you turn it from', () {
+      // The reachability invariant exempts warded doors, because the gantry
+      // deliberately hangs beyond the chill house's north channel until you
+      // have earned the catwalk. That exemption was hiding a real wall on the
+      // OTHER side: the tail's descent came down the mould floor's west edge
+      // and left the same door in a sealed strip — visible, and impossible to
+      // reach with the key you had just cast for it.
+      //
+      // A ward is turned by standing at the door. So for each one, at least
+      // one of its two rooms must let an ordinary arrival walk up to it.
+      final s = _fresh();
+      for (final pair in const [
+        ['chill_house', 'mold_floor'],
+        ['mold_floor', 'slag_reliquary'],
+      ]) {
+        var reachableSomewhere = false;
+        for (final id in pair) {
+          final room = kLavaLayout.rooms[id]!;
+          final door = room.doors.firstWhere(
+            (d) => pair.contains(d.targetRoomId) && d.targetRoomId != id,
+            orElse: () => room.doors.first,
+          );
+          for (final other in kLavaLayout.rooms.values) {
+            for (final d in other.doors) {
+              if (d.targetRoomId != id) continue;
+              // NOT the arrival that comes through this very ward. Counting
+              // it makes the test circular — "you can reach the door if you
+              // have already been through the door" — and it passed happily
+              // with the mould-floor side sealed behind a channel.
+              if (pair.contains(other.id) && pair.contains(id)) continue;
+              if (canWalk(s, id, d.targetSpawn, door.rect.center)) {
+                reachableSomewhere = true;
+              }
+            }
+          }
+        }
+        expect(
+          reachableSomewhere,
+          isTrue,
+          reason:
+              'the ${pair.join("/")} ward cannot be turned from either side — '
+              'nobody can stand at it',
+        );
+      }
+    });
+
     test('and never runs THROUGH one', () {
       // The other half of "meet the doorway", and the half I got wrong first:
       // both of the mould floor's west runs were routed to the gantry door's

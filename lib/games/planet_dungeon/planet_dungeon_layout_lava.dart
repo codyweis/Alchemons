@@ -849,6 +849,13 @@ const FoundryLine kLavaLine = FoundryLine(
     // Over the chill feed's descent on the mould floor, so the west side
     // (both doors) still reaches the sluice.
     FoundryBridge('mold_floor', Rect.fromLTWH(256, 470, 60, 66)),
+    // Over the tail's descent, to the gantry door. The run comes down the
+    // west side at x 60-88 and the door is at x 0-24 behind it, so the
+    // doorway sat in a sealed strip: you could see it and never reach it.
+    // Clearing the door itself was only half the job — a run that stops
+    // short of a doorway can still fence it off.
+    FoundryBridge('mold_floor', Rect.fromLTWH(46, 318, 58, 60)),
+
     // Over the purge riser, into the corner the mill's east door stands in.
     // That corner was the sealed pocket the damper lever used to be locked
     // inside; a crossing is what makes it a place instead of a trap.
