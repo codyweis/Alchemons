@@ -1092,6 +1092,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     _renderCastings(canvas, room);
     _renderFixtures(canvas, room);
     _renderPourBead(canvas, room);
+    _renderChillTell(canvas, room);
     _renderSpoilBurst(canvas);
     _renderWardLocks(canvas, room);
     _renderCarriedKey(canvas);
@@ -1457,6 +1458,78 @@ extension MoltenReliquary on PlanetDungeonGame {
     canvas.restore();
     if (_fx.ready) {
       drawGlow(canvas, _fx.glow!, at, 26, warm.withValues(alpha: 0.30));
+    }
+  }
+
+  /// THE METAL FEELS THE COLD COMING. No words, no prompt.
+  ///
+  /// An Ice mane can set a running charge wherever it stands, and that verb
+  /// is the whole of the sump crossing — but nothing in the works ever
+  /// suggested it. Told outright it stops being a discovery; left alone it is
+  /// a keypress nobody guesses.
+  ///
+  /// So the METAL reacts, the way a plug warms to a Lava heart in reach: walk
+  /// an Ice heart toward a live charge and frost starts crusting the bead,
+  /// harder the closer you get. The player is not told they can freeze it —
+  /// they are shown the two things reacting to each other and left to press
+  /// the button. It shows for any Ice heart, not only a mane, so the family
+  /// gate still gets to be the thing that says which cold sets metal.
+  void _renderChillTell(Canvas canvas, DungeonRoom room) {
+    final s = works.line;
+    final p = s.pour;
+    if (p == null) return;
+    final a = active;
+    if (a == null || !a.alive || a.member.element != 'Ice') return;
+    final (roomId, at) = s.line.channel(p.channelId).pointAt(p.t);
+    if (roomId != room.id) return;
+    final d = (a.position - at).distance;
+    // Starts well outside the reach, so approaching is what reads.
+    const outer = _kChillReach * 2.4;
+    if (d > outer) return;
+    final near = (1 - (d - _kChillReach) / (outer - _kChillReach)).clamp(
+      0.0,
+      1.0,
+    );
+    final pulse = 0.6 + 0.4 * sin(works.clock * 4.0);
+
+    // Cold rolling off the hand, toward the metal.
+    canvas.drawLine(
+      a.position,
+      Offset.lerp(a.position, at, 0.55 + 0.35 * near)!,
+      Paint()
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..color = _worksCold.withValues(alpha: 0.10 + 0.22 * near),
+    );
+    // Frost crusting the bead — the thing that says THIS metal, not the room.
+    for (var i = 0; i < 8; i++) {
+      final ang = i * pi / 4 + works.clock * 0.5;
+      final r = 13.0 + 5 * near;
+      canvas.drawLine(
+        at + Offset(cos(ang), sin(ang)) * (r - 4 * near),
+        at + Offset(cos(ang), sin(ang)) * (r + 4 + 3 * near),
+        Paint()
+          ..strokeWidth = 2.0
+          ..strokeCap = StrokeCap.round
+          ..color = _worksCold.withValues(alpha: (0.18 + 0.55 * near) * pulse),
+      );
+    }
+    canvas.drawCircle(
+      at,
+      13 + 4 * near,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6 + 1.4 * near
+        ..color = _worksCold.withValues(alpha: 0.25 + 0.55 * near),
+    );
+    if (_fx.ready && near > 0.45) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        at,
+        30 + 14 * near,
+        _worksCold.withValues(alpha: 0.20 * near),
+      );
     }
   }
 

@@ -2454,6 +2454,37 @@ The reference. What "complete" meant, so the next planet has a target:
     the action-pad sweep. They are probably a reading room and a landing, but
     nobody has confirmed it.
 
+### TEACHING A VERB WITHOUT SPENDING IT
+
+The problem: a verb nobody guesses is a verb nobody uses, and a verb spelled
+out in a line of text has been spent — you cannot un-tell it, and the moment
+of working it out is the moment the puzzle was for.
+
+**The answer that keeps working is to make the OBJECT react to the hand.**
+Not a prompt, not a highlight, not a tutorial: the thing itself behaves
+differently when the one creature who can change it comes near, and the
+player is left to press the button and find out what they have.
+
+Three of these on Lava now, and they are all the same move:
+
+  · A frozen plug **warms** when a Lava heart is within melting reach. (Which
+    exists because the alternative — a line saying the arm was shut for good
+    — was both a lie and a run-ender. See below.)
+  · Running metal **frosts** as an Ice heart walks toward it, harder the
+    closer they get, well outside the reach so the APPROACH is what reads.
+    This is the sump crossing, the one verb the whole of Star 2 turns on, and
+    nothing in the works had ever hinted it existed.
+  · A warded door's keyhole **lights and pulses** when you are carrying its
+    key.
+
+Two rules fall out of doing it three times. **Start the reaction outside the
+reach**, so walking closer is the sentence — a tell that only appears once
+you are already in range teaches nothing, because by then pressing was going
+to be tried anyway. And **show it to the element, not the family**: Lava's
+cold tell fires for any Ice heart, not only an Ice mane, so the family gate
+still gets to be the thing that says *which* cold sets metal. The verb is the
+discovery; the gate is the lesson.
+
 ### A RULE THE ENGINE DOES NOT ENFORCE, STATED AS THOUGH IT DOES
 
 Worse than saying nothing, and the hardest class of copy bug to notice: the
