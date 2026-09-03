@@ -126,6 +126,13 @@ class VenomMonastery {
   Offset invadeFrom = Offset.zero;
   Offset invadeTo = Offset.zero;
 
+  /// The first half of it happens in the WARD: which room, where it gathers,
+  /// and the doorway it leaves by. You watch it come off the heart and go
+  /// out through the door you are standing next to.
+  String invadeWardRoom = '';
+  Offset invadeWardFrom = Offset.zero;
+  Offset invadeWardExit = Offset.zero;
+
   /// THE CROSS GOING UP: 1 → 0 over the condemnation. The planet's signature
   /// move — the ward you give up — and it had less ceremony than opening a
   /// door did.
@@ -351,9 +358,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
     if (monastery.invading) {
       monastery.invade = min(1.0, monastery.invade + dt / _kInvadeSeconds);
-      // The camera RIDES it across the room — a fixed shot of a thing
-      // crawling out of frame is a worse shot than no shot.
-      followAt = _invadeHead(monastery.invade);
+      // The camera RIDES it, and changes ROOMS with it — a fixed shot of a
+      // thing crawling out of frame is a worse shot than no shot, and a shot
+      // that stays in the ward after it has left is a shot of a doorway.
+      final (r, at) = _invadeAt(monastery.invade);
+      followRoomId = r;
+      followAt = at;
       if (monastery.invade >= 1) monastery.invading = false;
     }
     _maybeWakeWard(room);
@@ -1499,6 +1509,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// as it takes to feel like an arrival rather than an effect.
   static const double _kInvadeSeconds = 5.0;
 
+  /// How far through the sequence it goes through the doorway.
+  static const double _kInvadeCross = 0.34;
+
   static const Color _venomBronze = Color(0xFF6E6A3E);
   static const Color _venomBronzeLit = Color(0xFF9A9358);
   static const Color _venomIron = Color(0xFF3A3E42);
@@ -1576,34 +1589,58 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       if (d.targetRoomId == wardRoomId) at = d.rect.center;
     }
     if (at == null) return;
+    // …and where it leaves FROM: the ward's own door out to the walk.
+    final wardRoom = layout.rooms[wardRoomId];
+    Offset exit = at;
+    for (final d in wardRoom?.doors ?? const <DungeonDoor>[]) {
+      if (d.targetRoomId == 'ambulatory') exit = d.rect.center;
+    }
     monastery
       ..invade = 0
       ..invading = true
       ..invadeSick = sick
+      ..invadeWardRoom = wardRoomId
+      ..invadeWardFrom = wardRoom?.ward?.heart ?? exit
+      ..invadeWardExit = exit
       ..invadeFrom = at
       // Where a loose strain lives: `_strainHeart` gives the room's centre
       // for the ambulatory, which has no ward of its own.
       ..invadeTo = walk.bounds.center;
-    cutTo('ambulatory', at, hold: _kInvadeSeconds + 0.7);
+    // OPEN IN THE WARD. The shot starts where the party is standing, watches
+    // the thing come off the heart and go out through the door beside them,
+    // and only then follows it into the walk.
+    cutTo(wardRoomId, monastery.invadeWardFrom, hold: _kInvadeSeconds + 0.7);
     _shake = 5.0;
   }
 
-  /// Where the head of the invasion is right now, 0..1 through the sequence.
-  Offset _invadeHead(double t) {
+  /// Where the head of the invasion is, and WHICH ROOM it is in. The sequence
+  /// crosses a doorway, so the shot has to change rooms with it.
+  (String, Offset) _invadeAt(double t) {
     final m = monastery;
-    final travel = ((t - 0.26) / 0.46).clamp(0.0, 1.0);
+    if (t < _kInvadeCross) {
+      // In the ward: off the heart and over to the door, gathering speed.
+      final k = Curves.easeInCubic.transform(
+        (t / _kInvadeCross).clamp(0.0, 1.0),
+      );
+      return (
+        m.invadeWardRoom,
+        Offset.lerp(m.invadeWardFrom, m.invadeWardExit, k)!,
+      );
+    }
+    final travel = ((t - _kInvadeCross - 0.10) / 0.38).clamp(0.0, 1.0);
     final k = Curves.easeInOutCubic.transform(travel);
     final straight = Offset.lerp(m.invadeFrom, m.invadeTo, k)!;
-    // IT SNAKES. A dead-straight line from door to centre reads as a
-    // projectile fired at the room; a thing crawling casts about as it comes.
-    // Deterministic in the parameter, so the trail drawn behind the head is
-    // the path the head actually took.
+    // IT SNAKES. A dead-straight line reads as a projectile fired at the
+    // room; a thing crawling casts about as it comes. Deterministic in the
+    // parameter, so the trail behind the head is the path the head took.
     final d = m.invadeTo - m.invadeFrom;
     final len = d.distance;
-    if (len < 1) return straight;
+    if (len < 1) return ('ambulatory', straight);
     final n = Offset(-d.dy, d.dx) / len;
-    final wander = sin(k * pi * 2.6) * 34 * sin(k * pi);
-    return straight + n * wander;
+    return (
+      'ambulatory',
+      straight + n * (sin(k * pi * 2.6) * 34 * sin(k * pi)),
+    );
   }
 
   /// THE PLAGUE CRAWLING OUT AND TAKING THE WALK. Three beats over five
@@ -1612,56 +1649,33 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// to breathe there.
   void _renderWalkInvasion(Canvas canvas, DungeonRoom room) {
     final m = monastery;
-    if (!m.invading || room.id != 'ambulatory') return;
+    if (!m.invading) return;
     final t = m.invade;
     final col = m.invadeSick ? _venomSick : _venomLive;
-    final from = m.invadeFrom;
-    final head = _invadeHead(t);
+    final (headRoom, head) = _invadeAt(t);
+    final inWard = room.id == m.invadeWardRoom;
+    if (!inWard && room.id != 'ambulatory') return;
 
     canvas.save();
     canvas.clipRect(room.bounds);
 
-    // BEAT ONE — it comes out of the door. Tendrils grope over the sill,
-    // reaching before the body of it follows.
-    final out = (t / 0.30).clamp(0.0, 1.0);
-    if (out > 0) {
-      for (var i = 0; i < 7; i++) {
-        final spread = (i - 3) * 0.34;
-        var at = from;
-        var a = pi / 2 + spread;
-        for (var k = 0; k < 5; k++) {
-          a += sin(_time * 2 + i * 2.0 + k) * 0.16;
-          final next = at + Offset(cos(a), sin(a)) * (16 * out);
-          canvas.drawLine(
-            at,
-            next,
-            Paint()
-              ..strokeWidth = (4.0 - k * 0.5) * out
-              ..strokeCap = StrokeCap.round
-              ..color = col.withValues(alpha: 0.42 * out),
-          );
-          at = next;
-        }
-      }
-    }
-
-    // BEAT TWO — the body comes across, and leaves the floor marked behind
-    // it. The trail is what makes this an ARRIVAL and not a projectile.
-    if (t > 0.24) {
-      final trail = Path()..moveTo(from.dx, from.dy);
-      const n = 16;
+    // ── IN THE WARD ── it comes off the heart and goes for the door, right
+    // past the party. Drawn while the head is still in here, and for a beat
+    // after so the tail is seen leaving.
+    if (inWard && t < _kInvadeCross + 0.12) {
+      final trail = Path()..moveTo(m.invadeWardFrom.dx, m.invadeWardFrom.dy);
+      const n = 10;
       for (var i = 1; i <= n; i++) {
-        final p = _invadeHead(0.26 + (t - 0.26) * i / n);
+        final (_, p) = _invadeAt(min(t, _kInvadeCross) * i / n);
         trail.lineTo(p.dx, p.dy);
       }
       canvas.drawPath(
         trail,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 13
+          ..strokeWidth = 12
           ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..color = col.withValues(alpha: 0.13),
+          ..color = col.withValues(alpha: 0.12),
       );
       canvas.drawPath(
         trail,
@@ -1669,52 +1683,109 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 4
           ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
           ..color = col.withValues(alpha: 0.34),
       );
-      // The head itself: a knot, with legs feeling ahead of it.
-      final legs = 9;
-      for (var i = 0; i < legs; i++) {
-        final a = i * 2 * pi / legs + _time * 0.9;
-        final r = 14 + 7 * sin(_time * 5 + i);
-        canvas.drawLine(
-          head,
-          head + Offset(cos(a), sin(a)) * r,
-          Paint()
-            ..strokeWidth = 2.4
-            ..strokeCap = StrokeCap.round
-            ..color = col.withValues(alpha: 0.55),
-        );
-      }
-      canvas.drawCircle(head, 11, Paint()..color = col.withValues(alpha: 0.85));
-      if (_fx.ready) {
-        drawGlow(canvas, _fx.glow!, head, 46, col.withValues(alpha: 0.34));
-      }
+      if (t < _kInvadeCross) _drawInvadeHead(canvas, head, col);
     }
 
-    // BEAT THREE — it settles, spreads, and begins to breathe.
-    final settle = ((t - 0.68) / 0.32).clamp(0.0, 1.0);
-    if (settle > 0) {
-      final pulse = 0.5 + 0.5 * sin(_time * 2.4);
-      final r = 150 * Curves.easeOutCubic.transform(settle);
-      for (var i = 3; i >= 1; i--) {
-        canvas.drawCircle(
-          m.invadeTo,
-          r * i / 3 * (0.94 + 0.06 * pulse),
-          Paint()..color = col.withValues(alpha: 0.05 * (4 - i) * settle),
-        );
+    // ── THROUGH THE DOOR ── tendrils groping over the sill on the far side,
+    // before the body follows it out.
+    if (!inWard) {
+      final out = ((t - _kInvadeCross) / 0.14).clamp(0.0, 1.0);
+      if (out > 0) {
+        for (var i = 0; i < 7; i++) {
+          var at = m.invadeFrom;
+          var a = pi / 2 + (i - 3) * 0.34;
+          for (var k = 0; k < 5; k++) {
+            a += sin(_time * 2 + i * 2.0 + k) * 0.16;
+            final next = at + Offset(cos(a), sin(a)) * (16 * out);
+            canvas.drawLine(
+              at,
+              next,
+              Paint()
+                ..strokeWidth = (4.0 - k * 0.5) * out
+                ..strokeCap = StrokeCap.round
+                ..color = col.withValues(alpha: 0.42 * out),
+            );
+            at = next;
+          }
+        }
       }
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          m.invadeTo,
-          70 + 20 * pulse,
-          col.withValues(alpha: 0.26 * settle),
+
+      // ── ACROSS THE WALK ── the body comes over, and marks the floor.
+      if (t > _kInvadeCross + 0.08) {
+        final trail = Path()..moveTo(m.invadeFrom.dx, m.invadeFrom.dy);
+        const n = 16;
+        for (var i = 1; i <= n; i++) {
+          final (_, p) = _invadeAt(
+            _kInvadeCross + 0.10 + (t - _kInvadeCross - 0.10) * i / n,
+          );
+          trail.lineTo(p.dx, p.dy);
+        }
+        canvas.drawPath(
+          trail,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 13
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..color = col.withValues(alpha: 0.13),
         );
+        canvas.drawPath(
+          trail,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 4
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..color = col.withValues(alpha: 0.34),
+        );
+        if (headRoom == 'ambulatory') _drawInvadeHead(canvas, head, col);
+      }
+
+      // ── IT SETTLES ── and begins to breathe in the middle of the walk.
+      final settle = ((t - 0.76) / 0.24).clamp(0.0, 1.0);
+      if (settle > 0) {
+        final pulse = 0.5 + 0.5 * sin(_time * 2.4);
+        final r = 150 * Curves.easeOutCubic.transform(settle);
+        for (var i = 3; i >= 1; i--) {
+          canvas.drawCircle(
+            m.invadeTo,
+            r * i / 3 * (0.94 + 0.06 * pulse),
+            Paint()..color = col.withValues(alpha: 0.05 * (4 - i) * settle),
+          );
+        }
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
+            m.invadeTo,
+            70 + 20 * pulse,
+            col.withValues(alpha: 0.26 * settle),
+          );
+        }
       }
     }
     canvas.restore();
+  }
+
+  /// The head of the thing: a knot with legs feeling ahead of it.
+  void _drawInvadeHead(Canvas canvas, Offset head, Color col) {
+    for (var i = 0; i < 9; i++) {
+      final a = i * 2 * pi / 9 + _time * 0.9;
+      canvas.drawLine(
+        head,
+        head + Offset(cos(a), sin(a)) * (14 + 7 * sin(_time * 5 + i)),
+        Paint()
+          ..strokeWidth = 2.4
+          ..strokeCap = StrokeCap.round
+          ..color = col.withValues(alpha: 0.55),
+      );
+    }
+    canvas.drawCircle(head, 11, Paint()..color = col.withValues(alpha: 0.85));
+    if (_fx.ready) {
+      drawGlow(canvas, _fx.glow!, head, 46, col.withValues(alpha: 0.34));
+    }
   }
 
   /// THE CONTAGION COMES UP AS YOU WALK IN.
