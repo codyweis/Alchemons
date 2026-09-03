@@ -502,6 +502,7 @@ const DungeonLayout poisonLayout = DungeonLayout(
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(150, 0, 110, 24),
+          chromeless: true, // sealed with wax, not locked with a key
           targetRoomId: 'ward_bell',
           // (280, 330) landed exactly on the bottom edge of ward_bell's own
           // door down to the lazar crypt — walk in from the ambulatory and
@@ -511,6 +512,7 @@ const DungeonLayout poisonLayout = DungeonLayout(
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(470, 0, 110, 24),
+          chromeless: true, // sealed with wax, not locked with a key
           targetRoomId: 'ward_scriptorium',
           // Every ward is laid out alike, with its own hatch down to the
           // crypt at (255, 290, 50, 40) — and (280, 330) sat exactly on that
@@ -520,6 +522,7 @@ const DungeonLayout poisonLayout = DungeonLayout(
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(790, 0, 110, 24),
+          chromeless: true, // sealed with wax, not locked with a key
           targetRoomId: 'ward_refectory',
           // Every ward is laid out alike, with its own hatch down to the
           // crypt at (255, 290, 50, 40) — and (280, 330) sat exactly on that
@@ -530,6 +533,7 @@ const DungeonLayout poisonLayout = DungeonLayout(
         // The bricked one (Lava HORN — §4 hard gate).
         DungeonDoor(
           rect: Rect.fromLTWH(1110, 0, 110, 24),
+          chromeless: true, // sealed with wax, not locked with a key
           targetRoomId: 'ward_charnel',
           // Every ward is laid out alike, with its own hatch down to the
           // crypt at (255, 290, 50, 40) — and (280, 330) sat exactly on that

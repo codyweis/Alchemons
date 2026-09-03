@@ -1099,6 +1099,20 @@ class PlanetDungeonGame extends FlameGame {
   /// same mechanism; they must never both apply.
   double get viewZoom => followingPour ? kPourFollowZoom : surveyZoom;
 
+  /// CUT TO A PLACE and hold there, then give the camera back.
+  ///
+  /// Same machinery the pour cam rides on, said generically, because the
+  /// second planet to want it was not going to be Lava: anything that
+  /// happens away from the party, or that the party should be made to WATCH
+  /// happen, can take the shot for a beat.
+  void cutTo(String room, Offset at, {double hold = 1.6}) {
+    followRoomId = room;
+    followAt = at;
+    followHold = hold;
+    pourWatchDeclined = false;
+    onChanged();
+  }
+
   /// Ride a charge: [room] is where it is, [at] is where in that room.
   void watchPour(String room, Offset at) {
     followRoomId = room;

@@ -91,6 +91,12 @@ class VenomMonastery {
   /// Shared strain clock — the pulse's beat rides it.
   double clock = 0;
 
+  /// A seal breaking: 1 → 0 over the burst, and where it happened. This is
+  /// the one moment on the planet where you have DONE something irreversible
+  /// on purpose, so the camera stops and makes you watch it.
+  double sealBurst = 0;
+  Offset sealBurstAt = Offset.zero;
+
   /// Room+strain key → the wall-creeper's head, as a 0..1 perimeter param.
   final Map<String, double> creepHead = {};
 
@@ -286,6 +292,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   // ── Update ───────────────────────────────────────────────
 
   void _updateMonastery(DungeonCreature a, DungeonRoom room, double dt) {
+    if (monastery.sealBurst > 0) {
+      monastery.sealBurst = max(
+        0.0,
+        monastery.sealBurst - dt / _kSealBurstSeconds,
+      );
+    }
     if (!_isVenom) return;
     final m = monastery;
     m.clock += dt;
@@ -489,11 +501,19 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         }
       }
       t.open(ward.id);
-      _setHint(
+      // THE CUT. Hold on the doorway while it comes through — this is the
+      // beat the whole planet turns on (opening a ward is what lets the
+      // contagion in) and it used to be a line of text and a small puff.
+      monastery
+        ..sealBurst = 1.0
+        ..sealBurstAt = door.rect.center;
+      cutTo(room.id, door.rect.center, hold: _kSealBurstSeconds + 0.5);
+      _shake = 6.0;
+      speakConsequence(
         ward.bricked
-            ? 'The brick blows in — something in the dead-house wakes'
-            : 'The seal parts — something in there is awake',
-        3.2,
+            ? 'The brick blows in — something in the dead-house wakes.'
+            : 'The seal parts. Whatever is in there is awake, and it is out.',
+        3.6,
       );
       _spawnAlchemyBurst(
         door.rect.center,
@@ -988,6 +1008,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     _renderContagion(canvas, room);
     _renderStrains(canvas, room);
     _renderMonasteryFixtures(canvas, room);
+    _renderWardSeals(canvas, room);
+    _renderSealBurst(canvas);
     _renderLazarGloom(canvas, room);
   }
 
@@ -1355,9 +1377,231 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// be there.
   static const double _kLazarFloorAlpha = 0.72;
 
+  /// How long the plague takes to come through a broken seal.
+  static const double _kSealBurstSeconds = 1.7;
+
   static const Color _venomBronze = Color(0xFF6E6A3E);
   static const Color _venomBronzeLit = Color(0xFF9A9358);
   static const Color _venomIron = Color(0xFF3A3E42);
+
+  /// THE PLAGUE COMING THROUGH. Plays once, at the door it came through.
+  void _renderSealBurst(Canvas canvas) {
+    final t = monastery.sealBurst;
+    if (t <= 0) return;
+    final at = monastery.sealBurstAt;
+    final k = 1 - t; // 0 → 1
+
+    // The wax blowing out: shards thrown clear on the first third.
+    if (t > 0.62) {
+      final s = (t - 0.62) / 0.38;
+      for (var i = 0; i < 9; i++) {
+        final a = i * 2 * pi / 9;
+        canvas.drawCircle(
+          at + Offset(cos(a), sin(a)) * (14 + 70 * (1 - s)),
+          3.5 * s,
+          Paint()..color = const Color(0xFF8A3044).withValues(alpha: s),
+        );
+      }
+    }
+    // The front: a wall of it rolling out of the doorway.
+    for (var ring = 0; ring < 3; ring++) {
+      final rk = (k - ring * 0.12).clamp(0.0, 1.0);
+      if (rk <= 0) continue;
+      canvas.drawCircle(
+        at,
+        18 + 190 * rk,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 16 * (1 - rk)
+          ..color = _venomLive.withValues(alpha: 0.30 * (1 - rk) * t),
+      );
+    }
+    // And what is IN it — motes carried out on the front, tumbling.
+    for (var i = 0; i < 18; i++) {
+      final a = (i / 18) * pi * 2 + k * 0.8;
+      final d = 20 + 210 * k * (0.55 + (i % 5) / 8);
+      canvas.drawCircle(
+        at + Offset(cos(a), sin(a) * 0.72) * d,
+        1.6 + 2.6 * t,
+        Paint()
+          ..color = (i % 6 == 0 ? _venomSick : _venomLive).withValues(
+            alpha: 0.75 * t,
+          ),
+      );
+    }
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        at,
+        60 + 90 * k,
+        _venomLive.withValues(alpha: 0.30 * t),
+      );
+    }
+  }
+
+  /// A SEALED WARD DOOR, in the vocabulary of a quarantine rather than a lock.
+  ///
+  /// These wore the engine's generic locked slab — the amber bar and rune
+  /// that everywhere else in this game means *you need a key you do not
+  /// have*. So a player walked up expecting a key hunt, pressed, and it
+  /// simply opened, and the whole beat read as a pointless speed bump.
+  /// Reported from play as "the doors don't require anything".
+  ///
+  /// They do. Breaking the wax is the moment the strain inside goes live, and
+  /// choosing WHEN is the point. It just has to look like wax.
+  void _renderWardSeals(Canvas canvas, DungeonRoom room) {
+    final t = monastery.triage;
+    for (final d in room.doors) {
+      if (!d.chromeless) continue;
+      final ward = layout.rooms[d.targetRoomId]?.ward;
+      if (ward == null) continue;
+      final r = d.rect;
+      final sealed = !t.opened.contains(ward.id);
+      final horizontal = r.width >= r.height;
+
+      if (!sealed) {
+        // OPEN: a dark mouth with the broken wax still on the jamb.
+        canvas.drawRect(r, Paint()..color = const Color(0xFF07090A));
+        canvas.drawRect(
+          r,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = const Color(0xFF3B3228),
+        );
+        for (var i = 0; i < 4; i++) {
+          final along = (i + 0.5) / 4;
+          final at = horizontal
+              ? Offset(r.left + r.width * along, i.isEven ? r.top : r.bottom)
+              : Offset(i.isEven ? r.left : r.right, r.top + r.height * along);
+          canvas.drawCircle(
+            at,
+            2.6,
+            Paint()..color = const Color(0xFF7A2E2E).withValues(alpha: 0.7),
+          );
+        }
+        continue;
+      }
+
+      // SEALED. Boards across the opening, wax over the seam, and a cross
+      // daubed on. The charnel is BRICK instead — the one hard gate here, and
+      // it must not look like the three soft ones.
+      if (ward.bricked) {
+        canvas.drawRect(r, Paint()..color = const Color(0xFF2B211C));
+        final course = horizontal ? r.height / 3 : r.width / 3;
+        for (var i = 0; i < 3; i++) {
+          final off = (i.isOdd ? 0.5 : 0.0);
+          for (var k = -1; k < 5; k++) {
+            final brick = horizontal
+                ? Rect.fromLTWH(
+                    r.left + (k + off) * 26,
+                    r.top + i * course + 1,
+                    24,
+                    course - 2,
+                  )
+                : Rect.fromLTWH(
+                    r.left + i * course + 1,
+                    r.top + (k + off) * 26,
+                    course - 2,
+                    24,
+                  );
+            if (!brick.overlaps(r)) continue;
+            canvas.save();
+            canvas.clipRect(r);
+            canvas.drawRect(
+              brick,
+              Paint()
+                ..color = Color.lerp(
+                  const Color(0xFF3E2F26),
+                  const Color(0xFF32261F),
+                  ((k * 7 + i * 3) % 5) / 5,
+                )!,
+            );
+            canvas.restore();
+          }
+        }
+        canvas.drawRect(
+          r,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = const Color(0xFF17110D),
+        );
+        continue;
+      }
+
+      // Boards.
+      canvas.drawRect(r, Paint()..color = const Color(0xFF3A3025));
+      final planks = horizontal ? 3 : 4;
+      for (var i = 1; i < planks; i++) {
+        final f = i / planks;
+        canvas.drawLine(
+          horizontal
+              ? Offset(r.left, r.top + r.height * f)
+              : Offset(r.left + r.width * f, r.top),
+          horizontal
+              ? Offset(r.right, r.top + r.height * f)
+              : Offset(r.left + r.width * f, r.bottom),
+          Paint()
+            ..strokeWidth = 1.4
+            ..color = const Color(0xFF241C14),
+        );
+      }
+      // WAX, poured down the seam and stamped. This is the thing that says
+      // "sealed against something" instead of "locked".
+      final seam = horizontal
+          ? Rect.fromLTWH(r.left - 3, r.center.dy - 6, r.width + 6, 12)
+          : Rect.fromLTWH(r.center.dx - 6, r.top - 3, 12, r.height + 6);
+      canvas.drawRect(seam, Paint()..color = const Color(0xFF6E2436));
+      // Runs, where it was poured hot and set crooked.
+      for (var i = 0; i < 5; i++) {
+        final along = (i + 0.5) / 5;
+        final drip = horizontal
+            ? Rect.fromLTWH(
+                r.left + r.width * along - 3,
+                seam.bottom - 2,
+                6,
+                4 + (i % 3) * 4,
+              )
+            : Rect.fromLTWH(
+                seam.right - 2,
+                r.top + r.height * along - 3,
+                4 + (i % 3) * 4,
+                6,
+              );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(drip, const Radius.circular(3)),
+          Paint()..color = const Color(0xFF6E2436),
+        );
+      }
+      // The stamp.
+      final stamp = r.center;
+      canvas.drawCircle(stamp, 8, Paint()..color = const Color(0xFF8A3044));
+      canvas.drawCircle(
+        stamp,
+        8,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = const Color(0xFFC08A96).withValues(alpha: 0.7),
+      );
+      final cross = Paint()
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFE8DFC8).withValues(alpha: 0.85);
+      canvas.drawLine(
+        stamp + const Offset(0, -5),
+        stamp + const Offset(0, 5),
+        cross,
+      );
+      canvas.drawLine(
+        stamp + const Offset(-5, -1),
+        stamp + const Offset(5, -1),
+        cross,
+      );
+    }
+  }
 
   void _renderMonasteryFixtures(Canvas canvas, DungeonRoom room) {
     final t = monastery.triage;
