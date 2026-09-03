@@ -97,6 +97,17 @@ class VenomMonastery {
   double sealBurst = 0;
   Offset sealBurstAt = Offset.zero;
 
+  /// Whether the burst is a wrong dose (violet) rather than a seal parting
+  /// (green). Same animation, and it must not be the same colour: one is
+  /// what was always in there, the other is what you just made.
+  bool burstIsSick = false;
+
+  /// THE CROSS GOING UP: 1 → 0 over the condemnation. The planet's signature
+  /// move — the ward you give up — and it had less ceremony than opening a
+  /// door did.
+  double condemn = 0;
+  Offset condemnAt = Offset.zero;
+
   /// Room+strain key → the wall-creeper's head, as a 0..1 perimeter param.
   final Map<String, double> creepHead = {};
 
@@ -297,6 +308,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         0.0,
         monastery.sealBurst - dt / _kSealBurstSeconds,
       );
+    }
+    if (monastery.condemn > 0) {
+      monastery.condemn = max(0.0, monastery.condemn - dt / _kCondemnSeconds);
     }
     if (!_isVenom) return;
     final m = monastery;
@@ -506,7 +520,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       // contagion in) and it used to be a line of text and a small puff.
       monastery
         ..sealBurst = 1.0
-        ..sealBurstAt = door.rect.center;
+        ..sealBurstAt = door.rect.center
+        ..burstIsSick = false;
       cutTo(room.id, door.rect.center, hold: _kSealBurstSeconds + 0.5);
       _shake = 6.0;
       speakConsequence(
@@ -622,7 +637,22 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         // §6.13: a wrong brew FEEDS it — permanently, and out into the
         // corridor. The cost of a misdiagnosis is danger you must live with,
         // never a star you can no longer earn (see WardTriage.dregsAvailable).
-        _setHint('Wrong physic — the strain drinks it and doubles', 3.6);
+        // THE OTHER THING THAT PUTS A STRAIN LOOSE, and until now the
+        // quieter of the two by a long way. It is permanent unless you come
+        // back and cure this ward, and it walks the cloister meanwhile — so
+        // it gets the shot and the shake, like the cross does.
+        monastery
+          ..condemn = 0.0
+          ..sealBurst = 1.0
+          ..sealBurstAt = ward.heart
+          ..burstIsSick = true;
+        cutTo(currentRoomId, ward.heart, hold: _kSealBurstSeconds + 0.4);
+        _shake = 5.0;
+        speakConsequence(
+          'Wrong physic. The strain drinks it and doubles — and it is loose '
+          'in the walk until this ward is cured.',
+          4.4,
+        );
         _spawnAlchemyBurst(
           ward.heart,
           producedElement: 'Poison',
@@ -657,9 +687,19 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final given = t.commit();
     monastery.crossRot = _kCrossRot;
     final ward = layout.rooms[given]?.ward;
-    _setHint(
-      'The cross goes up over ${ward?.name ?? 'the last ward'} — it is given up',
-      4.2,
+    // THE CUT. Breaking a seal got a cinematic and THIS did not, which had
+    // the ceremony exactly backwards: a broken seal is how you look inside,
+    // and this is the ward you are never going to save. The cost of it walks
+    // the cloister for the rest of the run.
+    monastery
+      ..condemn = 1.0
+      ..condemnAt = seal.position;
+    cutTo(currentRoomId, seal.position, hold: _kCondemnSeconds + 0.6);
+    _shake = 7.0;
+    speakConsequence(
+      'The cross goes up over ${ward?.name ?? 'the last ward'}. It is given '
+      'up, and what is in it is loose in the walk from here on.',
+      4.6,
     );
     _spawnAlchemyBurst(
       seal.position,
@@ -1016,6 +1056,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // whole animation was invisible. Reported from play as "I don't see
     // anything". Light cuts through dark; that is what light is for.
     _renderSealBurst(canvas);
+    _renderCondemnation(canvas);
   }
 
   /// WHAT IS IN THE ROOM WITH YOU, on the floor rather than in the air.
@@ -1388,6 +1429,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// How long the plague takes to come through a broken seal.
   static const double _kSealBurstSeconds = 1.7;
 
+  /// How long the cross takes to go up. Longer than a seal breaking, because
+  /// this is the bigger thing and the pacing should say so.
+  static const double _kCondemnSeconds = 2.4;
+
   static const Color _venomBronze = Color(0xFF6E6A3E);
   static const Color _venomBronzeLit = Color(0xFF9A9358);
   static const Color _venomIron = Color(0xFF3A3E42);
@@ -1398,6 +1443,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (t <= 0) return;
     final at = monastery.sealBurstAt;
     final k = 1 - t; // 0 → 1
+    final col = monastery.burstIsSick ? _venomSick : _venomLive;
 
     // The wax blowing out: shards thrown clear on the first third.
     if (t > 0.62) {
@@ -1421,7 +1467,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 16 * (1 - rk)
-          ..color = _venomLive.withValues(alpha: 0.30 * (1 - rk) * t),
+          ..color = col.withValues(alpha: 0.30 * (1 - rk) * t),
       );
     }
     // And what is IN it — motes carried out on the front, tumbling.
@@ -1432,9 +1478,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         at + Offset(cos(a), sin(a) * 0.72) * d,
         1.6 + 2.6 * t,
         Paint()
-          ..color = (i % 6 == 0 ? _venomSick : _venomLive).withValues(
-            alpha: 0.75 * t,
-          ),
+          ..color = (i % 6 == 0 ? _venomBone : col).withValues(alpha: 0.75 * t),
       );
     }
     if (_fx.ready) {
@@ -1443,7 +1487,69 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         _fx.glow!,
         at,
         60 + 90 * k,
-        _venomLive.withValues(alpha: 0.30 * t),
+        col.withValues(alpha: 0.30 * t),
+      );
+    }
+  }
+
+  /// THE CROSS GOING UP. The plague cross planted over a ward you have
+  /// decided not to save, and the sickness walking out of it into the
+  /// cloister — which is the thing you will be living with for the rest of
+  /// the run, so it gets the longer, heavier shot of the two.
+  void _renderCondemnation(Canvas canvas) {
+    final t = monastery.condemn;
+    if (t <= 0) return;
+    final at = monastery.condemnAt;
+    final k = 1 - t;
+
+    // The cross rises, then slams.
+    final rise = Curves.easeOutBack.transform(k.clamp(0.0, 1.0));
+    final drop = k < 0.55 ? 0.0 : ((k - 0.55) / 0.45);
+    final y = at.dy - 70 * (1 - rise) + 4 * sin(drop * pi);
+    final c = Offset(at.dx, y);
+    final arm = Paint()
+      ..color = const Color(0xFF7A1F2E)
+      ..strokeWidth = 11
+      ..strokeCap = StrokeCap.square;
+    canvas.drawLine(c + const Offset(0, -40), c + const Offset(0, 40), arm);
+    canvas.drawLine(c + const Offset(-26, -12), c + const Offset(26, -12), arm);
+    canvas.drawLine(
+      c + const Offset(-3, -38),
+      c + const Offset(-3, 36),
+      Paint()
+        ..strokeWidth = 2.5
+        ..color = Colors.white.withValues(alpha: 0.18),
+    );
+
+    // Struck home: dust out of the floor and a ring off the impact.
+    if (drop > 0) {
+      canvas.drawCircle(
+        Offset(at.dx, at.dy + 38),
+        30 + 150 * drop,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 9 * (1 - drop)
+          ..color = _venomBone.withValues(alpha: 0.34 * (1 - drop)),
+      );
+      // And what was in the ward, leaving it — a slow crawl outward rather
+      // than a blast, because nothing about this is sudden.
+      for (var i = 0; i < 14; i++) {
+        final a = i * 2 * pi / 14 + drop * 0.5;
+        final d = 26 + 200 * drop * (0.5 + (i % 4) / 6);
+        canvas.drawCircle(
+          Offset(at.dx, at.dy + 30) + Offset(cos(a), sin(a) * 0.6) * d,
+          1.5 + 3.0 * (1 - drop),
+          Paint()..color = _venomSick.withValues(alpha: 0.7 * (1 - drop)),
+        );
+      }
+    }
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        c,
+        54 + 26 * drop,
+        const Color(0xFF7A1F2E).withValues(alpha: 0.30 * t),
       );
     }
   }
