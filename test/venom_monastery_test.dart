@@ -907,13 +907,51 @@ void main() {
       );
     });
 
-    test('THE DOSE: the sick wisp is cured, not killed', () {
+    test('THE DOSE: three colours walked home to the cross', () {
       final found = <String>[];
       final game = _harness(_idealTrio(), onCloud: found.add);
       final m = game.monastery;
-      final wisp = m.wisp!;
-      actAt(game, 'ambulatory', poison, wisp);
-      // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
+      final cross = game.layout.rooms['ambulatory']!.priorsSeal!.position;
+      const slot = {'Poison': 0, 'Plant': 1, 'Mud': 2};
+
+      for (var stage = 0; stage < kWispOrder.length; stage++) {
+        expect(m.wispStage, stage);
+        final wants = kWispOrder[stage];
+
+        // ── ONLY ITS OWN COLOUR MOVES IT.
+        final wrong = kWispOrder.firstWhere((e) => e != wants);
+        final before = m.wisp!;
+        actAt(game, 'ambulatory', slot[wrong]!, before);
+        expect(
+          m.wisp,
+          before,
+          reason: 'a $wrong hand must not shove the $wants wisp',
+        );
+
+        // ── SHOVE IT HOME, a press at a time, walking with it.
+        var presses = 0;
+        while (m.wispCircle < 0 && presses++ < 40) {
+          actAt(game, 'ambulatory', slot[wants]!, m.wisp!);
+        }
+        expect(
+          m.wispCircle,
+          greaterThanOrEqualTo(0),
+          reason: '$wants never reached the cross in $presses presses',
+        );
+        expect(
+          presses,
+          inInclusiveRange(3, 12),
+          reason:
+              'getting it home took $presses presses, which is either no '
+              'errand at all or a chore',
+        );
+        expect((m.wisp! - cross).distance, lessThan(1));
+
+        // ── IT CIRCLES, THEN SHEDS.
+        step(game, 2.4);
+      }
+
+      // Three home, and the maxim pays out.
       for (var tick = 0; tick < 200; tick++) {
         game.update(1 / 60);
       }

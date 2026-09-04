@@ -84,8 +84,14 @@ Future<int> _shot(
     c.position = stand;
     c.lastSafe = stand;
   }
-  g.update(1 / 60);
-  // Pose AFTER the tick. The first attempt at the gate shots set the fight
+  // LET THE CAMERA GET THERE. It lerps toward the party, so a single tick
+  // after moving them leaves the shot pointing at wherever the last one was
+  // — which is how a picture captioned "the cross" came back showing the
+  // font in the middle of the room.
+  for (var i = 0; i < 24; i++) {
+    g.update(1 / 60);
+  }
+  // Pose AFTER the ticks. The first attempt at the gate shots set the fight
   // up and then let `_shot` tick once, and the tick tore it straight back
   // down — three pictures of an empty corridor that still differed enough
   // from each other to pass a checksum comparison.
@@ -404,6 +410,52 @@ void main() {
         ..gated = false
         ..bars = 0
         ..marks.clear();
+
+      // THE SICK WISP, one shot per colour, plus the circle at the cross.
+      // Three stages that all drew the same colour would make the errand
+      // unreadable: the colour IS which hand it wants.
+      final wisps = <int>{};
+      final crossAt = poisonLayout.rooms['ambulatory']!.priorsSeal!.position;
+      for (var stage = 0; stage < kWispOrder.length; stage++) {
+        wisps.add(
+          await _shot(
+            g,
+            'ambulatory',
+            'p_wisp_${kWispOrder[stage]}',
+            at: kWispStart,
+            poseAfterTick: () {
+              g.monastery
+                ..wisp = kWispStart
+                ..wispStage = stage
+                ..wispCircle = -1
+                ..wispNudge = 0.8;
+            },
+          ),
+        );
+      }
+      expect(
+        wisps.length,
+        kWispOrder.length,
+        reason:
+            'the colour is which hand it wants, so three stages that '
+            'look alike are one stage',
+      );
+      await _shot(
+        g,
+        'ambulatory',
+        'p_wisp_circling',
+        at: crossAt,
+        poseAfterTick: () {
+          g.monastery
+            ..wisp = crossAt
+            ..wispStage = 1
+            ..wispCircle = 0.55;
+        },
+      );
+      g.monastery
+        ..wisp = null
+        ..wispStage = 0
+        ..wispCircle = -1;
 
       // THE FONT, wanting the vial and then spent — it has to state its own
       // want before the player owns the answer.

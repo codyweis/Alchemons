@@ -571,6 +571,17 @@ class PriorsSeal {
 /// Poison's lost maxim (§6 easter eggs #13, "The Dose").
 const String kPoisonDoseEggId = 'egg:poison_the_dose';
 
+/// THE DOSE, in order. The sick wisp wears one element at a time and answers
+/// only that one, and the colours are the game's own: Poison is purple,
+/// Plant green, Mud brown. Nothing new to learn, because the player has been
+/// looking at those three on their own party since they picked it.
+const List<String> kWispOrder = ['Poison', 'Plant', 'Mud'];
+
+/// Where it comes back to after each colour. Far enough from the cross that
+/// getting it home is an errand, near enough that three of them is not a
+/// chore: the cross stands at x=1230 and a shove is 150.
+const Offset kWispStart = Offset(430, 250);
+
 /// Ward ids in walking order along the ambulatory. The charnel is last — the
 /// dead-house at the end of the walk, and the one behind brick.
 const List<String> kMonasteryWardIds = [

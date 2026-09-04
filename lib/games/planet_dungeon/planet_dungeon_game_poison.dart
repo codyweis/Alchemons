@@ -445,8 +445,21 @@ class VenomMonastery {
   /// The oubliette stone has been dissolved — patient zero is exposed.
   bool oublietteOpen = false;
 
-  /// The sick wisp (the lost maxim), drifting the ambulatory.
-  Offset? wisp = const Offset(560, 260);
+  /// THE SICK WISP (the lost maxim). It wears one element at a time and is
+  /// shoved to the cross by a hand of that element, a press at a time. At the
+  /// cross it circles, sheds, and comes back wearing the next one. Three
+  /// colours home and the maxim is yours.
+  Offset? wisp = kWispStart;
+
+  /// Which of [kWispOrder] it is wearing, 0 to 2.
+  int wispStage = 0;
+
+  /// Circling the cross, 0 to 1. Negative when it is out in the corridor.
+  double wispCircle = -1;
+
+  /// Fades after a shove, so the direction it was pushed is visible.
+  double wispNudge = 0;
+
   double wispDrift = 0;
 
   /// Patient zero's live habit, and the lull a correct dose bought.
@@ -484,7 +497,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.feignFuse.clear();
     m.crossRot = 0;
     m.oublietteOpen = false;
-    m.wisp = const Offset(560, 260);
+    m.wisp = kWispStart;
+    m.wispStage = 0;
+    m.wispCircle = -1;
+    m.wispNudge = 0;
     m.given.clear();
     m.pot.clear();
     m.carriedPotion = null;
@@ -764,14 +780,40 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       }
     }
 
-    // The sick wisp drifts the ambulatory (the lost maxim).
+    // THE WISP. It does not wander any more: a shove has to STICK, or the
+    // errand undoes itself between presses. It bobs where it was left, and
+    // the only thing that moves it is a hand of its own colour.
     if (room.id == 'ambulatory' && m.wisp != null) {
       m.wispDrift += dt * 0.35;
-      final b = room.bounds;
-      m.wisp = Offset(
-        b.left + b.width * (0.5 + 0.34 * sin(m.wispDrift)),
-        b.top + b.height * (0.55 + 0.22 * sin(m.wispDrift * 1.7)),
-      );
+      if (m.wispNudge > 0) m.wispNudge = max(0.0, m.wispNudge - dt / 0.7);
+      if (m.wispCircle >= 0) {
+        m.wispCircle += dt / _kWispCircleSeconds;
+        if (m.wispCircle >= 1) {
+          m.wispCircle = -1;
+          m.wispStage++;
+          if (m.wispStage >= kWispOrder.length) {
+            final at = m.wisp!;
+            m.wisp = null;
+            beginMaximRite(kPoisonDoseEggId, at);
+            _spawnAlchemyBurst(
+              at,
+              producedElement: 'Light',
+              reagentElements: const ['Poison', 'Plant'],
+              particleCount: 30,
+              intensity: 1.3,
+            );
+          } else {
+            // Back out into the corridor, wearing the next colour.
+            m.wisp = kWispStart;
+            _spawnAlchemyBurst(
+              kWispStart,
+              producedElement: kWispOrder[m.wispStage],
+              particleCount: 18,
+              intensity: 0.9,
+            );
+          }
+        }
+      }
     }
 
     // A cured ward's sacristy: one mercy each, taken by walking to it.
@@ -975,26 +1017,44 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
 
     // 5) The prior's seal: commit the triage.
-    // 4b) The lustral font in the middle of the cloister: the pure vial
-    //     goes in here and every wax seal on the corridor lets go.
-    if (_tryLustralFont(a, room)) return true;
-
+    // ── THE CLOISTER'S FIXTURES, NEAREST FIRST ──
+    //
+    // The font stands in the middle of the corridor and the wisp has to be
+    // shoved straight past it to reach the cross. With the font checked
+    // first it swallowed every press the moment the wisp drifted within
+    // reach of the basin, and the errand stalled there every single run.
+    // Same shape as the reliquary that landed on the basin and could not be
+    // picked up: a fixture with a verb, standing where something else needs
+    // to be handled.
+    //
+    // So the closest thing to the hand wins. Standing on the wisp means the
+    // wisp; standing at the basin means the basin.
+    final wisp = m.wisp;
     final seal = room.priorsSeal;
-    if (seal != null &&
-        (a.position - seal.position).distance <= _kMonasteryReach + 30) {
+    final font = room.lustralFont;
+    final wispD = (wisp == null || room.id != 'ambulatory')
+        ? double.infinity
+        : (a.position - wisp).distance;
+    final fontD = (font == null || m.cloisterOpen)
+        ? double.infinity
+        : (a.position - font).distance;
+    final sealD = seal == null
+        ? double.infinity
+        : (a.position - seal.position).distance;
+
+    if (wispD <= _kMonasteryReach && wispD <= fontD && wispD <= sealD) {
+      return _tryPushWisp(a);
+    }
+    if (fontD <= _kMonasteryReach + 14 && fontD <= sealD) {
+      if (_tryLustralFont(a, room)) return true;
+    }
+    if (seal != null && sealD <= _kMonasteryReach + 30) {
       return _tryCross(seal);
     }
-
-    // 5b) A reliquary lying on the stones where a plague came apart.
+    // A reliquary lying on the stones where a plague came apart.
     if (_tryTakeRelic(a, room)) return true;
+    if (wispD <= _kMonasteryReach) return _tryPushWisp(a);
 
-    // 6) The sick wisp — cure it instead of killing it (the lost maxim).
-    final wisp = m.wisp;
-    if (room.id == 'ambulatory' &&
-        wisp != null &&
-        (a.position - wisp).distance <= _kMonasteryReach) {
-      return _tryDoseWisp(a);
-    }
     return false;
   }
 
@@ -2464,31 +2524,52 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   }
 
   /// THE DOSE (Paracelsus). The lost maxim, and the one sick thing in this
-  /// house you are not asked to kill. A Poison alchemon standing with it is the whole cure.
+  /// house you are not asked to kill.
   ///
-  /// It used to want a matching draught from the four-tap font, and that
-  /// font went when the still became a cauldron — which quietly made the
-  /// maxim unobtainable. A brew cannot be the answer either: upstairs the
-  /// hands come out exactly even across the three plagues and the vial, so
-  /// asking for a fourth brew would mean asking the player to fail
-  /// something else. Mercy costs a hand's TIME, not the house's physic.
-  bool _tryDoseWisp(DungeonCreature a) {
+  /// It wears one element at a time and only a hand of that element can
+  /// touch it. Press, and it is shoved a stride toward the cross; press
+  /// again, walking with it, until it gets there. At the cross it circles,
+  /// sheds the colour, and comes back wearing the next one. Three colours
+  /// home and it is cured.
+  ///
+  /// The colours are the game's own, so there is no code to crack: purple is
+  /// Poison, green is Plant, brown is Mud, exactly as they are on the party.
+  /// And the first press teaches the whole thing, because the wisp visibly
+  /// moves toward the cross and nothing else happens.
+  bool _tryPushWisp(DungeonCreature a) {
     final m = monastery;
-    final wisp = m.wisp!;
-    if (a.member.element != 'Poison') {
-      _setBlockedHint('It shies from everything but its own kind.');
+    final at = m.wisp!;
+    if (m.wispCircle >= 0) return true; // busy at the cross
+    final wants = kWispOrder[m.wispStage];
+    if (a.member.element != wants) {
+      _setBlockedHint('It shies from everything but its own colour.');
       return true;
     }
-    m.wisp = null;
-    // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    speakConsequence('It quietens under a Poison hand.', 4.0);
-    beginMaximRite(kPoisonDoseEggId, wisp);
+    final seal = layout.rooms['ambulatory']?.priorsSeal;
+    if (seal == null) return true;
+    final toward = seal.position - at;
+    final d = toward.distance;
+    if (d <= _kWispArrive) {
+      m
+        ..wisp = seal.position
+        ..wispCircle = 0;
+      _spawnAlchemyBurst(
+        seal.position,
+        producedElement: wants,
+        particleCount: 22,
+        intensity: 1.0,
+      );
+      return true;
+    }
+    final step = min(_kWispShove, d - _kWispArrive * 0.5);
+    m
+      ..wisp = at + (toward / d) * step
+      ..wispNudge = 1.0;
     _spawnAlchemyBurst(
-      wisp,
-      producedElement: 'Light',
-      reagentElements: const ['Poison'],
-      particleCount: 26,
-      intensity: 1.1,
+      at,
+      producedElement: wants,
+      particleCount: 10,
+      intensity: 0.6,
     );
     return true;
   }
@@ -3318,6 +3399,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// The grab, and how close you have to get for it.
   static const double _kGrabSeconds = 1.6;
   static const double _kMawReach = 46.0;
+
+  /// The wisp: how far one shove carries it, how close to the cross counts
+  /// as home, and how long it circles before it sheds.
+  static const double _kWispShove = 150.0;
+  static const double _kWispArrive = 78.0;
+  static const double _kWispCircleSeconds = 1.7;
 
   /// How often the plague does something to you.
   static const double _kAttackEvery = 2.6;
@@ -4510,15 +4597,94 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       }
     }
 
-    final wisp = monastery.wisp;
-    if (wisp != null && room.id == 'ambulatory') {
-      final t2 = 0.5 + 0.5 * sin(monastery.clock * 2.4);
-      canvas.drawCircle(
-        wisp,
-        10 + 3 * t2,
-        Paint()..color = _venomSick.withValues(alpha: 0.30),
+    if (room.id == 'ambulatory') _renderSickWisp(canvas, room);
+  }
+
+  /// THE SICK WISP, wearing its colour and showing where it was pushed.
+  ///
+  /// Three things have to be legible or the errand is invisible: WHAT it is
+  /// (a little sick thing, not an enemy), WHICH colour it is wearing (so you
+  /// know whose hand it wants), and THAT it moved when you pressed (so the
+  /// first shove teaches the whole mechanic without a word).
+  void _renderSickWisp(Canvas canvas, DungeonRoom room) {
+    final m = monastery;
+    var at = m.wisp;
+    if (at == null) return;
+    final seal = room.priorsSeal;
+    final col = elementColor(kWispOrder[m.wispStage]);
+    final beat = 0.5 + 0.5 * sin(m.clock * 2.4);
+
+    // Circling the cross before it sheds.
+    if (m.wispCircle >= 0 && seal != null) {
+      final k = m.wispCircle.clamp(0.0, 1.0);
+      final a = k * 2 * pi * 2 - pi / 2;
+      at = seal.position + Offset(cos(a), sin(a) * 0.55) * 54;
+      // The ring it is drawing round the cross.
+      canvas.drawArc(
+        Rect.fromCenter(center: seal.position, width: 108, height: 60),
+        -pi / 2,
+        2 * pi * k,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = col.withValues(alpha: 0.7),
       );
-      canvas.drawCircle(wisp, 5, Paint()..color = _venomSick);
+    } else if (m.wispNudge > 0 && seal != null) {
+      // Just shoved: a fading streak behind it, pointing the way it went.
+      final back = at - seal.position;
+      final d = back.distance;
+      if (d > 1) {
+        canvas.drawLine(
+          at + (back / d) * 46 * m.wispNudge,
+          at,
+          Paint()
+            ..strokeWidth = 4 * m.wispNudge
+            ..strokeCap = StrokeCap.round
+            ..color = col.withValues(alpha: 0.45 * m.wispNudge),
+        );
+      }
+    }
+
+    // Bobbing where it was left.
+    at = Offset(at.dx, at.dy + sin(m.clock * 1.9) * 3);
+    canvas.drawCircle(
+      at,
+      18 + 4 * beat,
+      Paint()..color = col.withValues(alpha: 0.16),
+    );
+    canvas.drawCircle(
+      at,
+      10 + 2 * beat,
+      Paint()..color = col.withValues(alpha: 0.42),
+    );
+    canvas.drawCircle(at, 5.5, Paint()..color = col);
+    // Sick: a few motes shedding off it.
+    for (var i = 0; i < 4; i++) {
+      final k = ((m.clock * 0.5 + i * 0.25) % 1.0);
+      canvas.drawCircle(
+        at + Offset(sin(i * 2.1 + m.clock) * 8, -6 - 18 * k),
+        1.8 * (1 - k),
+        Paint()..color = col.withValues(alpha: 0.5 * (1 - k)),
+      );
+    }
+    if (_fx.ready) {
+      drawGlow(canvas, _fx.glow!, at, 34, col.withValues(alpha: 0.24));
+    }
+
+    // How many colours are home, on the cross itself, so the errand has a
+    // score you can read without pressing anything.
+    if (seal != null && m.wispStage > 0) {
+      for (var i = 0; i < kWispOrder.length; i++) {
+        canvas.drawCircle(
+          Offset(seal.position.dx - 16 + i * 16, seal.position.dy - 82),
+          4,
+          Paint()
+            ..color = i < m.wispStage
+                ? elementColor(kWispOrder[i])
+                : const Color(0xFF241E28),
+        );
+      }
     }
   }
 
