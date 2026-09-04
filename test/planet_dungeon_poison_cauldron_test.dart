@@ -249,6 +249,20 @@ void main() {
       );
     });
 
+    test('the three plagues do not arrive the same colour', () {
+      // Everything in the lazaret is the same sick green until it is woken.
+      // If all three wake green there is nothing to tell them apart in the
+      // one room where telling them apart is the whole fight — and the
+      // reaction each one uses in the pot is what the colour keys off, so a
+      // repeat there is a repeat here.
+      final reactions = kPlaguePotions.map((p) => p.pot).toSet();
+      expect(
+        reactions.length,
+        kPlaguePotions.length,
+        reason: 'two plagues sharing a reaction share a colour',
+      );
+    });
+
     test('every brew is fully identified', () {
       final ids = <String>{}, names = <String>{}, plagues = <String>{};
       final relics = <String>{}, reactions = <CauldronReaction>{};

@@ -14391,6 +14391,10 @@ class PlanetDungeonGame extends FlameGame {
       // The guardian is drawn as the winged Roc body (one Roc, not a blob
       // chasing alongside it).
       if (identical(enemy, _guardianEnemy)) continue;
+      // Poison (§8): a plague is drawn as the thing that crawled in, in its
+      // own colour. Swapping it for the generic Poison blob at the end of
+      // the crawl would undo the whole point of the crawl.
+      if (_isVenom && identical(enemy, monastery.body)) continue;
       final base = elementColor(enemy.element);
       // Dive telegraph: a tightening ring during the windup so the swoop is
       // readable and dodgeable.

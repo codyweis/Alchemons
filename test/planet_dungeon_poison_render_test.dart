@@ -206,6 +206,36 @@ void main() {
         ..carriedPotion = null
         ..bottled.clear();
 
+      // THE BODY, one shot per plague. Three plagues that arrive the same
+      // colour are one plague, and the body has to look like the thing that
+      // crawled in rather than the shared Poison blob.
+      final bodies = <int>{};
+      for (final p in kPlaguePotions) {
+        bodies.add(
+          await _shot(
+            g,
+            'ambulatory',
+            'p_body_${p.id}',
+            at: poisonLayout.rooms['ambulatory']!.bounds.center,
+            poseAfterTick: () {
+              g.monastery
+                ..fighting = p.id
+                ..body = _dummyBody(
+                  poisonLayout.rooms['ambulatory']!.bounds.center,
+                )
+                ..bars = 3
+                ..gated = false
+                ..marks.clear();
+            },
+          ),
+        );
+      }
+      expect(
+        bodies.length,
+        kPlaguePotions.length,
+        reason: 'two plagues that look alike in the room are one plague',
+      );
+
       // EVERY GATE, MID-MECHANIC. Three plagues that all put the same thing
       // on the floor would be one fight run three times, and a bulb that
       // reads as scenery is a fight the player cannot see the shape of.

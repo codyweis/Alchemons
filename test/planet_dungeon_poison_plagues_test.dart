@@ -688,6 +688,54 @@ void main() {
       expect(kinds.length, kPlaguePotions.length);
     });
 
+    test('the thing you fight is the thing that arrived', () {
+      // `spawnDungeonEnemy` brings everything in from off the viewport,
+      // which is right for an ambush and exactly wrong here: the plague you
+      // watched crawl the length of the cloister would wink out and a
+      // different body would walk in from the wall a second later. The whole
+      // point of the crawl is that it IS the boss.
+      final g = _game();
+      final p = kPlaguePotions.first;
+      _brewAndWake(g, p);
+      g.currentRoomId = 'ambulatory';
+      for (var i = 0; i < 60 * 14 && g.monastery.invading; i++) {
+        g.update(1 / 60);
+      }
+      final landed = g.monastery.invadeTo;
+      expect(g.monastery.body, isNotNull);
+      expect(
+        (g.monastery.body!.position - landed).distance,
+        lessThan(4),
+        reason: 'the body stands where the crawl put it',
+      );
+      expect(
+        poisonLayout.rooms['ambulatory']!.bounds.contains(
+          g.monastery.body!.position,
+        ),
+        isTrue,
+        reason: 'and inside the room, not off the edge of it',
+      );
+    });
+
+    test('the crawl is slow enough to watch', () {
+      // It is the one look at the thing before it is a fight. Measured off
+      // the engine rather than read off a constant, so tuning cannot quietly
+      // turn the arrival back into a blink.
+      final g = _game();
+      _brewAndWake(g, kPlaguePotions.first);
+      g.currentRoomId = 'ambulatory';
+      var frames = 0;
+      while (g.monastery.invading && frames < 60 * 40) {
+        g.update(1 / 60);
+        frames++;
+      }
+      expect(
+        frames / 60,
+        greaterThan(6.0),
+        reason: 'a crawl under six seconds reads as a teleport',
+      );
+    });
+
     test('a spent font stops answering, and gets out of the way', () {
       // The fight happens in the cloister, and the basin stood in the middle
       // of it. A fixture that is finished but still has a verb on it is the

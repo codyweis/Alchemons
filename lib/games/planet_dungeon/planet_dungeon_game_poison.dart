@@ -1291,8 +1291,14 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       steers: true,
     );
     if (!ok) return;
+    // WHERE THE CRAWL ENDED, not off the edge of the screen. `spawnDungeonEnemy`
+    // brings everything in from off-viewport, which is right for an ambush
+    // and exactly wrong here: the thing you watched arrive would vanish and
+    // a different thing would walk in from the wall a second later.
+    final spawned = combatEnemies.isEmpty ? null : combatEnemies.last;
+    spawned?.position = at;
     monastery
-      ..body = combatEnemies.isEmpty ? null : combatEnemies.last
+      ..body = spawned
       ..fighting = potionId
       ..bars = kPlagueBars
       ..gated = false
@@ -2651,7 +2657,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// Long on purpose — this is the only thing on the planet that permanently
   /// changes the room you have to keep crossing, and it should take as long
   /// as it takes to feel like an arrival rather than an effect.
-  static const double _kInvadeSeconds = 5.0;
+  /// The crawl. Slow on purpose — it is the one look at the thing you get
+  /// before it is a fight, and at five seconds the shrink and the travel
+  /// both read as a blink.
+  static const double _kInvadeSeconds = 8.0;
 
   // ── THE FIGHT ────────────────────────────────────────────
   //
@@ -2707,7 +2716,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   /// How far into the crawl the thing has finished gathering itself off the
   /// heart. Before this it is still pulling in off the walls of the ward.
-  static const double _kInvadeGather = 0.17;
+  static const double _kInvadeGather = 0.24;
+
+  /// Where it has finished opening back out in the cloister. The rest of the
+  /// crawl is it standing at full size, so the fight starts on something you
+  /// have already been looking at.
+  static const double _kInvadeSettle = 0.86;
+
+  /// Full size: the crawl's head at this scale is the radius of the body.
+  static const double _kPlagueScale = 2.4;
 
   static const Color _venomBronze = Color(0xFF6E6A3E);
   static const Color _venomBronzeLit = Color(0xFF9A9358);
@@ -2907,7 +2924,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final m = monastery;
     if (!m.invading) return;
     final t = m.invade;
-    final col = m.invadeSick ? _venomSick : _venomLive;
+    // GREEN COMING OFF THE HEART, ITS OWN COLOUR BY THE DOOR. A woken plague
+    // stops being "the sick green in the wards" the moment it is awake.
+    final col = m.invadeSick
+        ? _venomSick
+        : _invadeColour(t, brewById(m.pendingFight ?? m.fighting));
     final (headRoom, head) = _invadeAt(t);
     final inWard = room.id == m.invadeWardRoom;
     if (!inWard && room.id != 'ambulatory') return;
@@ -3052,6 +3073,29 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
   }
 
+  /// WHAT COLOUR THIS PLAGUE IS ONCE IT IS AWAKE.
+  ///
+  /// Everything in the lazaret is the same sick green until it is woken, and
+  /// then each of the three becomes its own thing — the way a wrongly-dosed
+  /// strain used to go violet when it took the wrong physic and swelled. If
+  /// all three arrive green there is nothing to tell them apart in the one
+  /// room where telling them apart is the whole fight.
+  Color _plagueColour(PlaguePotion p) => switch (p.pot) {
+    CauldronReaction.bloom => const Color(0xFFE3B23C), // Breath: pollen gold
+    CauldronReaction.climb => const Color(0xFFB03050), // Blood: crimson
+    CauldronReaction.rot => const Color(0xFF8A4FB0), // Decay: violet rot
+    CauldronReaction.pure => _venomLive,
+  };
+
+  /// The colour partway through the crawl: it is still the ward's green when
+  /// it comes off the heart, and fully itself by the time it is through the
+  /// door.
+  Color _invadeColour(double t, PlaguePotion? p) {
+    if (p == null) return _venomLive;
+    final k = (t / _kInvadeCross).clamp(0.0, 1.0);
+    return Color.lerp(_venomLive, _plagueColour(p), k)!;
+  }
+
   /// HOW BIG THE THING IS, ACROSS THE WHOLE CRAWL.
   ///
   /// It has to gather itself before it can leave. Reported from play as the
@@ -3062,9 +3106,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// at the sill, and opens back out on the far side.
   double _invadeScale(double t) {
     if (t < _kInvadeGather) {
-      // Off the heart and drawing in — big and loose, then compact.
+      // Off the heart and drawing in — big and loose, then compact. Slow:
+      // this is a sickness pulling itself in off the walls of a room, and at
+      // the first speed it read as a blink.
       final k = (t / _kInvadeGather).clamp(0.0, 1.0);
-      return 1.9 - 1.0 * Curves.easeInOutCubic.transform(k);
+      return 2.4 - 1.5 * Curves.easeInOutCubic.transform(k);
     }
     if (t < _kInvadeCross) {
       // Squeezing through: down to a thread at the doorway.
@@ -3074,9 +3120,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       );
       return 0.9 - 0.55 * Curves.easeInQuad.transform(k);
     }
-    // Out the other side, opening back up as it comes down the cloister.
-    final k = ((t - _kInvadeCross) / (1 - _kInvadeCross)).clamp(0.0, 1.0);
-    return 0.35 + 1.15 * Curves.easeOutCubic.transform(k);
+    // OUT THE OTHER SIDE, and it opens all the way back out — to the size of
+    // the body you are about to fight, not to something smaller that then
+    // gets swapped for a monster. The last stretch is held at full size, so
+    // the fight starts on a thing you have already been looking at.
+    final k = ((t - _kInvadeCross) / (_kInvadeSettle - _kInvadeCross)).clamp(
+      0.0,
+      1.0,
+    );
+    return 0.35 + (_kPlagueScale - 0.35) * Curves.easeOutCubic.transform(k);
   }
 
   /// THE TWO THINGS THE HOUSE SAYS OUT LOUD.
@@ -3993,7 +4045,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final potion = brewById(m.fighting);
     if (potion == null) return;
     final body = _plagueBody;
-    final col = _brewColour(potion);
+    // The plague's own colour, not the brew's — what is on the floor belongs
+    // to the thing that put it there.
+    final col = _plagueColour(potion);
 
     // ── THE MARKS ──
     for (final mark in m.marks) {
@@ -4093,7 +4147,51 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
 
     if (body == null) return;
-    final head = body.position - const Offset(0, 46);
+
+    // ── THE BODY: THE SAME THING THAT CRAWLED IN ──
+    //
+    // Drawn here rather than by the shared enemy painter, at the size and in
+    // the colour the crawl left it, because the point of the crawl is that
+    // this IS that. A generic blob appearing where the animation ended makes
+    // the whole arrival a cutscene about something else.
+    final hue = _plagueColour(potion);
+    final hit = body.hitFlash > 0
+        ? Color.lerp(hue, Colors.white, body.hitFlash.clamp(0.0, 1.0))!
+        : hue;
+    _drawInvadeHead(canvas, body.position, hit, _kPlagueScale);
+    // Bulk under the tendrils, so it has weight the crawl's head did not.
+    canvas.drawCircle(
+      body.position,
+      body.radius * 0.9,
+      Paint()..color = Color.lerp(hue, const Color(0xFF05070A), 0.45)!,
+    );
+    canvas.drawCircle(
+      body.position,
+      body.radius * 0.9,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = hit.withValues(alpha: 0.9),
+    );
+    // The bar it is on, read straight off the body.
+    final frac = (body.hp / body.maxHp).clamp(0.0, 1.0);
+    final barAt = body.position - const Offset(0, 44);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: barAt, width: 68, height: 7),
+        const Radius.circular(3),
+      ),
+      Paint()..color = const Color(0xFF0B0D0A).withValues(alpha: 0.85),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(barAt.dx - 33, barAt.dy - 2.5, 66 * frac, 5),
+        const Radius.circular(2),
+      ),
+      Paint()..color = hue,
+    );
+
+    final head = body.position - const Offset(0, 56);
 
     // ── THREE PIPS ── how much of the thing is actually left, which its own
     // health bar cannot say: that bar is one third of a plague.
