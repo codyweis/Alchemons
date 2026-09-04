@@ -656,7 +656,7 @@ void main() {
       actAt(game, 'ambulatory', poison, font);
       expect(game.monastery.cloisterOpen, isTrue);
       // The seals come off one at a time, as the camera reaches each door.
-      step(game, 7.0);
+      step(game, 8.0);
       for (final p in kPlaguePotions) {
         expect(
           t.opened,
@@ -664,6 +664,11 @@ void main() {
           reason: '${p.wardId} should have opened with the font',
         );
       }
+      expect(
+        t.opened,
+        isNot(contains('ward_charnel')),
+        reason: 'the dead-house is not the font\'s to open',
+      );
 
       // ── THE THREE PLAGUES. Two hands to the pot, the brew to its own
       // ward, and the thing wakes and comes out into the walk to be fought.
@@ -749,12 +754,12 @@ void main() {
       expect(game.hasStar(1), isTrue);
       expect(earned, containsAllInOrder([0, 1]));
 
-      // ── The dead-house opened with the rest of them. One errand, four
-      // doors, and nothing left in the corridor asking to be broken into.
+      // ── The dead-house did NOT open with the rest of them: it answers
+      // the cross, which the three reliquaries have just lit.
       expect(
         t.opened,
         contains('ward_charnel'),
-        reason: 'the font opens every seal, the dead-house included',
+        reason: 'three reliquaries in the stone open the last door',
       );
 
       // ── The oubliette: only in the dead-house, and only once both plague
@@ -777,9 +782,20 @@ void main() {
               'opens',
         );
       }
-      actAt(game, 'ward_charnel', poison, oubliette);
+      // NO PRESS. Walk onto the maw and it takes you — the way down is a
+      // thing you step into, not a fourth verb at the end of the planet.
+      game.currentRoomId = 'ward_charnel';
+      for (final c in game.creatures) {
+        c
+          ..position = oubliette
+          ..lastSafe = oubliette;
+      }
+      step(game, 0.05);
+      expect(game.monastery.grab, greaterThanOrEqualTo(0));
+      step(game, 3.0);
       expect(game.monastery.oublietteOpen, isTrue);
       expect(game.guardianAwake, isTrue);
+      expect(game.currentRoomId, 'lazar_crypt');
       expect(game.isDoorHidden(charnel, hatch), isFalse);
 
       // ── The vault: the bottled essence lies under the ward you let go.
@@ -871,8 +887,8 @@ void main() {
       step(game, 8.0); // the seals come off door by door
       expect(
         t.opened,
-        containsAll(kMonasteryWardIds),
-        reason: 'one errand, every door, the dead-house included',
+        containsAll(kPlaguePotions.map((p) => p.wardId)),
+        reason: 'one errand, all three plague doors',
       );
       final bell = game.layout.rooms['ward_bell']!;
       final squint = bell.doors.firstWhere(

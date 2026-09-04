@@ -337,6 +337,12 @@ class VenomMonastery {
   // veins along the floor and leaves them there. All three lash with
   // tendrils, because all three ARE tendrils.
 
+  /// THE GRAB, 0 → 1. Patient zero's reach comes up through the dead-house
+  /// floor, and walking onto it is how you go down. No press: you step on
+  /// the thing and it takes you.
+  double grab = -1;
+  Offset grabAt = Offset.zero;
+
   /// COMING APART, 1 → 0. The last gate closes and it does not simply
   /// vanish into a reliquary: it throws every vein out at once, holds, and
   /// then collapses in on itself.
@@ -482,6 +488,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.gateFlash = 0;
     m.unfurl = 0;
     m.dying = 0;
+    m.grab = -1;
     m.lashes.clear();
     m.attackCd = 0;
     m.waves.clear();
@@ -725,6 +732,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       m.lustral = max(0.0, m.lustral - dt / _kLustralSeconds);
     }
     _tickSealParade(dt, room);
+    _tickCryptMaw(room, dt);
     m.clock += dt;
     _tickStrains(a, room, dt);
 
@@ -902,9 +910,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       return _tryAdminister(a, ward);
     }
 
-    // 4) The oubliette rite, in the ward that was given up.
-    if (ward != null && _tryOubliette(a, ward)) return true;
-
     // 5) The prior's seal: commit the triage.
     // 4b) The lustral font in the middle of the cloister: the pure vial
     //     goes in here and every wax seal on the corridor lets go.
@@ -943,7 +948,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       if (ward == null || t.opened.contains(ward.id)) continue;
       if ((a.position - door.rect.center).distance > 96) continue;
       _setBlockedHint(
-        monastery.carriedPotion == kPureVial.id
+        ward.id == kCryptWard
+            ? 'The dead-house answers the cross, not a hand — three '
+                  'reliquaries in the stone'
+            : monastery.carriedPotion == kPureVial.id
             ? 'The wax will not part here — the basin in the middle of the '
                   'cloister is what the vial is for'
             : kPureVial.clue,
@@ -1199,6 +1207,62 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     return true;
   }
 
+  /// THE MAW IN THE DEAD-HOUSE. Step on it and it takes you.
+  ///
+  /// The way down used to be a lead-sealed hatch you pressed with a Poison
+  /// hand — a fourth verb, at the end of a planet that has already taught
+  /// three, guarding a door the cross had just earned you. Patient zero's
+  /// own reach comes up through the floor instead, and walking into it is
+  /// the whole interaction.
+  void _tickCryptMaw(DungeonRoom room, double dt) {
+    final m = monastery;
+    if (m.grab >= 0) {
+      m.grab += dt / _kGrabSeconds;
+      _shake = max(_shake, 3.0 + 9.0 * m.grab);
+      // Hauled in: the party is dragged to the maw as it closes.
+      for (final c in creatures) {
+        c.position = Offset.lerp(c.position, m.grabAt, dt * 3.4)!;
+      }
+      if (m.grab >= 1) {
+        m.grab = -1;
+        m.oublietteOpen = true;
+        guardianAwake = true;
+        guardianHp = PlanetDungeonGame.maxGuardianHp;
+        // TAKE THE HATCH ITSELF. `passThroughDoorless` only repositions
+        // inside the room you are already in — it never changes rooms, so
+        // the grab played out in full and left the party standing in the
+        // dead-house.
+        final hatch = layout.rooms[kCryptWard]?.doors
+            .where((d) => d.targetRoomId == 'lazar_crypt')
+            .firstOrNull;
+        if (hatch != null) {
+          passThroughDoor(hatch);
+        }
+      }
+      return;
+    }
+    if (room.ward?.id != kCryptWard || m.oublietteOpen) return;
+    final maw = room.ward!.oubliette;
+    for (final c in creatures) {
+      if (!c.alive) continue;
+      if ((c.position - maw).distance > _kMawReach) continue;
+      m
+        ..grab = 0
+        ..grabAt = maw;
+      cutTo(room.id, maw, hold: _kGrabSeconds + 0.3);
+      _shake = 8.0;
+      _spawnAlchemyBurst(
+        maw,
+        producedElement: 'Poison',
+        reagentElements: const ['Plant', 'Mud'],
+        unstable: true,
+        particleCount: 34,
+        intensity: 1.4,
+      );
+      return;
+    }
+  }
+
   /// THE PARADE. After the font, the camera leaves the party and walks the
   /// corridor, stopping at each ward door as its wax lets go.
   ///
@@ -1214,8 +1278,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       // reloaded — anything still sealed opens now. A cinematic must never
       // be the only thing standing between the player and three rooms.
       if (m.cloisterOpen) {
-        for (final w in kMonasteryWardIds) {
-          m.triage.open(w);
+        for (final p in kPlaguePotions) {
+          m.triage.open(p.wardId!);
         }
       }
       return;
@@ -1266,8 +1330,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       // CATCH UP. The walk is a cinematic, not the mechanism — whatever it
       // did not reach still opens, so a parade cut short by anything at all
       // cannot leave a ward sealed for the rest of the run.
-      for (final w in kMonasteryWardIds) {
-        m.triage.open(w);
+      for (final p in kPlaguePotions) {
+        m.triage.open(p.wardId!);
       }
     }
   }
@@ -1276,7 +1340,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// it belongs to — the parade has to know which seal it is breaking, and
   /// it breaks all of them including the dead-house.
   List<(String, Offset)> _paradeDoors(DungeonRoom walk) {
-    final wards = kMonasteryWardIds.toSet();
+    // THE THREE PLAGUE DOORS. Not the dead-house: that one answers the cross
+    // once all three reliquaries are in it, which is the reward for the
+    // whole planet and has to be its own moment.
+    final wards = {for (final p in kPlaguePotions) p.wardId};
     final out = <(String, Offset)>[
       for (final d in walk.doors)
         if (wards.contains(d.targetRoomId))
@@ -2237,6 +2304,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // announce themselves.
     if (!hasStar(seal.diagnosisStarIndex)) earnStar(seal.diagnosisStarIndex);
     if (!hasStar(seal.triageStarIndex)) earnStar(seal.triageStarIndex);
+    // AND THE DEAD-HOUSE OPENS. The three reliquaries are the key to the
+    // last door — the way down was gated on two stars anyway, and hanging it
+    // off the cross makes the lit cross the thing that did it.
+    m.triage.open(kCryptWard);
+    _queueDoorReveal('ambulatory', kCryptWard);
     return true;
   }
 
@@ -2397,39 +2469,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     return true;
   }
 
-  bool _tryOubliette(DungeonCreature a, WardCell ward) {
-    final m = monastery;
-    if (ward.id != kCryptWard || m.oublietteOpen) return false;
-    if ((a.position - ward.oubliette).distance > _kMonasteryReach) return false;
-    if (!guardianRiteUnlocked) {
-      _setBlockedHint(
-        'The oubliette answers only a bearer of the ${layout.starName(0)} '
-        'and ${layout.starName(1)}',
-      );
-      return true;
-    }
-    if (!_canBrew(a)) {
-      _setBlockedHint('The lead seal answers only Poison');
-      return true;
-    }
-    m.oublietteOpen = true;
-    guardianAwake = true;
-    guardianHp = PlanetDungeonGame.maxGuardianHp;
-    speakConsequence(
-      'The lead runs off the stone — Blightfang stirs in the dark below',
-      4.2,
-    );
-    _spawnAlchemyBurst(
-      ward.oubliette,
-      producedElement: 'Poison',
-      reagentElements: const ['Plant', 'Mud'],
-      particleCount: 30,
-      intensity: 1.3,
-    );
-    _queueDoorReveal(ward.id, 'lazar_crypt');
-    return true;
-  }
-
   /// THE DOSE (Paracelsus) — the lost maxim. One sick wisp wanders the
   /// ambulatory; a blade is not the answer. Diagnose it like a ward and pour.
   bool _tryDoseWisp() {
@@ -2497,7 +2536,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // and nobody else. The ambulatory still reaches every ward, so this
     // closes a shortcut, never a route.
     if (_isSquint(room, door)) return !_monasterySquintPasses(door);
-    // A ward you have not unsealed is not a room yet.
+    // A ward you have not unsealed is not a room yet — the three plague
+    // doors answer the font, and the dead-house answers the cross.
     if (room.id == 'ambulatory' &&
         target?.ward != null &&
         !t.opened.contains(target!.ward!.id)) {
@@ -3253,6 +3293,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   /// How long it takes to come apart.
   static const double _kDeathSeconds = 2.2;
+
+  /// The grab, and how close you have to get for it.
+  static const double _kGrabSeconds = 1.6;
+  static const double _kMawReach = 46.0;
 
   /// How often the plague does something to you.
   static const double _kAttackEvery = 2.6;
@@ -5932,25 +5976,66 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
   }
 
+  /// PATIENT ZERO'S REACH, up through the dead-house floor.
+  ///
+  /// It was a lead-sealed hatch: a rounded rectangle you pressed. Nothing
+  /// about that said "this is the way down to the thing the whole planet is
+  /// about", and it asked for a fourth verb at the very end of a planet that
+  /// has already taught three. This is a mouth, and you walk into it.
   void _renderOubliette(Canvas canvas, WardCell ward) {
-    final open = monastery.oublietteOpen;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: ward.oubliette, width: 60, height: 50),
-        const Radius.circular(6),
-      ),
-      Paint()..color = open ? const Color(0xFF120A18) : const Color(0xFF54463A),
+    if (monastery.oublietteOpen) return;
+    final at = ward.oubliette;
+    final m = monastery;
+    final pull = m.grab >= 0 ? Curves.easeInCubic.transform(m.grab) : 0.0;
+    final beat = 0.5 + 0.5 * sin(_time * 1.3);
+
+    // The hole: broken flags around a black throat.
+    canvas.drawOval(
+      Rect.fromCenter(center: at, width: 108, height: 62),
+      Paint()..color = const Color(0xFF16110C),
     );
-    if (!open) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: ward.oubliette, width: 60, height: 50),
-          const Radius.circular(6),
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: at,
+        width: 78 * (1 + 0.35 * pull),
+        height: 42 * (1 + 0.35 * pull),
+      ),
+      Paint()..color = const Color(0xFF040508),
+    );
+    for (var i = 0; i < 9; i++) {
+      final a = i * 2 * pi / 9 + 0.2;
+      canvas.drawLine(
+        at + Offset(cos(a), sin(a) * 0.55) * 40,
+        at + Offset(cos(a), sin(a) * 0.55) * (56 + 6 * beat),
+        Paint()
+          ..strokeWidth = 3
+          ..color = const Color(0xFF3A3128).withValues(alpha: 0.85),
+      );
+    }
+
+    // What is waiting in it: veins working at the rim, and reaching further
+    // the moment something steps close.
+    _drawPlagueForm(
+      canvas,
+      at,
+      70 + 190 * pull,
+      _venomSick,
+      seed: 4211,
+      grow: 0.55 + 0.45 * beat * (1 - pull) + pull,
+    );
+
+    // Hauling: the throat closing over whatever it has hold of.
+    if (pull > 0) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: at,
+          width: 240 * (1 - pull),
+          height: 130 * (1 - pull),
         ),
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..color = _venomBone.withValues(alpha: 0.55),
+          ..strokeWidth = 10 * (1 - pull)
+          ..color = _venomSick.withValues(alpha: 0.55 * (1 - pull)),
       );
     }
   }

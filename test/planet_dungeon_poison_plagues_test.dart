@@ -272,11 +272,10 @@ void main() {
 
         expect(
           bursts.length,
-          kMonasteryWardIds.length,
+          kPlaguePotions.length,
           reason:
-              'one sheet of wax per WARD door — the dead-house included, '
-              'since it is waxed like the rest now. A door opening silently '
-              'off screen is not a cinematic, it is a flag being set',
+              'one sheet of wax per PLAGUE door. A door opening silently off '
+              'screen is not a cinematic, it is a flag being set',
         );
         expect(
           doors.length,
@@ -293,7 +292,10 @@ void main() {
           g.update(1 / 60);
         }
         expect(g.followRoomId, isNull);
-        expect(g.monastery.triage.opened, containsAll(kMonasteryWardIds));
+        expect(
+          g.monastery.triage.opened,
+          containsAll(kPlaguePotions.map((p) => p.wardId)),
+        );
       });
     });
 
@@ -309,8 +311,13 @@ void main() {
       g.update(1 / 60);
       expect(
         g.monastery.triage.opened,
-        containsAll(kMonasteryWardIds),
-        reason: 'a ward left sealed with the vial already poured',
+        containsAll(kPlaguePotions.map((p) => p.wardId)),
+        reason: 'a plague ward left sealed with the vial already poured',
+      );
+      expect(
+        g.monastery.triage.opened,
+        isNot(contains(kCryptWard)),
+        reason: 'the dead-house answers the CROSS, not the font',
       );
     });
 
@@ -1089,6 +1096,66 @@ void main() {
       }
       expect(g.monastery.slain, contains(p.id));
       expect(g.monastery.relicsDropped, contains(p.id));
+    });
+
+    test('the cross is the key to the dead-house', () {
+      final g = _game();
+      _openTheCloister(g);
+      final amb = poisonLayout.rooms['ambulatory']!;
+      final charnelDoor = amb.doors.firstWhere(
+        (d) => d.targetRoomId == kCryptWard,
+      );
+      expect(
+        g.isDoorLocked(amb, charnelDoor),
+        isTrue,
+        reason:
+            'the way down is not open just because the wax came off the '
+            'plague wards',
+      );
+
+      for (final p in kPlaguePotions) {
+        _brewAndWake(g, p);
+        _fightItOut(g);
+        _bearRelic(g, p);
+      }
+      expect(g.monastery.relicsPlaced.length, kPlaguePotions.length);
+      expect(
+        g.isDoorLocked(amb, charnelDoor),
+        isFalse,
+        reason: 'three reliquaries in the stone open the last door',
+      );
+    });
+
+    test('walking onto the maw takes you to the boss', () {
+      // No press. The way down used to be a lead-sealed hatch pressed with a
+      // Poison hand — a fourth verb at the very end of a planet that has
+      // already taught three, guarding a door the cross had just earned.
+      final g = _game();
+      _openTheCloister(g);
+      for (final p in kPlaguePotions) {
+        _brewAndWake(g, p);
+        _fightItOut(g);
+        _bearRelic(g, p);
+      }
+      final charnel = poisonLayout.rooms[kCryptWard]!;
+      g.currentRoomId = kCryptWard;
+      final maw = charnel.ward!.oubliette;
+      for (final c in g.creatures) {
+        c
+          ..position = maw
+          ..lastSafe = maw;
+      }
+      g.update(1 / 60);
+      expect(
+        g.monastery.grab,
+        greaterThanOrEqualTo(0),
+        reason: 'stepping on it starts the grab',
+      );
+      for (var i = 0; i < 60 * 4 && g.monastery.grab >= 0; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.currentRoomId, 'lazar_crypt', reason: 'it took us down');
+      expect(g.guardianAwake, isTrue, reason: 'and Blightfang is up');
     });
 
     test('the dead-house holds no plague', () {
