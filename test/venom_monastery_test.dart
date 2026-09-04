@@ -911,7 +911,6 @@ void main() {
       final found = <String>[];
       final game = _harness(_idealTrio(), onCloud: found.add);
       final m = game.monastery;
-      m.wispStrain = WardStrain.feign; // it lies still until touched
       final wisp = m.wisp!;
       actAt(game, 'ambulatory', poison, wisp);
       // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).

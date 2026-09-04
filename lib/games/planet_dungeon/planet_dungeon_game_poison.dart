@@ -23,8 +23,9 @@
 //    and it takes a fresh habit after every lull.
 //  • Vault — the bottled essence lies in that same crypt: **you may only
 //    loot what you sacrificed** (§5.5 vault trick).
-//  • Lost Maxim — The Dose: one sick wisp wanders the ambulatory; cure it
-//    with a draught instead of a blade (Paracelsus).
+//  • Lost Maxim, The Dose: one sick wisp wanders the ambulatory. A blade is
+//    not the answer and neither is a brew. Stand a Poison alchemon with it
+//    and it quietens (Paracelsus).
 //
 // The RULES themselves are not in this file: they live in
 // planet_dungeon_layout_poison.dart as [WardTriage], with no engine and no
@@ -446,7 +447,6 @@ class VenomMonastery {
 
   /// The sick wisp (the lost maxim), drifting the ambulatory.
   Offset? wisp = const Offset(560, 260);
-  WardStrain wispStrain = WardStrain.pulse;
   double wispDrift = 0;
 
   /// Patient zero's live habit, and the lull a correct dose bought.
@@ -485,8 +485,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.crossRot = 0;
     m.oublietteOpen = false;
     m.wisp = const Offset(560, 260);
-    m.wispStrain =
-        WardStrain.values[Random().nextInt(WardStrain.values.length)];
     m.given.clear();
     m.pot.clear();
     m.carriedPotion = null;
@@ -2465,10 +2463,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     return true;
   }
 
-  /// THE DOSE (Paracelsus) — the lost maxim. One sick wisp wanders the
-  /// ambulatory; a blade is not the answer. Diagnose it like a ward and pour.
-  /// THE LOST MAXIM: the one sick thing in this house you are not asked to
-  /// kill. A Poison alchemon standing with it is the whole cure.
+  /// THE DOSE (Paracelsus). The lost maxim, and the one sick thing in this
+  /// house you are not asked to kill. A Poison alchemon standing with it is the whole cure.
   ///
   /// It used to want a matching draught from the four-tap font, and that
   /// font went when the still became a cauldron — which quietly made the
