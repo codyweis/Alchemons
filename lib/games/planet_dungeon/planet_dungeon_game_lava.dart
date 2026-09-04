@@ -781,15 +781,13 @@ extension MoltenReliquary on PlanetDungeonGame {
       // means REMEMBERED FOR THE HINT BUTTON and never shown: a player who
       // walked up to the accumulator and pressed got nothing at all back,
       // and no reason to think the barrel was the thing holding up the
-      // engine. Reported from play twice on this planet now.
+      // engine.
       //
-      // And it names the key. "Wants steam" reads as impossible on its own,
-      // because no trio here carries Steam; what it wants is the BRAID.
-      speakConsequence(
-        'STEAM is wanted to start the engine, and steam is Ice and Lava, '
-        'standing here together.',
-        4.4,
-      );
+      // Just the requirement, and no more. The first version named the braid
+      // as well, on the reasoning that "wants steam" reads as impossible
+      // when no trio here carries Steam. That is what the HINT button is
+      // for. A refusal states what is missing.
+      speakConsequence('Steam is required to start the engine.', 4.0);
       _spawnAlchemyBurst(
         kLavaAccumulator,
         producedElement: 'Steam',
