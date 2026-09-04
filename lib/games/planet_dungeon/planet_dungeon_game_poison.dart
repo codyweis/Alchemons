@@ -985,9 +985,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     for (final id in m.potionHands[kPureVial.id] ?? const <String>[]) {
       m.drained.remove(id);
     }
-    for (final p in kPlaguePotions) {
-      m.triage.open(p.wardId!);
-    }
+    // NOT HERE. Opening all three the moment the vial goes in made every
+    // sheet of wax vanish before the camera had been anywhere — the parade
+    // then toured three doors that were already open. Each ward opens as the
+    // shot arrives at it; `_tickSealParade` does that, and catches up any
+    // that are still shut if the walk is cut short.
     m.parade = 0;
     m.paradeDoor = -1;
     // The camera holds the font for the pour, then walks the doors itself.
@@ -1012,7 +1014,18 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// and the camera back where it started.
   void _tickSealParade(double dt, DungeonRoom room) {
     final m = monastery;
-    if (m.parade < 0) return;
+    if (m.parade < 0) {
+      // THE MECHANISM IS THE POUR, NOT THE WALK. If the vial went in and the
+      // parade is not running — it finished, it never started, the run was
+      // reloaded — anything still sealed opens now. A cinematic must never
+      // be the only thing standing between the player and three rooms.
+      if (m.cloisterOpen) {
+        for (final p in kPlaguePotions) {
+          m.triage.open(p.wardId!);
+        }
+      }
+      return;
+    }
     // The pour finishes first — the doors do not move until the font has.
     if (m.lustral > 0) return;
     final walk = layout.rooms['ambulatory'];
@@ -1030,41 +1043,51 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final leg = 1.0 / doors.length;
     final i = min(doors.length - 1, (m.parade / leg).floor());
 
-    // Arriving at a door blows its wax out, once.
+    // ARRIVING AT A DOOR IS WHAT OPENS IT. The wax blows out and the ward
+    // becomes a room in the same frame, so the burst is the seal breaking
+    // rather than a firework over a door that opened a moment ago.
     if (i != m.paradeDoor) {
       m.paradeDoor = i;
+      m.triage.open(doors[i].$1);
       m
         ..sealBurst = 1.0
-        ..sealBurstAt = doors[i]
+        ..sealBurstAt = doors[i].$2
         ..burstIsSick = false;
       _shake = 4.0;
     }
     // Slide between doors rather than snapping, so it reads as one shot
     // down the length of the cloister.
     final within = ((m.parade - i * leg) / leg).clamp(0.0, 1.0);
-    final from = i == 0 ? (walk.lustralFont ?? doors[0]) : doors[i - 1];
+    final from = i == 0 ? (walk.lustralFont ?? doors[0].$2) : doors[i - 1].$2;
     followRoomId = walk.id;
     followAt = Offset.lerp(
       from,
-      doors[i],
+      doors[i].$2,
       Curves.easeInOutCubic.transform(within),
     );
 
     if (m.parade >= 1.0) {
       m.parade = -1;
       m.paradeDoor = -1;
+      // CATCH UP. The walk is a cinematic, not the mechanism — whatever it
+      // did not reach still opens, so a parade cut short by anything at all
+      // cannot leave a ward sealed for the rest of the run.
+      for (final d in doors) {
+        m.triage.open(d.$1);
+      }
     }
   }
 
-  /// The three plague doors, left to right along the cloister.
-  List<Offset> _paradeDoors(DungeonRoom walk) {
+  /// The three plague doors, left to right along the cloister, each with the
+  /// ward it belongs to — the parade has to know WHICH seal it is breaking.
+  List<(String, Offset)> _paradeDoors(DungeonRoom walk) {
     final wards = {for (final p in kPlaguePotions) p.wardId};
-    final out = <Offset>[
+    final out = <(String, Offset)>[
       for (final d in walk.doors)
         if (wards.contains(d.targetRoomId))
-          Offset(d.rect.center.dx, d.rect.center.dy + 40),
+          (d.targetRoomId, Offset(d.rect.center.dx, d.rect.center.dy + 40)),
     ];
-    out.sort((a, b) => a.dx.compareTo(b.dx));
+    out.sort((a, b) => a.$2.dx.compareTo(b.$2.dx));
     return out;
   }
 

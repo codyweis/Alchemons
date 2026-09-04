@@ -98,6 +98,11 @@ void _openTheCloister(PlanetDungeonGame g) {
   );
   _press(g, 'Poison', 'ambulatory', _font);
   expect(g.monastery.cloisterOpen, isTrue);
+  // The seals come off door by door as the camera reaches them, so the run
+  // has to actually play before the wards are rooms.
+  for (var i = 0; i < 60 * 12 && g.monastery.parade >= 0; i++) {
+    g.update(1 / 60);
+  }
 }
 
 /// Brew [potion] from the pot, then carry it to its ward and wake it.
@@ -181,9 +186,21 @@ void main() {
       // no test that only inspects state would notice.
       await tester.runAsync(() async {
         final g = _game();
-        _openTheCloister(g);
+        // Not `_openTheCloister` — that runs the parade out. Pour by hand so
+        // the frames can be ridden one at a time.
+        _press(g, 'Poison', 'apothecary', _pot);
+        _press(g, 'Poison', 'apothecary', _pot);
+        _press(g, 'Poison', 'ambulatory', _font);
         expect(g.monastery.parade, isNot(-1), reason: 'the parade started');
-
+        expect(
+          g.monastery.triage.opened,
+          isEmpty,
+          reason:
+              'THE SEALS DO NOT ALL GO AT THE POUR. Opening every ward the '
+              'moment the vial went in made the wax vanish before the camera '
+              'had been anywhere, and the parade then toured three doors '
+              'that were already open',
+        );
         final doors = <Offset>{};
         final bursts = <Offset>{};
         var frames = 0;
@@ -223,7 +240,29 @@ void main() {
           g.update(1 / 60);
         }
         expect(g.followRoomId, isNull);
+        for (final p in kPlaguePotions) {
+          expect(g.monastery.triage.opened, contains(p.wardId));
+        }
       });
+    });
+
+    test('an interrupted parade still opens every ward', () {
+      // The walk is a cinematic, not the mechanism. If it is cut short by
+      // anything at all — a reload, a room lookup that fails — the rooms it
+      // did not reach must not stay sealed for the rest of the run.
+      final g = _game();
+      _press(g, 'Poison', 'apothecary', _pot);
+      _press(g, 'Poison', 'apothecary', _pot);
+      _press(g, 'Poison', 'ambulatory', _font);
+      g.monastery.parade = -1; // the shot never happens
+      g.update(1 / 60);
+      for (final p in kPlaguePotions) {
+        expect(
+          g.monastery.triage.opened,
+          contains(p.wardId),
+          reason: '${p.wardId} sealed with the vial already poured',
+        );
+      }
     });
 
     test('nothing can be woken until the font is poured', () {

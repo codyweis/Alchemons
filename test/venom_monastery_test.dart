@@ -650,6 +650,8 @@ void main() {
       expect(game.monastery.carriedPotion, kPureVial.id);
       actAt(game, 'ambulatory', poison, font);
       expect(game.monastery.cloisterOpen, isTrue);
+      // The seals come off one at a time, as the camera reaches each door.
+      step(game, 7.0);
       for (final p in kPlaguePotions) {
         expect(
           t.opened,
@@ -835,6 +837,7 @@ void main() {
         game.layout.rooms['ambulatory']!.lustralFont!,
       );
       expect(game.monastery.cloisterOpen, isTrue);
+      step(game, 7.0); // the seals come off door by door
       final bell = game.layout.rooms['ward_bell']!;
       final squint = bell.doors.firstWhere(
         (d) => d.targetRoomId == 'ward_scriptorium',
