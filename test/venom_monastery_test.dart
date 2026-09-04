@@ -463,9 +463,10 @@ void main() {
       final wards = layout.rooms.values.where((r) => r.ward != null).toList();
       expect(wards.length, 4);
       expect(wards.map((r) => r.ward!.id).toSet(), kMonasteryWardIds.toSet());
-      expect(wards.where((r) => r.ward!.bricked).map((r) => r.ward!.id), [
-        'ward_charnel',
-      ]);
+      // NOTHING IS BRICKED. Every seal in the cloister is wax and every one
+      // of them answers the font — a door that needed its own key made the
+      // parade's "all of them at once" untrue.
+      expect(wards.where((r) => r.ward!.bricked), isEmpty);
 
       final stills = layout.rooms.values
           .where((r) => r.apothecary != null)
@@ -547,8 +548,12 @@ void main() {
       }
     });
 
-    test('both family gates answer an entry slot, and neither owns a star', () {
-      expect(layout.familyGates.length, 2);
+    test('the one family gate answers an entry slot and owns no star', () {
+      // There were two. The Plant HORN through the dead-house's brick went
+      // when the lustral font took over every seal in the cloister — the
+      // parade says they all let go, and a fourth door still waxed
+      // afterwards made that a lie.
+      expect(layout.familyGates.length, 1);
       final slots = kCosmicPlanetEntry['Poison']!;
       for (final g in layout.familyGates) {
         if (g.needsElement) expect(slots, contains(g.element));
@@ -556,7 +561,7 @@ void main() {
       }
       expect(
         layout.familyGates.map((g) => '${g.element}+${g.family}').toSet(),
-        {'Plant+Horn', 'Mud+Mane'},
+        {'Mud+Mane'},
       );
     });
   });
@@ -744,14 +749,12 @@ void main() {
       expect(game.hasStar(1), isTrue);
       expect(earned, containsAllInOrder([0, 1]));
 
-      // ── The dead-house is brick, and only a Plant HORN gets in — the
-      // font does not touch it.
-      expect(t.opened.contains('ward_charnel'), isFalse);
-      actAt(game, 'ambulatory', plant, wardDoors['ward_charnel']!);
+      // ── The dead-house opened with the rest of them. One errand, four
+      // doors, and nothing left in the corridor asking to be broken into.
       expect(
         t.opened,
         contains('ward_charnel'),
-        reason: 'the Plant HORN roots the brick apart',
+        reason: 'the font opens every seal, the dead-house included',
       );
 
       // ── The oubliette: only in the dead-house, and only once both plague
@@ -833,9 +836,9 @@ void main() {
     // wrong door is not) are walked against the engine in
     // planet_dungeon_poison_plagues_test.dart.
 
-    test('THE SEAL REMEMBERS: the brick and the squint stamp their chips', () {
+    test('THE SEAL REMEMBERS: the squint stamps its chip', () {
       final found = <String>[];
-      // No Plant horn and no Mud mane anywhere in this party.
+      // No Mud mane anywhere in this party.
       final game = _harness([
         _member(0, 'Poison', 'mask'),
         _member(1, 'Plant', 'pip'),
@@ -843,17 +846,18 @@ void main() {
       ], onCloud: found.add);
       final t = game.monastery.triage;
 
+      // NO HAND OPENS A WARD. Not the dead-house either — it used to be
+      // brick behind a Plant HORN and it is wax like the rest of them now.
       actAt(game, 'ambulatory', 1, wardDoors['ward_charnel']!);
       expect(
-        t.opened.contains('ward_charnel'),
-        isFalse,
-        reason: 'a Plant PIP is not a Plant HORN',
+        t.opened,
+        isEmpty,
+        reason: 'a press at a ward door opens nothing at all',
       );
-      expect(found, contains('gate:plant_horn'));
 
       // The squint: shut for everyone but a Mud mane — and the ambulatory
       // still reaches the ward, so nothing is walled off. The wards open to
-      // the font now, not to a hand at the door.
+      // the font, not to a hand at the door.
       final pot = game.layout.rooms['apothecary']!.apothecary!.cistern;
       actAt(game, 'apothecary', 0, pot);
       actAt(game, 'apothecary', 0, pot);
@@ -864,7 +868,12 @@ void main() {
         game.layout.rooms['ambulatory']!.lustralFont!,
       );
       expect(game.monastery.cloisterOpen, isTrue);
-      step(game, 7.0); // the seals come off door by door
+      step(game, 8.0); // the seals come off door by door
+      expect(
+        t.opened,
+        containsAll(kMonasteryWardIds),
+        reason: 'one errand, every door, the dead-house included',
+      );
       final bell = game.layout.rooms['ward_bell']!;
       final squint = bell.doors.firstWhere(
         (d) => d.targetRoomId == 'ward_scriptorium',

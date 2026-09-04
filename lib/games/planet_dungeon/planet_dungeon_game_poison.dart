@@ -7,10 +7,9 @@
 // World rule (docs/dungeons.md §6.13): *every strain BEHAVES — behavior is
 // the diagnosis; and one ward cannot be saved.*
 //  • Entry — the quarantine door is waxed shut; a Poison creature softens it.
-//  • A ward is SEALED until you break its wax, and breaking it is the only
-//    way to watch what lives inside: opening one lets the contagion in
-//    (§5.5 topology). The charnel is bricked instead of waxed — a Lava HORN
-//    and nothing else (§4 hard gate).
+//  • Every ward is SEALED with wax, and every seal answers the lustral font
+//    in the middle of the cloister and nothing else. Pure poison goes in the
+//    basin and all four let go at once, permanently.
 //  • Star 1 (Physician's) — DIAGNOSIS. Read the strain by its habit, pour
 //    the draught that answers it at the still, carry it back. A wrong
 //    draught FEEDS the strain: permanently virulent, and out into the
@@ -770,57 +769,24 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     return false;
   }
 
+  /// A WARD DOOR IS NEVER OPENED BY HAND. Every seal in the cloister — the
+  /// dead-house included — answers the font in the middle and nothing else.
+  ///
+  /// The charnel used to be brick rather than wax, with a Plant HORN to
+  /// break it. That was one door too many: the parade says every seal lets
+  /// go, and a fourth still sitting there waxed after it made the cinematic
+  /// look like a lie. One errand, one answer, all four doors, permanently.
   bool _tryBreakWardSeal(DungeonCreature a, DungeonRoom room) {
     final t = monastery.triage;
     for (final door in room.doors) {
-      final target = layout.rooms[door.targetRoomId];
-      final ward = target?.ward;
+      final ward = layout.rooms[door.targetRoomId]?.ward;
       if (ward == null || t.opened.contains(ward.id)) continue;
       if ((a.position - door.rect.center).distance > 96) continue;
-      // A PLAGUE WARD IS NOT OPENED BY HAND. The wax on those three answers
-      // the font in the middle of the corridor and nothing else; only the
-      // dead-house is still a thing you break into yourself.
-      if (!ward.bricked) {
-        _setBlockedHint(
-          monastery.carriedPotion == kPureVial.id
-              ? 'The wax will not part here — the basin in the middle of the '
-                    'cloister is what the vial is for'
-              : kPureVial.clue,
-        );
-        return true;
-      }
-      if (ward.bricked) {
-        // §4 HARD GATE: the charnel is brick, not wax. A party with no Lava
-        // horn cannot open it — which decides their sacrifice for them, and
-        // still leaves both stars earnable on the other three wards.
-        final gate = layout.familyGateFor('ward_charnel_brick');
-        if (gate != null &&
-            !(a.member.element == gate.element &&
-                abilityForFamily(a.member.family) ==
-                    abilityForFamily(gate.family))) {
-          _stampFamilyGate(gate);
-          return true;
-        }
-      }
-      t.open(ward.id);
-      // NO CUT. Breaking the wax does not take the camera anywhere — the
-      // contagion comes up when you WALK IN and see it, which is the same
-      // animation without stopping the game to show you a room you were
-      // about to enter anyway. (See `_maybeWakeWard`.)
-      speakConsequence(
-        ward.bricked
-            ? 'Roots go through the joints and the brick comes apart. '
-                  'Something in the dead-house has been waiting.'
-            : 'The seal parts, and what is in there wakes.',
-        3.6,
-      );
-      _spawnAlchemyBurst(
-        door.rect.center,
-        producedElement: 'Poison',
-        reagentElements: ward.bricked ? const ['Plant'] : const [],
-        unstable: true,
-        particleCount: 20,
-        intensity: 1.0,
+      _setBlockedHint(
+        monastery.carriedPotion == kPureVial.id
+            ? 'The wax will not part here — the basin in the middle of the '
+                  'cloister is what the vial is for'
+            : kPureVial.clue,
       );
       return true;
     }
@@ -1088,8 +1054,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       // reloaded — anything still sealed opens now. A cinematic must never
       // be the only thing standing between the player and three rooms.
       if (m.cloisterOpen) {
-        for (final p in kPlaguePotions) {
-          m.triage.open(p.wardId!);
+        for (final w in kMonasteryWardIds) {
+          m.triage.open(w);
         }
       }
       return;
@@ -1140,16 +1106,17 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       // CATCH UP. The walk is a cinematic, not the mechanism — whatever it
       // did not reach still opens, so a parade cut short by anything at all
       // cannot leave a ward sealed for the rest of the run.
-      for (final d in doors) {
-        m.triage.open(d.$1);
+      for (final w in kMonasteryWardIds) {
+        m.triage.open(w);
       }
     }
   }
 
-  /// The three plague doors, left to right along the cloister, each with the
-  /// ward it belongs to — the parade has to know WHICH seal it is breaking.
+  /// EVERY ward door, left to right along the cloister, each with the ward
+  /// it belongs to — the parade has to know which seal it is breaking, and
+  /// it breaks all of them including the dead-house.
   List<(String, Offset)> _paradeDoors(DungeonRoom walk) {
-    final wards = {for (final p in kPlaguePotions) p.wardId};
+    final wards = kMonasteryWardIds.toSet();
     final out = <(String, Offset)>[
       for (final d in walk.doors)
         if (wards.contains(d.targetRoomId))
@@ -4572,9 +4539,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   ///
   /// Two jobs. It fills a room that had four taps taken out of it and was
   /// left as one pot in a big dark box. And it is the other half of the
-  /// deduction: the ward's board names the ingredients, and this names their
-  /// effects — so a player who has read both knows not just WHAT to mix but
-  /// WHY that pair answers that plague. Neither surface states a method.
+  /// deduction: the ward's board says what the answer must DO, and this says
+  /// what the house has to do it with. Three names against three riddles —
+  /// the crossing is left to the player, which is why the verbs came off.
   void _renderLarder(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
     final y = b.top + 78;
@@ -4634,21 +4601,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         ),
         Paint()..color = _venomBronzeLit.withValues(alpha: 0.85),
       );
+      // THE JAR IS NAMED AND NOTHING ELSE. It carried its verb underneath —
+      // SICKENS, GROWS, SLOWS — which made the shelf a lookup table and the
+      // riddles a matching exercise. Plants grow and mud slows without being
+      // told; the clue over each ward and the three names here are enough,
+      // and the inference is the puzzle.
       _drawTinyLabel(canvas, Offset(at.dx, jar.top - 26), el.toUpperCase());
-      _drawTinyLabel(
-        canvas,
-        Offset(at.dx, jar.bottom + 12),
-        _larderVerb(el).toUpperCase(),
-      );
     }
-  }
-
-  /// The single word off the front of the ingredient's line — the label has
-  /// to fit on a jar, and the sentence is what the pot says out loud.
-  String _larderVerb(String element) {
-    final line = kPotionIngredientEffect[element] ?? '';
-    final cut = line.indexOf(' ');
-    return cut <= 0 ? line : line.substring(0, cut);
   }
 
   /// How much of this element the party has already poured away, 0 → 1.

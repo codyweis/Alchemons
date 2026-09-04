@@ -267,11 +267,11 @@ void main() {
 
         expect(
           bursts.length,
-          kPlaguePotions.length,
+          kMonasteryWardIds.length,
           reason:
-              'one sheet of wax per plague door, and it is seen coming '
-              'off — three doors opening silently off screen is not a '
-              'cinematic, it is a flag being set',
+              'one sheet of wax per WARD door — the dead-house included, '
+              'since it is waxed like the rest now. A door opening silently '
+              'off screen is not a cinematic, it is a flag being set',
         );
         expect(
           doors.length,
@@ -288,9 +288,7 @@ void main() {
           g.update(1 / 60);
         }
         expect(g.followRoomId, isNull);
-        for (final p in kPlaguePotions) {
-          expect(g.monastery.triage.opened, contains(p.wardId));
-        }
+        expect(g.monastery.triage.opened, containsAll(kMonasteryWardIds));
       });
     });
 
@@ -304,13 +302,11 @@ void main() {
       _press(g, 'Poison', 'ambulatory', _font);
       g.monastery.parade = -1; // the shot never happens
       g.update(1 / 60);
-      for (final p in kPlaguePotions) {
-        expect(
-          g.monastery.triage.opened,
-          contains(p.wardId),
-          reason: '${p.wardId} sealed with the vial already poured',
-        );
-      }
+      expect(
+        g.monastery.triage.opened,
+        containsAll(kMonasteryWardIds),
+        reason: 'a ward left sealed with the vial already poured',
+      );
     });
 
     test('nothing can be woken until the font is poured', () {

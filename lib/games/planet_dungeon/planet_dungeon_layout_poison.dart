@@ -17,7 +17,7 @@
 // inner squints. Every ward therefore has two approaches — the clean
 // corridor, or straight through your neighbour's contagion — which is what
 // makes the Mud mane's trail worth carrying. The charnel at the far end is
-// the exception: the monks bricked it shut, so it has no squint at all.
+// the exception: it has no squint at all, so the cloister is its only way in.
 // Nothing here is a spoke off a court: the ambulatory is a WALK, the wards
 // are its stations, and the crypt hangs under whichever ward you gave up.
 //
@@ -318,10 +318,9 @@ class WardCell {
   /// ever opened in the ward that was surrendered (§5.5 vault trick).
   final Offset oubliette;
 
-  /// The charnel is bricked, not waxed: only a Lava HORN breaches it (§4
-  /// hard gate). A party without one simply cannot open this ward, which
-  /// makes it their surrender — the gate SHAPES the triage instead of
-  /// blocking a star.
+  /// Kept for the render's benefit only. Nothing is bricked any more: the
+  /// charnel was, behind a Plant HORN, and that door went when the font
+  /// started opening every seal at once.
   final bool bricked;
 
   const WardCell({
@@ -608,12 +607,15 @@ WardTriage rollWardTriage([Random? rng]) {
 ///      forfeit. Success: the cross goes up.
 ///  2 · **Blightfang** — patient zero, in the crypt under the ward you let go.
 ///
-/// Family gates (§4, both tied to entry slots, neither blocking a star):
-///  · `ward_charnel_brick` — **Plant HORN**. The bricked dead-house. A root
-///    put through a joint is what actually takes a wall apart, and it must be
-///    an element the pot uses: the summons asks for exactly Poison, Plant and
-///    Mud, because those three are the only things the cauldron drinks.
-///  · `ward_squint` — **Mud MANE**. The inner squints between wards: only a
+/// Family gates (§4, tied to an entry slot, blocking no star):
+///  · `ward_squint` — **Mud MANE**.
+///
+/// There used to be a second — a Plant HORN through the dead-house's brick.
+/// It went when the lustral font took over the seals: the parade says every
+/// seal in the cloister lets go, and a fourth door still sitting there waxed
+/// afterwards made that a lie. The summons still asks for exactly Poison,
+/// Plant and Mud, because those three are the only things the cauldron
+/// drinks — the larder is the party requirement now, not a gate. The inner squints between wards: only a
 ///    trail-layer crosses a live ward with a brew still good. The ambulatory
 ///    reaches every ward regardless, so this buys a shortcut, not a star.
 const DungeonLayout poisonLayout = DungeonLayout(
@@ -648,7 +650,7 @@ const DungeonLayout poisonLayout = DungeonLayout(
   // has nothing to mix.
   riddle: [
     'Send me Poison, to turn a thing against its own body;',
-    'a Plant Horn, to put a root through my brick and close a sound;',
+    'Plant, to close a sound and to take root in what is left;',
     'and a Mud Mane, to leave a clean road, and to slow what runs on it.',
   ],
   primer: [
@@ -656,12 +658,6 @@ const DungeonLayout poisonLayout = DungeonLayout(
     'Any alchemon has two brews in it. Three of them, three brews, no spare.',
   ],
   familyGates: [
-    DungeonFamilyGate(
-      objectId: 'ward_charnel_brick',
-      element: 'Plant',
-      family: 'Horn',
-      hintLine: 'Only a Plant horn roots this brick apart',
-    ),
     DungeonFamilyGate(
       objectId: 'ward_squint',
       element: 'Mud',
@@ -726,7 +722,7 @@ const DungeonLayout poisonLayout = DungeonLayout(
           // you straight through into the lazar crypt.
           targetSpawn: Offset(280, 380),
         ),
-        // The bricked one (Lava HORN — §4 hard gate).
+        // The dead-house. Waxed like the others, and opened by the font.
         DungeonDoor(
           rect: Rect.fromLTWH(1110, 0, 110, 24),
           chromeless: true, // sealed with wax, not locked with a key
@@ -918,7 +914,6 @@ const DungeonLayout poisonLayout = DungeonLayout(
         censer: Offset(140, 120),
         sacristy: Offset(450, 110),
         oubliette: Offset(280, 310),
-        bricked: true,
       ),
     ),
 
