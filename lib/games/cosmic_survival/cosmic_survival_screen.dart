@@ -823,7 +823,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             ),
             child: const Row(
               children: [
-                Icon(AppIcons.warning_amber_rounded, size: 16, color: _C.danger),
+                Icon(
+                  AppIcons.warning_amber_rounded,
+                  size: 16,
+                  color: _C.danger,
+                ),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1187,9 +1191,17 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     });
   }
 
+  bool _exiting = false;
+
   void _exit() {
+    // Once, and never off the bottom of the stack. Belt and braces beside
+    // the `didPop` guard above: a screen that can empty the navigator is a
+    // black screen with no error and nothing in the log.
+    if (_exiting || !mounted) return;
+    _exiting = true;
     unawaited(context.read<AudioController>().playHomeMusic());
-    Navigator.of(context).pop();
+    final nav = Navigator.of(context);
+    if (nav.canPop()) nav.pop();
   }
 
   void _togglePauseMenu() {
@@ -1451,7 +1463,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(AppIcons.insights_rounded, color: _C.teal, size: 20),
+                  const Icon(
+                    AppIcons.insights_rounded,
+                    color: _C.teal,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -1577,7 +1593,14 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (_, __) {
+      onPopInvokedWithResult: (didPop, _) {
+        // DID IT ALREADY POP? Then there is nothing to decide. Without this
+        // the screen popped TWICE and took the home screen with it, leaving
+        // an empty navigator and a black screen: back press arrives with
+        // didPop false, `_exit` calls `Navigator.pop`, and that pop comes
+        // straight back through this callback with didPop true and pops
+        // again. Every other PopScope in this app guards on it.
+        if (didPop || !mounted) return;
         unawaited(_handleBackPressed());
       },
       child: Scaffold(
@@ -2883,8 +2906,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                   appliedPowerUps:
                                       companionHistory[index] ?? const [],
                                   powerUps: game.powerUps,
-                                  vineFeedCount:
-                                      game.maskPlantFeedCount(index),
+                                  vineFeedCount: game.maskPlantFeedCount(index),
                                   onPowerUpTap: (entry) => _showPowerUpInfo(
                                     entry.def,
                                     game.powerUps,
@@ -4171,6 +4193,7 @@ class _PauseCompanionCard extends StatelessWidget {
   final PowerUpState powerUps;
   final ValueChanged<AppliedPowerUp> onPowerUpTap;
   final VoidCallback onTap;
+
   /// Mask+Plant only — current vine feed count for the slot
   /// (0–100). Ignored for other families.
   final int vineFeedCount;
@@ -4291,32 +4314,21 @@ class _PauseCompanionCard extends StatelessWidget {
               children: [
                 _MiniReadout(
                   label: 'ATK',
-                  value: live != null
-                      ? '${live.physAtk}'
-                      : '$basePhysAtk',
+                  value: live != null ? '${live.physAtk}' : '$basePhysAtk',
                 ),
                 _MiniReadout(
                   label: 'ELEM',
-                  value: live != null
-                      ? '${live.elemAtk}'
-                      : '$baseElemAtk',
+                  value: live != null ? '${live.elemAtk}' : '$baseElemAtk',
                 ),
                 _MiniReadout(
                   label: 'PDEF',
-                  value: live != null
-                      ? '${live.physDef}'
-                      : '$basePhysDef',
+                  value: live != null ? '${live.physDef}' : '$basePhysDef',
                 ),
                 _MiniReadout(
                   label: 'EDEF',
-                  value: live != null
-                      ? '${live.elemDef}'
-                      : '$baseElemDef',
+                  value: live != null ? '${live.elemDef}' : '$baseElemDef',
                 ),
-                _MiniReadout(
-                  label: 'SPD',
-                  value: effSpeed.toStringAsFixed(1),
-                ),
+                _MiniReadout(label: 'SPD', value: effSpeed.toStringAsFixed(1)),
                 _MiniReadout(
                   label: 'CRIT',
                   value: live != null
@@ -4481,9 +4493,7 @@ List<(String, String)> _liveStateEntries(
     out.add(('Frost charge', timer(live.kinIceChargeTimer)));
   }
   // Kin+Lightning charge
-  if (fam == 'kin' &&
-      el == 'Lightning' &&
-      live.kinLightningChargeTimer > 0) {
+  if (fam == 'kin' && el == 'Lightning' && live.kinLightningChargeTimer > 0) {
     out.add(('Tesla charge', timer(live.kinLightningChargeTimer)));
   }
   return out;
