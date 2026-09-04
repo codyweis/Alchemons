@@ -337,6 +337,12 @@ class VenomMonastery {
   // veins along the floor and leaves them there. All three lash with
   // tendrils, because all three ARE tendrils.
 
+  /// COMING APART, 1 → 0. The last gate closes and it does not simply
+  /// vanish into a reliquary: it throws every vein out at once, holds, and
+  /// then collapses in on itself.
+  double dying = 0;
+  Offset dyingAt = Offset.zero;
+
   /// THE UNFURL, 1 → 0. It lands drawn in tight from the doorway and opens
   /// all the way back out where it stands — veins, tendrils and all — before
   /// it moves or throws anything. The arrival is the one look you get.
@@ -475,6 +481,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.marks.clear();
     m.gateFlash = 0;
     m.unfurl = 0;
+    m.dying = 0;
     m.lashes.clear();
     m.attackCd = 0;
     m.waves.clear();
@@ -513,6 +520,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (t.isEmpty) return const [];
     final ward = room.ward;
     if (ward != null) {
+      // THE DEAD-HOUSE HAS NO PLAGUE IN IT. It is the way down to Blightfang
+      // and nothing else — but it was still drawing a strain, so it looked
+      // exactly like a fourth plague sitting at the end of the corridor with
+      // no board and no brew. Reported from play as "what is the fourth
+      // plague on the far right for".
+      if (ward.id == kCryptWard) return const [];
       if (!t.opened.contains(ward.id) || t.cured.contains(ward.id)) {
         return const [];
       }
@@ -1117,7 +1130,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// Is [enemy] the plague body, closed up behind its mechanic? Nothing
   /// reaches it while this is true, which is the whole shape of the fight.
   bool venomGated(CosmicSurvivalEnemy enemy) {
-    if (!monastery.gated) return false;
+    if (!monastery.gated && monastery.dying <= 0) return false;
     return identical(enemy, _plagueBody);
   }
 
@@ -1444,12 +1457,40 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final m = monastery;
     final id = m.fighting;
     if (id == null) return;
-    if (currentRoomId != 'ambulatory') return;
+    // IT WAITS. While the party is somewhere else the plague stands where it
+    // landed rather than charging around a room nobody is looking at — which
+    // is also how it used to end up pressed against a wall by the time you
+    // walked in.
+    if (currentRoomId != 'ambulatory') {
+      final waiting = m.body;
+      if (waiting != null && !waiting.isDead) {
+        waiting.position = m.unfurlAt;
+        waiting.flightSteering?.velocity = Offset.zero;
+      }
+      return;
+    }
     final potion = brewById(id);
     if (potion == null) {
       m.fighting = null;
       return;
     }
+    // ── COMING APART ── nothing else runs while it does.
+    if (m.dying > 0) {
+      m.dying = max(0.0, m.dying - dt / _kDeathSeconds);
+      final b = m.body;
+      if (b != null) {
+        b.position = m.dyingAt;
+        b.flightSteering?.velocity = Offset.zero;
+        b.hp = 1;
+      }
+      m.lashes.clear();
+      if (m.dying <= 0) {
+        b?.isDead = true;
+        _plagueFalls(potion);
+      }
+      return;
+    }
+
     // ── IT CANNOT DIE ON A BAR ──
     //
     // The bug that made the whole fight invisible on a real device. Every
@@ -1510,6 +1551,107 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       body.hp = body.maxHp;
       _shake = 5.0;
       speakConsequence('It closes over. The bar comes back.', 3.2);
+    }
+  }
+
+  /// COMING APART. Three beats in one shot: every vein thrown out at once,
+  /// a hold while the light drains out of them, and the whole thing falling
+  /// in on its own core.
+  ///
+  /// It used to blink out of existence and leave a reliquary, which for a
+  /// thing with three health bars and its own mechanic is no ending at all.
+  void _drawPlagueDeath(
+    Canvas canvas,
+    PlaguePotion potion,
+    Offset at,
+    Color hue,
+    double k,
+  ) {
+    final seed = potion.id.codeUnits.fold<int>(
+      53,
+      (a, c) => (a * 31 + c) % 30011,
+    );
+
+    // ── 1. THE THROW. Everything flung to full stretch and beyond.
+    final throwK = (k / 0.28).clamp(0.0, 1.0);
+    // ── 2. THE COLLAPSE. It pulls in past nothing.
+    final fall = ((k - 0.42) / 0.58).clamp(0.0, 1.0);
+    final span =
+        (1.0 + 0.45 * Curves.easeOutBack.transform(throwK)) *
+        (1 - Curves.easeInCubic.transform(fall));
+
+    if (span > 0.02) {
+      _drawPlagueForm(
+        canvas,
+        at,
+        _kPlagueReach,
+        Color.lerp(hue, const Color(0xFF2A2620), fall * 0.75)!,
+        seed: seed,
+        grow: span,
+      );
+    }
+
+    // The core going white as it gives, then out.
+    final core = _kPlagueRadius * 0.55 * (1 + 0.5 * throwK) * (1 - fall);
+    if (core > 0.5) {
+      canvas.drawCircle(
+        at,
+        core,
+        Paint()
+          ..color = Color.lerp(
+            hue,
+            Colors.white,
+            (throwK * 0.7 * (1 - fall)).clamp(0.0, 1.0),
+          )!,
+      );
+    }
+
+    // ── 3. WHAT IS LET GO. Motes off it, thrown outward and falling dark.
+    for (var i = 0; i < 30; i++) {
+      final a = i * 2.399963;
+      final t = ((k * 1.25) - (i % 6) * 0.05).clamp(0.0, 1.0);
+      if (t <= 0) continue;
+      final d = _kPlagueReach * 0.20 + _kPlagueReach * 0.9 * t;
+      canvas.drawCircle(
+        at + Offset(cos(a), sin(a) * 0.8) * d + Offset(0, 40 * t * t),
+        (3.4 - 2.6 * t).clamp(0.4, 3.4),
+        Paint()
+          ..color = Color.lerp(
+            hue,
+            const Color(0xFF1A1712),
+            t,
+          )!.withValues(alpha: 0.85 * (1 - t)),
+      );
+    }
+
+    // The shockwave off the moment it gives.
+    if (k > 0.28 && k < 0.75) {
+      final r = ((k - 0.28) / 0.47).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        at,
+        40 + 240 * r,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 10 * (1 - r)
+          ..color = hue.withValues(alpha: 0.42 * (1 - r)),
+      );
+    }
+
+    // A stain left on the floor where it stood.
+    if (fall > 0) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: at + const Offset(0, 10),
+          width: 150 * fall,
+          height: 54 * fall,
+        ),
+        Paint()
+          ..color = Color.lerp(
+            hue,
+            const Color(0xFF0A0C08),
+            0.7,
+          )!.withValues(alpha: 0.5 * fall),
+      );
     }
   }
 
@@ -1928,8 +2070,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       intensity: 1.2,
     );
     if (m.bars <= 0) {
-      body.isDead = true;
-      _plagueFalls(potion);
+      // NOT DEAD YET. It comes apart on screen first — see `_tickPlagueDeath`.
+      m
+        ..dying = 1.0
+        ..dyingAt = body.position;
+      cutTo(currentRoomId, body.position, hold: _kDeathSeconds + 0.3);
       return;
     }
     body.hp = body.maxHp;
@@ -1949,7 +2094,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // house's exhaustion, so brewing the next one is a fresh decision.
     m.drained.clear();
     final walk = layout.rooms['ambulatory'];
-    final at = walk == null ? m.invadeTo : _relicRestingPlace(walk, m.invadeTo);
+    final fell = m.dyingAt == Offset.zero ? m.invadeTo : m.dyingAt;
+    final at = walk == null ? fell : _relicRestingPlace(walk, fell);
     m.relicsDropped.add(potion.id);
     m.relicAt[potion.id] = at;
     _shake = 5.0;
@@ -3080,6 +3226,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// The beat it takes to open out on arrival.
   static const double _kUnfurlSeconds = 1.5;
 
+  /// How long it takes to come apart.
+  static const double _kDeathSeconds = 2.2;
+
   /// How often the plague does something to you.
   static const double _kAttackEvery = 2.6;
 
@@ -4156,7 +4305,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           ..strokeWidth = 2
           ..color = _venomBronze.withValues(alpha: cured ? 0.9 : 0.55),
       );
-      if (ward.id == t.surrendered) {
+      if (ward.id == kCryptWard) {
         _renderOubliette(canvas, ward);
       }
     }
@@ -4675,6 +4824,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final hit = body.hitFlash > 0
         ? Color.lerp(hue, Colors.white, body.hitFlash.clamp(0.0, 1.0))!
         : hue;
+    if (m.dying > 0) {
+      _drawPlagueDeath(canvas, potion, body.position, hue, 1 - m.dying);
+      return;
+    }
     _drawPlagueAttacks(canvas, potion, body, hue);
     // Opening out where it landed: the veins come back to full span here,
     // not somewhere off screen during the crawl.

@@ -951,6 +951,105 @@ void main() {
       expect(g.plagueOpenFraction(), closeTo(1.0, 0.01));
     });
 
+    testWidgets('a plague does not teleport while you are in the ward', (
+      tester,
+    ) async {
+      // The one the player kept seeing. A per-frame clamp pulls any enemy
+      // outside the PARTY'S room back inside it — and a plague stands in the
+      // cloister from the moment its crawl ends, while the party is still in
+      // the ward watching. It was dragged inside the ward's bounds every
+      // frame and was somewhere else entirely by the time they walked out.
+      await tester.runAsync(() async {
+        final g = _game();
+        final p = kPlaguePotions.first;
+        _brewAndWake(g, p);
+        for (var i = 0; i < 60 * 14 && g.monastery.invading; i++) {
+          g.update(1 / 60);
+        }
+        expect(g.currentRoomId, p.wardId);
+        // MEASURE AGAINST WHERE THE CRAWL ENDED, not against wherever the
+        // body happens to be after one update. The first version of this
+        // test took its baseline a frame too late — by then the clamp had
+        // already dragged the plague inside the ward, and all the test then
+        // proved was that it stayed dragged.
+        final arena = g.monastery.invadeTo;
+        final ward = poisonLayout.rooms[p.wardId!]!.bounds;
+        expect(
+          ward.inflate(80).contains(arena),
+          isFalse,
+          reason:
+              'the arena has to be outside the ward for this to prove '
+              'anything — the clamp only fires on enemies out of bounds',
+        );
+
+        for (var i = 0; i < 60 * 8; i++) {
+          g.update(1 / 60);
+          expect(
+            (g.monastery.body!.position - arena).distance,
+            lessThan(2),
+            reason: 'it waits in the cloister where the crawl left it',
+          );
+        }
+      });
+    });
+
+    test('a plague comes apart before it leaves a reliquary', () {
+      final g = _game();
+      final p = kPlaguePotions.first;
+      _brewAndWake(g, p);
+      g.currentRoomId = 'ambulatory';
+      for (var i = 0; i < 60 * 14 && g.monastery.invading; i++) {
+        g.update(1 / 60);
+      }
+      // Break all three bars.
+      var guard = 0;
+      while (g.monastery.bars > 0 && guard++ < 200) {
+        if (!g.monastery.gated) {
+          _emptyTheBar(g);
+          continue;
+        }
+        _workTheGate(g);
+      }
+      expect(
+        g.monastery.dying,
+        greaterThan(0),
+        reason: 'the last bar starts a death, not an instant reliquary',
+      );
+      expect(
+        g.monastery.relicsDropped,
+        isEmpty,
+        reason: 'nothing drops while it is still coming apart',
+      );
+      expect(
+        g.venomGated(g.monastery.body!),
+        isTrue,
+        reason: 'and nothing can hit it while it does',
+      );
+      for (var i = 0; i < 60 * 4 && g.monastery.dying > 0; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.monastery.slain, contains(p.id));
+      expect(g.monastery.relicsDropped, contains(p.id));
+    });
+
+    test('the dead-house holds no plague', () {
+      // It is the way down to Blightfang and nothing else. With a strain in
+      // it, it read as a fourth plague at the end of the corridor with no
+      // board and no brew to wake it.
+      final g = _game();
+      _openTheCloister(g);
+      g.currentRoomId = kCryptWard;
+      for (var i = 0; i < 60; i++) {
+        g.update(1 / 60);
+      }
+      expect(
+        kPlaguePotions.any((p) => p.wardId == kCryptWard),
+        isFalse,
+        reason: 'no brew wakes it, so nothing should be sleeping in it',
+      );
+      expect(g.monastery.fighting, isNull);
+    });
+
     test('a plague scales with the campaign, like a guardian', () {
       // A plague on the seventeenth dungeon has to be a boss, not the speed
       // bump it was on the first.

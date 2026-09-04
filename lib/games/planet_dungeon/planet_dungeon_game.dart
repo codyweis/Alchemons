@@ -4299,8 +4299,15 @@ class PlanetDungeonGame extends FlameGame {
         }
       }
 
-      if (!currentRoom.bounds.inflate(80).contains(enemy.position)) {
-        enemy.position = _clampToBounds(enemy.position, currentRoom);
+      // KEEP IT IN ITS OWN ROOM, which is not always the party's. A plague
+      // stands in the cloister from the moment its crawl ends, and the party
+      // is still in the ward watching — clamping it to the room THEY are in
+      // dragged it inside the ward's bounds, and it was somewhere else
+      // entirely by the time they walked out. Reported from play as a
+      // teleport at the end of the crawl.
+      final home = _enemyHomeRoom(enemy);
+      if (!home.bounds.inflate(80).contains(enemy.position)) {
+        enemy.position = _clampToBounds(enemy.position, home);
       }
     }
   }
@@ -8900,6 +8907,16 @@ class PlanetDungeonGame extends FlameGame {
   /// around the arrival point (in the NEW room's coordinates) so they swoop
   /// back in rather than getting clamped against a wall in stale coordinates.
   /// The guardian never leaves its arena.
+  /// The room an enemy belongs in. Everything chases the party and so lives
+  /// wherever they are — except a Poison plague, which owns the cloister and
+  /// waits there whether you are in it or not.
+  DungeonRoom _enemyHomeRoom(CosmicSurvivalEnemy enemy) {
+    if (_isVenom && identical(enemy, monastery.body)) {
+      return layout.rooms['ambulatory'] ?? currentRoom;
+    }
+    return currentRoom;
+  }
+
   void _carryPursuersThroughDoor(Offset arrival) {
     var k = 0;
     for (final e in combatEnemies) {
