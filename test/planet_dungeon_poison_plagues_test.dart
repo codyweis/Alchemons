@@ -6,6 +6,8 @@
 // pressed anything. So this one presses. It moves a creature to the pot,
 // calls the verb the button calls, and never writes to `monastery` itself.
 
+import 'dart:ui' as ui;
+
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
@@ -166,6 +168,62 @@ void main() {
         reason: 'the second Plant is refused — only Poison doubles',
       );
       expect(h.monastery.carriedPotion, isNull);
+    });
+
+    testWidgets('the font answers with a cinematic and no words', (
+      tester,
+    ) async {
+      // THE ONE MOMENT WORTH A CAMERA on this planet, and it says nothing.
+      // Riding it frame by frame is the only way to know it happens: the
+      // parade drives `followAt` itself, every frame, while a cut is holding
+      // — so a hold that expired early, or a painter that read the party's
+      // room instead of the followed one, would show an empty corridor and
+      // no test that only inspects state would notice.
+      await tester.runAsync(() async {
+        final g = _game();
+        _openTheCloister(g);
+        expect(g.monastery.parade, isNot(-1), reason: 'the parade started');
+
+        final doors = <Offset>{};
+        final bursts = <Offset>{};
+        var frames = 0;
+        while (frames++ < 60 * 12 && g.monastery.parade >= 0) {
+          g.update(1 / 60);
+          if (g.followAt != null) doors.add(g.followAt!);
+          if (g.monastery.sealBurst > 0) {
+            bursts.add(g.monastery.sealBurstAt);
+          }
+          // Render every frame: the camera is looking at doors the party is
+          // nowhere near.
+          final rec = ui.PictureRecorder();
+          g.render(ui.Canvas(rec));
+          rec.endRecording();
+        }
+
+        expect(
+          bursts.length,
+          kPlaguePotions.length,
+          reason:
+              'one sheet of wax per plague door, and it is seen coming '
+              'off — three doors opening silently off screen is not a '
+              'cinematic, it is a flag being set',
+        );
+        expect(
+          doors.length,
+          greaterThan(3),
+          reason: 'the shot slides between doors rather than snapping',
+        );
+        expect(
+          g.currentRoomId,
+          'ambulatory',
+          reason: 'the PARTY never moved — only the view did',
+        );
+        // And it gives the view back rather than stranding the camera.
+        for (var i = 0; i < 60 * 6; i++) {
+          g.update(1 / 60);
+        }
+        expect(g.followRoomId, isNull);
+      });
     });
 
     test('nothing can be woken until the font is poured', () {

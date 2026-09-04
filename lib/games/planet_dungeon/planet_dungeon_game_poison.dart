@@ -131,6 +131,13 @@ class VenomMonastery {
   /// The font taking the vial, 1 → 0.
   double lustral = 0;
 
+  /// THE SEALS COMING OFF, one door at a time — 0 → 1 across the whole
+  /// parade. The one moment on this planet that is worth a camera, and it
+  /// says nothing: three doors, three sheets of wax, and the corridor is
+  /// open. Words would only be describing what is already on screen.
+  double parade = -1;
+  int paradeDoor = -1;
+
   /// Brews standing in their bottles on the laboratory rack. A brew is made
   /// ONCE and lives in glass until it is poured — so a wrong pour can hand
   /// it back without the run losing a hand for it.
@@ -270,6 +277,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.benchPick = 0;
     m.cloisterOpen = false;
     m.lustral = 0;
+    m.parade = -1;
+    m.paradeDoor = -1;
     m.bottled.clear();
     m.relicsDropped.clear();
     m.relicAt.clear();
@@ -496,6 +505,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (m.lustral > 0) {
       m.lustral = max(0.0, m.lustral - dt / _kLustralSeconds);
     }
+    _tickSealParade(dt, room);
     m.clock += dt;
     _tickStrains(a, room, dt);
 
@@ -798,11 +808,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final m = monastery;
     final held = m.carriedPotion;
     if (held != null) {
+      // No line. The bottle leaves the hand and lands on the bench, both
+      // on screen, and the HUD's BREW readout empties.
       m.carriedPotion = null;
-      speakConsequence(
-        '${brewById(held)?.name ?? 'The bottle'} goes back on the bench.',
-        3.0,
-      );
       return true;
     }
     if (m.bottled.isEmpty) {
@@ -815,7 +823,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m
       ..benchPick = (m.benchPick + 1) % ready.length
       ..carriedPotion = ready[i].id;
-    speakConsequence('${ready[i].name} comes off the bench.', 3.0);
     return true;
   }
 
@@ -865,14 +872,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       intensity: 0.8,
     );
 
-    if (m.pot.length < 2) {
-      speakConsequence(
-        '${a.member.displayName} gives to the pot. ${_capitalisePoison(el)} '
-        '${kPotionIngredientEffect[el]}.',
-        3.6,
-      );
-      return true;
-    }
+    // NO LINE FOR A GIVE. The pot takes the colour, the jar on the shelf
+    // drops by one, and both are on screen — saying it as well is the same
+    // fact three times, eight times a run.
+    if (m.pot.length < 2) return true;
 
     // Two in: it either makes something or it does not.
     final made = kAllBrews.where(
@@ -910,10 +913,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m
       ..reaction = 1.0
       ..reactionKind = potion.pot;
-    speakConsequence(
-      '${_reactionLine(potion)} ${potion.name} stands in the glass.',
-      4.4,
-    );
+    // The reaction is the sentence. All the words add is the NAME, which is
+    // the one thing a picture cannot give you.
+    speakConsequence(potion.name, 2.6);
     _spawnAlchemyBurst(
       still.cistern,
       producedElement: switch (potion.pot) {
@@ -928,19 +930,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     );
     return true;
   }
-
-  /// What the pot does, in words, to match what it does on screen.
-  String _reactionLine(PlaguePotion potion) => switch (potion.pot) {
-    CauldronReaction.pure =>
-      'It goes clear, and perfectly still. Nothing in this house has been '
-          'still.',
-    CauldronReaction.bloom =>
-      'Flowers come up out of the surface, open, and let go of their spores.',
-    CauldronReaction.climb =>
-      'It goes black and thick, and starts climbing the glass on its own.',
-    CauldronReaction.rot =>
-      'Roots thread up through the sludge, and rot away as fast as they grew.',
-  };
 
   String _capitalisePoison(String s) =>
       s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
@@ -999,13 +988,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     for (final p in kPlaguePotions) {
       m.triage.open(p.wardId!);
     }
-    cutTo(room.id, at, hold: _kLustralSeconds + 0.4);
+    m.parade = 0;
+    m.paradeDoor = -1;
+    // The camera holds the font for the pour, then walks the doors itself.
+    cutTo(room.id, at, hold: _kLustralSeconds + _kParadeSeconds + 0.5);
     _shake = 6.0;
-    speakConsequence(
-      'The vial goes into the font and the water takes it. All down the '
-      'cloister the wax lets go at once — every ward is open.',
-      5.2,
-    );
     _spawnAlchemyBurst(
       at,
       producedElement: 'Poison',
@@ -1014,6 +1001,71 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       intensity: 1.3,
     );
     return true;
+  }
+
+  /// THE PARADE. After the font, the camera leaves the party and walks the
+  /// corridor, stopping at each ward door as its wax lets go.
+  ///
+  /// WORDLESS ON PURPOSE. This used to be one long sentence explaining that
+  /// every seal had opened, which is a caption for a thing the player could
+  /// simply have been shown. Three doors, three sheets of wax coming off,
+  /// and the camera back where it started.
+  void _tickSealParade(double dt, DungeonRoom room) {
+    final m = monastery;
+    if (m.parade < 0) return;
+    // The pour finishes first — the doors do not move until the font has.
+    if (m.lustral > 0) return;
+    final walk = layout.rooms['ambulatory'];
+    if (walk == null) {
+      m.parade = -1;
+      return;
+    }
+    final doors = _paradeDoors(walk);
+    if (doors.isEmpty) {
+      m.parade = -1;
+      return;
+    }
+
+    m.parade += dt / _kParadeSeconds;
+    final leg = 1.0 / doors.length;
+    final i = min(doors.length - 1, (m.parade / leg).floor());
+
+    // Arriving at a door blows its wax out, once.
+    if (i != m.paradeDoor) {
+      m.paradeDoor = i;
+      m
+        ..sealBurst = 1.0
+        ..sealBurstAt = doors[i]
+        ..burstIsSick = false;
+      _shake = 4.0;
+    }
+    // Slide between doors rather than snapping, so it reads as one shot
+    // down the length of the cloister.
+    final within = ((m.parade - i * leg) / leg).clamp(0.0, 1.0);
+    final from = i == 0 ? (walk.lustralFont ?? doors[0]) : doors[i - 1];
+    followRoomId = walk.id;
+    followAt = Offset.lerp(
+      from,
+      doors[i],
+      Curves.easeInOutCubic.transform(within),
+    );
+
+    if (m.parade >= 1.0) {
+      m.parade = -1;
+      m.paradeDoor = -1;
+    }
+  }
+
+  /// The three plague doors, left to right along the cloister.
+  List<Offset> _paradeDoors(DungeonRoom walk) {
+    final wards = {for (final p in kPlaguePotions) p.wardId};
+    final out = <Offset>[
+      for (final d in walk.doors)
+        if (wards.contains(d.targetRoomId))
+          Offset(d.rect.center.dx, d.rect.center.dy + 40),
+    ];
+    out.sort((a, b) => a.dx.compareTo(b.dx));
+    return out;
   }
 
   /// GIVE THE BREW TO THE PLAGUE. It wakes, it comes out into the walk, and
@@ -1051,12 +1103,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       ..pour = 1.0
       ..pourPotion = potion.id
       ..pourAt = ward.heart;
-    speakConsequence(
-      '${_capitalisePoison(potion.plague)} drinks ${potion.name} and comes '
-      'awake. It is going out into the walk — and the hands that mixed it '
-      'have nothing left in them until it falls.',
-      5.0,
-    );
+    // The pour plays on the plague and then it crawls out through the door
+    // in front of you. Nothing here needs saying twice.
+    speakConsequence('${_capitalisePoison(potion.plague)} wakes.', 2.8);
     _plagueEntersTheWalk(ward.id, sick: false);
     m.pendingFight = potion.id;
     return true;
@@ -1076,11 +1125,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         // The key, poured on a sleeper. It washes the ward and does nothing
         // else — the cheapest mistake on the planet, and the one the font in
         // the middle of the cloister exists to prevent.
-        speakConsequence(
-          'Pure poison runs off it clean. This is not what the vial is for — '
-          'and the bottle is still full.',
-          4.6,
-        );
+        speakConsequence('It runs off clean. The bottle is still full.', 3.6);
       case CauldronReaction.bloom:
         // Spores off a brew nothing drank: the room fills and it stings.
         spawnWispWave(
@@ -1090,12 +1135,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           unstable: true,
           announce: false,
         );
-        speakConsequence(
-          '${_capitalisePoison(wrong.name)} blooms on a thing that will not '
-          'drink it. The spores come off it and find you instead — and the '
-          'bottle is still full.',
-          4.8,
-        );
+        speakConsequence('It will not drink. The bottle is still full.', 3.6);
       case CauldronReaction.climb:
         // It climbs the wrong host: something comes up out of the floor.
         spawnDungeonEnemy(
@@ -1118,21 +1158,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           damage: 8,
           radius: 11,
         );
-        speakConsequence(
-          '${_capitalisePoison(wrong.name)} climbs the wrong thing. What it '
-          'wakes is not the sleeper — and the bottle is still full.',
-          4.8,
-        );
+        speakConsequence('Wrong sleeper. The bottle is still full.', 3.6);
       case CauldronReaction.rot:
         // The sleeper stirs, and settles. The cheapest of the three, and
         // the loudest tell that you were at the wrong door.
         m.wake = 0;
         m.wakeWard = ward.id;
         speakConsequence(
-          '${_capitalisePoison(sleeper.plague)} turns over in its sleep and '
-          'goes under again. ${_capitalisePoison(wrong.name)} is not what it '
-          'is waiting for — and the bottle is still full.',
-          4.8,
+          'It turns over and goes under. The bottle is still full.',
+          3.6,
         );
     }
     _spawnAlchemyBurst(
@@ -1210,13 +1244,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       particleCount: 26,
       intensity: 1.1,
     );
-    final left = kPlaguePotions.length - m.slain.length;
-    speakConsequence(
-      'It comes apart, and leaves ${potion.relic} on the stones. '
-      '${left == 0 ? 'That is the third.' : '$left still sleeping.'} '
-      'Every hand is rested.',
-      4.8,
-    );
+    // The reliquary drops where it died and the cross has an empty socket
+    // waiting for it. Both are on screen; neither needs narrating.
   }
 
   /// Clear floor in the cloister for a plague to be fought on: away from the
@@ -1305,7 +1334,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       }
       m.carriedRelic = p.id;
       m.relicAt.remove(p.id);
-      speakConsequence('${_capitalisePoison(p.relic)} is lifted.', 3.2);
       return true;
     }
     return false;
@@ -1328,23 +1356,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       intensity: 1.0,
     );
     if (m.relicsPlaced.length < kPlaguePotions.length) {
-      final left = kPlaguePotions.length - m.relicsPlaced.length;
-      speakConsequence(
-        '${_capitalisePoison(potion.relic)} goes into the stone. '
-        '$left socket${left == 1 ? '' : 's'} still empty.',
-        4.0,
-      );
+      // The socket fills and the empty ones stay empty, in plain sight.
       return true;
     }
     // THE CROSS TAKES THE LIGHT.
     m.crossLight = 1.0;
     cutTo(currentRoomId, seal.position, hold: _kCrossLightSeconds + 0.4);
     _shake = 7.0;
-    speakConsequence(
-      'The third goes home and the cross takes light. Three plagues, three '
-      'reliquaries, and the way down is open.',
-      5.4,
-    );
+    // No line: the cut goes to the cross, it takes light, and two stars
+    // announce themselves.
     if (!hasStar(seal.diagnosisStarIndex)) earnStar(seal.diagnosisStarIndex);
     if (!hasStar(seal.triageStarIndex)) earnStar(seal.triageStarIndex);
     return true;
@@ -1494,10 +1514,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final awake = kPlaguePotions.where((p) => m.woken.contains(p.id)).toList();
     if (awake.isNotEmpty) {
       speakConsequence(
-        'The roll is open at one name and the ink is still wet. '
-        '${_capitalisePoison(awake.first.name)} woke something, and it is in '
-        'the walk with you.',
-        4.6,
+        '${_capitalisePoison(awake.first.plague)} is loose.',
+        3.4,
       );
       return true;
     }
@@ -1505,15 +1523,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       speakConsequence('Three struck through. The house owes nothing.', 4.0);
       return true;
     }
-    final left = kPlaguePotions
-        .where((p) => !m.slain.contains(p.id))
-        .map((p) => p.name)
-        .join(', ');
-    speakConsequence(
-      '$down of ${kPlaguePotions.length} struck through. Still on the roll: '
-      '$left.',
-      5.0,
-    );
+    speakConsequence('$down of ${kPlaguePotions.length} struck through.', 3.6);
     return true;
   }
 
@@ -2360,7 +2370,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   static const double _kInvadeSeconds = 5.0;
 
   /// The font taking the vial and the seals letting go down the corridor.
-  static const double _kLustralSeconds = 2.6;
+  static const double _kLustralSeconds = 1.6;
+
+  /// The camera's walk down the three doors after it.
+  static const double _kParadeSeconds = 3.6;
 
   /// The pot's reaction to a pair landing in it, and a pour landing on a
   /// plague. Both are receipts — long enough to read, short enough that a
@@ -2726,9 +2739,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (room.apothecary != null && room.guardian == null && !m.cauldronTold) {
       m.cauldronTold = true;
       speakConsequence(
-        'The pot takes two things and makes one. Poison has four gives in '
-        'it; the others have two, and there is nothing spare in the house.',
-        6.5,
+        'Two in, one out. Poison has four gives; the others have two.',
+        5.5,
       );
       return;
     }
@@ -2741,12 +2753,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         m.slain.contains(potion.first.id)) {
       return;
     }
-    if (!m.symptomTold.add(potion.first.id)) return;
-    speakConsequence(
-      '${_capitalisePoison(potion.first.plague)} sleeps here. '
-      '${potion.first.clue}',
-      5.5,
-    );
+    // NOT SPOKEN. The board over the censer carries the riddle and keeps
+    // carrying it — a popup that says the same thing and then goes away is
+    // strictly worse than a sign that stays up.
+    m.symptomTold.add(potion.first.id);
   }
 
   /// THE CONTAGION COMES UP AS YOU WALK IN.
