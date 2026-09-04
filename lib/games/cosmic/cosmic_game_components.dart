@@ -848,6 +848,14 @@ class ShipComponent {
 // PLANET COMPONENT
 // ─────────────────────────────────────────────────────────
 
+/// Aquaris' moon: how big, how fast, and where its light comes from.
+///
+/// A third the size of the planet, which is the size a moon has to be to
+/// read as a moon in a sky this busy rather than as a passing rock.
+const double _kMoonScale = 0.30;
+const double _kMoonSpeed = 0.22;
+const double _kMoonLightAngle = -2.356; // upper left, as everything here is
+
 class PlanetComponent {
   PlanetComponent({required this.planet});
 
@@ -871,6 +879,9 @@ class PlanetComponent {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
     canvas.drawCircle(pos, planet.particleFieldRadius, ringPaint);
+
+    // ── the moon, far half ── drawn BEFORE the body so it passes behind.
+    if (elem == 'Water') _drawWaterMoon(canvas, pos, r, elapsed, front: false);
 
     // ── per‑element unique body ──
     switch (elem) {
@@ -911,6 +922,9 @@ class PlanetComponent {
       default:
         _drawDefault(canvas, pos, r, color);
     }
+
+    // ── the moon, near half ── after the body, so it passes in front.
+    if (elem == 'Water') _drawWaterMoon(canvas, pos, r, elapsed, front: true);
 
     // ── element label ──
     final tp = TextPainter(
@@ -1415,6 +1429,89 @@ class PlanetComponent {
   }
 
   // ─── WATER: glossy blue sphere ───
+
+  /// AQUARIS HAS A MOON, and the tide dungeon down there runs on its phases.
+  ///
+  /// It orbits properly rather than sitting beside the planet: the far half
+  /// of the ellipse is drawn before the body and the near half after, so it
+  /// goes behind and comes back round. The phase turns with the orbit, since
+  /// the light in this sky comes from the upper left and the moon is lit by
+  /// whatever side of it faces that way.
+  ///
+  /// Deliberately no blur: this is a per-frame painter on a screen that
+  /// already spends heavily on soft edges.
+  void _drawWaterMoon(
+    Canvas c,
+    Offset p,
+    double r,
+    double t, {
+    required bool front,
+  }) {
+    final mr = r * _kMoonScale;
+    final a = t * _kMoonSpeed;
+    // Tilted ellipse, so it reads as an orbit rather than a circle drawn
+    // flat on the screen.
+    final at = p + Offset(cos(a) * r * 1.95, sin(a) * r * 0.62 - r * 0.28);
+    // Coming toward the viewer on the bottom half of the sweep.
+    if ((sin(a) > 0) != front) return;
+
+    // The lit side faces the same corner every planet here is lit from.
+    const lightDir = Offset(-0.707, -0.707);
+    const base = Color(0xFFBFC7D2);
+    const dark = Color(0xFF232A36);
+
+    c.save();
+    c.clipPath(Path()..addOval(Rect.fromCircle(center: at, radius: mr)));
+    c.drawCircle(at, mr, Paint()..color = base);
+
+    // Craters, deterministic so the face does not boil between frames.
+    var seed = 20260904;
+    double rnd() {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    }
+
+    for (var i = 0; i < 7; i++) {
+      final ca =
+          at + Offset((rnd() - 0.5) * mr * 1.5, (rnd() - 0.5) * mr * 1.5);
+      final cr = mr * (0.10 + rnd() * 0.16);
+      c.drawCircle(ca, cr, Paint()..color = const Color(0xFF9AA3B0));
+      c.drawCircle(
+        ca - lightDir * (cr * 0.25),
+        cr * 0.78,
+        Paint()..color = const Color(0xFFA8B1BE),
+      );
+    }
+
+    // THE PHASE. A shadow disc slid along the light axis: centred on the
+    // moon it covers the whole face (new), pushed a diameter down-shadow it
+    // clears it entirely (full), and everything between is a crescent whose
+    // lit limb faces the light.
+    //
+    // The first version used cos() straight as the offset, which pushed the
+    // shadow clear at BOTH ends of the swing: the moon was full when it
+    // should have been new, and there was no dark phase anywhere in the
+    // orbit. It is lit by how far round it is FROM the light, not by the
+    // cosine of it.
+    final illum = (1 - cos(a - _kMoonLightAngle)) / 2;
+    c.drawCircle(
+      at - lightDir * (illum * mr * 2.1),
+      mr * 1.04,
+      Paint()..color = dark.withValues(alpha: 0.92),
+    );
+    c.restore();
+
+    // A thin rim so it keeps its edge against the void.
+    c.drawCircle(
+      at,
+      mr,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFF7F8794).withValues(alpha: 0.7),
+    );
+  }
+
   void _drawWaterPlanet(Canvas c, Offset p, double r, Color col, double t) {
     // Deep ocean base
     _drawSphere(c, p, r, const Color(0xFF0D47A1), highlight: 0.3, shadow: 0.5);
