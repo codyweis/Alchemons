@@ -1027,10 +1027,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (at == null) return false;
     if ((a.position - at).distance > _kMonasteryReach + 14) return false;
     final m = monastery;
-    if (m.cloisterOpen) {
-      _setBlockedHint('The basin is spent — every seal is already open');
-      return true;
-    }
+    // SPENT MEANS GONE. It sinks into the floor once the seals are off, so
+    // it is neither in the way of the fight nor still answering presses in
+    // the middle of it — the cloister is the arena, and the arena wants
+    // clear ground.
+    if (m.cloisterOpen) return false;
     if (m.carriedPotion != kPureVial.id) {
       _setBlockedHint(
         m.carriedPotion == null
@@ -1322,24 +1323,36 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       m.fighting = null;
       return;
     }
-    if (m.gateFlash > 0) m.gateFlash = max(0.0, m.gateFlash - dt / 0.8);
-
-    final body = _plagueBody;
+    // ── IT CANNOT DIE ON A BAR ──
+    //
+    // The bug that made the whole fight invisible on a real device. Every
+    // damage site flags an enemy dead the instant its health reaches zero,
+    // and the combat cull sweeps it out of the list in the SAME frame — so
+    // the first bar running out killed the plague outright and dropped its
+    // reliquary, before the gate had any chance to look at it. Headless
+    // tests never saw it because they set `hp = 0` and let this tick read it
+    // first; a party actually hitting the thing does not take turns.
+    //
+    // So: while a bar remains, a dead body is not a dead plague. It comes
+    // back on one point of health, goes back in the list if the cull took
+    // it, and the gate opens.
+    final body = monastery.body;
     if (body == null) {
-      // Nothing left standing: it is down.
-      _plagueFalls(potion);
+      m.fighting = null;
       return;
     }
-
-    if (!m.gated) {
-      // Draining. It must not actually die on a bar — the gate is what
-      // takes a bar off it.
-      if (body.hp <= 0) {
-        body.hp = 1;
+    if (m.bars > 0 && (body.isDead || body.hp <= 0)) {
+      body
+        ..isDead = false
+        ..hp = 1;
+      if (!combatEnemies.contains(body)) combatEnemies.add(body);
+      if (!m.gated) {
         _openGate(potion, body);
+        return;
       }
-      return;
     }
+    if (m.gateFlash > 0) m.gateFlash = max(0.0, m.gateFlash - dt / 0.8);
+    if (!m.gated) return;
 
     // ── GATED ──
     body.hp = max(1.0, body.hp);
@@ -2643,7 +2656,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   // ── THE FIGHT ────────────────────────────────────────────
   //
   /// One bar's worth of body. Three of these is a plague.
-  static const double _kPlagueBarHp = 78;
+  ///
+  /// The first number here was 78, which a real party erased in well under a
+  /// second — the whole fight was over before anyone saw a gate. The old
+  /// single-body plague was 190 plus three wisps; three bars of 150 is a
+  /// boss, and the gates between them are most of the length anyway.
+  static const double _kPlagueBarHp = 150;
 
   /// How long a gate stands before the bar comes back.
   ///
@@ -3800,6 +3818,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (at == null) return;
     final m = monastery;
     final done = m.cloisterOpen;
+    // Once the parade has finished with it, the font goes down into the
+    // floor and the corridor gets its middle back.
+    if (done && m.parade < 0 && m.lustral <= 0) {
+      _renderSpentFont(canvas, at);
+      return;
+    }
 
     // A FOOTPRINT WIDER THAN A CREATURE. At its first size the whole basin
     // sat behind whoever was standing at it — the same way the cross did —
@@ -3920,6 +3944,39 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
             ..color = const Color(0xFFD8F0E4).withValues(alpha: 0.42 * (1 - r)),
         );
       }
+    }
+  }
+
+  /// WHAT IS LEFT WHERE THE FONT WAS. A ring of wet stone and a drain — so
+  /// the room still remembers what happened there, and a player who comes
+  /// back looking for the basin can see it did not simply vanish.
+  ///
+  /// Flat, and nothing to walk into: the plague is fought over this ground.
+  void _renderSpentFont(Canvas canvas, Offset at) {
+    canvas.drawOval(
+      Rect.fromCenter(center: at + const Offset(0, 24), width: 128, height: 44),
+      Paint()..color = const Color(0xFF14170F).withValues(alpha: 0.8),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at + const Offset(0, 24), width: 128, height: 44),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = _venomBronze.withValues(alpha: 0.28),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at + const Offset(0, 24), width: 34, height: 14),
+      Paint()..color = const Color(0xFF05070A),
+    );
+    for (var i = 0; i < 5; i++) {
+      final a = i * 2 * pi / 5 + 0.4;
+      canvas.drawLine(
+        at + Offset(cos(a), sin(a) * 0.34) * 20 + const Offset(0, 24),
+        at + Offset(cos(a), sin(a) * 0.34) * 58 + const Offset(0, 24),
+        Paint()
+          ..strokeWidth = 1.4
+          ..color = const Color(0xFF2A3325).withValues(alpha: 0.7),
+      );
     }
   }
 

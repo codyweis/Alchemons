@@ -140,16 +140,27 @@ void _fightItOut(PlanetDungeonGame g) {
   var guard = 0;
   while (g.monastery.fighting != null && guard++ < 200) {
     if (!g.monastery.gated) {
-      // Drain the bar. Straight to zero — how the damage arrives is the
-      // combat engine's business, not this test's.
-      final e = g.combatEnemies.firstWhere((e) => !e.isDead);
-      e.hp = 0;
-      g.update(1 / 60);
+      _emptyTheBar(g);
       continue;
     }
     _workTheGate(g);
   }
   expect(g.monastery.fighting, isNull, reason: 'the plague never went down');
+}
+
+/// Empty the current bar THE WAY COMBAT DOES: every damage site in the
+/// engine flags the enemy dead the instant its health reaches zero, and the
+/// cull sweeps it out of the list in the same frame.
+///
+/// Setting `hp = 0` and nothing else is what every test here used to do, and
+/// it is why the fight passed headlessly while dying outright on a phone —
+/// the tick got to read the zero before anything else had reacted to it.
+void _emptyTheBar(PlanetDungeonGame g) {
+  final e = g.monastery.body!;
+  e.hp = 0;
+  e.isDead = true; // as `_damageEnemy` does
+  g.combatEnemies.remove(e); // as the combat cull does
+  g.update(1 / 60);
 }
 
 /// Do whatever this plague's mechanic asks: walk a creature onto each mark
@@ -515,8 +526,7 @@ void main() {
       var guard = 0;
       while (g.monastery.fighting != null && guard++ < 200) {
         if (!g.monastery.gated) {
-          g.combatEnemies.firstWhere((e) => !e.isDead).hp = 0;
-          g.update(1 / 60);
+          _emptyTheBar(g);
           if (g.monastery.gated) gates++;
           continue;
         }
@@ -539,15 +549,29 @@ void main() {
       for (var i = 0; i < 60 * 10 && g.monastery.invading; i++) {
         g.update(1 / 60);
       }
-      final body = g.combatEnemies.firstWhere((e) => !e.isDead);
-      body.hp = 0;
-      g.update(1 / 60);
+      final body = g.monastery.body!;
+      _emptyTheBar(g);
       expect(g.monastery.gated, isTrue);
       expect(
         body.hp,
         greaterThan(0),
         reason: 'a bar running out must not kill it — the gate does that',
       );
+      expect(
+        body.isDead,
+        isFalse,
+        reason:
+            'combat flags it dead the instant the bar empties; the fight has '
+            'to take that back, or the plague drops its reliquary on the '
+            'first bar and there is no fight at all',
+      );
+      expect(
+        g.combatEnemies,
+        contains(body),
+        reason: 'and the cull took it out of the room — put it back',
+      );
+      expect(g.monastery.slain, isEmpty);
+      expect(g.monastery.relicsDropped, isEmpty);
       expect(
         g.venomGated(body),
         isTrue,
@@ -564,9 +588,8 @@ void main() {
       for (var i = 0; i < 60 * 10 && g.monastery.invading; i++) {
         g.update(1 / 60);
       }
-      final body = g.combatEnemies.firstWhere((e) => !e.isDead);
-      body.hp = 0;
-      g.update(1 / 60);
+      final body = g.monastery.body!;
+      _emptyTheBar(g);
       expect(g.monastery.gated, isTrue);
       final barsAtGate = g.monastery.bars;
 
@@ -605,8 +628,7 @@ void main() {
       for (var i = 0; i < 60 * 10 && g.monastery.invading; i++) {
         g.update(1 / 60);
       }
-      g.combatEnemies.firstWhere((e) => !e.isDead).hp = 0;
-      g.update(1 / 60);
+      _emptyTheBar(g);
       expect(g.monastery.gated, isTrue);
       for (final c in g.creatures) {
         c.position = const Offset(60, 60);
@@ -644,8 +666,7 @@ void main() {
         for (var i = 0; i < 60 * 10 && g.monastery.invading; i++) {
           g.update(1 / 60);
         }
-        g.combatEnemies.firstWhere((e) => !e.isDead).hp = 0;
-        g.update(1 / 60);
+        _emptyTheBar(g);
         expect(g.monastery.gated, isTrue);
         expect(
           g.monastery.marks.length,
@@ -657,8 +678,7 @@ void main() {
         var guard = 0;
         while (g.monastery.fighting != null && guard++ < 200) {
           if (!g.monastery.gated) {
-            g.combatEnemies.firstWhere((e) => !e.isDead).hp = 0;
-            g.update(1 / 60);
+            _emptyTheBar(g);
             continue;
           }
           _workTheGate(g);
@@ -666,6 +686,29 @@ void main() {
         _bearRelic(g, p);
       }
       expect(kinds.length, kPlaguePotions.length);
+    });
+
+    test('a spent font stops answering, and gets out of the way', () {
+      // The fight happens in the cloister, and the basin stood in the middle
+      // of it. A fixture that is finished but still has a verb on it is the
+      // exact shape of the bug that swallowed reliquary pickups earlier.
+      final g = _game();
+      _openTheCloister(g);
+      final before = g.monastery.relicsDropped.length;
+      _press(g, 'Poison', 'ambulatory', _font);
+      expect(g.monastery.relicsDropped.length, before);
+      // Drop a reliquary right on top of where the basin was and lift it.
+      final p = kPlaguePotions.first;
+      g.monastery.relicsDropped.add(p.id);
+      g.monastery.relicAt[p.id] = _font;
+      _press(g, 'Poison', 'ambulatory', _font);
+      expect(
+        g.monastery.carriedRelic,
+        p.id,
+        reason:
+            'the spent basin must not answer a press meant for the '
+            'reliquary lying on it',
+      );
     });
 
     test('a stray wisp is not the boss', () {
@@ -715,8 +758,7 @@ void main() {
       // THE BITE. Empty the plague's own bar with wisps still alive. If the
       // fight is finding its body by scanning, it is watching a wisp's
       // health and this does nothing at all.
-      body.hp = 0;
-      g.update(1 / 60);
+      _emptyTheBar(g);
       expect(
         g.monastery.gated,
         isTrue,

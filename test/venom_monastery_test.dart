@@ -677,19 +677,46 @@ void main() {
 
         actAt(game, p.wardId!, poison, censer);
         expect(game.monastery.woken, contains(p.id));
-        // It crawls; it does not appear. Ride the crawl out and kill what
-        // lands, in the cloister — never in the ward.
+        // It crawls; it does not appear. Ride the crawl out, in the cloister
+        // — never in the ward.
         game.currentRoomId = 'ambulatory';
         step(game, 8.0);
         expect(
-          game.combatEnemies.where((e) => !e.isDead),
-          isNotEmpty,
+          game.monastery.body,
+          isNotNull,
           reason: '${p.id} woke and nothing came out to fight',
         );
-        for (final e in game.combatEnemies) {
-          e.isDead = true;
+        expect(game.monastery.bars, kPlagueBars);
+
+        // THREE BARS AND THREE GATES. Killing the body is no longer a thing
+        // that can be done from a test — that is what the gates are for — so
+        // this plays the fight: empty a bar the way combat does (flag it
+        // dead, cull it from the room), then finish the mechanic it puts on
+        // the floor.
+        var guard = 0;
+        while (game.monastery.fighting != null && guard++ < 300) {
+          if (!game.monastery.gated) {
+            final e = game.monastery.body!;
+            e.hp = 0;
+            e.isDead = true;
+            game.combatEnemies.remove(e);
+            game.update(1 / 60);
+            continue;
+          }
+          for (var i = 0; i < game.monastery.marks.length; i++) {
+            final c = game.creatures[i % game.creatures.length];
+            var inner = 0;
+            while (!game.monastery.marks[i].done && inner++ < 400) {
+              c
+                ..position = game.monastery.marks[i].at
+                ..lastSafe = game.monastery.marks[i].at;
+              game.update(1 / 60);
+              if (!game.monastery.gated) break;
+            }
+            if (!game.monastery.gated) break;
+          }
+          game.update(1 / 60);
         }
-        step(game, 0.1);
         expect(game.monastery.slain, contains(p.id));
 
         // ── AND IT LEAVES SOMETHING. The kill is not the reward; the walk
