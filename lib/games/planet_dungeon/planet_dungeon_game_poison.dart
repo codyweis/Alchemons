@@ -2589,7 +2589,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final heart = _strainHeart(room);
     final virulent = live.any((e) => e.$2);
     final col = virulent ? _venomSick : _venomLive;
-    final breath = 0.5 + 0.5 * sin(_time * 0.8);
     // WAKING: the same veins, drawn to a fraction of their length, so the
     // thing grows into the shape it is going to hold rather than snapping
     // into it. Eased out, because it comes up fast and then settles.
@@ -2597,73 +2596,18 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final grow = waking
         ? Curves.easeOutCubic.transform(monastery.wake.clamp(0.0, 1.0))
         : 1.0;
-    if (grow <= 0.01) return;
-    final reach = (virulent ? 300.0 : 210.0) * (0.90 + 0.10 * breath) * grow;
-
     // Inside the room only — a vein crawling out through a wall reads as a
     // render bug, not as sickness.
     canvas.save();
     canvas.clipRect(room.bounds);
-
-    // The bloom: three soft rings, darkest at the heart.
-    for (var i = 3; i >= 1; i--) {
-      canvas.drawCircle(
-        heart,
-        reach * i / 3,
-        // Lighter than it was: the strains animate ON this, and a bloom
-        // heavy enough to read on its own flattens them into it.
-        Paint()..color = col.withValues(alpha: 0.022 * (4 - i)),
-      );
-    }
-    // VEINS. Deterministic, so the sickness does not crawl between frames —
-    // it grows when the ward changes, and only then.
-    var seed = room.id.codeUnits.fold<int>(53, (a, c) => (a * 31 + c) % 30011);
-    double rnd() {
-      seed = (seed * 1103515245 + 12345) % 2147483648;
-      return seed / 2147483648;
-    }
-
-    // VEINS, and they PULSE. The geometry stays deterministic — sickness that
-    // rewrites its own shape every frame is a screensaver — but a wave runs
-    // outward along every vein from the heart, so the thing is alive without
-    // ever moving. Drawn flat it was the biggest object in the room and the
-    // only motionless one, which made the strains animating on top of it read
-    // as the static thing. Reported from play as the plague looking frozen.
-    for (var i = 0; i < 14; i++) {
-      var at = heart;
-      var a = rnd() * pi * 2;
-      final len = reach * (0.35 + rnd() * 0.6);
-      final w = 1.2 + rnd() * 2.0;
-      final base = 0.09 + 0.12 * rnd();
-      const steps = 6;
-      for (var k = 0; k < steps; k++) {
-        a += (rnd() - 0.5) * 1.1;
-        final next = at + Offset(cos(a), sin(a)) * (len / steps);
-        // The wave: one per vein, travelling out, offset per vein so they do
-        // not beat in unison like a heart monitor.
-        final wave = sin(_time * 2.2 - k * 0.9 - i * 0.7);
-        final lit = base + 0.26 * (wave * 0.5 + 0.5) * (wave > 0 ? 1 : 0.35);
-        canvas.drawLine(
-          at,
-          next,
-          Paint()
-            ..strokeWidth = w + 0.9 * (wave.clamp(0.0, 1.0))
-            ..strokeCap = StrokeCap.round
-            ..color = col.withValues(alpha: lit),
-        );
-        at = next;
-      }
-    }
-    // And a wet shine at the heart itself.
-    if (_fx.ready) {
-      drawGlow(
-        canvas,
-        _fx.glow!,
-        heart,
-        70 + 18 * breath,
-        col.withValues(alpha: virulent ? 0.26 : 0.16),
-      );
-    }
+    _drawPlagueForm(
+      canvas,
+      heart,
+      virulent ? 300.0 : 210.0,
+      col,
+      seed: room.id.codeUnits.fold<int>(53, (a, c) => (a * 31 + c) % 30011),
+      grow: grow,
+    );
     canvas.restore();
   }
 
@@ -3414,92 +3358,109 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   }
 
   /// The head of the thing: a knot with legs feeling ahead of it.
-  /// The crawling plague — the same form, sized by how far along it is.
+  /// The crawling plague — the same creature, its veins drawn back in tight
+  /// while it is squeezing through a door and out to full span once it is in
+  /// the cloister.
   void _drawInvadeHead(Canvas canvas, Offset head, Color col, [double s = 1]) {
-    _drawPlagueForm(canvas, head, _kPlagueRadius * s / _kPlagueScale, col);
+    _drawPlagueForm(
+      canvas,
+      head,
+      _kPlagueReach * s / _kPlagueScale,
+      col,
+      seed: 907,
+    );
   }
 
   /// THE PLAGUE ITSELF. One painter, three places: asleep on the ward's
   /// heart, crawling down the cloister, and standing in front of you as the
   /// thing you are fighting.
   ///
-  /// This is the whole point of the arrival and it was wrong twice over. The
-  /// ward drew a mote-ring bloom, the crawl drew a generic tendril blob, and
-  /// the boss drew that blob bigger — three different creatures playing one
-  /// part. Now the only things that change between the three are RADIUS and
-  /// COLOUR: green while it sleeps, its own colour once it is awake, and the
-  /// same shape throughout so the thing you fight is visibly the thing you
-  /// woke.
-  void _drawPlagueForm(Canvas canvas, Offset at, double r, Color col) {
-    final beat = 0.5 + 0.5 * sin(monastery.clock * 1.6);
+  /// THE LONG GLISTENING VEINS ARE THE CREATURE. This was the third attempt
+  /// and the first correct one. The wards have always drawn the plague as a
+  /// star of long jointed tentacles with a wave of light travelling out
+  /// along each — and the crawl and the boss were drawing a small ring of
+  /// short stubby tendrils instead, which is a different animal wearing the
+  /// same colour. There is one implementation now, and the ward, the crawl
+  /// and the fight all call it.
+  ///
+  /// [reach] is how far the veins go, not the size of the core: the core is
+  /// a fraction of it, so the whole creature scales as one thing.
+  void _drawPlagueForm(
+    Canvas canvas,
+    Offset at,
+    double reach,
+    Color col, {
+    int seed = 53,
+    double grow = 1.0,
+  }) {
+    if (grow <= 0.01 || reach <= 0) return;
+    final breath = 0.5 + 0.5 * sin(_time * 0.8);
+    final r = reach * (0.90 + 0.10 * breath) * grow;
 
-    // The haze it sits in.
-    canvas.drawCircle(
-      at,
-      r * (2.0 + 0.18 * beat),
-      Paint()..color = col.withValues(alpha: 0.10),
-    );
-
-    // Tendrils, reaching and withdrawing.
-    for (var i = 0; i < 9; i++) {
-      final a = i * 2 * pi / 9 + monastery.clock * 0.5;
-      final reach = r * (1.35 + 0.55 * sin(monastery.clock * 2.4 + i));
-      canvas.drawLine(
+    // The bloom: three soft rings, darkest at the heart.
+    for (var i = 3; i >= 1; i--) {
+      canvas.drawCircle(
         at,
-        at + Offset(cos(a), sin(a)) * reach,
-        Paint()
-          ..strokeWidth = max(1.0, r * 0.10)
-          ..strokeCap = StrokeCap.round
-          ..color = col.withValues(alpha: 0.55),
+        r * i / 3,
+        Paint()..color = col.withValues(alpha: 0.022 * (4 - i)),
       );
     }
 
-    // Concentric mote rings, counter-turning — the signature of this planet,
-    // and the thing the wards have always shown.
-    for (var ring = 0; ring < 3; ring++) {
-      final rr = r * (0.55 + 0.32 * ring) * (0.94 + 0.10 * beat);
-      final motes = 9 + ring * 5;
-      final paint = Paint()..color = col.withValues(alpha: 0.62 - 0.14 * ring);
-      for (var i = 0; i < motes; i++) {
-        final ang =
-            (i / motes) * 2 * pi +
-            monastery.clock * 0.45 * (ring.isEven ? 1 : -1);
-        canvas.drawCircle(
-          at + Offset(cos(ang), sin(ang)) * rr,
-          max(1.2, r * (0.10 + 0.022 * ring)),
-          paint,
+    // VEINS, and they PULSE. The geometry is deterministic — sickness that
+    // rewrites its own shape every frame is a screensaver — but a wave runs
+    // outward along every vein from the heart, so the thing is alive without
+    // ever moving.
+    var st = seed;
+    double rnd() {
+      st = (st * 1103515245 + 12345) % 2147483648;
+      return st / 2147483648;
+    }
+
+    for (var i = 0; i < 14; i++) {
+      var p = at;
+      var a = rnd() * pi * 2;
+      final len = r * (0.35 + rnd() * 0.6);
+      final w = (1.2 + rnd() * 2.0) * (reach / 210.0).clamp(0.5, 1.6);
+      final base = 0.09 + 0.12 * rnd();
+      const steps = 6;
+      for (var k = 0; k < steps; k++) {
+        a += (rnd() - 0.5) * 1.1;
+        final next = p + Offset(cos(a), sin(a)) * (len / steps);
+        final wave = sin(_time * 2.2 - k * 0.9 - i * 0.7);
+        final lit = base + 0.26 * (wave * 0.5 + 0.5) * (wave > 0 ? 1 : 0.35);
+        canvas.drawLine(
+          p,
+          next,
+          Paint()
+            ..strokeWidth = w + 0.9 * (wave.clamp(0.0, 1.0))
+            ..strokeCap = StrokeCap.round
+            ..color = col.withValues(alpha: lit),
         );
+        p = next;
       }
     }
 
-    // The core: dark, with the colour banked behind it.
-    canvas.drawCircle(
-      at,
-      r * 0.62,
-      Paint()..color = col.withValues(alpha: 0.9),
-    );
-    canvas.drawCircle(
-      at,
-      r * 0.44,
-      Paint()..color = Color.lerp(col, const Color(0xFF05070A), 0.72)!,
-    );
-    canvas.drawCircle(
-      at,
-      r * 0.62,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = max(1.0, r * 0.07)
-        ..color = col.withValues(alpha: 0.95),
-    );
+    // And a wet shine at the heart itself.
     if (_fx.ready) {
-      drawGlow(canvas, _fx.glow!, at, r * 2.4, col.withValues(alpha: 0.30));
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        at,
+        r * 0.33 + 18 * breath,
+        col.withValues(alpha: 0.20),
+      );
     }
   }
 
-  /// Full-size radius of a plague body. The crawl arrives at this, the
-  /// fight is drawn at this, and the enemy's own hitbox is set from it — one
-  /// number, so what you can see and what you can hit cannot drift apart.
+  /// The enemy's hitbox: the CORE of the thing, not its veins. You strike
+  /// the body in the middle; the tentacles are reach, the way they are in
+  /// the ward.
   static const double _kPlagueRadius = 34.0;
+
+  /// How far a woken plague's veins go. The wards draw a sleeping one at
+  /// 210, and the thing that stands up in the cloister is the same creature
+  /// — a boss whose tentacles were 50px long was the tell that it was not.
+  static const double _kPlagueReach = 230.0;
 
   /// WHAT COLOUR THIS PLAGUE IS ONCE IT IS AWAKE.
   ///
@@ -4587,7 +4548,27 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         ? Color.lerp(hue, Colors.white, body.hitFlash.clamp(0.0, 1.0))!
         : hue;
     _drawPlagueAttacks(canvas, potion, body, hue);
-    _drawPlagueForm(canvas, body.position, _kPlagueRadius, hit);
+    _drawPlagueForm(
+      canvas,
+      body.position,
+      _kPlagueReach,
+      hit,
+      seed: potion.id.codeUnits.fold<int>(53, (a, c) => (a * 31 + c) % 30011),
+    );
+    // The core, so there is something solid to aim at inside all that reach.
+    canvas.drawCircle(
+      body.position,
+      _kPlagueRadius * 0.55,
+      Paint()..color = Color.lerp(hue, const Color(0xFF05070A), 0.55)!,
+    );
+    canvas.drawCircle(
+      body.position,
+      _kPlagueRadius * 0.55,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..color = hit.withValues(alpha: 0.95),
+    );
     // The bar it is on, read straight off the body.
     final frac = (body.hp / body.maxHp).clamp(0.0, 1.0);
     final barAt = body.position - const Offset(0, 58);

@@ -212,6 +212,14 @@ void main() {
       // Three creatures playing one part is what this replaced.
       for (final p in kPlaguePotions) {
         g.monastery.triage.open(p.wardId!);
+        // Let the wake finish. The veins are drawn to a FRACTION of their
+        // length while a ward is coming awake, so a shot taken on the first
+        // frame after arriving catches a creature that is barely there —
+        // which is what made the first sleeper shots look empty.
+        g.currentRoomId = p.wardId!;
+        for (var i = 0; i < 60 * 3; i++) {
+          g.update(1 / 60);
+        }
         expect(
           await _shot(g, p.wardId!, 'p_sleeper_${p.id}'),
           isNonZero,
