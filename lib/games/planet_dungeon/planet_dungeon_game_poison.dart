@@ -256,6 +256,12 @@ class VenomMonastery {
   // veins along the floor and leaves them there. All three lash with
   // tendrils, because all three ARE tendrils.
 
+  /// THE UNFURL, 1 → 0. It lands drawn in tight from the doorway and opens
+  /// all the way back out where it stands — veins, tendrils and all — before
+  /// it moves or throws anything. The arrival is the one look you get.
+  double unfurl = 0;
+  Offset unfurlAt = Offset.zero;
+
   /// Tendrils in flight.
   final List<PlagueLash> lashes = [];
 
@@ -387,6 +393,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.gateLeft = 0;
     m.marks.clear();
     m.gateFlash = 0;
+    m.unfurl = 0;
     m.lashes.clear();
     m.attackCd = 0;
     m.waves.clear();
@@ -1325,6 +1332,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     spawned?.position = at;
     monastery
       ..body = spawned
+      ..unfurl = 1.0
+      ..unfurlAt = at
       ..fighting = potionId
       ..bars = kPlagueBars
       ..gated = false
@@ -1384,6 +1393,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       }
     }
     if (m.gateFlash > 0) m.gateFlash = max(0.0, m.gateFlash - dt / 0.8);
+
+    // ── OPENING OUT. It arrives drawn in tight and unfolds where it stands.
+    // Pinned while it does, so the first thing it ever does is not a charge
+    // across the room.
+    if (m.unfurl > 0) {
+      m.unfurl = max(0.0, m.unfurl - dt / _kUnfurlSeconds);
+      body.position = m.unfurlAt;
+      body.flightSteering?.velocity = Offset.zero;
+      return;
+    }
     _tickPlagueAttacks(potion, body, dt);
     if (!m.gated) return;
 
@@ -2970,6 +2989,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   static const double _kPoolFillSeconds = 1.4;
 
   /// How often the plague does something to you.
+  /// The beat it takes to open out on arrival.
+  static const double _kUnfurlSeconds = 1.5;
+
+  /// How often the plague does something to you.
   static const double _kAttackEvery = 2.6;
 
   /// A tendril: how far, how long, how big the bite and how much it takes.
@@ -4548,17 +4571,23 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         ? Color.lerp(hue, Colors.white, body.hitFlash.clamp(0.0, 1.0))!
         : hue;
     _drawPlagueAttacks(canvas, potion, body, hue);
+    // Opening out where it landed: the veins come back to full span here,
+    // not somewhere off screen during the crawl.
+    final open = m.unfurl > 0
+        ? Curves.easeOutCubic.transform(1 - m.unfurl)
+        : 1.0;
     _drawPlagueForm(
       canvas,
       body.position,
       _kPlagueReach,
       hit,
       seed: potion.id.codeUnits.fold<int>(53, (a, c) => (a * 31 + c) % 30011),
+      grow: 0.12 + 0.88 * open,
     );
     // The core, so there is something solid to aim at inside all that reach.
     canvas.drawCircle(
       body.position,
-      _kPlagueRadius * 0.55,
+      _kPlagueRadius * 0.55 * (0.5 + 0.5 * open),
       Paint()..color = Color.lerp(hue, const Color(0xFF05070A), 0.55)!,
     );
     canvas.drawCircle(

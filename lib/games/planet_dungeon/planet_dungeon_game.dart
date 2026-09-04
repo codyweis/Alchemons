@@ -8904,6 +8904,12 @@ class PlanetDungeonGame extends FlameGame {
     var k = 0;
     for (final e in combatEnemies) {
       if (e.isDead || identical(e, _guardianEnemy)) continue;
+      // Poison (§8): a plague does NOT follow you through a door. It crawled
+      // the length of the cloister to the spot it is standing on, in a shot
+      // you watched — dragging it to a ring around wherever you walked in
+      // threw it across the room the instant you stepped out of the ward,
+      // and undid the arrival entirely.
+      if (_isVenom && identical(e, monastery.body)) continue;
       final a = k * 1.7 + _combatRng.nextDouble() * 0.6;
       final r = 170.0 + _combatRng.nextDouble() * 70.0;
       e.position = _clampToBounds(

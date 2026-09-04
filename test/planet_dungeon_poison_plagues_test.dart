@@ -845,6 +845,74 @@ void main() {
       );
     });
 
+    testWidgets('walking out of the ward does not move the plague', (
+      tester,
+    ) async {
+      // Reported from play as it jolting across the room. Every enemy is
+      // repositioned into a ring around wherever the party arrives when they
+      // take a door — right for pursuers, and exactly wrong for a thing that
+      // just crawled the length of the cloister to the spot it is standing
+      // on. The whole arrival was undone the instant you stepped out.
+      //
+      // It has to be WALKED, not teleported: setting `currentRoomId` skips
+      // the transit entirely, which is why nothing caught this.
+      await tester.runAsync(() async {
+        final g = _game();
+        final p = kPlaguePotions.first;
+        _brewAndWake(g, p);
+        for (var i = 0; i < 60 * 14 && g.monastery.invading; i++) {
+          g.update(1 / 60);
+        }
+        expect(g.monastery.body, isNotNull);
+        expect(
+          g.currentRoomId,
+          p.wardId,
+          reason: 'the party watched the crawl from the ward',
+        );
+        final landed = g.monastery.body!.position;
+
+        final ward = poisonLayout.rooms[p.wardId!]!;
+        g.passThroughDoor(
+          ward.doors.firstWhere((d) => d.targetRoomId == 'ambulatory'),
+        );
+        expect(
+          (g.monastery.body!.position - landed).distance,
+          lessThan(1),
+          reason: 'it stays where it crawled to',
+        );
+      });
+    });
+
+    test('it opens out where it lands, before it does anything', () {
+      final g = _game();
+      _brewAndWake(g, kPlaguePotions.first);
+      g.currentRoomId = 'ambulatory';
+      for (var i = 0; i < 60 * 14 && g.monastery.invading; i++) {
+        g.update(1 / 60);
+      }
+      expect(
+        g.monastery.unfurl,
+        greaterThan(0),
+        reason: 'it arrives drawn in tight and opens out where it stands',
+      );
+      final at = g.monastery.body!.position;
+      // It is pinned while it unfolds — the first thing it does must not be
+      // a charge across the room.
+      for (var i = 0; i < 60 * 1 && g.monastery.unfurl > 0; i++) {
+        g.update(1 / 60);
+        expect((g.monastery.body!.position - at).distance, lessThan(1));
+        expect(
+          g.monastery.lashes,
+          isEmpty,
+          reason: 'and it throws nothing until it is open',
+        );
+      }
+      for (var i = 0; i < 60 * 3; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.monastery.unfurl, 0);
+    });
+
     test('the crawl is slow enough to watch', () {
       // It is the one look at the thing before it is a fight. Measured off
       // the engine rather than read off a constant, so tuning cannot quietly
