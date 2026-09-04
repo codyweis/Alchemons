@@ -97,7 +97,6 @@ class _ActiveWingBeam {
   }
 }
 
-
 /// True when [p] is far enough outside the viewport to skip drawing.
 ///
 /// [cx]/[cy] are the viewport's top-left in world coordinates, so the test is
@@ -595,10 +594,15 @@ class CosmicGame extends FlameGame with PanDetector {
   static const double _zoomMid = 0.72;
   static const double _zoomFar = 0.504;
   static const List<double> _zoomPresets = [_zoomClose, _zoomMid, _zoomFar];
-  int _zoomLevelIndex = 0;
-  double _currentZoom = _zoomClose;
-  double _zoomAnimFrom = _zoomClose;
-  double _zoomAnimTo = _zoomClose;
+
+  /// ARRIVE AT MID. Space opened at the closest of the three, which shows a
+  /// couple of planets and none of the shape of the place; the middle
+  /// setting is what you would pick anyway on the way to anywhere.
+  static const int _zoomDefaultIndex = 1;
+  int _zoomLevelIndex = _zoomDefaultIndex;
+  double _currentZoom = _zoomPresets[_zoomDefaultIndex];
+  double _zoomAnimFrom = _zoomPresets[_zoomDefaultIndex];
+  double _zoomAnimTo = _zoomPresets[_zoomDefaultIndex];
   double _zoomAnimTimer = 0;
   static const double _zoomAnimDuration = 0.42;
   bool _zoomAnimComplete = true;
