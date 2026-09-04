@@ -330,7 +330,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         if (!works.saidWarded) {
           works.saidWarded = true;
           speakConsequence(
-            'The die comes down. The charge goes through it WARDED — the '
+            'The die comes down. The charge goes through it WARDED, the '
             'only metal a key form will take.',
             3.4,
           );
@@ -368,7 +368,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         announce: false,
       );
       speakConsequence(
-        'The purge takes it. The charge goes up the stack as firedamp — shut '
+        'The purge takes it. The charge goes up the stack as firedamp. Shut '
         'the damper to send metal on down the line.',
       );
     }
@@ -380,7 +380,7 @@ extension MoltenReliquary on PlanetDungeonGame {
           ..flash = 1.0
           ..flashAt = dest.position;
         speakConsequence(
-          'The metal sets where it stood — a road across, and a plug behind '
+          'The metal sets where it stood, a road across, and a plug behind '
           'it. Nothing runs up this arm until a Lava heart melts it out.',
         );
         _spawnAlchemyBurst(
@@ -395,7 +395,7 @@ extension MoltenReliquary on PlanetDungeonGame {
           ..flash = 1.0
           ..flashAt = dest.position;
         _setHint(switch (dest.casts) {
-          'span_a' => 'The span form fills — a road across the runner',
+          'span_a' => 'The span form fills, a road across the runner',
           'gantry' => 'A key stands cast in the gantry form',
           _ => 'A key stands cast in the sump',
         }, 3.4);
@@ -411,7 +411,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         // before you see any of it is the least useful moment to go quiet.
         speakConsequence(switch (true) {
           _ when wasOccupied =>
-            'There is already a casting in this form — melt it out with a '
+            'There is already a casting in this form. Melt it out with a '
                 'Lava heart before you pour again',
           _
               when dest.wants == PourForm.stamped &&
@@ -423,7 +423,7 @@ extension MoltenReliquary on PlanetDungeonGame {
                   arrivedAs == PourForm.stamped =>
             'This form only takes PLAIN metal. The mill\'s die warded this '
                 'charge on the way past.',
-          _ => 'The form throws it back — the casting is ruined.',
+          _ => 'The form throws it back, the casting is ruined.',
         });
         // IT HAS TO LOOK LIKE A REJECTION. A ruined casting used to arrive as
         // silently as a good one — same tidy slab, a different grey — so the
@@ -442,7 +442,7 @@ extension MoltenReliquary on PlanetDungeonGame {
       case PourEvent.lost:
         speakConsequence(
           dest.kind == FoundryNodeKind.sink
-              ? 'The charge goes into the slag — and something in there '
+              ? 'The charge goes into the slag, and something in there '
                     'takes the heat and turns.'
               : 'The charge congeals against cold metal. Nothing runs up a '
                     'plugged arm again.',
@@ -516,7 +516,7 @@ extension MoltenReliquary on PlanetDungeonGame {
   /// §5.6 BLOCKED: one clause, naming what is missing — never the method.
   String _foundryDoorHint(DungeonRoom room, DungeonDoor door) =>
       _wardIdFor(room, door) == 'gantry'
-      ? 'The gantry is bolted — its ward wants a key cast to it'
+      ? 'The gantry is bolted, its ward wants a key cast to it'
       : 'The reliquary ward wants a key cast to it';
 
   /// Which ward (if any) a door answers to, from either side.
@@ -619,7 +619,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         particleCount: 20,
         intensity: 0.9,
       );
-      _setHint('The font goes black — the charge dies in the channel');
+      _setHint('The font goes black, the charge dies in the channel');
       return true;
     }
 
@@ -697,7 +697,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     works
       ..flash = 1.0
       ..flashAt = at;
-    _setHint('The pour sets under the cold — a road, and a plug behind it');
+    _setHint('The pour sets under the cold, a road, and a plug behind it');
     _spawnAlchemyBurst(
       at,
       producedElement: 'Ice',
@@ -780,13 +780,13 @@ extension MoltenReliquary on PlanetDungeonGame {
       // NAME THE KEY. "Wants steam" is a refusal that reads as impossible —
       // no trio on this planet carries Steam. What it wants is the BRAID.
       _setBlockedHint(
-        'The accumulator wants steam — and steam is Ice and '
+        'The accumulator wants steam, and steam is Ice and '
         'Lava, standing here together',
       );
       return true;
     }
     s.dieWoken = true;
-    _setHint('Steam floods the accumulator — the die begins to fall', 3.4);
+    _setHint('Steam floods the accumulator, the die begins to fall', 3.4);
     _spawnAlchemyBurst(
       kLavaAccumulator,
       producedElement: 'Steam',
@@ -812,7 +812,7 @@ extension MoltenReliquary on PlanetDungeonGame {
       works
         ..flash = 1.0
         ..flashAt = centre;
-      _setHint('The casting goes back to running metal — the charge does not');
+      _setHint('The casting goes back to running metal, the charge does not');
       _spawnAlchemyBurst(
         centre,
         producedElement: 'Lava',
@@ -833,7 +833,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     // find, so the form itself is where a Lava hand takes it back out.
     if (!s.cast(what)) {
       if (a.member.element != 'Lava') {
-        _setBlockedHint('Only slag in this form — and only Lava melts it out');
+        _setBlockedHint('Only slag in this form, and only Lava melts it out');
         return true;
       }
       s.remelt('cast:$what');
@@ -888,7 +888,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         ..flash = 1.0
         ..flashAt = head;
       guardianVulnerable = true;
-      _setHint('The head catches it — Magmara beaches out of the channel', 3.0);
+      _setHint('The head catches it, Magmara beaches out of the channel', 3.0);
       _spawnAlchemyBurst(
         beast,
         producedElement: 'Ice',
@@ -925,7 +925,7 @@ extension MoltenReliquary on PlanetDungeonGame {
               'the crucible: only a Lava heart breaks its seal';
         }
         if (s.carried == 'reliquary') {
-          return 'You have the reliquary key — its ward is on the mould floor';
+          return 'You have the reliquary key, its ward is on the mould floor';
         }
         if (s.molds.containsKey('mold_reliquary')) {
           return 'Something has filled the form on the far side of the sump';
@@ -934,20 +934,20 @@ extension MoltenReliquary on PlanetDungeonGame {
             ? null
             : 'The works drain into a sump you cannot cross';
       case 'switch_yard':
-        return 'Set the whole road before you tap — one charge at a time, '
+        return 'Set the whole road before you tap, one charge at a time, '
             'and cold metal blocks an arm until Lava melts it back out';
       case 'chill_house':
         return s.wardsTurned.contains('gantry')
             ? 'The gantry stands open to the mould floor'
-            : 'The gantry to the mould floor is bolted — its ward wants a key';
+            : 'The gantry to the mould floor is bolted, its ward wants a key';
       case 'stamp_mill':
         return s.dieWoken
             ? 'The die falls on everything that passes down this arm'
-            : 'The mill\'s die hangs dead — nothing here can ward a pour yet';
+            : 'The mill\'s die hangs dead, nothing here can ward a pour yet';
       case 'mold_floor':
         if (!hasStar(0)) {
           return s.cast('span_a')
-              ? 'The span is laid — the Ember Star is across it'
+              ? 'The span is laid, the Ember Star is across it'
               : 'The Ember Star stands across the runner, and nothing walks '
                     'on running metal';
         }
@@ -1009,7 +1009,7 @@ extension MoltenReliquary on PlanetDungeonGame {
           0 => 'The sump takes back everything the floor refuses',
           1 => 'There is a form at the end of it, cut for a key',
           _ =>
-            'Fill it before you lay any road across the sump — cold metal '
+            'Fill it before you lay any road across the sump. Cold metal '
                 'stops everything behind it',
         });
       case 'chill_house':
@@ -1032,7 +1032,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         );
       case 'pour_heart':
         _setInsightHint(
-          'It cannot leave the ring — and the heads on the ring '
+          'It cannot leave the ring, and the heads on the ring '
           'are the works\' own hands',
         );
       default:

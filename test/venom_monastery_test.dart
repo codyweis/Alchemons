@@ -604,14 +604,6 @@ void main() {
     final cross = poisonLayout.rooms['ambulatory']!.priorsSeal!.position;
     const poison = 0, plant = 1, mud = 2;
 
-    Offset spoutOf(PlanetDungeonGame g, String roomId, WardDraught d) => g
-        .layout
-        .rooms[roomId]!
-        .apothecary!
-        .spouts
-        .firstWhere((s) => s.draught == d)
-        .position;
-
     test('the ideal trio earns all three Poison stars end-to-end', () {
       final earned = <int>[];
       final found = <String>[];
@@ -809,41 +801,48 @@ void main() {
       step(game, 0.2);
       expect(found, contains('cache:poison_vault'));
 
-      // ── Blightfang: the lull answers physic, never a clock (§7).
-      game.monastery.blightStrain = WardStrain.creep;
+      // ── BLIGHTFANG WEARS A PLAGUE, and nothing touches it until it is
+      // given that plague's own brew. The finale runs on the same two words
+      // the rest of the planet taught: brew, and pour.
       final g = game.layout.rooms['lazar_crypt']!.guardian!;
-      actAt(
-        game,
-        'lazar_crypt',
-        poison,
-        spoutOf(game, 'lazar_crypt', WardDraught.binding),
-      );
-      expect(
-        game.monastery.triage.carried,
-        WardDraught.binding,
-        reason: 'the carrion font never runs dry',
-      );
+      final cryptPot = game.layout.rooms['lazar_crypt']!.apothecary!.cistern;
+      final cryptBench = cryptPot + const Offset(200, 0);
+      final slotOf = {'Poison': poison, 'Plant': plant, 'Mud': mud};
+
+      void brewInCrypt(PlaguePotion p) {
+        if (game.monastery.carriedPotion != null) {
+          actAt(game, 'lazar_crypt', poison, cryptBench);
+        }
+        actAt(game, 'lazar_crypt', slotOf[p.first]!, cryptPot);
+        actAt(game, 'lazar_crypt', slotOf[p.second]!, cryptPot);
+        expect(game.monastery.carriedPotion, p.id);
+      }
+
+      game.monastery.wearing = 'bloomvenom';
+      final wrong = kPlaguePotions.firstWhere((p) => p.id == 'mirebane');
+      brewInCrypt(wrong);
       game.guardianVulnerable = false;
       actAt(game, 'lazar_crypt', poison, g.position);
       expect(
         game.guardianVulnerable,
         isFalse,
-        reason: 'the wrong physic only feeds it',
+        reason: 'the wrong plague only feeds it',
       );
 
-      actAt(
-        game,
-        'lazar_crypt',
-        poison,
-        spoutOf(game, 'lazar_crypt', WardDraught.quicklime),
-      );
+      final right = kPlaguePotions.firstWhere((p) => p.id == 'bloomvenom');
+      brewInCrypt(right);
       actAt(game, 'lazar_crypt', poison, g.position);
       expect(
         game.guardianVulnerable,
         isTrue,
-        reason: 'the answering draught forces the window',
+        reason: 'the plague it is wearing forces the window',
       );
       expect(game.monastery.blightLull, greaterThan(0));
+
+      // THE POT DOWN HERE NEVER RUNS DRY: upstairs every hand is spent, and
+      // a cycle you have to keep answering cannot be gated on hands.
+      brewInCrypt(kPlaguePotions.first);
+      expect(game.monastery.carriedPotion, isNotNull);
     });
 
     // The old "a wrong draught FEEDS the ward" run lived here. Wards are not
@@ -913,12 +912,6 @@ void main() {
       final game = _harness(_idealTrio(), onCloud: found.add);
       final m = game.monastery;
       m.wispStrain = WardStrain.feign; // it lies still until touched
-      actAt(
-        game,
-        'apothecary',
-        poison,
-        spoutOf(game, 'apothecary', WardDraught.rousing),
-      );
       final wisp = m.wisp!;
       actAt(game, 'ambulatory', poison, wisp);
       // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).

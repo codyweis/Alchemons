@@ -282,7 +282,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           shortThrows++;
           cr.position = cr.lastSafe;
           _setBlockedHint(
-            'The head was not enough — the throw falls short of the shore',
+            'The head was not enough, the throw falls short of the shore',
             3.0,
           );
         }
@@ -351,7 +351,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         creatures.any((c) => c.alive && plinth.contains(c.position))) {
       moltenRiteDone = true;
       _setHint(
-        'You stand in the crucible\'s heart — Boilrog heaves up beyond it',
+        'You stand in the crucible\'s heart, Boilrog heaves up beyond it',
         4.0,
       );
       onChanged();
@@ -368,7 +368,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         cappedGeysers.length >= room.geysers.length) {
       capstoneBurst = true;
       _setHint(
-        'Every mouth is shut — the heart takes the whole head and the '
+        'Every mouth is shut, the heart takes the whole head and the '
         'slab splits',
         4.0,
       );
@@ -401,7 +401,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         creatures.any((c) => c.alive && far.inflate(2).contains(c.position))) {
       castingGreeted = true;
       _setObjectiveHint(
-        'A dry casting moat — a boulder on the lip, a flame under it, and '
+        'A dry casting moat, a boulder on the lip, a flame under it, and '
         'keep the melt running down',
       );
     }
@@ -530,7 +530,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       }
     }
     if (threw) {
-      _setHint('The field blows — it throws you off the stone', 2.4);
+      _setHint('The field blows, it throws you off the stone', 2.4);
       onChanged();
     }
   }
@@ -612,7 +612,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       return true;
     }
     if (rock != null) {
-      _setBlockedHint('Your stone already stands — go and unmake it first');
+      _setBlockedHint('Your stone already stands. Go and unmake it first');
       return true;
     }
     final at =
@@ -686,14 +686,14 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (door.targetRoomId == 'scald_cellar') {
       // Names the key, not the prize: you should be told exactly what the
       // pipe wants and left to wonder why you would ever give it that.
-      return 'The split spits and sucks at you — but the main reads '
+      return 'The split spits and sucks at you, but the main reads '
           '$boilerPressure. Nothing goes down a pipe that is not screaming';
     }
     if (room.centrePlinth != null && room.crucibleSeals.isNotEmpty) {
       final left = room.crucibleSeals.length - sealedCorners.length;
       return left == 1
-          ? 'One corner still stands open — the heart will not form over it'
-          : '$left corners still stand open — there is no heart to cross to';
+          ? 'One corner still stands open, the heart will not form over it'
+          : '$left corners still stand open, there is no heart to cross to';
     }
     return 'The heart does not open to an empty mould';
   }
@@ -735,9 +735,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   String _sealDoorHint(DungeonRoom room, DungeonDoor door) {
     final seal = _sealFor(room, door)!;
     if (boilerPressure >= seal.cost) {
-      return 'Clamped — the release beside it asks ${seal.cost} of the main';
+      return 'Clamped, the release beside it asks ${seal.cost} of the main';
     }
-    return 'The clamp wants ${seal.cost} — the main holds only '
+    return 'The clamp wants ${seal.cost}, the main holds only '
         '$boilerPressure';
   }
 
@@ -775,7 +775,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     _moltenFor(
       currentRoom,
     ); // rebuild immediately so render/collision are fresh
-    _setHint('The chamber resets — the molten recedes to its banks');
+    _setHint('The chamber resets, the molten recedes to its banks');
     onChanged();
   }
 
@@ -942,7 +942,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           cr.lastSafe = cr.position;
           if (isActive) {
             _setHint(
-              'The molten scalds and closes in — your footing crusts '
+              'The molten scalds and closes in, your footing crusts '
               'to bare stone',
             );
           }
@@ -950,7 +950,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           _beginFallRecovery(
             cr,
             safe,
-            hint: 'The molten scalds — you scramble to cool ground',
+            hint: 'The molten scalds, you scramble to cool ground',
           );
         } else {
           // Companions scramble instantly (no camera recovery beat) — and
@@ -976,7 +976,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final ped = _pedestalCell(g);
     if (ped != null && onGrid && col == ped.$1 && r == ped.$2) {
       if (g.starIndex != null && !hasStar(g.starIndex!)) {
-        _setHint('You stand on the cooled pedestal — the molten yields to you');
+        _setHint('You stand on the cooled pedestal, the molten yields to you');
         earnStar(g.starIndex!);
       }
     }
@@ -1173,7 +1173,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       maximExitTimer += dt;
       if (was < _kMaximExitSeconds * 0.35 &&
           maximExitTimer >= _kMaximExitSeconds * 0.35) {
-        _setHint('The split draws its breath back — and you with it', 2.6);
+        _setHint('The split draws its breath back, and you with it', 2.6);
       }
       if (maximExitTimer >= _kMaximExitSeconds) {
         maximExitTimer = 0;
@@ -1239,7 +1239,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (!wasWall && !_wallIsWet(grid, g, c, r)) return false;
 
     if (pourRunning) {
-      _setBlockedHint('A run is already going — let it settle first');
+      _setBlockedHint('A run is already going. Let it settle first');
       return true;
     }
     grid[r][c] = _mLava;
@@ -1250,9 +1250,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     pourRunning = true;
     _setHint(
       wasWall
-          ? 'The gate gives — the cistern runs, and it is worth $pourVolume '
+          ? 'The gate gives, the cistern runs, and it is worth $pourVolume '
                 'cells of channel'
-          : 'The gate runs again — $pourVolume cells of it',
+          : 'The gate runs again, $pourVolume cells of it',
       3.4,
     );
     _spawnAlchemyBurst(
@@ -1293,7 +1293,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       pourRunning = false;
       pourFront.clear();
       if (!moltenRiteDone) {
-        _setHint('The run congeals — it did not reach the mould', 3.2);
+        _setHint('The run congeals, it did not reach the mould', 3.2);
       }
       onChanged();
       return;
@@ -1314,7 +1314,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         pourFront.clear();
         moltenRiteDone = true;
         _setHint(
-          'The melt finds the mould and fills it — Boilrog heaves up from '
+          'The melt finds the mould and fills it, Boilrog heaves up from '
           'the heart',
           4.0,
         );
@@ -1328,7 +1328,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (pourVolume <= 0) {
       pourRunning = false;
       pourFront.clear();
-      _setHint('The run congeals — it did not reach the mould', 3.2);
+      _setHint('The run congeals, it did not reach the mould', 3.2);
     }
     onChanged();
   }
@@ -1341,7 +1341,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     for (final seal in room.crucibleSeals) {
       if ((a.position - seal.position).distance > _kSealReach) continue;
       if (sealedCorners.contains(seal.id)) {
-        _setHint('This corner is shut — its vents hold themselves now');
+        _setHint('This corner is shut, its vents hold themselves now');
         return true;
       }
       final needs = <String>[
@@ -1366,7 +1366,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
               (c.position - seal.position).distance <= _kSealReach,
         );
         if (!present) {
-          _setBlockedHint('It wants $other here as well — bring them across');
+          _setBlockedHint('It wants $other here as well. Bring them across');
           return true;
         }
       }
@@ -1375,9 +1375,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       final left = room.crucibleSeals.length - sealedCorners.length;
       _setHint(
         left == 0
-            ? 'The last corner shuts — every vent holds, and the plinth stands '
+            ? 'The last corner shuts, every vent holds, and the plinth stands '
                   'up out of the dark'
-            : 'The corner shuts, and its vents hold themselves — $left to go',
+            : 'The corner shuts, and its vents hold themselves, $left to go',
         3.6,
       );
       _spawnAlchemyBurst(
@@ -1402,7 +1402,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if ((a.position - moat.boulderAt).distance > _kCastReach) return false;
     final cap = currentRoom.capstone;
     if (cap != null && hasStar(cap.starIndex)) {
-      _setHint('The cast is made — the moat lies cold and full');
+      _setHint('The cast is made, the moat lies cold and full');
       return true;
     }
 
@@ -1428,7 +1428,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       return true;
     }
     if (boulderCharge <= 0.05) {
-      _setBlockedHint('The lip is bare — the moat wants rock before flame');
+      _setBlockedHint('The lip is bare, the moat wants rock before flame');
       return true;
     }
     boulderCharge = max(0.0, boulderCharge - _kBoulderPerPour);
@@ -1444,14 +1444,14 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     );
     if (moatFill >= 1.0 && cap != null && !hasStar(cap.starIndex)) {
       _setHint(
-        'The melt reaches the foot of the moat — the pedestal yields',
+        'The melt reaches the foot of the moat, the pedestal yields',
         4.0,
       );
       earnStar(cap.starIndex);
     } else {
       _setHint(
         boulderCharge <= 0.05
-            ? 'The rock is spent — the run wants feeding again'
+            ? 'The rock is spent, the run wants feeding again'
             : 'The melt runs on down the channel',
       );
     }
@@ -1490,7 +1490,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         }
         entryDoorRevealed = true;
         _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId);
-        _setHint('Steam bleeds the clamp — the pressure door hisses open');
+        _setHint('Steam bleeds the clamp, the pressure door hisses open');
         _spawnAlchemyBurst(
           room.doors.isNotEmpty ? room.doors.first.rect.center : vent,
           producedElement: 'Steam',
@@ -1510,7 +1510,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       if ((a.position - door.rect.center).distance > _kPressureReach) continue;
       if (boilerPressure < seal.cost) {
         _setHint(
-          'The clamp wants ${seal.cost} pressure — the main holds '
+          'The clamp wants ${seal.cost} pressure, the main holds '
           'only $boilerPressure',
         );
         return true;
@@ -1518,7 +1518,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       boilerPressure -= seal.cost;
       unclampedSeals.add(_sealKey(room.id, seal.targetRoomId));
       // The gauge carries the number (§5.6 — state is not speech).
-      _setHint('The main surges into the clamp — the junction hisses open');
+      _setHint('The main surges into the clamp, the junction hisses open');
       _spawnAlchemyBurst(
         door.rect.center,
         producedElement: 'Steam',
@@ -1541,7 +1541,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       }
       boilerPressure = min(kSteamPressureMax, boilerPressure + kSteamStokeGain);
       _setHint(
-        'Fire roars in the box — the main surges, and something '
+        'Fire roars in the box, the main surges, and something '
         'stirs at the noise',
       );
       spawnWispWave(
@@ -1569,7 +1569,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         (a.position - disc.position).distance <= _kPressureReach) {
       if (boilerPressure < disc.threshold) {
         _setHint(
-          'The burst-disc wants a surge of ${disc.threshold} at once — '
+          'The burst-disc wants a surge of ${disc.threshold} at once'
           'the main holds only $boilerPressure. The valve refuses',
         );
         return true;
@@ -1577,7 +1577,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       boilerPressure = 0;
       burstDiscBlown = true;
       _setHint(
-        'You vent the whole main in one surge — the burst-disc '
+        'You vent the whole main in one surge, the burst-disc '
         'BLOWS, and the vault shaft stands open',
         4.5,
       );
@@ -1643,17 +1643,17 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           final woke = wokeRooms.add(room.id);
           _setHint(
             wet
-                ? 'The dam gives way — the reservoir pours through your breach!'
+                ? 'The dam gives way, the reservoir pours through your breach!'
                 : g.starIndex == null
                 // In a pour chamber a dry gate is a DOOR, not a source, and
                 // breaking one is the most natural first thing to try. Say so
                 // rather than leaving the player with one square of melt and
                 // no idea why nothing ran.
-                ? 'Nothing behind this one — it is a door. The runs come from '
+                ? 'Nothing behind this one, it is a door. The runs come from '
                       'the gates the cisterns lean on'
                 : woke
-                ? 'Fire breaks the rock — and the sleeping cisterns WAKE'
-                : 'Fire breaks the rock — the fire-blood runs free',
+                ? 'Fire breaks the rock, and the sleeping cisterns WAKE'
+                : 'Fire breaks the rock, the fire-blood runs free',
           );
           _spawnAlchemyBurst(
             at,
@@ -1674,13 +1674,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           if (freshLava[room.id]?.contains(r * g.cols + c) ?? false) {
             // §5.6 BLOCKED: names what is wrong, never the method.
             _setBlockedHint(
-              'The fire-blood is still running — your breath '
+              'The fire-blood is still running, your breath '
               'flashes off it',
             );
             return true;
           }
           if (steamBreath <= 0) {
-            _setHint('Your cooling breath is spent — it gathers with the beat');
+            _setHint('Your cooling breath is spent, it gathers with the beat');
             return true;
           }
           steamBreath--;
@@ -1693,7 +1693,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           boilerPressure += gained;
           _setHint(
             gained > 0
-                ? 'Steam cools the molten to standing stone — condensate '
+                ? 'Steam cools the molten to standing stone. Condensate '
                       'returns to the main'
                 : 'Steam cools the molten to standing stone',
           );
@@ -1717,13 +1717,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           return cc == c && rr == r;
         });
         if (occupied) {
-          _setHint('A companion stands there — the wall will not rise');
+          _setHint('A companion stands there, the wall will not rise');
           return true;
         }
         if (code == _mOpen && !onPed) {
           grid[r][c] = _mWall;
           // ELEMENT-ONLY: any Earth drives the wall home, clean and silent.
-          _setHint('The wall drives home — the flood is dammed');
+          _setHint('The wall drives home, the flood is dammed');
           _spawnAlchemyBurst(
             at,
             producedElement: 'Earth',
@@ -1771,11 +1771,11 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       tier >= 2
           ? 'A shut corner holds its own vents for ever, so each one you '
                 'finish throws the next further. Nothing reaches the far side '
-                'until two are shut — and the corner wanting two hands is the '
+                'until two are shut, and the corner wanting two hands is the '
                 'one to leave until last, when there is head to spare'
           : tier >= 1
           ? 'A throw wants the main past $kSteamPressureMax, and on this '
-                'boiler that means TWO vents held — so one of you moves and '
+                'boiler that means TWO vents held, so one of you moves and '
                 'two of you stand. Whoever lands must take a vent, or nobody '
                 'follows ($left corner${left == 1 ? '' : 's'} still open: $want)'
           : 'Four corners bleeding the main, and a plinth in the middle that '
@@ -1797,7 +1797,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       _setHint(
         tier >= 2
             ? 'Every mouth you hold sends its head to the ones still open, so '
-                  'the last are the fiercest — and only the stone is heavy '
+                  'the last are the fiercest, and only the stone is heavy '
                   'enough to sit on a mouth at full pressure. Raise it and '
                   'push it into place EARLY, while the floor is still calm '
                   'enough to cross'
@@ -1816,7 +1816,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final head = launchHead;
     _setHint(
       tier >= 2
-          ? 'Every mouth covered AND the boiler over $kSteamPressureMax — one '
+          ? 'Every mouth covered AND the boiler over $kSteamPressureMax, one '
                 'open mouth takes out more than a plug puts in, so a full '
                 'boiler will not save you. The stone holds one and a body the '
                 'other, which leaves two to ride; the moat over there wants a '
@@ -1825,7 +1825,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           ? 'A plugged mouth puts its head back into the MAIN; one still '
                 'roaring BLEEDS it, and bleeds harder than a plug feeds. So '
                 'every mouth has to be covered AND the boiler brought past '
-                'its rated $kSteamPressureMax — no amount of stoking stands '
+                'its rated $kSteamPressureMax, no amount of stoking stands '
                 'in for a plug (it reads $head)'
           : 'Two mouths can be covered and one cannot, and the far shore is '
                 'past the one that cannot',
@@ -1853,7 +1853,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       if (room.pressureSeals.isNotEmpty || room.burstDisc != null) {
         _setHint(
           'The main starts with $kSteamStartPressure and each junction '
-          'drinks 15 — the whole ring cannot be bought. Cooled molten '
+          'drinks 15, the whole ring cannot be bought. Cooled molten '
           'condenses back (+$kSteamCondensateGain a cell), a stoked '
           'firebox feeds it more; the burst-disc yields only to a '
           'surge of 60',
@@ -1871,14 +1871,14 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       _setHint(
         tier >= 2
             ? 'Melt falls SOUTH while it can and sideways only when it '
-                  'cannot — and both ways at once if both are open, which is '
+                  'cannot, and both ways at once if both are open, which is '
                   'why walling the branch you do not want is worth as much as '
                   'opening the one you do. Count the cells of your channel '
                   'before you light it'
             : tier >= 1
             ? 'Earth\'s walls are the channel, and nothing moves until Fire '
                   'breaks a gate with molten behind it. A run is worth so '
-                  'many cells and no more — the MAIN buys the length of it'
+                  'many cells and no more, the MAIN buys the length of it'
             : 'A cold chamber, two cisterns above the band, and a mould at '
                   'the bottom that wants filling',
         5.5,
@@ -1887,12 +1887,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     }
     _setHint(switch (g.starIndex) {
       0 =>
-        'The wall is a dam — where the rock glows, molten leans on it; '
+        'The wall is a dam, where the rock glows, molten leans on it; '
             'breach the dark, quiet stone and cool your doorway. Yet a bold '
             'founder might TAP a wet face on purpose: a dammed flood, cooled '
             'cell by cell, bleeds condensate for the main',
       1 =>
-        'Every cistern wakes the moment you melt the gate — raise your '
+        'Every cistern wakes the moment you melt the gate. Raise your '
             'walls around the gate mouth FIRST, then break through',
       _ => _nothingHiddenLine(),
     });
@@ -1976,7 +1976,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     }
     final port = room.stokePort;
     if (port != null && (a.position - port).distance < _kPressureReach) {
-      _setAmbientHint('A firebox — cold iron, breathing old soot');
+      _setAmbientHint('A firebox. Cold iron, breathing old soot');
       return;
     }
     final disc = room.burstDisc;
@@ -1999,8 +1999,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         // observation only; the breach method is Mask's (_steamReveal).
         _setAmbientHint(
           _wallIsWet(grid, g, target.$1, target.$2)
-              ? 'The rock glows hot — something molten presses against its far side'
-              : 'Cool, quiet rock — it sounds hollow beyond',
+              ? 'The rock glows hot, something molten presses against its far side'
+              : 'Cool, quiet rock, it sounds hollow beyond',
         );
       case _mLava:
         _setAmbientHint('The molten crawls, slow and bright');
@@ -2011,18 +2011,18 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final g = room.molten;
     if (g == null) {
       if (room.guardian != null) {
-        return 'Furnace Heart — face Boilrog: calm it, or strike in its lulls';
+        return 'Furnace Heart. Face Boilrog: calm it, or strike in its lulls';
       }
       if (room.id == 'manifold_south') {
-        return 'South Manifold — the ring main runs through clamped '
+        return 'South Manifold, the ring main runs through clamped '
             'junctions';
       }
       if (room.id == 'manifold_north') {
-        return 'North Manifold — the crucible gate drops from this arc of '
+        return 'North Manifold, the crucible gate drops from this arc of '
             'the ring';
       }
       if (room.id == 'burst_vault') {
-        return 'The Burst Vault — the foundry\'s bottled essence waits below';
+        return 'The Burst Vault, the foundry\'s bottled essence waits below';
       }
       return null;
     }
@@ -2032,10 +2032,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     // on 2026-08-14 and replaced by the geyser field. The first promised the
     // player 'a dam of old stone' in a room that has not had one for weeks.
     return switch (g.starIndex) {
-      0 => 'Ember Causeway — five mouths vent the field, and one is choked',
-      1 => 'Cinder Forge — the far shore is across a chasm nothing can leap',
+      0 => 'Ember Causeway. Five mouths vent the field, and one is choked',
+      1 => 'Cinder Forge, the far shore is across a chasm nothing can leap',
       _ =>
-        'The Crucible — four corners bleeding, and a centre that is not there',
+        'The Crucible, four corners bleeding, and a centre that is not there',
     };
   }
 

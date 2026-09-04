@@ -576,17 +576,17 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // only once ever: a persisted discovery never re-fires this callback.
     if (cloudId.startsWith('egg:') && mounted) {
       await context.read<AlchemonsDatabase>().currencyDao.addGold(20);
-      _showToast('A lost maxim — +20 gold');
+      _showToast('A lost maxim, +20 gold');
     }
     // Vault caches: the treasure room's bottled essence, once ever.
     if (cloudId.startsWith('cache:') && mounted) {
       await context.read<AlchemonsDatabase>().currencyDao.addGold(5);
-      _showToast('The vault yields — +5 gold');
+      _showToast('The vault yields, +5 gold');
     }
     // Family-gate stamps ("the seal remembers", §4): pure acknowledgement,
     // no gold — the reward IS the permanent chip on the descent panel.
     if (cloudId.startsWith('gate:') && mounted) {
-      _showToast('The seal remembers — its need is etched at the gate');
+      _showToast('The seal remembers, its need is etched at the gate');
     }
   }
 
@@ -658,7 +658,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
   void _onRaidExpired() {
     if (!mounted) return;
-    _showToast('Out of time — the guardian holds');
+    _showToast('Out of time, the guardian holds');
     _popDungeon(false);
   }
 

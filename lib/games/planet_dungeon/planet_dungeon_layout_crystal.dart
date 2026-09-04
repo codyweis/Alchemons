@@ -864,12 +864,12 @@ const DungeonLayout crystalLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Prism Star',
       earnAnnouncement:
-          'The Prism Star is yours — the rose reads the hue it was cut for',
+          'The Prism Star is yours, the rose reads the hue it was cut for',
     ),
     DungeonStarSpec(
       name: 'Throne Star',
       earnAnnouncement:
-          'The Throne Star is yours — three thrones stand served at once',
+          'The Throne Star is yours, three thrones stand served at once',
     ),
     DungeonStarSpec(name: 'Facet Star'),
   ],
@@ -877,12 +877,12 @@ const DungeonLayout crystalLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('facet_gate', 'keep_s'),
   finaleDoor: DungeonDoorRef('keep_n', 'tuning_hall'),
   riteAnnouncement:
-      'Prism and Throne are won — the north arch grinds open on the tuning '
+      'Prism and Throne are won, the north arch grinds open on the tuning '
       'hall',
   finaleSealedHint:
-      'The north arch is shut — it answers the Prism and the Throne',
+      'The north arch is shut, it answers the Prism and the Throne',
   guardianSealedHint:
-      'The choir is dark glass — nothing in there wakes until the font is '
+      'The choir is dark glass, nothing in there wakes until the font is '
       'struck',
   mercyShrineRoomId: 'facet_gate',
   // Ideal: Crystalmask · Lightninghorn · Spiritpip — hinted by VERB, never by

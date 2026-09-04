@@ -14,6 +14,22 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// So the invariant is not "the recipes are well-formed". It is "the riddle,
 /// the family gates and the recipes name the SAME THREE ELEMENTS".
+/// The bare verb off the front of a shelf line: "grows. Green takes root..."
+/// gives "grow".
+///
+/// It used to chop the last character off the first word, which quietly
+/// stopped working the moment the punctuation in those lines moved: "grows,"
+/// became "grows" instead of "grow", every clue stopped matching, and the
+/// test went from proving something to proving nothing.
+String _shelfStem(String effect) {
+  final word = effect
+      .split(' ')
+      .first
+      .replaceAll(RegExp('[^A-Za-z]'), '')
+      .toLowerCase();
+  return word.endsWith('s') ? word.substring(0, word.length - 1) : word;
+}
+
 void main() {
   group('the venom monastery can actually be brewed in', () {
     final larder = <String>{
@@ -198,8 +214,7 @@ void main() {
       for (final p in kPlaguePotions) {
         final clue = p.clue.toLowerCase();
         for (final entry in kPotionIngredientEffect.entries) {
-          final verb = entry.value.split(' ').first;
-          final stem = verb.substring(0, verb.length - 1).toLowerCase();
+          final stem = _shelfStem(entry.value);
           if (!clue.contains(stem)) continue;
           expect(
             p.takes(entry.key),
@@ -222,13 +237,7 @@ void main() {
         final clue = p.clue.toLowerCase();
         return [
           for (final e in kPotionIngredientEffect.entries)
-            if (clue.contains(
-              e.value
-                  .split(' ')
-                  .first
-                  .substring(0, e.value.split(' ').first.length - 1),
-            ))
-              e.key,
+            if (clue.contains(_shelfStem(e.value))) e.key,
         ].join('|');
       }
 

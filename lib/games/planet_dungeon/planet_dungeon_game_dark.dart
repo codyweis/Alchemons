@@ -141,8 +141,8 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     final span = _vaultSpanFor(room, door)!;
     final where = leafWord(span.leaf!);
     return span.cut == SpanCut.lightWalk
-        ? 'No floor under it — $where lies in shadow'
-        : 'Solid stone — $where stands in the light';
+        ? 'No floor under it, $where lies in shadow'
+        : 'Solid stone, $where stands in the light';
   }
 
   // ── Verbs ────────────────────────────────────────────────
@@ -195,7 +195,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
-    _setHint('The pall comes off the arch — and Nythralor is not one shape');
+    _setHint('The pall comes off the arch, and Nythralor is not one shape');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Dark',
@@ -301,7 +301,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       }
       if (!vault.isDark(s.leaf)) {
         _setBlockedHint(
-          '${leafWord(s.leaf)} stands in the light — the stone '
+          '${leafWord(s.leaf)} stands in the light, the stone '
           'has nothing to read',
         );
         return true;
@@ -324,7 +324,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         announce: false,
       );
       if (!vault.analemmaWoken) {
-        _setHint('The stone goes down — and something comes up off the dial');
+        _setHint('The stone goes down, and something comes up off the dial');
         return true;
       }
       final idx = _analemmaStarRoom?.eclipse?.starIndex;
@@ -412,7 +412,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         final mine = _leafOf(currentRoomId)!;
         _setBlockedHint(
           vault.isLit(mine)
-              ? 'No hole here — ${leafWord(mine)} stands in the light'
+              ? 'No hole here, ${leafWord(mine)} stands in the light'
               : 'The far side stands in the light',
         );
         // Name the far quarter only once the scout has read it: an unread
@@ -490,7 +490,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The lamps will not gutter — they answer only a bearer of the '
+        'The lamps will not gutter, they answer only a bearer of the '
         '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return true;
@@ -533,7 +533,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         vault.turn(g.id);
         vault.wipe = _kVaultWipeSeconds;
         _setHint(
-          'Noctryos takes the shadow off the Deep — and the vault turns over '
+          'Noctryos takes the shadow off the Deep, and the vault turns over '
           'above you',
         );
       }
@@ -663,35 +663,35 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _vaultObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Noctryos\' Totality — the eclipse keeps the last star';
+      return 'Noctryos\' Totality, the eclipse keeps the last star';
     }
     if (room.eclipse?.snuffer != null) {
-      return 'The Eclipse Nave — the rite waits on the lamps';
+      return 'The Eclipse Nave, the rite waits on the lamps';
     }
     if (room.eclipse?.analemma != null) {
       return hasStar(room.eclipse!.starIndex!)
           ? null
-          : 'The Analemma Court — four stones, and none of them seated';
+          : 'The Analemma Court, four stones, and none of them seated';
     }
     if (room.eclipse?.starIndex == 1) {
       return hasStar(1)
           ? null
-          : 'The Ossuary Ring — three rings, and every one of them rusted';
+          : 'The Ossuary Ring, three rings, and every one of them rusted';
     }
     if (room.vaultCache != null) {
-      return 'A room that is not here in the light — something is bottled '
+      return 'A room that is not here in the light, something is bottled '
           'against the wall';
     }
     if (room.eclipse?.abyss != null) {
-      return 'The Abyssal Font — the floor stops being a floor';
+      return 'The Abyssal Font, the floor stops being a floor';
     }
     if (vaultGnomonIn(room.id) != null) {
       return 'A gnomon stands here, and its shadow is somewhere';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Pall Porch — one way out, and the other one is not there'
-          : 'The Pall Porch — the arch is hung shut';
+          ? 'The Pall Porch, one way out, and the other one is not there'
+          : 'The Pall Porch, the arch is hung shut';
     }
     return null;
   }
@@ -735,7 +735,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
         _ =>
           'You will not seat all four in one shape of this place. There '
               'are three shadows for four quarters, and every one of them is '
-              'always somewhere — so come back with the vault turned',
+              'always somewhere, so come back with the vault turned',
       });
       return;
     }
@@ -743,7 +743,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'The rings go somewhere, and the rust says nobody has',
         1 =>
-          'A hole wants dark at both ends — it is a hole in the dark, and '
+          'A hole wants dark at both ends, it is a hole in the dark, and '
               'nowhere else',
         _ =>
           'Rust first, and only something small enough to work inside the '
@@ -774,7 +774,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
               'shadow',
         _ =>
           'The way down here wants the Ossuary dark and the slot wants the '
-              'Deep dark, and one finger cannot hold both — bring the '
+              'Deep dark, and one finger cannot hold both. Bring the '
               'Ossuary\'s shadow off the other one before you come down',
       });
       return;
@@ -787,7 +787,7 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
             'inside one is a walk in the light. Nothing else is a door',
       _ =>
         'Three gnomons, four quarters, one shadow each. Two quarters are '
-            'always dark and never more than two are lit — and never two that '
+            'always dark and never more than two are lit, and never two that '
             'share a finger. Plan the shape before you walk it',
     });
   }

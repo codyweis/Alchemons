@@ -479,7 +479,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
           iconColor: _C.gold,
           title: 'COMMIT ALCHEMON?',
           body:
-              'Placing ${inst.nickname ?? sp.name} is permanent — it will be consumed by the ritual.',
+              'Placing ${inst.nickname ?? sp.name} is permanent, it will be consumed by the ritual.',
           cancelLabel: 'CANCEL',
           confirmLabel: 'COMMIT',
           onCancel: () => Navigator.pop(ctx, false),

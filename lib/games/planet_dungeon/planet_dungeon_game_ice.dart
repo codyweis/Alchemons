@@ -173,11 +173,11 @@ extension FrozenObservatory on PlanetDungeonGame {
   String _iceDoorHint(DungeonRoom room, DungeonDoor door) {
     final (flue, _) = _flueLeg(room, door)!;
     if (flue.isThroat) {
-      return 'The melt-fall runs — nothing climbs running water';
+      return 'The melt-fall runs, nothing climbs running water';
     }
     return switch (_flue(flue.id)) {
       RimeFlueState.scoured => 'Bare glass, and no snow left to take frost',
-      _ => 'Loose snow — it will not hold a step',
+      _ => 'Loose snow, it will not hold a step',
     };
   }
 
@@ -193,7 +193,7 @@ extension FrozenObservatory on PlanetDungeonGame {
         // THE THAW — the price of the only ladder that is always there.
         _thawShaft();
         _setHint(
-          'The rimefall carries you out — and behind you the whole shaft '
+          'The rimefall carries you out, and behind you the whole shaft '
           'lets go: every stair you cut is water again',
           4.6,
         );
@@ -204,7 +204,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (_flue(flue.id) == RimeFlueState.drift) {
       flueState[flue.id] = RimeFlueState.scoured;
       if (which == 'shelf') {
-        _setHint('The drift brakes you onto a ledge — and goes with you', 3.4);
+        _setHint('The drift brakes you onto a ledge, and goes with you', 3.4);
       }
     }
   }
@@ -242,7 +242,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
-    _setHint('Light drinks the black ice — the floor opens its mouths');
+    _setHint('Light drinks the black ice, the floor opens its mouths');
     _spawnAlchemyBurst(
       cap,
       producedElement: 'Water',
@@ -270,10 +270,10 @@ extension FrozenObservatory on PlanetDungeonGame {
         case RimeFlueState.stair:
           _setBlockedHint('This fall already stands');
         case RimeFlueState.scoured:
-          _setBlockedHint('Bare glass — frost finds nothing to hold');
+          _setBlockedHint('Bare glass. Frost finds nothing to hold');
         case RimeFlueState.drift:
           flueState[f.id] = RimeFlueState.stair;
-          _setHint('The fall sets — a stair, and the shelf under it is shut');
+          _setHint('The fall sets, a stair, and the shelf under it is shut');
           _spawnAlchemyBurst(
             f.headPos,
             producedElement: 'Ice',
@@ -301,7 +301,7 @@ extension FrozenObservatory on PlanetDungeonGame {
       return true;
     }
     rimefallFrozen = true;
-    _setHint('The rimefall locks — one long stair, all the way to the mouth');
+    _setHint('The rimefall locks, one long stair, all the way to the mouth');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Ice',
@@ -325,7 +325,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The font refuses the offering — it answers only a bearer of the '
+        'The font refuses the offering, it answers only a bearer of the '
         '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return true;
@@ -355,7 +355,7 @@ extension FrozenObservatory on PlanetDungeonGame {
       return true;
     }
     hoarfrostWhole = true;
-    _setHint('The hoarfrost stands again — and the wyrm slows to look at it');
+    _setHint('The hoarfrost stands again, and the wyrm slows to look at it');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Ice',
@@ -387,7 +387,7 @@ extension FrozenObservatory on PlanetDungeonGame {
           case InteractionResult.passed:
           case InteractionResult.passedViaRecipe:
             lodestoneLit = true;
-            _setHint('The lodestone takes a light of its own — and keeps it');
+            _setHint('The lodestone takes a light of its own, and keeps it');
             _spawnAlchemyBurst(
               ring.frameAt(i),
               producedElement: 'Light',
@@ -404,7 +404,7 @@ extension FrozenObservatory on PlanetDungeonGame {
             }
           case InteractionResult.blockedElement:
           case InteractionResult.blockedStat:
-            _setBlockedHint('This glass takes no frost — it answers Light');
+            _setBlockedHint('This glass takes no frost, it answers Light');
         }
         return true;
       }
@@ -443,7 +443,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (final i in silveredMirrors) {
       mirrorThaw[i] = _kMirrorHoldSeconds;
     }
-    _setHint('A cold sweep goes round the ring — every glass holds again');
+    _setHint('A cold sweep goes round the ring, every glass holds again');
     _spawnAlchemyBurst(
       ring.vent,
       producedElement: 'Air',
@@ -459,7 +459,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     final idx = currentRoom.rime?.starIndex;
     if (ring == null || idx == null || hasStar(idx)) return;
     if (mirrorsShowing < ring.count) return;
-    _setHint('Twelve glasses hold the chart at once — the sky admits it');
+    _setHint('Twelve glasses hold the chart at once, the sky admits it');
     earnStar(idx);
   }
 
@@ -492,7 +492,7 @@ extension FrozenObservatory on PlanetDungeonGame {
         unstable: true,
         announce: false,
       );
-      _setHint('A glass clouds over — the ring will not be half-read', 2.6);
+      _setHint('A glass clouds over, the ring will not be half-read', 2.6);
     }
   }
 
@@ -713,7 +713,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     final ring = _mirrorRingRoom?.rime?.mirrors;
     final ringStar = _mirrorRingRoom?.rime?.starIndex;
     if (ring == null || ringStar == null || !hasStar(ringStar)) {
-      _setBlockedHint('The lens shows only frost — nothing is charted yet');
+      _setBlockedHint('The lens shows only frost, nothing is charted yet');
       return true;
     }
     // ELEMENT-ONLY. This wanted an Ice MANE, and nothing anywhere said so:
@@ -724,7 +724,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     // were short until the lens refuses them.
     final req = const DungeonInteractionRequirement(element: 'Ice');
     if (!interactionSucceeded(evaluateInteraction(a.member, req))) {
-      _setBlockedHint('The mount will not hold — the sighting drifts');
+      _setBlockedHint('The mount will not hold, the sighting drifts');
       return true;
     }
     // THE RITE OF THREE pays this out (see `beginMaximRite`).
@@ -785,7 +785,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (final f in kRimeFlues) {
       if (_flue(f.id) != RimeFlueState.stair) continue;
       flueState[f.id] = RimeFlueState.scoured;
-      _setHint('Frowyrm roars up the shaft — a stair goes out from under it');
+      _setHint('Frowyrm roars up the shaft, a stair goes out from under it');
       return;
     }
   }
@@ -826,33 +826,33 @@ extension FrozenObservatory on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _shaftObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Frowyrm\'s Hollow — the wyrm keeps the last star';
+      return 'Frowyrm\'s Hollow, the wyrm keeps the last star';
     }
-    if (room.rime?.coldFont != null) return 'The Star Font — the rite waits';
+    if (room.rime?.coldFont != null) return 'The Star Font, the rite waits';
     if (room.rime?.rimefall != null) {
-      return 'The Cold Sump — the shaft bottoms out here';
+      return 'The Cold Sump, the shaft bottoms out here';
     }
     if (room.rime?.telescope != null) {
       return discoveredClouds.contains(kIceStarWalkerEggId)
           ? null
-          : 'A niche off the throat — an old lens, pointed at nothing';
+          : 'A niche off the throat, an old lens, pointed at nothing';
     }
     if (room.vaultCache != null) {
-      return 'A glass ledge — something is bottled here';
+      return 'A glass ledge, something is bottled here';
     }
     final ring = room.rime?.mirrors;
     if (ring != null) {
       if (hasStar(room.rime!.starIndex!)) return null;
-      return 'The Mirror Gallery — twelve frames, and none of them showing';
+      return 'The Mirror Gallery. Twelve frames, and none of them showing';
     }
     if (room.rime?.orrery != null) {
       if (hasStar(room.rime!.starIndex!)) return null;
-      return 'The Standing Orrery — its star-blocks sit off their sockets';
+      return 'The Standing Orrery, its star-blocks sit off their sockets';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Rime Head — the shaft drops away below'
-          : 'The Rime Head — old ice has sealed the floor over';
+          ? 'The Rime Head, the shaft drops away below'
+          : 'The Rime Head. Old ice has sealed the floor over';
     }
     return null;
   }
@@ -886,14 +886,14 @@ extension FrozenObservatory on PlanetDungeonGame {
     final tier = revealHintTier(a.member.statIntelligence);
     if (room.rime?.orrery != null) {
       _setInsightHint(switch (tier) {
-        0 => 'The blocks are frozen sky — stone will not carry them',
+        0 => 'The blocks are frozen sky. Stone will not carry them',
         1 =>
           'Glaze a road and a block runs it to the end; a kerbed socket '
               'catches whatever slides in',
         _ =>
           'Lay the run one cell short of the turn: the block stops where '
               'the glass does, and a socket takes it whether it is glazed or '
-              'not. Mind your own footing — glass carries you too',
+              'not. Mind your own footing. Glass carries you too',
       });
       return;
     }
@@ -901,7 +901,7 @@ extension FrozenObservatory on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'Frost holds a picture in the glass, but not for long',
         1 =>
-          'The ring wants every frame showing at once — and one frame '
+          'The ring wants every frame showing at once, and one frame '
               'will never take frost at all',
         _ =>
           'Silver the ring in one lap; the black frame answers a reading '
@@ -912,7 +912,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     }
     if (room.rime?.telescope != null) {
       _setInsightHint(
-        'The lens wants the chart read first — and a steady, '
+        'The lens wants the chart read first, and a steady, '
         'cold-laying hand on the mount',
       );
       return;
@@ -922,7 +922,7 @@ extension FrozenObservatory on PlanetDungeonGame {
       0 => 'What goes down here does not come back the same way',
       1 =>
         'Fresh snow brakes a fall onto a ledge and is gone; frost turns '
-            'the same fall into steps you can climb — one or the other',
+            'the same fall into steps you can climb, one or the other',
       _ =>
         'A ridden flue is bare for good and takes no frost. The fall at '
             'the very bottom is the exception: it freezes from below, climbs '

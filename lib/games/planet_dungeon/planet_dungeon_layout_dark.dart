@@ -872,13 +872,13 @@ const DungeonLayout darkLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Analemma Star',
       earnAnnouncement:
-          'The Analemma Star is yours — four stones seated, and never two of '
+          'The Analemma Star is yours, four stones seated, and never two of '
           'them in the same vault',
     ),
     DungeonStarSpec(
       name: 'Anchor Star',
       earnAnnouncement:
-          'The Anchor Star is yours — three holes walked, and the dark holds '
+          'The Anchor Star is yours, three holes walked, and the dark holds '
           'them open',
     ),
     DungeonStarSpec(name: 'Totality Star'),
@@ -887,10 +887,10 @@ const DungeonLayout darkLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('pall_porch', 'shade_gallery'),
   finaleDoor: DungeonDoorRef('eclipse_nave', 'noctryos_totality'),
   riteAnnouncement:
-      'Analemma and Anchor are won — the reredos goes black in the nave, and '
+      'Analemma and Anchor are won, the reredos goes black in the nave, and '
       'the pall lamps gutter',
   finaleSealedHint:
-      'The rood door is shut — it answers only the Analemma and Anchor stars',
+      'The rood door is shut, it answers only the Analemma and Anchor stars',
   guardianSealedHint:
       'Nothing behind the rood is awake while a single lamp still burns in '
       'the nave',

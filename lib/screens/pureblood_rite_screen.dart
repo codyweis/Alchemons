@@ -1483,8 +1483,8 @@ class _ChallengePanel extends StatelessWidget {
                     _HkReqLine(
                       icon: AppIcons.opacity,
                       label: challenge.requiredElement == null
-                          ? 'Elemental lineage — PURE'
-                          : '${challenge.requiredElement} element line — PURE',
+                          ? 'Elemental lineage, PURE'
+                          : '${challenge.requiredElement} element line, PURE',
                       met: true,
                     ),
                     const SizedBox(height: 6),
@@ -1492,7 +1492,7 @@ class _ChallengePanel extends StatelessWidget {
                   if (challenge.requireSpeciesPurity) ...[
                     _HkReqLine(
                       icon: AppIcons.account_tree_outlined,
-                      label: '${challenge.requiredFamily} species line — PURE',
+                      label: '${challenge.requiredFamily} species line, PURE',
                       met: true,
                     ),
                     const SizedBox(height: 6),
@@ -1503,7 +1503,7 @@ class _ChallengePanel extends StatelessWidget {
                           tintIcons[challenge.requiredTint] ??
                           AppIcons.brightness_high_outlined,
                       label:
-                          'Tinting — ${_traitLabel(challenge.requiredTint!)}',
+                          'Tinting, ${_traitLabel(challenge.requiredTint!)}',
                       met: true,
                     ),
                     const SizedBox(height: 6),
@@ -1511,7 +1511,7 @@ class _ChallengePanel extends StatelessWidget {
                   if (challenge.requiredSize != null) ...[
                     _HkReqLine(
                       icon: sizeIcons[challenge.requiredSize] ?? AppIcons.circle,
-                      label: 'Size — ${_traitLabel(challenge.requiredSize!)}',
+                      label: 'Size, ${_traitLabel(challenge.requiredSize!)}',
                       met: true,
                     ),
                     const SizedBox(height: 6),
@@ -1520,7 +1520,7 @@ class _ChallengePanel extends StatelessWidget {
                     _HkReqLine(
                       icon: AppIcons.psychology_alt_outlined,
                       label:
-                          'Nature — ${_titleCaseLabel(challenge.requiredNature!)}',
+                          'Nature, ${_titleCaseLabel(challenge.requiredNature!)}',
                       met: true,
                     ),
                   ],
@@ -1529,7 +1529,7 @@ class _ChallengePanel extends StatelessWidget {
                     _HkReqLine(
                       icon: AppIcons.scatter_plot_outlined,
                       label:
-                          'Variant — ${_titleCaseLabel(challenge.requiredVariantFaction!)}',
+                          'Variant, ${_titleCaseLabel(challenge.requiredVariantFaction!)}',
                       met: true,
                     ),
                   ],
@@ -2197,7 +2197,7 @@ class _LineageRow extends StatelessWidget {
               ),
               if (pure)
                 Text(
-                  '— $successLabel',
+                  ', $successLabel',
                   style: _fellItalic(context, 11, _kSoulBlue),
                 ),
             ],
@@ -2693,8 +2693,8 @@ class _WeeklyChallengePanel extends StatelessWidget {
                     _HkReqLine(
                       icon: AppIcons.opacity,
                       label: challenge.requiredElement == null
-                          ? 'Elemental lineage — PURE'
-                          : '${challenge.requiredElement} element line — PURE',
+                          ? 'Elemental lineage, PURE'
+                          : '${challenge.requiredElement} element line, PURE',
                       met: true,
                     ),
                     const SizedBox(height: 6),
@@ -2702,7 +2702,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   if (challenge.requireSpeciesPurity) ...[
                     _HkReqLine(
                       icon: AppIcons.account_tree_outlined,
-                      label: '${challenge.requiredFamily} species line — PURE',
+                      label: '${challenge.requiredFamily} species line, PURE',
                       met: true,
                     ),
                     const SizedBox(height: 6),
@@ -2710,7 +2710,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   if (challenge.requiredSize != null) ...[
                     _HkReqLine(
                       icon: sizeIcons[challenge.requiredSize] ?? AppIcons.circle,
-                      label: 'Size — ${_traitLabel(challenge.requiredSize!)}',
+                      label: 'Size, ${_traitLabel(challenge.requiredSize!)}',
                       met: true,
                     ),
                     const SizedBox(height: 6),
@@ -2719,7 +2719,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
                     _HkReqLine(
                       icon: tintIcons[challenge.requiredTint] ??
                           AppIcons.brightness_high_outlined,
-                      label: 'Pigmentation — ${_traitLabel(challenge.requiredTint!)}',
+                      label: 'Pigmentation, ${_traitLabel(challenge.requiredTint!)}',
                       met: true,
                     ),
                     const SizedBox(height: 6),
@@ -2728,7 +2728,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
                     _HkReqLine(
                       icon: AppIcons.psychology_alt_outlined,
                       label:
-                          'Nature — ${_titleCaseLabel(challenge.requiredNature!)}',
+                          'Nature, ${_titleCaseLabel(challenge.requiredNature!)}',
                       met: true,
                     ),
                   ],
@@ -2737,7 +2737,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
                     _HkReqLine(
                       icon: AppIcons.scatter_plot_outlined,
                       label:
-                          'Variant — ${_titleCaseLabel(challenge.requiredVariantFaction!)}',
+                          'Variant, ${_titleCaseLabel(challenge.requiredVariantFaction!)}',
                       met: true,
                     ),
                   ],
@@ -3101,7 +3101,7 @@ class _RitualEchoOverlayState extends State<_RitualEchoOverlay>
       if (widget.completedRite)
         'The rite stands complete.'
       else if (widget.nextChallengeTitle != null)
-        '${widget.nextChallengeTitle} — unsealed.',
+        '${widget.nextChallengeTitle}. Unsealed.',
     ]);
 
     _crackCtrl = AnimationController(

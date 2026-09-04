@@ -246,7 +246,7 @@ extension StormCircuit on PlanetDungeonGame {
           );
           activeTrunk = null;
           _dynamoSwing = 0;
-          _setHint('The fulminate flashes — the dynamo trips dark', 3.4);
+          _setHint('The fulminate flashes, the dynamo trips dark', 3.4);
           return true;
         }
       } else {
@@ -457,12 +457,12 @@ extension StormCircuit on PlanetDungeonGame {
           if (spire) {
             _beamLatched = true;
             _setHint(
-              'One chain, every mast at once — the bolt drives into the gate '
+              'One chain, every mast at once, the bolt drives into the gate '
               'and it throws open',
               3.6,
             );
           } else {
-            _setHint('One braided bolt wakes the mast — the hall runs true');
+            _setHint('One braided bolt wakes the mast, the hall runs true');
             if (starIdx != null) earnStar(starIdx);
           }
         }
@@ -474,7 +474,7 @@ extension StormCircuit on PlanetDungeonGame {
       if (!solved && !fed && vent != null) {
         _setBlockedHintOnce(
           'circuit:hall_dark',
-          'The hall is dark — the vents wait on the dynamo',
+          'The hall is dark, the vents wait on the dynamo',
         );
       }
     }
@@ -511,7 +511,7 @@ extension StormCircuit on PlanetDungeonGame {
           particleCount: 10,
           intensity: 0.5,
         );
-        _setHint('The conductor turns — the beam will bounce the other way');
+        _setHint('The conductor turns, the beam will bounce the other way');
         return true;
       }
     }
@@ -803,7 +803,7 @@ extension StormCircuit on PlanetDungeonGame {
         )) {
       entryDoorRevealed = true;
       _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId);
-      _setHint('Power crosses the dead bus — the passage lights open');
+      _setHint('Power crosses the dead bus, the passage lights open');
       final door = room.doors.isNotEmpty
           ? room.doors.first.rect.center
           : a.position;
@@ -840,7 +840,7 @@ extension StormCircuit on PlanetDungeonGame {
           _beginFallRecovery(
             a,
             Offset(safeX, a.position.dy),
-            hint: 'The door slams shut — the surge throws you clear',
+            hint: 'The door slams shut, the surge throws you clear',
           );
           break;
         }
@@ -861,14 +861,14 @@ extension StormCircuit on PlanetDungeonGame {
           (s) => energizedSockets.contains(s.id),
         );
         if (staged && lit) {
-          _setHint('Three storm-cells sing into the grid — the works light up');
+          _setHint('Three storm-cells sing into the grid, the works light up');
           earnStar(starIdx);
         } else if (staged && !lit) {
           // Every cell seated in a dead wing: the refusal names what's
           // missing (§5.6 BLOCKED — attempt-edged by the state itself).
           _setBlockedHintOnce(
             'circuit:works_dark',
-            'The works are dark — the sockets wait on the dynamo',
+            'The works are dark, the sockets wait on the dynamo',
           );
         }
       } else {
@@ -963,7 +963,7 @@ extension StormCircuit on PlanetDungeonGame {
       _beginFallRecovery(
         a,
         Offset(a.position.dx, bolt.bottom + PlanetDungeonGame._radius + 6),
-        hint: 'The bolt slams home — the surge throws you clear',
+        hint: 'The bolt slams home, the surge throws you clear',
       );
     }
   }
@@ -1032,7 +1032,7 @@ extension StormCircuit on PlanetDungeonGame {
     _raikumaFed = true;
     _dynamoSwing = 0;
     _setHint(
-      'Raikuma uncoils from the grid — and drinks the powered trunk',
+      'Raikuma uncoils from the grid, and drinks the powered trunk',
       4.2,
     );
   }
@@ -1067,7 +1067,7 @@ extension StormCircuit on PlanetDungeonGame {
       activeTrunk = trunk.id;
       _dynamoSwing = 0;
       guardianVulnerable = false;
-      _setHint('Raikuma drinks — the core trunk surges back to life', 2.8);
+      _setHint('Raikuma drinks, the core trunk surges back to life', 2.8);
     } else {
       guardianVulnerable = true;
     }
@@ -1087,11 +1087,11 @@ extension StormCircuit on PlanetDungeonGame {
     }
     final g = room.guardian;
     if (g == null || !guardianAwake || hasStar(g.starIndex)) {
-      _setHint('The spike is quiet — nothing drinks the trunk now');
+      _setHint('The spike is quiet, nothing drinks the trunk now');
       return true;
     }
     if (!_raikumaFed) {
-      _setHint('The trunk is already dead — strike while Raikuma reels');
+      _setHint('The trunk is already dead. Strike while Raikuma reels');
       return true;
     }
     activeTrunk = null;
@@ -1104,7 +1104,7 @@ extension StormCircuit on PlanetDungeonGame {
       intensity: 1.2,
     );
     _setHint(
-      'The spike bites — the trunk dies and Raikuma reels into the lull',
+      'The spike bites, the trunk dies and Raikuma reels into the lull',
       3.2,
     );
     return true;
@@ -1135,7 +1135,7 @@ extension StormCircuit on PlanetDungeonGame {
       if ((a.position - cell.position).distance <= _kEchoReach) {
         _discoverCloud(cell.id);
         _setHint(
-          'The ${cell.cellType} echo bares — its place wakes at the works',
+          'The ${cell.cellType} echo bares, its place wakes at the works',
         );
         _spawnAlchemyBurst(
           cell.position,
@@ -1147,7 +1147,7 @@ extension StormCircuit on PlanetDungeonGame {
         return true;
       }
       if ((a.position - cell.reflection).distance <= _kEchoReach) {
-        _setBlockedHint('Your hand closes on glass — the pane shows a side');
+        _setBlockedHint('Your hand closes on glass, the pane shows a side');
         return true;
       }
     }
@@ -1159,7 +1159,7 @@ extension StormCircuit on PlanetDungeonGame {
       _setBlockedHintOnce(
         'circuit:gallery_drowned',
         activeTrunk == null
-            ? 'The glass is black — no wing is lit to shine into it'
+            ? 'The glass is black, no wing is lit to shine into it'
             : circuitRoomLit(room.id)
             ? 'The gallery\'s own light drowns the glass'
             : 'This wing throws nothing the glass can hold',
@@ -1235,7 +1235,7 @@ extension StormCircuit on PlanetDungeonGame {
         if ((a.position - slots[i]).distance > 48) continue;
         carriedCloudId = id;
         carriedCloudType = _cellTypeFor(id);
-        _setHint('You gather the $carriedCloudType echo — bear it to a socket');
+        _setHint('You gather the $carriedCloudType echo. Bear it to a socket');
         return true;
       }
     }
@@ -1319,7 +1319,7 @@ extension StormCircuit on PlanetDungeonGame {
       _thunderboltGlow = 0.001;
       beginMaximRite(kLightningThunderboltEggId, c);
       _setHint(
-        'Every trunk takes at once — the works has nowhere to put it',
+        'Every trunk takes at once, the works has nowhere to put it',
         4.2,
       );
       return true;
@@ -1346,12 +1346,12 @@ extension StormCircuit on PlanetDungeonGame {
           // STUCK … the undo the whole rite needs in order to be allowed a
           // wrong turn". A player who welds the wrong breaker was told the
           // rite was over.
-          _setHint('This one is fused — only Lightning blows a weld off');
+          _setHint('This one is fused, only Lightning blows a weld off');
           return true;
         }
         if (rotorOverspeed <= 0) {
           _setBlockedHint(
-            'The jaws are cold — nothing here is carrying enough to fuse',
+            'The jaws are cold, nothing here is carrying enough to fuse',
           );
           return true;
         }
@@ -1365,7 +1365,7 @@ extension StormCircuit on PlanetDungeonGame {
         );
         _setHint(
           dynamoFused
-              ? 'The last blade fuses — the dynamo has nowhere left to choose'
+              ? 'The last blade fuses, the dynamo has nowhere left to choose'
               : 'The blade fuses across the jaws '
                     '(${weldedBreakers.length} of ${layout.dynamoTrunks.length})',
           3.2,
@@ -1388,7 +1388,7 @@ extension StormCircuit on PlanetDungeonGame {
           particleCount: 16,
           intensity: 0.9,
         );
-        _setHint('The storm blows the weld off — the blade is free', 2.8);
+        _setHint('The storm blows the weld off, the blade is free', 2.8);
         return true;
       }
       _dynamoSwing = 0;
@@ -1401,11 +1401,11 @@ extension StormCircuit on PlanetDungeonGame {
       );
       if (activeTrunk == t.id) {
         activeTrunk = null;
-        _setHint('The breaker opens — the dynamo idles, every trunk dark', 3.0);
+        _setHint('The breaker opens, the dynamo idles, every trunk dark', 3.0);
       } else {
         activeTrunk = t.id;
         _setHint(
-          'The dynamo swings — the ${t.name.toLowerCase()} wakes, '
+          'The dynamo swings, the ${t.name.toLowerCase()} wakes, '
           'the rest go dark',
           3.0,
         );
@@ -1443,7 +1443,7 @@ extension StormCircuit on PlanetDungeonGame {
       particleCount: 12,
       intensity: 0.6,
     );
-    _setHint('The conductor turns — power reroutes');
+    _setHint('The conductor turns. Power reroutes');
     return true;
   }
 
@@ -1473,7 +1473,7 @@ extension StormCircuit on PlanetDungeonGame {
   bool _heatAnvil(DungeonCreature a, CellSocket sock) {
     _anvilCellWaiting.remove(sock.id);
     energizedSockets.add(sock.id);
-    _setHint('Air and Fire braid through the cell — a Thundercloud wakes');
+    _setHint('Air and Fire braid through the cell, a Thundercloud wakes');
     _spawnAlchemyBurst(
       sock.position,
       producedElement: 'Lightning',
@@ -1503,13 +1503,13 @@ extension StormCircuit on PlanetDungeonGame {
         tier >= 2
             ? (shown
                   ? 'One pane is speaking. What stands in it is a REFLECTION '
-                        '— the echo waits as far the other side of the glass '
+                        ', the echo waits as far the other side of the glass '
                         'as its image stands this side'
                   : 'Nothing shines in here now. Go back to the dynamo and '
-                        'feed a different wing — any wing but this one')
+                        'feed a different wing, any wing but this one')
             : tier >= 1
             ? 'The glass holds no light of its own. It carries whichever wing '
-                  'the dynamo feeds, and each echo answers to one wing only — '
+                  'the dynamo feeds, and each echo answers to one wing only'
                   'so lighting THIS room hides all three'
             : 'Glass, and $hidden echo${hidden == 1 ? '' : 'es'} that will not '
                   'stand where they seem to',
@@ -1520,17 +1520,17 @@ extension StormCircuit on PlanetDungeonGame {
     // t2 the tempting lie the hall is built to teach.
     if (room.circuitStarIndex == 0 && room.beamEmitters.isNotEmpty) {
       if (!circuitRoomLit(room.id)) {
-        _setHint('The hall is dead — the dynamo must feed the pylon trunk');
+        _setHint('The hall is dead, the dynamo must feed the pylon trunk');
         return;
       }
       _setHint(
         tier >= 2
-            ? 'The low vent and the flame in front of it make a real bolt — '
+            ? 'The low vent and the flame in front of it make a real bolt'
                   'and it dies in the east wall. Only the high vent ever '
                   'reaches iron'
             : tier >= 1
             ? 'Air opens a vent; Fire standing in that wind turns it to '
-                  'lightning — and only lightning wakes the mast'
+                  'lightning, and only lightning wakes the mast'
             : 'The mast drinks lightning alone; wind and flame must braid to '
                   'make it, and iron must carry it home',
       );
@@ -1540,7 +1540,7 @@ extension StormCircuit on PlanetDungeonGame {
     // early the flame stands), t2 the free-planning trick and the decoy.
     if (room.beamEmitters.isNotEmpty) {
       if (!circuitRoomLit(room.id)) {
-        _setHint('The spire is cold — the dynamo must feed the core wing');
+        _setHint('The spire is cold, the dynamo must feed the core wing');
         return;
       }
       _setHint(
@@ -1552,7 +1552,7 @@ extension StormCircuit on PlanetDungeonGame {
             : tier >= 1
             ? 'Three converters stand on the route at different depths, and '
                   'every one of them makes a real bolt. Everything BEFORE the '
-                  'flame is only wind — so the question is how early you can '
+                  'flame is only wind, so the question is how early you can '
                   'stand it'
             : 'One chain must lie on all three masts at once, and the last of '
                   'them stands on the gate',
@@ -1563,7 +1563,7 @@ extension StormCircuit on PlanetDungeonGame {
     if (room.cellSockets.isNotEmpty) {
       _setHint(
         tier >= 1
-            ? 'Herd each echo to a socket — the anvil-cell answers only to '
+            ? 'Herd each echo to a socket, the anvil-cell answers only to '
                   'Fire\'s heat, and the works sing only while their trunk burns'
             : 'The sockets want their storm-cells, and the works want the '
                   'dynamo',
@@ -1574,9 +1574,9 @@ extension StormCircuit on PlanetDungeonGame {
     if (room.id == layout.dynamoRoomId) {
       _setHint(
         tier >= 2
-            ? 'The dynamo owns one trunk at a time — and the vault bolt only '
+            ? 'The dynamo owns one trunk at a time, and the vault bolt only '
                   'falls in a DEAD trunk'
-            : 'The dynamo owns one trunk at a time — what it feeds wakes; '
+            : 'The dynamo owns one trunk at a time. What it feeds wakes; '
                   'the rest go dark',
       );
       return;
@@ -1584,7 +1584,7 @@ extension StormCircuit on PlanetDungeonGame {
     // The vault — the re-hide, named.
     if (room.vaultBolt != null) {
       _setHint(
-        'The bolt holds while this trunk burns — kill the power you '
+        'The bolt holds while this trunk burns. Kill the power you '
         'stand in',
       );
       return;
@@ -1592,7 +1592,7 @@ extension StormCircuit on PlanetDungeonGame {
     // The storm core — the feed, named.
     if (room.guardian != null && guardianAwake) {
       _setHint(
-        'Raikuma drinks the powered trunk — ground it at the spike to '
+        'Raikuma drinks the powered trunk. Ground it at the spike to '
         'force the lull',
       );
       return;
@@ -1656,25 +1656,25 @@ extension StormCircuit on PlanetDungeonGame {
   String? _circuitObjectiveHint(DungeonRoom room) {
     // Room-entry goal lines — WHAT, never HOW (the method lives with Mask).
     if (room.id == layout.dynamoRoomId) {
-      return 'Dynamo Court — one dynamo, four dark trunks';
+      return 'Dynamo Court, one dynamo, four dark trunks';
     }
     if (room.cellSockets.isNotEmpty) {
-      return 'Cloud Works — three sockets stand empty';
+      return 'Cloud Works, three sockets stand empty';
     }
     if (room.circuitStarIndex != null && room.beamEmitters.isNotEmpty) {
-      return 'Pylon Hall — one dead mast, and no bolt in the hall to wake it';
+      return 'Pylon Hall, one dead mast, and no bolt in the hall to wake it';
     }
     if (room.beamConverters.isNotEmpty) {
-      return 'Storm Spire — three dead masts, and only lightning wakes them';
+      return 'Storm Spire, three dead masts, and only lightning wakes them';
     }
     if (room.guardian != null) {
-      return 'Storm Core — face Raikuma: calm it, or strike in its lulls';
+      return 'Storm Core. Face Raikuma: calm it, or strike in its lulls';
     }
     if (room.stormCells.isNotEmpty) {
-      return 'Mirror Gallery — three echoes, and glass that holds no light';
+      return 'Mirror Gallery, three echoes, and glass that holds no light';
     }
     if (room.vaultBolt != null && !discoveredClouds.contains(_vaultCacheId)) {
-      return 'Capacitor Vault — the treasury hoards its charge';
+      return 'Capacitor Vault, the treasury hoards its charge';
     }
     return null;
   }

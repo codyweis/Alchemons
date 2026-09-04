@@ -453,7 +453,7 @@ extension WindCrownSpire on PlanetDungeonGame {
       // again where you stand.
       if (_spiralTearFlash <= 0 && spiralTorn) {
         _armGaleEye();
-        _setHint('The eye settles — the ring is whole again', 2.4);
+        _setHint('The eye settles, the ring is whole again', 2.4);
         onChanged();
       }
     }
@@ -474,7 +474,7 @@ extension WindCrownSpire on PlanetDungeonGame {
       if ((a.position - v.position).distance > _kVentReach) continue;
       if (spiralTorn) {
         // §5.6 BLOCKED: one clause, naming the state, never the method.
-        _setBlockedHint('The eye is shearing — let the ring settle');
+        _setBlockedHint('The eye is shearing. Let the ring settle');
         return true;
       }
       if (spiralOpenJets.contains(v.id)) {
@@ -517,11 +517,11 @@ extension WindCrownSpire on PlanetDungeonGame {
     if (spiralVortexClosed(spiralOpenJets)) {
       _completeWonderTrial(
         sealed,
-        'Four winds braid one eye — the Spiral echo awakens',
+        'Four winds braid one eye, the Spiral echo awakens',
       );
     } else {
       // Progress is STATE, not speech (§5.6): the count lives in the readout.
-      _setHint('${_capitalise(v.name)} opens — and will not shut', 2.6);
+      _setHint('${_capitalise(v.name)} opens, and will not shut', 2.6);
     }
     onChanged();
   }
@@ -532,13 +532,13 @@ extension WindCrownSpire on PlanetDungeonGame {
       final coil = spiralComposableCoil;
       if (coil == null) return 'Nothing in this ring will hold an eye';
       final hand = coil == GaleVentFlow.sunwise ? 'sunwise' : 'widdershins';
-      return 'Four of these mouths breathe $hand — the rest will shear the eye';
+      return 'Four of these mouths breathe $hand, the rest will shear the eye';
     }
     if (tier >= 1) {
       return 'An eye braids only from jets that skirt the rim the same way, '
           'and no mouth you open will shut again';
     }
-    return 'Seven mouths, one eye — and the eye is particular';
+    return 'Seven mouths, one eye, and the eye is particular';
   }
 
   // ── Star 1 · the wind graph ──────────────────────────────
@@ -816,7 +816,7 @@ extension WindCrownSpire on PlanetDungeonGame {
   void _wakeGale(GustShrine s) {
     wokenGales.add(s.wakesGale);
     galeRamp[s.wakesGale] = 0.0;
-    _setHint('${_capitalise(s.name)} wakes — and will not sleep again', 3.4);
+    _setHint('${_capitalise(s.name)} wakes, and will not sleep again', 3.4);
     _spawnAlchemyBurst(
       s.position,
       producedElement: 'Air',
@@ -826,7 +826,7 @@ extension WindCrownSpire on PlanetDungeonGame {
     );
     if (wokenGales.length >= totalGales && !summitOpen) {
       summitOpen = true;
-      _setObjectiveHint('Every wind blows — the crown stands open', 3.4);
+      _setObjectiveHint('Every wind blows, the crown stands open', 3.4);
     }
     onChanged();
   }
@@ -1204,7 +1204,7 @@ extension WindCrownSpire on PlanetDungeonGame {
         ..addAll(path);
       _latchedLeaderOrigin = from;
       _setHint(
-        'The storm finds the ladder — conduit ${conduit.id} takes the '
+        'The storm finds the ladder. Conduit ${conduit.id} takes the '
         'bolt',
       );
       _spawnAlchemyBurst(
@@ -1219,7 +1219,7 @@ extension WindCrownSpire on PlanetDungeonGame {
     }
     if (struck == _kGuardianConductorId) {
       _rocStunLeft = _rocEnraged ? _kRocStunEnraged : _kRocStun;
-      _setHint('The bolt climbs into the Roc — it reels', 2.6);
+      _setHint('The bolt climbs into the Roc, it reels', 2.6);
       _spawnAlchemyBurst(
         guardianAt ?? from,
         producedElement: 'Lightning',
@@ -1347,7 +1347,7 @@ extension WindCrownSpire on PlanetDungeonGame {
           ? 'Nothing left to wake will bar your road'
           : threats.first;
     }
-    return 'Every wind you wake blows for good — and blows on the walkways '
+    return 'Every wind you wake blows for good, and blows on the walkways '
         'too';
   }
 
@@ -1356,7 +1356,7 @@ extension WindCrownSpire on PlanetDungeonGame {
             'in reach, then to taller iron still, and stops where nothing '
             'rises above it'
       : tier >= 1
-      ? 'The storm will not come to the conduit — build it a ladder of rising '
+      ? 'The storm will not come to the conduit. Build it a ladder of rising '
             'iron, and shove the cell to the ladder\'s foot'
       : 'The storm chooses for itself, and the rods know why';
 
@@ -2451,14 +2451,14 @@ extension PlanetDungeonFourWindsInsight on PlanetDungeonGame {
   /// hands, and that there is something under the rime worth comparing.
   String _fourWindsInsight(int tier) {
     if (_fourWindsFound) {
-      return 'The ring is whole and the compass turns — this hall keeps '
+      return 'The ring is whole and the compass turns, this hall keeps '
           'nothing back now';
     }
     switch (firstWindStage) {
       case 0:
         return switch (tier) {
           <= 0 =>
-            'Four stones ring the compass — and the compass is a '
+            'Four stones ring the compass, and the compass is a '
                 'mechanism, not a mural',
           1 =>
             'The mechanism is cold. Its heart wants CURRENT, not a hand '
@@ -2479,7 +2479,7 @@ extension PlanetDungeonFourWindsInsight on PlanetDungeonGame {
         return switch (tier) {
           <= 0 => 'The faces are bare, and no two are worn alike',
           1 =>
-            'The wind has eaten the four faces unequally — $left still '
+            'The wind has eaten the four faces unequally, $left still '
                 'sleep',
           _ =>
             'The wind has eaten the four faces unequally, and it has been '

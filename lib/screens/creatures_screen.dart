@@ -1641,7 +1641,7 @@ class _CreatureRow extends StatelessWidget {
                         )
                       else
                         Text(
-                          '— —',
+                          ', ',
                           style: bracketText(
                             context,
                             12,

@@ -204,7 +204,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       prism.bitLastFrame = false;
       _shuntChoirFloor();
       _keep.guardianShunt();
-      _setHint('Prismalith rings — the floor goes over, and the keep with it');
+      _setHint('Prismalith rings, the floor goes over, and the keep with it');
     }
   }
 
@@ -295,7 +295,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
-    _setHint('The face crazes open — a threshold, and a keep behind it');
+    _setHint('The face crazes open, a threshold, and a keep behind it');
     _spawnAlchemyBurst(
       face,
       producedElement: 'Crystal',
@@ -325,7 +325,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       return true;
     }
     f.lampLit = true;
-    _setHint('The lamp takes — and a light lies down the middle of the keep');
+    _setHint('The lamp takes, and a light lies down the middle of the keep');
     _spawnAlchemyBurst(
       kWestLamp,
       producedElement: 'Light',
@@ -395,7 +395,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The font refuses the offering — it answers only a bearer of the '
+        'The font refuses the offering, it answers only a bearer of the '
         '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return true;
@@ -444,12 +444,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       return true;
     }
     if (!f.canCallFacet(cell)) {
-      _setBlockedHint('The chain is slack — the berth has nowhere to send it');
+      _setBlockedHint('The chain is slack, the berth has nowhere to send it');
       return true;
     }
     f.callFacet(cell);
     _setHint(
-      'Something comes in out of the east wall — and the keep sets solid',
+      'Something comes in out of the east wall, and the keep sets solid',
       4.0,
     );
     _spawnAlchemyBurst(
@@ -491,7 +491,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     prism.shearFrom = Offset.zero;
     _clearHints();
     _setHint(
-      'The whole keep rings back to true — and puts you out of its face',
+      'The whole keep rings back to true, and puts you out of its face',
       4.2,
     );
     _spawnAlchemyBurst(
@@ -563,13 +563,13 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         return true;
       }
       if (f.facetStanding) {
-        _setBlockedHint('The keep is full — nothing has anywhere to go');
+        _setBlockedHint('The keep is full, nothing has anywhere to go');
         return true;
       }
       if (inSocket) {
         if (f.chamberAt(target) == null) continue;
       } else if (f.hollowCell != target) {
-        _setBlockedHint('Glass on glass — there is nothing to give');
+        _setBlockedHint('Glass on glass, there is nothing to give');
         return true;
       }
       _rideShunt(inSocket ? target : cell, target, facet);
@@ -593,7 +593,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       _ => const Offset(1, 0),
     };
     _clearHints();
-    _setHint('The chamber goes over — and takes you with it', 2.2);
+    _setHint('The chamber goes over, and takes you with it', 2.2);
     // THE CONSEQUENCE (§7). The frame rings on every shove, and now and then
     // the ringing shakes a shard loose. Nothing is spent; the keep simply gets
     // less pleasant to thrash.
@@ -728,7 +728,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (room.guardian != null) {
       _setInsightHint(switch (tier) {
         0 => 'It is standing on something it does not want moved',
-        1 => 'Nothing reaches it through glass — only through the gap',
+        1 => 'Nothing reaches it through glass, only through the gap',
         _ =>
           'Bring the gap under it and strike; it will ring the floor out '
               'from under itself every time you land one',
@@ -751,7 +751,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         0 => 'The rose was cut for one colour and it is not this one',
         1 =>
           'A light only crosses glass that is cut on BOTH the west and the '
-              'east — and each one it crosses bends it further round',
+              'east, and each one it crosses bends it further round',
         _ =>
           'Five of the eight let a light through, and their bends add: '
               'the rose reads $kRoseHue, and exactly one set of three makes it. '
@@ -765,7 +765,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         1 => 'All three at once, and only the middle cell has faces enough',
         _ =>
           'Put the hearth in the middle and bring the crimson, the verdant '
-              'and the azure onto three open faces of it — and note what that '
+              'and the azure onto three open faces of it, and note what that '
               'costs the rose',
       });
       return;
@@ -777,7 +777,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         'A room only goes where the hollow is, and it takes you with it. '
             'A doorway is only a doorway when the glass on both sides agrees',
       _ =>
-        'Every slide is undone by sliding back, so nothing here is lost — '
+        'Every slide is undone by sliding back, so nothing here is lost'
             'but half of all the ways these rooms could lie, they never will. '
             'The frame rings back to true from any boss, at the price of every '
             'slide you made',

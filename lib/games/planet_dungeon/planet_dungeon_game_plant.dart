@@ -125,11 +125,11 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
   String _cryptDoorHint(DungeonRoom room, DungeonDoor door) {
     final span = _cryptSpanFor(room, door)!;
     if (!crypt.spanExists(span)) {
-      return 'Grown shut — a trunk stands where the crack was';
+      return 'Grown shut, a trunk stands where the crack was';
     }
     return span.size == SpanSize.tinyOnly
-        ? 'Too big by far — ${span.look} takes a smaller body'
-        : 'Too small by far — ${span.look} wants a longer leg';
+        ? 'Too big by far, ${span.look} takes a smaller body'
+        : 'Too small by far, ${span.look} wants a longer leg';
   }
 
   // ── Verbs ────────────────────────────────────────────────
@@ -180,7 +180,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
-    _setHint('The briar lets go of the gate — Verdanthos opens both its ways');
+    _setHint('The briar lets go of the gate, Verdanthos opens both its ways');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Plant',
@@ -215,8 +215,8 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     crypt.scale = to;
     _setHint(
       to == PlantScale.tiny
-          ? 'The gall takes you in — and the moss stands up into a forest'
-          : 'The gall lets you go — and the forest lies back down as moss',
+          ? 'The gall takes you in, and the moss stands up into a forest'
+          : 'The gall lets you go, and the forest lies back down as moss',
       3.0,
     );
     _spawnAlchemyBurst(
@@ -242,7 +242,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       return true;
     }
     if (crypt.isFallow) {
-      _setBlockedHint('Nothing to turn — the crypt already lies fallow');
+      _setBlockedHint('Nothing to turn, the crypt already lies fallow');
       return true;
     }
     if (crypt.armedPitRoom != currentRoomId) {
@@ -251,7 +251,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       // Attempt-edged and explicit: the most expensive verb on the planet
       // never fires on one careless press.
       _setHint(
-        'The litter steams — turn it again and the season takes back every '
+        'The litter steams. Turn it again and the season takes back every '
         'road you have grown',
         _kMulchArmSeconds,
       );
@@ -266,7 +266,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     _doorCooldown = 0.5;
     _clearHints();
     _setHint(
-      'The whole crypt goes brown at once — every vine down to mould, and the '
+      'The whole crypt goes brown at once, every vine down to mould, and the '
       'gate puts you out in your own body',
       4.6,
     );
@@ -335,7 +335,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       announce: false,
     );
     if (!crypt.allLampsLit) {
-      _setHint('The wick catches — and something comes off the ceiling');
+      _setHint('The wick catches, and something comes off the ceiling');
       return true;
     }
     final room = _lampStarRoom;
@@ -364,7 +364,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       _setBlockedHint(switch (step) {
         BloomStep.loam => 'No hand this size carries loam enough for this bowl',
         BloomStep.seed =>
-          'The bowl is a walled field — no body this big gets '
+          'The bowl is a walled field, no body this big gets '
               'down into it',
         BloomStep.sun => 'A light held this low never reaches over the rim',
       });
@@ -415,7 +415,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
             return true;
           case InteractionResult.blockedElement:
           case InteractionResult.blockedStat:
-            _setBlockedHint('The seed wants a sun — it answers Light');
+            _setBlockedHint('The seed wants a sun, it answers Light');
             return true;
         }
     }
@@ -428,7 +428,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       intensity: 1.2,
     );
     if (crypt.bloomWoken) {
-      _setHint('The heart-seed opens — and the whole crypt smells of spring');
+      _setHint('The heart-seed opens, and the whole crypt smells of spring');
       earnStar(idx);
     }
     return true;
@@ -449,7 +449,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The clay will not slake — it answers only a bearer of the '
+        'The clay will not slake, it answers only a bearer of the '
         '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return true;
@@ -516,10 +516,10 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
 
   String _bedGrowthLine(SeedBed bed, VineState grown) {
     if (grown == VineState.creeper) {
-      return 'A green thread runs out of ${bed.look} — hardly anything at all, '
+      return 'A green thread runs out of ${bed.look}. Hardly anything at all, '
           'at this size';
     }
-    return 'It comes up wood, and it comes up fast — and ${bed.look} is not '
+    return 'It comes up wood, and it comes up fast, and ${bed.look} is not '
         'there any more';
   }
 
@@ -564,7 +564,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       _setHint(
         rotted == null
             ? 'Spores burst, and you come up out of the roots at your own size'
-            : 'Spores burst — you come up at your own size, and somewhere out '
+            : 'Spores burst, you come up at your own size, and somewhere out '
                   'there a vine goes black',
       );
     }
@@ -604,7 +604,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       _setHint(
         crypt.tendedBy.length < wants.length
             ? 'The little seed takes it, and asks for the rest'
-            : 'The seed has everything it wants — and nothing here can see it '
+            : 'The seed has everything it wants, and nothing here can see it '
                   'grow',
         4.0,
       );
@@ -676,18 +676,18 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _cryptObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Botanica\'s Heart — the flower keeps the last star';
+      return 'Botanica\'s Heart, the flower keeps the last star';
     }
     if (room.grove?.sepulchre != null) {
-      return 'The Bloom Hall — the rite waits on the sepulchre';
+      return 'The Bloom Hall, the rite waits on the sepulchre';
     }
     if (room.grove?.growthAltar != null) {
       return hasStar(room.grove!.starIndex!)
           ? null
-          : 'The Islet — the heart-seed has slept a long age';
+          : 'The Islet, the heart-seed has slept a long age';
     }
     if (room.vaultCache != null) {
-      return 'Inside the altar\'s own rim — something is bottled here';
+      return 'Inside the altar\'s own rim, something is bottled here';
     }
     if (room.grove?.lampId != null && !hasStar(0)) {
       return crypt.lampsLit.contains(room.grove!.lampId)
@@ -695,18 +695,18 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
           : 'A grave-lamp stands dead here';
     }
     if (room.id == 'crypt_niche') {
-      return 'The Crypt Niche — nothing this deep was built for you';
+      return 'The Crypt Niche, nothing this deep was built for you';
     }
     if (room.id == 'pollen_stair') {
-      return 'The Pollen Stair — a gall hangs at the turn of it';
+      return 'The Pollen Stair, a gall hangs at the turn of it';
     }
     if (room.id == 'fern_gallery') {
-      return 'The Fern Gallery — one root has swallowed half the wall';
+      return 'The Fern Gallery, one root has swallowed half the wall';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Root Porch — the crypt runs west, and under itself'
-          : 'The Root Porch — the lich-gate is knotted shut';
+          ? 'The Root Porch, the crypt runs west, and under itself'
+          : 'The Root Porch, the lich-gate is knotted shut';
     }
     return null;
   }
@@ -746,7 +746,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
         _ =>
           'Loam first, and only a big hand carries enough; then the seed, '
               'and only a small body gets down there to set it; then a sun, '
-              'and this crypt has none — someone must show it one',
+              'and this crypt has none, someone must show it one',
       });
       return;
     }
@@ -777,7 +777,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
         _ =>
           'A big hand only presses a seed into the surface and gets a '
               'thread; a small one climbs down and sets it at the root, and '
-              'gets wood — and the wood fills the crack it came out of',
+              'gets wood, and the wood fills the crack it came out of',
       });
       return;
     }
@@ -790,7 +790,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       _ =>
         'There are three galls in the whole crypt, and nothing else on this '
             'planet will change your size. Plan the road at both sizes before '
-            'you plant anything — and the litter is the only take-back, and it '
+            'you plant anything, and the litter is the only take-back, and it '
             'takes back all of it at once',
     });
   }

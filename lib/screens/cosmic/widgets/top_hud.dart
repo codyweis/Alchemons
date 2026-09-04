@@ -348,7 +348,7 @@ class TopHudState extends State<TopHud> {
                             Center(
                               child: Text(
                                 widget.meter.isFull
-                                    ? 'METER FULL — FLY TO A PLANET'
+                                    ? 'METER FULL, FLY TO A PLANET'
                                     : '${(widget.meter.fillPct * 100).toStringAsFixed(0)}% ALCHEMICAL',
                                 style: const TextStyle(
                                   color: Colors.white,

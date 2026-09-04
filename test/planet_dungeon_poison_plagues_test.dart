@@ -1158,6 +1158,127 @@ void main() {
       expect(g.guardianAwake, isTrue, reason: 'and Blightfang is up');
     });
 
+    group('patient zero', () {
+      final cryptPot = poisonLayout.rooms['lazar_crypt']!.apothecary!.cistern;
+
+      PlanetDungeonGame atTheBoss() {
+        final g = _game(stars: [0, 1]);
+        g.currentRoomId = 'lazar_crypt';
+        g.guardianAwake = true;
+        g.guardianHp = PlanetDungeonGame.maxGuardianHp;
+        // The arrival cinematic holds the whole guardian tick, so nothing
+        // about the fight exists until it has played out.
+        for (var i = 0; i < 60 * 8; i++) {
+          g.update(1 / 60);
+        }
+        return g;
+      }
+
+      void brewDown(PlanetDungeonGame g, PlaguePotion p) {
+        if (g.monastery.carriedPotion != null) {
+          _press(g, 'Poison', 'lazar_crypt', cryptPot + const Offset(200, 0));
+        }
+        _press(g, p.first, 'lazar_crypt', cryptPot);
+        _press(g, p.second, 'lazar_crypt', cryptPot);
+        expect(g.monastery.carriedPotion, p.id);
+      }
+
+      test('it always wears one of the three, and is shut until answered', () {
+        final g = atTheBoss();
+        expect(
+          kPlaguePotions.map((p) => p.id),
+          contains(g.monastery.wearing),
+          reason: 'the finale runs on the plagues the planet taught',
+        );
+        expect(
+          g.guardianVulnerable,
+          isFalse,
+          reason: 'nothing touches it until it is given the right one',
+        );
+      });
+
+      test('the crypt pot never runs dry', () {
+        // Upstairs the hands come out exactly even. A cycle you have to keep
+        // answering cannot be gated on hands, or the run simply ends.
+        final g = atTheBoss();
+        for (var i = 0; i < 6; i++) {
+          brewDown(g, kPlaguePotions[i % kPlaguePotions.length]);
+        }
+        expect(
+          g.monastery.carriedPotion,
+          isNotNull,
+          reason: 'six brews in and it still gives',
+        );
+      });
+
+      test('the right plague opens it; the wrong one feeds it', () {
+        final g = atTheBoss();
+        final worn = brewById(g.monastery.wearing)!;
+        final other = kPlaguePotions.firstWhere((p) => p.id != worn.id);
+
+        brewDown(g, other);
+        _press(g, 'Poison', 'lazar_crypt', g.guardianAt!);
+        expect(g.guardianVulnerable, isFalse);
+
+        brewDown(g, worn);
+        _press(g, 'Poison', 'lazar_crypt', g.guardianAt!);
+        expect(g.guardianVulnerable, isTrue);
+        expect(g.monastery.blightLull, greaterThan(0));
+      });
+
+      test('when the lull runs out it sheds and wants another', () {
+        final g = atTheBoss();
+        final worn = brewById(g.monastery.wearing)!;
+        brewDown(g, worn);
+        _press(g, 'Poison', 'lazar_crypt', g.guardianAt!);
+        expect(g.guardianVulnerable, isTrue);
+
+        for (var i = 0; i < 60 * 8 && g.monastery.blightLull > 0; i++) {
+          g.update(1 / 60);
+        }
+        expect(g.guardianVulnerable, isFalse, reason: 'the window shuts');
+        expect(
+          g.monastery.wearing,
+          isNot(worn.id),
+          reason: 'and it is wearing a different one, so you brew again',
+        );
+      });
+    });
+
+    test('the hint button answers the planet you are playing', () {
+      // Every objective line used to describe the triage: a still standing
+      // cold, a phial drawn, three wards clean and physic for three. None of
+      // it survived the cauldron, so the hint button was answering questions
+      // about a version of this planet nobody was playing.
+      final g = _game();
+      const gone = ['still', 'phial', 'physic for three', 'leaded', 'draught'];
+      final rooms = [
+        'lazar_gate',
+        'apothecary',
+        'ambulatory',
+        'lazar_crypt',
+        ...kPlaguePotions.map((p) => p.wardId!),
+        kCryptWard,
+      ];
+      for (final r in rooms) {
+        g.currentRoomId = r;
+        final line = g.roomObjectiveLine(r);
+        if (line == null) continue;
+        for (final dead in gone) {
+          expect(
+            line.toLowerCase().contains(dead),
+            isFalse,
+            reason: '$r still says "$dead": $line',
+          );
+        }
+        expect(
+          line.contains('—'),
+          isFalse,
+          reason: '$r has an em dash in it: $line',
+        );
+      }
+    });
+
     test('the dead-house holds no plague', () {
       // It is the way down to Blightfang and nothing else. With a strain in
       // it, it read as a fourth plague at the end of the corridor with no

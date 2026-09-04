@@ -186,7 +186,7 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
                 const Icon(Icons.whatshot_rounded, color: _C.danger, size: 16),
                 const SizedBox(width: 8),
                 Text(
-                  'RAID BROKEN — ${planetName(widget.element).toUpperCase()}',
+                  'RAID BROKEN, ${planetName(widget.element).toUpperCase()}',
                   style: const TextStyle(
                     color: _C.amberBright,
                     fontFamily: 'monospace',

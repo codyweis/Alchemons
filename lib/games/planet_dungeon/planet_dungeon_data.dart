@@ -1854,7 +1854,7 @@ const DungeonLayout _airLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Wind Star',
       earnAnnouncement:
-          'The Wind Star is yours — a passage to the Sky Loom parts below',
+          'The Wind Star is yours, a passage to the Sky Loom parts below',
       revealDoors: [
         DungeonDoorRef('spire_summit', 'sky_loom'),
         DungeonDoorRef('sky_loom', 'spire_summit'),
@@ -1866,12 +1866,12 @@ const DungeonLayout _airLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('entry', 'hub'),
   finaleDoor: DungeonDoorRef('sky_loom', 'storm_rune_hall'),
   riteAnnouncement:
-      'Wind and Loom sing in accord — the storm door in the loom parts',
+      'Wind and Loom sing in accord, the storm door in the loom parts',
   finaleSealedHint:
-      'The storm door is sealed — it parts only for both the Wind and '
+      'The storm door is sealed, it parts only for both the Wind and '
       'Loom stars',
   guardianSealedHint:
-      'The summit stair is shut — the crown wakes no bird until the twin '
+      'The summit stair is shut, the crown wakes no bird until the twin '
       'conduits sing',
   mercyShrineRoomId: 'storm_altar',
   // Ideal: Airwing · Firemask · Lightninghorn — hinted by VERB, never by
@@ -2529,7 +2529,7 @@ const DungeonLayout _airLayout = DungeonLayout(
           id: 'a_thunder',
           requiredCloudType: 'Thundercloud',
           position: Offset(760, 160),
-          clue: 'the storm-heart — charge an anvil',
+          clue: 'the storm-heart. Charge an anvil',
         ),
       ],
       loomStarIndex: 1,
@@ -2711,24 +2711,24 @@ const DungeonLayout _fireLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Ember Star',
       earnAnnouncement:
-          'The Ember Star is yours — the braziers keep their ancient vigil',
+          'The Ember Star is yours, the braziers keep their ancient vigil',
     ),
     DungeonStarSpec(
       name: 'Ash Star',
       earnAnnouncement:
-          'The Ash Star is yours — every sigil burns in its groove',
+          'The Ash Star is yours, every sigil burns in its groove',
     ),
     DungeonStarSpec(name: 'Pyre Star'),
   ],
   entranceRevealDoor: DungeonDoorRef('narthex', 'nave'),
   finaleDoor: DungeonDoorRef('nave', 'vestry'),
   riteAnnouncement:
-      'Ember and Ash burn in accord — the chancel gate swings wide',
+      'Ember and Ash burn in accord, the chancel gate swings wide',
   finaleSealedHint:
-      'The chancel gate is sealed — it parts only for both the Ember and '
+      'The chancel gate is sealed, it parts only for both the Ember and '
       'Ash stars',
   guardianSealedHint:
-      'The sanctum door holds fast — nothing in there stirs until every '
+      'The sanctum door holds fast, nothing in there stirs until every '
       'ember bell has tolled',
   mercyShrineRoomId: 'high_altar',
   // Ideal: Firemask · Plantmane · Airwing — hinted by VERB, never by body
@@ -2864,7 +2864,7 @@ const DungeonLayout _fireLayout = DungeonLayout(
     'cloister': DungeonRoom(
       id: 'cloister',
       teach:
-          'Lay vine, strike ONCE, and turn the wind to walk the flame — every square must burn from that single fire, and burnt ground never takes vine again.',
+          'Lay vine, strike ONCE, and turn the wind to walk the flame, every square must burn from that single fire, and burnt ground never takes vine again.',
       bounds: Rect.fromLTWH(0, 0, 820, 740),
       doors: [
         DungeonDoor(
@@ -3106,23 +3106,23 @@ const DungeonLayout _waterLayout = DungeonLayout(
   stars: [
     DungeonStarSpec(
       name: 'Tide Star',
-      earnAnnouncement: 'The Tide Star is yours — the sluices remember the sea',
+      earnAnnouncement: 'The Tide Star is yours, the sluices remember the sea',
     ),
     DungeonStarSpec(
       name: 'Current Star',
       earnAnnouncement:
-          'The Current Star is yours — the moon-lantern rides out to sea',
+          'The Current Star is yours, the moon-lantern rides out to sea',
     ),
     DungeonStarSpec(name: 'Deep Star'),
   ],
   entranceRevealDoor: DungeonDoorRef('tide_gate', 'drowned_court'),
   finaleDoor: DungeonDoorRef('drowned_court', 'moon_hall'),
-  riteAnnouncement: 'Tide and Current flow in accord — the mirror gate parts',
+  riteAnnouncement: 'Tide and Current flow in accord, the mirror gate parts',
   finaleSealedHint:
-      'The mirror gate is sealed — it parts only for both the Tide and '
+      'The mirror gate is sealed, it parts only for both the Tide and '
       'Current stars',
   guardianSealedHint:
-      'The deep gate will not open — the dark below sleeps until the true '
+      'The deep gate will not open, the dark below sleeps until the true '
       'moon-pools lie frozen',
   mercyShrineRoomId: 'moon_well',
   // Ideal: Waterpip · Spiritmask · Icemane — hinted by VERB, never by body
@@ -3504,24 +3504,24 @@ const DungeonLayout _earthLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Marrow Star',
       earnAnnouncement:
-          'The Marrow Star is yours — the giant\'s ribs hold the road',
+          'The Marrow Star is yours, the giant\'s ribs hold the road',
     ),
     DungeonStarSpec(
       name: 'Crystal Star',
       earnAnnouncement:
-          'The Crystal Star is yours — every socket burns with new stone',
+          'The Crystal Star is yours, every socket burns with new stone',
     ),
     DungeonStarSpec(name: 'Heart Star'),
   ],
   entranceRevealDoor: DungeonDoorRef('barrow_gate', 'sternum_court'),
   finaleDoor: DungeonDoorRef('sternum_court', 'skull_antechamber'),
   riteAnnouncement:
-      'Marrow and Crystal wake in accord — the skull\'s jaw grinds open',
+      'Marrow and Crystal wake in accord, the skull\'s jaw grinds open',
   finaleSealedHint:
-      'The skull\'s jaw is shut — it opens only for both the Marrow and '
+      'The skull\'s jaw is shut, it opens only for both the Marrow and '
       'Crystal stars',
   guardianSealedHint:
-      'The heart-way is barred — the bones lie still until the great scale '
+      'The heart-way is barred, the bones lie still until the great scale '
       'hangs true',
   mercyShrineRoomId: 'eye_chamber',
   // Ideal: Earthhorn · Lightningpip · Crystalmask — hinted by VERB, never by
@@ -3855,24 +3855,24 @@ const DungeonLayout _lightningLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Circuit Star',
       earnAnnouncement:
-          'The Circuit Star is yours — power runs true through every conductor',
+          'The Circuit Star is yours. Power runs true through every conductor',
     ),
     DungeonStarSpec(
       name: 'Storm Star',
       earnAnnouncement:
-          'The Storm Star is yours — the anvil\'s thunder feeds the grid',
+          'The Storm Star is yours, the anvil\'s thunder feeds the grid',
     ),
     DungeonStarSpec(name: 'Overload Star'),
   ],
   entranceRevealDoor: DungeonDoorRef('arc_gate', 'dynamo_court'),
   finaleDoor: DungeonDoorRef('dynamo_court', 'overload_maze'),
   riteAnnouncement:
-      'Circuit and Storm answer as one — the breaker gate throws open',
+      'Circuit and Storm answer as one, the breaker gate throws open',
   finaleSealedHint:
-      'The breaker gate is dead — it powers only for both the Circuit and '
+      'The breaker gate is dead, it powers only for both the Circuit and '
       'Storm stars',
   guardianSealedHint:
-      'The core hatch is dead iron — nothing uncoils in there until the '
+      'The core hatch is dead iron, nothing uncoils in there until the '
       'beam runs latched',
   mercyShrineRoomId: 'storm_core',
   // Ideal: Lightninghorn · Airwing · Firepip — hinted by VERB, never body part:
@@ -4409,24 +4409,24 @@ const DungeonLayout _steamLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Causeway Star',
       earnAnnouncement:
-          'The Causeway Star is yours — you walked the cooled molten road',
+          'The Causeway Star is yours, you walked the cooled molten road',
     ),
     DungeonStarSpec(
       name: 'Cinder Star',
       earnAnnouncement:
-          'The Cinder Star is yours — you dammed the flood and crossed dry',
+          'The Cinder Star is yours, you dammed the flood and crossed dry',
     ),
     DungeonStarSpec(name: 'Crucible Star'),
   ],
   entranceRevealDoor: DungeonDoorRef('boiler_gate', 'manifold_south'),
   finaleDoor: DungeonDoorRef('manifold_north', 'crucible'),
   riteAnnouncement:
-      'Causeway and Cinder are won — the crucible gate grinds open',
+      'Causeway and Cinder are won, the crucible gate grinds open',
   finaleSealedHint:
-      'The crucible gate is sealed — it yields only to the Causeway and Cinder '
+      'The crucible gate is sealed, it yields only to the Causeway and Cinder '
       'stars',
   guardianSealedHint:
-      'The heart valve is clamped — the boiler holds its breath until the '
+      'The heart valve is clamped, the boiler holds its breath until the '
       'crucible pedestal sinks',
   mercyShrineRoomId: 'boiler_heart',
   // Ideal: Steampip · Firemask · Earthhorn — hinted by VERB, never body part:
@@ -4438,7 +4438,7 @@ const DungeonLayout _steamLayout = DungeonLayout(
   ],
   primer: [
     'The main holds forty, and every junction you open costs fifteen.',
-    'Cooling lava condenses back — the flood is also fuel.',
+    'Cooling lava condenses back, the flood is also fuel.',
   ],
   rooms: {
     // Boiler Gate — the way in. A Steam creature cracks the relief vent and

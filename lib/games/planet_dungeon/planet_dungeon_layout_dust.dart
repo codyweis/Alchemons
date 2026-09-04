@@ -639,13 +639,13 @@ const DungeonLayout dustLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Seal Star',
       earnAnnouncement:
-          'The Seal Star is yours — three bronzes bare at once, and the '
+          'The Seal Star is yours, three bronzes bare at once, and the '
           'street holds',
     ),
     DungeonStarSpec(
       name: 'Armillary Star',
       earnAnnouncement:
-          'The Armillary Star is yours — the sky comes down through the roof '
+          'The Armillary Star is yours, the sky comes down through the roof '
           'you took',
     ),
     DungeonStarSpec(name: 'Ash Star'),
@@ -654,11 +654,11 @@ const DungeonLayout dustLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('ashen_gate', 'seal_street'),
   finaleDoor: DungeonDoorRef('sand_court', 'ashdjinn_hollow'),
   riteAnnouncement:
-      'Seal and Armillary are won — the great glass grinds loose in the court',
+      'Seal and Armillary are won, the great glass grinds loose in the court',
   finaleSealedHint:
-      'The court is shut — it answers only the Seal and Armillary stars',
+      'The court is shut, it answers only the Seal and Armillary stars',
   guardianSealedHint:
-      'The hollow lies drifted over — nothing in there stirs until the glass '
+      'The hollow lies drifted over, nothing in there stirs until the glass '
       'is turned',
   mercyShrineRoomId: 'undercity',
   // Ideal: Dustmask · Airwing · Earthhorn — hinted by VERB, never body part

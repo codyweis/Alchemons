@@ -492,7 +492,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  'Guardian Relic — yours with any choice below',
+                  'Guardian Relic. Yours with any choice below',
                   style: TextStyle(color: _C.muted, fontSize: 10.5),
                 ),
               ],
@@ -771,7 +771,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
       enabled = false;
       action = null;
     } else if (awaitingChoice) {
-      label = 'CONFIRM — ${star3ChoiceTitle(_highlighted!).toUpperCase()}';
+      label = 'CONFIRM, ${star3ChoiceTitle(_highlighted!).toUpperCase()}';
       enabled = !_busy;
       action = () => _pickStar3(_highlighted!);
     } else {

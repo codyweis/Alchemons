@@ -1161,7 +1161,7 @@ extension CinderCathedral on PlanetDungeonGame {
         ..position = spawn
         ..lastSafe = spawn;
     }
-    _setHint('The garth is turned over — bare soil again');
+    _setHint('The garth is turned over. Bare soil again');
     onChanged();
   }
 
@@ -1237,7 +1237,7 @@ extension CinderCathedral on PlanetDungeonGame {
     if (a.member.element == 'Air') {
       field.wind = field.wind.quarterRight;
       _syncCrosswindTo(field.wind);
-      _setHint('The vane swings — the wind runs ${_burnWindName(field.wind)}');
+      _setHint('The vane swings, the wind runs ${_burnWindName(field.wind)}');
       onChanged();
       return true;
     }
@@ -1252,7 +1252,7 @@ extension CinderCathedral on PlanetDungeonGame {
         if (field.plant(i)) {
           _setHint(
             field.at(i) == BurnCell.wetVine
-                ? 'Vine takes in the wet ground — green, and it will never catch'
+                ? 'Vine takes in the wet ground. Green, and it will never catch'
                 : 'Vine takes in the soil',
           );
           _spawnAlchemyBurst(
@@ -1272,13 +1272,13 @@ extension CinderCathedral on PlanetDungeonGame {
         return true;
       case 'Fire':
         if (field.alight) {
-          _setBlockedHint('A fire already runs — the garth carries one');
+          _setBlockedHint('A fire already runs, the garth carries one');
           return true;
         }
         if (field.light(i)) {
           burnBeat = _kBurnBeat;
           burnFlash = 0.35;
-          _setHint('The vine catches — it runs with the wind', 3.0);
+          _setHint('The vine catches, it runs with the wind', 3.0);
           _spawnAlchemyBurst(
             at,
             producedElement: 'Fire',
@@ -1319,7 +1319,7 @@ extension CinderCathedral on PlanetDungeonGame {
         garthWipeIn = 0;
         burnFields.remove(room.id);
         burnBeat = 0;
-        _setHint('Bare soil again — plant your run, then strike once', 3.0);
+        _setHint('Bare soil again. Plant your run, then strike once', 3.0);
         onChanged();
       }
       return;
@@ -1341,17 +1341,17 @@ extension CinderCathedral on PlanetDungeonGame {
           intensity: 0.5,
         );
         if (field.poolFull && !hasStar(g.starIndex)) {
-          _setHint('The pool stands full — the cloister gives up its star', 4);
+          _setHint('The pool stands full, the cloister gives up its star', 4);
           earnStar(g.starIndex);
         }
       case BurnStep.smouldered:
-        _setHint('The flame gutters — nothing downwind to take', 1.6);
+        _setHint('The flame gutters, nothing downwind to take', 1.6);
       case BurnStep.died:
         // The goal is ONE chain, so a chain that stops short has already
         // failed — there is nothing to salvage from the ash it left, and
         // leaving the player to notice that themselves and press the re-lay
         // button is a chore, not a decision. The garth turns itself over.
-        _setHint('The fire is out — the garth turns itself over', 3.4);
+        _setHint('The fire is out, the garth turns itself over', 3.4);
         garthWipeIn = _kGarthWipeDelay;
       case BurnStep.idle:
         break;
@@ -1461,7 +1461,7 @@ extension CinderCathedral on PlanetDungeonGame {
           unstable: true,
           announce: false,
         );
-        _setHint('The vesper flame gutters out — its ash rises in fury', 3.0);
+        _setHint('The vesper flame gutters out, its ash rises in fury', 3.0);
         onChanged();
       }
     }
@@ -1539,7 +1539,7 @@ extension CinderCathedral on PlanetDungeonGame {
       guardianAwake = true;
       guardianHp = PlanetDungeonGame.maxGuardianHp;
       _setHint(
-        'The third bell tolls — black flame pours toward the sanctum',
+        'The third bell tolls. Black flame pours toward the sanctum',
         4.2,
       );
       spawnWispWave(
@@ -1609,7 +1609,7 @@ extension CinderCathedral on PlanetDungeonGame {
         return false;
       }
       if (a.member.element != 'Fire') {
-        _setBlockedHint('The pitch is cold — only a Fire hand takes here');
+        _setBlockedHint('The pitch is cold, only a Fire hand takes here');
         return true;
       }
       litMuralTorches.add(i);
@@ -1635,13 +1635,13 @@ extension CinderCathedral on PlanetDungeonGame {
           epitaphStage = 1;
           epitaphWriteT = 0;
         }
-        _setHint('The four corners take — and the soot gives up its stations');
+        _setHint('The four corners take, and the soot gives up its stations');
       } else {
         final left = room.muralTorches.length - litMuralTorches.length;
         _setHint(
           left == 1
-              ? 'It catches — one corner still dark'
-              : 'It catches — $left corners still dark',
+              ? 'It catches, one corner still dark'
+              : 'It catches, $left corners still dark',
         );
       }
       return true;
@@ -1732,7 +1732,7 @@ extension CinderCathedral on PlanetDungeonGame {
         return true;
       }
       if (a.member.element != 'Fire') {
-        _setHint('The hearth is stone-cold — only flame wakes it');
+        _setHint('The hearth is stone-cold, only flame wakes it');
         return true;
       }
       entryDoorRevealed = true;
@@ -1740,7 +1740,7 @@ extension CinderCathedral on PlanetDungeonGame {
       final doorCenter = room.doors.isNotEmpty
           ? room.doors.first.rect.center
           : a.position;
-      _setHint('Flame takes the great hearth — the inner doors grind apart');
+      _setHint('Flame takes the great hearth, the inner doors grind apart');
       _spawnAlchemyBurst(
         nearest.position,
         producedElement: 'Fire',
@@ -1766,7 +1766,7 @@ extension CinderCathedral on PlanetDungeonGame {
     }
     if (a.member.element != 'Fire') {
       // §5.6 BLOCKED: one clause, element-first, on the failed attempt.
-      _setBlockedHint('Cold ritual iron — the braziers answer Fire alone');
+      _setBlockedHint('Cold ritual iron, the braziers answer Fire alone');
       return true;
     }
     if (rank == ritualProgress) {
@@ -1807,7 +1807,7 @@ extension CinderCathedral on PlanetDungeonGame {
         announce: false,
       );
       _setHint(
-        'The fire remembers another order — every brazier snuffs out',
+        'The fire remembers another order, every brazier snuffs out',
         3.2,
       );
     }
@@ -1831,7 +1831,7 @@ extension CinderCathedral on PlanetDungeonGame {
     if (vane != null && (a.position - vane).distance <= _kVaneReach) {
       if (element != 'Air') {
         // §5.6 BLOCKED: one clause, element-first, never a method.
-        _setBlockedHint('Dead iron — the cross turns on Air alone');
+        _setBlockedHint('Dead iron, the cross turns on Air alone');
         return true;
       }
       // ELEMENT-ONLY, exactly as the vesper gust is (§4 / the planet's own
@@ -1928,7 +1928,7 @@ extension CinderCathedral on PlanetDungeonGame {
       if (!_afterGardenMove(star)) {
         _setHint(
           targets.isEmpty
-              ? 'The bed burns down to a black brand — its ash goes over the '
+              ? 'The bed burns down to a black brand, its ash goes over the '
                     'wall'
               : 'The bed burns, and the wind takes its ash across the garth',
           3.2,
@@ -1989,7 +1989,7 @@ extension CinderCathedral on PlanetDungeonGame {
         return true;
       }
       if (_vesperUnderway) {
-        _setBlockedHint('The vesper has begun — this run is committed');
+        _setBlockedHint('The vesper has begun, this run is committed');
         return true;
       }
       vesperRouteId = route.id;
@@ -2002,7 +2002,7 @@ extension CinderCathedral on PlanetDungeonGame {
         intensity: 0.9,
       );
       _setHint(
-        'The censers swing round — the vesper will go by the '
+        'The censers swing round, the vesper will go by the '
         '${route.name.toLowerCase()}',
       );
       onChanged();
@@ -2026,14 +2026,14 @@ extension CinderCathedral on PlanetDungeonGame {
         if ((a.position - ignition).distance > 46) continue;
         if (!guardianRiteUnlocked) {
           _setBlockedHint(
-            'The censer swallows the flame — the vesper waits on the '
+            'The censer swallows the flame, the vesper waits on the '
             '${layout.starName(0)} and ${layout.starName(1)}',
           );
           return true;
         }
         final route = vesperRouteIn(room);
         if (route == null && room.vesperRoutes.isNotEmpty) {
-          _setBlockedHint('No run is declared — the censers hang idle');
+          _setBlockedHint('No run is declared, the censers hang idle');
           return true;
         }
         // The rite has begun: the declared run is COMMITTED for this attempt.
@@ -2061,7 +2061,7 @@ extension CinderCathedral on PlanetDungeonGame {
         );
         _setHint(
           checkpoint > 0
-              ? 'The flame rekindles — and the ash stirs with it'
+              ? 'The flame rekindles, and the ash stirs with it'
               : 'The first censer takes the flame, and the ash rises to '
                     'smother it',
           3.0,
@@ -2120,7 +2120,7 @@ extension CinderCathedral on PlanetDungeonGame {
     if ((a.position - room.bounds.center).distance >= 34) return false;
     _setHint(
       'The rose window stills. Before the ash, the Simurgh sang the first '
-      'dawn into these vaults — the cathedral remembers, and now it rests.',
+      'dawn into these vaults, the cathedral remembers, and now it rests.',
       7.5,
     );
     _spawnAlchemyBurst(
@@ -2225,16 +2225,16 @@ extension CinderCathedral on PlanetDungeonGame {
         // READ-ONLY. Everything this used to DO now happens when the fourth
         // torch takes; all that is left here is describing what is on the wall.
         if (!muralLit(room)) {
-          _setBlockedHint('Too dark to read — the corners are unlit');
+          _setBlockedHint('Too dark to read, the corners are unlit');
           return;
         }
         _setInsightHint(
-          'Six stations, and the soot kept only two of them — no two in a row',
+          'Six stations, and the soot kept only two of them, no two in a row',
         );
         return;
       case 'choir':
         if (hasStar(room.brazierStarIndex ?? 0)) {
-          _setHint('The braziers keep their vigil — the rite is done');
+          _setHint('The braziers keep their vigil, the rite is done');
           return;
         }
         // THE FORENSIC RITE (§6.1): the reading ASSISTS, it never answers,
@@ -2250,14 +2250,14 @@ extension CinderCathedral on PlanetDungeonGame {
           revealTier >= 1
               ? 'The evidence stands out: lowest wax burned longest, soot '
                     'leans off whatever was already alight, ash piles downwind'
-              : 'The iron still wears the last rite — wax, soot and ash '
+              : 'The iron still wears the last rite. Wax, soot and ash '
                     'have all kept their share of it',
           4.4,
         );
         return;
       case 'cloister':
         if (hasStar(room.vineStarIndex ?? 1)) {
-          _setHint('Every groove sits true — the garth is at peace', 3.4);
+          _setHint('Every groove sits true, the garth is at peace', 3.4);
           return;
         }
         // THE GARTH (§6.1 rework): insight ASSISTS, it never plans. t0 names
@@ -2268,12 +2268,12 @@ extension CinderCathedral on PlanetDungeonGame {
         if (revealTier >= 2) _gardenLink ??= _pickGardenLink();
         _setHint(
           revealTier >= 2
-              ? 'The cuts read now — and one groove shows which bed\'s burning '
+              ? 'The cuts read now, and one groove shows which bed\'s burning '
                     'must feed it'
               : revealTier >= 1
               ? 'Three cuts, three gifts: the shallow bowls want the drift, the '
                     'deep brands want their own fire, and the swept rings want '
-                    'nothing at all — and every burn sends its ash downwind'
+                    'nothing at all, and every burn sends its ash downwind'
               : 'Each groove is cut to a different shape, and the garth is '
                     'open to the sky',
           4.4,
@@ -2281,7 +2281,7 @@ extension CinderCathedral on PlanetDungeonGame {
         return;
       case 'vestry':
         _setHint(
-          'The charred fresco completes — flame walks the hanging chains, '
+          'The charred fresco completes. Flame walks the hanging chains, '
           'and the wind bears it censer to censer',
           4.0,
         );
@@ -2303,7 +2303,7 @@ extension CinderCathedral on PlanetDungeonGame {
                           'same walk')
               : (revealTier >= 1
                     ? 'Light a censer, then gust the flame on before it '
-                          'starves — every censer you pass re-lights from there'
+                          'starves, every censer you pass re-lights from there'
                     : 'The censers answer flame, and the flame answers wind'),
           4.2,
         );
@@ -2317,7 +2317,7 @@ extension CinderCathedral on PlanetDungeonGame {
         return;
       case 'nave':
         _setHint(
-          'Three lights watch over the chancel gate — ember, ash, and pyre',
+          'Three lights watch over the chancel gate. Ember, ash, and pyre',
           3.6,
         );
         return;
@@ -2327,8 +2327,8 @@ extension CinderCathedral on PlanetDungeonGame {
       case 'sanctum':
         _setHint(
           guardianAwake
-              ? 'The Simurgh\'s rage thins in waves — strike in the lull'
-              : 'An empty roost above the altar — the bells will fill it',
+              ? 'The Simurgh\'s rage thins in waves. Strike in the lull'
+              : 'An empty roost above the altar, the bells will fill it',
           3.6,
         );
         return;
@@ -2479,17 +2479,17 @@ extension CinderCathedral on PlanetDungeonGame {
       case 'narthex':
         return entryDoorRevealed
             ? null
-            : 'Narthex — the great hearth is cold; flame wakes the way in';
+            : 'Narthex, the great hearth is cold; flame wakes the way in';
       case 'scriptorium':
         return hasStar(0)
             ? null
-            : 'Scriptorium — the soot mural keeps two fires of the old rite';
+            : 'Scriptorium, the soot mural keeps two fires of the old rite';
       case 'choir':
         // WHAT, never HOW (§5.6): the rite's goal only. How to READ the
         // braziers is earned through Mask insight, or found by looking.
         return hasStar(0)
             ? null
-            : 'Choir — six braziers, and one order the cathedral still '
+            : 'Choir. Six braziers, and one order the cathedral still '
                   'remembers';
       case 'cloister':
         // WHAT, never HOW (§5.6): the wind, the grooves and the order they
@@ -2497,26 +2497,26 @@ extension CinderCathedral on PlanetDungeonGame {
         // the stone for anyone patient — never room-entry copy.
         return hasStar(room.vineStarIndex ?? 1)
             ? null
-            : 'Cloister — six grooves cut in the garth, and a sky that will '
+            : 'Cloister. Six grooves cut in the garth, and a sky that will '
                   'not sit still';
       case 'vestry':
         return hasStar(2)
             ? null
-            : 'Vestry — a charred fresco diagrams the vesper ahead';
+            : 'Vestry, a charred fresco diagrams the vesper ahead';
       case 'bell_gallery':
         if (hasStar(2)) return null;
         return vesperRouteId == null && room.vesperRoutes.isNotEmpty
-            ? 'Bell Gallery — two censer runs, three silent bells; one run '
+            ? 'Bell Gallery, two censer runs, three silent bells; one run '
                   'carries the vesper'
-            : 'Bell Gallery — three bells, and a flame that will not keep';
+            : 'Bell Gallery, three bells, and a flame that will not keep';
       case 'high_altar':
         return hasStar(2)
             ? null
-            : 'High Altar — the black flame waits on the bells';
+            : 'High Altar, the black flame waits on the bells';
       case 'sanctum':
         return guardianAwake
-            ? 'Sanctum — the Simurgh descends'
-            : 'Sanctum — an empty roost; the bells have not rung';
+            ? 'Sanctum, the Simurgh descends'
+            : 'Sanctum, an empty roost; the bells have not rung';
     }
     return null;
   }

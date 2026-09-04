@@ -74,6 +74,9 @@ const double _kBlightLull = 3.4;
 /// the planet's own rule, turned on the player).
 const double _kBlightFeedHeal = 0.06;
 
+/// What Graverot takes off patient zero per second of its lull.
+const double _kGraverotBurn = 0.035;
+
 /// ONE THING THE PLAGUE PUT ON THE FLOOR during a gate: a rot-bulb to stand
 /// on, a spore-pod drifting home, or a pool of blood to stopper. All three
 /// are "a spot that wants a body", which is why they are one class — what
@@ -449,6 +452,20 @@ class VenomMonastery {
   /// Patient zero's live habit, and the lull a correct dose bought.
   WardStrain? blightStrain;
   double blightLull = 0;
+
+  /// WHICH PLAGUE BLIGHTFANG IS WEARING. Patient zero is where all three
+  /// came from, so it puts one on at a time and nothing touches it until it
+  /// is given that plague's own brew. When the lull runs out it sheds and
+  /// takes another, and you brew again.
+  ///
+  /// This replaced a fight built on the four ward draughts and "read the
+  /// strain by its habit" — a vocabulary the rest of the planet stopped
+  /// using when the still became a cauldron, so the finale was teaching a
+  /// new system in the last room.
+  String? wearing;
+
+  /// Which brew bought the current lull, and therefore what the lull DOES.
+  String? lullBrew;
 }
 
 extension VenomMonasteryPuzzle on PlanetDungeonGame {
@@ -514,6 +531,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.wispDrift = 0;
     m.blightStrain = null;
     m.blightLull = 0;
+    m.wearing = null;
+    m.lullBrew = null;
   }
 
   // ── The strains: behaviour is the diagnosis ──────────────
@@ -768,7 +787,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         if (c.alive) c.hp = min(c.maxHp, c.hp + c.maxHp * 0.35);
       }
       speakConsequence(
-        'The sacristy opens — the ward\'s own physic mends you',
+        'The sacristy opens, the ward\'s own physic mends you',
         3.2,
       );
       _spawnAlchemyBurst(
@@ -793,18 +812,18 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final g = room.guardian;
     if (g == null) return;
     final m = monastery;
-    m.blightStrain ??=
-        WardStrain.values[Random().nextInt(WardStrain.values.length)];
+    // It is always wearing one of the three.
+    m.wearing ??= kPlaguePotions[_combatRng.nextInt(kPlaguePotions.length)].id;
     if (m.blightLull > 0) {
       m.blightLull = max(0.0, m.blightLull - dt);
       guardianVulnerable = m.blightLull > 0;
+      _applyLullEffect(m.lullBrew, dt);
       if (m.blightLull == 0) {
-        // A new habit, never the one just answered.
-        final pool = WardStrain.values
-            .where((s) => s != m.blightStrain)
-            .toList();
-        m.blightStrain = pool[Random().nextInt(pool.length)];
-        speakConsequence('Blightfang sheds the strain and takes another', 2.8);
+        // It sheds and takes another, never the one just answered.
+        final pool = kPlaguePotions.where((p) => p.id != m.wearing).toList();
+        m.wearing = pool[_combatRng.nextInt(pool.length)].id;
+        m.lullBrew = null;
+        speakConsequence('It sheds the plague and puts on another.', 3.0);
       }
     } else {
       guardianVulnerable = false;
@@ -816,38 +835,62 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// The dose intercept: checked BEFORE the shared guardian catch (the same
   /// precedence Lightning's grounding spike takes), because the phial IS the
   /// fight's verb. Empty-handed, it declines and the strike path runs.
+  /// THREE POISONS, THREE DIFFERENT LULLS. All three open the window; what
+  /// they do inside it is the reason to care which one you brewed.
+  ///
+  ///  · Bloomvenom takes root and DEAFENS it — its attack cooldown is held
+  ///    down, so the window is a safe one to stand in.
+  ///  · Mirebane climbs and SLOWS it — it barely moves, so the window is one
+  ///    you can chase it into.
+  ///  · Graverot ROTS it — the window does damage of its own, whether or not
+  ///    the party lands a blow.
+  void _applyLullEffect(String? brewId, double dt) {
+    final e = _guardianEnemy;
+    if (e == null || e.isDead) return;
+    final brew = brewById(brewId);
+    if (brew == null) return;
+    switch (brew.pot) {
+      case CauldronReaction.bloom:
+        // Deafened: it cannot get an attack away while this is on it.
+        e.attackCooldown = max(e.attackCooldown, 0.6);
+      case CauldronReaction.climb:
+        // Slowed: hauled almost to a stop.
+        e.flightSteering?.velocity =
+            (e.flightSteering?.velocity ?? Offset.zero) * 0.25;
+      case CauldronReaction.rot:
+        // Rotting: it loses ground on its own.
+        e.hp = max(0.0, e.hp - e.maxHp * _kGraverotBurn * dt);
+        if (e.hp <= 0) e.isDead = true;
+      case CauldronReaction.pure:
+        break;
+    }
+  }
+
+  /// GIVE PATIENT ZERO THE PLAGUE IT IS WEARING.
+  ///
+  /// Nothing reaches it otherwise. The right brew forces a lull, and WHICH
+  /// brew decides what the lull is like: they are three different poisons
+  /// and they should not all just be a green light.
   bool _tryDoseBlightfang(DungeonCreature a) {
     if (!_isVenom || isRaid) return false;
     final room = currentRoom;
     final g = room.guardian;
     final m = monastery;
     if (g == null || !guardianAwake || hasStar(g.starIndex)) return false;
-    final phial = m.triage.carried;
-    if (phial == null) return false;
+    final held = brewById(m.carriedPotion);
+    if (held == null) return false;
     if ((a.position - _guardianPosition(g)).distance > 118) return false;
-    m.triage.spend();
-    final habit = m.blightStrain;
-    if (habit != null && antidoteFor(habit) == phial) {
-      m.blightLull = _kBlightLull;
-      guardianVulnerable = true;
-      speakConsequence(
-        'The dose bites — patient zero reels into the lull',
-        3.2,
-      );
-      _spawnAlchemyBurst(
-        _guardianPosition(g),
-        producedElement: 'Poison',
-        reagentElements: const ['Plant', 'Mud'],
-        particleCount: 26,
-        intensity: 1.2,
-      );
-    } else {
+
+    m
+      ..bottled.remove(held.id)
+      ..carriedPotion = null;
+    if (held.id != m.wearing) {
       // It FEEDS — the planet's own rule, turned on the player.
       final e = _guardianEnemy;
       if (e != null && !e.isDead) {
         e.hp = min(e.maxHp.toDouble(), e.hp + e.maxHp * _kBlightFeedHeal);
       }
-      speakConsequence('Wrong physic — Blightfang drinks it and swells', 3.4);
+      speakConsequence('Wrong plague. It drinks that and swells.', 3.4);
       _spawnAlchemyBurst(
         _guardianPosition(g),
         producedElement: 'Poison',
@@ -855,9 +898,35 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         particleCount: 20,
         intensity: 1.0,
       );
+      return true;
     }
+
+    m
+      ..blightLull = _kBlightLull
+      ..lullBrew = held.id;
+    guardianVulnerable = true;
+    speakConsequence(_lullLine(held), 3.6);
+    _spawnAlchemyBurst(
+      _guardianPosition(g),
+      producedElement: held.first,
+      reagentElements: [held.second],
+      particleCount: 26,
+      intensity: 1.2,
+    );
     return true;
   }
+
+  /// What each brew does to patient zero, said once as it lands.
+  String _lullLine(PlaguePotion p) => switch (p.pot) {
+    CauldronReaction.bloom =>
+      'Bloomvenom takes root in it. It cannot hear you coming, and it '
+          'stops throwing.',
+    CauldronReaction.climb =>
+      'Mirebane climbs it. Everything it does, it does slowly.',
+    CauldronReaction.rot =>
+      'Graverot goes in. It is coming apart while you work.',
+    CauldronReaction.pure => 'It drinks, and reels.',
+  };
 
   bool _tryMonastery(DungeonCreature a) {
     if (!_isVenom) return false;
@@ -875,7 +944,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         entryDoorRevealed = true;
         _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId);
         speakConsequence(
-          'The wax softens and runs — the lazaret stands open',
+          'The wax softens and runs. The lazaret stands open.',
           3.4,
         );
         _spawnAlchemyBurst(
@@ -895,13 +964,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // 2) THE CAULDRON. Before the old still, because in the infirmary the pot
     //    IS the still now — the four-tap draught rack survives only in the
     //    crypt, where the carrion font wears the same shape.
-    if (room.apothecary != null && room.guardian == null) {
+    if (room.apothecary != null) {
       if (_tryBottleBench(a, room)) return true;
       if (_tryCauldron(a, room)) return true;
     }
-
-    // 2b) The crypt's carrion font: draw a draught.
-    if (room.apothecary != null && _tryDrawDraught(a, room)) return true;
 
     // 3) The censer: administer what is in hand.
     final ward = room.ward;
@@ -929,7 +995,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (room.id == 'ambulatory' &&
         wisp != null &&
         (a.position - wisp).distance <= _kMonasteryReach) {
-      return _tryDoseWisp();
+      return _tryDoseWisp(a);
     }
     return false;
   }
@@ -949,11 +1015,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       if ((a.position - door.rect.center).distance > 96) continue;
       _setBlockedHint(
         ward.id == kCryptWard
-            ? 'The dead-house answers the cross, not a hand — three '
-                  'reliquaries in the stone'
+            ? 'The dead-house answers the cross, not a hand. Three '
+                  'reliquaries are wanted in the stone.'
             : monastery.carriedPotion == kPureVial.id
-            ? 'The wax will not part here — the basin in the middle of the '
-                  'cloister is what the vial is for'
+            ? 'The wax will not part here. The basin in the middle of the '
+                  'cloister is what the vial is for.'
             : kPureVial.clue,
       );
       return true;
@@ -964,18 +1030,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// Does this creature carry the still's power — Poison itself, or the
   /// monastery's own braid **Lava+Mud→Poison** (§4: a recipe substitutes an
   /// ELEMENT, never a family, and pays its authored downside).
-  bool _canBrew(DungeonCreature a) =>
-      a.member.element == 'Poison' || _monasteryBraidReady(a);
-
-  bool _monasteryBraidReady(DungeonCreature a) {
-    final e = a.member.element;
-    // The braid follows the larder: the house's own three, minus Poison.
-    if (e != 'Plant' && e != 'Mud') return false;
-    final want = e == 'Plant' ? 'Mud' : 'Plant';
-    return creatures.any(
-      (c) => c.alive && !identical(c, a) && c.member.element == want,
-    );
-  }
 
   /// STAND AT THE POT AND GIVE. Two matching elements make a potion.
   ///
@@ -996,7 +1050,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   bool _tryBottleBench(DungeonCreature a, DungeonRoom room) {
     final still = room.apothecary;
-    if (still == null || room.guardian != null) return false;
+    if (still == null) return false;
     final at = _benchAt(still);
     if ((a.position - at).distance > _kMonasteryReach) return false;
     final m = monastery;
@@ -1008,7 +1062,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       return true;
     }
     if (m.bottled.isEmpty) {
-      _setBlockedHint('The bench is bare — the pot is where brews are made');
+      _setBlockedHint('The bench is bare. Brews are made at the pot.');
       return true;
     }
     // Round-robin, so a bench with three on it can hand over any of them.
@@ -1037,11 +1091,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       _setBlockedHint('Set the bottle on the bench before giving to the pot');
       return true;
     }
+    // THE CRYPT'S POT NEVER RUNS DRY. Upstairs the scarce thing is hands,
+    // and the whole puzzle is spending them. Down here patient zero is the
+    // source of all three plagues and the fight is a cycle you have to keep
+    // answering — a contribution limit would simply end the run.
+    final free = room.guardian != null;
     final allowed = contributionsAllowedFor(el);
-    if ((m.given[id] ?? 0) >= allowed) {
+    if (!free && (m.given[id] ?? 0) >= allowed) {
       _setBlockedHint(
-        '${a.member.displayName} has given $allowed times — that is all it '
-        'has in it',
+        '${a.member.displayName} has given $allowed times. That is all it '
+        'has in it.',
       );
       return true;
     }
@@ -1052,13 +1111,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // POISON TWICE IS A RECIPE. Everything else wants two different things,
     // and saying so is the tell that the pure vial exists at all.
     if (m.pot.contains(el) && el != 'Poison') {
-      _setBlockedHint('$el is already in the pot — this wants something else');
+      _setBlockedHint(
+        '$el is already in the pot. This one wants something else.',
+      );
       return true;
     }
 
     m.pot.add(el);
     m.potHands.add(id);
-    m.given[id] = (m.given[id] ?? 0) + 1;
+    if (!free) m.given[id] = (m.given[id] ?? 0) + 1;
     _spawnAlchemyBurst(
       still.cistern,
       producedElement: el,
@@ -1358,16 +1419,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   bool _tryWakePlague(PlaguePotion potion, WardCell ward) {
     final m = monastery;
     if (m.slain.contains(potion.id)) {
-      _setBlockedHint('This one is already down');
+      _setBlockedHint('This one is already down.');
       return true;
     }
     if (m.woken.contains(potion.id)) {
-      _setBlockedHint('It is awake and out in the walk — go and finish it');
+      _setBlockedHint('It is awake and out in the walk. Go and finish it.');
       return true;
     }
     final held = m.carriedPotion;
     if (held == null) {
-      _setBlockedHint('Nothing in hand. The pot in the apothecary makes it.');
+      _setBlockedHint('Nothing in hand. The pot in the laboratory makes it.');
       return true;
     }
     if (held != potion.id) {
@@ -2262,11 +2323,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       if (at == null) continue;
       if ((a.position - at).distance > _kMonasteryReach) continue;
       if (m.carriedRelic != null) {
-        _setBlockedHint('A hand already carries a reliquary');
+        _setBlockedHint('A hand already carries a reliquary.');
         return true;
       }
       if (m.carriedPotion != null) {
-        _setBlockedHint('Put the bottle down first');
+        _setBlockedHint('Put the bottle down first.');
         return true;
       }
       m.carriedRelic = p.id;
@@ -2319,73 +2380,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     return Offset(seal.position.dx + (i - 1) * 34, seal.position.dy + 46);
   }
 
-  bool _tryDrawDraught(DungeonCreature a, DungeonRoom room) {
-    final still = room.apothecary!;
-    final t = monastery.triage;
-    // The crypt's font is patient zero's own venom: it never runs dry and it
-    // never touches the cistern — the finale is a diagnosis, not a supply run.
-    final carrion = room.guardian != null;
-    for (final spout in still.spouts) {
-      if ((a.position - spout.position).distance > _kMonasteryReach) continue;
-      if (!_canBrew(a)) {
-        // NAME THE OTHER WAY. "Only Poison" reads as impossible to a party
-        // that has none — the same refusal Steam's accumulator and Lava's
-        // die both used to give. The braid is what it actually wants.
-        _setBlockedHint(
-          'The font answers only Poison — or a Plant and a Mud heart '
-          'standing at it together',
-        );
-        return true;
-      }
-      if (t.carried != null) {
-        _setBlockedHint('A hand carries one phial');
-        return true;
-      }
-      final ok = carrion ? t.drawCarrion(spout.draught) : t.draw(spout.draught);
-      if (!ok) {
-        // Only ever reachable with three wards already clean: the house has
-        // no physic for a fourth, and that is the whole planet.
-        // Not a refusal you can fix — it is the planet's whole thesis
-        // arriving — so it is spoken, not remembered.
-        speakConsequence(
-          'The cistern is dry. There was never physic for a fourth ward.',
-          4.2,
-        );
-        return true;
-      }
-      final braid = a.member.element != 'Poison';
-      // SAY IT. This was `_setHint`, which for unasked world speech is
-      // DROPPED — so drawing a draught printed nothing, showed nothing, and
-      // put an invisible phial in an invisible hand. Reported from play as
-      // "it doesn't seem like I'm interacting with anything".
-      speakConsequence(
-        '${draughtFixtureName(spout.draught)} fills the phial'
-        '${braid ? ' — and the braid roars; something heard that' : ''}.',
-        3.4,
-      );
-      _spawnAlchemyBurst(
-        spout.position,
-        producedElement: 'Poison',
-        reagentElements: braid ? const ['Plant', 'Mud'] : const [],
-        unstable: braid,
-        particleCount: braid ? 22 : 16,
-        intensity: braid ? 1.1 : 0.8,
-      );
-      // The braid's authored downside (§4): the roar of it draws wisps.
-      if (braid) {
-        spawnWispWave(
-          element: 'Poison',
-          center: spout.position,
-          count: 2,
-          unstable: true,
-          announce: false,
-        );
-      }
-      return true;
-    }
-    return false;
-  }
-
   bool _tryAdminister(DungeonCreature a, WardCell ward) {
     final m = monastery;
     // A plague ward wants a BREW, not a phial — the old draught rack lives
@@ -2400,9 +2394,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       case DoseOutcome.sealed:
         _setBlockedHint('The ward is still shut');
       case DoseOutcome.settled:
-        _setBlockedHint('This ward is settled — nothing here to physic');
+        _setBlockedHint(
+          'This ward is settled. There is nothing here to physic.',
+        );
       case DoseOutcome.cured:
-        speakConsequence('The strain lets go — ${ward.name} is clean.', 3.8);
+        speakConsequence('The strain lets go. ${ward.name} is clean.', 3.8);
         _spawnAlchemyBurst(
           ward.censer,
           producedElement: 'Light',
@@ -2424,7 +2420,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         // it gets the shot and the shake, like the cross does.
         _plagueEntersTheWalk(currentRoomId, sick: true);
         speakConsequence(
-          'Wrong physic. The strain drinks it and doubles — and it is loose '
+          'Wrong physic. The strain drinks it and doubles, and it is loose '
           'in the walk until this ward is cured.',
           4.4,
         );
@@ -2471,32 +2467,25 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   /// THE DOSE (Paracelsus) — the lost maxim. One sick wisp wanders the
   /// ambulatory; a blade is not the answer. Diagnose it like a ward and pour.
-  bool _tryDoseWisp() {
+  /// THE LOST MAXIM: the one sick thing in this house you are not asked to
+  /// kill. A Poison alchemon standing with it is the whole cure.
+  ///
+  /// It used to want a matching draught from the four-tap font, and that
+  /// font went when the still became a cauldron — which quietly made the
+  /// maxim unobtainable. A brew cannot be the answer either: upstairs the
+  /// hands come out exactly even across the three plagues and the vial, so
+  /// asking for a fourth brew would mean asking the player to fail
+  /// something else. Mercy costs a hand's TIME, not the house's physic.
+  bool _tryDoseWisp(DungeonCreature a) {
     final m = monastery;
-    final phial = m.triage.carried;
-    if (phial == null) {
-      _setBlockedHint('Nothing in hand to give');
-      return true;
-    }
-    m.triage.spend();
     final wisp = m.wisp!;
-    if (antidoteFor(m.wispStrain) != phial) {
-      speakConsequence(
-        'The sick wisp shies from the phial — wrong physic',
-        3.2,
-      );
-      _spawnAlchemyBurst(
-        wisp,
-        producedElement: 'Poison',
-        unstable: true,
-        particleCount: 14,
-        intensity: 0.7,
-      );
+    if (a.member.element != 'Poison') {
+      _setBlockedHint('It shies from everything but its own kind.');
       return true;
     }
     m.wisp = null;
     // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    speakConsequence('The wisp drinks, and quietens', 4.0);
+    speakConsequence('It quietens under a Poison hand.', 4.0);
     beginMaximRite(kPoisonDoseEggId, wisp);
     _spawnAlchemyBurst(
       wisp,
@@ -2601,32 +2590,62 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   // ── Hints (§5.6) ─────────────────────────────────────────
 
   /// OBJECTIVE — one line on entry, WHAT and never HOW.
+  /// WHAT THIS ROOM IS FOR, one line, said only when the HINT button is
+  /// pressed.
+  ///
+  /// Rewritten with the cauldron. Every line here described the triage: a
+  /// still standing cold, a phial drawn, three wards clean and physic for
+  /// three. None of that exists any more, so the hint button was answering
+  /// questions about a version of the planet the player was not playing.
   String? _monasteryObjectiveHint(DungeonRoom room) {
-    final t = monastery.triage;
+    final m = monastery;
     switch (room.id) {
       case 'lazar_gate':
-        return entryDoorRevealed ? null : 'The quarantine door is waxed shut';
+        return entryDoorRevealed ? null : 'The quarantine door is waxed shut.';
       case 'apothecary':
-        return t.carried == null
-            ? 'The infirmary still stands cold'
-            : 'A phial is drawn';
+        if (m.carriedPotion != null) {
+          final held = brewById(m.carriedPotion);
+          return '${held?.name ?? 'A brew'} is in hand.';
+        }
+        return m.cloisterOpen
+            ? 'The pot takes two things and makes one.'
+            : 'Nothing in the cloister opens until the font is filled.';
       case 'ambulatory':
-        if (t.surrendered != null) return null;
-        return t.canCommit
-            ? 'Three wards are clean — the prior\'s seal waits'
-            : 'Four wards, and physic for three';
+        if (m.fighting != null) return 'A plague is loose in here.';
+        if (!m.cloisterOpen) {
+          return 'The font in the middle wants pure poison.';
+        }
+        if (m.relicsPlaced.length >= kPlaguePotions.length) {
+          return 'The cross is lit. The dead-house stands open.';
+        }
+        if (m.relicAt.isNotEmpty) {
+          return 'A reliquary is lying on the stones.';
+        }
+        final down = m.slain.length;
+        return '$down of ${kPlaguePotions.length} plagues down. '
+            'The cross wants a reliquary for each.';
       case 'lazar_crypt':
-        return 'Patient zero keeps every strain the house ever held';
+        final worn = brewById(m.wearing);
+        return worn == null
+            ? 'Patient zero wears the plagues it made.'
+            : 'It is wearing ${worn.plague}. Nothing touches it until it is '
+                  'given that.';
     }
     final ward = room.ward;
     if (ward == null) return null;
-    if (t.cured.contains(ward.id)) return null;
-    if (ward.id == t.surrendered) {
-      return monastery.oublietteOpen
+    if (ward.id == kCryptWard) {
+      return m.oublietteOpen
           ? null
-          : 'A stone in the floor is leaded shut';
+          : 'Something has come up through the floor in here.';
     }
-    return 'Something lives in ${ward.name}';
+    final sleeper = kPlaguePotions.where((p) => p.wardId == ward.id);
+    if (sleeper.isEmpty) return null;
+    final p = sleeper.first;
+    if (m.slain.contains(p.id)) return null;
+    if (m.woken.contains(p.id)) {
+      return '${_capitalisePoison(p.plague)} has left this ward.';
+    }
+    return '${_capitalisePoison(p.plague)} sleeps here. ${p.clue}';
   }
 
   /// AMBIENT — atmosphere only. No mechanics, no stats, no families.
@@ -2686,21 +2705,27 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         return;
       }
       _setInsightHint(switch (revealTier) {
-        0 => 'The sickness has a habit — watch it before you pour',
+        0 => 'The sickness has a habit. Watch it before you pour.',
         1 => 'Read it: ${strainHabit(s)}',
         _ =>
-          'Read it: ${strainHabit(s)} — ${draughtFixtureName(antidoteFor(s))} answers it',
+          'Read it: ${strainHabit(s)}, ${draughtFixtureName(antidoteFor(s))} answers it',
       });
       return;
     }
 
     if (room.guardian != null) {
-      final habit = monastery.blightStrain;
-      _setInsightHint(
-        habit == null || revealTier < 1
-            ? 'It wears one strain at a time — read it before you pour'
-            : 'Right now: ${strainHabit(habit)}',
-      );
+      final worn = brewById(monastery.wearing);
+      _setInsightHint(switch (revealTier) {
+        0 =>
+          'It wears one of the three at a time. Nothing touches it until '
+              'it is given that one.',
+        1 when worn != null =>
+          'It is wearing ${worn.plague}. Give it ${worn.name}.',
+        _ when worn != null =>
+          '${worn.plague}, which wants ${worn.first} and ${worn.second}. '
+              'The pot down here never runs dry.',
+        _ => 'It wears one of the three at a time.',
+      });
       return;
     }
 
@@ -2715,7 +2740,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         _setInsightHint(switch (revealTier) {
           0 => 'The pot takes two and makes one',
           1 =>
-            'Three jars, three plagues, and two brews in every alchemon — '
+            'Three jars, three plagues, and two brews in every alchemon'
                 'the sums come out exactly even, so the question is ORDER',
           _ when spent.isEmpty =>
             'Nothing is spent yet. Wake one plague at a time: whoever mixes '
@@ -2726,9 +2751,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       }
       _setInsightHint(
         revealTier < 1
-            ? 'Four taps, four different physics'
-            : 'A bell that damps, a kiln that burns off, a pot that fills a '
-                  'gap, bitters that will not let a thing lie',
+            ? 'The same pot, and this one never runs dry'
+            : 'No hand is spent down here. Brew as often as it sheds.',
       );
       return;
     }
@@ -2747,7 +2771,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       final loose = t.loose;
       _setInsightHint(
         loose.isEmpty
-            ? 'The corridor is clean — for now'
+            ? 'The corridor is clean, for now'
             : 'Loose in the walk: ${loose.map(strainHabit).join('; ')}',
       );
       return;
@@ -2773,7 +2797,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           '${potion.second}, and no hand here has a give left in it.';
     }
     return '${_capitalisePoison(potion.name)}: ${potion.first} and '
-        '${potion.second}. Still able to give — ${fit.join(', ')}.';
+        '${potion.second}. Still able to give, ${fit.join(', ')}.';
   }
 
   /// PROGRESS READOUT (§5.6) — state leaves the capsule.
@@ -2859,6 +2883,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     _renderContagion(canvas, room);
     _renderStrains(canvas, room);
     _renderMonasteryFixtures(canvas, room);
+    _renderBlightfangPlague(canvas, room);
     _renderWardSeals(canvas, room);
     _renderLazarGloom(canvas, room);
     // AFTER the gloom. Drawn under it the burst was darkened by the very
@@ -4765,6 +4790,46 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           ..color = const Color(0xFF2A3325).withValues(alpha: 0.7),
       );
     }
+  }
+
+  /// WHAT PATIENT ZERO IS WEARING. The whole finale turns on it, so it is on
+  /// the boss rather than behind the hint button: the plague's own veins,
+  /// in the plague's own colour, working over the thing that made them.
+  void _renderBlightfangPlague(Canvas canvas, DungeonRoom room) {
+    final g = room.guardian;
+    if (g == null || !guardianAwake || hasStar(g.starIndex)) return;
+    final worn = brewById(monastery.wearing);
+    if (worn == null) return;
+    final at = _guardianPosition(g);
+    final hue = _plagueColour(worn);
+    final lull = monastery.blightLull > 0;
+
+    _drawPlagueForm(
+      canvas,
+      at,
+      lull ? 120 : 170,
+      hue,
+      seed: worn.id.codeUnits.fold<int>(53, (a, c) => (a * 31 + c) % 30011),
+      grow: lull ? 0.55 : 1.0,
+    );
+    // Sealed while it is wearing one nothing has answered: a shell that says
+    // plainly that hitting it is not the move.
+    if (!lull) {
+      final pulse = 0.5 + 0.5 * sin(_time * 3.4);
+      canvas.drawCircle(
+        at,
+        58 + 4 * pulse,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4
+          ..color = _venomBone.withValues(alpha: 0.45 + 0.2 * pulse),
+      );
+    }
+    _drawTinyLabel(
+      canvas,
+      Offset(at.dx, at.dy - 96),
+      lull ? 'OPEN' : worn.plague.toUpperCase(),
+    );
   }
 
   /// THE FIGHT, ON SCREEN. Three pips over the body, the mechanic on the

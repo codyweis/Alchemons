@@ -110,7 +110,7 @@ const _harvesterItems = <_MarketItem>[
   _MarketItem(
     id: 'market.harvest.stabilized',
     name: 'Stabilized Harvester',
-    description: 'Guaranteed capture — never fails.',
+    description: 'Guaranteed capture, never fails.',
     icon: AppIcons.shield_rounded,
     iconColor: Color(0xFFFFD700),
     assetName: 'assets/images/ui/universalharvest.png',
@@ -729,7 +729,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    '90% OFF — Your faction!',
+                                    '90% OFF, Your faction!',
                                     style: TextStyle(
                                       color: const Color(0xFF4CAF50),
                                       fontSize: 12,
@@ -758,7 +758,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                   const SizedBox(width: 4),
                                   Text(
                                     _hasElementDiscount(item)
-                                        ? '50% OFF — ${recipe.requiredElement} meter active'
+                                        ? '50% OFF, ${recipe.requiredElement} meter active'
                                         : '50% off with ≥50% ${recipe.requiredElement} meter',
                                     style: TextStyle(
                                       color: _hasElementDiscount(item)

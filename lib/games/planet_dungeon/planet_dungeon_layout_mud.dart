@@ -584,12 +584,12 @@ const DungeonLayout mudLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Sarsen Star',
       earnAnnouncement:
-          'The Sarsen Star is yours — the stone stands where the fen wanted it',
+          'The Sarsen Star is yours, the stone stands where the fen wanted it',
     ),
     DungeonStarSpec(
       name: 'Moor Star',
       earnAnnouncement:
-          'The Moor Star is yours — three basins hold, and the fen is quiet',
+          'The Moor Star is yours, three basins hold, and the fen is quiet',
     ),
     DungeonStarSpec(name: 'Bogdrya\'s Star'),
   ],
@@ -597,11 +597,11 @@ const DungeonLayout mudLayout = DungeonLayout(
   // crossings show themselves (the eased entry reveal, §5.5).
   entranceRevealDoor: DungeonDoorRef('mire_gate', 'hag_knoll'),
   finaleDoor: DungeonDoorRef('drowned_fane', 'bogdrya_hollow'),
-  riteAnnouncement: 'Stone and choir agree — the peat parts under the fane',
+  riteAnnouncement: 'Stone and choir agree, the peat parts under the fane',
   finaleSealedHint:
-      'The peat will not part — it answers only the Sarsen and Moor stars',
+      'The peat will not part, it answers only the Sarsen and Moor stars',
   guardianSealedHint:
-      'The hollow lies shut under the fen — nothing down there stirs until '
+      'The hollow lies shut under the fen, nothing down there stirs until '
       'the stone stands and the basins hold',
   mercyShrineRoomId: 'drowned_fane',
   // Ideal: Mudmane · Plantpip · Watermask — hinted by VERB, never by body

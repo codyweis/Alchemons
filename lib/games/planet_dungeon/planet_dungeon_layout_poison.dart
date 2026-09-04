@@ -427,9 +427,9 @@ enum CauldronReaction {
 /// the half of the deduction the apothecary is allowed to hand over — three
 /// verbs against three clues, and the pairing falls out of it.
 const Map<String, String> kPotionIngredientEffect = {
-  'Poison': 'sickens — it turns a thing against its own body',
-  'Plant': 'grows — green takes root in whatever will hold it',
-  'Mud': 'slows — nothing moves quickly through it',
+  'Poison': 'sickens. It turns a thing against its own body.',
+  'Plant': 'grows. Green takes root in whatever will hold it.',
+  'Mud': 'slows. Nothing moves quickly through it.',
 };
 
 /// THE KEY. Poison and Poison — the one recipe that asks the same hand
@@ -628,20 +628,20 @@ const DungeonLayout poisonLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Physician\'s Star',
       earnAnnouncement:
-          'The Physician\'s Star is yours — three brews, three plagues woken',
+          'The Physician\'s Star is yours, three brews, three plagues woken',
     ),
     DungeonStarSpec(
       name: 'Triage Star',
       earnAnnouncement:
-          'The Triage Star is yours — and every ward of the house is quiet',
+          'The Triage Star is yours, and every ward of the house is quiet',
     ),
     DungeonStarSpec(name: 'Blightfang\'s Star'),
   ],
   entranceRevealDoor: DungeonDoorRef('lazar_gate', 'ambulatory'),
   riteAnnouncement:
-      'The cross rots off the barred ward — what you gave up lies open',
+      'The cross rots off the barred ward. What you gave up lies open',
   guardianSealedHint:
-      'The oubliette will not lift — the house keeps patient zero until all '
+      'The oubliette will not lift, the house keeps patient zero until all '
       'three plagues are down',
   mercyShrineRoomId: 'apothecary',
   // Ideal: Poisonmask · Planthorn · Mudmane — hinted by VERB, never body part

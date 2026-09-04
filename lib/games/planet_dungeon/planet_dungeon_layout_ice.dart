@@ -307,12 +307,12 @@ const DungeonLayout iceLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Orrery Star',
       earnAnnouncement:
-          'The Orrery Star is yours — the sky stands still and true',
+          'The Orrery Star is yours, the sky stands still and true',
     ),
     DungeonStarSpec(
       name: 'Mirror Star',
       earnAnnouncement:
-          'The Mirror Star is yours — twelve glasses hold the chart at once',
+          'The Mirror Star is yours. Twelve glasses hold the chart at once',
     ),
     DungeonStarSpec(name: 'Frost Star'),
   ],
@@ -320,11 +320,11 @@ const DungeonLayout iceLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('rime_head', 'mirror_gallery'),
   finaleDoor: DungeonDoorRef('cold_sump', 'star_font'),
   riteAnnouncement:
-      'Orrery and Mirror are won — the font grinds open below the sump',
+      'Orrery and Mirror are won, the font grinds open below the sump',
   finaleSealedHint:
-      'The font is shut — it answers only the Orrery and Mirror stars',
+      'The font is shut, it answers only the Orrery and Mirror stars',
   guardianSealedHint:
-      'The hollow is iced over — nothing in there stirs until the font is sung',
+      'The hollow is iced over, nothing in there stirs until the font is sung',
   mercyShrineRoomId: 'cold_sump',
   // Ideal: Icemane · Lightmask · Airwing — hinted by VERB, never body part
   // (§4): the cold road left behind, the sight that reads dark glass, and the

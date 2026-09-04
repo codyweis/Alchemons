@@ -3484,7 +3484,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       }
 
       setState(() {});
-      _showQuote('Practice Arena — $displayName enters the ring!');
+      _showQuote('Practice Arena, $displayName enters the ring!');
       return;
     }
 
@@ -3599,7 +3599,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
 
     setState(() {});
-    _showQuote('Level ${level + 1} — $displayName enters the ring!');
+    _showQuote('Level ${level + 1}, $displayName enters the ring!');
   }
 
   void _onBattleRingWon() {
@@ -6427,7 +6427,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     } else {
       HapticFeedback.heavyImpact();
       _showQuote(
-        'The beacon flares — ${planetName(planet.element)} is overrun. '
+        'The beacon flares, ${planetName(planet.element)} is overrun. '
         'The raid window is open.',
       );
     }
@@ -7210,7 +7210,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           kNonBloodPlanetCount -
           _planetStarState.guardiansDefeated(excluding: kBloodPlanetElement);
       _showQuote(
-        '${planetName(targetElement)} will not answer yet — '
+        '${planetName(targetElement)} will not answer yet'
         '$left guardian${left == 1 ? '' : 's'} still stand. '
         'Fell every other planet first.',
       );
@@ -7240,7 +7240,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (kComingSoonDungeons.contains(element)) {
       _showQuote(
         'The gate of $planetName stands unsealed! '
-        'Its depths are still being forged — descent coming soon.',
+        'Its depths are still being forged. Descent coming soon.',
       );
     } else {
       _showQuote(
@@ -7936,7 +7936,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                           child: Text(
                             kPlanetDungeonLayouts.containsKey(nearEl)
                                 ? '⇩  DESCEND w/ TRIO (DEBUG)'
-                                : '⇩  NO DUNGEON BUILT — $nearEl',
+                                : '⇩  NO DUNGEON BUILT, $nearEl',
                             style: TextStyle(
                               color: const Color(0xFF7BE88C).withValues(
                                 alpha: kPlanetDungeonLayouts.containsKey(nearEl)

@@ -281,7 +281,7 @@ const List<GraveCrossing> kGraveCrossings = [
     from: 'barrow_urn',
     to: 'barrow_veil',
     cut: GraveCut.ghostOnly,
-    look: 'the lych road — worn to nothing, and still walked',
+    look: 'the lych road. Worn to nothing, and still walked',
   ),
   GraveCrossing(
     id: 'x_drowned',
@@ -289,7 +289,7 @@ const List<GraveCrossing> kGraveCrossings = [
     to: 'barrow_cairn',
     cut: GraveCut.ghostOnly,
     freezable: true,
-    look: 'the drowned cut — black water, and a road under it',
+    look: 'the drowned cut. Black water, and a road under it',
   ),
 
   // ── the salted step: the living keep it, the dead cannot
@@ -774,13 +774,13 @@ const DungeonLayout spiritLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Cold Road Star',
       earnAnnouncement:
-          'The Cold Road Star is yours — the bier goes up to the cairn at '
+          'The Cold Road Star is yours, the bier goes up to the cairn at '
           'last, and something walks behind it',
     ),
     DungeonStarSpec(
       name: 'Hourglass Star',
       earnAnnouncement:
-          'The Hourglass Star is yours — the ring closes, and the grave-field '
+          'The Hourglass Star is yours, the ring closes, and the grave-field '
           'remembers where you stood',
     ),
     DungeonStarSpec(name: 'Wraith Star'),
@@ -789,12 +789,12 @@ const DungeonLayout spiritLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('lych_gate', 'barrow_urn'),
   finaleDoor: DungeonDoorRef('barrow_cairn', 'mourners_walk'),
   riteAnnouncement:
-      'Road and Hourglass are won — the rood door grinds back off the '
+      'Road and Hourglass are won, the rood door grinds back off the '
       'mourners\' walk',
   finaleSealedHint:
-      'The rood door is shut — it answers the Cold Road and the Hourglass',
+      'The rood door is shut, it answers the Cold Road and the Hourglass',
   guardianSealedHint:
-      'The last door will not own you — nothing behind it wakes until the '
+      'The last door will not own you, nothing behind it wakes until the '
       'lamp is lit',
   mercyShrineRoomId: 'lych_gate',
   // Ideal: Spiritmask · Waterpip · Crystalwing — hinted by VERB, never by body

@@ -151,7 +151,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
   String _ruinsDoorHint(DungeonRoom room, DungeonDoor door) {
     final (mound, _) = _moundLeg(room, door)!;
     return switch (ruins.stateOf(mound.id)) {
-      MoundState.bared => 'Open trench — the paving that crossed here is gone',
+      MoundState.bared => 'Open trench, the paving that crossed here is gone',
       MoundState.drifted => 'A dune stands over the street, crest to crest',
       MoundState.buried => 'The way is clear',
     };
@@ -183,7 +183,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
-    _setHint('The silt runs off the arch — Sablis opens its mouths');
+    _setHint('The silt runs off the arch, Sablis opens its mouths');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Dust',
@@ -208,7 +208,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       return true;
     }
     if (ruins.isLevelled) {
-      _setBlockedHint('The vane swings free — the city already lies even');
+      _setBlockedHint('The vane swings free, the city already lies even');
       return true;
     }
     if (ruins.armedVaneRoom != currentRoomId) {
@@ -217,7 +217,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       // Attempt-edged and explicit: the most expensive verb on the planet
       // never fires on one careless press.
       _setHint(
-        'The vane winds up — touch it again and the sirocco takes back every '
+        'The vane winds up. Touch it again and the sirocco takes back every '
         'spadeful you have moved',
         _kVaneArmSeconds,
       );
@@ -225,7 +225,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     }
     ruins.levelCity();
     _setHint(
-      'The sirocco comes down the streets — every trench filled, every dune '
+      'The sirocco comes down the streets, every trench filled, every dune '
       'gone, the city as its dead left it',
       4.6,
     );
@@ -254,13 +254,13 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       switch (ruins.stateOf(m.id)) {
         case MoundState.bared:
           _setBlockedHint(
-            'Scraped to the flags already — there is nothing '
+            'Scraped to the flags already, there is nothing '
             'here to move',
           );
           return true;
         case MoundState.drifted:
           _setBlockedHint(
-            'Packed hard under its own weight — no spade bites '
+            'Packed hard under its own weight, no spade bites '
             'this',
           );
           return true;
@@ -354,17 +354,17 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
 
   String _moundDigLine(DustMound from, DustMound to) {
     if (to.pressedRoomId != null) {
-      return 'The bump takes the spoil and settles — somewhere below, old '
+      return 'The bump takes the spoil and settles. Somewhere below, old '
           'brick gives';
     }
     if (to.rampRoomId != null) {
-      return 'The heap crests over the street — and leans against the terrace '
+      return 'The heap crests over the street, and leans against the terrace '
           'wall';
     }
     if (from.cellarRoomId != null) {
       return 'The flags come up, and a dark room opens under your feet';
     }
-    return 'The trench opens — and the street beyond it goes under';
+    return 'The trench opens, and the street beyond it goes under';
   }
 
   // ── Star 0 · THE THREE SEALS ─────────────────────────────
@@ -405,7 +405,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     final here = _yardCellAt(g, a.position);
     if (here == null) return false;
     if (!g.isGround(here.$1, here.$2)) {
-      _setBlockedHint('Broken column — nothing rests here');
+      _setBlockedHint('Broken column, nothing rests here');
       return true;
     }
     final step = _yardFacing(a);
@@ -427,7 +427,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       if (!ruins.scourDrift(from, to)) {
         _setBlockedHint(
           ruins.driftAt(from) < 1
-              ? 'Bare flags — the wind finds nothing to lift'
+              ? 'Bare flags, the wind finds nothing to lift'
               : 'That square is heaped as high as it goes',
         );
         return true;
@@ -467,7 +467,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         ruins.driftAt(from) == 0
             ? 'Bare flags already'
             : ruins.driftAt(from) > 1
-            ? 'Packed hard — a spade will not bite a dune'
+            ? 'Packed hard, a spade will not bite a dune'
             : 'The square behind you will not take another load',
       );
       return true;
@@ -487,7 +487,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     final idx = room?.ruins?.starIndex;
     if (idx == null || hasStar(idx)) return;
     if (!ruins.sealsBare) return;
-    _setHint('Three bronzes bare at once — the old city admits its names');
+    _setHint('Three bronzes bare at once, the old city admits its names');
     earnStar(idx);
   }
 
@@ -504,7 +504,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if ((a.position - pos).distance > _kRuinsReach) return false;
     if (ruins.stateOf('m_roof') != MoundState.bared) {
       // A GOAL, not a method (§5.6): what is missing, in one clause.
-      _setBlockedHint('The rings turn on nothing — this room has no sky');
+      _setBlockedHint('The rings turn on nothing, this room has no sky');
       return true;
     }
     // VERB-ONLY: the rings turn on a bared roof, and what this asks for is
@@ -517,7 +517,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     switch (evaluateInteraction(a.member, req)) {
       case InteractionResult.passed:
       case InteractionResult.passedViaRecipe:
-        _setHint('The rings come round to the open roof — and hold there');
+        _setHint('The rings come round to the open roof, and hold there');
         _spawnAlchemyBurst(
           pos,
           producedElement: 'Air',
@@ -536,7 +536,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         }
       case InteractionResult.blockedElement:
       case InteractionResult.blockedStat:
-        _setBlockedHint('The rings are seized with grit — they answer Air');
+        _setBlockedHint('The rings are seized with grit, they answer Air');
     }
     return true;
   }
@@ -556,7 +556,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The glass will not turn — it answers only a bearer of the '
+        'The glass will not turn, it answers only a bearer of the '
         '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return true;
@@ -592,7 +592,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     ruins.clearHollow();
     _setHint(
       ruins.hollowOpen
-          ? 'The cut is open again — and the djinn slows to look into it'
+          ? 'The cut is open again, and the djinn slows to look into it'
           : 'A load out, and more of it still to move',
     );
     _spawnAlchemyBurst(
@@ -628,7 +628,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       _setHint(
         undone == null
             ? 'The storm rolls over the cut and fills it'
-            : 'The storm rolls out over the streets — and one of your trenches '
+            : 'The storm rolls out over the streets, and one of your trenches '
                   'is street again',
       );
     }
@@ -656,7 +656,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       final total = kDustMounds.where((x) => x.footprintPos != null).length;
       if (ruins.sweptPrints.length < total) {
         _setHint(
-          'The print goes out from under the broom — and the flags are '
+          'The print goes out from under the broom, and the flags are '
           'blank',
         );
         return true;
@@ -723,34 +723,34 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _ruinsObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Ashdjinn\'s Hollow — the djinn keeps the last star';
+      return 'Ashdjinn\'s Hollow, the djinn keeps the last star';
     }
     if (room.ruins?.glassCourt != null) {
-      return 'The Hourglass Court — the rite waits on the glass';
+      return 'The Hourglass Court, the rite waits on the glass';
     }
     if (room.ruins?.armillary != null) {
       return hasStar(room.ruins!.starIndex!)
           ? null
-          : 'The Observatory — the great rings stand dark';
+          : 'The Observatory, the great rings stand dark';
     }
     if (room.ruins?.field != null) {
       return hasStar(room.ruins!.starIndex!)
           ? null
-          : 'The Seal Street — three bronzes lie under the drift';
+          : 'The Seal Street, three bronzes lie under the drift';
     }
     if (room.vaultCache != null) {
-      return 'A house nobody dug out — something is bottled here';
+      return 'A house nobody dug out, something is bottled here';
     }
     if (room.id == 'undercity') {
-      return 'The Undercity — the drift tunnels run under every street';
+      return 'The Undercity, the drift tunnels run under every street';
     }
     if (room.ruins?.windVane != null && room.id == 'windcatch') {
-      return 'The Windcatch — the tower\'s throat, and it is still breathing';
+      return 'The Windcatch, the tower\'s throat, and it is still breathing';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Ashen Gate — Sablis lies east, under itself'
-          : 'The Ashen Gate — the arch is silted to the springing';
+          ? 'The Ashen Gate, Sablis lies east, under itself'
+          : 'The Ashen Gate, the arch is silted to the springing';
     }
     return null;
   }
@@ -784,7 +784,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
               'shoulder; a gust takes the top off the square you stand on',
         _ =>
           'The yard is one load short of full, so every throw lands on a '
-              'seal you cleared. A spade will not bite a heap — only wind lifts '
+              'seal you cleared. A spade will not bite a heap, only wind lifts '
               'a crest, and the west seal is boxed where no spade can reach it',
       });
       return;
@@ -793,7 +793,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'The rings are cut for a sky this room has not had in an age',
         1 =>
-          'It wants the roof off above it — and the island it stands on is '
+          'It wants the roof off above it, and the island it stands on is '
               'across a span with no floor',
         _ =>
           'Strip the roof mound overhead and the sky comes down; then only '
@@ -821,7 +821,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
             'a dune is a way up. One spadeful makes one of each',
       _ =>
         'Every dig costs you two crossings and buys one cellar, and no hand '
-            'undoes it. The tower\'s vanes are the only take-backs — and the '
+            'undoes it. The tower\'s vanes are the only take-backs, and the '
             'sirocco takes back all of it at once',
     });
   }

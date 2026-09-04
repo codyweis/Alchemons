@@ -1070,13 +1070,13 @@ const DungeonLayout bloodLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Priming Star',
       earnAnnouncement:
-          'The Priming Star is yours — four mouths drinking, and never two of '
+          'The Priming Star is yours, four mouths drinking, and never two of '
           'them on the same beat',
     ),
     DungeonStarSpec(
       name: 'Graft Star',
       earnAnnouncement:
-          'The Graft Star is yours — three dead vessels carrying, and the '
+          'The Graft Star is yours, three dead vessels carrying, and the '
           'eight has roads the beat never gave it',
     ),
     DungeonStarSpec(name: 'Systole Star'),
@@ -1085,10 +1085,10 @@ const DungeonLayout bloodLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('pericard_gate', 'arterial_run'),
   finaleDoor: DungeonDoorRef('myocardium', 'sanguorath_systole'),
   riteAnnouncement:
-      'Priming and Graft are won — the cannula seats in the myocardium, and '
+      'Priming and Graft are won, the cannula seats in the myocardium, and '
       'the chordae gate goes slack',
   finaleSealedHint:
-      'The chordae gate is drawn tight — it answers only the Priming and '
+      'The chordae gate is drawn tight, it answers only the Priming and '
       'Graft stars',
   guardianSealedHint:
       'Nothing behind the chordae stirs while the heart is still keeping its '

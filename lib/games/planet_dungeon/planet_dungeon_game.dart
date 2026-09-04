@@ -498,7 +498,7 @@ class PlanetDungeonGame extends FlameGame {
 
     _raidFightRemaining = 0;
     _raidExpiredFired = true;
-    _setHint('The storm outlasts you — the raid is lost', 4.0);
+    _setHint('The storm outlasts you, the raid is lost', 4.0);
     onRaidExpired?.call();
   }
 
@@ -1916,18 +1916,18 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Half-HP escalation copy, per mystic.
   static const Map<String, String> _guardianEnrageHints = {
-    'Roc': 'The Roc screeches — the storm tightens!',
-    'Simurgh': 'The Simurgh shrieks — its flame burns black!',
-    'Leviathan': 'The Leviathan coils — the deep crushes inward!',
-    'Terradon': 'Terradon heaves — the whole barrow shudders!',
-    'Raikuma': 'Raikuma roars — the whole circuit overloads white!',
-    'Boilrog': 'Boilrog bellows — the pressure spikes to a scream!',
-    'Frowyrm': 'Frowyrm keens — the whole shaft cracks and runs!',
-    'Bogdrya': 'Bogdrya swallows — the whole fen shudders and drops!',
+    'Roc': 'The Roc screeches, the storm tightens!',
+    'Simurgh': 'The Simurgh shrieks, its flame burns black!',
+    'Leviathan': 'The Leviathan coils, the deep crushes inward!',
+    'Terradon': 'Terradon heaves, the whole barrow shudders!',
+    'Raikuma': 'Raikuma roars, the whole circuit overloads white!',
+    'Boilrog': 'Boilrog bellows, the pressure spikes to a scream!',
+    'Frowyrm': 'Frowyrm keens, the whole shaft cracks and runs!',
+    'Bogdrya': 'Bogdrya swallows, the whole fen shudders and drops!',
     'Wraithord':
-        'Wraithord thins — it is barely in either world now, and faster!',
-    'Solarin': 'Solarin opens — it is looking at all of you at once now!',
-    'Sanguorath': 'Sanguorath races — the whole orrery beats double!',
+        'Wraithord thins, it is barely in either world now, and faster!',
+    'Solarin': 'Solarin opens, it is looking at all of you at once now!',
+    'Sanguorath': 'Sanguorath races, the whole orrery beats double!',
   };
   SpriteAnimationTicker? _guardianTicker;
   double _guardianSpriteScale = 1.0;
@@ -2304,7 +2304,7 @@ class PlanetDungeonGame extends FlameGame {
     if (!guardianRiteUnlocked) {
       // A refused offering — the attempt is the edge (§5.6 BLOCKED).
       _setBlockedHint(
-        'The pylon refuses the offering — it answers only a bearer of the '
+        'The pylon refuses the offering, it answers only a bearer of the '
         '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return;
@@ -2683,7 +2683,7 @@ class PlanetDungeonGame extends FlameGame {
       // A refused swap — attempt-edged by the tap itself.
       _setBlockedHint(
         secs > 0
-            ? 'That creature is down — reviving in ${secs}s'
+            ? 'That creature is down. Reviving in ${secs}s'
             : 'That creature is down',
         2.4,
       );
@@ -2871,7 +2871,7 @@ class PlanetDungeonGame extends FlameGame {
           _beginFallRecovery(
             a,
             a.lastSafe,
-            hint: 'The thermal lets go — drifting back to footing',
+            hint: 'The thermal lets go. Drifting back to footing',
           );
         }
       }
@@ -2993,10 +2993,7 @@ class PlanetDungeonGame extends FlameGame {
         // ONCE per attempt (§5.6 BLOCKED), re-armed when it steps out.
         final key = '$_updraftBlockPrefix${room.id}#$i';
         refusing.add(key);
-        _setBlockedHintOnce(
-          key,
-          'The thermal casts you off — needs more Speed',
-        );
+        _setBlockedHintOnce(key, 'The thermal casts you off. Needs more Speed');
         continue;
       }
       riding ??= cur;
@@ -3028,7 +3025,7 @@ class PlanetDungeonGame extends FlameGame {
           resisting.add(key);
           _setBlockedHintOnce(
             key,
-            'The current throws you back — needs more Speed',
+            'The current throws you back. Needs more Speed',
           );
         }
         a.position = _moveWithCollision(a.position, push, room);
@@ -3095,7 +3092,7 @@ class PlanetDungeonGame extends FlameGame {
         _setAmbientHint(
           room.anchors.isEmpty
               ? 'The echo sleeps, sealed'
-              : 'A sleeping echo — it dreams of somewhere else',
+              : 'A sleeping echo, it dreams of somewhere else',
         );
         return;
       }
@@ -3241,7 +3238,7 @@ class PlanetDungeonGame extends FlameGame {
     _cloudPickupCooldown = 1.0;
     _setHint(
       wasCharged
-          ? 'The thunder disperses — the echo drifts back to rest'
+          ? 'The thunder disperses, the echo drifts back to rest'
           : 'The echo drifts back to its resting place',
     );
     onChanged();
@@ -3408,7 +3405,7 @@ class PlanetDungeonGame extends FlameGame {
         if ((a.position - cl.position).distance < 26) {
           carriedCloudId = cl.id;
           carriedCloudType = cl.cloudType;
-          _setHint('Carrying ${cl.cloudType} — DROP releases it');
+          _setHint('Carrying ${cl.cloudType}, DROP releases it');
           onChanged();
           break;
         }
@@ -3445,8 +3442,8 @@ class PlanetDungeonGame extends FlameGame {
           // about, an untagged one is lost entirely, so the mis-tag matters.
           _setBlockedHint(
             an.clue.isNotEmpty
-                ? 'Incorrect placement — this anchor calls for “${an.clue}”'
-                : 'Incorrect placement — this anchor calls for a different echo',
+                ? 'Incorrect placement, this anchor calls for “${an.clue}”'
+                : 'Incorrect placement, this anchor calls for a different echo',
             3.2,
           );
           _spawnAlchemyBurst(
@@ -3556,17 +3553,17 @@ class PlanetDungeonGame extends FlameGame {
             if (caught >= 3) {
               _completeWonderTrial(
                 sealed,
-                'Three plumes gathered — the Feather echo awakens',
+                'Three plumes gathered, the Feather echo awakens',
               );
             } else {
-              _setHint('Feather caught — $caught / 3');
+              _setHint('Feather caught, $caught / 3');
             }
             onChanged();
           } else if (p.dy > room.bounds.bottom - 56) {
             _feathers.removeAt(i);
             _featherPhases.removeAt(i);
             _featherSpawnTimer = 1.4;
-            _setStatHint('The feather settles into the void — another rises');
+            _setStatHint('The feather settles into the void, another rises');
           }
         }
         break;
@@ -3582,7 +3579,7 @@ class PlanetDungeonGame extends FlameGame {
           _anvilWave.clear();
           _completeWonderTrial(
             sealed,
-            'The sparks disperse — their charge hammers the Anvil awake',
+            'The sparks disperse, their charge hammers the Anvil awake',
           );
         }
         break;
@@ -3610,7 +3607,7 @@ class PlanetDungeonGame extends FlameGame {
         if (ringMotesAligned) {
           _completeWonderTrial(
             sealed,
-            'The three reagents braid as one — the Ring echo awakens',
+            'The three reagents braid as one, the Ring echo awakens',
           );
         } else {
           // A refusal says WHY it refused, not what to do instead — the
@@ -3671,10 +3668,10 @@ class PlanetDungeonGame extends FlameGame {
           if (_veilPinned.length >= spots.length) {
             _completeWonderTrial(
               sealed,
-              'All three folds pinned — the Veil echo awakens',
+              'All three folds pinned, the Veil echo awakens',
             );
           } else {
-            _setHint('The fold is pinned — ${_veilPinned.length} / 3');
+            _setHint('The fold is pinned, ${_veilPinned.length} / 3');
           }
           onChanged();
           return true;
@@ -3682,7 +3679,7 @@ class PlanetDungeonGame extends FlameGame {
         // Fire flare: reveal every fold for a few breaths.
         if (a.member.element == 'Fire') {
           veilFlareTimer = 3.0;
-          _setHint('Firelight floods the chamber — the folds stand bare');
+          _setHint('Firelight floods the chamber, the folds stand bare');
           _spawnAlchemyBurst(
             a.position,
             producedElement: 'Fire',
@@ -3691,7 +3688,7 @@ class PlanetDungeonGame extends FlameGame {
           );
           return true;
         }
-        _setHint('A fold breathes somewhere — pin it while it shows');
+        _setHint('A fold breathes somewhere. Pin it while it shows');
         return true;
     }
     return false;
@@ -3701,7 +3698,7 @@ class PlanetDungeonGame extends FlameGame {
     _anvilShellStruck = true;
     _setHint(
       viaRecipe
-          ? 'Air and Fire braid into Lightning — the arc cracks the shell!'
+          ? 'Air and Fire braid into Lightning, the arc cracks the shell!'
           : 'The storm-charge splits the shell!',
       3.0,
     );
@@ -3751,7 +3748,7 @@ class PlanetDungeonGame extends FlameGame {
       altarOpen = true;
       guardianAwake = true;
       guardianHp = maxGuardianHp;
-      _setHint('Both conduits sing — the altar wakes its guardian');
+      _setHint('Both conduits sing, the altar wakes its guardian');
       _spawnAlchemyBurst(
         room.bounds.center,
         producedElement: 'Lightning',
@@ -3843,7 +3840,7 @@ class PlanetDungeonGame extends FlameGame {
     for (final c in creatures) {
       if (c.alive) c.hp = c.maxHp;
     }
-    _setHint('The altar\'s breath mends the party — once', 3.2);
+    _setHint('The altar\'s breath mends the party, once', 3.2);
     _spawnAlchemyBurst(
       room.bounds.center,
       producedElement: 'Light',
@@ -3856,6 +3853,13 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Live guardian position: the swooping combat body once it has spawned,
   /// otherwise the authored altar perch.
+  /// Where the guardian actually IS. Not its node: once it is up it moves,
+  /// and anything reaching for it has to reach for the body.
+  Offset? get guardianAt {
+    final g = currentRoom.guardian;
+    return g == null ? null : _guardianPosition(g);
+  }
+
   Offset _guardianPosition(GuardianNode g) {
     final e = _guardianEnemy;
     return (e != null && !e.isDead) ? e.position : g.position;
@@ -3919,9 +3923,9 @@ class PlanetDungeonGame extends FlameGame {
         );
         _setHint(
           isRaid
-              ? '${c.member.element} ${c.member.family} has fallen — '
+              ? '${c.member.element} ${c.member.family} has fallen'
                     'no revival in a raid'
-              : '${c.member.element} ${c.member.family} is down — '
+              : '${c.member.element} ${c.member.family} is down'
                     'reviving in ${respawnSeconds.round()}s',
         );
         onChanged();
@@ -3931,7 +3935,7 @@ class PlanetDungeonGame extends FlameGame {
       if (isRaid) {
         // No free reset: the attempt is over. The raid window itself stays
         // open for another try, same as retreating.
-        _setHint('The party has fallen — the raid drives you out', 4.0);
+        _setHint('The party has fallen, the raid drives you out', 4.0);
         onRaidWiped?.call();
         return;
       }
@@ -4251,7 +4255,7 @@ class PlanetDungeonGame extends FlameGame {
               carriedCloudType = null;
               _cloudPickupCooldown = 1.2;
               _setHint(
-                'The wisp tears the echo loose — it drifts back to rest!',
+                'The wisp tears the echo loose, it drifts back to rest!',
                 2.8,
               );
             }
@@ -5280,8 +5284,8 @@ class PlanetDungeonGame extends FlameGame {
     _shake = _kArrivalShake;
     final mysticName = g.encounter?.mysticId ?? 'The guardian';
     final line = isRaid
-        ? 'The raid-maddened guardian descends — bring it down!'
-        : '$mysticName descends — use Auto Attack and Ability';
+        ? 'The raid-maddened guardian descends. Bring it down!'
+        : '$mysticName descends. Use Auto Attack and Ability';
     // A mystic's arrival deserves more than a status line: the screen shows
     // the chrome intro banner (§5.6). The capsule fallback keeps headless
     // runs (and any unwired host) speaking exactly as before.
@@ -5413,7 +5417,7 @@ class PlanetDungeonGame extends FlameGame {
       particleCount: 22,
       intensity: 1.1,
     );
-    _setHint('The guardian shrieks — storm-spawn answer the call!', 3.0);
+    _setHint('The guardian shrieks. Storm-spawn answer the call!', 3.0);
   }
 
   bool activateAutoAttack() {
@@ -5816,7 +5820,7 @@ class PlanetDungeonGame extends FlameGame {
             min: 0.85,
             max: 1.40,
           );
-      _setHint('The kin hums with storm-charge — strikes now chain', 3.0);
+      _setHint('The kin hums with storm-charge. Strikes now chain', 3.0);
     }
     if (isHornCharge) {
       // Real horn flow (identical to survival): wind-up lock → dash with
@@ -6397,7 +6401,7 @@ class PlanetDungeonGame extends FlameGame {
       comp.chargeTarget = null;
       comp.chargePathType = '';
       comp.chargeCircleCenter = null;
-      _setHint('The storm brews — hits taken feed the discharge', 2.8);
+      _setHint('The storm brews. Hits taken feed the discharge', 2.8);
       return;
     }
     _releasePendingChargeBurst(comp, creature);
@@ -7816,7 +7820,7 @@ class PlanetDungeonGame extends FlameGame {
         _beginFallRecovery(
           creature,
           creature.lastSafe,
-          hint: 'The ram carried you over the void — drifting back',
+          hint: 'The ram carried you over the void. Drifting back',
         );
       } else {
         creature.position = creature.lastSafe;
@@ -8114,7 +8118,7 @@ class PlanetDungeonGame extends FlameGame {
         _beginFallRecovery(
           a,
           a.lastSafe,
-          hint: 'Wings folded mid-air — drifting back to footing',
+          hint: 'Wings folded mid-air. Drifting back to footing',
         );
       }
       return;
@@ -8179,7 +8183,7 @@ class PlanetDungeonGame extends FlameGame {
   /// still holding out.
   String _nothingHiddenLine() => planetSecretFound
       ? 'Nothing hidden stirs here'
-      : 'Nothing hidden stirs here — but the planet is still keeping one';
+      : 'Nothing hidden stirs here, but the planet is still keeping one';
 
   void _doReveal(DungeonCreature a) {
     final room = currentRoom;
@@ -8261,7 +8265,7 @@ class PlanetDungeonGame extends FlameGame {
         revealFlash = 0.6;
         revealTier = revealHintTier(a.member.statIntelligence);
         _setInsightHint(
-          'The mural completes — one pylon is HELD, the other is STRUCK',
+          'The mural completes, one pylon is HELD, the other is STRUCK',
         );
         return;
       }
@@ -8307,22 +8311,22 @@ class PlanetDungeonGame extends FlameGame {
     'spiral_cloud' => _spiralInsight(tier),
     'ring_cloud' =>
       tier >= 1
-          ? 'Air, Fire and Lightning circle the orbit — seal it the moment '
+          ? 'Air, Fire and Lightning circle the orbit. Seal it the moment '
                 'all three gather'
-          : 'Three reagents wander the orbit — their meeting matters',
+          : 'Three reagents wander the orbit, their meeting matters',
     'anvil_cloud' =>
       tier >= 1
-          ? 'Only storm-charge cracks the shell — Lightning\'s touch, or '
+          ? 'Only storm-charge cracks the shell, Lightning\'s touch, or '
                 'Fire braided through the wind'
           : 'The shell is deaf to all but the storm',
     'feather_cloud' =>
       tier >= 1
-          ? 'Catch three falling plumes before they settle — the wind '
+          ? 'Catch three falling plumes before they settle, the wind '
                 'favours Air'
           : 'What falls here must be caught, not found',
     'veil_cloud' =>
       tier >= 1
-          ? 'The folds breathe one at a time — pin each while it shows. '
+          ? 'The folds breathe one at a time. Pin each while it shows. '
                 'Firelight bares them; Lightning pins from afar'
           : 'The shroud hides in plain sight, breathing',
     _ => 'Something here waits to be earned',
@@ -8402,7 +8406,7 @@ class PlanetDungeonGame extends FlameGame {
         final doorCenter = room.doors.isNotEmpty
             ? room.doors.first.rect.center
             : a.position;
-        _setHint('Air and Fire flare — the right passage reveals');
+        _setHint('Air and Fire flare, the right passage reveals');
         _spawnAlchemyBurst(
           cur.rect.center,
           producedElement: 'Lightning',
@@ -8424,7 +8428,7 @@ class PlanetDungeonGame extends FlameGame {
       // Loom: charge a carried Anvil into a Thundercloud.
       if (carriedCloudType == 'Anvil') {
         carriedCloudType = 'Thundercloud';
-        _setHint('Air and Fire braid through the cloud — thunder wakes inside');
+        _setHint('Air and Fire braid through the cloud. Thunder wakes inside');
         _spawnAlchemyBurst(
           a.position,
           producedElement: 'Lightning',
@@ -8467,7 +8471,7 @@ class PlanetDungeonGame extends FlameGame {
         final doorCenter = room.doors.isNotEmpty
             ? room.doors.first.rect.center
             : a.position;
-        _setHint('Lightning answers its own — the passage reveals');
+        _setHint('Lightning answers its own, the passage reveals');
         _spawnAlchemyBurst(
           cur.rect.center,
           producedElement: 'Lightning',
@@ -8497,7 +8501,7 @@ class PlanetDungeonGame extends FlameGame {
     // A carried Anvil: electrify the cloud directly, no wind needed.
     if (carriedCloudType == 'Anvil') {
       carriedCloudType = 'Thundercloud';
-      _setHint('The arc sinks into the anvil-cloud — thunder wakes inside');
+      _setHint('The arc sinks into the anvil-cloud. Thunder wakes inside');
       _spawnAlchemyBurst(
         a.position,
         producedElement: 'Lightning',
@@ -8528,14 +8532,14 @@ class PlanetDungeonGame extends FlameGame {
     // herding the cell) stay live everywhere else while it comes down.
     if (guardianArriving) {
       // Also a refusal: the ground under a falling mystic answers nothing yet.
-      _setBlockedHint('It is still coming down — brace');
+      _setBlockedHint('It is still coming down. Brace');
       return true;
     }
     final enc = g.encounter;
     final canCalm = enc?.canCalm ?? true;
     final canDefeat = enc?.canDefeat ?? true;
     if (!guardianVulnerable) {
-      _setHint('The guardian rages — act during the lull');
+      _setHint('The guardian rages. Act during the lull');
       return true;
     }
     // Elegant path: a high-Beauty Kin calms it at once.
@@ -8556,7 +8560,7 @@ class PlanetDungeonGame extends FlameGame {
     // projectiles drain the SAME pool (the combat body's hp) — a lull strike
     // just takes a big fixed chunk of it.
     if (!canDefeat) {
-      _setHint('This guardian can only be calmed — more Beauty may be needed');
+      _setHint('This guardian can only be calmed, more Beauty may be needed');
       return true;
     }
     // Pace the lull strikes (2 per lull window at 1.5s apart in a 3.0s lull)
@@ -8564,7 +8568,7 @@ class PlanetDungeonGame extends FlameGame {
     // deleting it. With kGuardianBaseStrikes = 6 a first mystic costs three
     // clean windows; the last one costs nine.
     if (_guardianStrikeCooldown > 0) {
-      _setHint('The guardian reels — let the strike land');
+      _setHint('The guardian reels. Let the strike land');
       return true;
     }
     _guardianStrikeCooldown = 1.5;
@@ -8589,7 +8593,7 @@ class PlanetDungeonGame extends FlameGame {
         unstable: true,
       );
     } else {
-      _setHint('You strike the guardian — its storm thins');
+      _setHint('You strike the guardian, its storm thins');
     }
     return true;
   }
@@ -8843,7 +8847,7 @@ class PlanetDungeonGame extends FlameGame {
       final name = room.guardian?.encounter?.mysticId;
       return name == null
           ? 'The way out is shut while the guardian stands'
-          : 'The way out is shut — $name is not finished with you';
+          : 'The way out is shut, $name is not finished with you';
     }
     if (_isTemple && _tideDoorBlocked(room, door)) {
       return _tideDoorHint(room, door);
@@ -8889,18 +8893,18 @@ class PlanetDungeonGame extends FlameGame {
     }
     if (_guardianDoorSealed(door)) {
       return layout.guardianSealedHint ??
-          'The chamber is sealed — nothing in there wakes until this '
+          'The chamber is sealed, nothing in there wakes until this '
               'planet\'s rite is done';
     }
     final need0 = !hasStar(0);
     final need1 = !hasStar(1);
     if (need0 && need1) {
       return layout.finaleSealedHint ??
-          'The door is sealed — it parts only for both the '
+          'The door is sealed, it parts only for both the '
               '${layout.starName(0)} and ${layout.starName(1)}';
     }
     final remaining = need0 ? layout.starName(0) : layout.starName(1);
-    return 'The seal holds — it wants only the $remaining now';
+    return 'The seal holds, it wants only the $remaining now';
   }
 
   /// Wisps pursue the party through doors: re-place them in a loose ring
@@ -8940,6 +8944,11 @@ class PlanetDungeonGame extends FlameGame {
 
   /// One-line "what to do here" on room entry (null once that room's
   /// business is finished — no stale or pointless prompts).
+  /// What the HINT button says a room is for. Exposed so a test can read
+  /// every room's line: these go stale silently when a planet is reworked,
+  /// and nothing else ever reads them back.
+  String? roomObjectiveLine(String roomId) => _roomObjectiveHint(roomId);
+
   String? _roomObjectiveHint(String roomId) {
     final room = layout.rooms[roomId];
     if (room == null || _roomCleared(room)) return null;
@@ -8968,7 +8977,7 @@ class PlanetDungeonGame extends FlameGame {
     if (room.loomStarIndex != null) {
       // State, not procedure: "match it with the echo it describes" was the
       // method, handed over on the way through the door.
-      return 'Sky Loom — five sockets, and every one of them empty';
+      return 'Sky Loom. Five sockets, and every one of them empty';
     }
     // Wonder trial chambers (until their echo is earned).
     if (_sealedWonderCloud(room) != null) {
@@ -8976,17 +8985,17 @@ class PlanetDungeonGame extends FlameGame {
         // WHAT, never HOW (§5.6): what the eye will accept, and the
         // storm-charge braid, are Mask-insight content (_wonderInsight), not
         // room-entry copy.
-        'spiral_cloud' => 'Gale Eye — a still eye, and the vents are shut',
+        'spiral_cloud' => 'Gale Eye, a still eye, and the vents are shut',
         // These three were handing over the METHOD on the way through the
         // door — "seal the orbit WHEN the three gather", "CATCH three
         // plumes", "PIN each fold" — which is the Mask's job and nobody
         // else's. They name the place and the state it is in; a reading
         // still tells you what to do about it.
         'ring_cloud' =>
-          'The Conjunction — three reagents wander one orbit, seldom together',
-        'anvil_cloud' => 'Storm Forge — a shell nothing plain can mark',
-        'feather_cloud' => 'The Moult — plumes fall, and the floor takes them',
-        'veil_cloud' => 'The Shroud — folds breathing in and out of reach',
+          'The Conjunction, three reagents wander one orbit, seldom together',
+        'anvil_cloud' => 'Storm Forge, a shell nothing plain can mark',
+        'feather_cloud' => 'The Moult. Plumes fall, and the floor takes them',
+        'veil_cloud' => 'The Shroud. Folds breathing in and out of reach',
         _ => null,
       };
     }
@@ -8994,7 +9003,7 @@ class PlanetDungeonGame extends FlameGame {
     if (!hasStar(2)) {
       return switch (roomId) {
         'storm_rune_hall' =>
-          'The rune hall murmurs — a Mask can read the storm\'s order ahead',
+          'The rune hall murmurs, a Mask can read the storm\'s order ahead',
         // Goal only — which element wakes which conduit is the runes'
         // earned reading (_doReveal), never free room-entry copy.
         'twin_conduit' => 'The twin conduits sleep',
@@ -9044,7 +9053,7 @@ class PlanetDungeonGame extends FlameGame {
     _discoverCloud(_vaultCacheId); // the screen pays the gold
     _spawnFizzleBurst(pos, layout.element);
     _setHint(
-      'The vault\'s essence fizzles into the air — an offering for its '
+      'The vault\'s essence fizzles into the air, an offering for its '
       'finder',
       3.2,
     );
@@ -9172,7 +9181,7 @@ class PlanetDungeonGame extends FlameGame {
     if (isRaid) {
       // A raid has no stars to bank — the guardian falling IS the win.
       // Rewards wait for the death sequence; see [_updateRaidDeath].
-      _setHint('The raid is broken — the storm releases the planet', 4.2);
+      _setHint('The raid is broken, the storm releases the planet', 4.2);
       _beginRaidDeath();
       onChanged();
       return;

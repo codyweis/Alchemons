@@ -134,7 +134,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     }
     if (f.founder == 0) {
       _setHint(
-        'The knoll gives under you — nothing is holding it up any more',
+        'The knoll gives under you, nothing is holding it up any more',
         3.0,
       );
     }
@@ -154,7 +154,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     _spreadCreaturesAround(door.targetSpawn);
     _clearHints();
     _setHint(
-      'The lotus goes under and takes you with it — and the fen closes over',
+      'The lotus goes under and takes you with it, and the fen closes over',
       4.4,
     );
   }
@@ -196,7 +196,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       // The moor-altars answer to dryness, so a swallowed road can un-wake a
       // basin — Star 1 is only ever lost this way BEFORE it is banked.
       f.moorsWoken.removeWhere((k) => !f.isDry(k));
-      _setHint('Bogdrya drinks — a causeway goes out from under the bog');
+      _setHint('Bogdrya drinks, a causeway goes out from under the bog');
       return;
     }
   }
@@ -295,7 +295,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
   String _bogDoorHint(DungeonRoom room, DungeonDoor door) {
     final f = _fen;
     if (room.id == 'sunken_lotus' && door.targetRoomId == kLotusKnollId) {
-      return 'The knoll came down with you — there is only water above';
+      return 'The knoll came down with you, there is only water above';
     }
     if (door.targetRoomId == kLotusKnollId && f.lotusSunk) {
       return 'That knoll is under the fen now';
@@ -304,7 +304,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       return 'Only Mud lets the bog take it down';
     }
     if (_isRisenWallowDoor(room, door)) {
-      return 'The fen holds its roof shut — nothing rises here yet';
+      return 'The fen holds its roof shut, nothing rises here yet';
     }
     if (_isPlankDoor(room, door)) {
       final gate = layout.familyGateFor('plank_road');
@@ -313,7 +313,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
         return gate.hintLine;
       }
     }
-    return 'Open water — nothing crosses it now';
+    return 'Open water, nothing crosses it now';
   }
 
   /// Bookkeeping on the transit itself: climbing a risen wallow is THE HEAVE.
@@ -322,7 +322,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (!_isRisenWallowDoor(from, door)) return;
     _fen.heave();
     _setHint(
-      'The sough lets go and the whole fen heaves — every road you dragged '
+      'The sough lets go and the whole fen heaves, every road you dragged '
       'is soup again',
       4.6,
     );
@@ -364,7 +364,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId);
-    _setHint('The weed slides away — three crossings, and none of them sure');
+    _setHint('The weed slides away, three crossings, and none of them sure');
     _spawnAlchemyBurst(
       const Offset(560, 240),
       producedElement: 'Water',
@@ -391,7 +391,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
           _setBlockedHint('This crossing already stands');
           return true;
         case BogFordState.drowned:
-          _setBlockedHint('Open water — there is nothing left to pull on');
+          _setBlockedHint('Open water, there is nothing left to pull on');
           return true;
         case BogFordState.mire:
           break;
@@ -411,8 +411,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
         ..smearLost = [for (final l in lost) l.id];
       _setHint(
         lost.isEmpty
-            ? 'The mire knits and stands — a road, for good'
-            : 'The road stands — and the water it held backs up into '
+            ? 'The mire knits and stands, a road, for good'
+            : 'The road stands, and the water it held backs up into '
                   '${kSloughNames[ford.slough] ?? 'the slough'}',
         3.6,
       );
@@ -465,7 +465,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       // answered by the drag, which runs first.
       if (f.stateOf(ford.id) != BogFordState.sod) continue;
       f.sarsenKnoll = ford.other(currentRoomId)!;
-      _setHint('The sarsen grinds across — one crossing nearer', 3.2);
+      _setHint('The sarsen grinds across, one crossing nearer', 3.2);
       _spawnAlchemyBurst(
         head,
         producedElement: 'Earth',
@@ -493,7 +493,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
           (c) => c.alive && !identical(c, a) && c.member.element == want,
         );
     if (!paired) {
-      _setBlockedHint('The resin holds — nothing here eats it alone');
+      _setBlockedHint('The resin holds, nothing here eats it alone');
       return true;
     }
     f.socketOpen = true;
@@ -515,7 +515,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (altar == null || f.sarsenSeated) return false;
     if ((a.position - altar.socket).distance > _kFenReach) return false;
     if (f.sarsenKnoll != kSarsenSocketKnoll) {
-      _setBlockedHint('The socket stands empty — the stone is still out there');
+      _setBlockedHint('The socket stands empty, the stone is still out there');
       return true;
     }
     if (!f.socketOpen) {
@@ -561,7 +561,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     }
     if (!f.isDry(currentRoomId)) {
       // The world teaches the rule: sodden ground drinks the offering.
-      _setBlockedHint('The ground drinks it — this knoll still swims');
+      _setBlockedHint('The ground drinks it, this knoll still swims');
       _spawnAlchemyBurst(
         moor.basin,
         producedElement: 'Water',
@@ -572,7 +572,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       return true;
     }
     f.moorsWoken.add(currentRoomId);
-    _setHint('The basin holds — the stone takes up the note', 3.4);
+    _setHint('The basin holds, the stone takes up the note', 3.4);
     _spawnAlchemyBurst(
       moor.basin,
       producedElement: 'Water',
@@ -618,7 +618,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       return true;
     }
     f.soughFreed = true;
-    _setHint('The plug comes away — the whole fen starts to move');
+    _setHint('The plug comes away, the whole fen starts to move');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Mud',
@@ -691,7 +691,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       return true;
     }
     f.anchorFirm = true;
-    _setHint('The floor sets hard — there is something to stand on');
+    _setHint('The floor sets hard, there is something to stand on');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Mud',
@@ -727,26 +727,26 @@ extension SinkingAltarFen on PlanetDungeonGame {
   String? _bogObjectiveHint(DungeonRoom room) {
     final f = _fen;
     if (room.guardian != null) {
-      return 'Bogdrya\'s Hollow — the fen keeps its last star down here';
+      return 'Bogdrya\'s Hollow, the fen keeps its last star down here';
     }
     if (room.fen?.sough != null) {
-      return 'The Drowned Fane — the whole bog drains through this room';
+      return 'The Drowned Fane, the whole bog drains through this room';
     }
     if (room.vaultCache != null) {
-      return 'A bowl under the fen — something is bottled here';
+      return 'A bowl under the fen, something is bottled here';
     }
     final altar = room.fen?.altar;
     if (altar != null && !hasStar(altar.sarsenStarIndex)) {
-      return 'The Sinking Altar — its socket stands empty';
+      return 'The Sinking Altar, its socket stands empty';
     }
     if (room.fen?.moor != null) {
       final done = f.moorsWoken.contains(room.id);
-      return done ? null : 'A moor-altar — its basin will not keep anything';
+      return done ? null : 'A moor-altar, its basin will not keep anything';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Mire Gate — the fen opens out, and the sarsen lies here'
-          : 'The Mire Gate — weed lies over everything';
+          ? 'The Mire Gate, the fen opens out, and the sarsen lies here'
+          : 'The Mire Gate. Weed lies over everything';
     }
     return null;
   }
@@ -779,7 +779,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'Wet ground will not keep an offering',
         1 =>
-          'The basin holds only where the knoll itself stands drained — '
+          'The basin holds only where the knoll itself stands drained'
               'and a knoll drains when every crossing that touches it is hard',
         _ =>
           'Count this knoll\'s crossings and harden every one; the black '
@@ -792,7 +792,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'The stone will not travel over anything soft',
         1 =>
-          'A road has to stand before the sarsen will cross it — and old '
+          'A road has to stand before the sarsen will cross it, and old '
               'resin caps the socket at the end',
         _ =>
           'Drag the road one crossing ahead of the stone; the socket\'s '
@@ -807,7 +807,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
           'The outfall can be opened, and the fen will answer the whole '
               'way up',
         _ =>
-          'Free the plug and climb out anywhere — but the heave takes back '
+          'Free the plug and climb out anywhere, but the heave takes back '
               'every road you dragged, and puts the stone back where it lay',
       });
       return;

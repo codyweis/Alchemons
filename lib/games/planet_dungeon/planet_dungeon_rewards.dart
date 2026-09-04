@@ -86,7 +86,7 @@ Future<List<String>> grantStarReward({
       final traitKey = BossLootKeys.traitKeyForElement(element);
       if (await db.inventoryDao.getItemQty(traitKey) == 0) {
         await db.inventoryDao.addItemQty(traitKey, 1);
-        relicLines.add('+1 ${guardianRelicName(element)} — Guardian Relic');
+        relicLines.add('+1 ${guardianRelicName(element)}, Guardian Relic');
       }
       switch (choice ?? Star3Choice.gold) {
         case Star3Choice.gold:

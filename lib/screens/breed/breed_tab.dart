@@ -132,7 +132,7 @@ class _BreedingTabState extends State<BreedingTab>
           ),
           content: Text(
             'Mystic entities are bound to their own essence.\n\n'
-            '$nameA and $nameB cannot be fused — Mystics may only '
+            '$nameA and $nameB cannot be fused, Mystics may only '
             'breed with another of the exact same Mystic species.',
             style: TextStyle(color: theme.text),
           ),
@@ -1364,7 +1364,7 @@ class _BreedingTabState extends State<BreedingTab>
 
           if (result.placement == EggPlacement.storage) {
             _pendingFusionToast = _PendingToast(
-              'Incubator full — specimen transferred to cold storage',
+              'Incubator full. Specimen transferred to cold storage',
               icon: AppIcons.inventory_2_rounded,
               color: Colors.orange,
             );
@@ -1584,7 +1584,7 @@ class _BreedingTabState extends State<BreedingTab>
     final remMs = perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
     final mins = (remMs / 60000).ceil();
     _showToast(
-      'Specimen is resting — next stamina in ~${mins}m',
+      'Specimen is resting, next stamina in ~${mins}m',
       icon: AppIcons.hourglass_bottom_rounded,
       color: Colors.orange,
       fromTop: true,

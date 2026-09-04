@@ -302,14 +302,14 @@ const List<CryptSpan> kCryptSpans = [
     from: 'mosswalk',
     to: 'islet',
     size: SpanSize.hugeOnly,
-    look: 'the sunken rill — one stride, or a river',
+    look: 'the sunken rill, one stride, or a river',
   ),
   CryptSpan(
     id: 'sp_tread',
     from: 'fern_gallery',
     to: 'pollen_stair',
     size: SpanSize.hugeOnly,
-    look: 'the broken tread — one step down, or a cliff',
+    look: 'the broken tread, one step down, or a cliff',
   ),
   CryptSpan(
     id: 'sp_landing',
@@ -753,13 +753,13 @@ const DungeonLayout plantLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Lamp Star',
       earnAnnouncement:
-          'The Lamp Star is yours — three graves lit, and none of them by the '
+          'The Lamp Star is yours, three graves lit, and none of them by the '
           'same body',
     ),
     DungeonStarSpec(
       name: 'Bloom Star',
       earnAnnouncement:
-          'The Bloom Star is yours — the heart-seed wakes, loam and dark and '
+          'The Bloom Star is yours, the heart-seed wakes, loam and dark and '
           'a borrowed sun',
     ),
     DungeonStarSpec(name: 'Shade Star'),
@@ -768,11 +768,11 @@ const DungeonLayout plantLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('root_porch', 'mosswalk'),
   finaleDoor: DungeonDoorRef('bloom_hall', 'botanica_heart'),
   riteAnnouncement:
-      'Lamp and Bloom are won — the clay cracks off the sepulchre in the hall',
+      'Lamp and Bloom are won, the clay cracks off the sepulchre in the hall',
   finaleSealedHint:
-      'The rood door is shut — it answers only the Lamp and Bloom stars',
+      'The rood door is shut, it answers only the Lamp and Bloom stars',
   guardianSealedHint:
-      'The heart lies under a mat of root — nothing in there stirs until the '
+      'The heart lies under a mat of root, nothing in there stirs until the '
       'sepulchre is opened',
   mercyShrineRoomId: 'mosswalk',
   // Ideal: Plantmane · Lightmask · Mudpip — hinted by VERB, never body part

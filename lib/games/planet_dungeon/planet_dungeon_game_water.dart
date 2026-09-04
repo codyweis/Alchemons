@@ -235,13 +235,13 @@ extension MirrorTide on PlanetDungeonGame {
   }
 
   String _tideDoorHint(DungeonRoom room, DungeonDoor door) {
-    if (!tideSettled) return 'The brine still moves — let the tide settle';
+    if (!tideSettled) return 'The brine still moves. Let the tide settle';
     for (final rule in room.tideDoorRules) {
       if (rule.targetRoomId != door.targetRoomId) continue;
       final wantsLower = rule.tides.every((t) => t < tideLevel);
       return wantsLower
-          ? 'The passage lies drowned — a lower tide would bare it'
-          : 'The passage hangs dry above you — a higher tide would reach it';
+          ? 'The passage lies drowned, a lower tide would bare it'
+          : 'The passage hangs dry above you, a higher tide would reach it';
     }
     return 'The way refuses the tide as it stands';
   }
@@ -255,10 +255,7 @@ extension MirrorTide on PlanetDungeonGame {
   void _setTide(int level) {
     if (level == tideLevel) return;
     tideLevel = level.clamp(0, 2);
-    _setHint(
-      'The temple groans — the ${_tideName(tideLevel)} water comes',
-      3.2,
-    );
+    _setHint('The temple groans, the ${_tideName(tideLevel)} water comes', 3.2);
     _spawnAlchemyBurst(
       active?.position ?? currentRoom.bounds.center,
       producedElement: 'Water',
@@ -338,7 +335,7 @@ extension MirrorTide on PlanetDungeonGame {
         mirrorShards.add(1 + rng.nextInt(kMoonNotches - 2));
       }
       _setHint(
-        'The water stills — and the moon in it comes apart into three',
+        'The water stills, and the moon in it comes apart into three',
         3.4,
       );
     }
@@ -383,7 +380,7 @@ extension MirrorTide on PlanetDungeonGame {
       );
       if (mirrorIsTrue) {
         _setHint(
-          'All three pieces show the same moon — the pool is telling the '
+          'All three pieces show the same moon, the pool is telling the '
           'truth at last',
           3.4,
         );
@@ -828,7 +825,7 @@ extension MirrorTide on PlanetDungeonGame {
           _lanternPrevNodeId ?? atId,
           sumped: false,
           message:
-              'The sump has no throat — the backwash gives the lantern '
+              'The sump has no throat, the backwash gives the lantern '
               'up again, dark',
         );
         return;
@@ -852,7 +849,7 @@ extension MirrorTide on PlanetDungeonGame {
       _loseLantern(
         atId,
         sumped: true,
-        message: 'The high water takes the deep cut — the lantern goes under',
+        message: 'The high water takes the deep cut, the lantern goes under',
       );
       return;
     }
@@ -860,7 +857,7 @@ extension MirrorTide on PlanetDungeonGame {
       _loseLantern(
         atId,
         sumped: false,
-        message: 'The groove runs dry — the lantern grounds on the sill',
+        message: 'The groove runs dry, the lantern grounds on the sill',
       );
       return;
     }
@@ -949,7 +946,7 @@ extension MirrorTide on PlanetDungeonGame {
           _beginFallRecovery(
             c,
             c.lastSafe,
-            hint: 'The water falls away — scrambling back to footing',
+            hint: 'The water falls away. Scrambling back to footing',
           );
         } else {
           c.position = c.lastSafe;
@@ -989,7 +986,7 @@ extension MirrorTide on PlanetDungeonGame {
       return true;
     }
     if (a.member.element != 'Water') {
-      _setHint('A dry stone bowl — it thirsts for Water');
+      _setHint('A dry stone bowl, it thirsts for Water');
       return true;
     }
     entryDoorRevealed = true;
@@ -997,7 +994,7 @@ extension MirrorTide on PlanetDungeonGame {
     final doorCenter = room.doors.isNotEmpty
         ? room.doors.first.rect.center
         : a.position;
-    _setHint('Water takes the bowl — the drowned doors swing inward');
+    _setHint('Water takes the bowl, the drowned doors swing inward');
     _spawnAlchemyBurst(
       kTideGateBowl,
       producedElement: 'Water',
@@ -1053,7 +1050,7 @@ extension MirrorTide on PlanetDungeonGame {
       final targetLevel = valve.level ?? (tideLevel + 1) % 3;
       if (targetLevel == tideLevel && tideSettled) {
         _setHint(
-          'The tide already stands ${_tideName(tideLevel)} — the valve '
+          'The tide already stands ${_tideName(tideLevel)}, the valve '
           'idles',
         );
         return true;
@@ -1082,15 +1079,15 @@ extension MirrorTide on PlanetDungeonGame {
         return true;
       }
       if (!tideSettled) {
-        _setHint('The brine still moves — let the tide settle');
+        _setHint('The brine still moves. Let the tide settle');
         return true;
       }
       if (!seal.tides.contains(tideLevel)) {
         final wantsLower = seal.tides.every((t) => t < tideLevel);
         _setHint(
           wantsLower
-              ? 'The seal lies drowned — it yields only to a lower tide'
-              : 'The seal sits beyond this water — it wants a higher tide',
+              ? 'The seal lies drowned, it yields only to a lower tide'
+              : 'The seal sits beyond this water, it wants a higher tide',
         );
         return true;
       }
@@ -1113,7 +1110,7 @@ extension MirrorTide on PlanetDungeonGame {
         earnStar(star);
       } else {
         _setHint(
-          'The sluice grinds open — ${openedSeals.length} of '
+          'The sluice grinds open, ${openedSeals.length} of '
           '${room.tideSeals.length}',
           3.0,
         );
@@ -1145,7 +1142,7 @@ extension MirrorTide on PlanetDungeonGame {
         // An ICE hand at the lantern's own basin means the ice — let the dam
         // speak its own refusal rather than swallowing the press here.
         if (a.member.element == 'Ice') return false;
-        _setHint('The lantern rides already — the water has it');
+        _setHint('The lantern rides already, the water has it');
         return true;
       }
       // A basin that is neither the spring nor the lantern's own resting
@@ -1173,7 +1170,7 @@ extension MirrorTide on PlanetDungeonGame {
       );
       _setHint(
         relit && !node.isSpring
-            ? 'The wick catches again — the lantern turns and waits on the water'
+            ? 'The wick catches again, the lantern turns and waits on the water'
             : 'The moon-lantern takes the spill, and the water takes the '
                   'lantern',
         3.0,
@@ -1210,12 +1207,12 @@ extension MirrorTide on PlanetDungeonGame {
           particleCount: 12,
           intensity: 0.7,
         );
-        _setHint('The plug lets go — the basin runs again', 2.8);
+        _setHint('The plug lets go, the basin runs again', 2.8);
         onChanged();
         return true;
       }
       if (lanternLit && lanternNodeId == node.id && lanternChannel == null) {
-        _setBlockedHint('The lantern turns here — the ice will not take');
+        _setBlockedHint('The lantern turns here, the ice will not take');
         return true;
       }
       dammedNodes.add(node.id);
@@ -1244,7 +1241,7 @@ extension MirrorTide on PlanetDungeonGame {
     if (room.canalNodes.isEmpty || star == null) return false;
     if (a.member.element != 'Spirit') return false;
     if (hasStar(star)) {
-      _setHint('The canals lie quiet — the lantern is away');
+      _setHint('The canals lie quiet, the lantern is away');
       return true;
     }
     canalRevealTier = revealHintTier(a.member.statIntelligence);
@@ -1264,7 +1261,7 @@ extension MirrorTide on PlanetDungeonGame {
           ? 'The whole fall lies bare, basin to basin, for the water as it '
                 'stands'
           : canalRevealTier >= 1
-          ? 'The deep cuts stand named — and the water shows which groove it '
+          ? 'The deep cuts stand named, and the water shows which groove it '
                 'would take next'
           : 'The deep cuts stand named: they run low and middle, and drown '
                 'into a torrent at the high water',
@@ -1287,7 +1284,7 @@ extension MirrorTide on PlanetDungeonGame {
     // nothing and says what it sees, not what to do.
     if (mirrorIsGlass && !mirrorIsTrue) {
       _setBlockedHint(
-        'The pieces do not agree — this is not the moon that is up there',
+        'The pieces do not agree, this is not the moon that is up there',
       );
       return true;
     }
@@ -1296,7 +1293,7 @@ extension MirrorTide on PlanetDungeonGame {
       return true;
     }
     if (!mirrorIsGlass) {
-      _setBlockedHint('The water will not hold it — the moon keeps slipping');
+      _setBlockedHint('The water will not hold it, the moon keeps slipping');
       _spawnAlchemyBurst(
         glint,
         producedElement: 'Ice',
@@ -1324,7 +1321,7 @@ extension MirrorTide on PlanetDungeonGame {
     if ((a.position - room.bounds.center).distance >= 34) return false;
     _setHint(
       'The water stills to a perfect mirror. Before the flood, the '
-      'Leviathan sang the first tide through these halls — the temple '
+      'Leviathan sang the first tide through these halls, the temple '
       'remembers, and now it rests.',
       7.5,
     );
@@ -1383,7 +1380,7 @@ extension MirrorTide on PlanetDungeonGame {
     _leviathanRoars++;
     _setTide(next);
     _setHint(
-      'Leviathan roars — the deep hauls the ${_tideName(tideLevel)} water in',
+      'Leviathan roars, the deep hauls the ${_tideName(tideLevel)} water in',
       2.8,
     );
   }
@@ -1438,7 +1435,7 @@ extension MirrorTide on PlanetDungeonGame {
     switch (room.id) {
       case 'tide_works':
         _setHint(
-          'Three stands of water, three sluices — each seal yields at '
+          'Three stands of water, three sluices, each seal yields at '
           'exactly one',
           3.8,
         );
@@ -1449,7 +1446,7 @@ extension MirrorTide on PlanetDungeonGame {
         // the secret; only the foresight is, and that is Spirit's.
         final star = room.canalStarIndex;
         if (star != null && hasStar(star)) {
-          _setHint('The canals lie quiet — the lantern is away');
+          _setHint('The canals lie quiet, the lantern is away');
           return;
         }
         _setHint(
@@ -1457,14 +1454,14 @@ extension MirrorTide on PlanetDungeonGame {
               ? 'The frieze reads plain: water spills down the LOWEST groove '
                     'a basin offers it, and a groove only runs once the tide '
                     'tops its sill'
-              : 'A frieze of grooves and sills — the temple explaining how '
+              : 'A frieze of grooves and sills, the temple explaining how '
                     'its own water falls',
           4.4,
         );
         return;
       case 'moon_hall':
         _setHint(
-          'The tide-mural completes — at the settled MIDDLE water, the '
+          'The tide-mural completes, at the settled MIDDLE water, the '
           'true pools take the ice and bridge the well',
           4.2,
         );
@@ -1477,7 +1474,7 @@ extension MirrorTide on PlanetDungeonGame {
           // three chambers off.)
           _poolFx['truth'] = 3.0 + revealTier * 1.5; // true pools glow
           _setHint(
-            'The moon rides the northwest and southeast pools — the '
+            'The moon rides the northwest and southeast pools, the '
             'others lie',
             4.2,
           );
@@ -1511,8 +1508,8 @@ extension MirrorTide on PlanetDungeonGame {
       case 'leviathan_depths':
         _setHint(
           guardianAwake
-              ? 'The Leviathan\'s rage ebbs in waves — strike in the lull'
-              : 'An empty deep above the well — the ice bridge will fill it',
+              ? 'The Leviathan\'s rage ebbs in waves. Strike in the lull'
+              : 'An empty deep above the well, the ice bridge will fill it',
           3.6,
         );
         return;
@@ -1556,7 +1553,7 @@ extension MirrorTide on PlanetDungeonGame {
     }
     if (room.id == 'tide_gate' && !entryDoorRevealed) {
       if ((a.position - kTideGateBowl).distance <= 70) {
-        _setAmbientHint('The offering-bowl stands dry — it thirsts');
+        _setAmbientHint('The offering-bowl stands dry, it thirsts');
       }
       return;
     }
@@ -1581,31 +1578,31 @@ extension MirrorTide on PlanetDungeonGame {
       case 'tide_gate':
         return entryDoorRevealed
             ? null
-            : 'Tide Gate — the offering-bowl stands dry; Water wakes the '
+            : 'Tide Gate, the offering-bowl stands dry; Water wakes the '
                   'way in';
       case 'tide_works':
         // Was a three-step procedure read out at the door: turn, stand,
         // open. State only — the valves and the tide they want are the
         // frieze's to explain.
-        return 'Tide-Works — three sluices, and the tide standing wrong';
+        return 'Tide-Works, three sluices, and the tide standing wrong';
       case 'ghost_gallery':
         // WHAT, never HOW (§5.6): the sills, the spill and the ice are the
         // frieze's and Spirit's to give, not the doorway's.
-        return 'Lantern Gallery — the moon-lantern must reach the sea drain';
+        return 'Lantern Gallery, the moon-lantern must reach the sea drain';
       case 'reflection_court':
         return null; // the egg keeps its silence
       case 'moon_hall':
         return hasStar(2)
             ? null
-            : 'Moon Hall — the tide-mural diagrams the rite ahead';
+            : 'Moon Hall, the tide-mural diagrams the rite ahead';
       case 'moon_well':
         // WHAT, never HOW (§5.6): the tide condition and pool-truth are the
         // tide-mural's earned reading (_templeReveal), not room-entry copy.
-        return 'Moon Well — the moon rides the water here, unheld';
+        return 'Moon Well, the moon rides the water here, unheld';
       case 'leviathan_depths':
         return guardianAwake
-            ? 'The Depths — the Leviathan rises'
-            : 'The Depths — silence; the well is not yet bridged';
+            ? 'The Depths, the Leviathan rises'
+            : 'The Depths. Silence; the well is not yet bridged';
     }
     return null;
   }
@@ -3820,7 +3817,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
       _syncTideToMoon();
       _setHint(
         spoutPlugged
-            ? 'The main chokes — the well answers the moon again'
+            ? 'The main chokes, the well answers the moon again'
             : 'The main runs, and the well rises past the moon',
         2.6,
       );
@@ -3885,7 +3882,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
     if ((a.position - dial).distance > _kDialReach) return false;
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The well sleeps — it answers only a bearer of both the '
+        'The well sleeps, it answers only a bearer of both the '
         '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return true;
@@ -3895,7 +3892,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
       return true;
     }
     if (moonNotch <= 0) {
-      _setBlockedHint('The moon is dark — there is nothing left to take');
+      _setBlockedHint('The moon is dark, there is nothing left to take');
       return true;
     }
     moonNotch--;
@@ -3920,7 +3917,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
     if (a.member.element != 'Water') return false;
     _setHint(
       spoutPlugged
-          ? 'You are already in the mouth of it — stay there'
+          ? 'You are already in the mouth of it. Stay there'
           : 'Nothing to turn: the main is plugged by standing in it',
       2.6,
     );
@@ -3934,7 +3931,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
       if ((a.position - pool.position).distance > _kPoolReach) continue;
       if (!guardianRiteUnlocked) {
         _setBlockedHint(
-          'The pools sleep — they answer only a bearer of both the '
+          'The pools sleep, they answer only a bearer of both the '
           '${layout.starName(0)} and ${layout.starName(1)}',
         );
         return true;
@@ -3957,7 +3954,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
         _setHint(
           wellHasRisen
               ? 'The ice gives, and the well drops with it'
-              : 'The ice gives — the basin lets its moon go',
+              : 'The ice gives, the basin lets its moon go',
           3.0,
         );
         return true;
@@ -3970,7 +3967,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
       final viaRecipe = r == InteractionResult.passedViaRecipe;
       if (!interactionSucceeded(r)) {
         _setBlockedHint(
-          'Ice would take this basin — or Spirit standing in the water',
+          'Ice would take this basin, or Spirit standing in the water',
         );
         return true;
       }
@@ -4002,7 +3999,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
         return true;
       }
       if (moonHoldT < _kPoolHold) {
-        _setBlockedHint('The moon is still moving — let it settle');
+        _setBlockedHint('The moon is still moving. Let it settle');
         return true;
       }
       // AND THE WELL HAS TO BE HOLDING THAT MOON. This is what makes the pip
@@ -4014,7 +4011,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
         _setBlockedHint(
           spoutPlugged
               ? 'The water is still moving under it'
-              : 'The main is running — the well stands above the moon',
+              : 'The main is running, the well stands above the moon',
         );
         return true;
       }
@@ -4044,7 +4041,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
         guardianAwake = true;
         guardianHp = PlanetDungeonGame.maxGuardianHp;
         _setHint(
-          'Four moons stand frozen in the well — and the deep sends up what '
+          'Four moons stand frozen in the well, and the deep sends up what '
           'it keeps',
           4.6,
         );
@@ -4059,7 +4056,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
       } else {
         _setHint(
           wellHasRisen
-              ? 'The basin takes it — and the ice pushes the well up'
+              ? 'The basin takes it, and the ice pushes the well up'
               : 'The basin takes the moon and holds it',
           3.0,
         );
@@ -4106,7 +4103,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
   /// What insight says about the well, by tier. It never gives both notches.
   String _moonWellInsight(int tier) {
     if (hasStar(2) || moonBridgeWhole) {
-      return 'The bridge stands — the well keeps nothing back now';
+      return 'The bridge stands, the well keeps nothing back now';
     }
     String phase(int n) => switch (n) {
       0 => 'a dark moon',
@@ -4122,7 +4119,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
       // told which moon a basin wants, while the well cannot hold any moon
       // at all, has been given the wrong half of the problem.
       return 'Nothing here will agree with the sky while that main is '
-          'running — and only a Water pip fits its mouth';
+          'running, and only a Water pip fits its mouth';
     }
     final open = poolWants.entries
         .where((e) => (poolStates[e.key] ?? 0) != 1)
@@ -4131,7 +4128,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
     final drowned = open.where((e) => basinDrowned(e.key)).length;
     if (drowned > 0) {
       // The thing standing in the way outranks the phases again.
-      return 'The ice has pushed the well up past $drowned of these — break '
+      return 'The ice has pushed the well up past $drowned of these. Break '
           'one open and it will come back down';
     }
     return switch (tier) {
@@ -4141,7 +4138,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
             '${phase(open.map((e) => e.value).reduce((x, y) => (x - moonNotch).abs() <= (y - moonNotch).abs() ? x : y))}',
       _ =>
         'Still wanting: ${(open.map((e) => phase(e.value)).toList()..sort()).join(", ")}'
-            '${wellHasRisen ? "" : " — and ice takes up room in a closed well"}',
+            '${wellHasRisen ? "" : ", and ice takes up room in a closed well"}',
     };
   }
 }

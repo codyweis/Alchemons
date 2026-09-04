@@ -119,7 +119,7 @@ class _DungeonDebugScreenState extends State<DungeonDebugScreen> {
                 Text(
                   'Descend into any built dungeon with its ideal trio, '
                   'skipping the gate and the carried party. The gate stays '
-                  'sealed — only what a run banks is kept.',
+                  'sealed, only what a run banks is kept.',
                   style: TextStyle(
                     color: t.textSecondary,
                     fontSize: 12,
@@ -350,7 +350,7 @@ class _DungeonRow extends StatelessWidget {
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
                               child: Text(
-                                '⚠ no exact family match — family gates may '
+                                '⚠ no exact family match. Family gates may '
                                 'be unopenable',
                                 style: TextStyle(
                                   color: t.amber,

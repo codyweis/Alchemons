@@ -143,8 +143,8 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     final sill = _archiveSillFor(room, door)!;
     final where = sectorWord(sill.cell!.sector);
     return sill.cut == SillCut.glassLeaf
-        ? 'Nothing in the glass — $where is dark'
-        : 'Glare off the whole shelf — $where is lit';
+        ? 'Nothing in the glass, $where is dark'
+        : 'Glare off the whole shelf, $where is lit';
   }
 
   // ── Verbs ────────────────────────────────────────────────
@@ -191,7 +191,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
-    _setHint('The shutter folds back — and the archive is one room, all of it');
+    _setHint('The shutter folds back, and the archive is one room, all of it');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Light',
@@ -270,7 +270,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     for (final e in kCourtEffigies) {
       if ((a.position - e.position).distance > _kArchiveReach) continue;
       if (archive.effigiesRead.contains(e.id)) {
-        _setHint('Read already — ${e.truth}');
+        _setHint('Read already, ${e.truth}');
         return true;
       }
       if (a.member.element != e.element) {
@@ -279,13 +279,13 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       }
       if (archive.isDark(e.stand)) {
         _setBlockedHint(
-          'No light on it — ${sectorWord(e.stand.sector)} is dark',
+          'No light on it, ${sectorWord(e.stand.sector)} is dark',
         );
         return true;
       }
       if (archive.isLit(e.niche)) {
         _setBlockedHint(
-          'Nowhere for its shadow — ${sectorWord(e.niche.sector)} is lit',
+          'Nowhere for its shadow, ${sectorWord(e.niche.sector)} is lit',
         );
         return true;
       }
@@ -352,7 +352,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
       _stampFamilyGate(gate);
       if (!archive.underHush) {
         _setBlockedHint(
-          'Too much of you showing — ${archive.lumens} lumens on the hall',
+          'Too much of you showing, ${archive.lumens} lumens on the hall',
         );
         return true;
       }
@@ -365,7 +365,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         intensity: 1.0,
       );
       if (!archive.everySlipDrawn) {
-        _setHint('Out it comes — ${s.line}', 3.4);
+        _setHint('Out it comes, ${s.line}', 3.4);
         return true;
       }
       final idx = _hushStarRoom?.hall?.starIndex;
@@ -395,7 +395,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The ring will not turn — it answers only a bearer of the '
+        'The ring will not turn, it answers only a bearer of the '
         '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return true;
@@ -564,37 +564,37 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _archiveObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Solarin\'s Oculus — the last star is behind a thing that looks '
+      return 'Solarin\'s Oculus, the last star is behind a thing that looks '
           'at you';
     }
     if (room.hall?.shutterRing != null) {
-      return 'The Reading Floor — the rite waits on the oriel and the ring';
+      return 'The Reading Floor, the rite waits on the oriel and the ring';
     }
     if (room.hall?.balustrade != null) {
       return hasStar(room.hall!.starIndex!)
           ? null
-          : 'The Shadow Court — four effigies, and every one of them lying';
+          : 'The Shadow Court, four effigies, and every one of them lying';
     }
     if (room.hall?.starIndex == 1) {
       return hasStar(1)
           ? null
-          : 'The Dark Stacks — something is filed where the light does not go';
+          : 'The Dark Stacks, something is filed where the light does not go';
     }
     if (room.vaultCache != null) {
-      return 'The Sunless Reliquary — the essence has been in plain sight the '
+      return 'The Sunless Reliquary, the essence has been in plain sight the '
           'whole run';
     }
     if (archiveSlipsIn(room.id).isNotEmpty && !hasStar(1)) {
-      return '${_archiveRoomWord(room.id)} — a slip lies behind the shelves';
+      return '${_archiveRoomWord(room.id)}, a slip lies behind the shelves';
     }
     if (archiveBeaconIn(room.id) != null) {
       return 'A beacon stands here, and the hall is whatever it says';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Lumen Threshold — three ways on, and no two of them the same '
+          ? 'The Lumen Threshold, three ways on, and no two of them the same '
                 'kind of floor'
-          : 'The Lumen Threshold — the doorway is folded shut';
+          : 'The Lumen Threshold, the doorway is folded shut';
     }
     return null;
   }
@@ -632,7 +632,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         _ =>
           'You will not read all four in one light. The moth wants the '
               'doorway\'s inner shelf dark and the sun wants the doorway lit, '
-              'and nothing stands in the doorway to keep a shadow — so come '
+              'and nothing stands in the doorway to keep a shadow, so come '
               'back with the hall thrown differently',
       });
       return;
@@ -645,7 +645,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
               'Two lumens on the whole hall, no more',
         _ =>
           'A beam breaking on a great stack costs one; an empty bay costs '
-              'two. Out here past the stacks there is nothing to break on — so '
+              'two. Out here past the stacks there is nothing to break on, so '
               'set the far beacon first and come at these shelves from behind, '
               'through the dark',
       });
@@ -661,7 +661,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
           'Everything you light on the glass you take away on the mirror, '
               'and the reverse. The stacks are the only shadows in this hall, '
               'so a low beam is the only way to have a road and a shadow at '
-              'once — and it is half the lumens besides',
+              'once, and it is half the lumens besides',
       });
       return;
     }

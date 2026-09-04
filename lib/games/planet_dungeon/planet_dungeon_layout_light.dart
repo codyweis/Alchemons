@@ -1057,13 +1057,13 @@ const DungeonLayout lightLayout = DungeonLayout(
     DungeonStarSpec(
       name: 'Shadow Star',
       earnAnnouncement:
-          'The Shadow Star is yours — four stones read by what they throw, '
+          'The Shadow Star is yours, four stones read by what they throw, '
           'and never two of them in the same light',
     ),
     DungeonStarSpec(
       name: 'Hush Star',
       earnAnnouncement:
-          'The Hush Star is yours — three slips drawn, and the archive never '
+          'The Hush Star is yours, three slips drawn, and the archive never '
           'saw you take one',
     ),
     DungeonStarSpec(name: 'Corona Star'),
@@ -1073,10 +1073,10 @@ const DungeonLayout lightLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('lumen_threshold', 'shadow_court'),
   finaleDoor: DungeonDoorRef('reading_floor', 'solarin_oculus'),
   riteAnnouncement:
-      'Shadow and Hush are won — the oriel splits, and the stair under the '
+      'Shadow and Hush are won, the oriel splits, and the stair under the '
       'oculus stops being a stair down to nothing',
   finaleSealedHint:
-      'The stair is shut — it answers only the Shadow and Hush stars',
+      'The stair is shut, it answers only the Shadow and Hush stars',
   guardianSealedHint:
       'Nothing under the oculus wakes while the reading floor is still half '
       'in the dark',

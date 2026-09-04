@@ -167,8 +167,8 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       wake.wraithWorld = otherWorld(wake.wraithWorld);
       _setHint(
         wake.wraithWorld == _field.world
-            ? 'Wraithord steps into your world — it is solid, and so are you'
-            : 'Wraithord steps out of your world — nothing you do reaches it',
+            ? 'Wraithord steps into your world, it is solid, and so are you'
+            : 'Wraithord steps out of your world, nothing you do reaches it',
         2.2,
       );
     }
@@ -221,7 +221,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   /// method. How the grave got this way is Mask's earned reading.
   String _graveDoorHint(DungeonRoom room, DungeonDoor door) {
     final x = _graveCrossingFor(room, door)!;
-    if (x.cut == GraveCut.livingOnly) return 'Salted — the dead do not cross';
+    if (x.cut == GraveCut.livingOnly) return 'Salted, the dead do not cross';
     if (x.cut == GraveCut.ghostOnly) {
       return 'Only a memory of a road, and you are too warm for it';
     }
@@ -263,7 +263,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
-    _setHint('The arch drains — and a field of barrows behind it');
+    _setHint('The arch drains, and a field of barrows behind it');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Water',
@@ -302,9 +302,9 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     _clearHints();
     _setHint(
       f.isGhost
-          ? 'You lie down, and get up colder — the grave has more roads than '
+          ? 'You lie down, and get up colder, the grave has more roads than '
                 'the field does'
-          : 'You are called back warm — and half of what you were walking on '
+          : 'You are called back warm, and half of what you were walking on '
                 'is gone',
       3.0,
     );
@@ -357,7 +357,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       f.tell(r.id);
       _clearHints();
       _setHint(
-        '${r.name} finishes dying — and lets go of the arch it was holding',
+        '${r.name} finishes dying, and lets go of the arch it was holding',
         4.0,
       );
       _spawnAlchemyBurst(
@@ -458,7 +458,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     }
     f.stampsTried++;
     if (!graveSigilCloses(currentRoomId)) {
-      _setBlockedHint('The mark slides off — the halves do not close here');
+      _setBlockedHint('The mark slides off, the halves do not close here');
       onChanged();
       return true;
     }
@@ -494,7 +494,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The lamp will not take — it answers only a bearer of the '
+        'The lamp will not take, it answers only a bearer of the '
         '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return true;
@@ -667,7 +667,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         0 => 'It is never quite in the room with you',
         1 => 'It is solid in one world at a time, and it changes on a count',
         _ =>
-          'Nothing lands out of phase, either way — match the world it is '
+          'Nothing lands out of phase, either way. Match the world it is '
               'standing in, and strike in that one. The stone behind you is '
               'the only weapon in here',
       });
@@ -703,7 +703,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => r.restlessLook,
         1 =>
-          '${r.name} is holding up the arch that fell on it — and the '
+          '${r.name} is holding up the arch that fell on it, and the '
               'stone that did it is still lying across the warm road',
         _ =>
           'Hear ${r.name} out and it lets go: ${graveCrossingById(r.crossingId)!.look} '
@@ -716,12 +716,12 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'Half a ring, and half a ring is nothing',
         1 =>
-          'The dead carry the other half — one great arc over the whole '
+          'The dead carry the other half, one great arc over the whole '
               'field, on a bearing of its own. The two must close the circle',
         _ =>
           'The arc runs on $kGraveFieldBearing; this floor runs on '
               '${kBarrowSigilHalf[room.id] ?? 0}, and only a barrow whose floor '
-              'makes twelve of it will take the mark — and only from a warm hand',
+              'makes twelve of it will take the mark, and only from a warm hand',
       });
       return;
     }
@@ -734,7 +734,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       _ =>
         'Six of the roads have not decided yet, and the dead standing on '
             'them are the decision: finish one and it becomes the living\'s '
-            'forever. Nothing here is ever lost — but the mere is worth having '
+            'forever. Nothing here is ever lost, but the mere is worth having '
             'in both worlds, and it only has two dead',
     });
   }

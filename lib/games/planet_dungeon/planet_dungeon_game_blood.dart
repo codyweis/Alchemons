@@ -158,15 +158,15 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     final p = _heartPassageFor(room, door)!;
     switch (p.kind) {
       case PassageKind.valve:
-        return 'The leaflet is held shut — there is pressure on it';
+        return 'The leaflet is held shut, there is pressure on it';
       case PassageKind.collateral:
-        return 'Grafted, but slack — ${lobeWord(p.lobe!)} is running';
+        return 'Grafted, but slack, ${lobeWord(p.lobe!)} is running';
       case PassageKind.mural:
         return 'The wall does not open here';
       case PassageKind.vein:
         final flow = veinFlow(p.lobe!, heart.phase);
-        if (flow == 0) return 'Collapsed — no blood in it at all';
-        return 'It runs the other way — nothing swims up a heart';
+        if (flow == 0) return 'Collapsed, no blood in it at all';
+        return 'It runs the other way, nothing swims up a heart';
     }
   }
 
@@ -218,7 +218,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     }
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
-    _setHint('The pericardium comes away — and Hemavorn is keeping time');
+    _setHint('The pericardium comes away, and Hemavorn is keeping time');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Blood',
@@ -260,7 +260,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       }
       if (heart.phase != o.phase) {
         _setBlockedHint(
-          'Nothing in it to drink — it takes ${phaseWord(o.phase)}',
+          'Nothing in it to drink, it takes ${phaseWord(o.phase)}',
         );
         return true;
       }
@@ -282,7 +282,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         announce: false,
       );
       if (!heart.everyOstiumPrimed) {
-        _setHint('The mouth takes it — and something in the wall lets go');
+        _setHint('The mouth takes it, and something in the wall lets go');
         return true;
       }
       final idx = _primingStarRoom?.sanguine?.starIndex;
@@ -318,7 +318,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         return true;
       }
       if (heart.cocksTurned.contains(p.id)) {
-        _setBlockedHint('Turned already — the vessel behind it is dead');
+        _setBlockedHint('Turned already, the vessel behind it is dead');
         return true;
       }
 
@@ -331,7 +331,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         _setInsightHint(
           heart.isSound(p.id)
               ? 'It runs clean, the whole way to ${_heartRoomWord(far)}'
-              : 'It is thrombosed to the wall — nothing gets to '
+              : 'It is thrombosed to the wall, nothing gets to '
                     '${_heartRoomWord(far)} through this',
           4.0,
         );
@@ -368,7 +368,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       if (!heart.isSound(p.id)) {
         // THE CONSEQUENCE (§7): a thrombosed vessel does not take. Nothing is
         // closed and nothing is lost — the price of guessing is a fight.
-        _setHint('The cock turns on nothing — the vessel is packed solid');
+        _setHint('The cock turns on nothing, the vessel is packed solid');
         spawnWispWave(
           element: 'Blood',
           center: c.position,
@@ -392,7 +392,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       _queueDoorReveal(p.from, p.to);
       _queueDoorReveal(p.to, p.from);
       if (!heart.everyGraftTaken) {
-        _setHint('It takes — and the eight has a road it did not have');
+        _setHint('It takes, and the eight has a road it did not have');
         return true;
       }
       final idx = _graftStarRoom?.sanguine?.starIndex;
@@ -432,7 +432,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       if (heart.steadied.containsKey(p.id)) continue;
       heart.steadied[p.id] = _kSteadySeconds;
       heart.steadyDir[p.id] = currentRoom.id == p.from ? 1 : -1;
-      _setHint('${p.look} is held open — it will not close on the turn');
+      _setHint('${p.look} is held open, it will not close on the turn');
       _spawnAlchemyBurst(
         d.rect.center,
         producedElement: 'Blood',
@@ -460,7 +460,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
-        'The sconces will not level — they answer only a bearer of the '
+        'The sconces will not level, they answer only a bearer of the '
         '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return true;
@@ -498,7 +498,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     heart.arrestFor(_kAsystoleSeconds);
     heart.vagalCooldown = _kVagalCooldown;
     heart.turn = _kPulseTurnSeconds;
-    _setHint('The heart stops — and everything in Hemavorn stops with it');
+    _setHint('The heart stops, and everything in Hemavorn stops with it');
     _spawnAlchemyBurst(
       pos,
       producedElement: 'Blood',
@@ -532,7 +532,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       heart.arrest = 0;
       heart.skipPhase();
       heart.turn = _kPulseTurnSeconds;
-      _setHint('Sanguorath throws the beat forward — the pause is gone');
+      _setHint('Sanguorath throws the beat forward, the pause is gone');
     }
   }
 
@@ -559,7 +559,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     if (beat == null) {
       heart.drumStreak = 0;
       heart.drumBeatStruck = -1;
-      _setHint('Off the beat — the drum swallows it');
+      _setHint('Off the beat, the drum swallows it');
       return true;
     }
     if (beat == heart.drumBeatStruck) {
@@ -707,33 +707,33 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
   String? _heartObjectiveHint(DungeonRoom room) {
     if (room.guardian != null) {
-      return 'Sanguorath\'s Systole — the beat keeps the last star';
+      return 'Sanguorath\'s Systole, the beat keeps the last star';
     }
     if (room.sanguine?.balance != null) {
-      return 'The Myocardium — the rite waits on the sconces';
+      return 'The Myocardium, the rite waits on the sconces';
     }
     if (room.sanguine?.starIndex == 0) {
       return hasStar(0)
           ? null
-          : 'The Vena Crossing — four mouths in this orrery, and none of them '
+          : 'The Vena Crossing, four mouths in this orrery, and none of them '
                 'drinking';
     }
     if (room.sanguine?.starIndex == 1) {
       return hasStar(1)
           ? null
-          : 'The Capillary Weave — the eight has vessels it is not using';
+          : 'The Capillary Weave, the eight has vessels it is not using';
     }
     if (room.vaultCache != null) {
-      return 'A pocket the pressure keeps shut — something is bottled against '
+      return 'A pocket the pressure keeps shut, something is bottled against '
           'the wall';
     }
     if (room.sanguine?.heartDrum != null) {
-      return 'The Atrial Gallery — something in here is keeping time';
+      return 'The Atrial Gallery, something in here is keeping time';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Pericard Gate — the way out is only sometimes a way out'
-          : 'The Pericard Gate — the sac is stitched shut over it';
+          ? 'The Pericard Gate, the way out is only sometimes a way out'
+          : 'The Pericard Gate, the sac is stitched shut over it';
     }
     return null;
   }
@@ -774,7 +774,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         1 => 'It drinks on ${phaseWord(o.phase)}, and on nothing else',
         _ =>
           'It drinks on ${phaseWord(o.phase)} and wants ${o.element}. You will '
-              'not answer all four mouths on one beat — they are in four '
+              'not answer all four mouths on one beat, they are in four '
               'chambers and no two take at the same moment. Stand here; it '
               'comes round',
       });
@@ -784,7 +784,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'The wall is full of vessels nobody is using',
         1 =>
-          'A grafted vessel carries when the round beside it is at rest — '
+          'A grafted vessel carries when the round beside it is at rest'
               'it is a road on the phases the beat will not give you',
         _ =>
           'Five cocks, and only three of the vessels behind them are sound. '
@@ -797,7 +797,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
         heartPassageBetween(room.id, 'auricle_reliquary') != null) {
       _setInsightHint(switch (tier) {
         0 => 'That leaflet has never been open while you were looking',
-        1 => 'A leaflet is held shut by pressure — from either side',
+        1 => 'A leaflet is held shut by pressure, from either side',
         _ =>
           'It hangs open only when there is no pressure at all, which is '
               'the pause between beats. Stand at it and wait; it is the same '
@@ -808,7 +808,7 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     if (room.sanguine?.vagalNode != null) {
       _setInsightHint(switch (tier) {
         0 => 'There is a knot in the floor that the beat runs through',
-        1 => 'Press it and the heart stops — briefly',
+        1 => 'Press it and the heart stops. Briefly',
         _ =>
           'It only stops moving while the heart does, and the heart only '
               'stops when you stop it. Take the pause; do not wait for one',

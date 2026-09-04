@@ -312,7 +312,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                 perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
             final mins = (remMs / 60000).ceil();
             _showToast(
-              'Specimen is resting — next stamina in ~${mins}m',
+              'Specimen is resting, next stamina in ~${mins}m',
               icon: AppIcons.hourglass_bottom_rounded,
               color: Colors.orange.shade400,
             );
@@ -643,7 +643,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
   // ---------- UI helpers ----------
 
   String _fmt(Duration? d) {
-    if (d == null) return '—';
+    if (d == null) return '';
     final h = d.inHours;
     final m = d.inMinutes.remainder(60);
     final s = d.inSeconds.remainder(60);
@@ -711,7 +711,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                       : (!farm.hasActive
                             ? 'No active extraction. Insert a creature to begin.'
                             : (farm.completed
-                                  ? 'Extraction complete — ready to collect.'
+                                  ? 'Extraction complete. Ready to collect.'
                                   : 'Extracting ${widget.biome.resourceLabel} ... ${_fmt(vm.remaining)} left'));
 
                   final currentJob = farm.activeJob;
@@ -993,7 +993,7 @@ class _ActivePanel extends StatelessWidget {
 }
 
 String _fmtHarvestRemaining(Duration? d) {
-  if (d == null) return '—';
+  if (d == null) return '';
   final h = d.inHours;
   final m = d.inMinutes.remainder(60);
   final s = d.inSeconds.remainder(60);

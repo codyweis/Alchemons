@@ -458,7 +458,7 @@ class _FeedingScreenState extends State<FeedingScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Already at Level 10 with selected material — '
+              'Already at Level 10 with selected material'
               'additional Alchemons would be wasted.',
             ),
             duration: Duration(milliseconds: 1800),
