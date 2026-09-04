@@ -71,13 +71,6 @@ const double _kMonasteryReach = 62.0;
 /// Seconds of lull a correct dose buys against patient zero.
 const double _kBlightLull = 3.4;
 
-/// Fraction of its pool Blightfang drinks back from a wrong dose (it FEEDS —
-/// the planet's own rule, turned on the player).
-const double _kBlightFeedHeal = 0.06;
-
-/// What Graverot takes off patient zero per second of its lull.
-const double _kGraverotBurn = 0.035;
-
 /// ONE THING THE PLAGUE PUT ON THE FLOOR during a gate: a rot-bulb to stand
 /// on, a spore-pod drifting home, or a pool of blood to stopper. All three
 /// are "a spot that wants a body", which is why they are one class — what
@@ -479,6 +472,14 @@ class VenomMonastery {
   WardStrain? blightStrain;
   double blightLull = 0;
 
+  /// Shells still on patient zero, 3 to 0. Nothing touches it through one;
+  /// a brew takes it off for as long as the brew lasts.
+  int blightBars = kPlagueBars;
+
+  /// The last brew it drank. It will not take the same one twice running,
+  /// so the fight cannot be spent on whichever attack set is easiest.
+  String? lastBrew;
+
   /// WHICH PLAGUE BLIGHTFANG IS WEARING. Patient zero is where all three
   /// came from, so it puts one on at a time and nothing touches it until it
   /// is given that plague's own brew. When the lull runs out it sheds and
@@ -564,6 +565,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.blightLull = 0;
     m.wearing = null;
     m.lullBrew = null;
+    m.blightBars = kPlagueBars;
+    m.lastBrew = null;
   }
 
   // ── The strains: behaviour is the diagnosis ──────────────
@@ -894,23 +897,71 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// the habit it is WEARING forces the window, and it takes a fresh habit
   /// the moment the window closes. The finale is one more diagnosis, under
   /// fire, with no squint to read it through.
+  /// PATIENT ZERO, ONE TICK.
+  ///
+  /// Three shells. Nothing reaches it through one; a brew strips it for a
+  /// window, and WHICH brew decides what it throws at you while the window
+  /// is open. Empty the bar inside a window and a shell comes off; let the
+  /// window close and the shell goes back on with the bar where you left it.
+  ///
+  /// Not the same brew twice running, so the fight cannot be spent three
+  /// times on whichever attack set turns out to be gentlest.
   void _applyBlightfangStrain(DungeonRoom room, double dt) {
     if (!_isVenom || isRaid) return;
     final g = room.guardian;
     if (g == null) return;
     final m = monastery;
-    // It is always wearing one of the three.
-    m.wearing ??= kPlaguePotions[_combatRng.nextInt(kPlaguePotions.length)].id;
+    final e = _guardianEnemy;
+
     if (m.blightLull > 0) {
       m.blightLull = max(0.0, m.blightLull - dt);
       guardianVulnerable = m.blightLull > 0;
-      _applyLullEffect(m.lullBrew, dt);
-      if (m.blightLull == 0) {
-        // It sheds and takes another, never the one just answered.
-        final pool = kPlaguePotions.where((p) => p.id != m.wearing).toList();
-        m.wearing = pool[_combatRng.nextInt(pool.length)].id;
-        m.lullBrew = null;
-        speakConsequence('It sheds the plague and puts on another.', 3.0);
+      final brew = brewById(m.lullBrew);
+      if (brew != null && e != null && !e.isDead) {
+        // ITS ATTACKS ARE THE BREW'S. Rings, slams and creeping rot are the
+        // three plagues' own moves, and the finale is where you meet all
+        // three again in whatever order you chose to face them.
+        _tickPlagueAttacks(brew, e, dt);
+        // A shell comes off when the bar under it empties.
+        if (e.hp <= 0 || e.isDead) {
+          m.blightBars = max(0, m.blightBars - 1);
+          if (m.blightBars <= 0) {
+            e.isDead = true;
+            m.blightLull = 0;
+            guardianVulnerable = true;
+            return;
+          }
+          e
+            ..isDead = false
+            ..hp = e.maxHp;
+          if (!combatEnemies.contains(e)) combatEnemies.add(e);
+          m
+            ..blightLull = 0
+            ..lullBrew = null
+            ..lashes.clear()
+            ..waves.clear()
+            ..rot.clear()
+            ..slam = -1;
+          guardianVulnerable = false;
+          _shake = 7.0;
+          speakConsequence(
+            '${m.blightBars} shell${m.blightBars == 1 ? '' : 's'} left on it.',
+            3.4,
+          );
+        }
+      }
+      if (m.blightLull == 0 && m.blightBars > 0) {
+        // The window shut on its own. The bar stays where you left it: the
+        // pot never runs dry, so healing it back would only be a tax on
+        // walking to the pot again.
+        m
+          ..lullBrew = null
+          ..lashes.clear()
+          ..waves.clear()
+          ..rot.clear()
+          ..slam = -1;
+        guardianVulnerable = false;
+        speakConsequence('The shell closes over it again.', 3.0);
       }
     } else {
       guardianVulnerable = false;
@@ -922,42 +973,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// The dose intercept: checked BEFORE the shared guardian catch (the same
   /// precedence Lightning's grounding spike takes), because the phial IS the
   /// fight's verb. Empty-handed, it declines and the strike path runs.
-  /// THREE POISONS, THREE DIFFERENT LULLS. All three open the window; what
-  /// they do inside it is the reason to care which one you brewed.
-  ///
-  ///  · Bloomvenom takes root and DEAFENS it — its attack cooldown is held
-  ///    down, so the window is a safe one to stand in.
-  ///  · Mirebane climbs and SLOWS it — it barely moves, so the window is one
-  ///    you can chase it into.
-  ///  · Graverot ROTS it — the window does damage of its own, whether or not
-  ///    the party lands a blow.
-  void _applyLullEffect(String? brewId, double dt) {
-    final e = _guardianEnemy;
-    if (e == null || e.isDead) return;
-    final brew = brewById(brewId);
-    if (brew == null) return;
-    switch (brew.pot) {
-      case CauldronReaction.bloom:
-        // Deafened: it cannot get an attack away while this is on it.
-        e.attackCooldown = max(e.attackCooldown, 0.6);
-      case CauldronReaction.climb:
-        // Slowed: hauled almost to a stop.
-        e.flightSteering?.velocity =
-            (e.flightSteering?.velocity ?? Offset.zero) * 0.25;
-      case CauldronReaction.rot:
-        // Rotting: it loses ground on its own.
-        e.hp = max(0.0, e.hp - e.maxHp * _kGraverotBurn * dt);
-        if (e.hp <= 0) e.isDead = true;
-      case CauldronReaction.pure:
-        break;
-    }
-  }
 
-  /// GIVE PATIENT ZERO THE PLAGUE IT IS WEARING.
+  /// GIVE IT A PLAGUE AND IT TAKES ITS SHELL OFF.
   ///
-  /// Nothing reaches it otherwise. The right brew forces a lull, and WHICH
-  /// brew decides what the lull is like: they are three different poisons
-  /// and they should not all just be a green light.
+  /// Any of the three opens the window. The choice is not a lock and a key,
+  /// it is WHICH FIGHT you want for the next few seconds: patient zero
+  /// fights with whatever it just drank.
   bool _tryDoseBlightfang(DungeonCreature a) {
     if (!_isVenom || isRaid) return false;
     final room = currentRoom;
@@ -968,30 +989,24 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (held == null) return false;
     if ((a.position - _guardianPosition(g)).distance > 118) return false;
 
-    m
-      ..bottled.remove(held.id)
-      ..carriedPotion = null;
-    if (held.id != m.wearing) {
-      // It FEEDS — the planet's own rule, turned on the player.
-      final e = _guardianEnemy;
-      if (e != null && !e.isDead) {
-        e.hp = min(e.maxHp.toDouble(), e.hp + e.maxHp * _kBlightFeedHeal);
-      }
-      speakConsequence('Wrong plague. It drinks that and swells.', 3.4);
-      _spawnAlchemyBurst(
-        _guardianPosition(g),
-        producedElement: 'Poison',
-        unstable: true,
-        particleCount: 20,
-        intensity: 1.0,
-      );
+    if (m.blightLull > 0) {
+      _setBlockedHint('It is already open. Hit it.');
+      return true;
+    }
+    if (held.id == m.lastBrew) {
+      _setBlockedHint('It has that one in it already. Bring another.');
       return true;
     }
 
     m
+      ..bottled.remove(held.id)
+      ..carriedPotion = null
       ..blightLull = _kBlightLull
-      ..lullBrew = held.id;
+      ..lullBrew = held.id
+      ..lastBrew = held.id
+      ..attackCd = 0.6;
     guardianVulnerable = true;
+    _shake = 5.0;
     speakConsequence(_lullLine(held), 3.6);
     _spawnAlchemyBurst(
       _guardianPosition(g),
@@ -1003,16 +1018,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     return true;
   }
 
-  /// What each brew does to patient zero, said once as it lands.
+  /// What each brew turns it into, said once as the shell comes off.
   String _lullLine(PlaguePotion p) => switch (p.pot) {
     CauldronReaction.bloom =>
-      'Bloomvenom takes root in it. It cannot hear you coming, and it '
-          'stops throwing.',
+      'It drinks Bloomvenom. The shell splits, and it starts to ring.',
     CauldronReaction.climb =>
-      'Mirebane climbs it. Everything it does, it does slowly.',
+      'It drinks Mirebane. The shell splits, and it begins to throw its '
+          'weight.',
     CauldronReaction.rot =>
-      'Graverot goes in. It is coming apart while you work.',
-    CauldronReaction.pure => 'It drinks, and reels.',
+      'It drinks Graverot. The shell splits, and the floor starts to turn.',
+    CauldronReaction.pure => 'The shell splits.',
   };
 
   bool _tryMonastery(DungeonCreature a) {
@@ -2972,7 +2987,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   // grey scabs on the floor. No tile floods (Steam owns those), no jagged
   // bolts (Lightning), no beams, no tide.
 
-  static const Color _venomDeep = Color(0xFF4A2B62);
   static const Color _venomLive = Color(0xFF8FD14F);
   static const Color _venomSick = Color(0xFFB86FE0);
   static const Color _venomBone = Color(0xFFD8CBA8);
@@ -4329,89 +4343,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final still = room.apothecary;
     if (still != null) {
       // The cistern: a squat vessel with its level showing.
-      final carrion = room.guardian != null;
-      // THE CISTERN: a stone tank, iron-banded, with a sight-glass down its
-      // face and a tap at the foot. It was a rounded rect with a green bar
-      // in it — the bar was the only honest part, and even that read as a
-      // progress meter rather than as liquid you are going to spend.
+      // ONE POT, BOTH ROOMS. The crypt used to draw the old carrion font
+      // here: a stone tank with four taps, none of which do anything since
+      // the still became a cauldron. Reported from play as not being able to
+      // find the cauldron to make potions for the boss. It was never drawn.
       final c = still.cistern;
-      if (!carrion) {
-        // THE POT. In the infirmary the still is gone and this is a cauldron
-        // over a fire: you give two things to it and it makes one.
-        _renderLarder(canvas, room);
-        _renderCauldron(canvas, c);
-      }
-      if (carrion) {
-        final tank = Rect.fromCenter(center: c, width: 66, height: 52);
-        _stoneBlock(canvas, tank, radius: 4);
-        for (final y in [tank.top + 11, tank.bottom - 11]) {
-          canvas.drawRect(
-            Rect.fromLTWH(tank.left - 3, y, tank.width + 6, 5),
-            Paint()..color = _venomIron,
-          );
-          canvas.drawCircle(
-            Offset(tank.left + 4, y + 2.5),
-            1.8,
-            Paint()..color = _venomBronzeLit.withValues(alpha: 0.8),
-          );
-          canvas.drawCircle(
-            Offset(tank.right - 4, y + 2.5),
-            1.8,
-            Paint()..color = _venomBronzeLit.withValues(alpha: 0.8),
-          );
-        }
-        // The sight-glass: a narrow tube where you actually read the level.
-        final glass = Rect.fromLTWH(
-          tank.right - 15,
-          tank.top + 6,
-          9,
-          tank.height - 12,
-        );
-        canvas.drawRect(glass, Paint()..color = const Color(0xFF0B0F0B));
-        if (!carrion) {
-          final fill = (t.cistern / kMonasteryCistern).clamp(0.0, 1.0);
-          canvas.drawRect(
-            Rect.fromLTWH(
-              glass.left + 1,
-              glass.bottom - (glass.height - 2) * fill - 1,
-              glass.width - 2,
-              (glass.height - 2) * fill,
-            ),
-            Paint()..color = _venomLive.withValues(alpha: 0.85),
-          );
-          // …and the body of it behind the stone, so the tank reads as FULL
-          // rather than as a gauge bolted to a box.
-          canvas.drawRect(
-            Rect.fromLTWH(
-              tank.left + 6,
-              tank.bottom - 8 - (tank.height - 20) * fill,
-              tank.width - 26,
-              (tank.height - 20) * fill,
-            ),
-            Paint()..color = _venomLive.withValues(alpha: 0.18),
-          );
-        }
-        canvas.drawRect(
-          glass,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4
-            ..color = _venomBronze.withValues(alpha: 0.9),
-        );
-        // The tap.
-        canvas.drawRect(
-          Rect.fromLTWH(tank.left - 8, tank.bottom - 14, 10, 5),
-          Paint()..color = _venomBronze,
-        );
-        canvas.drawCircle(
-          Offset(tank.left - 10, tank.bottom - 11.5),
-          4,
-          Paint()..color = _venomBronzeLit,
-        );
-        for (final spout in still.spouts) {
-          _renderSpout(canvas, spout);
-        }
-      }
+      _renderLarder(canvas, room);
+      _renderCauldron(canvas, c);
     }
 
     final ward = room.ward;
@@ -5023,38 +4961,109 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   void _renderBlightfangPlague(Canvas canvas, DungeonRoom room) {
     final g = room.guardian;
     if (g == null || !guardianAwake || hasStar(g.starIndex)) return;
-    final worn = brewById(monastery.wearing);
-    if (worn == null) return;
+    final m = monastery;
     final at = _guardianPosition(g);
-    final hue = _plagueColour(worn);
-    final lull = monastery.blightLull > 0;
+    final open = m.blightLull > 0;
+    final brew = brewById(m.lullBrew);
+    final hue = brew == null ? _venomSick : _plagueColour(brew);
+    final e = _guardianEnemy;
 
+    // ── ITS ATTACKS, while a shell is off. The same rings, slams and rot
+    // the plagues threw, because that is what it just drank.
+    if (open && brew != null && e != null && !e.isDead) {
+      _drawPlagueAttacks(canvas, brew, e, hue);
+    }
+
+    // ── WHAT IS ON IT. Open: the brew's veins working over it, in the
+    // brew's colour. Shut: plates of shell, and nothing lands.
     _drawPlagueForm(
       canvas,
       at,
-      lull ? 120 : 170,
+      open ? 150 : 110,
       hue,
-      seed: worn.id.codeUnits.fold<int>(53, (a, c) => (a * 31 + c) % 30011),
-      grow: lull ? 0.55 : 1.0,
+      seed: 4441,
+      grow: open ? 1.0 : 0.5,
     );
-    // Sealed while it is wearing one nothing has answered: a shell that says
-    // plainly that hitting it is not the move.
-    if (!lull) {
-      final pulse = 0.5 + 0.5 * sin(_time * 3.4);
+
+    if (!open) {
+      // THE SHELL, and it has to be unmistakable: this was invisible before,
+      // so the fight read as a boss that simply would not take damage.
+      final pulse = 0.5 + 0.5 * sin(_time * 3.0);
+      for (var i = 0; i < 10; i++) {
+        final a = i * 2 * pi / 10 + _time * 0.25;
+        final r = 46 + 3 * pulse;
+        final p = Path()
+          ..moveTo(at.dx + cos(a - 0.30) * r, at.dy + sin(a - 0.30) * r * 0.85)
+          ..lineTo(at.dx + cos(a) * (r + 13), at.dy + sin(a) * (r + 13) * 0.85)
+          ..lineTo(at.dx + cos(a + 0.30) * r, at.dy + sin(a + 0.30) * r * 0.85)
+          ..close();
+        canvas.drawPath(
+          p,
+          Paint()..color = _venomBone.withValues(alpha: 0.55 + 0.15 * pulse),
+        );
+      }
       canvas.drawCircle(
         at,
-        58 + 4 * pulse,
+        46 + 3 * pulse,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 5
+          ..color = _venomBone.withValues(alpha: 0.85),
+      );
+      _drawTinyLabel(
+        canvas,
+        Offset(at.dx, at.dy - 96),
+        'SEALED  ·  GIVE IT A BREW',
+      );
+    } else {
+      _drawTinyLabel(
+        canvas,
+        Offset(at.dx, at.dy - 96),
+        brew == null ? 'OPEN' : brew.name.toUpperCase(),
+      );
+    }
+
+    // ── HOW MANY SHELLS ARE LEFT. Its own health bar is one shell's worth,
+    // so without these the fight has no readable length.
+    for (var i = 0; i < kPlagueBars; i++) {
+      final p = Offset(at.dx + (i - 1) * 22, at.dy - 112);
+      final spent = i >= m.blightBars;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: p, width: 17, height: 9),
+          const Radius.circular(2),
+        ),
+        Paint()
+          ..color = spent
+              ? const Color(0xFF241E28).withValues(alpha: 0.85)
+              : _venomBone.withValues(alpha: 0.95),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: p, width: 17, height: 9),
+          const Radius.circular(2),
+        ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = _venomBronze.withValues(alpha: 0.8),
+      );
+    }
+
+    // The window's own clock, so "hit it now" has a shape.
+    if (open) {
+      canvas.drawArc(
+        Rect.fromCircle(center: at, radius: 62),
+        -pi / 2,
+        2 * pi * (m.blightLull / _kBlightLull).clamp(0.0, 1.0),
+        false,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 4
-          ..color = _venomBone.withValues(alpha: 0.45 + 0.2 * pulse),
+          ..strokeCap = StrokeCap.round
+          ..color = hue.withValues(alpha: 0.9),
       );
     }
-    _drawTinyLabel(
-      canvas,
-      Offset(at.dx, at.dy - 96),
-      lull ? 'OPEN' : worn.plague.toUpperCase(),
-    );
   }
 
   /// THE FIGHT, ON SCREEN. Three pips over the body, the mechanic on the
@@ -6093,178 +6102,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     'Mud' => const Color(0xFF8A6A3C),
     _ => const Color(0xFF7A7A7A),
   };
-
-  /// THE FOUR DRAUGHTS, each one a piece of apothecary kit you could name
-  /// with the labels off — which is the whole design: §5.6 says the pairing
-  /// of draught to strain must be deducible from BEHAVIOUR, so the vessel is
-  /// allowed to say what it does and never which sickness it answers.
-  ///
-  /// They were four flat purple shapes. Silhouette alone was carrying it, and
-  /// two of the four (a dome and an oval) are nearly the same silhouette.
-  void _renderSpout(Canvas canvas, ApothecarySpout spout) {
-    final p = spout.position;
-    final glass = Paint()
-      ..color = const Color(0xFF2A3630).withValues(alpha: 0.85);
-    switch (spout.draught) {
-      case WardDraught.stilling:
-        // THE STILLING BELL. A glass dome on a stone foot, and the air inside
-        // it visibly DEAD — no motes, no drift, while the whole room outside
-        // is full of them.
-        _stoneBlock(
-          canvas,
-          Rect.fromCenter(center: p + const Offset(0, 4), width: 52, height: 9),
-        );
-        final dome = Rect.fromCenter(center: p, width: 46, height: 46);
-        canvas.drawArc(dome, pi, pi, true, glass);
-        canvas.drawArc(
-          dome,
-          pi,
-          pi,
-          false,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..color = _venomBone.withValues(alpha: 0.65),
-        );
-        // The highlight that makes it read as glass rather than as a lid.
-        canvas.drawArc(
-          Rect.fromCenter(
-            center: p + const Offset(-6, 2),
-            width: 26,
-            height: 30,
-          ),
-          pi * 1.15,
-          pi * 0.5,
-          false,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.4
-            ..color = Colors.white.withValues(alpha: 0.16),
-        );
-        canvas.drawCircle(
-          p + const Offset(0, -24),
-          3.5,
-          Paint()..color = _venomBone.withValues(alpha: 0.7),
-        );
-      case WardDraught.quicklime:
-        // THE LIME KILN. A brick mouth with a white-hot throat and lime dust
-        // banked at its foot.
-        final mouth = Rect.fromCenter(center: p, width: 50, height: 40);
-        _stoneBlock(canvas, mouth, radius: 3);
-        final arch = Path()
-          ..moveTo(mouth.left + 9, mouth.bottom - 3)
-          ..lineTo(mouth.left + 9, mouth.center.dy)
-          ..arcToPoint(
-            Offset(mouth.right - 9, mouth.center.dy),
-            radius: const Radius.circular(16),
-          )
-          ..lineTo(mouth.right - 9, mouth.bottom - 3)
-          ..close();
-        canvas.drawPath(arch, Paint()..color = const Color(0xFF0A0C09));
-        canvas.drawCircle(
-          p + const Offset(0, 6),
-          8,
-          Paint()..color = const Color(0xFFEDE7D2),
-        );
-        if (_fx.ready) {
-          drawGlow(
-            canvas,
-            _fx.glow!,
-            p + const Offset(0, 6),
-            26,
-            const Color(0xFFEDE7D2).withValues(alpha: 0.22),
-          );
-        }
-        for (var i = 0; i < 7; i++) {
-          canvas.drawCircle(
-            Offset(mouth.left + 6 + i * 6.5, mouth.bottom + 2.0 + (i % 2)),
-            1.6,
-            Paint()..color = _venomBone.withValues(alpha: 0.5),
-          );
-        }
-      case WardDraught.binding:
-        // THE SMOKE POT. A bellied pot with a pierced lid, and smoke that
-        // spreads SIDEWAYS along the ground — it fills the space between
-        // things, which is exactly what it does to a strain.
-        final pot = Rect.fromCenter(
-          center: p + const Offset(0, 8),
-          width: 44,
-          height: 32,
-        );
-        canvas.drawOval(pot, Paint()..color = const Color(0xFF37302A));
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: pot.center - const Offset(0, 4),
-            width: 40,
-            height: 24,
-          ),
-          Paint()..color = const Color(0xFF241F1B),
-        );
-        canvas.drawOval(
-          Rect.fromCenter(center: pot.topCenter, width: 30, height: 11),
-          Paint()..color = _venomBronze,
-        );
-        for (var i = -1; i <= 1; i++) {
-          canvas.drawCircle(
-            pot.topCenter + Offset(i * 8.0, 0),
-            1.7,
-            Paint()..color = const Color(0xFF10130E),
-          );
-        }
-        if (_fx.ready) {
-          for (var i = 0; i < 3; i++) {
-            final k = ((_time * 0.24 + i / 3) % 1.0);
-            drawPuff(
-              canvas,
-              _fx.puff!,
-              pot.topCenter + Offset((i - 1) * 26.0 * k, -6 - 10 * k),
-              14 + 30 * k,
-              _venomDeep.withValues(alpha: 0.16 * (1 - k)),
-            );
-          }
-        }
-      case WardDraught.rousing:
-        // THE WAKE-BITTERS. A tall flask, and a clapper on a stand beside it
-        // that is visibly STRUCK — the one draught that makes noise, for the
-        // strain that plays dead.
-        final flask = Rect.fromCenter(center: p, width: 24, height: 44);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(flask, const Radius.circular(11)),
-          glass,
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(flask.left + 3, flask.center.dy, flask.width - 6, 18),
-            const Radius.circular(8),
-          ),
-          Paint()..color = _venomSick.withValues(alpha: 0.55),
-        );
-        canvas.drawRect(
-          Rect.fromCenter(center: flask.topCenter, width: 10, height: 8),
-          Paint()..color = _venomBronze,
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(flask, const Radius.circular(11)),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = _venomBone.withValues(alpha: 0.6),
-        );
-        final swing = sin(_time * 5.0) * 5;
-        canvas.drawLine(
-          p + const Offset(22, -26),
-          p + Offset(22 + swing, -12),
-          Paint()
-            ..strokeWidth = 1.4
-            ..color = _venomIron,
-        );
-        canvas.drawCircle(
-          p + Offset(22 + swing, -10),
-          5,
-          Paint()..color = _venomBronzeLit,
-        );
-    }
-  }
 
   /// PATIENT ZERO'S REACH, up through the dead-house floor.
   ///

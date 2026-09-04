@@ -552,6 +552,78 @@ void main() {
         ..wisp = null
         ..wispCircle = -1;
 
+      // PATIENT ZERO, sealed and open. "I did not see the invincible
+      // mechanic" is a rendering bug before it is anything else: a boss that
+      // silently refuses damage reads as broken.
+      final crypt = poisonLayout.rooms['lazar_crypt']!;
+      final guardAt = crypt.guardian!.position;
+      final sealed = await _shot(
+        g,
+        'lazar_crypt',
+        'p_boss_sealed',
+        at: guardAt,
+        poseAfterTick: () {
+          g.guardianAwake = true;
+          g.monastery
+            ..blightBars = 3
+            ..blightLull = 0
+            ..lullBrew = null;
+        },
+      );
+      final opened = <int>{};
+      for (final p in kPlaguePotions) {
+        opened.add(
+          await _shot(
+            g,
+            'lazar_crypt',
+            'p_boss_${p.id}',
+            at: guardAt,
+            poseAfterTick: () {
+              g.guardianAwake = true;
+              g.monastery
+                ..blightBars = 2
+                ..blightLull = 2.0
+                ..lullBrew = p.id
+                ..waves.clear()
+                ..rot.clear()
+                ..lashes.clear()
+                ..slam = -1;
+              switch (p.pot) {
+                case CauldronReaction.bloom:
+                  g.monastery.waves.addAll([80, 170]);
+                case CauldronReaction.climb:
+                  g.monastery
+                    ..slam = 0.4
+                    ..slamAt = guardAt + const Offset(110, 30);
+                case CauldronReaction.rot:
+                  g.monastery.rot.add((guardAt + const Offset(90, 50), 4.0));
+                case CauldronReaction.pure:
+                  break;
+              }
+            },
+          ),
+        );
+      }
+      expect(
+        opened.length,
+        kPlaguePotions.length,
+        reason: 'the brew it drank has to change what you are looking at',
+      );
+      for (final o in opened) {
+        expect(
+          o,
+          isNot(sealed),
+          reason: 'sealed and open must not look the same',
+        );
+      }
+      g.guardianAwake = false;
+      g.monastery
+        ..blightLull = 0
+        ..lullBrew = null
+        ..waves.clear()
+        ..rot.clear()
+        ..slam = -1;
+
       // THE FONT, wanting the vial and then spent — it has to state its own
       // want before the player owns the answer.
       final font = poisonLayout.rooms['ambulatory']!.lustralFont!;

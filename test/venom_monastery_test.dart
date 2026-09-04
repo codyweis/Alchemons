@@ -818,29 +818,37 @@ void main() {
         expect(game.monastery.carriedPotion, p.id);
       }
 
-      game.monastery.wearing = 'bloomvenom';
-      final wrong = kPlaguePotions.firstWhere((p) => p.id == 'mirebane');
-      brewInCrypt(wrong);
-      game.guardianVulnerable = false;
-      actAt(game, 'lazar_crypt', poison, g.position);
+      // ANY brew takes a shell off. The choice is not a lock and a key, it
+      // is which fight you want for the next few seconds.
+      final first = kPlaguePotions.first;
+      brewInCrypt(first);
+      actAt(game, 'lazar_crypt', poison, game.guardianAt ?? g.position);
+      expect(game.guardianVulnerable, isTrue, reason: 'a brew has to open it');
+      expect(game.monastery.lullBrew, first.id);
+
+      // …but not the same one twice running.
+      step(game, 6.0);
+      expect(game.guardianVulnerable, isFalse, reason: 'the shell closes');
+      brewInCrypt(first);
+      actAt(game, 'lazar_crypt', poison, game.guardianAt ?? g.position);
       expect(
         game.guardianVulnerable,
         isFalse,
-        reason: 'the wrong plague only feeds it',
+        reason: 'it will not drink the same brew twice running',
       );
 
-      final right = kPlaguePotions.firstWhere((p) => p.id == 'bloomvenom');
-      brewInCrypt(right);
-      actAt(game, 'lazar_crypt', poison, g.position);
-      expect(
-        game.guardianVulnerable,
-        isTrue,
-        reason: 'the plague it is wearing forces the window',
-      );
-      expect(game.monastery.blightLull, greaterThan(0));
+      // A different one does.
+      final second = kPlaguePotions.firstWhere((p) => p.id != first.id);
+      if (game.monastery.carriedPotion != null) {
+        actAt(game, 'lazar_crypt', poison, cryptBench);
+      }
+      brewInCrypt(second);
+      actAt(game, 'lazar_crypt', poison, game.guardianAt ?? g.position);
+      expect(game.guardianVulnerable, isTrue);
+      expect(game.monastery.blightBars, kPlagueBars);
 
       // THE POT DOWN HERE NEVER RUNS DRY: upstairs every hand is spent, and
-      // a cycle you have to keep answering cannot be gated on hands.
+      // a cycle you must keep answering cannot be gated on hands.
       brewInCrypt(kPlaguePotions.first);
       expect(game.monastery.carriedPotion, isNotNull);
     });

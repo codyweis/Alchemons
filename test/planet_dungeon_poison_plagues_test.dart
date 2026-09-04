@@ -1183,17 +1183,17 @@ void main() {
         expect(g.monastery.carriedPotion, p.id);
       }
 
-      test('it always wears one of the three, and is shut until answered', () {
+      test('it is sealed until it is given something', () {
         final g = atTheBoss();
         expect(
-          kPlaguePotions.map((p) => p.id),
-          contains(g.monastery.wearing),
-          reason: 'the finale runs on the plagues the planet taught',
+          g.monastery.blightBars,
+          kPlagueBars,
+          reason: 'three shells, like the plagues had three gates',
         );
         expect(
           g.guardianVulnerable,
           isFalse,
-          reason: 'nothing touches it until it is given the right one',
+          reason: 'nothing touches it through a shell',
         );
       });
 
@@ -1211,72 +1211,88 @@ void main() {
         );
       });
 
-      test('the right plague opens it; the wrong one feeds it', () {
-        final g = atTheBoss();
-        final worn = brewById(g.monastery.wearing)!;
-        final other = kPlaguePotions.firstWhere((p) => p.id != worn.id);
-
-        brewDown(g, other);
-        _press(g, 'Poison', 'lazar_crypt', g.guardianAt!);
-        expect(g.guardianVulnerable, isFalse);
-
-        brewDown(g, worn);
-        _press(g, 'Poison', 'lazar_crypt', g.guardianAt!);
-        expect(g.guardianVulnerable, isTrue);
-        expect(g.monastery.blightLull, greaterThan(0));
-      });
-
-      test('when the lull runs out it sheds and wants another', () {
-        final g = atTheBoss();
-        final worn = brewById(g.monastery.wearing)!;
-        brewDown(g, worn);
-        _press(g, 'Poison', 'lazar_crypt', g.guardianAt!);
-        expect(g.guardianVulnerable, isTrue);
-
-        for (var i = 0; i < 60 * 8 && g.monastery.blightLull > 0; i++) {
-          g.update(1 / 60);
-        }
-        expect(g.guardianVulnerable, isFalse, reason: 'the window shuts');
-        expect(
-          g.monastery.wearing,
-          isNot(worn.id),
-          reason: 'and it is wearing a different one, so you brew again',
-        );
-      });
-    });
-
-    test('the hint button answers the planet you are playing', () {
-      // Every objective line used to describe the triage: a still standing
-      // cold, a phial drawn, three wards clean and physic for three. None of
-      // it survived the cauldron, so the hint button was answering questions
-      // about a version of this planet nobody was playing.
-      final g = _game();
-      const gone = ['still', 'phial', 'physic for three', 'leaded', 'draught'];
-      final rooms = [
-        'lazar_gate',
-        'apothecary',
-        'ambulatory',
-        'lazar_crypt',
-        ...kPlaguePotions.map((p) => p.wardId!),
-        kCryptWard,
-      ];
-      for (final r in rooms) {
-        g.currentRoomId = r;
-        final line = g.roomObjectiveLine(r);
-        if (line == null) continue;
-        for (final dead in gone) {
+      test('any brew opens it, and it fights with what it drank', () {
+        for (final p in kPlaguePotions) {
+          final g = atTheBoss();
+          brewDown(g, p);
+          _press(g, 'Poison', 'lazar_crypt', g.guardianAt!);
           expect(
-            line.toLowerCase().contains(dead),
-            isFalse,
-            reason: '$r still says "$dead": $line',
+            g.guardianVulnerable,
+            isTrue,
+            reason: '${p.id} did not take the shell off',
+          );
+          expect(g.monastery.lullBrew, p.id);
+
+          // It should throw that brew's own move, not a generic one.
+          final kinds = <String>{};
+          for (var i = 0; i < 60 * 6 && g.monastery.blightLull > 0; i++) {
+            g.update(1 / 60);
+            if (g.monastery.lashes.isNotEmpty) kinds.add('lash');
+            if (g.monastery.waves.isNotEmpty) kinds.add('wave');
+            if (g.monastery.slam >= 0) kinds.add('slam');
+            if (g.monastery.rot.isNotEmpty) kinds.add('rot');
+          }
+          expect(
+            kinds,
+            contains(switch (p.pot) {
+              CauldronReaction.bloom => 'wave',
+              CauldronReaction.climb => 'slam',
+              CauldronReaction.rot => 'rot',
+              CauldronReaction.pure => 'lash',
+            }),
+            reason:
+                '${p.id} opened the window and then fought like '
+                'something else: $kinds',
           );
         }
+      });
+
+      test('it will not take the same brew twice running', () {
+        final g = atTheBoss();
+        final first = kPlaguePotions.first;
+        brewDown(g, first);
+        _press(g, 'Poison', 'lazar_crypt', g.guardianAt!);
+        for (var i = 0; i < 60 * 10 && g.monastery.blightLull > 0; i++) {
+          g.update(1 / 60);
+        }
+        expect(g.guardianVulnerable, isFalse, reason: 'the shell closes');
+
+        brewDown(g, first);
+        _press(g, 'Poison', 'lazar_crypt', g.guardianAt!);
         expect(
-          line.contains('—'),
+          g.guardianVulnerable,
           isFalse,
-          reason: '$r has an em dash in it: $line',
+          reason:
+              'three windows spent on whichever attack set is gentlest '
+              'is not a fight',
         );
-      }
+        expect(g.monastery.carriedPotion, first.id, reason: 'and it is kept');
+      });
+
+      test('emptying the bar takes a shell off, three times', () {
+        final g = atTheBoss();
+        var shells = g.monastery.blightBars;
+        var guard = 0;
+        while (shells > 0 && guard++ < 12) {
+          final next = kPlaguePotions.firstWhere(
+            (p) => p.id != g.monastery.lastBrew,
+          );
+          brewDown(g, next);
+          _press(g, 'Poison', 'lazar_crypt', g.guardianAt!);
+          expect(g.guardianVulnerable, isTrue);
+          // Empty the bar the way combat does.
+          final e = g.combatEnemies.firstWhere((x) => !x.isDead);
+          e.hp = 0;
+          g.update(1 / 60);
+          expect(
+            g.monastery.blightBars,
+            shells - 1,
+            reason: 'emptying the bar has to take a shell off',
+          );
+          shells = g.monastery.blightBars;
+        }
+        expect(shells, 0, reason: 'three shells and it is done');
+      });
     });
 
     test('the dead-house holds no plague', () {
