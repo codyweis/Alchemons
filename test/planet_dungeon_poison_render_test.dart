@@ -9,6 +9,7 @@
 
 import 'dart:io';
 import 'dart:math' show cos, pi, sin;
+import 'dart:typed_data' show Uint8List;
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -126,6 +127,48 @@ CosmicSurvivalEnemy _dummyBody(Offset at) => CosmicSurvivalEnemy(
   conduct: EnemyConduct.charge,
   target: CosmicEnemyTarget.companion,
 );
+
+/// The raw pixels of a frame, for the one question a checksum cannot answer:
+/// not "did anything change" but "can a person SEE it".
+///
+/// The gloom on this planet dims rather than blacks out, so a thing buried
+/// under it still shifts every byte a little and still compares as different.
+Future<Uint8List> _frame(
+  PlanetDungeonGame g,
+  String room, {
+  Offset? at,
+  void Function()? poseAfterTick,
+}) async {
+  g.currentRoomId = room;
+  final stand = at ?? poisonLayout.rooms[room]!.bounds.center;
+  for (final c in g.creatures) {
+    c
+      ..position = stand
+      ..lastSafe = stand;
+  }
+  for (var i = 0; i < 24; i++) {
+    g.update(1 / 60);
+  }
+  poseAfterTick?.call();
+  final rec = ui.PictureRecorder();
+  g.render(Canvas(rec));
+  final img = await rec.endRecording().toImage(900, 600);
+  final raw = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+  return raw!.buffer.asUint8List();
+}
+
+/// How many pixels a person would actually notice between two frames.
+int _visibleDelta(Uint8List a, Uint8List b) {
+  var n = 0;
+  for (var i = 0; i < a.length; i += 4) {
+    if ((a[i] - b[i]).abs() >= 12 ||
+        (a[i + 1] - b[i + 1]).abs() >= 12 ||
+        (a[i + 2] - b[i + 2]).abs() >= 12) {
+      n++;
+    }
+  }
+  return n;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -455,6 +498,58 @@ void main() {
       g.monastery
         ..wisp = null
         ..wispStage = 0
+        ..wispCircle = -1;
+
+      // SHOVED AWAY FROM THE PARTY AND STILL VISIBLE.
+      //
+      // The whole errand pushes the wisp away from the party, and the room's
+      // gloom is centred on the party, so the obvious suspect for "I pressed
+      // it twice and it disappeared" was the darkness. Measuring says no: a
+      // wisp 320px out reads in 13.6k pixels under the gloom and 13.8k over
+      // it. The real cause was that a press TELEPORTED it 150px, and two of
+      // those carried it off the edge of the viewport with nothing to
+      // follow. It glides now, and holds still afterwards.
+      //
+      // The check stays anyway, because it is the only thing standing
+      // between this object and a future change that buries it.
+      Future<Uint8List> withWisp(Offset? where) => _frame(
+        g,
+        'ambulatory',
+        at: kWispStart,
+        poseAfterTick: () {
+          g.monastery
+            ..wisp = where
+            ..wispAnchor = where ?? kWispStart
+            ..wispStage = 0
+            ..wispCircle = -1;
+        },
+      );
+
+      final blank = await withWisp(null);
+      final near = await withWisp(kWispStart);
+      final far = await withWisp(kWispStart + const Offset(320, 40));
+
+      final nearSeen = _visibleDelta(near, blank);
+      final farSeen = _visibleDelta(far, blank);
+      expect(
+        nearSeen,
+        greaterThan(200),
+        reason: 'the wisp is not visible even standing on it',
+      );
+      // The question is not whether the far frame DIFFERS from the blank one
+      // — the gloom dims rather than blacks out, so a buried wisp still
+      // shifts every byte a little and a checksum still calls it different.
+      // It is whether a person could see it.
+      expect(
+        farSeen,
+        greaterThan(nearSeen ~/ 3),
+        reason:
+            'shoved 320px out the wisp shows in $farSeen pixels against '
+            '$nearSeen up close, so something is swallowing it away from '
+            'the party',
+      );
+      g.monastery
+        ..wisp = null
         ..wispCircle = -1;
 
       // THE FONT, wanting the vial and then spent — it has to state its own

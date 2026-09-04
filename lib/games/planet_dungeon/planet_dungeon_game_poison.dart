@@ -451,6 +451,19 @@ class VenomMonastery {
   /// colours home and the maxim is yours.
   Offset? wisp = kWispStart;
 
+  /// HOW FAR ALONG IT IS. The wisp flies loops of its own around this
+  /// point; a shove moves the POINT toward the cross, and the wisp glides
+  /// after it. Wandering and progress are separate things, or the wandering
+  /// undoes the errand between presses.
+  Offset wispAnchor = kWispStart;
+
+  /// The glide onto a new anchor, 0 to 1, and where it set off from.
+  double wispGlide = 1;
+  Offset wispGlideFrom = kWispStart;
+
+  /// Seconds it holds still after a shove before it starts flying again.
+  double wispHold = 0;
+
   /// Which of [kWispOrder] it is wearing, 0 to 2.
   int wispStage = 0;
 
@@ -498,6 +511,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.crossRot = 0;
     m.oublietteOpen = false;
     m.wisp = kWispStart;
+    m.wispAnchor = kWispStart;
+    m.wispGlide = 1;
+    m.wispGlideFrom = kWispStart;
+    m.wispHold = 0;
     m.wispStage = 0;
     m.wispCircle = -1;
     m.wispNudge = 0;
@@ -780,12 +797,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       }
     }
 
-    // THE WISP. It does not wander any more: a shove has to STICK, or the
-    // errand undoes itself between presses. It bobs where it was left, and
-    // the only thing that moves it is a hand of its own colour.
+    // THE WISP FLIES. It loops around its anchor, and a shove moves the
+    // ANCHOR: the wandering is decoration, the anchor is the errand, and
+    // keeping them apart is what lets it drift about without ever undoing a
+    // press. After a shove it glides onto the new anchor and then holds
+    // still for a beat, so you can see where it got to before it sets off
+    // wandering again.
     if (room.id == 'ambulatory' && m.wisp != null) {
-      m.wispDrift += dt * 0.35;
       if (m.wispNudge > 0) m.wispNudge = max(0.0, m.wispNudge - dt / 0.7);
+
       if (m.wispCircle >= 0) {
         m.wispCircle += dt / _kWispCircleSeconds;
         if (m.wispCircle >= 1) {
@@ -804,7 +824,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
             );
           } else {
             // Back out into the corridor, wearing the next colour.
-            m.wisp = kWispStart;
+            m
+              ..wisp = kWispStart
+              ..wispAnchor = kWispStart
+              ..wispGlideFrom = kWispStart
+              ..wispGlide = 1
+              ..wispHold = _kWispHoldSeconds;
             _spawnAlchemyBurst(
               kWispStart,
               producedElement: kWispOrder[m.wispStage],
@@ -813,6 +838,28 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
             );
           }
         }
+      } else if (m.wispGlide < 1) {
+        // Carried onto the new anchor, smoothly.
+        m.wispGlide = min(1.0, m.wispGlide + dt / _kWispGlideSeconds);
+        m.wisp = Offset.lerp(
+          m.wispGlideFrom,
+          m.wispAnchor,
+          Curves.easeInOutCubic.transform(m.wispGlide),
+        );
+        if (m.wispGlide >= 1) m.wispHold = _kWispHoldSeconds;
+      } else if (m.wispHold > 0) {
+        // Stopped, catching itself.
+        m.wispHold = max(0.0, m.wispHold - dt);
+        m.wisp = m.wispAnchor;
+      } else {
+        // Flying its own loops around wherever it got to.
+        m.wispDrift += dt;
+        m.wisp =
+            m.wispAnchor +
+            Offset(
+              cos(m.wispDrift * 0.9) * _kWispRoam,
+              sin(m.wispDrift * 1.4) * _kWispRoam * 0.55,
+            );
       }
     }
 
@@ -2547,11 +2594,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
     final seal = layout.rooms['ambulatory']?.priorsSeal;
     if (seal == null) return true;
-    final toward = seal.position - at;
+    if (m.wispGlide < 1) return true; // already on its way
+    final toward = seal.position - m.wispAnchor;
     final d = toward.distance;
     if (d <= _kWispArrive) {
       m
         ..wisp = seal.position
+        ..wispAnchor = seal.position
         ..wispCircle = 0;
       _spawnAlchemyBurst(
         seal.position,
@@ -2561,9 +2610,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       );
       return true;
     }
+    // The ANCHOR moves; the wisp glides after it and then holds.
     final step = min(_kWispShove, d - _kWispArrive * 0.5);
     m
-      ..wisp = at + (toward / d) * step
+      ..wispGlideFrom = at
+      ..wispAnchor = m.wispAnchor + (toward / d) * step
+      ..wispGlide = 0
+      ..wispHold = 0
       ..wispNudge = 1.0;
     _spawnAlchemyBurst(
       at,
@@ -2961,6 +3014,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     _renderStrains(canvas, room);
     _renderMonasteryFixtures(canvas, room);
     _renderBlightfangPlague(canvas, room);
+    // The wisp stays UNDER the gloom with everything else that lives in
+    // this room. Moving it above was a guess at why it seemed to vanish, and
+    // measuring says the gloom barely touches it: a wisp 320px out shows in
+    // 13.6k pixels under the dark and 13.8k over it. The lighting language
+    // is worth more than 200 pixels.
+    if (room.id == 'ambulatory') _renderSickWisp(canvas, room);
     _renderWardSeals(canvas, room);
     _renderLazarGloom(canvas, room);
     // AFTER the gloom. Drawn under it the burst was darkened by the very
@@ -3405,6 +3464,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   static const double _kWispShove = 150.0;
   static const double _kWispArrive = 78.0;
   static const double _kWispCircleSeconds = 1.7;
+
+  /// How long the glide onto a new anchor takes, how long it stands still
+  /// afterwards, and how wide its loops are once it starts flying again.
+  static const double _kWispGlideSeconds = 0.55;
+  static const double _kWispHoldSeconds = 2.0;
+  static const double _kWispRoam = 46.0;
 
   /// How often the plague does something to you.
   static const double _kAttackEvery = 2.6;
@@ -4596,8 +4661,6 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         );
       }
     }
-
-    if (room.id == 'ambulatory') _renderSickWisp(canvas, room);
   }
 
   /// THE SICK WISP, wearing its colour and showing where it was pushed.

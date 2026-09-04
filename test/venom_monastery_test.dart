@@ -918,12 +918,15 @@ void main() {
         expect(m.wispStage, stage);
         final wants = kWispOrder[stage];
 
-        // ── ONLY ITS OWN COLOUR MOVES IT.
+        // ── ONLY ITS OWN COLOUR MOVES IT. Checked against the ANCHOR, not
+        // the live position: the wisp flies loops of its own, so where it
+        // happens to be from one frame to the next means nothing. The
+        // anchor is the errand.
         final wrong = kWispOrder.firstWhere((e) => e != wants);
-        final before = m.wisp!;
-        actAt(game, 'ambulatory', slot[wrong]!, before);
+        final before = m.wispAnchor;
+        actAt(game, 'ambulatory', slot[wrong]!, m.wisp!);
         expect(
-          m.wisp,
+          m.wispAnchor,
           before,
           reason: 'a $wrong hand must not shove the $wants wisp',
         );
@@ -932,6 +935,9 @@ void main() {
         var presses = 0;
         while (m.wispCircle < 0 && presses++ < 40) {
           actAt(game, 'ambulatory', slot[wants]!, m.wisp!);
+          // A shove is a GLIDE now, not a teleport: let it land before the
+          // next press, the way a player walking after it would.
+          step(game, 0.8);
         }
         expect(
           m.wispCircle,
@@ -945,7 +951,7 @@ void main() {
               'getting it home took $presses presses, which is either no '
               'errand at all or a chore',
         );
-        expect((m.wisp! - cross).distance, lessThan(1));
+        expect((m.wispAnchor - cross).distance, lessThan(1));
 
         // ── IT CIRCLES, THEN SHEDS.
         step(game, 2.4);
