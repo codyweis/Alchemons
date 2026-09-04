@@ -777,11 +777,25 @@ extension MoltenReliquary on PlanetDungeonGame {
       recipeAvailable: braid,
     );
     if (!interactionSucceeded(r)) {
-      // NAME THE KEY. "Wants steam" is a refusal that reads as impossible —
-      // no trio on this planet carries Steam. What it wants is the BRAID.
-      _setBlockedHint(
-        'The accumulator wants steam, and steam is Ice and '
-        'Lava, standing here together',
+      // SAY IT OUT LOUD. This was `_setBlockedHint`, which for this game
+      // means REMEMBERED FOR THE HINT BUTTON and never shown: a player who
+      // walked up to the accumulator and pressed got nothing at all back,
+      // and no reason to think the barrel was the thing holding up the
+      // engine. Reported from play twice on this planet now.
+      //
+      // And it names the key. "Wants steam" reads as impossible on its own,
+      // because no trio here carries Steam; what it wants is the BRAID.
+      speakConsequence(
+        'STEAM is wanted to start the engine, and steam is Ice and Lava, '
+        'standing here together.',
+        4.4,
+      );
+      _spawnAlchemyBurst(
+        kLavaAccumulator,
+        producedElement: 'Steam',
+        unstable: true,
+        particleCount: 14,
+        intensity: 0.7,
       );
       return true;
     }

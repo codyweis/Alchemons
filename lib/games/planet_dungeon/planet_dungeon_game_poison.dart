@@ -3421,11 +3421,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   //
   /// One bar's worth of body. Three of these is a plague.
   ///
-  /// The first number here was 78, which a real party erased in well under a
-  /// second — the whole fight was over before anyone saw a gate. The old
-  /// single-body plague was 190 plus three wisps; three bars of 150 is a
-  /// boss, and the gates between them are most of the length anyway.
-  static const double _kPlagueBarHp = 150;
+  /// The first number was 78, which a real party erased in well under a
+  /// second: the whole fight was over before anyone saw a gate. 150 was long
+  /// enough to see the shape of it and still too short to feel like a boss,
+  /// so a bar is 300. Three of those plus three mechanics is the fight.
+  static const double _kPlagueBarHp = 300;
 
   /// How long a gate stands before the bar comes back.
   ///

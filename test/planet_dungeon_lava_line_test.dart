@@ -150,6 +150,37 @@ List<_Step> _explore({
 int _poursUsed(FoundryState s) => s.poursSpent;
 
 void main() {
+  group('the barrel says what it wants', () {
+    test('a press at the accumulator SPEAKS, it does not just remember', () {
+      // Reported from play: walking up to the accumulator and pressing gave
+      // nothing back, so there was no reason to think the barrel was what
+      // was holding up the engine. Blocked hints on this game are REMEMBERED
+      // for the hint button and never shown, which for a refusal at a thing
+      // you deliberately pressed is the same as silence.
+      final g = _harness(_idealTrio());
+      g.currentRoomId = 'stamp_mill';
+      // A party that cannot make the braid: no Ice beside the Lava.
+      for (final c in g.creatures) {
+        c
+          ..position = kLavaAccumulator
+          ..lastSafe = kLavaAccumulator;
+      }
+      g.setActive(1); // Earth
+      g.activateAbility();
+      final said = g.hintText;
+      expect(
+        said,
+        isNotNull,
+        reason: 'the press has to say something on its own',
+      );
+      expect(
+        said!.toUpperCase(),
+        contains('STEAM'),
+        reason: 'and it has to name what is wanted: $said',
+      );
+    });
+  });
+
   group('the line', () {
     test('the north arm runs PLAIN and the south arm WARDS it', () {
       final north = _fresh();
