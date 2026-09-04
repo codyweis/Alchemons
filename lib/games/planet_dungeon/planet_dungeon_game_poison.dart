@@ -94,6 +94,87 @@ class PlagueMark {
   bool get done => fill >= 1;
 }
 
+/// ONE VEIN OF A PLAGUE, as geometry. Pulled out of the painter so it can be
+/// sampled at two different times and checked for MOVEMENT — a creature that
+/// is only having its brightness modulated looks alive in a screenshot and
+/// dead in motion, and a render test cannot tell those apart.
+class PlagueVein {
+  const PlagueVein({
+    required this.points,
+    required this.width,
+    required this.baseLit,
+    required this.stretch,
+  });
+
+  /// Root first, tip last.
+  final List<Offset> points;
+  final double width;
+  final double baseLit;
+
+  /// How far out it is compared with its resting length, 0.70 → 1.00.
+  final double stretch;
+}
+
+/// THE SHAPE OF A PLAGUE AT A MOMENT IN TIME.
+///
+/// The silhouette is deterministic — every vein's direction, curl, resting
+/// length and thickness come from [seed], so this is always the same
+/// creature. Everything laid over that is [time], never noise:
+///
+///  · the spine UNDULATES, and more toward the tip than at the root, so it
+///    lashes like something in water instead of bending as one stick
+///  · the length BREATHES on its own period per vein, so some are drawing in
+///    while others reach out and the outline never settles
+///
+/// The version this replaced computed the same points every frame and moved
+/// only the light along them. It read as a photograph of a creature.
+List<PlagueVein> plagueVeins({
+  required double reach,
+  required int seed,
+  required double time,
+}) {
+  var st = seed;
+  double rnd() {
+    st = (st * 1103515245 + 12345) % 2147483648;
+    return st / 2147483648;
+  }
+
+  final girth = (reach / 210.0).clamp(0.5, 1.6);
+  final out = <PlagueVein>[];
+  for (var i = 0; i < 14; i++) {
+    final a0 = rnd() * pi * 2;
+    final curl = (rnd() - 0.5) * 2.4;
+    final restLen = reach * (0.35 + rnd() * 0.6);
+    final width = (1.4 + rnd() * 2.2) * girth;
+    final baseLit = 0.09 + 0.12 * rnd();
+    final phase = rnd() * pi * 2;
+    final sway = 0.7 + rnd() * 0.8;
+
+    final len = restLen * (0.70 + 0.30 * sin(time * 0.62 * sway + phase * 1.7));
+    const steps = 7;
+    final points = <Offset>[Offset.zero];
+    var p = Offset.zero;
+    for (var k = 1; k <= steps; k++) {
+      final u = k / steps;
+      final a =
+          a0 +
+          curl * u +
+          sin(time * 1.9 * sway + u * 3.6 + phase) * (0.78 * u * u);
+      p += Offset(cos(a), sin(a)) * (len / steps);
+      points.add(p);
+    }
+    out.add(
+      PlagueVein(
+        points: points,
+        width: width,
+        baseLit: baseLit,
+        stretch: (len / restLen).clamp(0.0, 1.4),
+      ),
+    );
+  }
+  return out;
+}
+
 /// ONE TENDRIL, THROWN. It shoots out from the body toward something, holds
 /// at full reach for a beat, and draws back — and it bites once, at the tip,
 /// on the frame it arrives. The signature attack of every plague, because a
@@ -3429,38 +3510,36 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       );
     }
 
-    // VEINS, and they PULSE. The geometry is deterministic — sickness that
-    // rewrites its own shape every frame is a screensaver — but a wave runs
-    // outward along every vein from the heart, so the thing is alive without
-    // ever moving.
-    var st = seed;
-    double rnd() {
-      st = (st * 1103515245 + 12345) % 2147483648;
-      return st / 2147483648;
-    }
-
-    for (var i = 0; i < 14; i++) {
-      var p = at;
-      var a = rnd() * pi * 2;
-      final len = r * (0.35 + rnd() * 0.6);
-      final w = (1.2 + rnd() * 2.0) * (reach / 210.0).clamp(0.5, 1.6);
-      final base = 0.09 + 0.12 * rnd();
-      const steps = 6;
-      for (var k = 0; k < steps; k++) {
-        a += (rnd() - 0.5) * 1.1;
-        final next = p + Offset(cos(a), sin(a)) * (len / steps);
+    // VEINS, AND THEY MOVE. Geometry from `plagueVeins`; what happens here
+    // is the light — a wave travelling out along each one, which is the
+    // glisten — and the taper, thick at the root and fine at the tip.
+    for (final (i, vein) in plagueVeins(
+      reach: r,
+      seed: seed,
+      time: _time,
+    ).indexed) {
+      for (var k = 1; k < vein.points.length; k++) {
+        final u = k / (vein.points.length - 1);
         final wave = sin(_time * 2.2 - k * 0.9 - i * 0.7);
-        final lit = base + 0.26 * (wave * 0.5 + 0.5) * (wave > 0 ? 1 : 0.35);
+        final lit =
+            vein.baseLit + 0.26 * (wave * 0.5 + 0.5) * (wave > 0 ? 1 : 0.35);
         canvas.drawLine(
-          p,
-          next,
+          at + vein.points[k - 1],
+          at + vein.points[k],
           Paint()
-            ..strokeWidth = w + 0.9 * (wave.clamp(0.0, 1.0))
+            ..strokeWidth =
+                (vein.width * (1 - 0.55 * u)) + 0.9 * wave.clamp(0.0, 1.0)
             ..strokeCap = StrokeCap.round
             ..color = col.withValues(alpha: lit),
         );
-        p = next;
       }
+      // The bulb on the end, fattest when the vein is at full stretch.
+      canvas.drawCircle(
+        at + vein.points.last,
+        vein.width * 0.9 * vein.stretch,
+        Paint()
+          ..color = col.withValues(alpha: 0.45 + 0.4 * (vein.stretch - 0.70)),
+      );
     }
 
     // And a wet shine at the heart itself.

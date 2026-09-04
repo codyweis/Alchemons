@@ -1,3 +1,6 @@
+import 'dart:math' show max, min;
+
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -261,6 +264,81 @@ void main() {
         kPlaguePotions.length,
         reason: 'two plagues sharing a reaction share a colour',
       );
+    });
+
+    test('the plague is alive: its veins move, and it stays itself', () {
+      // Reported from play: the tendrils looked static. They were — the
+      // painter recomputed identical geometry every frame and animated only
+      // the light travelling along it, which reads as a creature in a
+      // screenshot and as a photograph in motion.
+      //
+      // A render test cannot tell those apart, because the light moving is
+      // enough to change every pixel. So the geometry is sampled directly.
+      final a = plagueVeins(reach: 210, seed: 907, time: 0);
+      final b = plagueVeins(reach: 210, seed: 907, time: 0.45);
+
+      expect(a.length, b.length);
+      expect(a.length, greaterThan(8), reason: 'a star, not a few spokes');
+
+      // ── IT MOVES. Sampled across a couple of seconds rather than between
+      // two instants: veins run on their own clocks, so any single pair of
+      // moments catches one of them at a turning point and proves nothing.
+      // The question is whether a vein EVER moves.
+      final samples = [
+        for (var t = 0.0; t < 2.4; t += 0.2)
+          plagueVeins(reach: 210, seed: 907, time: t),
+      ];
+      for (var i = 0; i < a.length; i++) {
+        var swing = 0.0;
+        for (final s1 in samples) {
+          for (final s2 in samples) {
+            swing = max(
+              swing,
+              (s1[i].points.last - s2[i].points.last).distance,
+            );
+          }
+        }
+        expect(
+          swing,
+          greaterThan(18),
+          reason:
+              'vein $i only ever swings ${swing.toStringAsFixed(1)}px — '
+              'that is a still picture with the lights turned up and down',
+        );
+      }
+
+      // ── AND IT UNDULATES rather than swinging as one stick: the tip has
+      // to travel further than the joint nearest the root.
+      var tipWins = 0;
+      for (var i = 0; i < a.length; i++) {
+        final root = (a[i].points[1] - b[i].points[1]).distance;
+        final tip = (a[i].points.last - b[i].points.last).distance;
+        if (tip > root) tipWins++;
+      }
+      expect(
+        tipWins,
+        greaterThan(a.length ~/ 2),
+        reason: 'the tips must whip more than the roots do',
+      );
+
+      // ── AND IT BREATHES: at any moment some veins are drawn in and others
+      // are reaching, so the outline never settles.
+      final stretches = a.map((v) => v.stretch).toList();
+      expect(
+        stretches.reduce(max) - stretches.reduce(min),
+        greaterThan(0.15),
+        reason: 'every vein at the same extension is a pulsing circle',
+      );
+
+      // ── AND IT IS STILL THE SAME CREATURE. Same seed and same moment must
+      // give the same shape, or the silhouette is noise.
+      final again = plagueVeins(reach: 210, seed: 907, time: 0.45);
+      for (var i = 0; i < b.length; i++) {
+        expect(again[i].points.last, b[i].points.last);
+      }
+      // …and a different plague is a different shape.
+      final other = plagueVeins(reach: 210, seed: 1234, time: 0.45);
+      expect(other.first.points.last, isNot(b.first.points.last));
     });
 
     test('every brew is fully identified', () {

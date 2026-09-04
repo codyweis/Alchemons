@@ -227,6 +227,34 @@ void main() {
         );
       }
 
+      // THE SAME PLAGUE, A SECOND APART. Two frames of one creature, so the
+      // veins can be seen to have swung rather than just flickered.
+      final walk0 = poisonLayout.rooms['ambulatory']!.bounds.center;
+      for (final t in [0, 1]) {
+        await _shot(
+          g,
+          'ambulatory',
+          'p_alive_$t',
+          at: walk0,
+          poseAfterTick: () {
+            g.monastery
+              ..fighting = kPlaguePotions.first.id
+              ..body = _dummyBody(walk0)
+              ..bars = 3
+              ..gated = false
+              ..unfurl = 0
+              ..marks.clear()
+              ..lashes.clear()
+              ..waves.clear()
+              ..rot.clear()
+              ..slam = -1;
+          },
+        );
+        for (var i = 0; i < 60; i++) {
+          g.update(1 / 60);
+        }
+      }
+
       // THE BODY, one shot per plague. Three plagues that arrive the same
       // colour are one plague, and the body has to look like the thing that
       // crawled in rather than the shared Poison blob.
