@@ -11,7 +11,9 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
+import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -73,6 +75,7 @@ Future<int> _shot(
   String room,
   String name, {
   Offset? at,
+  void Function()? poseAfterTick,
 }) async {
   g.currentRoomId = room;
   final stand = at ?? poisonLayout.rooms[room]!.bounds.center;
@@ -81,6 +84,11 @@ Future<int> _shot(
     c.lastSafe = stand;
   }
   g.update(1 / 60);
+  // Pose AFTER the tick. The first attempt at the gate shots set the fight
+  // up and then let `_shot` tick once, and the tick tore it straight back
+  // down — three pictures of an empty corridor that still differed enough
+  // from each other to pass a checksum comparison.
+  poseAfterTick?.call();
   final rec = ui.PictureRecorder();
   final canvas = Canvas(rec);
   g.render(canvas);
@@ -98,6 +106,19 @@ Future<int> _shot(
   }
   return sum;
 }
+
+CosmicSurvivalEnemy _dummyBody(Offset at) => CosmicSurvivalEnemy(
+  position: at,
+  hp: 60,
+  maxHp: 90,
+  speed: 50,
+  damage: 10,
+  radius: 26,
+  tier: EnemyTier.brute,
+  element: 'Poison',
+  conduct: EnemyConduct.charge,
+  target: CosmicEnemyTarget.companion,
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -184,6 +205,48 @@ void main() {
       g.monastery
         ..carriedPotion = null
         ..bottled.clear();
+
+      // EVERY GATE, MID-MECHANIC. Three plagues that all put the same thing
+      // on the floor would be one fight run three times, and a bulb that
+      // reads as scenery is a fight the player cannot see the shape of.
+      final walk = poisonLayout.rooms['ambulatory']!;
+      final gates = <int>{};
+      final centre = walk.bounds.center;
+      for (final p in kPlaguePotions) {
+        gates.add(
+          await _shot(
+            g,
+            'ambulatory',
+            'p_gate_${p.id}',
+            at: centre,
+            poseAfterTick: () {
+              g.monastery
+                ..fighting = p.id
+                ..body = _dummyBody(centre)
+                ..bars = 2
+                ..gated = true
+                ..gateLeft = 9.0
+                ..marks.clear();
+              for (var i = 0; i < 3; i++) {
+                g.monastery.marks.add(
+                  PlagueMark(at: centre + Offset((i - 1) * 130, 60)),
+                );
+              }
+              g.monastery.marks[0].fill = 0.5;
+            },
+          ),
+        );
+      }
+      expect(
+        gates.length,
+        kPlaguePotions.length,
+        reason: 'two gates that look alike are one gate',
+      );
+      g.monastery
+        ..fighting = null
+        ..gated = false
+        ..bars = 0
+        ..marks.clear();
 
       // THE FONT, wanting the vial and then spent — it has to state its own
       // want before the player owns the answer.

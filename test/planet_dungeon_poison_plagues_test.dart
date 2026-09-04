@@ -119,19 +119,56 @@ void _brewAndWake(PlanetDungeonGame g, PlaguePotion potion) {
   _press(g, 'Poison', potion.wardId!, _censer(potion.wardId!));
 }
 
-/// Run the crawl out to the walk, then kill whatever landed.
+/// Run the crawl out to the walk, then actually fight the thing: drain each
+/// bar, work the gate that follows it, three times.
+///
+/// Killing the body outright is no longer a thing a test can do — that is the
+/// point of the gates — so this plays the fight the way a player has to.
 void _fightItOut(PlanetDungeonGame g) {
   g.currentRoomId = 'ambulatory';
-  for (var i = 0; i < 60 * 8 && g.monastery.invading; i++) {
+  for (var i = 0; i < 60 * 10 && g.monastery.invading; i++) {
     g.update(1 / 60);
   }
+  final body = g.combatEnemies.where((e) => !e.isDead);
   expect(
-    g.combatEnemies.where((e) => !e.isDead),
+    body,
     isNotEmpty,
     reason: 'the crawl has to END in something to fight',
   );
-  for (final e in g.combatEnemies) {
-    e.isDead = true;
+  expect(g.monastery.bars, kPlagueBars);
+
+  var guard = 0;
+  while (g.monastery.fighting != null && guard++ < 200) {
+    if (!g.monastery.gated) {
+      // Drain the bar. Straight to zero — how the damage arrives is the
+      // combat engine's business, not this test's.
+      final e = g.combatEnemies.firstWhere((e) => !e.isDead);
+      e.hp = 0;
+      g.update(1 / 60);
+      continue;
+    }
+    _workTheGate(g);
+  }
+  expect(g.monastery.fighting, isNull, reason: 'the plague never went down');
+}
+
+/// Do whatever this plague's mechanic asks: walk a creature onto each mark
+/// and hold it there until the mark is finished.
+void _workTheGate(PlanetDungeonGame g) {
+  final m = g.monastery;
+  expect(m.marks, isNotEmpty, reason: 'a gate with nothing to do is a stall');
+  for (var i = 0; i < m.marks.length; i++) {
+    final c = g.creatures[i % g.creatures.length];
+    var guard = 0;
+    while (!m.marks[i].done && guard++ < 400) {
+      // Re-read the position every tick: a spore-pod is moving.
+      c
+        ..position = m.marks[i].at
+        ..lastSafe = m.marks[i].at;
+      g.update(1 / 60);
+      if (!m.gated) return; // the gate resolved or timed out under us
+    }
+    expect(m.marks[i].done, isTrue, reason: 'mark $i would not finish');
   }
   g.update(1 / 60);
 }
@@ -462,6 +499,238 @@ void main() {
       _press(g, 'Mud', 'apothecary', _pot);
       expect(g.monastery.pot, isEmpty);
       expect(g.monastery.carriedPotion, potion.id);
+    });
+
+    test('a plague is three bars, and each one ends in its own gate', () {
+      final g = _game();
+      final p = kPlaguePotions.first;
+      _brewAndWake(g, p);
+      g.currentRoomId = 'ambulatory';
+      for (var i = 0; i < 60 * 10 && g.monastery.invading; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.monastery.bars, kPlagueBars);
+
+      var gates = 0;
+      var guard = 0;
+      while (g.monastery.fighting != null && guard++ < 200) {
+        if (!g.monastery.gated) {
+          g.combatEnemies.firstWhere((e) => !e.isDead).hp = 0;
+          g.update(1 / 60);
+          if (g.monastery.gated) gates++;
+          continue;
+        }
+        _workTheGate(g);
+      }
+      expect(
+        gates,
+        kPlagueBars,
+        reason:
+            'every bar ends in a gate — including the last, so the '
+            'mechanic is how it dies rather than an interruption on the way',
+      );
+      expect(g.monastery.slain, contains(p.id));
+    });
+
+    test('nothing lands on a closed plague', () {
+      final g = _game();
+      _brewAndWake(g, kPlaguePotions.first);
+      g.currentRoomId = 'ambulatory';
+      for (var i = 0; i < 60 * 10 && g.monastery.invading; i++) {
+        g.update(1 / 60);
+      }
+      final body = g.combatEnemies.firstWhere((e) => !e.isDead);
+      body.hp = 0;
+      g.update(1 / 60);
+      expect(g.monastery.gated, isTrue);
+      expect(
+        body.hp,
+        greaterThan(0),
+        reason: 'a bar running out must not kill it — the gate does that',
+      );
+      expect(
+        g.venomGated(body),
+        isTrue,
+        reason:
+            'hitting it harder has to stop being an option, or the mechanic '
+            'is decoration',
+      );
+    });
+
+    test('letting the gate run out heals the bar back', () {
+      final g = _game();
+      _brewAndWake(g, kPlaguePotions.first);
+      g.currentRoomId = 'ambulatory';
+      for (var i = 0; i < 60 * 10 && g.monastery.invading; i++) {
+        g.update(1 / 60);
+      }
+      final body = g.combatEnemies.firstWhere((e) => !e.isDead);
+      body.hp = 0;
+      g.update(1 / 60);
+      expect(g.monastery.gated, isTrue);
+      final barsAtGate = g.monastery.bars;
+
+      // Stand well clear and wait it out.
+      for (final c in g.creatures) {
+        c.position = const Offset(60, 60);
+        c.lastSafe = const Offset(60, 60);
+      }
+      for (var i = 0; i < 60 * 20 && g.monastery.gated; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.monastery.gated, isFalse);
+      expect(
+        g.monastery.bars,
+        barsAtGate,
+        reason: 'a gate that timed out takes no bar off it',
+      );
+      expect(
+        body.hp,
+        body.maxHp,
+        reason: 'and the bar you had just emptied comes back full',
+      );
+      expect(g.monastery.fighting, isNotNull);
+    });
+
+    test('the gate is long enough to think in', () {
+      // The standing rule on this game is that a puzzle rewards thinking and
+      // never reflexes. A heal-back gate is the one place that rule is under
+      // real pressure, so the window is pinned here rather than left to
+      // whatever a constant happens to say — and it is MEASURED off the
+      // engine, so tuning the constant cannot quietly turn the fight into a
+      // reaction test.
+      final g = _game();
+      _brewAndWake(g, kPlaguePotions.first);
+      g.currentRoomId = 'ambulatory';
+      for (var i = 0; i < 60 * 10 && g.monastery.invading; i++) {
+        g.update(1 / 60);
+      }
+      g.combatEnemies.firstWhere((e) => !e.isDead).hp = 0;
+      g.update(1 / 60);
+      expect(g.monastery.gated, isTrue);
+      for (final c in g.creatures) {
+        c.position = const Offset(60, 60);
+        c.lastSafe = const Offset(60, 60);
+      }
+      var frames = 0;
+      while (g.monastery.gated && frames < 60 * 60) {
+        g.update(1 / 60);
+        frames++;
+      }
+      final seconds = frames / 60;
+
+      // Long enough to walk the length of the cloister and back, at the
+      // game's own walking speed, with time left to decide anything.
+      final walk = poisonLayout.rooms['ambulatory']!.bounds;
+      const speed = 187.5; // PlanetDungeonGame._speed
+      expect(
+        seconds,
+        greaterThan(walk.width / speed * 1.4),
+        reason:
+            'a gate of ${seconds}s cannot be crossed at a walk — that is a '
+            'reaction test, which this game does not do',
+      );
+      // …and short enough that ignoring the mechanic is not a strategy.
+      expect(seconds, lessThan(30));
+    });
+
+    test('every plague brings a different mechanic', () {
+      // Three fights that play the same way are one fight run three times.
+      final g = _game();
+      final kinds = <CauldronReaction>{};
+      for (final p in kPlaguePotions) {
+        _brewAndWake(g, p);
+        g.currentRoomId = 'ambulatory';
+        for (var i = 0; i < 60 * 10 && g.monastery.invading; i++) {
+          g.update(1 / 60);
+        }
+        g.combatEnemies.firstWhere((e) => !e.isDead).hp = 0;
+        g.update(1 / 60);
+        expect(g.monastery.gated, isTrue);
+        expect(
+          g.monastery.marks.length,
+          greaterThan(0),
+          reason: '${p.id} opened a gate with nothing to do in it',
+        );
+        kinds.add(p.pot);
+        // Finish the fight so the next brew can be made.
+        var guard = 0;
+        while (g.monastery.fighting != null && guard++ < 200) {
+          if (!g.monastery.gated) {
+            g.combatEnemies.firstWhere((e) => !e.isDead).hp = 0;
+            g.update(1 / 60);
+            continue;
+          }
+          _workTheGate(g);
+        }
+        _bearRelic(g, p);
+      }
+      expect(kinds.length, kPlaguePotions.length);
+    });
+
+    test('a stray wisp is not the boss', () {
+      // A wrong pour leaves wisps in the cloister. The fight used to find
+      // its body by scanning for the first live enemy that was not the
+      // guardian, so one of those wisps could be taken for the plague — and
+      // a single frame with no enemies at all read as the plague having
+      // died, dropping its reliquary without a fight.
+      final g = _game();
+      _openTheCloister(g);
+      final potion = kPlaguePotions.firstWhere((p) => p.id == 'bloomvenom');
+      final wrongDoor = kPlaguePotions.firstWhere((p) => p.id == 'mirebane');
+      _setDown(g);
+      _press(g, potion.first, 'apothecary', _pot);
+      _press(g, potion.second, 'apothecary', _pot);
+      // Pour it at the wrong door on purpose: that is what puts wisps out.
+      _press(g, 'Poison', wrongDoor.wardId!, _censer(wrongDoor.wardId!));
+      g.currentRoomId = 'ambulatory';
+      g.update(1 / 60);
+      final strays = g.combatEnemies.where((e) => !e.isDead).length;
+
+      // Now wake it properly.
+      _press(g, 'Poison', potion.wardId!, _censer(potion.wardId!));
+      g.currentRoomId = 'ambulatory';
+      for (var i = 0; i < 60 * 10 && g.monastery.invading; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.monastery.fighting, potion.id);
+      final body = g.monastery.body;
+      expect(body, isNotNull);
+
+      expect(
+        strays,
+        greaterThan(0),
+        reason:
+            'the wrong pour has to actually put something in the room, '
+            'or this proves nothing',
+      );
+      expect(
+        g.combatEnemies.indexOf(body!),
+        greaterThan(0),
+        reason:
+            'the wisps came first — a scan for "the first live enemy" '
+            'would hand back one of them',
+      );
+
+      // THE BITE. Empty the plague's own bar with wisps still alive. If the
+      // fight is finding its body by scanning, it is watching a wisp's
+      // health and this does nothing at all.
+      body.hp = 0;
+      g.update(1 / 60);
+      expect(
+        g.monastery.gated,
+        isTrue,
+        reason: 'the bar that ran out was the PLAGUE\'s',
+      );
+
+      // And clearing the strays is not defeating anything.
+      for (final e in g.combatEnemies) {
+        if (!identical(e, body)) e.isDead = true;
+      }
+      g.update(1 / 60);
+      expect(g.monastery.fighting, potion.id);
+      expect(g.monastery.slain, isEmpty);
+      expect(g.monastery.relicsDropped, isEmpty);
     });
 
     test('killing all three is not the stars — the cross is', () {

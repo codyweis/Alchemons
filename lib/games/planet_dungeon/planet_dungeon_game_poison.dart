@@ -75,6 +75,26 @@ const double _kBlightLull = 3.4;
 /// the planet's own rule, turned on the player).
 const double _kBlightFeedHeal = 0.06;
 
+/// ONE THING THE PLAGUE PUT ON THE FLOOR during a gate: a rot-bulb to stand
+/// on, a spore-pod drifting home, or a pool of blood to stopper. All three
+/// are "a spot that wants a body", which is why they are one class — what
+/// differs is how it moves and what finishing it takes.
+class PlagueMark {
+  PlagueMark({required this.at, this.from});
+
+  /// Where it is now. Pods move; bulbs and pools do not.
+  Offset at;
+
+  /// Where a pod started, so the drift can be drawn as a path.
+  final Offset? from;
+
+  /// 0 → 1. A bulb or a pod finishes at the first touch; a pool has to be
+  /// stood in, so it fills.
+  double fill = 0;
+
+  bool get done => fill >= 1;
+}
+
 /// Everything the Venom Monastery tracks for one run. Bundled into a single
 /// object so the shared engine class carries ONE new field for this planet.
 class VenomMonastery {
@@ -164,6 +184,40 @@ class VenomMonastery {
 
   /// A plague woken and still crawling — it lands when the crawl ends.
   String? pendingFight;
+
+  // ── THE FIGHT ────────────────────────────────────────────
+  //
+  // THREE BARS AND THREE GATES. A plague does not simply have a lot of
+  // health: each bar ends with it closing up, and the only thing that opens
+  // it again is the mechanic that belongs to THAT plague. Rot puts bulbs on
+  // the floor to be stood on; Breath scatters and its pods must be cut off
+  // before it inhales them; Blood opens pools that have to be stoppered by
+  // bodies. Three fights that are actually three different fights.
+
+  /// THE BODY ITSELF, held by reference.
+  ///
+  /// It used to be found by scanning for the first live enemy that was not
+  /// the guardian, which is wrong twice over: a wisp left over from a wrong
+  /// pour would be picked as the boss, and a single frame with no enemies at
+  /// all — a spawn refused by the pool cap, say — read as the plague having
+  /// died, which dropped its reliquary without a fight.
+  CosmicSurvivalEnemy? body;
+
+  /// Bars still to break, 3 → 0.
+  int bars = 0;
+
+  /// True while it is closed up and running its mechanic.
+  bool gated = false;
+
+  /// Seconds left on the gate. Running out HEALS THE BAR BACK — generous on
+  /// purpose: this is meant to be pressure, not a reaction test.
+  double gateLeft = 0;
+
+  /// The rot-bulbs / spore-pods / blood-pools of the current gate.
+  final List<PlagueMark> marks = [];
+
+  /// Pulses when a gate opens or closes, for the render, 1 → 0.
+  double gateFlash = 0;
 
   /// The plague currently loose in the cloister, being fought.
   String? fighting;
@@ -274,6 +328,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.potionHands.clear();
     m.pendingFight = null;
     m.fighting = null;
+    m.body = null;
+    m.bars = 0;
+    m.gated = false;
+    m.gateLeft = 0;
+    m.marks.clear();
+    m.gateFlash = 0;
     m.benchPick = 0;
     m.cloisterOpen = false;
     m.lustral = 0;
@@ -490,7 +550,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final m = monastery;
     _maybeWakeWard(room);
     _tellTheHouse(room);
-    _tickPlagueFight();
+    _tickPlagueFight(dt);
     if (m.reaction > 0) {
       m.reaction = max(0.0, m.reaction - dt / _kReactionSeconds);
       if (m.reaction == 0) m.reactionKind = null;
@@ -941,6 +1001,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// Deliberately a TAX, never a lockout. Brew all three before waking
   /// anything and all three of them are spent at once — which is a bad fight
   /// and a lesson, not a dead run.
+  /// Is [enemy] the plague body, closed up behind its mechanic? Nothing
+  /// reaches it while this is true, which is the whole shape of the fight.
+  bool venomGated(CosmicSurvivalEnemy enemy) {
+    if (!monastery.gated) return false;
+    return identical(enemy, _plagueBody);
+  }
+
   double venomDrainMul(DungeonCreature? a) {
     if (a == null) return 1.0;
     return monastery.drained.contains(a.member.instanceId)
@@ -1204,61 +1271,241 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   /// The plague lands in the cloister at the end of its crawl. Spawned here
   /// rather than at the press so the thing you fight is the thing you just
-  /// watched arrive.
+  /// watched arrive — ONE body, no swarm: three bars and three gates are
+  /// enough to hold a fight together, and adds would only bury the mechanic
+  /// the plague is actually about.
   void _plagueLands(String potionId) {
     final walk = layout.rooms['ambulatory'];
     if (walk == null) return;
     final at = monastery.invadeTo;
-    spawnDungeonEnemy(
+    final ok = spawnDungeonEnemy(
       tier: EnemyTier.brute,
       conduct: EnemyConduct.charge,
       element: 'Poison',
       from: at,
-      hp: 190,
-      speed: 58,
-      damage: 15,
-      radius: 22,
+      hp: _kPlagueBarHp,
+      speed: 54,
+      damage: 14,
+      radius: 26,
       steers: true,
     );
-    for (var i = 0; i < 3; i++) {
-      spawnDungeonEnemy(
-        tier: EnemyTier.wisp,
-        conduct: EnemyConduct.stalk,
-        element: 'Poison',
-        from: at,
-        hp: 26,
-        speed: 84,
-        damage: 7,
-        radius: 10,
-      );
-    }
-    monastery.fighting = potionId;
+    if (!ok) return;
+    monastery
+      ..body = combatEnemies.isEmpty ? null : combatEnemies.last
+      ..fighting = potionId
+      ..bars = kPlagueBars
+      ..gated = false
+      ..gateLeft = 0
+      ..gateFlash = 1.0
+      ..marks.clear();
   }
 
-  /// The fight is over when nothing of it is left standing in the walk —
-  /// and what it leaves behind is the point. The stars are not paid out
-  /// here: three relics have to be carried to the cross first, which is the
-  /// one errand that makes the cloister worth crossing again.
-  void _tickPlagueFight() {
+  /// The body currently being fought, if it is still standing.
+  CosmicSurvivalEnemy? get _plagueBody {
+    final b = monastery.body;
+    if (b == null || b.isDead) return null;
+    return b;
+  }
+
+  /// THE FIGHT, ONE TICK.
+  ///
+  /// A bar runs out → it closes up and puts its mechanic on the floor →
+  /// the mechanic is finished, which breaks that bar for good, or the gate
+  /// times out and the bar comes back. Three times.
+  void _tickPlagueFight(double dt) {
     final m = monastery;
     final id = m.fighting;
     if (id == null) return;
     if (currentRoomId != 'ambulatory') return;
-    final live = combatEnemies.where((e) => !e.isDead).length;
-    if (live > 0) return;
-    m.fighting = null;
-    m.woken.remove(id);
-    m.slain.add(id);
+    final potion = brewById(id);
+    if (potion == null) {
+      m.fighting = null;
+      return;
+    }
+    if (m.gateFlash > 0) m.gateFlash = max(0.0, m.gateFlash - dt / 0.8);
+
+    final body = _plagueBody;
+    if (body == null) {
+      // Nothing left standing: it is down.
+      _plagueFalls(potion);
+      return;
+    }
+
+    if (!m.gated) {
+      // Draining. It must not actually die on a bar — the gate is what
+      // takes a bar off it.
+      if (body.hp <= 0) {
+        body.hp = 1;
+        _openGate(potion, body);
+      }
+      return;
+    }
+
+    // ── GATED ──
+    body.hp = max(1.0, body.hp);
+    _tickMarks(potion, body, dt);
+    if (m.marks.every((k) => k.done)) {
+      _closeGate(potion, body);
+      return;
+    }
+    m.gateLeft -= dt;
+    if (m.gateLeft <= 0) {
+      // TIME. The bar comes back — the one real failure in the fight, and
+      // it costs progress rather than lives.
+      m
+        ..gated = false
+        ..gateFlash = 1.0
+        ..marks.clear();
+      body.hp = body.maxHp;
+      _shake = 5.0;
+      speakConsequence('It closes over. The bar comes back.', 3.2);
+    }
+  }
+
+  /// A bar has run out: it shuts, and its own mechanic goes on the floor.
+  void _openGate(PlaguePotion potion, CosmicSurvivalEnemy body) {
+    final m = monastery;
+    final walk = layout.rooms['ambulatory'];
+    if (walk == null) return;
+    m
+      ..gated = true
+      ..gateLeft = _kGateSeconds
+      ..gateFlash = 1.0
+      ..marks.clear();
+    _shake = 6.0;
+
+    final b = walk.bounds.deflate(60);
+    switch (potion.pot) {
+      case CauldronReaction.rot:
+        // STAND ON THEM. Bulbs come up out of the floor around it.
+        for (var i = 0; i < _kGateMarks; i++) {
+          final a = -pi / 2 + (i - (_kGateMarks - 1) / 2) * 0.9;
+          final at = body.position + Offset(cos(a), sin(a) * 0.65) * 120;
+          m.marks.add(PlagueMark(at: _clampInto(at, b)));
+        }
+      case CauldronReaction.bloom:
+        // CUT THEM OFF. Pods drift home from the edges of the cloister.
+        for (var i = 0; i < _kGateMarks; i++) {
+          final left = i.isEven;
+          final at = Offset(
+            left ? b.left : b.right,
+            b.top + b.height * ((i + 1) / (_kGateMarks + 1)),
+          );
+          m.marks.add(PlagueMark(at: at, from: at));
+        }
+      case CauldronReaction.climb:
+        // PUT BODIES IN THEM. Pools open, and standing in one is slow work.
+        for (var i = 0; i < _kGateMarks; i++) {
+          final a = pi / 2 + (i - (_kGateMarks - 1) / 2) * 1.15;
+          final at = body.position + Offset(cos(a), sin(a) * 0.6) * 140;
+          m.marks.add(PlagueMark(at: _clampInto(at, b)));
+        }
+      case CauldronReaction.pure:
+        // The vial wakes nothing, so this is unreachable — but a gate with
+        // no marks would hang the fight until the timer, so it opens empty
+        // and closes at once rather than stalling.
+        break;
+    }
+  }
+
+  Offset _clampInto(Offset at, Rect b) =>
+      Offset(at.dx.clamp(b.left, b.right), at.dy.clamp(b.top, b.bottom));
+
+  /// Work the marks against where the party is standing.
+  void _tickMarks(PlaguePotion potion, CosmicSurvivalEnemy body, double dt) {
+    final m = monastery;
+    for (final mark in m.marks) {
+      if (mark.done) continue;
+
+      if (potion.pot == CauldronReaction.bloom) {
+        // It is going home. Cut it off on the way.
+        final toward = body.position - mark.at;
+        final d = toward.distance;
+        if (d > 1) {
+          mark.at += (toward / d) * _kPodSpeed * dt;
+        }
+        if (d <= 30) {
+          // Breathed back in: it starts again from the edge rather than
+          // failing the gate outright, so the cost of missing one is time.
+          mark.at = mark.from ?? mark.at;
+          _spawnAlchemyBurst(
+            body.position,
+            producedElement: 'Plant',
+            particleCount: 10,
+            intensity: 0.7,
+          );
+          continue;
+        }
+      }
+
+      final touching = creatures.any(
+        (c) => c.alive && (c.position - mark.at).distance <= _kMarkReach,
+      );
+      if (!touching) {
+        // A pool half-stoppered slides back if the body walks away.
+        if (potion.pot == CauldronReaction.climb) {
+          mark.fill = max(0.0, mark.fill - dt / (_kPoolFillSeconds * 2));
+        }
+        continue;
+      }
+      // A bulb or a pod goes at the first touch; a pool has to be held.
+      mark.fill = potion.pot == CauldronReaction.climb
+          ? min(1.0, mark.fill + dt / _kPoolFillSeconds)
+          : 1.0;
+      if (mark.done) {
+        _spawnAlchemyBurst(
+          mark.at,
+          producedElement: potion.first,
+          reagentElements: [potion.second],
+          particleCount: 16,
+          intensity: 0.9,
+        );
+      }
+    }
+  }
+
+  /// The mechanic is finished: that bar is gone for good.
+  void _closeGate(PlaguePotion potion, CosmicSurvivalEnemy body) {
+    final m = monastery;
+    m
+      ..gated = false
+      ..gateLeft = 0
+      ..gateFlash = 1.0
+      ..marks.clear()
+      ..bars = max(0, m.bars - 1);
+    _shake = 7.0;
+    _spawnAlchemyBurst(
+      body.position,
+      producedElement: 'Light',
+      reagentElements: [potion.first, potion.second],
+      particleCount: 28,
+      intensity: 1.2,
+    );
+    if (m.bars <= 0) {
+      body.isDead = true;
+      _plagueFalls(potion);
+      return;
+    }
+    body.hp = body.maxHp;
+  }
+
+  /// It is down. What it leaves behind is the point.
+  void _plagueFalls(PlaguePotion potion) {
+    final m = monastery;
+    m
+      ..fighting = null
+      ..gated = false
+      ..bars = 0
+      ..marks.clear();
+    m.woken.remove(potion.id);
+    m.slain.add(potion.id);
     // The hands come back. All of them — a fallen plague clears the whole
     // house's exhaustion, so brewing the next one is a fresh decision.
     m.drained.clear();
-    final potion = brewById(id);
-    if (potion == null) return;
-    // It leaves the relic where it died.
     final walk = layout.rooms['ambulatory'];
     final at = walk == null ? m.invadeTo : _relicRestingPlace(walk, m.invadeTo);
-    m.relicsDropped.add(id);
-    m.relicAt[id] = at;
+    m.relicsDropped.add(potion.id);
+    m.relicAt[potion.id] = at;
     _shake = 5.0;
     _spawnAlchemyBurst(
       at,
@@ -1983,6 +2230,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     _renderCondemnation(canvas);
     _renderWalkInvasion(canvas, room);
     _renderLustralFont(canvas, room);
+    _renderPlagueFight(canvas, room);
     _renderRelics(canvas, room);
     _renderPourOnPlague(canvas, room);
     _renderCarriedPhial(canvas);
@@ -2392,6 +2640,32 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// as it takes to feel like an arrival rather than an effect.
   static const double _kInvadeSeconds = 5.0;
 
+  // ── THE FIGHT ────────────────────────────────────────────
+  //
+  /// One bar's worth of body. Three of these is a plague.
+  static const double _kPlagueBarHp = 78;
+
+  /// How long a gate stands before the bar comes back.
+  ///
+  /// GENEROUS ON PURPOSE. The standing rule on this game is that a puzzle
+  /// rewards thinking and never reflexes; a gate that punishes a slow hand
+  /// would be exactly the thing that rule forbids. Fourteen seconds is long
+  /// enough to walk the cloister and think about it, and short enough that
+  /// ignoring the mechanic entirely does not work.
+  static const double _kGateSeconds = 14.0;
+
+  /// Bulbs, pods or pools per gate.
+  static const int _kGateMarks = 3;
+
+  /// How close a body has to be to work one.
+  static const double _kMarkReach = 34.0;
+
+  /// A pool wants a body held in it, not brushed past.
+  static const double _kPoolFillSeconds = 1.4;
+
+  /// How fast a spore-pod drifts home.
+  static const double _kPodSpeed = 44.0;
+
   /// The font taking the vial and the seals letting go down the corridor.
   static const double _kLustralSeconds = 1.6;
 
@@ -2412,6 +2686,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   /// How far through the sequence it goes through the doorway.
   static const double _kInvadeCross = 0.34;
+
+  /// How far into the crawl the thing has finished gathering itself off the
+  /// heart. Before this it is still pulling in off the walls of the ward.
+  static const double _kInvadeGather = 0.17;
 
   static const Color _venomBronze = Color(0xFF6E6A3E);
   static const Color _venomBronzeLit = Color(0xFF9A9358);
@@ -2645,7 +2923,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           ..strokeCap = StrokeCap.round
           ..color = col.withValues(alpha: 0.34),
       );
-      if (t < _kInvadeCross) _drawInvadeHead(canvas, head, col);
+      if (t < _kInvadeCross) {
+        _drawInvadeHead(canvas, head, col, _invadeScale(t));
+      }
     }
 
     // ── THROUGH THE DOOR ── tendrils groping over the sill on the far side,
@@ -2700,7 +2980,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
             ..strokeJoin = StrokeJoin.round
             ..color = col.withValues(alpha: 0.34),
         );
-        if (headRoom == 'ambulatory') _drawInvadeHead(canvas, head, col);
+        if (headRoom == 'ambulatory') {
+          _drawInvadeHead(canvas, head, col, _invadeScale(t));
+        }
       }
 
       // ── IT SETTLES ── and begins to breathe in the middle of the walk.
@@ -2730,22 +3012,53 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   }
 
   /// The head of the thing: a knot with legs feeling ahead of it.
-  void _drawInvadeHead(Canvas canvas, Offset head, Color col) {
+  void _drawInvadeHead(Canvas canvas, Offset head, Color col, [double s = 1]) {
     for (var i = 0; i < 9; i++) {
       final a = i * 2 * pi / 9 + _time * 0.9;
       canvas.drawLine(
         head,
-        head + Offset(cos(a), sin(a)) * (14 + 7 * sin(_time * 5 + i)),
+        head + Offset(cos(a), sin(a)) * ((14 + 7 * sin(_time * 5 + i)) * s),
         Paint()
-          ..strokeWidth = 2.4
+          ..strokeWidth = 2.4 * s
           ..strokeCap = StrokeCap.round
           ..color = col.withValues(alpha: 0.55),
       );
     }
-    canvas.drawCircle(head, 11, Paint()..color = col.withValues(alpha: 0.85));
+    canvas.drawCircle(
+      head,
+      11 * s,
+      Paint()..color = col.withValues(alpha: 0.85),
+    );
     if (_fx.ready) {
-      drawGlow(canvas, _fx.glow!, head, 46, col.withValues(alpha: 0.34));
+      drawGlow(canvas, _fx.glow!, head, 46 * s, col.withValues(alpha: 0.34));
     }
+  }
+
+  /// HOW BIG THE THING IS, ACROSS THE WHOLE CRAWL.
+  ///
+  /// It has to gather itself before it can leave. Reported from play as the
+  /// plague simply appearing in the corridor: without this it was full size
+  /// from the first frame, so the ward phase read as a shape sliding to a
+  /// door rather than a sickness pulling in off the walls to fit through
+  /// one. Swells: pulls in tight over the heart, squeezes down to nothing
+  /// at the sill, and opens back out on the far side.
+  double _invadeScale(double t) {
+    if (t < _kInvadeGather) {
+      // Off the heart and drawing in — big and loose, then compact.
+      final k = (t / _kInvadeGather).clamp(0.0, 1.0);
+      return 1.9 - 1.0 * Curves.easeInOutCubic.transform(k);
+    }
+    if (t < _kInvadeCross) {
+      // Squeezing through: down to a thread at the doorway.
+      final k = ((t - _kInvadeGather) / (_kInvadeCross - _kInvadeGather)).clamp(
+        0.0,
+        1.0,
+      );
+      return 0.9 - 0.55 * Curves.easeInQuad.transform(k);
+    }
+    // Out the other side, opening back up as it comes down the cloister.
+    final k = ((t - _kInvadeCross) / (1 - _kInvadeCross)).clamp(0.0, 1.0);
+    return 0.35 + 1.15 * Curves.easeOutCubic.transform(k);
   }
 
   /// THE TWO THINGS THE HOUSE SAYS OUT LOUD.
@@ -3607,6 +3920,205 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
             ..color = const Color(0xFFD8F0E4).withValues(alpha: 0.42 * (1 - r)),
         );
       }
+    }
+  }
+
+  /// THE FIGHT, ON SCREEN. Three pips over the body, the mechanic on the
+  /// floor, and a ring that closes as the gate runs out.
+  ///
+  /// Everything here exists because the fight is otherwise unreadable: a
+  /// plague that has simply stopped taking damage looks like a bug, and a
+  /// bulb on the floor looks like scenery unless it is plainly the only lit
+  /// thing in the room while the boss is dark.
+  void _renderPlagueFight(Canvas canvas, DungeonRoom room) {
+    final m = monastery;
+    if (m.fighting == null || room.id != 'ambulatory') return;
+    final potion = brewById(m.fighting);
+    if (potion == null) return;
+    final body = _plagueBody;
+    final col = _brewColour(potion);
+
+    // ── THE MARKS ──
+    for (final mark in m.marks) {
+      final at = mark.at;
+      switch (potion.pot) {
+        case CauldronReaction.rot:
+          // A bulb swelling out of the floor, wanting a foot.
+          if (mark.done) {
+            canvas.drawCircle(
+              at,
+              16,
+              Paint()..color = const Color(0xFF2A2016).withValues(alpha: 0.7),
+            );
+            break;
+          }
+          final pulse = 0.5 + 0.5 * sin(_time * 3.2 + at.dx * 0.02);
+          canvas.drawCircle(
+            at,
+            26 + 5 * pulse,
+            Paint()..color = col.withValues(alpha: 0.16),
+          );
+          canvas.drawCircle(
+            at,
+            13 + 2.5 * pulse,
+            Paint()..color = const Color(0xFF6B8F3A),
+          );
+          canvas.drawCircle(
+            at + const Offset(-3, -3),
+            4.5,
+            Paint()..color = col.withValues(alpha: 0.85),
+          );
+          for (var i = 0; i < 5; i++) {
+            final a = i * 2 * pi / 5 + _time * 0.6;
+            canvas.drawLine(
+              at,
+              at + Offset(cos(a), sin(a) * 0.6) * (17 + 3 * pulse),
+              Paint()
+                ..strokeWidth = 2
+                ..color = const Color(0xFF3E5424).withValues(alpha: 0.8),
+            );
+          }
+        case CauldronReaction.bloom:
+          // A pod on its way home, with the path it is taking drawn ahead.
+          if (mark.done) break;
+          if (body != null) {
+            canvas.drawLine(
+              at,
+              body.position,
+              Paint()
+                ..strokeWidth = 1
+                ..color = col.withValues(alpha: 0.18),
+            );
+          }
+          canvas.drawCircle(
+            at,
+            20,
+            Paint()..color = col.withValues(alpha: 0.14),
+          );
+          canvas.drawCircle(at, 9, Paint()..color = col.withValues(alpha: 0.9));
+          for (var i = 0; i < 8; i++) {
+            final a = i * 2 * pi / 8 + _time * 1.6;
+            canvas.drawCircle(
+              at + Offset(cos(a), sin(a)) * 13,
+              1.8,
+              Paint()..color = const Color(0xFFEAF7B0).withValues(alpha: 0.7),
+            );
+          }
+        case CauldronReaction.climb:
+          // A pool. It fills as a body stands in it, and slides back if
+          // one walks away.
+          canvas.drawOval(
+            Rect.fromCenter(center: at, width: 74, height: 40),
+            Paint()..color = const Color(0xFF120C16).withValues(alpha: 0.9),
+          );
+          if (mark.fill > 0) {
+            canvas.drawOval(
+              Rect.fromCenter(
+                center: at,
+                width: 74 * mark.fill,
+                height: 40 * mark.fill,
+              ),
+              Paint()..color = col.withValues(alpha: 0.8),
+            );
+          }
+          canvas.drawOval(
+            Rect.fromCenter(center: at, width: 74, height: 40),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2
+              ..color = (mark.done ? const Color(0xFFB98FD6) : col).withValues(
+                alpha: 0.85,
+              ),
+          );
+        case CauldronReaction.pure:
+          break;
+      }
+    }
+
+    if (body == null) return;
+    final head = body.position - const Offset(0, 46);
+
+    // ── THREE PIPS ── how much of the thing is actually left, which its own
+    // health bar cannot say: that bar is one third of a plague.
+    for (var i = 0; i < kPlagueBars; i++) {
+      final at = Offset(head.dx + (i - 1) * 20, head.dy - 12);
+      final spent = i >= m.bars;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: at, width: 15, height: 8),
+          const Radius.circular(2),
+        ),
+        Paint()
+          ..color = spent
+              ? const Color(0xFF241E28).withValues(alpha: 0.85)
+              : col.withValues(alpha: 0.95),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: at, width: 15, height: 8),
+          const Radius.circular(2),
+        ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = _venomBronze.withValues(alpha: 0.8),
+      );
+    }
+
+    // ── CLOSED ── a shell over it, and a ring counting the gate down.
+    if (m.gated) {
+      final shell = 0.5 + 0.5 * sin(_time * 4.0);
+      canvas.drawCircle(
+        body.position,
+        34 + 3 * shell,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4
+          ..color = _venomBone.withValues(alpha: 0.5 + 0.2 * shell),
+      );
+      canvas.drawCircle(
+        body.position,
+        34,
+        Paint()..color = const Color(0xFF0B0D0A).withValues(alpha: 0.45),
+      );
+      final left = (m.gateLeft / _kGateSeconds).clamp(0.0, 1.0);
+      canvas.drawArc(
+        Rect.fromCircle(center: body.position, radius: 42),
+        -pi / 2,
+        2 * pi * left,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.5
+          ..strokeCap = StrokeCap.round
+          ..color = (left < 0.25 ? const Color(0xFFD86A4A) : col).withValues(
+            alpha: 0.9,
+          ),
+      );
+      final undone = m.marks.where((k) => !k.done).length;
+      _drawTinyLabel(
+        canvas,
+        Offset(body.position.dx, head.dy - 34),
+        switch (potion.pot) {
+          CauldronReaction.rot => 'STAND ON THEM  ·  $undone',
+          CauldronReaction.bloom => 'CUT THEM OFF  ·  $undone',
+          CauldronReaction.climb => 'STOPPER THEM  ·  $undone',
+          CauldronReaction.pure => '',
+        },
+      );
+    }
+
+    // A bar breaking or coming back.
+    if (m.gateFlash > 0) {
+      final k = 1 - m.gateFlash;
+      canvas.drawCircle(
+        body.position,
+        30 + 130 * k,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 8 * (1 - k)
+          ..color = col.withValues(alpha: 0.5 * (1 - k)),
+      );
     }
   }
 

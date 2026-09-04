@@ -4798,9 +4798,14 @@ class PlanetDungeonGame extends FlameGame {
     final base = identical(enemy, _guardianEnemy) && !guardianVulnerable
         ? 0.35
         : 1.0;
-    // Poison (§8): a hand that gave to the pot is spent until the plague it
-    // woke goes down. The whole strategy of the monastery is WHEN you brew.
-    return _isVenom ? base * venomDrainMul(active) : base;
+    if (!_isVenom) return base;
+    // Poison (§8): NOTHING LANDS ON A CLOSED PLAGUE. A bar ends with it
+    // shutting, and the only thing that opens it is that plague's own
+    // mechanic — hitting it harder is not an option the fight offers.
+    if (venomGated(enemy)) return 0;
+    // …and a hand that gave to the pot is spent until the plague it woke
+    // goes down. The whole strategy of the monastery is WHEN you brew.
+    return base * venomDrainMul(active);
   }
 
   Offset _wingBeamEnd(_DungeonWingBeam beam) {

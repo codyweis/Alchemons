@@ -510,6 +510,10 @@ PlaguePotion? brewById(String? id) {
 /// these numbers. Four recipes want Poison ×4 (one each for Bloomvenom and
 /// Mirebane, and BOTH halves of the Pure Vial), Plant ×2 and Mud ×2. The
 /// party has exactly that and not one give more.
+/// Bars on a plague. Each one ends with the plague closing up and the
+/// mechanic that belongs to it going on the floor.
+const int kPlagueBars = 3;
+
 const int kPotionContributionsEach = 2;
 const int kPoisonContributions = 4;
 
