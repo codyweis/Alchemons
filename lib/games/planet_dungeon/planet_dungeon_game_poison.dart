@@ -94,6 +94,37 @@ class PlagueMark {
   bool get done => fill >= 1;
 }
 
+/// ONE TENDRIL, THROWN. It shoots out from the body toward something, holds
+/// at full reach for a beat, and draws back — and it bites once, at the tip,
+/// on the frame it arrives. The signature attack of every plague, because a
+/// thing made of tendrils should fight with them.
+class PlagueLash {
+  PlagueLash({required this.from, required this.to, this.creep = false});
+
+  /// WHERE IT WAS THROWN FROM AND WHERE IT IS GOING — fixed at the moment of
+  /// the throw, not recomputed from wherever the body has wandered to since.
+  ///
+  /// It used to be an angle and a length off the live body position, and the
+  /// plague CHARGES: between the frame that threw the tendril and the frame
+  /// that bit, the body had closed the distance and the tip sailed past. A
+  /// committed target point is also the only version that can be dodged,
+  /// which is what makes it an attack rather than a tax.
+  final Offset from;
+  final Offset to;
+
+  /// Decay's lashes crawl the floor in joints rather than snapping straight.
+  final bool creep;
+
+  /// 0 → 1 out, 1 → 2 back.
+  double t = 0;
+  bool bit = false;
+
+  Offset get tip => Offset.lerp(from, to, extension.clamp(0.0, 1.0))!;
+
+  double get extension =>
+      t <= 1 ? Curves.easeOutCubic.transform(t) : 1 - (t - 1) * 0.9;
+}
+
 /// Everything the Venom Monastery tracks for one run. Bundled into a single
 /// object so the shared engine class carries ONE new field for this planet.
 class VenomMonastery {
@@ -218,6 +249,29 @@ class VenomMonastery {
   /// Pulses when a gate opens or closes, for the render, 1 → 0.
   double gateFlash = 0;
 
+  // ── WHAT IT DOES TO YOU ──────────────────────────────────
+  //
+  // Each plague fights the way its ward behaved. The bell rings, so Breath
+  // throws sound out in rings; Blood throbs and then slams; Decay puts its
+  // veins along the floor and leaves them there. All three lash with
+  // tendrils, because all three ARE tendrils.
+
+  /// Tendrils in flight.
+  final List<PlagueLash> lashes = [];
+
+  /// Seconds until the next attack.
+  double attackCd = 0;
+
+  /// Breath's rings, each an outward-travelling radius.
+  final List<double> waves = [];
+
+  /// Blood's slam: 1 → 0 winding up, then it lands.
+  double slam = -1;
+  Offset slamAt = Offset.zero;
+
+  /// Decay's rot on the floor: where, and how much life is left.
+  final List<(Offset, double)> rot = [];
+
   /// The plague currently loose in the cloister, being fought.
   String? fighting;
 
@@ -333,6 +387,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     m.gateLeft = 0;
     m.marks.clear();
     m.gateFlash = 0;
+    m.lashes.clear();
+    m.attackCd = 0;
+    m.waves.clear();
+    m.slam = -1;
+    m.rot.clear();
     m.benchPick = 0;
     m.cloisterOpen = false;
     m.lustral = 0;
@@ -1254,7 +1313,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       hp: _kPlagueBarHp,
       speed: 54,
       damage: 14,
-      radius: 26,
+      radius: _kPlagueRadius,
       steers: true,
     );
     if (!ok) return;
@@ -1325,6 +1384,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       }
     }
     if (m.gateFlash > 0) m.gateFlash = max(0.0, m.gateFlash - dt / 0.8);
+    _tickPlagueAttacks(potion, body, dt);
     if (!m.gated) return;
 
     // ── GATED ──
@@ -1346,6 +1406,299 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       _shake = 5.0;
       speakConsequence('It closes over. The bar comes back.', 3.2);
     }
+  }
+
+  /// THE ATTACKS, DRAWN. Tendrils out of the body, rings off it, a slam
+  /// telegraphed where it is going to land, rot left on the floor.
+  ///
+  /// A telegraph is not decoration here: the slam is the only attack that
+  /// can be dodged by moving, so the ring on the ground has to be up long
+  /// before the hit — and the rot has to be visible or standing in it is an
+  /// unexplained drain.
+  void _drawPlagueAttacks(
+    Canvas canvas,
+    PlaguePotion potion,
+    CosmicSurvivalEnemy body,
+    Color hue,
+  ) {
+    final m = monastery;
+
+    // ── ROT UNDERFOOT, first, so everything else sits over it.
+    for (final (at, life) in m.rot) {
+      final k = (life / _kRotSeconds).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        at,
+        _kRotRadius * (0.7 + 0.3 * k),
+        Paint()..color = hue.withValues(alpha: 0.16 * k),
+      );
+      for (var i = 0; i < 6; i++) {
+        final a = i * 2 * pi / 6 + at.dx * 0.01;
+        canvas.drawLine(
+          at,
+          at + Offset(cos(a), sin(a) * 0.55) * (_kRotRadius * 0.85 * k),
+          Paint()
+            ..strokeWidth = 2.2 * k
+            ..strokeCap = StrokeCap.round
+            ..color = Color.lerp(
+              hue,
+              const Color(0xFF241C12),
+              0.5,
+            )!.withValues(alpha: 0.7 * k),
+        );
+      }
+    }
+
+    // ── RINGS OFF IT. Breath's sound, going out.
+    for (final r in m.waves) {
+      final k = (r / _kWaveReach).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        body.position,
+        r,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 9 * (1 - k)
+          ..color = hue.withValues(alpha: 0.42 * (1 - k)),
+      );
+      canvas.drawCircle(
+        body.position,
+        r * 0.94,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5 * (1 - k)
+          ..color = Colors.white.withValues(alpha: 0.20 * (1 - k)),
+      );
+    }
+
+    // ── THE SLAM, telegraphed. A ring that closes on the spot it will hit.
+    if (m.slam >= 0) {
+      final k = 1 - m.slam; // 0 → 1 as it winds up
+      canvas.drawCircle(
+        m.slamAt,
+        _kSlamRadius,
+        Paint()..color = hue.withValues(alpha: 0.10 + 0.14 * k),
+      );
+      canvas.drawCircle(
+        m.slamAt,
+        _kSlamRadius,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = hue.withValues(alpha: 0.6),
+      );
+      // The closing ring is the clock: when it reaches the edge, it lands.
+      canvas.drawCircle(
+        m.slamAt,
+        _kSlamRadius * k,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4
+          ..color = Colors.white.withValues(alpha: 0.55),
+      );
+    }
+
+    // ── TENDRILS. Out fast, held, drawn back.
+    for (final l in m.lashes) {
+      final e = l.extension.clamp(0.0, 1.0);
+      if (e <= 0) continue;
+      final tip = l.tip;
+      final paint = Paint()
+        ..strokeCap = StrokeCap.round
+        ..color = hue.withValues(alpha: 0.9);
+      if (l.creep) {
+        // Decay's crawl along the floor: jointed, and it wanders.
+        final path = Path()..moveTo(body.position.dx, body.position.dy);
+        final span = tip - body.position;
+        final side = Offset(-span.dy, span.dx);
+        for (var k = 1; k <= 5; k++) {
+          final u = k / 5;
+          final wobble = sin(u * 5.4 + l.from.dx * 0.05) * 0.10 * (1 - u);
+          final at = body.position + span * u + side * wobble;
+          path.lineTo(at.dx, at.dy);
+        }
+        canvas.drawPath(
+          path,
+          paint
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 5.0 * (1 - e * 0.35),
+        );
+      } else {
+        canvas.drawLine(
+          body.position,
+          tip,
+          paint..strokeWidth = 6.0 * (1 - e * 0.3),
+        );
+      }
+      // The barb on the end, at its widest when it lands.
+      canvas.drawCircle(
+        tip,
+        (l.t >= 1 && l.t < 1.35 ? 9.0 : 5.0) * (0.6 + 0.4 * e),
+        Paint()..color = hue,
+      );
+      if (l.t >= 1 && l.t < 1.3) {
+        canvas.drawCircle(
+          tip,
+          _kLashBite * (1 - (l.t - 1) / 0.3),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = Colors.white.withValues(alpha: 0.4),
+        );
+      }
+    }
+  }
+
+  /// WHAT A PLAGUE DOES TO A BODY. Damage as a FRACTION of the victim's
+  /// pool, the way the dungeon's contact damage already works — survival's
+  /// flat numbers round to nothing against a dungeon companion.
+  void _plagueStrike(Offset at, double radius, double fraction) {
+    final n = min(creatures.length, combatCompanions.length);
+    for (var i = 0; i < n; i++) {
+      final c = creatures[i];
+      if (!c.alive) continue;
+      if ((c.position - at).distance > radius) continue;
+      final comp = combatCompanions[i];
+      if (comp.invincibleTimer > 0) continue;
+      var dmg = max(1, (comp.maxHp * fraction).round());
+      if (comp.shieldHp > 0) {
+        final absorbed = min(comp.shieldHp, dmg);
+        comp.shieldHp -= absorbed;
+        dmg -= absorbed;
+      }
+      if (dmg > 0) {
+        comp.currentHp = (comp.currentHp - dmg).clamp(0, comp.maxHp);
+      }
+    }
+  }
+
+  /// THE PLAGUE FIGHTS BACK, in its own way.
+  ///
+  /// It stood there and was hit. A boss with three bars and three mechanics
+  /// still needs a reason to be dangerous between them — and each of these
+  /// is the behaviour its ward already had, so the thing you fight moves the
+  /// way the thing you woke moved.
+  void _tickPlagueAttacks(
+    PlaguePotion potion,
+    CosmicSurvivalEnemy body,
+    double dt,
+  ) {
+    final m = monastery;
+
+    // ── TENDRILS, always. They reach for whoever is nearest.
+    for (final l in m.lashes) {
+      l.t += dt / (l.creep ? _kLashSeconds * 1.5 : _kLashSeconds);
+      if (!l.bit && l.t >= 1) {
+        l.bit = true;
+        _plagueStrike(l.to, _kLashBite, _kLashDamage);
+        _spawnAlchemyBurst(
+          l.to,
+          producedElement: potion.first,
+          particleCount: 8,
+          intensity: 0.6,
+        );
+      }
+    }
+    m.lashes.removeWhere((l) => l.t >= 2);
+
+    // ── Breath's rings travel out and keep travelling.
+    for (var i = 0; i < m.waves.length; i++) {
+      final was = m.waves[i];
+      final now = was + _kWaveSpeed * dt;
+      m.waves[i] = now;
+      // The band between last frame and this one is what you were standing
+      // in — checking a radius alone lets a fast ring step over a body.
+      final n = min(creatures.length, combatCompanions.length);
+      for (var k = 0; k < n; k++) {
+        final d = (creatures[k].position - body.position).distance;
+        if (d >= was && d < now) {
+          _plagueStrike(creatures[k].position, 1, _kWaveDamage);
+        }
+      }
+    }
+    m.waves.removeWhere((r) => r > _kWaveReach);
+
+    // ── Blood's slam lands when the wind-up runs out.
+    if (m.slam >= 0) {
+      m.slam -= dt / _kSlamSeconds;
+      if (m.slam <= 0) {
+        m.slam = -1;
+        _plagueStrike(m.slamAt, _kSlamRadius, _kSlamDamage);
+        _shake = 6.0;
+        _spawnAlchemyBurst(
+          m.slamAt,
+          producedElement: potion.second,
+          unstable: true,
+          particleCount: 22,
+          intensity: 1.1,
+        );
+      }
+    }
+
+    // ── Decay's rot sits on the floor and eats whoever stands in it.
+    for (var i = 0; i < m.rot.length; i++) {
+      final (at, life) = m.rot[i];
+      m.rot[i] = (at, life - dt);
+      _plagueStrike(at, _kRotRadius, _kRotDamage * dt);
+    }
+    m.rot.removeWhere((e) => e.$2 <= 0);
+
+    // ── And the cadence that starts all of it.
+    m.attackCd -= dt;
+    if (m.attackCd > 0) return;
+    m.attackCd = m.gated ? _kAttackEvery * 1.6 : _kAttackEvery;
+
+    final target = _nearestCreature(body.position) ?? body.position;
+    final toward = atan2(
+      target.dy - body.position.dy,
+      target.dx - body.position.dx,
+    );
+    // REACH TO WHERE THEY ARE, not to a fixed length. A tendril that always
+    // threw itself 150px whether you were at 50 or 300 bit empty floor every
+    // time — it looked like an attack and was one only by accident.
+    final want = (target - body.position).distance;
+    final reach = want.clamp(_kPlagueRadius + 24, _kLashReach).toDouble();
+    Offset aim(double offsetAngle) =>
+        body.position +
+        Offset(cos(toward + offsetAngle), sin(toward + offsetAngle)) * reach;
+    switch (potion.pot) {
+      case CauldronReaction.bloom:
+        // IT RINGS. Three tendrils and a wave of sound off the body.
+        for (var i = 0; i < 3; i++) {
+          m.lashes.add(
+            PlagueLash(from: body.position, to: aim((i - 1) * 0.32)),
+          );
+        }
+        m.waves.add(_kPlagueRadius);
+      case CauldronReaction.climb:
+        // IT THROBS, THEN DROPS. The slam is telegraphed where you are
+        // standing now, so moving is the answer to it.
+        m.slam = 1.0;
+        m.slamAt = target;
+        m.lashes.add(PlagueLash(from: body.position, to: aim(0)));
+      case CauldronReaction.rot:
+        // IT CREEPS. More tendrils, slower, and they leave the floor rotten
+        // where they land.
+        for (var i = 0; i < 5; i++) {
+          final to = aim((i - 2) * 0.3);
+          m.lashes.add(PlagueLash(from: body.position, to: to, creep: true));
+          m.rot.add((to, _kRotSeconds));
+        }
+      case CauldronReaction.pure:
+        break;
+    }
+  }
+
+  Offset? _nearestCreature(Offset from) {
+    Offset? best;
+    var bd = double.infinity;
+    for (final c in creatures) {
+      if (!c.alive) continue;
+      final d = (c.position - from).distance;
+      if (d < bd) {
+        bd = d;
+        best = c.position;
+      }
+    }
+    return best;
   }
 
   /// A bar has run out: it shuts, and its own mechanic goes on the floor.
@@ -2471,6 +2824,21 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   }
 
   void _renderStrains(Canvas canvas, DungeonRoom room) {
+    // THE SLEEPER, on the heart, drawn before its ward's ambience. This is
+    // the thing that will crawl out and the thing that will be fought — the
+    // same painter, green because it is not awake yet, and small because it
+    // is asleep.
+    final ward = room.ward;
+    if (ward != null && monastery.triage.opened.contains(ward.id)) {
+      for (final p in kPlaguePotions) {
+        if (p.wardId != ward.id) continue;
+        if (monastery.woken.contains(p.id) || monastery.slain.contains(p.id)) {
+          break;
+        }
+        _drawPlagueForm(canvas, ward.heart, _kPlagueRadius * 0.8, _venomLive);
+        break;
+      }
+    }
     final live = _liveStrains(room);
     if (live.isEmpty) return;
     final b = room.bounds;
@@ -2656,6 +3024,34 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   /// A pool wants a body held in it, not brushed past.
   static const double _kPoolFillSeconds = 1.4;
+
+  /// How often the plague does something to you.
+  static const double _kAttackEvery = 2.6;
+
+  /// A tendril: how far, how long, how big the bite and how much it takes.
+  static const double _kLashReach = 150.0;
+  static const double _kLashSeconds = 0.42;
+
+  /// The bite at the tip. Wide enough that a FAN of tendrils can all land
+  /// on a close target — at a narrower bite only the middle one of three
+  /// could ever connect, and the outer two were decoration.
+  static const double _kLashBite = 40.0;
+  static const double _kLashDamage = 0.05;
+
+  /// Breath's rings.
+  static const double _kWaveSpeed = 210.0;
+  static const double _kWaveReach = 420.0;
+  static const double _kWaveDamage = 0.05;
+
+  /// Blood's slam.
+  static const double _kSlamSeconds = 1.1;
+  static const double _kSlamRadius = 78.0;
+  static const double _kSlamDamage = 0.09;
+
+  /// Decay's rot on the floor.
+  static const double _kRotSeconds = 5.0;
+  static const double _kRotRadius = 34.0;
+  static const double _kRotDamage = 0.05;
 
   /// How fast a spore-pod drifts home.
   static const double _kPodSpeed = 44.0;
@@ -3018,27 +3414,92 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   }
 
   /// The head of the thing: a knot with legs feeling ahead of it.
+  /// The crawling plague — the same form, sized by how far along it is.
   void _drawInvadeHead(Canvas canvas, Offset head, Color col, [double s = 1]) {
+    _drawPlagueForm(canvas, head, _kPlagueRadius * s / _kPlagueScale, col);
+  }
+
+  /// THE PLAGUE ITSELF. One painter, three places: asleep on the ward's
+  /// heart, crawling down the cloister, and standing in front of you as the
+  /// thing you are fighting.
+  ///
+  /// This is the whole point of the arrival and it was wrong twice over. The
+  /// ward drew a mote-ring bloom, the crawl drew a generic tendril blob, and
+  /// the boss drew that blob bigger — three different creatures playing one
+  /// part. Now the only things that change between the three are RADIUS and
+  /// COLOUR: green while it sleeps, its own colour once it is awake, and the
+  /// same shape throughout so the thing you fight is visibly the thing you
+  /// woke.
+  void _drawPlagueForm(Canvas canvas, Offset at, double r, Color col) {
+    final beat = 0.5 + 0.5 * sin(monastery.clock * 1.6);
+
+    // The haze it sits in.
+    canvas.drawCircle(
+      at,
+      r * (2.0 + 0.18 * beat),
+      Paint()..color = col.withValues(alpha: 0.10),
+    );
+
+    // Tendrils, reaching and withdrawing.
     for (var i = 0; i < 9; i++) {
-      final a = i * 2 * pi / 9 + _time * 0.9;
+      final a = i * 2 * pi / 9 + monastery.clock * 0.5;
+      final reach = r * (1.35 + 0.55 * sin(monastery.clock * 2.4 + i));
       canvas.drawLine(
-        head,
-        head + Offset(cos(a), sin(a)) * ((14 + 7 * sin(_time * 5 + i)) * s),
+        at,
+        at + Offset(cos(a), sin(a)) * reach,
         Paint()
-          ..strokeWidth = 2.4 * s
+          ..strokeWidth = max(1.0, r * 0.10)
           ..strokeCap = StrokeCap.round
           ..color = col.withValues(alpha: 0.55),
       );
     }
+
+    // Concentric mote rings, counter-turning — the signature of this planet,
+    // and the thing the wards have always shown.
+    for (var ring = 0; ring < 3; ring++) {
+      final rr = r * (0.55 + 0.32 * ring) * (0.94 + 0.10 * beat);
+      final motes = 9 + ring * 5;
+      final paint = Paint()..color = col.withValues(alpha: 0.62 - 0.14 * ring);
+      for (var i = 0; i < motes; i++) {
+        final ang =
+            (i / motes) * 2 * pi +
+            monastery.clock * 0.45 * (ring.isEven ? 1 : -1);
+        canvas.drawCircle(
+          at + Offset(cos(ang), sin(ang)) * rr,
+          max(1.2, r * (0.10 + 0.022 * ring)),
+          paint,
+        );
+      }
+    }
+
+    // The core: dark, with the colour banked behind it.
     canvas.drawCircle(
-      head,
-      11 * s,
-      Paint()..color = col.withValues(alpha: 0.85),
+      at,
+      r * 0.62,
+      Paint()..color = col.withValues(alpha: 0.9),
+    );
+    canvas.drawCircle(
+      at,
+      r * 0.44,
+      Paint()..color = Color.lerp(col, const Color(0xFF05070A), 0.72)!,
+    );
+    canvas.drawCircle(
+      at,
+      r * 0.62,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = max(1.0, r * 0.07)
+        ..color = col.withValues(alpha: 0.95),
     );
     if (_fx.ready) {
-      drawGlow(canvas, _fx.glow!, head, 46 * s, col.withValues(alpha: 0.34));
+      drawGlow(canvas, _fx.glow!, at, r * 2.4, col.withValues(alpha: 0.30));
     }
   }
+
+  /// Full-size radius of a plague body. The crawl arrives at this, the
+  /// fight is drawn at this, and the enemy's own hitbox is set from it — one
+  /// number, so what you can see and what you can hit cannot drift apart.
+  static const double _kPlagueRadius = 34.0;
 
   /// WHAT COLOUR THIS PLAGUE IS ONCE IT IS AWAKE.
   ///
@@ -4125,24 +4586,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final hit = body.hitFlash > 0
         ? Color.lerp(hue, Colors.white, body.hitFlash.clamp(0.0, 1.0))!
         : hue;
-    _drawInvadeHead(canvas, body.position, hit, _kPlagueScale);
-    // Bulk under the tendrils, so it has weight the crawl's head did not.
-    canvas.drawCircle(
-      body.position,
-      body.radius * 0.9,
-      Paint()..color = Color.lerp(hue, const Color(0xFF05070A), 0.45)!,
-    );
-    canvas.drawCircle(
-      body.position,
-      body.radius * 0.9,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = hit.withValues(alpha: 0.9),
-    );
+    _drawPlagueAttacks(canvas, potion, body, hue);
+    _drawPlagueForm(canvas, body.position, _kPlagueRadius, hit);
     // The bar it is on, read straight off the body.
     final frac = (body.hp / body.maxHp).clamp(0.0, 1.0);
-    final barAt = body.position - const Offset(0, 44);
+    final barAt = body.position - const Offset(0, 58);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromCenter(center: barAt, width: 68, height: 7),
@@ -4158,7 +4606,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       Paint()..color = hue,
     );
 
-    final head = body.position - const Offset(0, 56);
+    final head = body.position - const Offset(0, 70);
 
     // ── THREE PIPS ── how much of the thing is actually left, which its own
     // health bar cannot say: that bar is one third of a plague.
@@ -4192,7 +4640,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       final shell = 0.5 + 0.5 * sin(_time * 4.0);
       canvas.drawCircle(
         body.position,
-        34 + 3 * shell,
+        _kPlagueRadius + 8 + 3 * shell,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 4
@@ -4200,12 +4648,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       );
       canvas.drawCircle(
         body.position,
-        34,
+        _kPlagueRadius + 8,
         Paint()..color = const Color(0xFF0B0D0A).withValues(alpha: 0.45),
       );
       final left = (m.gateLeft / _kGateSeconds).clamp(0.0, 1.0);
       canvas.drawArc(
-        Rect.fromCircle(center: body.position, radius: 42),
+        Rect.fromCircle(center: body.position, radius: _kPlagueRadius + 16),
         -pi / 2,
         2 * pi * left,
         false,

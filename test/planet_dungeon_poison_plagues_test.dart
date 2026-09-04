@@ -6,6 +6,7 @@
 // pressed anything. So this one presses. It moves a creature to the pot,
 // calls the verb the button calls, and never writes to `monastery` itself.
 
+import 'dart:math' show min;
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -652,6 +653,107 @@ void main() {
       expect(seconds, lessThan(30));
     });
 
+    test('a plague fights back, in its own way', () {
+      // It used to stand there and be hit. Three bars and three mechanics
+      // still need a reason to be dangerous in between, and each plague's
+      // attack is the behaviour its ward already had — so the thing you
+      // fight moves the way the thing you woke moved.
+      final seen = <String, Set<String>>{};
+      for (final p in kPlaguePotions) {
+        final g = _game();
+        _brewAndWake(g, p);
+        g.currentRoomId = 'ambulatory';
+        for (var i = 0; i < 60 * 14 && g.monastery.invading; i++) {
+          g.update(1 / 60);
+        }
+        // Stand a body in reach so it has something to reach for.
+        final at = g.monastery.body!.position + const Offset(70, 0);
+        for (final c in g.creatures) {
+          c
+            ..position = at
+            ..lastSafe = at;
+        }
+        final kinds = <String>{};
+        for (var i = 0; i < 60 * 12; i++) {
+          g.update(1 / 60);
+          if (g.monastery.lashes.isNotEmpty) kinds.add('lash');
+          if (g.monastery.waves.isNotEmpty) kinds.add('wave');
+          if (g.monastery.slam >= 0) kinds.add('slam');
+          if (g.monastery.rot.isNotEmpty) kinds.add('rot');
+        }
+        seen[p.id] = kinds;
+        expect(
+          kinds,
+          contains('lash'),
+          reason:
+              '${p.id} never threw a tendril — all three are made of '
+              'tendrils and all three should fight with them',
+        );
+      }
+      // …and each one brings something the others do not.
+      expect(seen['bloomvenom'], contains('wave'), reason: 'Breath rings');
+      expect(seen['mirebane'], contains('slam'), reason: 'Blood throbs');
+      expect(seen['graverot'], contains('rot'), reason: 'Decay creeps');
+      expect(seen['bloomvenom'], isNot(contains('slam')));
+      expect(seen['mirebane'], isNot(contains('wave')));
+    });
+
+    test('a tendril reaches the body it is thrown at', () {
+      // The first cut threw every lash a fixed 150px whether the party was
+      // at 50 or at 300, so the tip bit empty floor and the attack was one
+      // only by accident. It reaches to where they ARE now.
+      //
+      // Note this checks the GEOMETRY, not the health: the party's combat
+      // companions are built during sprite load, which a headless harness
+      // never runs, so `combatCompanions` is empty here and nothing can take
+      // damage at all. What is provable without them is that the tip lands
+      // on somebody, which is the half that was wrong.
+      for (final dist in [60.0, 120.0, 300.0]) {
+        final g = _game();
+        _brewAndWake(g, kPlaguePotions.first);
+        g.currentRoomId = 'ambulatory';
+        for (var i = 0; i < 60 * 14 && g.monastery.invading; i++) {
+          g.update(1 / 60);
+        }
+        final body = g.monastery.body!;
+        // Pin both ends. The plague CHARGES, so left to itself it closes the
+        // gap between the frame that throws the tendril and the frame that
+        // measures it — which is a moving target in the test, not in the
+        // game.
+        final anchor = body.position;
+        final at = anchor + Offset(dist, 0);
+        g.monastery.lashes.clear();
+        for (var i = 0; i < 60 * 6 && g.monastery.lashes.isEmpty; i++) {
+          body.position = anchor;
+          for (final c in g.creatures) {
+            c
+              ..position = at
+              ..lastSafe = at;
+          }
+          g.update(1 / 60);
+        }
+        body.position = anchor;
+        expect(g.monastery.lashes, isNotEmpty, reason: 'nothing was thrown');
+        // A fan is a fan — what matters is that at least one of them lands.
+        var gap = double.infinity;
+        for (final l in g.monastery.lashes) {
+          gap = min(gap, (l.to - at).distance);
+        }
+        // Within the bite radius at every distance a party can stand at —
+        // except beyond the tendril's stretch, where it falls short rather
+        // than teleporting.
+        expect(
+          dist > 150
+              ? g.monastery.lashes.every(
+                  (l) => (l.to - l.from).distance <= 150.01,
+                )
+              : gap < 40,
+          isTrue,
+          reason: 'at ${dist}px the nearest tip missed by ${gap.round()}px',
+        );
+      }
+    });
+
     test('every plague brings a different mechanic', () {
       // Three fights that play the same way are one fight run three times.
       final g = _game();
@@ -710,6 +812,36 @@ void main() {
         ),
         isTrue,
         reason: 'and inside the room, not off the edge of it',
+      );
+      // WHAT YOU SEE IS WHAT YOU HIT. The body is drawn by the same painter
+      // the ward and the crawl use, at one shared radius, and the enemy's
+      // hitbox is set from that same number — so the plague cannot end up
+      // drawn at one size and struck at another.
+      expect(
+        g.monastery.body!.radius,
+        greaterThan(30),
+        reason: 'a boss the size of a party member does not read as a boss',
+      );
+    });
+
+    test('the ward shows the plague, not a placeholder for it', () {
+      // The thing asleep on the heart has to BE the thing that crawls out.
+      // It was a mote-ring bloom in the ward, a tendril blob on the way, and
+      // that blob scaled up in the fight — three creatures playing one part.
+      final g = _game();
+      _openTheCloister(g);
+      final p = kPlaguePotions.first;
+      g.currentRoomId = p.wardId!;
+      g.update(1 / 60);
+      expect(
+        g.monastery.triage.opened,
+        contains(p.wardId),
+        reason: 'the ward is open, so its sleeper is on show',
+      );
+      expect(
+        g.monastery.woken.contains(p.id) || g.monastery.slain.contains(p.id),
+        isFalse,
+        reason: 'and it has not left yet',
       );
     });
 

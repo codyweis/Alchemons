@@ -8,6 +8,7 @@
 // is the whole reason this file exists.
 
 import 'dart:io';
+import 'dart:math' show cos, sin;
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -206,6 +207,18 @@ void main() {
         ..carriedPotion = null
         ..bottled.clear();
 
+      // THE SLEEPER AND THE BOSS, side by side in the shots: the same shape
+      // in the ward and in the corridor, differing only in size and colour.
+      // Three creatures playing one part is what this replaced.
+      for (final p in kPlaguePotions) {
+        g.monastery.triage.open(p.wardId!);
+        expect(
+          await _shot(g, p.wardId!, 'p_sleeper_${p.id}'),
+          isNonZero,
+          reason: '${p.wardId} shows nothing asleep in it',
+        );
+      }
+
       // THE BODY, one shot per plague. Three plagues that arrive the same
       // colour are one plague, and the body has to look like the thing that
       // crawled in rather than the shared Poison blob.
@@ -235,6 +248,71 @@ void main() {
         kPlaguePotions.length,
         reason: 'two plagues that look alike in the room are one plague',
       );
+
+      // MID-ATTACK, one per plague: tendrils out, and each one's signature
+      // over the top of them.
+      final atk = <int>{};
+      for (final p in kPlaguePotions) {
+        final centre = poisonLayout.rooms['ambulatory']!.bounds.center;
+        atk.add(
+          await _shot(
+            g,
+            'ambulatory',
+            'p_attack_${p.id}',
+            at: centre,
+            poseAfterTick: () {
+              final b = _dummyBody(centre);
+              g.monastery
+                ..fighting = p.id
+                ..body = b
+                ..bars = 3
+                ..gated = false
+                ..marks.clear()
+                ..lashes.clear()
+                ..waves.clear()
+                ..rot.clear()
+                ..slam = -1;
+              for (var i = 0; i < 3; i++) {
+                g.monastery.lashes.add(
+                  PlagueLash(
+                    from: centre,
+                    to: centre + Offset(120 * cos(i * 0.4), 120 * sin(i * 0.4)),
+                    creep: p.pot == CauldronReaction.rot,
+                  )..t = 0.85,
+                );
+              }
+              switch (p.pot) {
+                case CauldronReaction.bloom:
+                  g.monastery.waves.addAll([90, 190, 300]);
+                case CauldronReaction.climb:
+                  g.monastery
+                    ..slam = 0.35
+                    ..slamAt = centre + const Offset(120, 40);
+                case CauldronReaction.rot:
+                  for (var i = 0; i < 3; i++) {
+                    g.monastery.rot.add((
+                      centre + Offset(90.0 * (i - 1), 70),
+                      4.0,
+                    ));
+                  }
+                case CauldronReaction.pure:
+                  break;
+              }
+            },
+          ),
+        );
+      }
+      expect(
+        atk.length,
+        kPlaguePotions.length,
+        reason: 'three plagues that attack alike are one plague',
+      );
+      g.monastery
+        ..fighting = null
+        ..lashes.clear()
+        ..waves.clear()
+        ..rot.clear()
+        ..slam = -1;
 
       // EVERY GATE, MID-MECHANIC. Three plagues that all put the same thing
       // on the floor would be one fight run three times, and a bulb that
