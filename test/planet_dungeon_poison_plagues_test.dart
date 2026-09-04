@@ -616,6 +616,65 @@ void main() {
       expect(g.monastery.fighting, isNotNull);
     });
 
+    test('Decay puts out a FIELD of bulbs, and it is walkable', () {
+      final g = _game();
+      final decay = kPlaguePotions.firstWhere((p) => p.id == 'graverot');
+      _brewAndWake(g, decay);
+      g.currentRoomId = 'ambulatory';
+      for (var i = 0; i < 60 * 14 && g.monastery.invading; i++) {
+        g.update(1 / 60);
+      }
+      // Park everyone out of the way so nothing pops by accident.
+      for (final c in g.creatures) {
+        c
+          ..position = const Offset(80, 80)
+          ..lastSafe = const Offset(80, 80);
+      }
+      _emptyTheBar(g);
+      expect(g.monastery.gated, isTrue);
+      final marks = g.monastery.marks;
+      expect(
+        marks.length,
+        greaterThanOrEqualTo(8),
+        reason: 'three bulbs was three steps and over in a moment',
+      );
+
+      // ── IT HAS TO BE WALKABLE. Nearest-neighbour route from the body,
+      // shared between three alchemons, against the gate's own clock and the
+      // game's own walking speed.
+      const speed = 187.5; // PlanetDungeonGame._speed
+      var at = g.monastery.body!.position;
+      final todo = [...marks.map((m) => m.at)];
+      var route = 0.0;
+      while (todo.isNotEmpty) {
+        var best = 0;
+        for (var i = 1; i < todo.length; i++) {
+          if ((todo[i] - at).distance < (todo[best] - at).distance) best = i;
+        }
+        route += (todo[best] - at).distance;
+        at = todo.removeAt(best);
+      }
+      final walkSeconds = route / speed / g.creatures.length;
+      expect(
+        walkSeconds,
+        lessThan(g.monastery.gateLeft * 0.7),
+        reason:
+            'the field is ${route.round()}px of walking — '
+            '${walkSeconds.toStringAsFixed(1)}s split three ways against a '
+            '${g.monastery.gateLeft.toStringAsFixed(1)}s gate, which leaves '
+            'no room to think and makes this a race',
+      );
+
+      // …and every bulb is inside the room, not clamped onto a wall.
+      for (final m in marks) {
+        expect(
+          poisonLayout.rooms['ambulatory']!.bounds.deflate(40).contains(m.at),
+          isTrue,
+          reason: 'a bulb at ${m.at} is off the floor',
+        );
+      }
+    });
+
     test('the gate is long enough to think in', () {
       // The standing rule on this game is that a puzzle rewards thinking and
       // never reflexes. A heal-back gate is the one place that rule is under

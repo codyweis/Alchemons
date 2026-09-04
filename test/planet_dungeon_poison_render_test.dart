@@ -8,7 +8,7 @@
 // is the whole reason this file exists.
 
 import 'dart:io';
-import 'dart:math' show cos, sin;
+import 'dart:math' show cos, pi, sin;
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -375,6 +375,19 @@ void main() {
                 g.monastery.marks.add(
                   PlagueMark(at: centre + Offset((i - 1) * 130, 60)),
                 );
+              }
+              // Decay's is a FIELD; the other two are three.
+              if (p.pot == CauldronReaction.rot) {
+                g.monastery.marks.clear();
+                for (var i = 0; i < 10; i++) {
+                  final a = (i / 10) * 2 * pi + (i.isEven ? 0.0 : 0.31);
+                  final rad = i.isEven ? 105.0 : 215.0;
+                  g.monastery.marks.add(
+                    PlagueMark(
+                      at: centre + Offset(cos(a) * rad, sin(a) * rad * 0.62),
+                    ),
+                  );
+                }
               }
               g.monastery.marks[0].fill = 0.5;
             },

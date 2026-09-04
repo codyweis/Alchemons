@@ -1957,7 +1957,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (walk == null) return;
     m
       ..gated = true
-      ..gateLeft = _kGateSeconds
+      ..gateLeft = _gateSecondsFor(potion.pot)
       ..gateFlash = 1.0
       ..marks.clear();
     _shake = 6.0;
@@ -1965,10 +1965,18 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final b = walk.bounds.deflate(60);
     switch (potion.pot) {
       case CauldronReaction.rot:
-        // STAND ON THEM. Bulbs come up out of the floor around it.
-        for (var i = 0; i < _kGateMarks; i++) {
-          final a = -pi / 2 + (i - (_kGateMarks - 1) / 2) * 0.9;
-          final at = body.position + Offset(cos(a), sin(a) * 0.65) * 120;
+        // STAND ON THEM. A field of bulbs comes up out of the floor all
+        // round it — two rings at different radii so the route is a route
+        // and not a circle, and deterministic so it is the same field every
+        // time this plague does it.
+        for (var i = 0; i < _kRotBulbs; i++) {
+          final ring = i.isEven ? 0 : 1;
+          final a =
+              (i / _kRotBulbs) * 2 * pi +
+              (ring == 0 ? 0.0 : pi / _kRotBulbs) +
+              body.position.dx * 0.001;
+          final rad = ring == 0 ? 105.0 : 215.0;
+          final at = body.position + Offset(cos(a), sin(a) * 0.62) * rad;
           m.marks.add(PlagueMark(at: _clampInto(at, b)));
         }
       case CauldronReaction.bloom:
@@ -3213,8 +3221,25 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// ignoring the mechanic entirely does not work.
   static const double _kGateSeconds = 14.0;
 
-  /// Bulbs, pods or pools per gate.
+  /// Bulbs, pods or pools per gate — Decay puts out a FIELD of them.
+  ///
+  /// Three bulbs was three steps and over in a moment; the mechanic is
+  /// supposed to be a route you plan with three bodies, not a formality. The
+  /// other two stay at three, because a pod has to be intercepted on the
+  /// move and a pool has to be stood in and held — those are expensive per
+  /// mark in a way a bulb is not.
+  static const int _kRotBulbs = 10;
   static const int _kGateMarks = 3;
+
+  int _gateMarkCount(CauldronReaction kind) =>
+      kind == CauldronReaction.rot ? _kRotBulbs : _kGateMarks;
+
+  /// A gate has to be long enough to WALK, and a field of ten bulbs is a
+  /// longer walk than three pools. Measured against the cloister rather than
+  /// guessed: the base is the same fourteen seconds, plus a second for every
+  /// mark past the third.
+  double _gateSecondsFor(CauldronReaction kind) =>
+      _kGateSeconds + max(0, _gateMarkCount(kind) - _kGateMarks) * 1.0;
 
   /// How close a body has to be to work one.
   static const double _kMarkReach = 34.0;
@@ -4922,7 +4947,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         _kPlagueRadius + 8,
         Paint()..color = const Color(0xFF0B0D0A).withValues(alpha: 0.45),
       );
-      final left = (m.gateLeft / _kGateSeconds).clamp(0.0, 1.0);
+      final left = (m.gateLeft / _gateSecondsFor(potion.pot)).clamp(0.0, 1.0);
       canvas.drawArc(
         Rect.fromCircle(center: body.position, radius: _kPlagueRadius + 16),
         -pi / 2,
