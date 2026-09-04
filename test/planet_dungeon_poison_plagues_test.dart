@@ -17,7 +17,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 const _els = ['Poison', 'Plant', 'Mud'];
 
-PlanetDungeonGame _game({List<int> stars = const []}) {
+PlanetDungeonGame _game({
+  List<int> stars = const [],
+  int clearedGuardians = 0,
+}) {
   final party = [
     for (final e in _els)
       CosmicPartyMember(
@@ -47,6 +50,7 @@ PlanetDungeonGame _game({List<int> stars = const []}) {
     onStarEarned: (_) {},
     onPlayerDown: () {},
     onChanged: () {},
+    clearedGuardianCount: clearedGuardians,
   );
   g.onGameResize(Vector2(900, 600));
   for (final m in party) {
@@ -911,6 +915,64 @@ void main() {
         g.update(1 / 60);
       }
       expect(g.monastery.unfurl, 0);
+    });
+
+    test('the crawl hands over to the unfurl without a jump', () {
+      // Reported from play: it disappeared at the end of the crawl. The
+      // crawl expanded to full span on the way across and the unfurl then
+      // started again from nearly nothing, so the plague snapped to full
+      // size, blinked out, and grew back. The two beats have to meet.
+      final g = _game();
+      _brewAndWake(g, kPlaguePotions.first);
+      g.currentRoomId = 'ambulatory';
+      var lastCrawl = 0.0;
+      while (g.monastery.invading) {
+        g.update(1 / 60);
+        if (g.monastery.invading) {
+          lastCrawl = g.invadeScaleAt(g.monastery.invade);
+        }
+      }
+      expect(g.monastery.unfurl, greaterThan(0.9), reason: 'it lands closed');
+      final firstOpen = g.plagueOpenFraction();
+      // The size the crawl ended on and the size the unfurl starts from,
+      // both as a fraction of full span.
+      expect(
+        (firstOpen - lastCrawl / 2.4).abs(),
+        lessThan(0.06),
+        reason:
+            'the crawl ends at ${(lastCrawl / 2.4).toStringAsFixed(2)} of '
+            'full span and the unfurl begins at '
+            '${firstOpen.toStringAsFixed(2)} — that gap is the blink',
+      );
+      // …and it does end up all the way open.
+      for (var i = 0; i < 60 * 4; i++) {
+        g.update(1 / 60);
+      }
+      expect(g.plagueOpenFraction(), closeTo(1.0, 0.01));
+    });
+
+    test('a plague scales with the campaign, like a guardian', () {
+      // A plague on the seventeenth dungeon has to be a boss, not the speed
+      // bump it was on the first.
+      double barOf(int cleared) {
+        final g = _game(clearedGuardians: cleared);
+        _brewAndWake(g, kPlaguePotions.first);
+        g.currentRoomId = 'ambulatory';
+        for (var i = 0; i < 60 * 14 && g.monastery.invading; i++) {
+          g.update(1 / 60);
+        }
+        return g.monastery.body!.maxHp;
+      }
+
+      final fresh = barOf(0);
+      final late = barOf(16);
+      expect(
+        late,
+        greaterThan(fresh * 2),
+        reason:
+            'a bar is ${fresh.round()} fresh and ${late.round()} at the end '
+            'of the campaign — that is not a curve',
+      );
     });
 
     test('the crawl is slow enough to watch', () {

@@ -1398,9 +1398,14 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       conduct: EnemyConduct.charge,
       element: 'Poison',
       from: at,
-      hp: _kPlagueBarHp,
+      // A BAR SCALES WITH THE CAMPAIGN, like a guardian does.
+      // `spawnDungeonEnemy` already puts the wave curve and a cleared-count
+      // multiplier on whatever it is handed; `progressHpMul` is the boss
+      // curve on top of that, so a plague on the seventeenth dungeon is a
+      // boss rather than a speed bump.
+      hp: _kPlagueBarHp * progressHpMul,
       speed: 54,
-      damage: 14,
+      damage: 14 * progressDmgMul,
       radius: _kPlagueRadius,
       steers: true,
     );
@@ -1658,7 +1663,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       if ((c.position - at).distance > radius) continue;
       final comp = combatCompanions[i];
       if (comp.invincibleTimer > 0) continue;
-      var dmg = max(1, (comp.maxHp * fraction).round());
+      // Its attacks climb the same gentle damage curve the guardians use —
+      // lethality from a longer fight, never a one-shot.
+      var dmg = max(1, (comp.maxHp * fraction * progressDmgMul).round());
       if (comp.shieldHp > 0) {
         final absorbed = min(comp.shieldHp, dmg);
         comp.shieldHp -= absorbed;
@@ -3137,6 +3144,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// Full size: the crawl's head at this scale is the radius of the body.
   static const double _kPlagueScale = 2.4;
 
+  /// How big it is when it finishes crawling — the size the unfurl starts
+  /// from, so the two beats meet without a jump.
+  static const double _kInvadeArrive = 0.62;
+
   static const Color _venomBronze = Color(0xFF6E6A3E);
   static const Color _venomBronzeLit = Color(0xFF9A9358);
   static const Color _venomIron = Color(0xFF3A3E42);
@@ -3595,6 +3606,20 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// door rather than a sickness pulling in off the walls to fit through
   /// one. Swells: pulls in tight over the heart, squeezes down to nothing
   /// at the sill, and opens back out on the far side.
+  /// The crawl's size at [t], and the fraction of full span the fight is
+  /// currently drawn at. Exposed because the handover between the two beats
+  /// is where the plague used to blink out, and that is a NUMBER — a render
+  /// test compares pictures and cannot say whether two animations meet.
+  double invadeScaleAt(double t) => _invadeScale(t);
+
+  double plagueOpenFraction() {
+    const arrived = _kInvadeArrive / _kPlagueScale;
+    final u = monastery.unfurl > 0
+        ? Curves.easeOutCubic.transform(1 - monastery.unfurl)
+        : 1.0;
+    return arrived + (1 - arrived) * u;
+  }
+
   double _invadeScale(double t) {
     if (t < _kInvadeGather) {
       // Off the heart and drawing in — big and loose, then compact. Slow:
@@ -3611,15 +3636,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       );
       return 0.9 - 0.55 * Curves.easeInQuad.transform(k);
     }
-    // OUT THE OTHER SIDE, and it opens all the way back out — to the size of
-    // the body you are about to fight, not to something smaller that then
-    // gets swapped for a monster. The last stretch is held at full size, so
-    // the fight starts on a thing you have already been looking at.
+    // OUT THE OTHER SIDE AND STILL DRAWN IN. It crosses the cloister as a
+    // compact thing and does its opening out WHERE IT LANDS — see the
+    // unfurl. Expanding to full span during the crawl and then unfurling
+    // from nothing at the far end meant it snapped to full size, vanished,
+    // and grew back: the arrival read as the plague blinking out.
     final k = ((t - _kInvadeCross) / (_kInvadeSettle - _kInvadeCross)).clamp(
       0.0,
       1.0,
     );
-    return 0.35 + (_kPlagueScale - 0.35) * Curves.easeOutCubic.transform(k);
+    return 0.35 + (_kInvadeArrive - 0.35) * Curves.easeOutCubic.transform(k);
   }
 
   /// THE TWO THINGS THE HOUSE SAYS OUT LOUD.
@@ -4655,13 +4681,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final open = m.unfurl > 0
         ? Curves.easeOutCubic.transform(1 - m.unfurl)
         : 1.0;
+    // Start exactly at the size the crawl ended on, so the handover between
+    // the two animations is invisible.
+    const arrived = _kInvadeArrive / _kPlagueScale;
     _drawPlagueForm(
       canvas,
       body.position,
       _kPlagueReach,
       hit,
       seed: potion.id.codeUnits.fold<int>(53, (a, c) => (a * 31 + c) % 30011),
-      grow: 0.12 + 0.88 * open,
+      grow: arrived + (1 - arrived) * open,
     );
     // The core, so there is something solid to aim at inside all that reach.
     canvas.drawCircle(
