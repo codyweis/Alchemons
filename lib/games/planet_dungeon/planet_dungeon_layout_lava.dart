@@ -22,7 +22,7 @@
 //      south arm's drop-hammer STAMPS it (once the die is woken); the purge
 //      vent GASSES it. A mold takes what the line hands it, or spoils.
 //   4. COLD METAL IS A BRIDGE — AND A PLUG. Freezing a pour (the chill
-//      house's shroud, or an Ice mane's own cold) lays a walkway across the
+//      house's shroud, or an Ice alchemon's own cold) lays a walkway across the
 //      channel where it stands, and the same slug stops everything behind it.
 //      That is where "in what order" comes from: the player authors the order
 //      from this one physical fact, and is never handed a sequence (Fire owns
@@ -570,6 +570,15 @@ class FoundryState {
         pour = null;
         return PourEvent.lost;
       case FoundryNodeKind.mold:
+        // A KEY IS CAST ONCE. Taking a key empties its form, so without this
+        // the same form would cast a second, a third, a tenth — every one of
+        // them useless, because the ward it opens is already turned. Metal
+        // sent to a form whose work is done runs out through the sand.
+        final done = at.casts != null && keyIsAccountedFor(at.casts!);
+        if (done) {
+          pour = null;
+          return PourEvent.lost;
+        }
         final ok = at.wants == p.form && !molds.containsKey(at.id);
         final what = at.casts!;
         molds[at.id] = what;
@@ -641,6 +650,19 @@ class FoundryState {
     molds.removeWhere((_, what) => 'cast:$what' == castingId);
     return castingId;
   }
+
+  /// Does this key already exist somewhere? In a form, in a hand, or spent
+  /// on the ward it was cut for. A key that is accounted for is not cast
+  /// again: the form has done its work.
+  ///
+  /// A span is not a key and is not covered here. It is a road, it is never
+  /// carried, and re-laying one that was melted out is the point of being
+  /// able to melt it.
+  bool keyIsAccountedFor(String what) =>
+      what != 'span_a' &&
+      (wardsTurned.contains(what) ||
+          carried == what ||
+          molds.containsValue(what));
 
   /// Take a finished key out of its mold.
   bool takeKey(String moldNodeId) {
@@ -1102,14 +1124,14 @@ bool foundryBlocks(FoundryState s, String roomId, Offset p) {
 // ── The plan solver (used by the layout test to PROVE the budget) ──
 
 /// One programmed pour: every setting the line is left in before the tap is
-/// thrown, plus whether an Ice mane freezes it on the way.
+/// thrown, plus whether an Ice alchemon freezes it on the way.
 class FoundryPlan {
   const FoundryPlan(this.settings, {this.freezeOn, this.wakeDieFirst = false});
 
   /// switchId → setting.
   final Map<String, int> settings;
 
-  /// Channel id to freeze the pour in as it passes (an Ice mane's cold), or
+  /// Channel id to freeze the pour in as it passes (an Ice alchemon's cold), or
   /// null to let it run to its end.
   final String? freezeOn;
 
@@ -1199,7 +1221,7 @@ const DungeonLayout kLavaLayout = DungeonLayout(
   riddle: [
     'Send me Lava: my crucible\'s seal breaks for nothing lighter;',
     'Earth, to read the works\' own manifest off the rock;',
-    'and a Ice Mane, for only a cold that paves a road behind it will harden my running metal.',
+    'and Ice, for only a cold that paves a road behind it will harden my running metal.',
   ],
   // THE PRIMER IS SHOWN ONCE, EVER, on the first descent — so it has to be
   // the GOAL and the budget, in that order, and nothing else. It used to
@@ -1222,14 +1244,12 @@ const DungeonLayout kLavaLayout = DungeonLayout(
   // the guardian stay earnable by ANY correct-element trio; only the hidden
   // mold's crossing asks for a specific hand, and it asks for the one whose
   // whole fiction is laying a cold road behind itself.
-  familyGates: [
-    DungeonFamilyGate(
-      objectId: 'hand_chill',
-      element: 'Ice',
-      family: 'Mane',
-      hintLine: 'Only an Ice mane\'s cold sets the metal where it runs',
-    ),
-  ],
+  // NO FAMILY GATES. The chill wanted an Ice MANE specifically, which is a
+  // body part a player has no reason to have brought: the summons asks for
+  // Ice and they bring Ice, and then the one verb that hardens metal turns
+  // them away. The chill is the whole middle of this planet, so it answers
+  // any Ice alchemon.
+  familyGates: [],
   rooms: {
     // ── TAP HEAD ── the crucible, and (unremarked) the sump that the whole
     // works drains back into. The reliquary's mold has been down there the

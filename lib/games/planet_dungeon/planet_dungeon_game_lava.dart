@@ -626,8 +626,8 @@ extension MoltenReliquary on PlanetDungeonGame {
     if (el != 'Lava') {
       _setBlockedHint(
         s.tapWoken
-            ? 'Only Lava\'s own heat draws a charge'
-            : 'Only Lava\'s own heat breaks the crucible seal',
+            ? 'Only a Lava alchemon can draw metal from the furnace'
+            : 'Only a Lava alchemon can break the furnace seal',
       );
       return true;
     }
@@ -673,25 +673,14 @@ extension MoltenReliquary on PlanetDungeonGame {
     final (roomId, at) = s.line.channel(p.channelId).pointAt(p.t);
     if (roomId != currentRoomId) return false;
     if ((a.position - at).distance > _kChillReach) return false;
+    // ANY ICE ALCHEMON. It used to want an Ice MANE, which is a body part a
+    // player has no reason to have brought: the summons asks for Ice, they
+    // bring Ice, and then the one verb that hardens metal turns them away.
+    // The chill is the whole middle of this planet.
     final r = evaluateInteraction(
       a.member,
-      const DungeonInteractionRequirement(
-        element: 'Ice',
-        requiredFamily: DungeonAbility.terrainTrail,
-      ),
+      const DungeonInteractionRequirement(element: 'Ice'),
     );
-    if (r == InteractionResult.blockedFamily) {
-      final gate = layout.familyGateFor('hand_chill');
-      if (gate != null) {
-        _stampFamilyGate(gate); // "the seal remembers" (§4)
-      } else {
-        _setBlockedHint(
-          'Only an Ice mane\'s cold sets the metal where it '
-          'runs',
-        );
-      }
-      return true;
-    }
     if (!interactionSucceeded(r)) return false; // not Ice: let other verbs try
     s.freezeHere();
     works
@@ -933,8 +922,9 @@ extension MoltenReliquary on PlanetDungeonGame {
       case 'tap_head':
         // The entrance, so this is the planet's own statement of purpose.
         if (!s.tapWoken) {
-          return 'Nothing leaves this works that was not cast here. Open '
-              'the crucible: only a Lava heart breaks its seal';
+          return 'Nothing leaves this works that was not cast here. The '
+              'furnace at the head of the line is sealed, and only a Lava '
+              'alchemon can break it open';
         }
         if (s.carried == 'reliquary') {
           return 'You have the reliquary key, its ward is on the mould floor';
@@ -982,7 +972,7 @@ extension MoltenReliquary on PlanetDungeonGame {
   void _foundryAmbientHint(DungeonCreature a, DungeonRoom room) {
     switch (room.id) {
       case 'tap_head':
-        _setAmbientHint('The crucible ticks, and never quite cools');
+        _setAmbientHint('The furnace ticks, and never quite cools');
       case 'chill_house':
         _setAmbientHint('Frost climbs the rails a little way, then gives up');
       case 'mold_floor':
@@ -1013,7 +1003,7 @@ extension MoltenReliquary on PlanetDungeonGame {
             'The die wards whatever takes the MILL arm; the chill arm '
                 'runs plain',
           _ =>
-            'The missing form is installed in the sump under the crucible, '
+            'The missing form is installed in the sump under the furnace, '
                 'and only the tail feeds it',
         });
       case 'tap_head':
@@ -1639,7 +1629,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     passThroughDoorless(layout.entranceSpawn);
     speakConsequence(
       'The heat goes out of the works. Everything cast breaks out of its '
-      'form, and the crucible is charged for another shift.',
+      'form, and the furnace is charged for another shift.',
       5.4,
     );
     onChanged();

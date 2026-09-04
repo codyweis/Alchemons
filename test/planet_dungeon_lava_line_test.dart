@@ -623,24 +623,17 @@ void main() {
     });
   });
 
-  group('THE ONE HARD GATE (§4)', () {
-    test('with no Ice mane, Star 1 still stands and Star 2 does not', () {
-      final maneless = _explore(maneAllowed: false);
+  group('NO HARD GATE (§4)', () {
+    test('the chill declares no family', () {
+      // There used to be one: the chill wanted an Ice MANE, so a party that
+      // brought Ice and no mane could earn Star 1 and then never cross the
+      // sump. That is a body part a player has no reason to have brought,
+      // guarding the verb the whole middle of this planet runs on.
       expect(
-        maneless.any((s) => s.state.cast('span_a')),
-        isTrue,
-        reason: 'Star 1 must be earnable by ANY correct-element trio',
+        kLavaLayout.familyGates,
+        isEmpty,
+        reason: 'the summons asks for Ice, so Ice has to be enough',
       );
-      expect(
-        maneless.any((s) => foundryWorksDone(s.state)),
-        isFalse,
-        reason: 'only the sump crossing is gated — and it is the gate',
-      );
-      // And the gate is declared where the descent panel can find it.
-      final gate = kLavaLayout.familyGateFor('hand_chill');
-      expect(gate, isNotNull);
-      expect(gate!.discoveryId, 'gate:ice_mane');
-      expect(kLavaLayout.familyGates.length, 1);
     });
   });
 
@@ -1329,7 +1322,7 @@ void _engineRun() {
       standIn(g, 'tap_head', beside + const Offset(0, -60));
       g.setActive(ice);
       g.activateAbility();
-      expect(s.pour, isNull, reason: 'the mane set it where it ran');
+      expect(s.pour, isNull, reason: 'the Ice hand set it where it ran');
       expect(s.access, contains('sump'));
       expect(s.poursSpent, 4, reason: 'four charges, no more');
 
@@ -1485,6 +1478,47 @@ void _engineRun() {
         reachable,
         isTrue,
         reason: 'nowhere to stand at the pit means the maxim cannot be taken',
+      );
+    });
+
+    test('AN ICE ALCHEMON CHILLS, whatever body it has', () {
+      // The chill used to want an Ice MANE. A party that brought Ice and no
+      // mane could earn Star 1 and then never cross the sump, turned away by
+      // the one verb the whole middle of this planet runs on. Driven here
+      // with an Ice PIP, which the old gate refused.
+      final g = _harness([
+        _member(0, 'Lava', 'horn'),
+        _member(1, 'Earth', 'mask'),
+        _member(2, 'Ice', 'pip'),
+      ]);
+      final s = g.works.line;
+      s.tapWoken = true;
+      actAt(g, 'tap_head', lava, kLavaLine.node('tap').position);
+      // PAST THE FONT. Ice has two verbs on this planet: a QUENCH at the
+      // font, which is element-only, and the CHILL out in a channel, which
+      // is the one that was family-gated. Freezing in `ch_tap` exercises the
+      // wrong one, and the first version of this test did exactly that and
+      // proved nothing.
+      for (
+        var i = 0;
+        i < 60 * 4 && (s.pour == null || s.pour!.channelId == 'ch_tap');
+        i++
+      ) {
+        g.update(1 / 60);
+      }
+      expect(s.pour, isNotNull, reason: 'a charge is running past the font');
+      expect(s.pour!.channelId, isNot('ch_tap'));
+      final spot = kLavaLine.channel(s.pour!.channelId).pointAt(s.pour!.t);
+      standIn(g, spot.$1, spot.$2 + const Offset(0, -60));
+      g.setActive(ice);
+      g.activateAbility();
+      // The metal is SET, not merely gone: a pour that simply ran to the end
+      // of its channel also leaves `pour` null, so the frozen casting is
+      // what proves the hand did it.
+      expect(
+        s.castings.keys.any((k) => k.startsWith('plug:')),
+        isTrue,
+        reason: 'an Ice pip has to be able to set the metal where it runs',
       );
     });
   });
