@@ -191,6 +191,9 @@ class AppIcons {
   static const IconData groups_rounded = PhosphorIconsBold.users;
 
   // ── H ───────────────────────────────────────────────────────────────────
+  // Filled rather than bold: the drag coach mark reads as a solid hand
+  // silhouette against the sprite behind it.
+  static const IconData hand_pointing_fill = PhosphorIconsFill.handPointing;
   static const IconData help_center_rounded = PhosphorIconsBold.question;
   static const IconData help_outline = PhosphorIconsBold.question;
   static const IconData help_outline_rounded = PhosphorIconsBold.question;

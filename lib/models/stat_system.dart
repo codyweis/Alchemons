@@ -175,4 +175,15 @@ abstract final class AlchemonStatSystem {
     };
     return baseCost;
   }
+
+  /// Total orbs needed to carry a stat from [currentRank] to the cap. The
+  /// per-rank cost steps up, so a player sitting on a pile of orbs cannot tell
+  /// whether it is enough without summing the remaining tiers for them.
+  static int orbCostToMaxRank(int currentRank) {
+    var total = 0;
+    for (var rank = currentRank; rank < maxEnhancementRank; rank++) {
+      total += orbCostForNextRank(rank);
+    }
+    return total;
+  }
 }

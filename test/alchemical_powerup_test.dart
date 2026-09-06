@@ -1,4 +1,5 @@
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'dart:math';
 
@@ -43,6 +44,52 @@ void main() {
           expect(reward.value, 1);
         }
       }
+    });
+  });
+
+  group('orb enhancement economy', () {
+    test('cost to max sums every remaining rank tier', () {
+      // Walk the curve independently of the implementation so a rebalance of
+      // orbCostForNextRank cannot silently desync the "N to max" the Stat
+      // Infusion screen promises.
+      for (
+        var rank = 0;
+        rank <= AlchemonStatSystem.maxEnhancementRank;
+        rank++
+      ) {
+        var expected = 0;
+        for (var r = rank; r < AlchemonStatSystem.maxEnhancementRank; r++) {
+          expected += AlchemonStatSystem.orbCostForNextRank(r);
+        }
+        expect(AlchemonStatSystem.orbCostToMaxRank(rank), expected);
+      }
+    });
+
+    test('a maxed stat needs nothing further', () {
+      expect(
+        AlchemonStatSystem.orbCostToMaxRank(
+          AlchemonStatSystem.maxEnhancementRank,
+        ),
+        0,
+      );
+    });
+
+    test('cost to max shrinks monotonically as ranks are bought', () {
+      var previous = AlchemonStatSystem.orbCostToMaxRank(0);
+      for (
+        var rank = 1;
+        rank <= AlchemonStatSystem.maxEnhancementRank;
+        rank++
+      ) {
+        final current = AlchemonStatSystem.orbCostToMaxRank(rank);
+        expect(current, lessThan(previous));
+        previous = current;
+      }
+    });
+
+    test('the screenshot case: rank 3 costs 24 orbs to max', () {
+      expect(AlchemonStatSystem.orbCostToMaxRank(3), 24);
+      expect(AlchemonStatSystem.orbCostForNextRank(3), 2);
     });
   });
 }

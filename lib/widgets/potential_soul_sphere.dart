@@ -3,9 +3,14 @@ import 'package:flutter/material.dart';
 
 /// Shared code-native artwork for Potential Souls in inventory and rewards.
 class PotentialSoulSphere extends StatelessWidget {
-  const PotentialSoulSphere({super.key, this.size = 48});
+  const PotentialSoulSphere({super.key, this.size = 48, this.tint});
 
   final double size;
+
+  /// Recolours the mid-gradient so a soul can be shown per-stat (the Stat
+  /// Infusion soul tray). Null keeps the canonical violet used everywhere
+  /// else, so existing call sites are untouched.
+  final Color? tint;
 
   @override
   Widget build(BuildContext context) {
@@ -19,15 +24,15 @@ class PotentialSoulSphere extends StatelessWidget {
             height: size * 0.82,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const RadialGradient(
-                center: Alignment(-0.28, -0.34),
+              gradient: RadialGradient(
+                center: const Alignment(-0.28, -0.34),
                 colors: [
-                  Color(0xFFFFFFFF),
-                  Color(0xFFFFE59A),
-                  Color(0xFFB66CFF),
-                  Color(0xFF3C176B),
+                  const Color(0xFFFFFFFF),
+                  const Color(0xFFFFE59A),
+                  tint ?? const Color(0xFFB66CFF),
+                  const Color(0xFF3C176B),
                 ],
-                stops: [0.0, 0.18, 0.58, 1.0],
+                stops: const [0.0, 0.18, 0.58, 1.0],
               ),
               border: Border.all(
                 color: const Color(0xFFFFE9A8),
@@ -35,7 +40,8 @@ class PotentialSoulSphere extends StatelessWidget {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFB66CFF).withValues(alpha: 0.65),
+                  color: (tint ?? const Color(0xFFB66CFF))
+                      .withValues(alpha: 0.65),
                   blurRadius: size * 0.26,
                   spreadRadius: size * 0.03,
                 ),
