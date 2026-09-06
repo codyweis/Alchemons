@@ -539,18 +539,17 @@ class _WarpPainter extends CustomPainter {
     if (glowIntensity <= 0) return;
 
     // Soft white glow at center
-    data.glowPaint
-      .shader =
-          RadialGradient(
-            colors: [
-              data.getStarWithOpacity(glowIntensity * 0.4),
-              data.getStarWithOpacity(glowIntensity * 0.1),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.3, 1.0],
-          ).createShader(
-            Rect.fromCircle(center: Offset(centerX, centerY), radius: 100),
-          );
+    data.glowPaint.shader =
+        RadialGradient(
+          colors: [
+            data.getStarWithOpacity(glowIntensity * 0.4),
+            data.getStarWithOpacity(glowIntensity * 0.1),
+            Colors.transparent,
+          ],
+          stops: const [0.0, 0.3, 1.0],
+        ).createShader(
+          Rect.fromCircle(center: Offset(centerX, centerY), radius: 100),
+        );
 
     canvas.drawCircle(Offset(centerX, centerY), 100, data.glowPaint);
   }

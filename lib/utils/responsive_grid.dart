@@ -6,7 +6,7 @@ import 'package:flutter/widgets.dart';
 int responsiveCrossAxisCount(BuildContext context, {int phoneCols = 3}) {
   final width = MediaQuery.sizeOf(context).width;
   if (width >= 1024) return phoneCols + 3; // large iPad landscape
-  if (width >= 768) return phoneCols + 2;  // iPad portrait / small landscape
-  if (width >= 600) return phoneCols + 1;  // large phones / small tablets
+  if (width >= 768) return phoneCols + 2; // iPad portrait / small landscape
+  if (width >= 600) return phoneCols + 1; // large phones / small tablets
   return phoneCols;
 }

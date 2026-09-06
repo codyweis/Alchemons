@@ -13,6 +13,7 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/models/creature.dart';
@@ -145,9 +146,7 @@ class InstanceCard extends StatelessWidget {
       onLongPress: onLongPress,
       child: CustomPaint(
         painter: BracketFramePainter(
-          color: isSelected
-              ? selColor
-              : palette.line.withValues(alpha: 0.75),
+          color: isSelected ? selColor : palette.line.withValues(alpha: 0.75),
           bracketSize: 10,
           strokeWidth: isSelected ? 1.5 : 1.05,
         ),
@@ -179,10 +178,7 @@ class InstanceCard extends StatelessWidget {
                                 instance: instance,
                                 size: 90,
                               )
-                            : Image.asset(
-                                species.image,
-                                fit: BoxFit.contain,
-                              ),
+                            : Image.asset(species.image, fit: BoxFit.contain),
                       ),
                     ),
                     Positioned(
@@ -269,9 +265,7 @@ class _CardCornerPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: palette.chromeFill(),
-        border: Border(
-          left: BorderSide(color: color, width: 2),
-        ),
+        border: Border(left: BorderSide(color: color, width: 2)),
       ),
       child: Text(
         label,
@@ -479,8 +473,8 @@ class _StatTile extends StatelessWidget {
                 ),
                 Text(
                   potentialValue == null
-                      ? currentValue.toStringAsFixed(1)
-                      : '${currentValue.toStringAsFixed(1)} / ${potentialValue!.toStringAsFixed(1)}',
+                      ? '${AlchemonStatSystem.displayRating(currentValue)}'
+                      : '${AlchemonStatSystem.displayRating(currentValue)} · P${AlchemonStatSystem.normalizePotential(potentialValue!)}',
                   style: bracketText(
                     context,
                     12.5,
@@ -557,6 +551,13 @@ class _GeneticsBlock extends StatelessWidget {
             label: instance.natureId!.toUpperCase(),
           ),
         ],
+        if (instance.natureId2?.isNotEmpty == true) ...[
+          const SizedBox(height: 2),
+          _MiniRow(
+            color: t.textSecondary,
+            label: instance.natureId2!.toUpperCase(),
+          ),
+        ],
       ],
     );
   }
@@ -612,7 +613,11 @@ class _HarvestBlock extends StatelessWidget {
             const SizedBox.shrink(),
             Row(
               children: [
-                Icon(AppIcons.inventory_2_rounded, size: 10, color: t.amberBright),
+                Icon(
+                  AppIcons.inventory_2_rounded,
+                  size: 10,
+                  color: t.amberBright,
+                ),
                 const SizedBox(width: 3),
                 Text(
                   '$total',
@@ -637,6 +642,11 @@ class _HarvestBlock extends StatelessWidget {
               _MiniRow(
                 color: t.textSecondary,
                 label: instance.natureId!.toUpperCase(),
+              ),
+            if (instance.natureId2?.isNotEmpty == true)
+              _MiniRow(
+                color: t.textSecondary,
+                label: instance.natureId2!.toUpperCase(),
               ),
           ],
         ),

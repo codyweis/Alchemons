@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/schema_tables.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
+import 'package:alchemons/models/stat_system.dart';
 
 part 'creature_dao.g.dart';
 
@@ -148,7 +149,9 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
 
         // Nature filter
         if (filterNature != null && filterNature.isNotEmpty) {
-          conditions.add(t.natureId.equals(filterNature));
+          conditions.add(
+            t.natureId.equals(filterNature) | t.natureId2.equals(filterNature),
+          );
         }
 
         // Variant filter
@@ -167,7 +170,8 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
             t.nickname.lower().like('%$search%') |
                 t.instanceId.lower().like('%$search%') |
                 t.geneticsJson.like('%$search%') |
-                t.natureId.like('%$search%'),
+                t.natureId.like('%$search%') |
+                t.natureId2.like('%$search%'),
           );
         }
 
@@ -283,12 +287,23 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     );
 
     final instanceId = makeInstanceId();
+    final suppliedPotentials = <num>[
+      if (pots['speed'] is num) pots['speed'] as num,
+      if (pots['intelligence'] is num) pots['intelligence'] as num,
+      if (pots['strength'] is num) pots['strength'] as num,
+      if (pots['beauty'] is num) pots['beauty'] as num,
+    ];
+    final potentialScaleVersion = (pots['scaleVersion'] as num?)?.toInt() ?? 1;
+    final legacyPotentialScale =
+        potentialScaleVersion < 2 &&
+        AlchemonStatSystem.usesLegacyPotentialScale(suppliedPotentials);
 
     await insertInstance(
       instanceId: instanceId,
       baseId: baseId,
       isPrismaticSkin: (payload['isPrismaticSkin'] as bool?) ?? false,
       natureId: payload['natureId'] as String?,
+      natureId2: payload['natureId2'] as String?,
       source: (payload['source'] as String?) ?? 'discovery',
       genetics: genetics,
       likelihoodAnalysisJson: payload['likelihoodAnalysis'] as String?,
@@ -304,6 +319,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
       statIntelligencePotential: asDouble(pots['intelligence']),
       statStrengthPotential: asDouble(pots['strength']),
       statBeautyPotential: asDouble(pots['beauty']),
+      legacyPotentialScale: legacyPotentialScale,
 
       // Lineage
       generationDepth: generationDepth,
@@ -436,6 +452,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     String? nickname,
     bool isPrismaticSkin = false,
     String? natureId,
+    String? natureId2,
     String source = 'discovery',
     Map<String, dynamic>? parentage,
     Map<String, String>? genetics,
@@ -451,6 +468,11 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     double? statIntelligencePotential,
     double? statStrengthPotential,
     double? statBeautyPotential,
+    int statSpeedEnhancement = 0,
+    int statIntelligenceEnhancement = 0,
+    int statStrengthEnhancement = 0,
+    int statBeautyEnhancement = 0,
+    bool legacyPotentialScale = false,
     int generationDepth = 0,
     Map<String, int>? factionLineage,
     Map<String, int>? elementLineage,
@@ -469,22 +491,33 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
       elementLineage: effectiveElementLineage,
       speciesLineage: effectiveFamilyLineage,
     );
-    final purityBonus = purityStatBonusForStatus(purityStatus);
 
-    final effectiveSpeedPotential = statSpeedPotential ?? 4.0;
-    final effectiveIntelligencePotential = statIntelligencePotential ?? 4.0;
-    final effectiveStrengthPotential = statStrengthPotential ?? 4.0;
-    final effectiveBeautyPotential = statBeautyPotential ?? 4.0;
+    final rawPotentials = <num>[
+      statSpeedPotential ?? 50,
+      statIntelligencePotential ?? 50,
+      statStrengthPotential ?? 50,
+      statBeautyPotential ?? 50,
+    ];
+    final effectiveSpeedPotential = AlchemonStatSystem.normalizePotential(
+      rawPotentials[0],
+      legacyScale: legacyPotentialScale,
+    ).toDouble();
+    final effectiveIntelligencePotential =
+        AlchemonStatSystem.normalizePotential(
+          rawPotentials[1],
+          legacyScale: legacyPotentialScale,
+        ).toDouble();
+    final effectiveStrengthPotential = AlchemonStatSystem.normalizePotential(
+      rawPotentials[2],
+      legacyScale: legacyPotentialScale,
+    ).toDouble();
+    final effectiveBeautyPotential = AlchemonStatSystem.normalizePotential(
+      rawPotentials[3],
+      legacyScale: legacyPotentialScale,
+    ).toDouble();
 
-    double applyBaseBonus(
-      double? base,
-      double potential,
-      String statName,
-      double fallback,
-    ) {
-      final boosted = (base ?? fallback) + purityBonus.forStat(statName);
-      return min(boosted, potential).clamp(0.0, 5.0);
-    }
+    double canonicalStat(double? value, double fallback) =>
+        max(0.0, value ?? fallback);
 
     await into(creatureInstances).insert(
       CreatureInstancesCompanion(
@@ -496,6 +529,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         nickname: Value(nickname),
         isPrismaticSkin: Value(isPrismaticSkin),
         natureId: Value(natureId),
+        natureId2: Value(natureId2),
         source: Value(source),
         parentageJson: Value(parentage == null ? null : jsonEncode(parentage)),
         geneticsJson: Value(genetics == null ? null : jsonEncode(genetics)),
@@ -504,32 +538,18 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         staminaBars: Value(curBars),
         staminaLastUtcMs: Value(nowMs),
         createdAtUtcMs: Value(nowMs),
-        statSpeed: Value(
-          applyBaseBonus(statSpeed, effectiveSpeedPotential, 'speed', 3.0),
-        ),
-        statIntelligence: Value(
-          applyBaseBonus(
-            statIntelligence,
-            effectiveIntelligencePotential,
-            'intelligence',
-            3.0,
-          ),
-        ),
-        statStrength: Value(
-          applyBaseBonus(
-            statStrength,
-            effectiveStrengthPotential,
-            'strength',
-            3.0,
-          ),
-        ),
-        statBeauty: Value(
-          applyBaseBonus(statBeauty, effectiveBeautyPotential, 'beauty', 3.0),
-        ),
+        statSpeed: Value(canonicalStat(statSpeed, 3.0)),
+        statIntelligence: Value(canonicalStat(statIntelligence, 3.0)),
+        statStrength: Value(canonicalStat(statStrength, 3.0)),
+        statBeauty: Value(canonicalStat(statBeauty, 3.0)),
         statSpeedPotential: Value(effectiveSpeedPotential),
         statIntelligencePotential: Value(effectiveIntelligencePotential),
         statStrengthPotential: Value(effectiveStrengthPotential),
         statBeautyPotential: Value(effectiveBeautyPotential),
+        statSpeedEnhancement: Value(statSpeedEnhancement),
+        statIntelligenceEnhancement: Value(statIntelligenceEnhancement),
+        statStrengthEnhancement: Value(statStrengthEnhancement),
+        statBeautyEnhancement: Value(statBeautyEnhancement),
         generationDepth: Value(generationDepth),
         factionLineageJson: Value(
           factionLineage == null ? null : jsonEncode(factionLineage),
@@ -550,6 +570,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         id: Value(baseId),
         discovered: const Value(true),
         natureId: Value(natureId),
+        natureId2: Value(natureId2),
       ),
     );
     return instanceId;
@@ -687,6 +708,60 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         statIntelligence: Value(statIntelligence),
         statStrength: Value(statStrength),
         statBeauty: Value(statBeauty),
+      ),
+    );
+  }
+
+  Future<void> updateStatProgression({
+    required String instanceId,
+    required double statSpeed,
+    required double statIntelligence,
+    required double statStrength,
+    required double statBeauty,
+    required int statSpeedEnhancement,
+    required int statIntelligenceEnhancement,
+    required int statStrengthEnhancement,
+    required int statBeautyEnhancement,
+  }) async {
+    await (update(
+      creatureInstances,
+    )..where((t) => t.instanceId.equals(instanceId))).write(
+      CreatureInstancesCompanion(
+        statSpeed: Value(statSpeed),
+        statIntelligence: Value(statIntelligence),
+        statStrength: Value(statStrength),
+        statBeauty: Value(statBeauty),
+        statSpeedEnhancement: Value(statSpeedEnhancement),
+        statIntelligenceEnhancement: Value(statIntelligenceEnhancement),
+        statStrengthEnhancement: Value(statStrengthEnhancement),
+        statBeautyEnhancement: Value(statBeautyEnhancement),
+      ),
+    );
+  }
+
+  Future<void> updatePotentialProgression({
+    required String instanceId,
+    required double statSpeed,
+    required double statIntelligence,
+    required double statStrength,
+    required double statBeauty,
+    required double statSpeedPotential,
+    required double statIntelligencePotential,
+    required double statStrengthPotential,
+    required double statBeautyPotential,
+  }) async {
+    await (update(
+      creatureInstances,
+    )..where((t) => t.instanceId.equals(instanceId))).write(
+      CreatureInstancesCompanion(
+        statSpeed: Value(statSpeed),
+        statIntelligence: Value(statIntelligence),
+        statStrength: Value(statStrength),
+        statBeauty: Value(statBeauty),
+        statSpeedPotential: Value(statSpeedPotential),
+        statIntelligencePotential: Value(statIntelligencePotential),
+        statStrengthPotential: Value(statStrengthPotential),
+        statBeautyPotential: Value(statBeautyPotential),
       ),
     );
   }

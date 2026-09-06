@@ -80,8 +80,7 @@ class ExtractVialDialog extends StatelessWidget {
     return catalog
         .where(
           (c) =>
-              c.rarity.toLowerCase() == wanted &&
-              c.types.any(types.contains),
+              c.rarity.toLowerCase() == wanted && c.types.any(types.contains),
         )
         .length;
   }
@@ -233,9 +232,7 @@ class ExtractVialDialog extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: _bgRaised,
-        border: Border.all(
-          color: accent.withValues(alpha: dead ? 0.45 : 0.22),
-        ),
+        border: Border.all(color: accent.withValues(alpha: dead ? 0.45 : 0.22)),
       ),
       child: Column(
         children: [

@@ -522,7 +522,6 @@ class _MapScreenState extends State<MapScreen>
   }
 }
 
-
 // =====================================================
 // HEADER BAR
 // =====================================================
@@ -937,7 +936,6 @@ class _ExpeditionMap extends StatelessWidget {
     );
   }
 }
-
 
 // =====================================================
 // BIOME SPAWN TIMER PILL

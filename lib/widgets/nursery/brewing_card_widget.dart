@@ -164,9 +164,9 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
     if (lightModeReady) {
       borderColor = palette.ink.withValues(alpha: 0.92);
       borderWidth = 1.4;
-      insetAccentColor = ForgeTokens(theme)
-          .readableAccent(const Color(0xFFFFD700))
-          .withValues(alpha: 0.95);
+      insetAccentColor = ForgeTokens(
+        theme,
+      ).readableAccent(const Color(0xFFFFD700)).withValues(alpha: 0.95);
     } else {
       borderColor = widget.isReady
           ? readyInnerBorderColor

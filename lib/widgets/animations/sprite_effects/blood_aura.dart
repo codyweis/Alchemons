@@ -92,11 +92,7 @@ class _BloodAuraState extends State<BloodAura>
                 ),
               ),
               for (var i = 0; i < 6; i++)
-                _BloodMote(
-                  size: widget.size,
-                  progress: t,
-                  index: i,
-                ),
+                _BloodMote(size: widget.size, progress: t, index: i),
             ],
           ),
         );
@@ -120,7 +116,8 @@ class _BloodMote extends StatelessWidget {
   Widget build(BuildContext context) {
     final orbit = ((progress + (index * 0.17)) % 1.0);
     final angle = orbit * math.pi * 2;
-    final radius = size * (0.38 + (0.1 * math.sin((orbit * math.pi * 2) + index)));
+    final radius =
+        size * (0.38 + (0.1 * math.sin((orbit * math.pi * 2) + index)));
     final dx = math.cos(angle) * radius;
     final dy = math.sin(angle) * radius * 0.7;
     final moteSize = size * (0.07 + ((index % 3) * 0.01));

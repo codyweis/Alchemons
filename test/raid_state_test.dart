@@ -16,6 +16,9 @@ void main() {
         duration: const Duration(hours: 24),
         source: RaidSource.summon,
         cleared: false,
+        level: 2,
+        level3Clears: 1,
+        readyUtc: t0.add(const Duration(hours: 12)),
       );
       final back = RaidState.deserialise(state.serialise())!;
       expect(back.element, 'Air');
@@ -23,6 +26,9 @@ void main() {
       expect(back.duration, const Duration(hours: 24));
       expect(back.source, RaidSource.summon);
       expect(back.cleared, isFalse);
+      expect(back.level, 2);
+      expect(back.level3Clears, 1);
+      expect(back.readyUtc, t0.add(const Duration(hours: 12)));
     });
 
     test('deserialise rejects garbage', () {
@@ -43,6 +49,56 @@ void main() {
       );
       expect(state.remaining(t0.add(const Duration(hours: 30))), Duration.zero);
       expect(state.withCleared().isActive(t0), isFalse);
+    });
+
+    test('legacy raids migrate to Level 1', () {
+      final legacy = RaidState.deserialise(
+        'Air|${t0.millisecondsSinceEpoch}|86400|rotation|0',
+      )!;
+      expect(legacy.level, 1);
+    });
+
+    test('six-field tier saves keep their level and migrate echo state', () {
+      final tierSave = RaidState.deserialise(
+        'Air|${t0.millisecondsSinceEpoch}|86400|rotation|0|3',
+      )!;
+      expect(tierSave.level, 3);
+      expect(tierSave.level3Clears, 0);
+      expect(tierSave.readyUtc, isNull);
+    });
+
+    test('invalid stored echo time does not create an epoch cooldown', () {
+      final state = RaidState.deserialise(
+        'Air|${t0.millisecondsSinceEpoch}|86400|rotation|0|3|1|bad',
+      )!;
+      expect(state.readyUtc, isNull);
+      expect(state.canEnter(t0), isTrue);
+    });
+
+    test('tier clears advance through Level 3 and one respawn', () {
+      final level1 = RaidState(element: 'Air', startUtc: t0);
+      final level2 = level1.advanceLevel(nowUtc: t0);
+      final level3 = level2.advanceLevel(nowUtc: t0);
+      final cooling = level3.advanceLevel(nowUtc: t0);
+      final finished = cooling.advanceLevel(
+        nowUtc: t0.add(kRaidLevel3RespawnCooldown),
+      );
+
+      expect(level2.level, 2);
+      expect(level2.cleared, isFalse);
+      expect(level3.level, 3);
+      expect(level3.cleared, isFalse);
+      expect(cooling.level, 3);
+      expect(cooling.level3Clears, 1);
+      expect(cooling.cleared, isFalse);
+      expect(cooling.isCoolingDown(t0), isTrue);
+      expect(cooling.canEnter(t0), isFalse);
+      expect(cooling.readyUtc, t0.add(kRaidLevel3RespawnCooldown));
+      expect(cooling.endUtc, t0.add(kRaidLevel3RespawnWindow));
+      expect(cooling.canEnter(t0.add(kRaidLevel3RespawnCooldown)), isTrue);
+      expect(finished.level, 3);
+      expect(finished.level3Clears, 2);
+      expect(finished.cleared, isTrue);
     });
   });
 

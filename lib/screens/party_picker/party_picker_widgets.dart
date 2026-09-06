@@ -1,7 +1,6 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fast_long_press_detector.dart';
@@ -212,12 +211,6 @@ class PartyFooter extends StatelessWidget {
         final count = validMembers.length;
         final canDeploy = count > 0 && count <= party.maxSize;
 
-        final stamina = context.read<StaminaService>();
-        final hasZeroStamina = selectedInstances.any((inst) {
-          final state = stamina.computeState(inst);
-          return state.bars == 0;
-        });
-
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -236,20 +229,6 @@ class PartyFooter extends StatelessWidget {
                 selectedCount: count,
                 onTap: canDeploy
                     ? () async {
-                        bool proceed = true;
-
-                        if (hasZeroStamina) {
-                          final warn = await showDialog<bool>(
-                            context: context,
-                            barrierDismissible: false,
-                            builder: (_) =>
-                                ZeroStaminaWarningDialog(theme: theme),
-                          );
-                          proceed = warn == true;
-                        }
-
-                        if (!proceed) return;
-
                         if (showDeployConfirm) {
                           if (!context.mounted) return;
                           final confirmed = await showDialog<bool>(
@@ -420,7 +399,11 @@ class TeamSlotFilled extends StatelessWidget {
               height: 28,
               child: base != null
                   ? InstanceSprite(creature: base, instance: instance, size: 28)
-                  : Icon(AppIcons.help_outline, size: 14, color: theme.textMuted),
+                  : Icon(
+                      AppIcons.help_outline,
+                      size: 14,
+                      color: theme.textMuted,
+                    ),
             ),
             const SizedBox(height: 3),
             Text(
@@ -441,43 +424,6 @@ class TeamSlotFilled extends StatelessWidget {
                 fontSize: 7,
                 fontWeight: FontWeight.w700,
               ),
-            ),
-            const SizedBox(height: 3),
-            // Stamina pips
-            Builder(
-              builder: (context) {
-                final stamina = context.read<StaminaService>();
-                final state = stamina.computeState(instance);
-                final bars = state.bars.clamp(0, instance.staminaMax);
-                final max = instance.staminaMax;
-                final pipColor = bars == 0
-                    ? Colors.red.shade400
-                    : bars == 1 && max > 1
-                    ? Colors.orange.shade400
-                    : Colors.greenAccent.shade400;
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(max, (i) {
-                    final filled = i < bars;
-                    return Container(
-                      width: 5,
-                      height: 5,
-                      margin: const EdgeInsets.symmetric(horizontal: 1),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: filled
-                            ? pipColor
-                            : pipColor.withValues(alpha: 0.15),
-                        border: Border.all(
-                          color: pipColor.withValues(alpha: filled ? 0.9 : 0.3),
-                          width: 0.6,
-                        ),
-                      ),
-                    );
-                  }),
-                );
-              },
             ),
           ],
         ),

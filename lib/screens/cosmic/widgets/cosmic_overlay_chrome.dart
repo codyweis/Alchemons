@@ -275,7 +275,6 @@ class _CosmicBracketPainter extends CustomPainter {
   }
 }
 
-
 /// The dismiss control every cosmic panel uses.
 ///
 /// One widget so the panels cannot drift apart visually. Note that X means

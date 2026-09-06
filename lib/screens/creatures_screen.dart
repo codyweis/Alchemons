@@ -1312,13 +1312,17 @@ class _FilterBarSolid extends StatelessWidget {
           const SizedBox(width: 6),
           IconButtonSolid(
             theme: theme,
-            icon: showCounts ? AppIcons.numbers_rounded : AppIcons.numbers_outlined,
+            icon: showCounts
+                ? AppIcons.numbers_rounded
+                : AppIcons.numbers_outlined,
             onTap: onToggleCounts,
           ),
           const SizedBox(width: 6),
           IconButtonSolid(
             theme: theme,
-            icon: isGrid ? AppIcons.view_list_rounded : AppIcons.grid_view_rounded,
+            icon: isGrid
+                ? AppIcons.view_list_rounded
+                : AppIcons.grid_view_rounded,
             onTap: onToggleView,
           ),
           const SizedBox(width: 6),
@@ -1787,7 +1791,11 @@ class SearchFieldSolid extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.only(left: 12),
-              child: Icon(AppIcons.search_rounded, color: palette.muted, size: 16),
+              child: Icon(
+                AppIcons.search_rounded,
+                color: palette.muted,
+                size: 16,
+              ),
             ),
             Expanded(
               child: TextField(

@@ -8,8 +8,8 @@
 //   Common   →  5 gold
 //   Uncommon → 10 gold
 //   Rare     → 15 gold
-//   Mythic   → 20 gold
-//   Variant  → 15 gold
+//   Mystic   → 20 gold
+//   Variant  → 25 gold
 //   Prismatic bonus: +10 gold base
 //   Planet summon bonus: +50% base value
 //
@@ -23,6 +23,7 @@
 
 import 'dart:math';
 
+import 'package:alchemons/constants/black_market_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -56,10 +57,11 @@ int _baseGoldForRarity(String rarity) {
     case 'rare':
       return 15;
     case 'mythic':
+    case 'mystic':
     case 'legendary':
       return 20;
     case 'variant':
-      return 15;
+      return 25;
     default:
       return 5;
   }
@@ -173,7 +175,24 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       final baseGold = _baseGoldForRarity(base.rarity);
       final prismaticBonus = inst.isPrismaticSkin ? 10 : 0;
       final sourceMultiplier = inst.source == 'planet_summon' ? 1.5 : 1.0;
-      final raw = ((baseGold + prismaticBonus) * sourceMultiplier).round();
+      final natureMultiplier = BlackMarketConstants.natureValueMultiplier(
+        inst.natureId,
+        inst.natureId2,
+      );
+      final potentialMultiplier = BlackMarketConstants.potentialValueMultiplier(
+        BlackMarketConstants.averagePotential(
+          speed: inst.statSpeedPotential,
+          intelligence: inst.statIntelligencePotential,
+          strength: inst.statStrengthPotential,
+          beauty: inst.statBeautyPotential,
+        ),
+      );
+      final raw =
+          ((baseGold + prismaticBonus) *
+                  sourceMultiplier *
+                  natureMultiplier *
+                  potentialMultiplier)
+              .round();
 
       // Random ±20 % multiplier
       final multiplier = 0.8 + rng.nextDouble() * 0.4;
@@ -1001,6 +1020,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       case 'rare':
         return const Color(0xFF42A5F5);
       case 'mythic':
+      case 'mystic':
       case 'legendary':
         return const Color(0xFFFFD740);
       case 'variant':

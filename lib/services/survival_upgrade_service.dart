@@ -78,7 +78,7 @@ class SurvivalUpgradeService extends ChangeNotifier {
     final def = getOrbBaseDef(skin);
     if (def.cost <= 0) return false;
 
-    final canAfford = await _db.currencyDao.spendSilver(def.cost);
+    final canAfford = await _db.currencyDao.spendGold(def.cost);
     if (!canAfford) return false;
 
     _state.ownedSkins.add(skin);

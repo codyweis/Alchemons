@@ -127,7 +127,11 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
       final qty = await db.inventoryDao.getItemQty(key);
       if (qty > 0) items[key] = qty;
     }
-    for (final key in [InvKeys.staminaPotion, InvKeys.raidBeacon]) {
+    for (final key in [
+      InvKeys.staminaPotion,
+      InvKeys.wildFusion,
+      InvKeys.raidBeacon,
+    ]) {
       final qty = await db.inventoryDao.getItemQty(key);
       if (qty > 0) items[key] = qty;
     }
@@ -250,11 +254,9 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                               const SizedBox(height: 10),
                               ForgeBar(
                                 label: 'CARGO',
-                                value:
-                                    '${(widget.meterFill * 100).round()}%',
+                                value: '${(widget.meterFill * 100).round()}%',
                                 pct: widget.meterFill,
-                                barColor:
-                                    CosmicScreenStyles.amberBright,
+                                barColor: CosmicScreenStyles.amberBright,
                               ),
                               const SizedBox(height: 10),
                               Row(
@@ -262,11 +264,8 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                   Text(
                                     'SHARDS',
                                     style: TextStyle(
-                                      fontFamily: appFontFamily(
-                                        context,
-                                      ),
-                                      color: CosmicScreenStyles
-                                          .textSecondary,
+                                      fontFamily: appFontFamily(context),
+                                      color: CosmicScreenStyles.textSecondary,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                       letterSpacing: 1.6,
@@ -279,11 +278,9 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                       vertical: 3,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: CosmicScreenStyles
-                                          .astralShardColor
+                                      color: CosmicScreenStyles.astralShardColor
                                           .withValues(alpha: 0.12),
-                                      borderRadius:
-                                          BorderRadius.circular(2),
+                                      borderRadius: BorderRadius.circular(2),
                                       border: Border.all(
                                         color: CosmicScreenStyles
                                             .astralShardColor
@@ -295,8 +292,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         const Icon(
-                                          CosmicScreenStyles
-                                              .astralShardIcon,
+                                          CosmicScreenStyles.astralShardIcon,
                                           color: CosmicScreenStyles
                                               .astralShardColor,
                                           size: 12,
@@ -305,9 +301,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                         Text(
                                           '${widget.walletShards}',
                                           style: TextStyle(
-                                            fontFamily: appFontFamily(
-                                              context,
-                                            ),
+                                            fontFamily: appFontFamily(context),
                                             color: CosmicScreenStyles
                                                 .astralShardColor,
                                             fontSize: 12,
@@ -336,11 +330,8 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                   Text(
                                     'GUN',
                                     style: TextStyle(
-                                      fontFamily: appFontFamily(
-                                        context,
-                                      ),
-                                      color: CosmicScreenStyles
-                                          .textSecondary,
+                                      fontFamily: appFontFamily(context),
+                                      color: CosmicScreenStyles.textSecondary,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                       letterSpacing: 1.6,
@@ -353,10 +344,10 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                       vertical: 3,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: CosmicScreenStyles.teal
-                                          .withValues(alpha: 0.12),
-                                      borderRadius:
-                                          BorderRadius.circular(2),
+                                      color: CosmicScreenStyles.teal.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                      borderRadius: BorderRadius.circular(2),
                                       border: Border.all(
                                         color: CosmicScreenStyles.teal
                                             .withValues(alpha: 0.35),
@@ -366,9 +357,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     child: Text(
                                       widget.activeWeaponName,
                                       style: TextStyle(
-                                        fontFamily: appFontFamily(
-                                          context,
-                                        ),
+                                        fontFamily: appFontFamily(context),
                                         color: CosmicScreenStyles.teal,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w800,
@@ -384,11 +373,8 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     Text(
                                       'LAUNCHER',
                                       style: TextStyle(
-                                        fontFamily: appFontFamily(
-                                          context,
-                                        ),
-                                        color: CosmicScreenStyles
-                                            .textSecondary,
+                                        fontFamily: appFontFamily(context),
+                                        color: CosmicScreenStyles.textSecondary,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                         letterSpacing: 1.6,
@@ -396,17 +382,15 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     ),
                                     const Spacer(),
                                     Container(
-                                      padding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
-                                          ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: const Color(
                                           0xFFE53935,
                                         ).withValues(alpha: 0.12),
-                                        borderRadius:
-                                            BorderRadius.circular(2),
+                                        borderRadius: BorderRadius.circular(2),
                                         border: Border.all(
                                           color: const Color(
                                             0xFFE53935,
@@ -417,9 +401,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                       child: Text(
                                         'SEEKER MISSILES (${widget.missileAmmo})',
                                         style: TextStyle(
-                                          fontFamily: appFontFamily(
-                                            context,
-                                          ),
+                                          fontFamily: appFontFamily(context),
                                           color: Color(0xFFE53935),
                                           fontSize: 12,
                                           fontWeight: FontWeight.w800,
@@ -436,11 +418,8 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     Text(
                                       'BOOSTER',
                                       style: TextStyle(
-                                        fontFamily: appFontFamily(
-                                          context,
-                                        ),
-                                        color: CosmicScreenStyles
-                                            .textSecondary,
+                                        fontFamily: appFontFamily(context),
+                                        color: CosmicScreenStyles.textSecondary,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                         letterSpacing: 1.6,
@@ -448,17 +427,15 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     ),
                                     const Spacer(),
                                     Container(
-                                      padding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
-                                          ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: const Color(
                                           0xFFFF6F00,
                                         ).withValues(alpha: 0.12),
-                                        borderRadius:
-                                            BorderRadius.circular(2),
+                                        borderRadius: BorderRadius.circular(2),
                                         border: Border.all(
                                           color: const Color(
                                             0xFFFF6F00,
@@ -469,9 +446,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                       child: Text(
                                         'ION BOOSTER (${(widget.fuelFraction * 100).round()}%)',
                                         style: TextStyle(
-                                          fontFamily: appFontFamily(
-                                            context,
-                                          ),
+                                          fontFamily: appFontFamily(context),
                                           color: Color(0xFFFF6F00),
                                           fontSize: 12,
                                           fontWeight: FontWeight.w800,
@@ -488,11 +463,8 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     Text(
                                       'SHIELDS',
                                       style: TextStyle(
-                                        fontFamily: appFontFamily(
-                                          context,
-                                        ),
-                                        color: CosmicScreenStyles
-                                            .textSecondary,
+                                        fontFamily: appFontFamily(context),
+                                        color: CosmicScreenStyles.textSecondary,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                         letterSpacing: 1.6,
@@ -500,17 +472,15 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     ),
                                     const Spacer(),
                                     Container(
-                                      padding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
-                                          ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: const Color(
                                           0xFF42A5F5,
                                         ).withValues(alpha: 0.12),
-                                        borderRadius:
-                                            BorderRadius.circular(2),
+                                        borderRadius: BorderRadius.circular(2),
                                         border: Border.all(
                                           color: const Color(
                                             0xFF42A5F5,
@@ -521,9 +491,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                       child: Text(
                                         'SENTINELS (${widget.orbitalActive}/${OrbitalSentinel.maxActive})',
                                         style: TextStyle(
-                                          fontFamily: appFontFamily(
-                                            context,
-                                          ),
+                                          fontFamily: appFontFamily(context),
                                           color: Color(0xFF42A5F5),
                                           fontSize: 12,
                                           fontWeight: FontWeight.w800,
@@ -565,9 +533,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                   Text(
                                     'AUTO-REFUEL AT HOME',
                                     style: TextStyle(
-                                      fontFamily: appFontFamily(
-                                        context,
-                                      ),
+                                      fontFamily: appFontFamily(context),
                                       color: const Color(
                                         0xFFFF6F00,
                                       ).withValues(alpha: 0.6),
@@ -601,9 +567,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                   Text(
                                     'AUTO-RELOAD AT HOME',
                                     style: TextStyle(
-                                      fontFamily: appFontFamily(
-                                        context,
-                                      ),
+                                      fontFamily: appFontFamily(context),
                                       color: const Color(
                                         0xFFE53935,
                                       ).withValues(alpha: 0.6),
@@ -620,11 +584,8 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     Text(
                                       'SENTINELS',
                                       style: TextStyle(
-                                        fontFamily: appFontFamily(
-                                          context,
-                                        ),
-                                        color: CosmicScreenStyles
-                                            .textSecondary,
+                                        fontFamily: appFontFamily(context),
+                                        color: CosmicScreenStyles.textSecondary,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                         letterSpacing: 1.6,
@@ -634,9 +595,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     Text(
                                       '${widget.orbitalActive}/${OrbitalSentinel.maxActive} active \u2022 ${widget.orbitalStockpile} stock',
                                       style: TextStyle(
-                                        fontFamily: appFontFamily(
-                                          context,
-                                        ),
+                                        fontFamily: appFontFamily(context),
                                         color: Color(0xFF42A5F5),
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
@@ -657,9 +616,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                   Text(
                                     'AUTO-REPLENISH AT HOME',
                                     style: TextStyle(
-                                      fontFamily: appFontFamily(
-                                        context,
-                                      ),
+                                      fontFamily: appFontFamily(context),
                                       color: const Color(
                                         0xFF42A5F5,
                                       ).withValues(alpha: 0.6),
@@ -671,16 +628,12 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                 const SizedBox(height: 4),
                                 if (!widget.hasSentinelStation &&
                                     widget.orbitalStockpile <
-                                        OrbitalSentinel
-                                            .autoReplenishThreshold)
+                                        OrbitalSentinel.autoReplenishThreshold)
                                   Text(
                                     'Need ${OrbitalSentinel.autoReplenishThreshold} stockpiled to auto-replenish',
                                     style: TextStyle(
-                                      fontFamily: appFontFamily(
-                                        context,
-                                      ),
-                                      color:
-                                          CosmicScreenStyles.textMuted,
+                                      fontFamily: appFontFamily(context),
+                                      color: CosmicScreenStyles.textMuted,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -818,9 +771,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                 width: double.infinity,
                 height: 38,
                 decoration: BoxDecoration(
-                  border: Border.all(
-                    color: CosmicScreenStyles.borderMid,
-                  ),
+                  border: Border.all(color: CosmicScreenStyles.borderMid),
                 ),
                 alignment: Alignment.center,
                 child: Text(

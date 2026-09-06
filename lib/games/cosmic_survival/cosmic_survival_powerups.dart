@@ -68,7 +68,11 @@ const kCompanionStatBoosts = [
     category: PowerUpCategory.statBoost,
     scope: PowerUpScope.companion,
     maxStacks: 3,
-    tags: [PowerUpTag.basicAttack, PowerUpTag.chainExecute, PowerUpTag.fortress],
+    tags: [
+      PowerUpTag.basicAttack,
+      PowerUpTag.chainExecute,
+      PowerUpTag.fortress,
+    ],
     favoredFamilies: ['horn', 'mane', 'pip'],
     favoredStats: [PowerUpStatFocus.strength],
   ),
@@ -265,7 +269,8 @@ const kOrbDefenses = [
   PowerUpDef(
     id: 'auto_turret',
     name: 'Auto-Turret',
-    description: 'Orb turret fires faster, scales into later waves, and hits visibly',
+    description:
+        'Orb turret fires faster, scales into later waves, and hits visibly',
     icon: '🔧',
     category: PowerUpCategory.orbDefense,
     maxStacks: 3,
@@ -372,7 +377,8 @@ const kRarePerks = [
   PowerUpDef(
     id: 'mirror_shield',
     name: 'Mirror Shield',
-    description: 'Reduce orb collision damage by 25% and release a retaliatory pulse',
+    description:
+        'Reduce orb collision damage by 25% and release a retaliatory pulse',
     icon: '🪞',
     category: PowerUpCategory.rarePerk,
     rarity: PowerUpRarity.rare,
@@ -702,10 +708,8 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
         'Orb Durability +20%, Intelligence scaling +12%, Vitality scaling +14%',
       'keystone_chrono_surge' =>
         'Speed scaling +16%, Speed cadence +10%, Ship tempo +20%',
-      'keystone_spellbloom' =>
-        'Beauty scaling +16%, Speed cadence +12%',
-      'keystone_warpath' =>
-        'Strength scaling +22%, Ship impact scaling +20%',
+      'keystone_spellbloom' => 'Beauty scaling +16%, Speed cadence +12%',
+      'keystone_warpath' => 'Strength scaling +22%, Ship impact scaling +20%',
       _ => def.description,
     };
   }
@@ -1033,13 +1037,8 @@ List<OfferedPowerUpChoice> _buildExclusiveThisOrThatChoice(
 
   final picks = groupDefs
       .map(
-        (def) => _buildOfferedChoice(
-          def,
-          state,
-          party,
-          rng,
-          defeatedCompanionSlots,
-        ),
+        (def) =>
+            _buildOfferedChoice(def, state, party, rng, defeatedCompanionSlots),
       )
       .toList();
   picks.shuffle(rng);

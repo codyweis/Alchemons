@@ -10,7 +10,6 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
-import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/utils/harvest_rate.dart';
@@ -160,7 +159,11 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Icon(AppIcons.science_rounded, color: t.amberBright, size: 18),
+                  Icon(
+                    AppIcons.science_rounded,
+                    color: t.amberBright,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'BIOME EXTRACTORS',
@@ -366,7 +369,12 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                           child: Column(
                             children: [
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
+                                padding: const EdgeInsets.fromLTRB(
+                                  18,
+                                  4,
+                                  18,
+                                  4,
+                                ),
                                 child: Text(
                                   'Harvest',
                                   textAlign: TextAlign.center,
@@ -392,7 +400,8 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                           _CollectAllBanner(
                                             count: completedCount,
                                             theme: theme,
-                                            onCollectAll: () => _collectAll(farms),
+                                            onCollectAll: () =>
+                                                _collectAll(farms),
                                           ),
                                         Expanded(
                                           child: _ExtractionBay(
@@ -407,7 +416,8 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                             onSelect: (farm) {
                                               HapticFeedback.selectionClick();
                                               setState(
-                                                () => _selectedBiomeId = farm.biome.id,
+                                                () => _selectedBiomeId =
+                                                    farm.biome.id,
                                               );
                                             },
                                             onUnlock: _promptUnlock,
@@ -691,7 +701,11 @@ class _BiomeSelectorChip extends StatelessWidget {
                 if (farm.completed)
                   Icon(AppIcons.check_rounded, color: t.success, size: 16)
                 else if (!farm.unlocked)
-                  Icon(AppIcons.lock_outline_rounded, color: t.textMuted, size: 15)
+                  Icon(
+                    AppIcons.lock_outline_rounded,
+                    color: t.textMuted,
+                    size: 15,
+                  )
                 else if (farm.hasActive)
                   SizedBox(
                     width: 18,
@@ -1000,7 +1014,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     final busyIds = widget.farm.activeJob != null
         ? [widget.farm.activeJob!.creatureInstanceId]
         : <String>[];
-    final stamina = context.read<StaminaService>();
     final picked = await Navigator.of(context).push<CreatureInstance>(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 300),
@@ -1033,24 +1046,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
               return false;
             }
 
-            final refreshed = await stamina.refreshAndGet(inst.instanceId);
-            if ((refreshed?.staminaBars ?? 0) >= 1) {
-              return true;
-            }
-
-            final perBar = stamina.regenPerBar;
-            final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-            final last = refreshed?.staminaLastUtcMs ?? now;
-            final elapsed = now - last;
-            final remMs =
-                perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
-            final mins = (remMs / 60000).ceil();
-            _showToast(
-              'Specimen is resting, next stamina in ~${mins}m',
-              icon: AppIcons.hourglass_bottom_rounded,
-              color: Colors.orange.shade400,
-            );
-            return false;
+            return true;
           },
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -1067,16 +1063,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     );
     if (picked == null || !mounted) return;
 
-    final inst = await stamina.refreshAndGet(picked.instanceId);
-    if (inst == null) return;
-    if (inst.staminaBars == 0) {
-      _showToast(
-        'This creature is too exhausted.',
-        icon: AppIcons.error_outline,
-        color: Colors.red.shade400,
-      );
-      return;
-    }
+    final inst = picked;
     final base = repo.getCreatureById(inst.baseId);
     if (base == null || base.types.isEmpty) return;
     final creatureTypeId = base.types.first;
@@ -1156,7 +1143,11 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Icon(AppIcons.refresh_rounded, color: t.amberBright, size: 18),
+                    Icon(
+                      AppIcons.refresh_rounded,
+                      color: t.amberBright,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'EXTRACTION COMPLETE',

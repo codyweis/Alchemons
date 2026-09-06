@@ -39,13 +39,13 @@ extension AlchemicalPowerupTypeX on AlchemicalPowerupType {
 
   String get description => switch (this) {
     AlchemicalPowerupType.speed =>
-      'A quicksilver orb that accelerates Speed growth up to the specimen\'s potential.',
+      'A quicksilver orb used for permanent Speed Enhancement.',
     AlchemicalPowerupType.intelligence =>
-      'A lucid orb that sharpens Intelligence up to the specimen\'s potential.',
+      'A lucid orb used for permanent Intelligence Enhancement.',
     AlchemicalPowerupType.strength =>
-      'A dense forged orb that empowers Strength up to the specimen\'s potential.',
+      'A dense forged orb used for permanent Strength Enhancement.',
     AlchemicalPowerupType.beauty =>
-      'A luminous orb that enhances Beauty up to the specimen\'s potential.',
+      'A luminous orb used for permanent Beauty Enhancement.',
   };
 
   IconData get icon => switch (this) {
@@ -77,165 +77,20 @@ AlchemicalPowerupType? alchemicalPowerupTypeFromInventoryKey(String key) {
   return null;
 }
 
-enum AlchemicalPowerupRollTier { fizzle, steady, surge, overcharge, jackpot }
-
-class AlchemicalPowerupRoll {
-  final AlchemicalPowerupRollTier tier;
-  final double rolledDelta;
-  final double appliedDelta;
-
-  const AlchemicalPowerupRoll({
-    required this.tier,
-    required this.rolledDelta,
-    required this.appliedDelta,
-  });
-
-  bool get isRare => switch (tier) {
-    AlchemicalPowerupRollTier.fizzle => true,
-    AlchemicalPowerupRollTier.jackpot => true,
-    _ => false,
-  };
-
-  bool get isJackpot => tier == AlchemicalPowerupRollTier.jackpot;
-
-  String get label => switch (tier) {
-    AlchemicalPowerupRollTier.fizzle => 'VOLATILE',
-    AlchemicalPowerupRollTier.steady => 'STEADY',
-    AlchemicalPowerupRollTier.surge => 'SURGE',
-    AlchemicalPowerupRollTier.overcharge => 'OVERCHARGE',
-    AlchemicalPowerupRollTier.jackpot => 'ALCHEMICAL',
-  };
-
-  Duration get animationDuration => switch (tier) {
-    AlchemicalPowerupRollTier.fizzle => const Duration(milliseconds: 2100),
-    AlchemicalPowerupRollTier.steady => const Duration(milliseconds: 1500),
-    AlchemicalPowerupRollTier.surge => const Duration(milliseconds: 1750),
-    AlchemicalPowerupRollTier.overcharge => const Duration(milliseconds: 1950),
-    AlchemicalPowerupRollTier.jackpot => const Duration(milliseconds: 2450),
-  };
-
-  Duration get flashDuration => switch (tier) {
-    AlchemicalPowerupRollTier.fizzle => const Duration(milliseconds: 800),
-    AlchemicalPowerupRollTier.steady => const Duration(milliseconds: 500),
-    AlchemicalPowerupRollTier.surge => const Duration(milliseconds: 620),
-    AlchemicalPowerupRollTier.overcharge => const Duration(milliseconds: 720),
-    AlchemicalPowerupRollTier.jackpot => const Duration(milliseconds: 950),
-  };
-
-  double get glowBoost => switch (tier) {
-    AlchemicalPowerupRollTier.fizzle => 1.15,
-    AlchemicalPowerupRollTier.steady => 1.0,
-    AlchemicalPowerupRollTier.surge => 1.08,
-    AlchemicalPowerupRollTier.overcharge => 1.18,
-    AlchemicalPowerupRollTier.jackpot => 1.35,
-  };
-
-  double get orbitTurns => switch (tier) {
-    AlchemicalPowerupRollTier.fizzle => 2.0,
-    AlchemicalPowerupRollTier.steady => 2.2,
-    AlchemicalPowerupRollTier.surge => 2.8,
-    AlchemicalPowerupRollTier.overcharge => 3.8,
-    AlchemicalPowerupRollTier.jackpot => 5.2,
-  };
-
-  double get orbitEndProgress => switch (tier) {
-    AlchemicalPowerupRollTier.fizzle => 0.68,
-    AlchemicalPowerupRollTier.steady => 0.72,
-    AlchemicalPowerupRollTier.surge => 0.76,
-    AlchemicalPowerupRollTier.overcharge => 0.82,
-    AlchemicalPowerupRollTier.jackpot => 0.86,
-  };
-}
-
-double alchemicalPowerupMinDelta({
-  required double currentValue,
-  required double potentialValue,
-}) {
-  final remaining = max(0.0, potentialValue - currentValue);
-  if (remaining <= 0) return 0.0;
-  return min(0.05, remaining);
-}
-
-double alchemicalPowerupMaxDelta({
-  required double currentValue,
-  required double potentialValue,
-}) {
-  final remaining = max(0.0, potentialValue - currentValue);
-  if (remaining <= 0) return 0.0;
-  return min(0.25, remaining);
-}
-
-String alchemicalPowerupDeltaRangeLabel({
-  required double currentValue,
-  required double potentialValue,
-}) {
-  final minDelta = alchemicalPowerupMinDelta(
-    currentValue: currentValue,
-    potentialValue: potentialValue,
-  );
-  final maxDelta = alchemicalPowerupMaxDelta(
-    currentValue: currentValue,
-    potentialValue: potentialValue,
-  );
-  if (maxDelta <= 0) return '—';
-  if ((minDelta - maxDelta).abs() < 0.0001) {
-    return '+${maxDelta.toStringAsFixed(2)}';
-  }
-  return '+${minDelta.toStringAsFixed(2)} to +${maxDelta.toStringAsFixed(2)}';
-}
-
-AlchemicalPowerupRoll rollAlchemicalPowerup({
-  required double currentValue,
-  required double potentialValue,
-  Random? rng,
-}) {
-  final remaining = max(0.0, potentialValue - currentValue);
-  if (remaining <= 0) {
-    return const AlchemicalPowerupRoll(
-      tier: AlchemicalPowerupRollTier.fizzle,
-      rolledDelta: 0.0,
-      appliedDelta: 0.0,
-    );
-  }
-
-  final roll = (rng ?? Random()).nextDouble();
-  final tier = switch (roll) {
-    < 0.05 => AlchemicalPowerupRollTier.fizzle,
-    < 0.55 => AlchemicalPowerupRollTier.steady,
-    < 0.80 => AlchemicalPowerupRollTier.surge,
-    < 0.98 => AlchemicalPowerupRollTier.overcharge,
-    _ => AlchemicalPowerupRollTier.jackpot,
-  };
-
-  final rolledDelta = switch (tier) {
-    AlchemicalPowerupRollTier.fizzle => 0.05,
-    AlchemicalPowerupRollTier.steady => 0.10,
-    AlchemicalPowerupRollTier.surge => 0.15,
-    AlchemicalPowerupRollTier.overcharge => 0.20,
-    AlchemicalPowerupRollTier.jackpot => 0.25,
-  };
-
-  return AlchemicalPowerupRoll(
-    tier: tier,
-    rolledDelta: rolledDelta,
-    appliedDelta: min(rolledDelta, remaining),
-  );
-}
-
 List<MapEntry<String, int>> rollCosmicSurvivalPowerupRewards(
   int wave,
   Random rng,
 ) {
   final dropChance = wave >= 50
-      ? 1.0
+      ? 0.40
       : wave >= 40
-      ? 0.75
+      ? 0.28
       : wave >= 30
-      ? 0.60
+      ? 0.18
       : wave >= 20
-      ? 0.30
+      ? 0.10
       : wave >= 10
-      ? 0.16
+      ? 0.05
       : 0.0;
   if (dropChance <= 0 || rng.nextDouble() > dropChance) return const [];
 
@@ -249,7 +104,7 @@ List<MapEntry<String, int>> rollCosmicSurvivalPowerupRewards(
 List<MapEntry<String, int>> rollBossRiftPowerupRewards(Random rng) {
   final out = <String, int>{};
   for (final powerup in AlchemicalPowerupType.values) {
-    if (rng.nextDouble() <= 0.50) {
+    if (rng.nextDouble() <= 0.25) {
       out.update(powerup.inventoryKey, (value) => value + 1, ifAbsent: () => 1);
     }
   }

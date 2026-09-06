@@ -44,8 +44,19 @@ class $PlayerCreaturesTable extends PlayerCreatures
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _natureId2Meta = const VerificationMeta(
+    'natureId2',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, discovered, natureId];
+  late final GeneratedColumn<String> natureId2 = GeneratedColumn<String>(
+    'nature_id2',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, discovered, natureId, natureId2];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -75,6 +86,12 @@ class $PlayerCreaturesTable extends PlayerCreatures
         natureId.isAcceptableOrUnknown(data['nature_id']!, _natureIdMeta),
       );
     }
+    if (data.containsKey('nature_id2')) {
+      context.handle(
+        _natureId2Meta,
+        natureId2.isAcceptableOrUnknown(data['nature_id2']!, _natureId2Meta),
+      );
+    }
     return context;
   }
 
@@ -96,6 +113,10 @@ class $PlayerCreaturesTable extends PlayerCreatures
         DriftSqlType.string,
         data['${effectivePrefix}nature_id'],
       ),
+      natureId2: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}nature_id2'],
+      ),
     );
   }
 
@@ -109,10 +130,12 @@ class PlayerCreature extends DataClass implements Insertable<PlayerCreature> {
   final String id;
   final bool discovered;
   final String? natureId;
+  final String? natureId2;
   const PlayerCreature({
     required this.id,
     required this.discovered,
     this.natureId,
+    this.natureId2,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -121,6 +144,9 @@ class PlayerCreature extends DataClass implements Insertable<PlayerCreature> {
     map['discovered'] = Variable<bool>(discovered);
     if (!nullToAbsent || natureId != null) {
       map['nature_id'] = Variable<String>(natureId);
+    }
+    if (!nullToAbsent || natureId2 != null) {
+      map['nature_id2'] = Variable<String>(natureId2);
     }
     return map;
   }
@@ -132,6 +158,9 @@ class PlayerCreature extends DataClass implements Insertable<PlayerCreature> {
       natureId: natureId == null && nullToAbsent
           ? const Value.absent()
           : Value(natureId),
+      natureId2: natureId2 == null && nullToAbsent
+          ? const Value.absent()
+          : Value(natureId2),
     );
   }
 
@@ -144,6 +173,7 @@ class PlayerCreature extends DataClass implements Insertable<PlayerCreature> {
       id: serializer.fromJson<String>(json['id']),
       discovered: serializer.fromJson<bool>(json['discovered']),
       natureId: serializer.fromJson<String?>(json['natureId']),
+      natureId2: serializer.fromJson<String?>(json['natureId2']),
     );
   }
   @override
@@ -153,6 +183,7 @@ class PlayerCreature extends DataClass implements Insertable<PlayerCreature> {
       'id': serializer.toJson<String>(id),
       'discovered': serializer.toJson<bool>(discovered),
       'natureId': serializer.toJson<String?>(natureId),
+      'natureId2': serializer.toJson<String?>(natureId2),
     };
   }
 
@@ -160,10 +191,12 @@ class PlayerCreature extends DataClass implements Insertable<PlayerCreature> {
     String? id,
     bool? discovered,
     Value<String?> natureId = const Value.absent(),
+    Value<String?> natureId2 = const Value.absent(),
   }) => PlayerCreature(
     id: id ?? this.id,
     discovered: discovered ?? this.discovered,
     natureId: natureId.present ? natureId.value : this.natureId,
+    natureId2: natureId2.present ? natureId2.value : this.natureId2,
   );
   PlayerCreature copyWithCompanion(PlayerCreaturesCompanion data) {
     return PlayerCreature(
@@ -172,6 +205,7 @@ class PlayerCreature extends DataClass implements Insertable<PlayerCreature> {
           ? data.discovered.value
           : this.discovered,
       natureId: data.natureId.present ? data.natureId.value : this.natureId,
+      natureId2: data.natureId2.present ? data.natureId2.value : this.natureId2,
     );
   }
 
@@ -180,49 +214,56 @@ class PlayerCreature extends DataClass implements Insertable<PlayerCreature> {
     return (StringBuffer('PlayerCreature(')
           ..write('id: $id, ')
           ..write('discovered: $discovered, ')
-          ..write('natureId: $natureId')
+          ..write('natureId: $natureId, ')
+          ..write('natureId2: $natureId2')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, discovered, natureId);
+  int get hashCode => Object.hash(id, discovered, natureId, natureId2);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PlayerCreature &&
           other.id == this.id &&
           other.discovered == this.discovered &&
-          other.natureId == this.natureId);
+          other.natureId == this.natureId &&
+          other.natureId2 == this.natureId2);
 }
 
 class PlayerCreaturesCompanion extends UpdateCompanion<PlayerCreature> {
   final Value<String> id;
   final Value<bool> discovered;
   final Value<String?> natureId;
+  final Value<String?> natureId2;
   final Value<int> rowid;
   const PlayerCreaturesCompanion({
     this.id = const Value.absent(),
     this.discovered = const Value.absent(),
     this.natureId = const Value.absent(),
+    this.natureId2 = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PlayerCreaturesCompanion.insert({
     required String id,
     this.discovered = const Value.absent(),
     this.natureId = const Value.absent(),
+    this.natureId2 = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id);
   static Insertable<PlayerCreature> custom({
     Expression<String>? id,
     Expression<bool>? discovered,
     Expression<String>? natureId,
+    Expression<String>? natureId2,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (discovered != null) 'discovered': discovered,
       if (natureId != null) 'nature_id': natureId,
+      if (natureId2 != null) 'nature_id2': natureId2,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -231,12 +272,14 @@ class PlayerCreaturesCompanion extends UpdateCompanion<PlayerCreature> {
     Value<String>? id,
     Value<bool>? discovered,
     Value<String?>? natureId,
+    Value<String?>? natureId2,
     Value<int>? rowid,
   }) {
     return PlayerCreaturesCompanion(
       id: id ?? this.id,
       discovered: discovered ?? this.discovered,
       natureId: natureId ?? this.natureId,
+      natureId2: natureId2 ?? this.natureId2,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -253,6 +296,9 @@ class PlayerCreaturesCompanion extends UpdateCompanion<PlayerCreature> {
     if (natureId.present) {
       map['nature_id'] = Variable<String>(natureId.value);
     }
+    if (natureId2.present) {
+      map['nature_id2'] = Variable<String>(natureId2.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -265,6 +311,7 @@ class PlayerCreaturesCompanion extends UpdateCompanion<PlayerCreature> {
           ..write('id: $id, ')
           ..write('discovered: $discovered, ')
           ..write('natureId: $natureId, ')
+          ..write('natureId2: $natureId2, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1538,6 +1585,17 @@ class $CreatureInstancesTable extends CreatureInstances
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _natureId2Meta = const VerificationMeta(
+    'natureId2',
+  );
+  @override
+  late final GeneratedColumn<String> natureId2 = GeneratedColumn<String>(
+    'nature_id2',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _sourceMeta = const VerificationMeta('source');
   @override
   late final GeneratedColumn<String> source = GeneratedColumn<String>(
@@ -1698,7 +1756,7 @@ class $CreatureInstancesTable extends CreatureInstances
         false,
         type: DriftSqlType.double,
         requiredDuringInsert: false,
-        defaultValue: const Constant(4.0),
+        defaultValue: const Constant(50.0),
       );
   static const VerificationMeta _statIntelligencePotentialMeta =
       const VerificationMeta('statIntelligencePotential');
@@ -1710,7 +1768,7 @@ class $CreatureInstancesTable extends CreatureInstances
         false,
         type: DriftSqlType.double,
         requiredDuringInsert: false,
-        defaultValue: const Constant(4.0),
+        defaultValue: const Constant(50.0),
       );
   static const VerificationMeta _statStrengthPotentialMeta =
       const VerificationMeta('statStrengthPotential');
@@ -1722,7 +1780,7 @@ class $CreatureInstancesTable extends CreatureInstances
         false,
         type: DriftSqlType.double,
         requiredDuringInsert: false,
-        defaultValue: const Constant(4.0),
+        defaultValue: const Constant(50.0),
       );
   static const VerificationMeta _statBeautyPotentialMeta =
       const VerificationMeta('statBeautyPotential');
@@ -1734,8 +1792,54 @@ class $CreatureInstancesTable extends CreatureInstances
         false,
         type: DriftSqlType.double,
         requiredDuringInsert: false,
-        defaultValue: const Constant(4.0),
+        defaultValue: const Constant(50.0),
       );
+  static const VerificationMeta _statSpeedEnhancementMeta =
+      const VerificationMeta('statSpeedEnhancement');
+  @override
+  late final GeneratedColumn<int> statSpeedEnhancement = GeneratedColumn<int>(
+    'stat_speed_enhancement',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _statIntelligenceEnhancementMeta =
+      const VerificationMeta('statIntelligenceEnhancement');
+  @override
+  late final GeneratedColumn<int> statIntelligenceEnhancement =
+      GeneratedColumn<int>(
+        'stat_intelligence_enhancement',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _statStrengthEnhancementMeta =
+      const VerificationMeta('statStrengthEnhancement');
+  @override
+  late final GeneratedColumn<int> statStrengthEnhancement =
+      GeneratedColumn<int>(
+        'stat_strength_enhancement',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _statBeautyEnhancementMeta =
+      const VerificationMeta('statBeautyEnhancement');
+  @override
+  late final GeneratedColumn<int> statBeautyEnhancement = GeneratedColumn<int>(
+    'stat_beauty_enhancement',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _generationDepthMeta = const VerificationMeta(
     'generationDepth',
   );
@@ -1831,6 +1935,7 @@ class $CreatureInstancesTable extends CreatureInstances
     nickname,
     isPrismaticSkin,
     natureId,
+    natureId2,
     source,
     parentageJson,
     geneticsJson,
@@ -1848,6 +1953,10 @@ class $CreatureInstancesTable extends CreatureInstances
     statIntelligencePotential,
     statStrengthPotential,
     statBeautyPotential,
+    statSpeedEnhancement,
+    statIntelligenceEnhancement,
+    statStrengthEnhancement,
+    statBeautyEnhancement,
     generationDepth,
     factionLineageJson,
     variantFaction,
@@ -1918,6 +2027,12 @@ class $CreatureInstancesTable extends CreatureInstances
       context.handle(
         _natureIdMeta,
         natureId.isAcceptableOrUnknown(data['nature_id']!, _natureIdMeta),
+      );
+    }
+    if (data.containsKey('nature_id2')) {
+      context.handle(
+        _natureId2Meta,
+        natureId2.isAcceptableOrUnknown(data['nature_id2']!, _natureId2Meta),
       );
     }
     if (data.containsKey('source')) {
@@ -2061,6 +2176,42 @@ class $CreatureInstancesTable extends CreatureInstances
         ),
       );
     }
+    if (data.containsKey('stat_speed_enhancement')) {
+      context.handle(
+        _statSpeedEnhancementMeta,
+        statSpeedEnhancement.isAcceptableOrUnknown(
+          data['stat_speed_enhancement']!,
+          _statSpeedEnhancementMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stat_intelligence_enhancement')) {
+      context.handle(
+        _statIntelligenceEnhancementMeta,
+        statIntelligenceEnhancement.isAcceptableOrUnknown(
+          data['stat_intelligence_enhancement']!,
+          _statIntelligenceEnhancementMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stat_strength_enhancement')) {
+      context.handle(
+        _statStrengthEnhancementMeta,
+        statStrengthEnhancement.isAcceptableOrUnknown(
+          data['stat_strength_enhancement']!,
+          _statStrengthEnhancementMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stat_beauty_enhancement')) {
+      context.handle(
+        _statBeautyEnhancementMeta,
+        statBeautyEnhancement.isAcceptableOrUnknown(
+          data['stat_beauty_enhancement']!,
+          _statBeautyEnhancementMeta,
+        ),
+      );
+    }
     if (data.containsKey('generation_depth')) {
       context.handle(
         _generationDepthMeta,
@@ -2159,6 +2310,10 @@ class $CreatureInstancesTable extends CreatureInstances
         DriftSqlType.string,
         data['${effectivePrefix}nature_id'],
       ),
+      natureId2: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}nature_id2'],
+      ),
       source: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}source'],
@@ -2227,6 +2382,22 @@ class $CreatureInstancesTable extends CreatureInstances
         DriftSqlType.double,
         data['${effectivePrefix}stat_beauty_potential'],
       )!,
+      statSpeedEnhancement: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}stat_speed_enhancement'],
+      )!,
+      statIntelligenceEnhancement: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}stat_intelligence_enhancement'],
+      )!,
+      statStrengthEnhancement: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}stat_strength_enhancement'],
+      )!,
+      statBeautyEnhancement: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}stat_beauty_enhancement'],
+      )!,
       generationDepth: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}generation_depth'],
@@ -2274,6 +2445,7 @@ class CreatureInstance extends DataClass
   final String? nickname;
   final bool isPrismaticSkin;
   final String? natureId;
+  final String? natureId2;
   final String source;
   final String? parentageJson;
   final String? geneticsJson;
@@ -2291,6 +2463,10 @@ class CreatureInstance extends DataClass
   final double statIntelligencePotential;
   final double statStrengthPotential;
   final double statBeautyPotential;
+  final int statSpeedEnhancement;
+  final int statIntelligenceEnhancement;
+  final int statStrengthEnhancement;
+  final int statBeautyEnhancement;
   final int generationDepth;
   final String? factionLineageJson;
   final String? variantFaction;
@@ -2307,6 +2483,7 @@ class CreatureInstance extends DataClass
     this.nickname,
     required this.isPrismaticSkin,
     this.natureId,
+    this.natureId2,
     required this.source,
     this.parentageJson,
     this.geneticsJson,
@@ -2324,6 +2501,10 @@ class CreatureInstance extends DataClass
     required this.statIntelligencePotential,
     required this.statStrengthPotential,
     required this.statBeautyPotential,
+    required this.statSpeedEnhancement,
+    required this.statIntelligenceEnhancement,
+    required this.statStrengthEnhancement,
+    required this.statBeautyEnhancement,
     required this.generationDepth,
     this.factionLineageJson,
     this.variantFaction,
@@ -2346,6 +2527,9 @@ class CreatureInstance extends DataClass
     map['is_prismatic_skin'] = Variable<bool>(isPrismaticSkin);
     if (!nullToAbsent || natureId != null) {
       map['nature_id'] = Variable<String>(natureId);
+    }
+    if (!nullToAbsent || natureId2 != null) {
+      map['nature_id2'] = Variable<String>(natureId2);
     }
     map['source'] = Variable<String>(source);
     if (!nullToAbsent || parentageJson != null) {
@@ -2376,6 +2560,12 @@ class CreatureInstance extends DataClass
     );
     map['stat_strength_potential'] = Variable<double>(statStrengthPotential);
     map['stat_beauty_potential'] = Variable<double>(statBeautyPotential);
+    map['stat_speed_enhancement'] = Variable<int>(statSpeedEnhancement);
+    map['stat_intelligence_enhancement'] = Variable<int>(
+      statIntelligenceEnhancement,
+    );
+    map['stat_strength_enhancement'] = Variable<int>(statStrengthEnhancement);
+    map['stat_beauty_enhancement'] = Variable<int>(statBeautyEnhancement);
     map['generation_depth'] = Variable<int>(generationDepth);
     if (!nullToAbsent || factionLineageJson != null) {
       map['faction_lineage_json'] = Variable<String>(factionLineageJson);
@@ -2408,6 +2598,9 @@ class CreatureInstance extends DataClass
       natureId: natureId == null && nullToAbsent
           ? const Value.absent()
           : Value(natureId),
+      natureId2: natureId2 == null && nullToAbsent
+          ? const Value.absent()
+          : Value(natureId2),
       source: Value(source),
       parentageJson: parentageJson == null && nullToAbsent
           ? const Value.absent()
@@ -2433,6 +2626,10 @@ class CreatureInstance extends DataClass
       statIntelligencePotential: Value(statIntelligencePotential),
       statStrengthPotential: Value(statStrengthPotential),
       statBeautyPotential: Value(statBeautyPotential),
+      statSpeedEnhancement: Value(statSpeedEnhancement),
+      statIntelligenceEnhancement: Value(statIntelligenceEnhancement),
+      statStrengthEnhancement: Value(statStrengthEnhancement),
+      statBeautyEnhancement: Value(statBeautyEnhancement),
       generationDepth: Value(generationDepth),
       factionLineageJson: factionLineageJson == null && nullToAbsent
           ? const Value.absent()
@@ -2465,6 +2662,7 @@ class CreatureInstance extends DataClass
       nickname: serializer.fromJson<String?>(json['nickname']),
       isPrismaticSkin: serializer.fromJson<bool>(json['isPrismaticSkin']),
       natureId: serializer.fromJson<String?>(json['natureId']),
+      natureId2: serializer.fromJson<String?>(json['natureId2']),
       source: serializer.fromJson<String>(json['source']),
       parentageJson: serializer.fromJson<String?>(json['parentageJson']),
       geneticsJson: serializer.fromJson<String?>(json['geneticsJson']),
@@ -2491,6 +2689,18 @@ class CreatureInstance extends DataClass
       ),
       statBeautyPotential: serializer.fromJson<double>(
         json['statBeautyPotential'],
+      ),
+      statSpeedEnhancement: serializer.fromJson<int>(
+        json['statSpeedEnhancement'],
+      ),
+      statIntelligenceEnhancement: serializer.fromJson<int>(
+        json['statIntelligenceEnhancement'],
+      ),
+      statStrengthEnhancement: serializer.fromJson<int>(
+        json['statStrengthEnhancement'],
+      ),
+      statBeautyEnhancement: serializer.fromJson<int>(
+        json['statBeautyEnhancement'],
       ),
       generationDepth: serializer.fromJson<int>(json['generationDepth']),
       factionLineageJson: serializer.fromJson<String?>(
@@ -2519,6 +2729,7 @@ class CreatureInstance extends DataClass
       'nickname': serializer.toJson<String?>(nickname),
       'isPrismaticSkin': serializer.toJson<bool>(isPrismaticSkin),
       'natureId': serializer.toJson<String?>(natureId),
+      'natureId2': serializer.toJson<String?>(natureId2),
       'source': serializer.toJson<String>(source),
       'parentageJson': serializer.toJson<String?>(parentageJson),
       'geneticsJson': serializer.toJson<String?>(geneticsJson),
@@ -2540,6 +2751,14 @@ class CreatureInstance extends DataClass
       ),
       'statStrengthPotential': serializer.toJson<double>(statStrengthPotential),
       'statBeautyPotential': serializer.toJson<double>(statBeautyPotential),
+      'statSpeedEnhancement': serializer.toJson<int>(statSpeedEnhancement),
+      'statIntelligenceEnhancement': serializer.toJson<int>(
+        statIntelligenceEnhancement,
+      ),
+      'statStrengthEnhancement': serializer.toJson<int>(
+        statStrengthEnhancement,
+      ),
+      'statBeautyEnhancement': serializer.toJson<int>(statBeautyEnhancement),
       'generationDepth': serializer.toJson<int>(generationDepth),
       'factionLineageJson': serializer.toJson<String?>(factionLineageJson),
       'variantFaction': serializer.toJson<String?>(variantFaction),
@@ -2559,6 +2778,7 @@ class CreatureInstance extends DataClass
     Value<String?> nickname = const Value.absent(),
     bool? isPrismaticSkin,
     Value<String?> natureId = const Value.absent(),
+    Value<String?> natureId2 = const Value.absent(),
     String? source,
     Value<String?> parentageJson = const Value.absent(),
     Value<String?> geneticsJson = const Value.absent(),
@@ -2576,6 +2796,10 @@ class CreatureInstance extends DataClass
     double? statIntelligencePotential,
     double? statStrengthPotential,
     double? statBeautyPotential,
+    int? statSpeedEnhancement,
+    int? statIntelligenceEnhancement,
+    int? statStrengthEnhancement,
+    int? statBeautyEnhancement,
     int? generationDepth,
     Value<String?> factionLineageJson = const Value.absent(),
     Value<String?> variantFaction = const Value.absent(),
@@ -2592,6 +2816,7 @@ class CreatureInstance extends DataClass
     nickname: nickname.present ? nickname.value : this.nickname,
     isPrismaticSkin: isPrismaticSkin ?? this.isPrismaticSkin,
     natureId: natureId.present ? natureId.value : this.natureId,
+    natureId2: natureId2.present ? natureId2.value : this.natureId2,
     source: source ?? this.source,
     parentageJson: parentageJson.present
         ? parentageJson.value
@@ -2616,6 +2841,12 @@ class CreatureInstance extends DataClass
         statIntelligencePotential ?? this.statIntelligencePotential,
     statStrengthPotential: statStrengthPotential ?? this.statStrengthPotential,
     statBeautyPotential: statBeautyPotential ?? this.statBeautyPotential,
+    statSpeedEnhancement: statSpeedEnhancement ?? this.statSpeedEnhancement,
+    statIntelligenceEnhancement:
+        statIntelligenceEnhancement ?? this.statIntelligenceEnhancement,
+    statStrengthEnhancement:
+        statStrengthEnhancement ?? this.statStrengthEnhancement,
+    statBeautyEnhancement: statBeautyEnhancement ?? this.statBeautyEnhancement,
     generationDepth: generationDepth ?? this.generationDepth,
     factionLineageJson: factionLineageJson.present
         ? factionLineageJson.value
@@ -2646,6 +2877,7 @@ class CreatureInstance extends DataClass
           ? data.isPrismaticSkin.value
           : this.isPrismaticSkin,
       natureId: data.natureId.present ? data.natureId.value : this.natureId,
+      natureId2: data.natureId2.present ? data.natureId2.value : this.natureId2,
       source: data.source.present ? data.source.value : this.source,
       parentageJson: data.parentageJson.present
           ? data.parentageJson.value
@@ -2693,6 +2925,18 @@ class CreatureInstance extends DataClass
       statBeautyPotential: data.statBeautyPotential.present
           ? data.statBeautyPotential.value
           : this.statBeautyPotential,
+      statSpeedEnhancement: data.statSpeedEnhancement.present
+          ? data.statSpeedEnhancement.value
+          : this.statSpeedEnhancement,
+      statIntelligenceEnhancement: data.statIntelligenceEnhancement.present
+          ? data.statIntelligenceEnhancement.value
+          : this.statIntelligenceEnhancement,
+      statStrengthEnhancement: data.statStrengthEnhancement.present
+          ? data.statStrengthEnhancement.value
+          : this.statStrengthEnhancement,
+      statBeautyEnhancement: data.statBeautyEnhancement.present
+          ? data.statBeautyEnhancement.value
+          : this.statBeautyEnhancement,
       generationDepth: data.generationDepth.present
           ? data.generationDepth.value
           : this.generationDepth,
@@ -2726,6 +2970,7 @@ class CreatureInstance extends DataClass
           ..write('nickname: $nickname, ')
           ..write('isPrismaticSkin: $isPrismaticSkin, ')
           ..write('natureId: $natureId, ')
+          ..write('natureId2: $natureId2, ')
           ..write('source: $source, ')
           ..write('parentageJson: $parentageJson, ')
           ..write('geneticsJson: $geneticsJson, ')
@@ -2743,6 +2988,10 @@ class CreatureInstance extends DataClass
           ..write('statIntelligencePotential: $statIntelligencePotential, ')
           ..write('statStrengthPotential: $statStrengthPotential, ')
           ..write('statBeautyPotential: $statBeautyPotential, ')
+          ..write('statSpeedEnhancement: $statSpeedEnhancement, ')
+          ..write('statIntelligenceEnhancement: $statIntelligenceEnhancement, ')
+          ..write('statStrengthEnhancement: $statStrengthEnhancement, ')
+          ..write('statBeautyEnhancement: $statBeautyEnhancement, ')
           ..write('generationDepth: $generationDepth, ')
           ..write('factionLineageJson: $factionLineageJson, ')
           ..write('variantFaction: $variantFaction, ')
@@ -2764,6 +3013,7 @@ class CreatureInstance extends DataClass
     nickname,
     isPrismaticSkin,
     natureId,
+    natureId2,
     source,
     parentageJson,
     geneticsJson,
@@ -2781,6 +3031,10 @@ class CreatureInstance extends DataClass
     statIntelligencePotential,
     statStrengthPotential,
     statBeautyPotential,
+    statSpeedEnhancement,
+    statIntelligenceEnhancement,
+    statStrengthEnhancement,
+    statBeautyEnhancement,
     generationDepth,
     factionLineageJson,
     variantFaction,
@@ -2801,6 +3055,7 @@ class CreatureInstance extends DataClass
           other.nickname == this.nickname &&
           other.isPrismaticSkin == this.isPrismaticSkin &&
           other.natureId == this.natureId &&
+          other.natureId2 == this.natureId2 &&
           other.source == this.source &&
           other.parentageJson == this.parentageJson &&
           other.geneticsJson == this.geneticsJson &&
@@ -2818,6 +3073,11 @@ class CreatureInstance extends DataClass
           other.statIntelligencePotential == this.statIntelligencePotential &&
           other.statStrengthPotential == this.statStrengthPotential &&
           other.statBeautyPotential == this.statBeautyPotential &&
+          other.statSpeedEnhancement == this.statSpeedEnhancement &&
+          other.statIntelligenceEnhancement ==
+              this.statIntelligenceEnhancement &&
+          other.statStrengthEnhancement == this.statStrengthEnhancement &&
+          other.statBeautyEnhancement == this.statBeautyEnhancement &&
           other.generationDepth == this.generationDepth &&
           other.factionLineageJson == this.factionLineageJson &&
           other.variantFaction == this.variantFaction &&
@@ -2836,6 +3096,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
   final Value<String?> nickname;
   final Value<bool> isPrismaticSkin;
   final Value<String?> natureId;
+  final Value<String?> natureId2;
   final Value<String> source;
   final Value<String?> parentageJson;
   final Value<String?> geneticsJson;
@@ -2853,6 +3114,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
   final Value<double> statIntelligencePotential;
   final Value<double> statStrengthPotential;
   final Value<double> statBeautyPotential;
+  final Value<int> statSpeedEnhancement;
+  final Value<int> statIntelligenceEnhancement;
+  final Value<int> statStrengthEnhancement;
+  final Value<int> statBeautyEnhancement;
   final Value<int> generationDepth;
   final Value<String?> factionLineageJson;
   final Value<String?> variantFaction;
@@ -2870,6 +3135,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.nickname = const Value.absent(),
     this.isPrismaticSkin = const Value.absent(),
     this.natureId = const Value.absent(),
+    this.natureId2 = const Value.absent(),
     this.source = const Value.absent(),
     this.parentageJson = const Value.absent(),
     this.geneticsJson = const Value.absent(),
@@ -2887,6 +3153,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.statIntelligencePotential = const Value.absent(),
     this.statStrengthPotential = const Value.absent(),
     this.statBeautyPotential = const Value.absent(),
+    this.statSpeedEnhancement = const Value.absent(),
+    this.statIntelligenceEnhancement = const Value.absent(),
+    this.statStrengthEnhancement = const Value.absent(),
+    this.statBeautyEnhancement = const Value.absent(),
     this.generationDepth = const Value.absent(),
     this.factionLineageJson = const Value.absent(),
     this.variantFaction = const Value.absent(),
@@ -2905,6 +3175,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.nickname = const Value.absent(),
     this.isPrismaticSkin = const Value.absent(),
     this.natureId = const Value.absent(),
+    this.natureId2 = const Value.absent(),
     this.source = const Value.absent(),
     this.parentageJson = const Value.absent(),
     this.geneticsJson = const Value.absent(),
@@ -2922,6 +3193,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.statIntelligencePotential = const Value.absent(),
     this.statStrengthPotential = const Value.absent(),
     this.statBeautyPotential = const Value.absent(),
+    this.statSpeedEnhancement = const Value.absent(),
+    this.statIntelligenceEnhancement = const Value.absent(),
+    this.statStrengthEnhancement = const Value.absent(),
+    this.statBeautyEnhancement = const Value.absent(),
     this.generationDepth = const Value.absent(),
     this.factionLineageJson = const Value.absent(),
     this.variantFaction = const Value.absent(),
@@ -2941,6 +3216,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Expression<String>? nickname,
     Expression<bool>? isPrismaticSkin,
     Expression<String>? natureId,
+    Expression<String>? natureId2,
     Expression<String>? source,
     Expression<String>? parentageJson,
     Expression<String>? geneticsJson,
@@ -2958,6 +3234,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Expression<double>? statIntelligencePotential,
     Expression<double>? statStrengthPotential,
     Expression<double>? statBeautyPotential,
+    Expression<int>? statSpeedEnhancement,
+    Expression<int>? statIntelligenceEnhancement,
+    Expression<int>? statStrengthEnhancement,
+    Expression<int>? statBeautyEnhancement,
     Expression<int>? generationDepth,
     Expression<String>? factionLineageJson,
     Expression<String>? variantFaction,
@@ -2976,6 +3256,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       if (nickname != null) 'nickname': nickname,
       if (isPrismaticSkin != null) 'is_prismatic_skin': isPrismaticSkin,
       if (natureId != null) 'nature_id': natureId,
+      if (natureId2 != null) 'nature_id2': natureId2,
       if (source != null) 'source': source,
       if (parentageJson != null) 'parentage_json': parentageJson,
       if (geneticsJson != null) 'genetics_json': geneticsJson,
@@ -2998,6 +3279,14 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
         'stat_strength_potential': statStrengthPotential,
       if (statBeautyPotential != null)
         'stat_beauty_potential': statBeautyPotential,
+      if (statSpeedEnhancement != null)
+        'stat_speed_enhancement': statSpeedEnhancement,
+      if (statIntelligenceEnhancement != null)
+        'stat_intelligence_enhancement': statIntelligenceEnhancement,
+      if (statStrengthEnhancement != null)
+        'stat_strength_enhancement': statStrengthEnhancement,
+      if (statBeautyEnhancement != null)
+        'stat_beauty_enhancement': statBeautyEnhancement,
       if (generationDepth != null) 'generation_depth': generationDepth,
       if (factionLineageJson != null)
         'faction_lineage_json': factionLineageJson,
@@ -3020,6 +3309,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Value<String?>? nickname,
     Value<bool>? isPrismaticSkin,
     Value<String?>? natureId,
+    Value<String?>? natureId2,
     Value<String>? source,
     Value<String?>? parentageJson,
     Value<String?>? geneticsJson,
@@ -3037,6 +3327,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Value<double>? statIntelligencePotential,
     Value<double>? statStrengthPotential,
     Value<double>? statBeautyPotential,
+    Value<int>? statSpeedEnhancement,
+    Value<int>? statIntelligenceEnhancement,
+    Value<int>? statStrengthEnhancement,
+    Value<int>? statBeautyEnhancement,
     Value<int>? generationDepth,
     Value<String?>? factionLineageJson,
     Value<String?>? variantFaction,
@@ -3055,6 +3349,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       nickname: nickname ?? this.nickname,
       isPrismaticSkin: isPrismaticSkin ?? this.isPrismaticSkin,
       natureId: natureId ?? this.natureId,
+      natureId2: natureId2 ?? this.natureId2,
       source: source ?? this.source,
       parentageJson: parentageJson ?? this.parentageJson,
       geneticsJson: geneticsJson ?? this.geneticsJson,
@@ -3075,6 +3370,13 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       statStrengthPotential:
           statStrengthPotential ?? this.statStrengthPotential,
       statBeautyPotential: statBeautyPotential ?? this.statBeautyPotential,
+      statSpeedEnhancement: statSpeedEnhancement ?? this.statSpeedEnhancement,
+      statIntelligenceEnhancement:
+          statIntelligenceEnhancement ?? this.statIntelligenceEnhancement,
+      statStrengthEnhancement:
+          statStrengthEnhancement ?? this.statStrengthEnhancement,
+      statBeautyEnhancement:
+          statBeautyEnhancement ?? this.statBeautyEnhancement,
       generationDepth: generationDepth ?? this.generationDepth,
       factionLineageJson: factionLineageJson ?? this.factionLineageJson,
       variantFaction: variantFaction ?? this.variantFaction,
@@ -3112,6 +3414,9 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     }
     if (natureId.present) {
       map['nature_id'] = Variable<String>(natureId.value);
+    }
+    if (natureId2.present) {
+      map['nature_id2'] = Variable<String>(natureId2.value);
     }
     if (source.present) {
       map['source'] = Variable<String>(source.value);
@@ -3172,6 +3477,24 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
         statBeautyPotential.value,
       );
     }
+    if (statSpeedEnhancement.present) {
+      map['stat_speed_enhancement'] = Variable<int>(statSpeedEnhancement.value);
+    }
+    if (statIntelligenceEnhancement.present) {
+      map['stat_intelligence_enhancement'] = Variable<int>(
+        statIntelligenceEnhancement.value,
+      );
+    }
+    if (statStrengthEnhancement.present) {
+      map['stat_strength_enhancement'] = Variable<int>(
+        statStrengthEnhancement.value,
+      );
+    }
+    if (statBeautyEnhancement.present) {
+      map['stat_beauty_enhancement'] = Variable<int>(
+        statBeautyEnhancement.value,
+      );
+    }
     if (generationDepth.present) {
       map['generation_depth'] = Variable<int>(generationDepth.value);
     }
@@ -3210,6 +3533,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
           ..write('nickname: $nickname, ')
           ..write('isPrismaticSkin: $isPrismaticSkin, ')
           ..write('natureId: $natureId, ')
+          ..write('natureId2: $natureId2, ')
           ..write('source: $source, ')
           ..write('parentageJson: $parentageJson, ')
           ..write('geneticsJson: $geneticsJson, ')
@@ -3227,6 +3551,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
           ..write('statIntelligencePotential: $statIntelligencePotential, ')
           ..write('statStrengthPotential: $statStrengthPotential, ')
           ..write('statBeautyPotential: $statBeautyPotential, ')
+          ..write('statSpeedEnhancement: $statSpeedEnhancement, ')
+          ..write('statIntelligenceEnhancement: $statIntelligenceEnhancement, ')
+          ..write('statStrengthEnhancement: $statStrengthEnhancement, ')
+          ..write('statBeautyEnhancement: $statBeautyEnhancement, ')
           ..write('generationDepth: $generationDepth, ')
           ..write('factionLineageJson: $factionLineageJson, ')
           ..write('variantFaction: $variantFaction, ')
@@ -8098,8 +8426,8 @@ class AltarPlacement extends DataClass implements Insertable<AltarPlacement> {
   final int placedAtUtcMs;
 
   /// JSON snapshot of the sacrificed creature's key attributes at commit time:
-  /// { "natureId": "N001", "speed": 4.2, "intelligence": 3.8,
-  ///   "strength": 5.0, "beauty": 4.5 }
+  /// { "natureId": "N001", "speed": 5.2, "intelligence": 4.8,
+  ///   "strength": 6.0, "beauty": 5.5 }
   /// Nullable so old placements (before schema v32) still load fine.
   final String? snapshotJson;
   const AltarPlacement({
@@ -8729,6 +9057,7 @@ typedef $$PlayerCreaturesTableCreateCompanionBuilder =
       required String id,
       Value<bool> discovered,
       Value<String?> natureId,
+      Value<String?> natureId2,
       Value<int> rowid,
     });
 typedef $$PlayerCreaturesTableUpdateCompanionBuilder =
@@ -8736,6 +9065,7 @@ typedef $$PlayerCreaturesTableUpdateCompanionBuilder =
       Value<String> id,
       Value<bool> discovered,
       Value<String?> natureId,
+      Value<String?> natureId2,
       Value<int> rowid,
     });
 
@@ -8760,6 +9090,11 @@ class $$PlayerCreaturesTableFilterComposer
 
   ColumnFilters<String> get natureId => $composableBuilder(
     column: $table.natureId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get natureId2 => $composableBuilder(
+    column: $table.natureId2,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -8787,6 +9122,11 @@ class $$PlayerCreaturesTableOrderingComposer
     column: $table.natureId,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get natureId2 => $composableBuilder(
+    column: $table.natureId2,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PlayerCreaturesTableAnnotationComposer
@@ -8808,6 +9148,9 @@ class $$PlayerCreaturesTableAnnotationComposer
 
   GeneratedColumn<String> get natureId =>
       $composableBuilder(column: $table.natureId, builder: (column) => column);
+
+  GeneratedColumn<String> get natureId2 =>
+      $composableBuilder(column: $table.natureId2, builder: (column) => column);
 }
 
 class $$PlayerCreaturesTableTableManager
@@ -8850,11 +9193,13 @@ class $$PlayerCreaturesTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<bool> discovered = const Value.absent(),
                 Value<String?> natureId = const Value.absent(),
+                Value<String?> natureId2 = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PlayerCreaturesCompanion(
                 id: id,
                 discovered: discovered,
                 natureId: natureId,
+                natureId2: natureId2,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -8862,11 +9207,13 @@ class $$PlayerCreaturesTableTableManager
                 required String id,
                 Value<bool> discovered = const Value.absent(),
                 Value<String?> natureId = const Value.absent(),
+                Value<String?> natureId2 = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PlayerCreaturesCompanion.insert(
                 id: id,
                 discovered: discovered,
                 natureId: natureId,
+                natureId2: natureId2,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -9534,6 +9881,7 @@ typedef $$CreatureInstancesTableCreateCompanionBuilder =
       Value<String?> nickname,
       Value<bool> isPrismaticSkin,
       Value<String?> natureId,
+      Value<String?> natureId2,
       Value<String> source,
       Value<String?> parentageJson,
       Value<String?> geneticsJson,
@@ -9551,6 +9899,10 @@ typedef $$CreatureInstancesTableCreateCompanionBuilder =
       Value<double> statIntelligencePotential,
       Value<double> statStrengthPotential,
       Value<double> statBeautyPotential,
+      Value<int> statSpeedEnhancement,
+      Value<int> statIntelligenceEnhancement,
+      Value<int> statStrengthEnhancement,
+      Value<int> statBeautyEnhancement,
       Value<int> generationDepth,
       Value<String?> factionLineageJson,
       Value<String?> variantFaction,
@@ -9570,6 +9922,7 @@ typedef $$CreatureInstancesTableUpdateCompanionBuilder =
       Value<String?> nickname,
       Value<bool> isPrismaticSkin,
       Value<String?> natureId,
+      Value<String?> natureId2,
       Value<String> source,
       Value<String?> parentageJson,
       Value<String?> geneticsJson,
@@ -9587,6 +9940,10 @@ typedef $$CreatureInstancesTableUpdateCompanionBuilder =
       Value<double> statIntelligencePotential,
       Value<double> statStrengthPotential,
       Value<double> statBeautyPotential,
+      Value<int> statSpeedEnhancement,
+      Value<int> statIntelligenceEnhancement,
+      Value<int> statStrengthEnhancement,
+      Value<int> statBeautyEnhancement,
       Value<int> generationDepth,
       Value<String?> factionLineageJson,
       Value<String?> variantFaction,
@@ -9643,6 +10000,11 @@ class $$CreatureInstancesTableFilterComposer
 
   ColumnFilters<String> get natureId => $composableBuilder(
     column: $table.natureId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get natureId2 => $composableBuilder(
+    column: $table.natureId2,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9731,6 +10093,26 @@ class $$CreatureInstancesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get statSpeedEnhancement => $composableBuilder(
+    column: $table.statSpeedEnhancement,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get statIntelligenceEnhancement => $composableBuilder(
+    column: $table.statIntelligenceEnhancement,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get statStrengthEnhancement => $composableBuilder(
+    column: $table.statStrengthEnhancement,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get statBeautyEnhancement => $composableBuilder(
+    column: $table.statBeautyEnhancement,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get generationDepth => $composableBuilder(
     column: $table.generationDepth,
     builder: (column) => ColumnFilters(column),
@@ -9813,6 +10195,11 @@ class $$CreatureInstancesTableOrderingComposer
 
   ColumnOrderings<String> get natureId => $composableBuilder(
     column: $table.natureId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get natureId2 => $composableBuilder(
+    column: $table.natureId2,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -9901,6 +10288,26 @@ class $$CreatureInstancesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get statSpeedEnhancement => $composableBuilder(
+    column: $table.statSpeedEnhancement,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get statIntelligenceEnhancement => $composableBuilder(
+    column: $table.statIntelligenceEnhancement,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get statStrengthEnhancement => $composableBuilder(
+    column: $table.statStrengthEnhancement,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get statBeautyEnhancement => $composableBuilder(
+    column: $table.statBeautyEnhancement,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get generationDepth => $composableBuilder(
     column: $table.generationDepth,
     builder: (column) => ColumnOrderings(column),
@@ -9973,6 +10380,9 @@ class $$CreatureInstancesTableAnnotationComposer
 
   GeneratedColumn<String> get natureId =>
       $composableBuilder(column: $table.natureId, builder: (column) => column);
+
+  GeneratedColumn<String> get natureId2 =>
+      $composableBuilder(column: $table.natureId2, builder: (column) => column);
 
   GeneratedColumn<String> get source =>
       $composableBuilder(column: $table.source, builder: (column) => column);
@@ -10052,6 +10462,26 @@ class $$CreatureInstancesTableAnnotationComposer
 
   GeneratedColumn<double> get statBeautyPotential => $composableBuilder(
     column: $table.statBeautyPotential,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get statSpeedEnhancement => $composableBuilder(
+    column: $table.statSpeedEnhancement,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get statIntelligenceEnhancement => $composableBuilder(
+    column: $table.statIntelligenceEnhancement,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get statStrengthEnhancement => $composableBuilder(
+    column: $table.statStrengthEnhancement,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get statBeautyEnhancement => $composableBuilder(
+    column: $table.statBeautyEnhancement,
     builder: (column) => column,
   );
 
@@ -10137,6 +10567,7 @@ class $$CreatureInstancesTableTableManager
                 Value<String?> nickname = const Value.absent(),
                 Value<bool> isPrismaticSkin = const Value.absent(),
                 Value<String?> natureId = const Value.absent(),
+                Value<String?> natureId2 = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 Value<String?> parentageJson = const Value.absent(),
                 Value<String?> geneticsJson = const Value.absent(),
@@ -10154,6 +10585,10 @@ class $$CreatureInstancesTableTableManager
                 Value<double> statIntelligencePotential = const Value.absent(),
                 Value<double> statStrengthPotential = const Value.absent(),
                 Value<double> statBeautyPotential = const Value.absent(),
+                Value<int> statSpeedEnhancement = const Value.absent(),
+                Value<int> statIntelligenceEnhancement = const Value.absent(),
+                Value<int> statStrengthEnhancement = const Value.absent(),
+                Value<int> statBeautyEnhancement = const Value.absent(),
                 Value<int> generationDepth = const Value.absent(),
                 Value<String?> factionLineageJson = const Value.absent(),
                 Value<String?> variantFaction = const Value.absent(),
@@ -10171,6 +10606,7 @@ class $$CreatureInstancesTableTableManager
                 nickname: nickname,
                 isPrismaticSkin: isPrismaticSkin,
                 natureId: natureId,
+                natureId2: natureId2,
                 source: source,
                 parentageJson: parentageJson,
                 geneticsJson: geneticsJson,
@@ -10188,6 +10624,10 @@ class $$CreatureInstancesTableTableManager
                 statIntelligencePotential: statIntelligencePotential,
                 statStrengthPotential: statStrengthPotential,
                 statBeautyPotential: statBeautyPotential,
+                statSpeedEnhancement: statSpeedEnhancement,
+                statIntelligenceEnhancement: statIntelligenceEnhancement,
+                statStrengthEnhancement: statStrengthEnhancement,
+                statBeautyEnhancement: statBeautyEnhancement,
                 generationDepth: generationDepth,
                 factionLineageJson: factionLineageJson,
                 variantFaction: variantFaction,
@@ -10207,6 +10647,7 @@ class $$CreatureInstancesTableTableManager
                 Value<String?> nickname = const Value.absent(),
                 Value<bool> isPrismaticSkin = const Value.absent(),
                 Value<String?> natureId = const Value.absent(),
+                Value<String?> natureId2 = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 Value<String?> parentageJson = const Value.absent(),
                 Value<String?> geneticsJson = const Value.absent(),
@@ -10224,6 +10665,10 @@ class $$CreatureInstancesTableTableManager
                 Value<double> statIntelligencePotential = const Value.absent(),
                 Value<double> statStrengthPotential = const Value.absent(),
                 Value<double> statBeautyPotential = const Value.absent(),
+                Value<int> statSpeedEnhancement = const Value.absent(),
+                Value<int> statIntelligenceEnhancement = const Value.absent(),
+                Value<int> statStrengthEnhancement = const Value.absent(),
+                Value<int> statBeautyEnhancement = const Value.absent(),
                 Value<int> generationDepth = const Value.absent(),
                 Value<String?> factionLineageJson = const Value.absent(),
                 Value<String?> variantFaction = const Value.absent(),
@@ -10241,6 +10686,7 @@ class $$CreatureInstancesTableTableManager
                 nickname: nickname,
                 isPrismaticSkin: isPrismaticSkin,
                 natureId: natureId,
+                natureId2: natureId2,
                 source: source,
                 parentageJson: parentageJson,
                 geneticsJson: geneticsJson,
@@ -10258,6 +10704,10 @@ class $$CreatureInstancesTableTableManager
                 statIntelligencePotential: statIntelligencePotential,
                 statStrengthPotential: statStrengthPotential,
                 statBeautyPotential: statBeautyPotential,
+                statSpeedEnhancement: statSpeedEnhancement,
+                statIntelligenceEnhancement: statIntelligenceEnhancement,
+                statStrengthEnhancement: statStrengthEnhancement,
+                statBeautyEnhancement: statBeautyEnhancement,
                 generationDepth: generationDepth,
                 factionLineageJson: factionLineageJson,
                 variantFaction: variantFaction,

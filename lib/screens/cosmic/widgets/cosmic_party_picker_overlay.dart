@@ -5,8 +5,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:provider/provider.dart';
-import 'package:alchemons/models/inventory.dart';
-import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -40,6 +39,7 @@ class CosmicPartyPickerOverlay extends StatefulWidget {
   final Future<void> Function(int slotIndex) onClear;
   final void Function(int slotIndex)? onSummon;
   final void Function()? onReturn;
+
   /// Dismiss the whole panel stack back to the world.
   final VoidCallback onClose;
 
@@ -134,13 +134,6 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
 
     // Sort
     list.sort((a, b) {
-      // Sort 0-stamina to the bottom
-      final aStam = _effectiveStamina(a);
-      final bStam = _effectiveStamina(b);
-      final aHas = aStam >= 1 ? 1 : 0;
-      final bHas = bStam >= 1 ? 1 : 0;
-      if (aHas != bHas) return bHas - aHas;
-
       switch (_sortBy) {
         case SortBy.levelHigh:
           return b.level.compareTo(a.level);
@@ -172,14 +165,6 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     });
 
     _filteredInstances = list;
-  }
-
-  /// Compute effective stamina bars with time-based regen.
-  int _effectiveStamina(CreatureInstance ci) {
-    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
-    final elapsed = nowMs - ci.staminaLastUtcMs;
-    final regenBars = elapsed ~/ (6 * 3600 * 1000);
-    return (ci.staminaBars + regenBars).clamp(0, ci.staminaMax);
   }
 
   @override
@@ -713,7 +698,11 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                               ),
                             ),
                           )
-                        : Icon(AppIcons.catching_pokemon, color: eColor, size: 22),
+                        : Icon(
+                            AppIcons.catching_pokemon,
+                            color: eColor,
+                            size: 22,
+                          ),
                   ),
                   const SizedBox(height: 3),
                   Text(
@@ -741,33 +730,6 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                       letterSpacing: isActive ? 1.2 : 0,
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  // Stamina dots
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(
-                      member.staminaMax,
-                      (si) => Container(
-                        width: 6,
-                        height: 6,
-                        margin: const EdgeInsets.symmetric(horizontal: 1.2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: si < member.staminaBars
-                              ? CosmicScreenStyles.success
-                              : Colors.white12,
-                          border: Border.all(
-                            color: si < member.staminaBars
-                                ? CosmicScreenStyles.success.withValues(
-                                    alpha: 0.55,
-                                  )
-                                : Colors.white10,
-                            width: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -790,13 +752,6 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     SpriteVisuals? spriteVisuals,
   }) {
     final eColor = elementColor(element);
-    final maxStat = [
-      speed,
-      strength,
-      intelligence,
-      beauty,
-    ].reduce((a, b) => a > b ? a : b).clamp(1.0, double.infinity);
-
     Widget statRow(String label, double value, Color barColor) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
@@ -818,7 +773,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
             Expanded(
               child: LayoutBuilder(
                 builder: (_, constraints) {
-                  final pct = (value / maxStat).clamp(0.0, 1.0);
+                  final pct = AlchemonStatSystem.displayFraction(value);
                   return Stack(
                     children: [
                       Container(
@@ -847,7 +802,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
             SizedBox(
               width: 32,
               child: Text(
-                value.toStringAsFixed(1),
+                AlchemonStatSystem.displayRating(value).toString(),
                 textAlign: TextAlign.right,
                 style: TextStyle(
                   fontFamily: appFontFamily(context),
@@ -1161,9 +1116,6 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     final primaryType = species?.types.firstOrNull ?? 'fire';
     final eColor = elementColor(primaryType);
     final name = ci.nickname ?? species?.name ?? ci.baseId;
-    final stamina = _effectiveStamina(ci);
-    final hasStamina = stamina >= 1;
-
     // Build sprite data for animated rendering
     final hasSprite = species?.spriteData != null;
     SpriteSheetDef? sheet;
@@ -1174,12 +1126,10 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     }
 
     return FastLongPressDetector(
-      onTap: hasStamina
-          ? () async {
-              await widget.onAssign(_assigningSlot, ci.instanceId);
-              if (mounted) setState(() => _assigningSlot = -1);
-            }
-          : () => _showStaminaPotionDialog(ci),
+      onTap: () async {
+        await widget.onAssign(_assigningSlot, ci.instanceId);
+        if (mounted) setState(() => _assigningSlot = -1);
+      },
       onLongPress: () {
         if (species != null) {
           _showCondensedStats(
@@ -1196,16 +1146,12 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
         }
       },
       child: Opacity(
-        opacity: hasStamina ? 1.0 : 0.4,
+        opacity: 1,
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: hasStamina
-                  ? eColor.withValues(alpha: 0.3)
-                  : Colors.white12,
-            ),
+            border: Border.all(color: eColor.withValues(alpha: 0.3)),
           ),
           child: Stack(
             children: [
@@ -1232,7 +1178,11 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                             variantFaction: visuals?.variantFaction,
                             effectSlotSize: 42,
                           )
-                        : Icon(AppIcons.catching_pokemon, color: eColor, size: 18),
+                        : Icon(
+                            AppIcons.catching_pokemon,
+                            color: eColor,
+                            size: 18,
+                          ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -1260,24 +1210,6 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                         ),
                       ),
                     ),
-                  // Stamina dots
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(
-                      ci.staminaMax,
-                      (si) => Container(
-                        width: 5,
-                        height: 5,
-                        margin: const EdgeInsets.symmetric(horizontal: 0.5),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: si < stamina
-                              ? const Color(0xFF00E676)
-                              : Colors.white12,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
               // Level badge – always visible
@@ -1315,175 +1247,27 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     );
   }
 
-  /// Show dialog to use a stamina potion on a 0-stamina creature.
-  Future<void> _showStaminaPotionDialog(CreatureInstance ci) async {
-    final db = context.read<AlchemonsDatabase>();
-    final catalog = context.read<CreatureCatalog>();
-    final potionQty = await db.inventoryDao.getItemQty(InvKeys.staminaPotion);
-    final species = catalog.getCreatureById(ci.baseId);
-    final name = ci.nickname ?? species?.name ?? ci.baseId;
-
-    if (!mounted) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0E1117),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: Color(0xFF00E5FF), width: 0.5),
-        ),
-        title: Row(
-          children: [
-            const Icon(
-              AppIcons.battery_0_bar_rounded,
-              color: Color(0xFFFF9800),
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'NO STAMINA',
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: Color(0xFFFF9800),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$name has no stamina remaining.',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            if (potionQty > 0)
-              Row(
-                children: [
-                  const Icon(
-                    AppIcons.local_drink_rounded,
-                    color: Color(0xFF00E676),
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Stamina Potion ×$potionQty',
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: Color(0xFF00E676),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              )
-            else
-              Text(
-                'No stamina potions available.\nWait for stamina to regenerate.',
-                style: TextStyle(color: Colors.white38, fontSize: 12),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: Colors.white38,
-                fontSize: 12,
-                letterSpacing: 1,
-              ),
-            ),
-          ),
-          if (potionQty > 0)
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(
-                'USE POTION',
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: Color(0xFF00E676),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      // Use potion and restore stamina
-      await db.inventoryDao.addItemQty(InvKeys.staminaPotion, -1);
-      final staminaService = StaminaService(db);
-      await staminaService.restoreToFull(ci.instanceId);
-      // Reload instances to reflect updated stamina
-      await _loadInstances();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(
-                  AppIcons.local_drink_rounded,
-                  color: Color(0xFF00E676),
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${name.toUpperCase()} STAMINA RESTORED',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: const Color(0xFF1B5E20),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    }
-  }
-
   String _statLabelForSort(SortBy sort, CreatureInstance ci) {
     switch (sort) {
       case SortBy.levelHigh:
       case SortBy.levelLow:
         return 'LV ${ci.level}';
       case SortBy.statSpeed:
-        return 'SPD ${ci.statSpeed.toStringAsFixed(1)}';
+        return 'SPD ${AlchemonStatSystem.displayRating(ci.statSpeed)}';
       case SortBy.statStrength:
-        return 'STR ${ci.statStrength.toStringAsFixed(1)}';
+        return 'STR ${AlchemonStatSystem.displayRating(ci.statStrength)}';
       case SortBy.statIntelligence:
-        return 'INT ${ci.statIntelligence.toStringAsFixed(1)}';
+        return 'INT ${AlchemonStatSystem.displayRating(ci.statIntelligence)}';
       case SortBy.statBeauty:
-        return 'BEA ${ci.statBeauty.toStringAsFixed(1)}';
+        return 'BEA ${AlchemonStatSystem.displayRating(ci.statBeauty)}';
       case SortBy.potentialSpeed:
-        return 'PSPD ${ci.statSpeedPotential.toStringAsFixed(1)}';
+        return 'PSPD ${ci.statSpeedPotential.round()}';
       case SortBy.potentialStrength:
-        return 'PSTR ${ci.statStrengthPotential.toStringAsFixed(1)}';
+        return 'PSTR ${ci.statStrengthPotential.round()}';
       case SortBy.potentialIntelligence:
-        return 'PINT ${ci.statIntelligencePotential.toStringAsFixed(1)}';
+        return 'PINT ${ci.statIntelligencePotential.round()}';
       case SortBy.potentialBeauty:
-        return 'PBEA ${ci.statBeautyPotential.toStringAsFixed(1)}';
+        return 'PBEA ${ci.statBeautyPotential.round()}';
       default:
         return '';
     }

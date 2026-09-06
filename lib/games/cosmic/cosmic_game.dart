@@ -14,6 +14,7 @@ import 'cosmic_enemy_vfx.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/effect_size.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:flame/components.dart' show Anchor;
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
@@ -964,7 +965,8 @@ class CosmicGame extends FlameGame with PanDetector {
   }
 
   double _combatChaseSpeed(String family, double speedStat) {
-    final base = 100.0 + (speedStat * 10.0);
+    final effectiveSpeed = AlchemonStatSystem.legacyGameplayRating(speedStat);
+    final base = 100.0 + (effectiveSpeed * 10.0);
     switch (family.toLowerCase()) {
       case 'horn':
         return base * 1.40;
@@ -980,7 +982,8 @@ class CosmicGame extends FlameGame with PanDetector {
   }
 
   double _combatStrafeSpeed(String family, double speedStat) {
-    final base = 34.0 + speedStat * 7.0;
+    final effectiveSpeed = AlchemonStatSystem.legacyGameplayRating(speedStat);
+    final base = 34.0 + effectiveSpeed * 7.0;
     switch (family.toLowerCase()) {
       case 'wing':
       case 'pip':
@@ -5581,10 +5584,15 @@ class CosmicGame extends FlameGame with PanDetector {
           if (g.specialCooldown <= 0 &&
               toTarget.distance <= g.specialRange &&
               !isPassiveOnlyCosmicAbility(g.member.family, g.member.element)) {
+            final effectiveSpeed = AlchemonStatSystem.legacyGameplayRating(
+              g.member.statSpeed,
+            );
+            final effectiveIntelligence =
+                AlchemonStatSystem.legacyGameplayRating(
+                  g.member.statIntelligence,
+                );
             g.specialCooldown =
-                (14.0 -
-                        (g.member.statSpeed * 0.6) -
-                        (g.member.statIntelligence * 0.4))
+                (14.0 - (effectiveSpeed * 0.6) - (effectiveIntelligence * 0.4))
                     .clamp(6.0, 14.0) *
                 (_isDarkWingMember(g.member) ? 0.5 : 1.0);
             final result = createCosmicSpecialAbility(

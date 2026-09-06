@@ -80,9 +80,7 @@ void main() {
     test('can be dragged only while it is open', () {
       expect(source, contains('onPanUpdate: (d) => game.panSurvey(d.delta)'));
       expect(
-        source.contains(
-          'game.surveying\n                    ? GestureDetector',
-        ),
+        RegExp(r'game\.surveying\s+\? GestureDetector').hasMatch(source),
         isTrue,
         reason: 'a full-screen drag catcher must not exist while closed in',
       );

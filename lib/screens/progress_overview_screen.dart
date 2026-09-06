@@ -88,9 +88,7 @@ class _ConstellationProgressOverviewScreenState
   List<Creature> _filtered(List<Creature> species) {
     if (_searchQuery.isEmpty) return species;
     final q = _searchQuery.toLowerCase();
-    return species
-        .where((c) => c.name.toLowerCase().contains(q))
-        .toList();
+    return species.where((c) => c.name.toLowerCase().contains(q)).toList();
   }
 
   @override
@@ -154,16 +152,8 @@ class _ConstellationProgressOverviewScreenState
                   child: filtered.isEmpty
                       ? _buildNoResults(t)
                       : _isCardView
-                          ? _buildCardView(
-                              filtered,
-                              constellationService,
-                              t,
-                            )
-                          : _buildListView(
-                              filtered,
-                              constellationService,
-                              t,
-                            ),
+                      ? _buildCardView(filtered, constellationService, t)
+                      : _buildListView(filtered, constellationService, t),
                 ),
               ],
             ),
@@ -199,18 +189,17 @@ class _ConstellationProgressOverviewScreenState
           decoration: InputDecoration(
             isDense: true,
             border: InputBorder.none,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
             prefixIcon: Icon(
               AppIcons.search_rounded,
               color: t.textSecondary,
               size: 20,
             ),
             hintText: 'Search species',
-            hintStyle: TextStyle(
-              color: t.textMuted,
-              fontSize: 14,
-            ),
+            hintStyle: TextStyle(color: t.textMuted, fontSize: 14),
             suffixIcon: _searchQuery.isEmpty
                 ? null
                 : IconButton(
@@ -243,19 +232,12 @@ class _ConstellationProgressOverviewScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              AppIcons.search_off_rounded,
-              size: 48,
-              color: t.textMuted,
-            ),
+            Icon(AppIcons.search_off_rounded, size: 48, color: t.textMuted),
             const SizedBox(height: 12),
             Text(
               'No species match "$_searchQuery"',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: t.textSecondary,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: t.textSecondary, fontSize: 14),
             ),
           ],
         ),
@@ -318,7 +300,9 @@ class _ConstellationProgressOverviewScreenState
       actions: [
         IconButton(
           icon: Icon(
-            _isCardView ? AppIcons.list_rounded : AppIcons.view_carousel_rounded,
+            _isCardView
+                ? AppIcons.list_rounded
+                : AppIcons.view_carousel_rounded,
             color: t.textSecondary,
             size: 22,
           ),
@@ -497,8 +481,6 @@ class _ConstellationProgressOverviewScreenState
     ForgeTokens t,
   ) {
     return ListView.builder(
-      // PERF: Pre-render ~4 items off-screen for smoother fling scrolling.
-      cacheExtent: 400,
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
@@ -1005,7 +987,11 @@ class _ListItem extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(AppIcons.chevron_right_rounded, color: t.textMuted, size: 18),
+                Icon(
+                  AppIcons.chevron_right_rounded,
+                  color: t.textMuted,
+                  size: 18,
+                ),
               ],
             ),
           ),

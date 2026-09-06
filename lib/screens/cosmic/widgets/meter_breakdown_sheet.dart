@@ -48,8 +48,9 @@ class MeterBreakdownSheetState extends State<MeterBreakdownSheet> {
         ),
         child: CustomPaint(
           painter: BracketFramePainter(
-            color: (full ? const Color(0xFFE4C16A) : _accent)
-                .withValues(alpha: 0.85),
+            color: (full ? const Color(0xFFE4C16A) : _accent).withValues(
+              alpha: 0.85,
+            ),
             bracketSize: 14,
             strokeWidth: 1.4,
           ),
@@ -58,8 +59,9 @@ class MeterBreakdownSheetState extends State<MeterBreakdownSheet> {
               color: _palette.surfaceFill(),
               border: Border(
                 top: BorderSide(
-                  color: (full ? const Color(0xFFE4C16A) : _accent)
-                      .withValues(alpha: 0.85),
+                  color: (full ? const Color(0xFFE4C16A) : _accent).withValues(
+                    alpha: 0.85,
+                  ),
                   width: 2,
                 ),
               ),
@@ -74,11 +76,7 @@ class MeterBreakdownSheetState extends State<MeterBreakdownSheet> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 42,
-                    height: 4,
-                    color: _palette.lineSoft,
-                  ),
+                  Container(width: 42, height: 4, color: _palette.lineSoft),
                   const SizedBox(height: 14),
                   // ── Header ──
                   Row(
@@ -218,12 +216,7 @@ class _PctBadge extends StatelessWidget {
       ),
       child: Text(
         '${(fillPct * 100).round()}%',
-        style: bracketText(
-          context,
-          14,
-          color,
-          weight: FontWeight.w800,
-        ),
+        style: bracketText(context, 14, color, weight: FontWeight.w800),
       ),
     );
   }
@@ -263,9 +256,7 @@ class _CompactMeterBar extends StatelessWidget {
               )
             : Stack(
                 children: [
-                  Positioned.fill(
-                    child: Container(color: palette.bg0),
-                  ),
+                  Positioned.fill(child: Container(color: palette.bg0)),
                   Row(
                     children: sorted.map((entry) {
                       final pct = (entry.value / ElementMeter.maxCapacity)

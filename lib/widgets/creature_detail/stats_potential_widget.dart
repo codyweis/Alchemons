@@ -8,6 +8,8 @@ import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/services/creature_repository.dart';
 
 class StatPotentialBar extends StatelessWidget {
   // ignore: unused_field
@@ -15,6 +17,8 @@ class StatPotentialBar extends StatelessWidget {
   final String statName;
   final double currentValue;
   final double potential;
+  final int baseStat;
+  final int enhancementRank;
 
   const StatPotentialBar({
     super.key,
@@ -22,6 +26,8 @@ class StatPotentialBar extends StatelessWidget {
     required this.statName,
     required this.currentValue,
     required this.potential,
+    required this.baseStat,
+    required this.enhancementRank,
   });
 
   @override
@@ -29,23 +35,17 @@ class StatPotentialBar extends StatelessWidget {
     final fc = FC.of(context);
     final ft = FT(fc);
     final isDark = context.read<FactionTheme>().isDark;
-    final currentPercent = (currentValue / 5.0).clamp(0.0, 1.0);
-    final potentialPercent = (potential / 5.0).clamp(0.0, 1.0);
-    final roomForGrowth = potential - currentValue;
-    final isNearMax = roomForGrowth < 0.3;
-    final isPerfectPotential = potential >= 4.8;
+    final currentRating = AlchemonStatSystem.displayRating(currentValue);
+    final potentialRating = AlchemonStatSystem.normalizePotential(potential);
+    final potentialPercent = (potentialRating / 100.0).clamp(0.0, 1.0);
+    final isNearMax = enhancementRank >= AlchemonStatSystem.maxEnhancementRank;
+    final isPerfectPotential = potentialRating >= 95;
     final trackColor = isDark ? fc.bg3 : fc.bg0.withValues(alpha: 0.06);
     final trackBorderColor = isDark ? fc.borderDim : fc.borderMid;
-    final potentialZoneColor = isPerfectPotential
-        ? FC.purple.withValues(alpha: isDark ? 0.18 : 0.14)
-        : fc.amberBright.withValues(alpha: isDark ? 0.10 : 0.18);
-    final currentFill = [
-      fc.amberGlow,
-      isDark ? fc.amber.withValues(alpha: 0.72) : fc.amber,
+    final potentialFill = [
+      FC.purple,
+      isDark ? FC.purple.withValues(alpha: 0.72) : FC.blue,
     ];
-    final markerColor = isPerfectPotential
-        ? FC.purple.withValues(alpha: isDark ? 0.85 : 0.70)
-        : fc.amberBright.withValues(alpha: isDark ? 0.90 : 0.75);
 
     return Row(
       children: [
@@ -81,10 +81,6 @@ class StatPotentialBar extends StatelessWidget {
                 0.0,
                 double.infinity,
               );
-              final markerLeft = (availableWidth * potentialPercent - 1).clamp(
-                0.0,
-                (availableWidth - 2).clamp(0.0, double.infinity),
-              );
               return Stack(
                 children: [
                   Container(
@@ -93,17 +89,6 @@ class StatPotentialBar extends StatelessWidget {
                       color: trackColor,
                       borderRadius: BorderRadius.circular(2),
                       border: Border.all(color: trackBorderColor),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(1),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: fillWidth * potentialPercent,
-                            color: potentialZoneColor,
-                          ),
-                        ],
-                      ),
                     ),
                   ),
 
@@ -119,9 +104,9 @@ class StatPotentialBar extends StatelessWidget {
                         child: Row(
                           children: [
                             Container(
-                              width: fillWidth * currentPercent,
+                              width: fillWidth * potentialPercent,
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(colors: currentFill),
+                                gradient: LinearGradient(colors: potentialFill),
                               ),
                             ),
                           ],
@@ -129,19 +114,6 @@ class StatPotentialBar extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (potentialPercent > 0 && potentialPercent < 1)
-                    Positioned(
-                      left: markerLeft,
-                      top: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 2,
-                        decoration: BoxDecoration(
-                          color: markerColor,
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
-                    ),
                 ],
               );
             },
@@ -167,7 +139,7 @@ class StatPotentialBar extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   children: [
                     Text(
-                      currentValue.toStringAsFixed(1),
+                      '$currentRating',
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: fc.textPrimary,
@@ -176,10 +148,10 @@ class StatPotentialBar extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      ' / ${potential.toStringAsFixed(1)}',
+                      '  P$potentialRating',
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: fc.textMuted,
+                        color: isPerfectPotential ? FC.purple : fc.textMuted,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -189,7 +161,7 @@ class StatPotentialBar extends StatelessWidget {
               ),
               if (isNearMax)
                 Text(
-                  'Near Max',
+                  'BASE $baseStat  •  ENH $enhancementRank/10',
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: fc.amberBright,
@@ -199,7 +171,7 @@ class StatPotentialBar extends StatelessWidget {
                 )
               else
                 Text(
-                  '+${roomForGrowth.toStringAsFixed(1)}',
+                  'BASE $baseStat  •  ENH $enhancementRank/10',
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: fc.textMuted,
@@ -230,10 +202,10 @@ class _PotentialSummary extends StatelessWidget {
         instance.statBeautyPotential;
 
     final totalCurrent =
-        instance.statSpeed +
-        instance.statIntelligence +
-        instance.statStrength +
-        instance.statBeauty;
+        AlchemonStatSystem.displayRating(instance.statSpeed) +
+        AlchemonStatSystem.displayRating(instance.statIntelligence) +
+        AlchemonStatSystem.displayRating(instance.statStrength) +
+        AlchemonStatSystem.displayRating(instance.statBeauty);
 
     final potentials = {
       'Speed': instance.statSpeedPotential,
@@ -246,8 +218,8 @@ class _PotentialSummary extends StatelessWidget {
       (a, b) => a.value > b.value ? a : b,
     );
 
-    final isHighPotential = totalPotential >= 18.0;
-    final isLegendaryPotential = totalPotential >= 19.0;
+    final isHighPotential = totalPotential >= 340.0;
+    final isLegendaryPotential = totalPotential >= 380.0;
 
     final tierLabel = isLegendaryPotential
         ? 'LEGENDARY'
@@ -284,7 +256,7 @@ class _PotentialSummary extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('GROWTH POTENTIAL', style: ft.label),
+              Text('GENETIC POTENTIAL', style: ft.label),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
@@ -310,12 +282,12 @@ class _PotentialSummary extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Total: ${totalCurrent.toStringAsFixed(1)} / ${totalPotential.toStringAsFixed(1)}',
+            'Combined Power: $totalCurrent   •   Genetic Score: ${totalPotential.round()} / 400',
             style: ft.body.copyWith(fontSize: 12),
           ),
           const SizedBox(height: 4),
           Text(
-            'Best Gene: ${highestPotential.key} (${highestPotential.value.toStringAsFixed(1)})',
+            'Best Gene: ${highestPotential.key} (${highestPotential.value.round()} / 100)',
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.amberBright,
@@ -358,6 +330,16 @@ class StatPotentialBlock extends StatelessWidget {
         }
 
         final instance = snap.data!;
+        final repo = context.read<CreatureCatalog>();
+        final species = repo.getCreatureById(instance.baseId);
+        final base =
+            species?.baseStats ??
+            const SpeciesBaseStats(
+              speed: 60,
+              intelligence: 60,
+              strength: 60,
+              beauty: 60,
+            );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -383,7 +365,7 @@ class StatPotentialBlock extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Each creature has a genetic potential cap for every stat. Feeding can increase stats up to their potential, but never beyond. Breed creatures with high potential to create powerful offspring!',
+                    'Base stats belong to the species. Potential is inherited genetic quality (1–100), Level trains every stat, and Orbs add permanent Enhancement to this individual.',
                     style: ft.body.copyWith(fontSize: 12, height: 1.4),
                   ),
                 ],
@@ -396,24 +378,32 @@ class StatPotentialBlock extends StatelessWidget {
               statName: 'Speed',
               currentValue: instance.statSpeed,
               potential: instance.statSpeedPotential,
+              baseStat: base.speed,
+              enhancementRank: instance.statSpeedEnhancement,
             ),
             const SizedBox(height: 8),
             StatPotentialBar(
               statName: 'Intelligence',
               currentValue: instance.statIntelligence,
               potential: instance.statIntelligencePotential,
+              baseStat: base.intelligence,
+              enhancementRank: instance.statIntelligenceEnhancement,
             ),
             const SizedBox(height: 8),
             StatPotentialBar(
               statName: 'Strength',
               currentValue: instance.statStrength,
               potential: instance.statStrengthPotential,
+              baseStat: base.strength,
+              enhancementRank: instance.statStrengthEnhancement,
             ),
             const SizedBox(height: 8),
             StatPotentialBar(
               statName: 'Beauty',
               currentValue: instance.statBeauty,
               potential: instance.statBeautyPotential,
+              baseStat: base.beauty,
+              enhancementRank: instance.statBeautyEnhancement,
             ),
 
             const SizedBox(height: 12),

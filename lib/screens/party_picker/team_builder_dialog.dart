@@ -107,7 +107,11 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                       : t.borderDim,
                 ),
               ),
-              child: Icon(AppIcons.help_outline, color: t.textSecondary, size: 20),
+              child: Icon(
+                AppIcons.help_outline,
+                color: t.textSecondary,
+                size: 20,
+              ),
             );
           }
           final creature = _creaturesById[inst.baseId];
@@ -125,7 +129,11 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                       : t.borderDim,
                 ),
               ),
-              child: Icon(AppIcons.help_outline, color: t.textSecondary, size: 20),
+              child: Icon(
+                AppIcons.help_outline,
+                color: t.textSecondary,
+                size: 20,
+              ),
             );
           }
 

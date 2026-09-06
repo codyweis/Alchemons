@@ -85,5 +85,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'alchemons-auth.firebasestorage.app',
     measurementId: 'G-50BGG4S501',
   );
-
 }

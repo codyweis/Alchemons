@@ -147,7 +147,11 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
 
     final ok = await db.currencyDao.spendResources(cost);
     if (!ok) {
-      _toast('Not enough resources', icon: AppIcons.lock_rounded, color: t.amber);
+      _toast(
+        'Not enough resources',
+        icon: AppIcons.lock_rounded,
+        color: t.amber,
+      );
       return;
     }
 
@@ -161,7 +165,11 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
     HapticFeedback.lightImpact();
   }
 
-  void _toast(String msg, {IconData icon = AppIcons.check_rounded, Color? color}) {
+  void _toast(
+    String msg, {
+    IconData icon = AppIcons.check_rounded,
+    Color? color,
+  }) {
     if (!mounted) return;
     final backgroundColor = color ?? t.amber;
     final foregroundColor = t.onColor(backgroundColor);
@@ -589,9 +597,7 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
                       ),
                       // GraphX mote scene + shimmer/float controllers; own
                       // layer, and paused once it scrolls out of the viewport.
-                      ViewportTickerGate(
-                        child: _buildGoldVaultSection(theme),
-                      ),
+                      ViewportTickerGate(child: _buildGoldVaultSection(theme)),
 
                       _buildSectionHeader(
                         'HARVEST DEVICES',
@@ -768,7 +774,9 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
             started
                 ? 'Purchase started'
                 : (store.lastError ?? 'Store unavailable'),
-            icon: started ? AppIcons.shopping_bag_rounded : AppIcons.error_rounded,
+            icon: started
+                ? AppIcons.shopping_bag_rounded
+                : AppIcons.error_rounded,
             color: started ? goldAccent : t.danger,
           );
         }
@@ -1113,7 +1121,11 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
 
     final ok = await _spendWalletCost(db, cost);
     if (!ok) {
-      _toast('Not enough currency', icon: AppIcons.lock_rounded, color: t.amber);
+      _toast(
+        'Not enough currency',
+        icon: AppIcons.lock_rounded,
+        color: t.amber,
+      );
       return;
     }
 

@@ -20,6 +20,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/games/shared/type_effectiveness.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:flame/components.dart' show Anchor;
@@ -761,6 +762,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final List<CosmicPartyMember> party;
   final VoidCallback onGameOver;
   final VoidCallback? onWaveIntermission;
+  final void Function(int clearedWave)? onWaveCleared;
   final void Function(SurvivalBoss boss)? onBossSpawn;
   final void Function(MysticSpecialCastEvent event)? onMysticSpecialCast;
   final SurvivalUpgradeState upgradeState;
@@ -1065,6 +1067,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     required this.party,
     required this.onGameOver,
     this.onWaveIntermission,
+    this.onWaveCleared,
     this.onBossSpawn,
     this.onMysticSpecialCast,
     this.shipSkin,
@@ -1125,8 +1128,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       projectile: projectile,
     );
   }
-
-
 
   @override
   Future<void> onLoad() async {
@@ -1315,6 +1316,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (spawner.intermission && !showingPowerUpSelection) {
       final clearedWave = spawner.currentWave;
       final bossWave = spawner.isBossWave;
+      onWaveCleared?.call(clearedWave);
       _cleanupBetweenWaves();
       _grantIntermissionReward(clearedWave, bossWave: bossWave);
       _maybeTriggerPowerUpSelection();
@@ -3775,8 +3777,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               ? FlightSteeringProfile.survivalPouncer
               : FlightSteeringProfile.survivalMelee,
           toTarget: dir,
-          speed:
-              enemy.effectiveSpeed * moveSpeedMult * _timeDilationSlowFactor,
+          speed: enemy.effectiveSpeed * moveSpeedMult * _timeDilationSlowFactor,
           contactRange: enemy.radius + 14,
           dt: dt,
           rng: _rng,
@@ -3871,8 +3872,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             );
           }
         }
-        final isSiegeShooter =
-            enemy.conduct == EnemyConduct.standoff;
+        final isSiegeShooter = enemy.conduct == EnemyConduct.standoff;
         enemy.attackCooldown =
             (1.7 - min(enemy.tier.index * 0.12, 0.5)) *
             (isSiegeShooter ? 1.12 : 1.0) *
@@ -3934,8 +3934,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return cloaked ? CosmicEnemyTarget.ship : CosmicEnemyTarget.companion;
     }
     if (enemy.conduct == EnemyConduct.standoff) {
-      if (enemy.conduct == EnemyConduct.standoff &&
-          _rng.nextDouble() < 0.72) {
+      if (enemy.conduct == EnemyConduct.standoff && _rng.nextDouble() < 0.72) {
         return CosmicEnemyTarget.orb;
       }
       if (_rng.nextDouble() < 0.38) {
@@ -4871,8 +4870,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         size.y / _currentZoom,
       );
       for (final add in adds.take(3)) {
-        add.target =
-            (add.conduct == EnemyConduct.charge && add.hasHeavyBody)
+        add.target = (add.conduct == EnemyConduct.charge && add.hasHeavyBody)
             ? CosmicEnemyTarget.orb
             : CosmicEnemyTarget.companion;
       }
@@ -6338,7 +6336,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     double facingAngle,
     double beauty,
   ) {
-    final segCount = 7 + (beauty.clamp(1.0, 5.0) - 1.0).round();
+    final segCount =
+        7 + (AlchemonStatSystem.combatProgress(beauty) * 4).round();
     const arcSpanRad = 2.094; // ~120° front arc
     // Arc center is the orb's position; arc radius gives a stand-off
     // so enemies can't crowd the orb directly.
@@ -7921,12 +7920,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _spawnDarkLetKillMeteors(Projectile source, Offset center) {
-    // Stat-scaled count: 2 (no Intelligence) → 5 (high Intelligence).
-    // Genetic stat range is 0–5.0; in-game boosters (Chrono Surge,
-    // Spellbloom, cooldown stacks, etc.) can push effective Intelligence
-    // above 5.0 during a run. We scale across that real range so a
-    // baseline ~3.0 caster gets a healthy 3, max-genetics 5.0 reaches
-    // 5, and boosted late-game builds keep the cap at 5 cleanly.
+    // Stat-scaled count. The shared ability runtime handles the full canonical
+    // stat range, including Potential, Enhancement, and in-run boosts.
     final stat = source.letCasterIntelligence;
     final count = CosmicAbilityRuntime.darkLetFollowupCount(stat);
     final targets = <CosmicSurvivalEnemy>[];
@@ -8875,7 +8870,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     double min = 0.82,
     double max = 1.22,
   }) {
-    final clamped = stat.clamp(0.5, 8.0);
+    final clamped = stat > AlchemonStatSystem.legacyCombatCeiling
+        ? AlchemonStatSystem.legacyGameplayRating(stat)
+        : stat.clamp(0.5, AlchemonStatSystem.legacyCombatCeiling);
     return (1.0 + (clamped - 3.0) * perPoint).clamp(min, max).toDouble();
   }
 
@@ -12109,7 +12106,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
   }
 
-
   void _spawnHitSpark(Offset pos, Color color) {
     if (_vfx.length >= 150) return;
     for (var i = 0; i < 6; i++) {
@@ -13392,7 +13388,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Enemy rendering: EXACT SAME visuals as cosmic game per tier.
   /// The enemy silhouette now lives in the shared cosmic enemy VFX layer so
   /// the preview harness can render the roster without playing the game.
-
 
   /// Hazards: beams and shockwaves. Each hits any given target at most once,
   /// tracked on the hazard itself, so a beam that lingers for half a second

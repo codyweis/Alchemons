@@ -41,8 +41,7 @@ class ElementalCacheReward {
   final int stabilizedHarvesters;
   final int fusionExtractors;
 
-  int get powerupTotal =>
-      powerups.values.fold(0, (sum, qty) => sum + qty);
+  int get powerupTotal => powerups.values.fold(0, (sum, qty) => sum + qty);
 
   /// Every inventory grant this reward implies, collapsed into one map.
   Map<String, int> get itemGrants => {

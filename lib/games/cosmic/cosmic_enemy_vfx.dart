@@ -125,14 +125,12 @@ class EnemyVisual {
     stretch: _stretchFor(e.conduct, e.trait, e.tier),
     hitFlash: e.hitFlash,
     actionPhase: e.action.isBusy ? e.action.phase : null,
-    actionProgress: e.action.progress(
-      switch (e.action.phase) {
-        EnemyActionPhase.windUp => kEnemyActions[e.tier]?.windUp ?? 0,
-        EnemyActionPhase.commit => kEnemyActions[e.tier]?.commit ?? 0,
-        EnemyActionPhase.recover => kEnemyActions[e.tier]?.recover ?? 0,
-        EnemyActionPhase.idle => 0,
-      },
-    ),
+    actionProgress: e.action.progress(switch (e.action.phase) {
+      EnemyActionPhase.windUp => kEnemyActions[e.tier]?.windUp ?? 0,
+      EnemyActionPhase.commit => kEnemyActions[e.tier]?.commit ?? 0,
+      EnemyActionPhase.recover => kEnemyActions[e.tier]?.recover ?? 0,
+      EnemyActionPhase.idle => 0,
+    }),
     actionAngle: e.action.aimAngle,
     isElite: e.isElite,
     eliteAffix: e.eliteAffix,
@@ -164,8 +162,7 @@ class EnemyVisual {
   );
 }
 
-bool _heavy(EnemyTier t) =>
-    t == EnemyTier.brute || t == EnemyTier.colossus;
+bool _heavy(EnemyTier t) => t == EnemyTier.brute || t == EnemyTier.colossus;
 
 double _squashFor(EnemyConduct c, EnemyTrait? t, EnemyTier tier) {
   if (t == EnemyTrait.breaker) return 1.12;
@@ -500,9 +497,11 @@ void drawEnemy({
         false,
         ringPaint
           ..strokeWidth = r * 0.16
-          ..color = Color.lerp(eColor, Colors.white, 0.5)!.withValues(
-            alpha: 0.55,
-          ),
+          ..color = Color.lerp(
+            eColor,
+            Colors.white,
+            0.5,
+          )!.withValues(alpha: 0.55),
       );
       // A single bright pip marks where the mass actually is.
       canvas.drawCircle(
@@ -996,8 +995,7 @@ void drawSurvivalBoss({
       canvas.drawCircle(
         Offset(cos(a), sin(a)) * r * 1.05,
         3.0,
-        Paint()
-          ..color = const Color(0xFFFFC078).withValues(alpha: 0.85 * vent),
+        Paint()..color = const Color(0xFFFFC078).withValues(alpha: 0.85 * vent),
       );
     }
   }
@@ -1035,11 +1033,8 @@ void drawOpenWorldEnemy({
   required Canvas canvas,
   required CosmicEnemy e,
   required double time,
-}) => drawEnemy(
-  canvas: canvas,
-  enemy: EnemyVisual.fromOpenWorld(e),
-  time: time,
-);
+}) =>
+    drawEnemy(canvas: canvas, enemy: EnemyVisual.fromOpenWorld(e), time: time);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Open-world boss
@@ -1373,7 +1368,6 @@ void drawBossLair({
 // full sigil, while enemies come in dozens and get a mark of a few strokes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-
 /// The wind-up tell, drawn in the enemy's local space.
 ///
 /// A charging ring that closes as the attack approaches, plus an aim line so
@@ -1400,9 +1394,11 @@ void _drawActionTelegraph(
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.6 + 2.4 * p
-          ..color = Color.lerp(eColor, Colors.white, 0.45)!.withValues(
-            alpha: 0.35 + 0.5 * p,
-          ),
+          ..color = Color.lerp(
+            eColor,
+            Colors.white,
+            0.45,
+          )!.withValues(alpha: 0.35 + 0.5 * p),
       );
       // The core charges — the circle building in the middle.
       canvas.drawCircle(

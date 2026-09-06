@@ -2,6 +2,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:provider/provider.dart';
@@ -167,31 +168,48 @@ class _ExploreStatGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final combatBonuses = context.watch<ConstellationEffectsService>();
+    final strength = combatBonuses.applyCombatStatBonus(
+      'strength',
+      instance.statStrength,
+    );
+    final intelligence = combatBonuses.applyCombatStatBonus(
+      'intelligence',
+      instance.statIntelligence,
+    );
+    final beauty = combatBonuses.applyCombatStatBonus(
+      'beauty',
+      instance.statBeauty,
+    );
+    final speed = combatBonuses.applyCombatStatBonus(
+      'speed',
+      instance.statSpeed,
+    );
     final hp = CosmicBalance.companionMaxHp(
       level: instance.level,
-      strength: instance.statStrength,
-      intelligence: instance.statIntelligence,
+      strength: strength,
+      intelligence: intelligence,
     );
     final physAtk = CosmicBalance.companionPhysAtk(
       level: instance.level,
-      strength: instance.statStrength,
+      strength: strength,
     );
     final elemAtk = CosmicBalance.companionElemAtk(
       level: instance.level,
-      beauty: instance.statBeauty,
+      beauty: beauty,
     );
     final physDef = CosmicBalance.companionPhysDef(
       level: instance.level,
-      strength: instance.statStrength,
-      intelligence: instance.statIntelligence,
+      strength: strength,
+      intelligence: intelligence,
     );
     final elemDef = CosmicBalance.companionElemDef(
       level: instance.level,
-      beauty: instance.statBeauty,
-      intelligence: instance.statIntelligence,
+      beauty: beauty,
+      intelligence: intelligence,
     );
-    final cdr = CosmicBalance.companionCooldownReduction(instance.statSpeed);
-    final crit = CosmicBalance.companionCritChance(instance.statStrength);
+    final cdr = CosmicBalance.companionCooldownReduction(speed);
+    final crit = CosmicBalance.companionCritChance(strength);
 
     final stats = <_StatEntry>[
       _StatEntry('HP', hp.toString()),

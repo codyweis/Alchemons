@@ -470,10 +470,7 @@ class _CostLedger extends StatelessWidget {
           const SizedBox(height: 7),
           _row('BALANCE', '$available', ConstellationSkillDialog._textSoft),
           const SizedBox(height: 9),
-          Container(
-            height: 1,
-            color: ConstellationSkillDialog._hairline,
-          ),
+          Container(height: 1, color: ConstellationSkillDialog._hairline),
           const SizedBox(height: 9),
           _row(
             warn ? 'SHORT BY' : 'REMAINING',
@@ -513,7 +510,6 @@ class _CostLedger extends StatelessWidget {
     );
   }
 }
-
 
 /// The bare price, for a skill that cannot be bought yet.
 class _CostLine extends StatelessWidget {
@@ -601,8 +597,7 @@ class _PrerequisiteList extends StatelessWidget {
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                       decoration: done ? TextDecoration.lineThrough : null,
-                      decorationColor:
-                          ConstellationSkillDialog._textMuted,
+                      decorationColor: ConstellationSkillDialog._textMuted,
                     ),
                   ),
                 ),
@@ -749,9 +744,7 @@ class _DialogButton extends StatelessWidget {
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: live
-                  ? accent
-                  : accent.withValues(alpha: 0.55),
+              color: live ? accent : accent.withValues(alpha: 0.55),
               fontSize: 12,
               fontWeight: FontWeight.w900,
               letterSpacing: 1.2,

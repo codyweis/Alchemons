@@ -183,13 +183,7 @@ void _unsealAura(
 }
 
 /// The seal itself: six arcs that spin up, then tear loose and drift away.
-void _unsealSeal(
-  Canvas canvas,
-  Offset p,
-  Color c,
-  double life,
-  double crack,
-) {
+void _unsealSeal(Canvas canvas, Offset p, Color c, double life, double crack) {
   if (crack >= 1.0) return;
   final spin = life * (0.4 + crack * 8.0);
   final drift = crack * crack * 90.0;
@@ -449,10 +443,7 @@ void _motifIce(
         ..lineTo(sp.dx + 7, sp.dy + 3)
         ..lineTo(sp.dx + 2, sp.dy + 10)
         ..close();
-      canvas.drawPath(
-        path,
-        _fill(const Color(0xFFB3E5FC), 0.8 * (1 - crack)),
-      );
+      canvas.drawPath(path, _fill(const Color(0xFFB3E5FC), 0.8 * (1 - crack)));
     }
   }
 }
@@ -471,7 +462,10 @@ void _motifSteam(
     final len = _r * (0.6 + charge * 1.6) * (0.5 + 0.5 * sin(t * 8 + i * 2));
     canvas.drawLine(
       Offset(p.dx + cos(a) * _r * 0.7, p.dy + sin(a) * _r * 0.7),
-      Offset(p.dx + cos(a) * (_r * 0.7 + len), p.dy + sin(a) * (_r * 0.7 + len)),
+      Offset(
+        p.dx + cos(a) * (_r * 0.7 + len),
+        p.dy + sin(a) * (_r * 0.7 + len),
+      ),
       _stroke(const Color(0xFFECEFF1), 0.55, 6),
     );
   }
@@ -837,11 +831,7 @@ void _motifDark(
 ) {
   final void_ = _r * (0.4 + charge * 1.1) * (1 - crack * 0.7);
   canvas.drawCircle(p, void_, _fill(Colors.black, 0.88));
-  canvas.drawCircle(
-    p,
-    void_,
-    _stroke(const Color(0xFFB388FF), 0.7, 2.2),
-  );
+  canvas.drawCircle(p, void_, _stroke(const Color(0xFFB388FF), 0.7, 2.2));
   // Matter falling in.
   for (var i = 0; i < 10; i++) {
     final a = t * 2.4 + i * (pi * 2 / 10);
@@ -893,11 +883,7 @@ void _motifLight(
     _r * (0.8 + charge * 0.5),
     _stroke(c, 0.7, 2.4 + crack * 3),
   );
-  canvas.drawCircle(
-    p,
-    _r * 0.3,
-    _fill(Colors.white, 0.5 + 0.4 * charge),
-  );
+  canvas.drawCircle(p, _r * 0.3, _fill(Colors.white, 0.5 + 0.4 * charge));
 }
 
 // ── BLOOD — heartbeat rings, then the seal splits along a vein ──

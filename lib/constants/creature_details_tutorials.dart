@@ -30,7 +30,7 @@ extension CreatureDetailsTutorialTargetX on CreatureDetailsTutorialTarget {
     CreatureDetailsTutorialTarget.geneAnalyzer =>
       'Behavioral Analysis now explains the active nature effects on a creature.',
     CreatureDetailsTutorialTarget.potentialAnalyzer =>
-      'Stat Potentials now reveal the hidden growth ceiling for each battle stat.',
+      'Stat Potentials now reveal each inherited 1–100 genetic quality rating and its contribution to Power.',
     CreatureDetailsTutorialTarget.lineageAnalyzer =>
       'Breeding Analysis now exposes lineage and outcome statistics for bred specimens.',
   };

@@ -1,6 +1,6 @@
 // Campaign difficulty scaling: dungeon enemies — and especially guardians —
-// harden as more planets' guardians fall (stats run 0–5.0, so the final
-// dungeons must demand near-perfect teams while the first stays approachable).
+// harden as more planets' guardians fall, so the final dungeons demand a
+// high-Potential enhanced team while the first stays approachable.
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';

@@ -32,6 +32,7 @@ import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/creature_stats.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/models/genetics.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/models/offspring_lineage.dart';
@@ -166,6 +167,9 @@ class BreedingEngine {
       nature: (a.natureId != null)
           ? NatureCatalog.byId(a.natureId!)
           : base1.nature,
+      nature2: (a.natureId2 != null)
+          ? NatureCatalog.byId(a.natureId2!)
+          : base1.nature2,
       isPrismaticSkin: a.isPrismaticSkin || (base1.isPrismaticSkin),
     );
 
@@ -174,6 +178,9 @@ class BreedingEngine {
       nature: (b.natureId != null)
           ? NatureCatalog.byId(b.natureId!)
           : base2.nature,
+      nature2: (b.natureId2 != null)
+          ? NatureCatalog.byId(b.natureId2!)
+          : base2.nature2,
       isPrismaticSkin: b.isPrismaticSkin || (base2.isPrismaticSkin),
     );
 
@@ -353,10 +360,11 @@ class BreedingEngine {
     child = _applyGenetics(child, p1, p2);
 
     // Nature
-    final NatureDef? n = _chooseChildNature(p1, p2);
-    if (n != null) {
-      child = child.copyWith(nature: n);
-    }
+    final childNatures = _chooseChildNatures(p1, p2);
+    child = child.copyWith(
+      nature: childNatures.isEmpty ? null : childNatures.first,
+      nature2: childNatures.length > 1 ? childNatures[1] : null,
+    );
 
     // Prismatic cosmetic roll (or guaranteed when forcePrismatic is set)
     if (forcePrismatic || _random.nextDouble() < tuning.prismaticSkinChance) {
@@ -376,9 +384,11 @@ class BreedingEngine {
 
     // Stats inheritance/blend
     final childStats = _generateChildStats(
+      child,
       parentA,
       parentB,
       child.nature,
+      child.nature2,
       child.genetics,
     );
     child = child.copyWith(stats: childStats);
@@ -796,7 +806,7 @@ class BreedingEngine {
       return m;
     }
 
-    final globalDom = poolDom(NatureCatalog.all);
+    final globalDom = poolDom(NatureCatalog.rollable);
 
     if (parents.isEmpty) {
       return OutcomeDistribution<String>(globalDom);
@@ -849,6 +859,34 @@ class BreedingEngine {
     }
 
     return OutcomeDistribution<String>(out);
+  }
+
+  /// Chance that a specific Nature appears in either of the child's two
+  /// genetic slots under the 35/35/30 inheritance rule.
+  double natureAppearanceChancePct(Creature p1, Creature p2, String natureId) {
+    if ([
+      p1,
+      p2,
+    ].any((parent) => guaranteedSecondNature(parent)?.id == natureId)) {
+      return 100.0;
+    }
+    final totalWeight = NatureCatalog.rollable.fold<int>(
+      0,
+      (sum, nature) => sum + nature.wildWeight,
+    );
+    final target = NatureCatalog.byId(natureId);
+    final conditional = target == null || totalWeight == 0
+        ? 0.0
+        : target.wildWeight / totalWeight;
+    final a = [p1.nature?.id, p1.nature2?.id];
+    final b = [p2.nature?.id, p2.nature2?.id];
+    final freshOccupancy = [.85, .15];
+    final slotChance = List<double>.generate(2, (slot) {
+      return (a[slot] == natureId ? .35 : 0.0) +
+          (b[slot] == natureId ? .35 : 0.0) +
+          .30 * freshOccupancy[slot] * conditional;
+    });
+    return (1.0 - (1.0 - slotChance[0]) * (1.0 - slotChance[1])) * 100;
   }
 
   OutcomeDistribution<String> getTintDistribution(Creature p1, Creature p2) {
@@ -941,29 +979,54 @@ class BreedingEngine {
 
   // ── 2.6 Nature / Genetics / Stats helpers ────────────────────────────────
 
-  NatureDef? _chooseChildNature(Creature p1, Creature p2) {
-    final rng = _random;
-    final inheritChance = tuning.inheritNatureChance;
-    final sameLockInChance = tuning.sameNatureLockInChance;
+  List<NatureDef> _chooseChildNatures(Creature p1, Creature p2) {
+    if (NatureCatalog.all.isEmpty) return const [];
+    final fresh = NatureCatalogWeighted.rollWildSlots(_random);
+    final parentA = [p1.nature, p1.nature2];
+    final parentB = [p2.nature, p2.nature2];
+    final chosen = <NatureDef>[];
 
-    final parents = [p1.nature, p2.nature].whereType<NatureDef>().toList();
-    if (NatureCatalog.all.isEmpty) return null;
-
-    if (parents.isEmpty) {
-      return NatureCatalogWeighted.weightedRandom(rng);
-    }
-
-    if (parents.length == 2 && parents[0].id == parents[1].id) {
-      if (rng.nextInt(100) < sameLockInChance) {
-        return parents[0];
+    // Hereditary Natures protect their parent's second slot before the normal
+    // 35/35/30 rolls. Both parents may protect a different Nature, filling the
+    // child's two available slots. A duplicate is stored only once.
+    for (final protected in [
+      guaranteedSecondNature(p1),
+      guaranteedSecondNature(p2),
+    ].whereType<NatureDef>()) {
+      if (chosen.length == 2) break;
+      if (!chosen.any((nature) => nature.id == protected.id)) {
+        chosen.add(protected);
       }
     }
 
-    if (rng.nextInt(100) < inheritChance) {
-      return NatureCatalogWeighted.weightedFromPool(parents, rng);
+    for (var slot = 0; slot < 2; slot++) {
+      if (chosen.length == 2) break;
+      final roll = _random.nextDouble();
+      NatureDef? candidate;
+      if (roll < .35) {
+        candidate = parentA[slot];
+      } else if (roll < .70) {
+        candidate = parentB[slot];
+      } else if (slot < fresh.length) {
+        candidate = fresh[slot];
+      }
+      if (candidate == null || chosen.any((n) => n.id == candidate!.id)) {
+        continue;
+      }
+      const conflicts = [
+        {'Homotypic', 'Heterotypic'},
+        {'Sympatric', 'Conspecific'},
+      ];
+      if (conflicts.any(
+        (pair) =>
+            pair.contains(candidate!.id) &&
+            chosen.any((n) => pair.contains(n.id)),
+      )) {
+        continue;
+      }
+      chosen.add(candidate);
     }
-
-    return NatureCatalogWeighted.weightedRandom(rng);
+    return chosen;
   }
 
   Creature _applyGenetics(Creature child, Creature p1, Creature p2) {
@@ -1124,9 +1187,11 @@ class BreedingEngine {
   // In breeding_engine.dart, update _generateChildStats method:
 
   CreatureStats _generateChildStats(
+    Creature child,
     ParentSnapshot parentA,
     ParentSnapshot parentB,
     NatureDef? childNature,
+    NatureDef? childNature2,
     Genetics? childGenetics,
   ) {
     final statsA = parentA.stats;
@@ -1134,47 +1199,63 @@ class BreedingEngine {
 
     CreatureStats childStats;
     if (statsA != null && statsB != null) {
-      childStats = CreatureStats.breed(
-        statsA,
-        statsB,
-        _random,
-        mutationChance: 0.15,
-        mutationStrength: 0.3,
-        parent1NatureId: parentA.nature?.id, // NEW: pass nature IDs
-        parent2NatureId: parentB.nature?.id, // NEW: pass nature IDs
-        childNatureId: childNature?.id, // NEW: pass child nature
-      );
-      _log('[Breeding] Stats from both parents (blend with nature awareness)');
+      childStats = CreatureStats.breed(statsA, statsB, _random);
+      _log('[Breeding] Potential inherited from both parents');
     } else if (statsA != null) {
       childStats = CreatureStats.breed(
         statsA,
         CreatureStats.generate(_random),
         _random,
-        mutationChance: 0.20,
-        mutationStrength: 0.3,
-        parent1NatureId: parentA.nature?.id,
-        childNatureId: childNature?.id,
       );
-      _log('[Breeding] Stats mostly parent A');
+      _log('[Breeding] Potential inherited from parent A and a fresh roll');
     } else if (statsB != null) {
       childStats = CreatureStats.breed(
         CreatureStats.generate(_random),
         statsB,
         _random,
-        mutationChance: 0.20,
-        mutationStrength: 0.3,
-        parent2NatureId: parentB.nature?.id,
-        childNatureId: childNature?.id,
       );
-      _log('[Breeding] Stats mostly parent B');
+      _log('[Breeding] Potential inherited from parent B and a fresh roll');
     } else {
       childStats = CreatureStats.generate(_random);
       _log('[Breeding] Stats fresh roll');
     }
 
-    // Apply modifiers from nature / genetics
-    childStats = childStats.applyNature(childNature?.id);
-    childStats = childStats.applyGenetics(childGenetics);
+    // The offspring species supplies fixed base stats. Only the four Potential
+    // rolls above came from its parents.
+    final base =
+        child.baseStats ??
+        const SpeciesBaseStats(
+          speed: 60,
+          intelligence: 60,
+          strength: 60,
+          beauty: 60,
+        );
+    childStats = childStats.copyWith(
+      speed: AlchemonStatSystem.effectiveInternal(
+        speciesBase: base.speed,
+        level: 1,
+        potential: childStats.speedPotential,
+      ),
+      intelligence: AlchemonStatSystem.effectiveInternal(
+        speciesBase: base.intelligence,
+        level: 1,
+        potential: childStats.intelligencePotential,
+      ),
+      strength: AlchemonStatSystem.effectiveInternal(
+        speciesBase: base.strength,
+        level: 1,
+        potential: childStats.strengthPotential,
+      ),
+      beauty: AlchemonStatSystem.effectiveInternal(
+        speciesBase: base.beauty,
+        level: 1,
+        potential: childStats.beautyPotential,
+      ),
+    );
+
+    // Nature affects the individual, never its Potential. Physical appearance
+    // genetics do not alter the canonical stat formula.
+    childStats = childStats.applyNatures(childNature?.id, childNature2?.id);
 
     _log(
       '[Breeding] Final stats: '
@@ -1786,11 +1867,12 @@ class BreedingEngine {
   }
 
   double _natureMult(Creature c, String key) {
-    final eff = c.nature?.effect;
-    if (eff == null) return 1.0;
-    final raw = eff[key];
-    if (raw is num) return raw.toDouble();
-    return 1.0;
+    var result = 1.0;
+    for (final nature in [c.nature, c.nature2]) {
+      final raw = nature?.effect[key];
+      if (raw is num) result *= raw.toDouble();
+    }
+    return result;
   }
 
   void _log(String s) {
@@ -1819,6 +1901,9 @@ extension WildBreed on BreedingEngine {
       nature: (a.natureId != null)
           ? NatureCatalog.byId(a.natureId!)
           : baseA.nature,
+      nature2: (a.natureId2 != null)
+          ? NatureCatalog.byId(a.natureId2!)
+          : baseA.nature2,
       isPrismaticSkin: a.isPrismaticSkin || (baseA.isPrismaticSkin),
     );
 
@@ -1894,6 +1979,7 @@ class ParentSnapshotFactory {
         isPrismaticSkin: inst.isPrismaticSkin,
         genetics: decodedGenetics,
         nature: null,
+        nature2: null,
         spriteData: null,
         stats: CreatureStats(
           speed: inst.statSpeed,
@@ -1928,6 +2014,9 @@ class ParentSnapshotFactory {
       nature: (inst.natureId != null)
           ? NatureCatalog.byId(inst.natureId!)
           : base.nature,
+      nature2: (inst.natureId2 != null)
+          ? NatureCatalog.byId(inst.natureId2!)
+          : base.nature2,
       spriteData: base.spriteData,
       stats: CreatureStats(
         speed: inst.statSpeed,

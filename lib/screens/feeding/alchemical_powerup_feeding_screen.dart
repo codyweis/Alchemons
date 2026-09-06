@@ -4,11 +4,14 @@ import 'dart:ui' show lerpDouble;
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +31,15 @@ class _AlchemicalPowerupFeedingScreenState
     with TickerProviderStateMixin {
   static const int _requiredPowerupLevel = 10;
 
+  int _enhancementRank(CreatureInstance instance, AlchemicalPowerupType type) =>
+      switch (type) {
+        AlchemicalPowerupType.speed => instance.statSpeedEnhancement,
+        AlchemicalPowerupType.intelligence =>
+          instance.statIntelligenceEnhancement,
+        AlchemicalPowerupType.strength => instance.statStrengthEnhancement,
+        AlchemicalPowerupType.beauty => instance.statBeautyEnhancement,
+      };
+
   String? _selectedInstanceId;
   bool _busy = false;
   String? _message;
@@ -39,8 +51,10 @@ class _AlchemicalPowerupFeedingScreenState
   bool _jackpotAnimation = false;
   double _orbitTurns = 2.2;
   double _orbitEndProgress = 0.72;
+  int? _potentialSoulRoll;
   bool _powerupTutorialChecked = false;
   Map<AlchemicalPowerupType, double>? _frozenStatValues;
+  Map<AlchemicalPowerupType, double>? _frozenPotentialValues;
 
   late final AnimationController _orbController;
   late final AnimationController _flashController;
@@ -84,7 +98,7 @@ class _AlchemicalPowerupFeedingScreenState
             side: BorderSide(color: t.borderDim),
           ),
           title: Text(
-            'Powerup Infusion Basics',
+            'Stat Infusion Basics',
             style: TextStyle(
               color: t.textPrimary,
               fontSize: 16,
@@ -96,7 +110,7 @@ class _AlchemicalPowerupFeedingScreenState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Powerup orbs boost one stat at a time, but only level 10 specimens can enter infusion and each orb rolls a random strength before the gain is applied.',
+                'Power Orbs improve trained stats, while rare Potential Souls improve inheritable genetics. Both let you choose the stat you want to develop.',
                 style: TextStyle(
                   color: t.textSecondary,
                   fontSize: 12,
@@ -114,18 +128,26 @@ class _AlchemicalPowerupFeedingScreenState
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: AppIcons.casino_rounded,
-                title: 'Step 1 - Roll Strength',
+                icon: AppIcons.diamond_rounded,
+                title: 'Potential Souls',
                 body:
-                    'Each orb rolls one of five strengths: +0.05, +0.10, +0.15, +0.20, or +0.25.',
+                    'Choose any Potential below 100. One Soul permanently raises that selected Potential, and the improved value can pass through breeding. Its exact Silver cost is shown before infusion.',
+              ),
+              const SizedBox(height: 6),
+              TutorialStep(
+                theme: theme,
+                icon: AppIcons.trending_up_rounded,
+                title: 'Step 1 - Raise Enhancement',
+                body:
+                    'Each infusion raises the chosen stat by one rank, up to Enhancement 10/10. Every rank adds +3%.',
               ),
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
                 icon: AppIcons.shield_rounded,
-                title: 'Step 2 - Respect Potential',
+                title: 'Step 2 - Plan Orb Costs',
                 body:
-                    'The final gain is capped by the specimen\'s remaining potential, so a great roll can still be partially capped.',
+                    'Higher Enhancement ranks cost more Orbs. Combat constellation infusions instead raise their matching combat stat by 1% per rank. Potential remains the specimen\'s inherited 1–100 genetic quality.',
               ),
             ],
           ),
@@ -193,6 +215,7 @@ class _AlchemicalPowerupFeedingScreenState
                         _message = null;
                         _lastDelta = null;
                         _frozenStatValues = null;
+                        _frozenPotentialValues = null;
                       });
                     }
                   },
@@ -203,6 +226,7 @@ class _AlchemicalPowerupFeedingScreenState
                           setState(() {
                             _selectedInstanceId = null;
                             _frozenStatValues = null;
+                            _frozenPotentialValues = null;
                           });
                         },
                 ),
@@ -257,7 +281,7 @@ class _AlchemicalPowerupFeedingScreenState
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Choose a level 10 specimen to channel power orbs directly into its stats.',
+                        'Choose any specimen for Potential infusion. Power Orb Enhancement unlocks at level 10.',
                         style: TextStyle(
                           color: t.textSecondary,
                           fontSize: 12,
@@ -278,23 +302,13 @@ class _AlchemicalPowerupFeedingScreenState
             prefsScopeKey: 'powerup_feed_select',
             selectedInstanceIds: const [],
             onTap: (inst) {
-              if (inst.level < _requiredPowerupLevel) {
-                HapticFeedback.heavyImpact();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Only level $_requiredPowerupLevel specimens can use powerup infusion.',
-                    ),
-                  ),
-                );
-                return;
-              }
               HapticFeedback.selectionClick();
               setState(() {
                 _selectedInstanceId = inst.instanceId;
                 _message = null;
                 _lastDelta = null;
                 _frozenStatValues = null;
+                _frozenPotentialValues = null;
               });
             },
           ),
@@ -357,7 +371,15 @@ class _AlchemicalPowerupFeedingScreenState
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
-                  child: _buildPowerupGrid(instance, inventory, theme),
+                  child: StreamBuilder<int>(
+                    stream: db.currencyDao.watchSilverBalance(),
+                    builder: (context, silverSnap) => _buildPowerupGrid(
+                      instance,
+                      inventory,
+                      silverSnap.data ?? 0,
+                      theme,
+                    ),
+                  ),
                 ),
               ],
             );
@@ -427,150 +449,169 @@ class _AlchemicalPowerupFeedingScreenState
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
               child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        creature.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: t.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.2,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          creature.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: t.textPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.2,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      creature.rarity.toUpperCase(),
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.0,
+                      const SizedBox(width: 10),
+                      Text(
+                        creature.rarity.toUpperCase(),
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: t.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.0,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final spriteSize = constraints.maxHeight.clamp(
-                        100.0,
-                        240.0,
-                      );
-                      return Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Positioned(
-                            bottom: 0,
-                            child: InstanceSprite(
-                              creature: creature,
-                              instance: instance,
-                              size: spriteSize,
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final spriteSize = constraints.maxHeight.clamp(
+                          100.0,
+                          240.0,
+                        );
+                        return Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Positioned(
+                              bottom: 0,
+                              child: InstanceSprite(
+                                creature: creature,
+                                instance: instance,
+                                size: spriteSize,
+                              ),
                             ),
-                          ),
-                          if (_animatingType != null)
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                child: AnimatedBuilder(
-                                  animation: Listenable.merge([
-                                    _orbController,
-                                    _flashController,
-                                  ]),
-                                  builder: (context, _) => CustomPaint(
-                                    painter: _PowerOrbPainter(
-                                      progress: _orbController.value,
-                                      flash: _flashController.value,
-                                      color: _animatingType!.color,
-                                      glowColor: _animatingType!.glowColor,
-                                      rollLabel: _lastRollLabel,
-                                      glowBoost: _glowBoost,
-                                      isJackpot: _jackpotAnimation,
-                                      orbitTurns: _orbitTurns,
-                                      orbitEndProgress: _orbitEndProgress,
-                                      deltaLabel: _lastDelta == null
-                                          ? null
-                                          : '+${_lastDelta!.toStringAsFixed(2)}',
+                            if (_animatingType != null)
+                              Positioned.fill(
+                                child: IgnorePointer(
+                                  child: AnimatedBuilder(
+                                    animation: Listenable.merge([
+                                      _orbController,
+                                      _flashController,
+                                    ]),
+                                    builder: (context, _) => CustomPaint(
+                                      painter: _PowerOrbPainter(
+                                        progress: _orbController.value,
+                                        flash: _flashController.value,
+                                        color: _animatingType!.color,
+                                        glowColor: _animatingType!.glowColor,
+                                        rollLabel: _lastRollLabel,
+                                        glowBoost: _glowBoost,
+                                        isJackpot: _jackpotAnimation,
+                                        orbitTurns: _orbitTurns,
+                                        orbitEndProgress: _orbitEndProgress,
+                                        soulRoll: _potentialSoulRoll,
+                                        deltaLabel: _lastDelta == null
+                                            ? null
+                                            : _potentialSoulRoll == null
+                                            ? '+${_lastDelta!.round()}%'
+                                            : '+${_lastDelta!.round()} POTENTIAL',
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                        ],
-                      );
-                    },
+                          ],
+                        );
+                      },
+                    ),
                   ),
-                ),
-                Container(height: 1, color: t.borderDim),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _StatPlate(
-                        theme: theme,
-                        label: 'Speed',
-                        value: _displayStatValue(
-                          instance,
-                          AlchemicalPowerupType.speed,
+                  Container(height: 1, color: t.borderDim),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _StatPlate(
+                          theme: theme,
+                          label: 'Speed',
+                          value: _displayStatValue(
+                            instance,
+                            AlchemicalPowerupType.speed,
+                          ),
+                          potential: _displayPotentialValue(
+                            instance,
+                            AlchemicalPowerupType.speed,
+                          ),
+                          enhancementRank: instance.statSpeedEnhancement,
+                          color: AlchemicalPowerupType.speed.color,
                         ),
-                        potential: instance.statSpeedPotential,
-                        color: AlchemicalPowerupType.speed.color,
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: _StatPlate(
-                        theme: theme,
-                        label: 'Intelligence',
-                        value: _displayStatValue(
-                          instance,
-                          AlchemicalPowerupType.intelligence,
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _StatPlate(
+                          theme: theme,
+                          label: 'Intelligence',
+                          value: _displayStatValue(
+                            instance,
+                            AlchemicalPowerupType.intelligence,
+                          ),
+                          potential: _displayPotentialValue(
+                            instance,
+                            AlchemicalPowerupType.intelligence,
+                          ),
+                          enhancementRank: instance.statIntelligenceEnhancement,
+                          color: AlchemicalPowerupType.intelligence.color,
                         ),
-                        potential: instance.statIntelligencePotential,
-                        color: AlchemicalPowerupType.intelligence.color,
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _StatPlate(
-                        theme: theme,
-                        label: 'Strength',
-                        value: _displayStatValue(
-                          instance,
-                          AlchemicalPowerupType.strength,
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _StatPlate(
+                          theme: theme,
+                          label: 'Strength',
+                          value: _displayStatValue(
+                            instance,
+                            AlchemicalPowerupType.strength,
+                          ),
+                          potential: _displayPotentialValue(
+                            instance,
+                            AlchemicalPowerupType.strength,
+                          ),
+                          enhancementRank: instance.statStrengthEnhancement,
+                          color: AlchemicalPowerupType.strength.color,
                         ),
-                        potential: instance.statStrengthPotential,
-                        color: AlchemicalPowerupType.strength.color,
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: _StatPlate(
-                        theme: theme,
-                        label: 'Beauty',
-                        value: _displayStatValue(
-                          instance,
-                          AlchemicalPowerupType.beauty,
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _StatPlate(
+                          theme: theme,
+                          label: 'Beauty',
+                          value: _displayStatValue(
+                            instance,
+                            AlchemicalPowerupType.beauty,
+                          ),
+                          potential: _displayPotentialValue(
+                            instance,
+                            AlchemicalPowerupType.beauty,
+                          ),
+                          enhancementRank: instance.statBeautyEnhancement,
+                          color: AlchemicalPowerupType.beauty.color,
                         ),
-                        potential: instance.statBeautyPotential,
-                        color: AlchemicalPowerupType.beauty.color,
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
               ),
             ),
           ),
@@ -582,6 +623,7 @@ class _AlchemicalPowerupFeedingScreenState
   Widget _buildPowerupGrid(
     CreatureInstance instance,
     Map<String, int> inventory,
+    int silverBalance,
     FactionTheme theme,
   ) {
     final t = ForgeTokens(theme);
@@ -635,25 +677,17 @@ class _AlchemicalPowerupFeedingScreenState
                     builder: (context) {
                       final type = AlchemicalPowerupType.values[i];
                       final qty = inventory[type.inventoryKey] ?? 0;
-                      final current = _displayStatValue(instance, type);
-                      final potential = switch (type) {
-                        AlchemicalPowerupType.speed =>
-                          instance.statSpeedPotential,
-                        AlchemicalPowerupType.intelligence =>
-                          instance.statIntelligencePotential,
-                        AlchemicalPowerupType.strength =>
-                          instance.statStrengthPotential,
-                        AlchemicalPowerupType.beauty =>
-                          instance.statBeautyPotential,
-                      };
-                      final maxDelta = alchemicalPowerupMaxDelta(
-                        currentValue: current,
-                        potentialValue: potential,
-                      );
-                      final canUse = qty > 0 && maxDelta > 0 && !_busy;
+                      final rank = _enhancementRank(instance, type);
+                      final cost = AlchemonStatSystem.orbCostForNextRank(rank);
+                      final canUse =
+                          instance.level >= _requiredPowerupLevel &&
+                          rank < AlchemonStatSystem.maxEnhancementRank &&
+                          qty >= cost &&
+                          !_busy;
                       return _AnimatedOrbButton(
                         type: type,
                         qty: qty,
+                        requiredCost: cost,
                         canUse: canUse,
                         isLaunching: _launchingType == type,
                         theme: theme,
@@ -667,9 +701,132 @@ class _AlchemicalPowerupFeedingScreenState
               ],
             ),
           ),
+          Container(height: 1, color: t.borderDim),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: _PotentialSoulButton(
+              qty: inventory[InvKeys.potentialSoul] ?? 0,
+              canUse:
+                  (inventory[InvKeys.potentialSoul] ?? 0) > 0 &&
+                  !_busy &&
+                  _hasOpenPotential(instance),
+              theme: theme,
+              onTap: () =>
+                  _choosePotentialSoulStat(instance, theme, silverBalance),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  int _potentialFor(CreatureInstance instance, AlchemicalPowerupType type) =>
+      switch (type) {
+        AlchemicalPowerupType.speed => instance.statSpeedPotential.round(),
+        AlchemicalPowerupType.intelligence =>
+          instance.statIntelligencePotential.round(),
+        AlchemicalPowerupType.strength =>
+          instance.statStrengthPotential.round(),
+        AlchemicalPowerupType.beauty => instance.statBeautyPotential.round(),
+      };
+
+  bool _hasOpenPotential(CreatureInstance instance) => AlchemicalPowerupType
+      .values
+      .any((type) => _potentialFor(instance, type) < 100);
+
+  Future<void> _choosePotentialSoulStat(
+    CreatureInstance instance,
+    FactionTheme theme,
+    int silverBalance,
+  ) async {
+    if (_busy || !_hasOpenPotential(instance)) return;
+    HapticFeedback.selectionClick();
+    final t = ForgeTokens(theme);
+    final selected = await showDialog<AlchemicalPowerupType>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: t.bg2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(6),
+          side: BorderSide(color: t.borderAccent),
+        ),
+        title: Text(
+          'CHOOSE POTENTIAL',
+          style: TextStyle(
+            color: t.amberBright,
+            fontFamily: 'monospace',
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Raise one selected Potential. The exact Silver cost is shown below, and Potential cannot exceed 100.',
+              style: TextStyle(color: t.textSecondary, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
+            for (final type in AlchemicalPowerupType.values)
+              Builder(
+                builder: (context) {
+                  final potential = _potentialFor(instance, type);
+                  final cost = AlchemonStatSystem.potentialSoulSilverCost(
+                    potential,
+                  );
+                  final enabled = potential < 100 && silverBalance >= cost;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: ListTile(
+                      dense: true,
+                      enabled: enabled,
+                      leading: Icon(type.icon, color: type.color, size: 20),
+                      title: Text(
+                        type.statKey[0].toUpperCase() +
+                            type.statKey.substring(1),
+                        style: TextStyle(
+                          color: enabled ? t.textPrimary : t.textMuted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '$potential/100',
+                            style: TextStyle(
+                              color: type.color,
+                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          Text(
+                            '${_formatSilver(cost)} SILVER',
+                            style: TextStyle(
+                              color: enabled ? t.textSecondary : t.textMuted,
+                              fontFamily: 'monospace',
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      onTap: enabled
+                          ? () => Navigator.of(dialogContext).pop(type)
+                          : null,
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      await _applyPotentialSoul(instance, selected);
+    }
   }
 
   Future<void> _applyPowerup(
@@ -679,23 +836,9 @@ class _AlchemicalPowerupFeedingScreenState
     if (_busy) return;
 
     final db = context.read<AlchemonsDatabase>();
-    final currentValue = switch (type) {
-      AlchemicalPowerupType.speed => _displayStatValue(instance, type),
-      AlchemicalPowerupType.intelligence => _displayStatValue(instance, type),
-      AlchemicalPowerupType.strength => _displayStatValue(instance, type),
-      AlchemicalPowerupType.beauty => _displayStatValue(instance, type),
-    };
-    final potentialValue = switch (type) {
-      AlchemicalPowerupType.speed => instance.statSpeedPotential,
-      AlchemicalPowerupType.intelligence => instance.statIntelligencePotential,
-      AlchemicalPowerupType.strength => instance.statStrengthPotential,
-      AlchemicalPowerupType.beauty => instance.statBeautyPotential,
-    };
-    final plannedRoll = rollAlchemicalPowerup(
-      currentValue: currentValue,
-      potentialValue: potentialValue,
-    );
-    if (plannedRoll.appliedDelta <= 0) return;
+    final repo = context.read<CreatureCatalog>();
+    const animationDuration = Duration(milliseconds: 1500);
+    const flashDuration = Duration(milliseconds: 500);
 
     _orbController.reset();
     _flashController.reset();
@@ -712,7 +855,9 @@ class _AlchemicalPowerupFeedingScreenState
       _jackpotAnimation = false;
       _orbitTurns = 2.2;
       _orbitEndProgress = 0.72;
+      _potentialSoulRoll = null;
       _frozenStatValues = frozenStats;
+      _frozenPotentialValues = null;
       _message = null;
     });
 
@@ -720,19 +865,19 @@ class _AlchemicalPowerupFeedingScreenState
     await Future<void>.delayed(const Duration(milliseconds: 380));
     if (!mounted) return;
 
-    _orbController.duration = plannedRoll.animationDuration;
-    _flashController.duration = plannedRoll.flashDuration;
+    _orbController.duration = animationDuration;
+    _flashController.duration = flashDuration;
 
     setState(() {
       _launchingType = null;
       _animatingType = type;
-      _lastDelta = plannedRoll.appliedDelta;
-      _lastRollLabel = plannedRoll.label;
-      _glowBoost = plannedRoll.glowBoost;
-      _jackpotAnimation = plannedRoll.isJackpot;
-      _orbitTurns = plannedRoll.orbitTurns;
-      _orbitEndProgress = plannedRoll.orbitEndProgress;
-      _message = '${plannedRoll.label}: channeling ${type.name}...';
+      _lastDelta = 3.0;
+      _lastRollLabel = 'ENHANCING';
+      _glowBoost = 1.0;
+      _jackpotAnimation = false;
+      _orbitTurns = 2.2;
+      _orbitEndProgress = 0.72;
+      _message = 'ENHANCING: channeling ${type.name}...';
     });
     await _orbController.forward(from: 0);
 
@@ -745,7 +890,7 @@ class _AlchemicalPowerupFeedingScreenState
     final result = await svc.applyAlchemicalPowerup(
       targetInstanceId: instance.instanceId,
       powerup: type,
-      forcedRoll: plannedRoll,
+      repo: repo,
     );
 
     if (!mounted) return;
@@ -755,6 +900,8 @@ class _AlchemicalPowerupFeedingScreenState
         _launchingType = null;
         _animatingType = null;
         _frozenStatValues = null;
+        _frozenPotentialValues = null;
+        _potentialSoulRoll = null;
         _orbitTurns = 2.2;
         _orbitEndProgress = 0.72;
         _message = result.error ?? 'Infusion failed.';
@@ -773,11 +920,170 @@ class _AlchemicalPowerupFeedingScreenState
       _jackpotAnimation = false;
       _orbitTurns = 2.2;
       _orbitEndProgress = 0.72;
+      _potentialSoulRoll = null;
       _frozenStatValues = null;
+      _frozenPotentialValues = null;
       _message =
-          '${result.rollLabel}: ${type.name} granted ${result.delta.toStringAsFixed(2)} ${result.statKey}.';
+          '${result.rollLabel}: ${type.name} granted +${result.delta.round()}% ${result.statKey} power.';
     });
   }
+
+  Future<void> _applyPotentialSoul(
+    CreatureInstance instance,
+    AlchemicalPowerupType type,
+  ) async {
+    if (_busy) return;
+
+    final db = context.read<AlchemonsDatabase>();
+    final repo = context.read<CreatureCatalog>();
+    _orbController.reset();
+    _flashController.reset();
+    final frozenStats = _snapshotStatValues(instance);
+    final frozenPotentials = _snapshotPotentialValues(instance);
+
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _busy = true;
+      _launchingType = null;
+      _animatingType = null;
+      _lastDelta = null;
+      _lastRollLabel = 'AWAKENING';
+      _potentialSoulRoll = null;
+      _frozenStatValues = frozenStats;
+      _frozenPotentialValues = frozenPotentials;
+      _message = 'SOUL INFUSION: awakening ${type.statKey} Potential...';
+    });
+
+    // Resolve the atomic item/currency transaction first, but keep the old
+    // values visually frozen until the reveal finishes. That lets the actual
+    // roll—not a generic pre-roll effect—drive the celebration safely.
+    final result = await CreatureInstanceService(db).applyPotentialSoul(
+      targetInstanceId: instance.instanceId,
+      stat: type,
+      repo: repo,
+    );
+    if (!mounted) return;
+
+    if (!result.ok) {
+      setState(() {
+        _busy = false;
+        _animatingType = null;
+        _frozenStatValues = null;
+        _frozenPotentialValues = null;
+        _lastRollLabel = null;
+        _potentialSoulRoll = null;
+        _message = result.error ?? 'Potential infusion failed.';
+      });
+      HapticFeedback.vibrate();
+      return;
+    }
+
+    final reveal = _soulRevealProfile(result.rolledGain);
+    _orbController.duration = reveal.orbDuration;
+    _flashController.duration = reveal.flashDuration;
+    setState(() {
+      _animatingType = type;
+      _lastDelta = result.appliedGain.toDouble();
+      _lastRollLabel = reveal.label;
+      _glowBoost = reveal.glowBoost;
+      _jackpotAnimation = reveal.isJackpot;
+      _orbitTurns = reveal.orbitTurns;
+      _orbitEndProgress = reveal.orbitEndProgress;
+      _potentialSoulRoll = result.rolledGain;
+      _message = 'SOUL RESONANCE: revealing ${type.statKey} Potential...';
+    });
+
+    await _orbController.forward(from: 0);
+    if (!mounted) return;
+    await _flashController.forward(from: 0);
+    if (!mounted) return;
+
+    if (result.rolledGain >= 4) {
+      HapticFeedback.heavyImpact();
+    } else {
+      HapticFeedback.mediumImpact();
+    }
+    final cappedNote = result.appliedGain < result.rolledGain
+        ? ' (rolled +${result.rolledGain}, capped at 100)'
+        : '';
+    setState(() {
+      _busy = false;
+      _animatingType = null;
+      _frozenStatValues = null;
+      _frozenPotentialValues = null;
+      _lastRollLabel = null;
+      _lastDelta = null;
+      _glowBoost = 1.0;
+      _jackpotAnimation = false;
+      _orbitTurns = 2.2;
+      _orbitEndProgress = 0.72;
+      _potentialSoulRoll = null;
+      _message =
+          'SOUL AWAKENED: +${result.appliedGain} ${type.statKey} Potential$cappedNote • ${result.newPotential}/100 • -${_formatSilver(result.silverCost)} Silver';
+    });
+  }
+
+  ({
+    String label,
+    double glowBoost,
+    bool isJackpot,
+    double orbitTurns,
+    double orbitEndProgress,
+    Duration orbDuration,
+    Duration flashDuration,
+  })
+  _soulRevealProfile(int rolledGain) => switch (rolledGain) {
+    1 => (
+      label: 'SOUL AWAKENED',
+      glowBoost: 1.0,
+      isJackpot: false,
+      orbitTurns: 2.2,
+      orbitEndProgress: 0.72,
+      orbDuration: const Duration(milliseconds: 1300),
+      flashDuration: const Duration(milliseconds: 420),
+    ),
+    2 => (
+      label: 'SOUL STIRRING',
+      glowBoost: 1.18,
+      isJackpot: false,
+      orbitTurns: 2.6,
+      orbitEndProgress: 0.74,
+      orbDuration: const Duration(milliseconds: 1450),
+      flashDuration: const Duration(milliseconds: 520),
+    ),
+    3 => (
+      label: 'SOUL RESONANCE',
+      glowBoost: 1.45,
+      isJackpot: false,
+      orbitTurns: 3.2,
+      orbitEndProgress: 0.78,
+      orbDuration: const Duration(milliseconds: 1650),
+      flashDuration: const Duration(milliseconds: 650),
+    ),
+    4 => (
+      label: 'EXALTED SOUL',
+      glowBoost: 1.8,
+      isJackpot: true,
+      orbitTurns: 4.0,
+      orbitEndProgress: 0.82,
+      orbDuration: const Duration(milliseconds: 1900),
+      flashDuration: const Duration(milliseconds: 800),
+    ),
+    _ => (
+      label: 'PERFECT AWAKENING',
+      glowBoost: 2.25,
+      isJackpot: true,
+      orbitTurns: 5.0,
+      orbitEndProgress: 0.86,
+      orbDuration: const Duration(milliseconds: 2250),
+      flashDuration: const Duration(milliseconds: 1000),
+    ),
+  };
+
+  String _formatSilver(int value) => value.toString().replaceAllMapped(
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (_) => ',',
+  );
 
   double _displayStatValue(
     CreatureInstance instance,
@@ -793,6 +1099,20 @@ class _AlchemicalPowerupFeedingScreenState
     };
   }
 
+  double _displayPotentialValue(
+    CreatureInstance instance,
+    AlchemicalPowerupType type,
+  ) {
+    final frozenValue = _frozenPotentialValues?[type];
+    if (frozenValue != null) return frozenValue;
+    return switch (type) {
+      AlchemicalPowerupType.speed => instance.statSpeedPotential,
+      AlchemicalPowerupType.intelligence => instance.statIntelligencePotential,
+      AlchemicalPowerupType.strength => instance.statStrengthPotential,
+      AlchemicalPowerupType.beauty => instance.statBeautyPotential,
+    };
+  }
+
   Map<AlchemicalPowerupType, double> _snapshotStatValues(
     CreatureInstance instance,
   ) {
@@ -804,6 +1124,16 @@ class _AlchemicalPowerupFeedingScreenState
     };
   }
 
+  Map<AlchemicalPowerupType, double> _snapshotPotentialValues(
+    CreatureInstance instance,
+  ) {
+    return <AlchemicalPowerupType, double>{
+      AlchemicalPowerupType.speed: instance.statSpeedPotential,
+      AlchemicalPowerupType.intelligence: instance.statIntelligencePotential,
+      AlchemicalPowerupType.strength: instance.statStrengthPotential,
+      AlchemicalPowerupType.beauty: instance.statBeautyPotential,
+    };
+  }
 }
 
 class _PowerupHeader extends StatelessWidget {
@@ -853,7 +1183,7 @@ class _PowerupHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'POWERUP INFUSION',
+                    'STAT INFUSION',
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: t.textPrimary,
@@ -864,7 +1194,7 @@ class _PowerupHeader extends StatelessWidget {
                   ),
                   Text(
                     canGoBack
-                        ? 'Select an orb type to infuse'
+                        ? 'Choose an Orb or Potential Soul'
                         : 'Select a specimen',
                     style: TextStyle(
                       color: t.textSecondary,
@@ -918,9 +1248,102 @@ class _PowerupHeader extends StatelessWidget {
   }
 }
 
+class _PotentialSoulButton extends StatelessWidget {
+  const _PotentialSoulButton({
+    required this.qty,
+    required this.canUse,
+    required this.theme,
+    required this.onTap,
+  });
+
+  final int qty;
+  final bool canUse;
+  final FactionTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: canUse ? onTap : null,
+        borderRadius: BorderRadius.circular(6),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 180),
+          opacity: canUse ? 1.0 : 0.46,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(8, 6, 10, 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6B35A5).withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: const Color(0xFFCF9BFF).withValues(alpha: 0.55),
+              ),
+            ),
+            child: Row(
+              children: [
+                const PotentialSoulSphere(size: 42),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'POTENTIAL SOUL',
+                        style: TextStyle(
+                          color: t.textPrimary,
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Raise a selected Potential • Cost shown before use',
+                        style: TextStyle(
+                          color: t.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: t.bg3,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: t.borderDim),
+                  ),
+                  child: Text(
+                    'x$qty',
+                    style: TextStyle(
+                      color: const Color(0xFFFFE59A),
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AnimatedOrbButton extends StatefulWidget {
   final AlchemicalPowerupType type;
   final int qty;
+  final int requiredCost;
   final bool canUse;
   final bool isLaunching;
   final FactionTheme theme;
@@ -930,6 +1353,7 @@ class _AnimatedOrbButton extends StatefulWidget {
   const _AnimatedOrbButton({
     required this.type,
     required this.qty,
+    required this.requiredCost,
     required this.canUse,
     required this.isLaunching,
     required this.theme,
@@ -1078,7 +1502,7 @@ class _AnimatedOrbButtonState extends State<_AnimatedOrbButton>
                     ),
                   ),
                   child: Text(
-                    'x${widget.qty}',
+                    'x${widget.qty}  COST ${widget.requiredCost}',
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: widget.qty > 0 ? type.color : t.textMuted,
@@ -1112,6 +1536,7 @@ class _StatPlate extends StatelessWidget {
   final String label;
   final double value;
   final double potential;
+  final int enhancementRank;
   final Color color;
   final FactionTheme theme;
 
@@ -1119,6 +1544,7 @@ class _StatPlate extends StatelessWidget {
     required this.label,
     required this.value,
     required this.potential,
+    required this.enhancementRank,
     required this.color,
     required this.theme,
   });
@@ -1126,7 +1552,9 @@ class _StatPlate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
-    final progress = potential <= 0 ? 0.0 : (value / potential).clamp(0.0, 1.0);
+    final progress = enhancementRank / AlchemonStatSystem.maxEnhancementRank;
+    final rating = AlchemonStatSystem.displayRating(value);
+    final potentialRating = AlchemonStatSystem.normalizePotential(potential);
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 7),
       decoration: BoxDecoration(
@@ -1149,7 +1577,7 @@ class _StatPlate extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            '${value.toStringAsFixed(2)} / ${potential.toStringAsFixed(2)}',
+            '$rating  •  P$potentialRating  •  ENH $enhancementRank/10',
             style: TextStyle(
               color: t.textPrimary,
               fontSize: 12,
@@ -1183,6 +1611,7 @@ class _PowerOrbPainter extends CustomPainter {
   final double orbitTurns;
   final double orbitEndProgress;
   final String? deltaLabel;
+  final int? soulRoll;
 
   const _PowerOrbPainter({
     required this.progress,
@@ -1195,6 +1624,7 @@ class _PowerOrbPainter extends CustomPainter {
     required this.orbitTurns,
     required this.orbitEndProgress,
     this.deltaLabel,
+    this.soulRoll,
   });
 
   @override
@@ -1261,6 +1691,57 @@ class _PowerOrbPainter extends CustomPainter {
             );
       canvas.drawCircle(center, (130 * flash + 40) * glowBoost, flashPaint);
 
+      final revealRoll = soulRoll ?? 0;
+      if (revealRoll >= 3) {
+        final rayCount = 8 + (revealRoll * 4);
+        final rayPaint = Paint()
+          ..color = Colors.white.withValues(
+            alpha: (0.12 + revealRoll * 0.045) * flash,
+          )
+          ..strokeWidth = revealRoll >= 5 ? 2.2 : 1.4
+          ..strokeCap = StrokeCap.round;
+        final innerRadius = 42.0 + (revealRoll * 3.0);
+        final outerRadius = innerRadius + (30.0 + revealRoll * 10.0) * flash;
+        canvas.save();
+        canvas.translate(center.dx, center.dy);
+        canvas.rotate(progress * math.pi * (revealRoll >= 5 ? 3.0 : 1.5));
+        for (var i = 0; i < rayCount; i++) {
+          final angle = (math.pi * 2 * i) / rayCount;
+          canvas.drawLine(
+            Offset(
+              math.cos(angle) * innerRadius,
+              math.sin(angle) * innerRadius,
+            ),
+            Offset(
+              math.cos(angle) * outerRadius,
+              math.sin(angle) * outerRadius,
+            ),
+            rayPaint,
+          );
+        }
+        canvas.restore();
+
+        if (revealRoll >= 4) {
+          final resonancePaint = Paint()
+            ..color = glowColor.withValues(alpha: 0.55 * flash)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = revealRoll >= 5 ? 3.0 : 2.0;
+          canvas.drawCircle(
+            center,
+            (76.0 + revealRoll * 9.0) * flash,
+            resonancePaint,
+          );
+          if (revealRoll >= 5) {
+            canvas.drawCircle(
+              center,
+              (112.0 + revealRoll * 8.0) * flash,
+              resonancePaint
+                ..color = Colors.white.withValues(alpha: 0.35 * flash),
+            );
+          }
+        }
+      }
+
       if (rollLabel != null) {
         final rollPainter = TextPainter(
           text: TextSpan(
@@ -1315,7 +1796,7 @@ class _PowerOrbPainter extends CustomPainter {
       );
     }
 
-    // Phase 2: orbit arc (rarer rolls spin longer and faster)
+    // Phase 2: orbit arc (the final rank gets the strongest celebration)
     if (progress < orbitEndProgress) {
       final orbitSpan = (orbitEndProgress - 0.22).clamp(0.01, 0.75);
       final local = ((progress - 0.22) / orbitSpan).clamp(0.0, 1.0);
@@ -1354,6 +1835,7 @@ class _PowerOrbPainter extends CustomPainter {
         oldDelegate.flash != flash ||
         oldDelegate.color != color ||
         oldDelegate.deltaLabel != deltaLabel ||
+        oldDelegate.soulRoll != soulRoll ||
         oldDelegate.rollLabel != rollLabel ||
         oldDelegate.glowBoost != glowBoost ||
         oldDelegate.isJackpot != isJackpot ||

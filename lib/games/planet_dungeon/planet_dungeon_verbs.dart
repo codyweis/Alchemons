@@ -22,6 +22,7 @@
 
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/models/stat_system.dart';
 
 /// The interaction method a creature's FAMILY brings to a dungeon.
 enum DungeonAbility {
@@ -264,7 +265,7 @@ String? dungeonRecipeResult(String a, String b) =>
 
 // ── Stat-scaled tunables (pure) ─────────────────────────────
 
-double normStat(double stat) => ((stat.clamp(1.0, 5.0)) - 1.0) / 4.0;
+double normStat(double stat) => AlchemonStatSystem.combatProgress(stat);
 
 double glideSeconds(double speed) => 3.0 + 5.0 * normStat(speed);
 

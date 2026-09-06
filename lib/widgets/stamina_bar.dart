@@ -161,30 +161,36 @@ class _StaminaBadgeState extends State<StaminaBadge> {
       if (diff.isNegative) countdown = 'soon';
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(
-          AppIcons.local_fire_department,
-          size: AppIcon.sm,
-          color: Colors.green,
-        ),
-        const SizedBox(width: AppSpace.xs),
-        StaminaBar(current: state.bars, max: state.max),
-        if (widget.showCountdown) ...[
-          const SizedBox(width: AppSpace.sm),
-          Text(
-            countdown,
-            style: TextStyle(
-              fontSize: AppType.caption,
-              color: state.bars >= state.max
-                  ? Colors.green.shade700
-                  : Colors.grey.shade600,
-              fontWeight: AppWeight.semibold,
+    return Tooltip(
+      message: 'Breeding stamina',
+      child: Semantics(
+        label: 'Breeding stamina ${state.bars} of ${state.max}',
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              AppIcons.local_fire_department,
+              size: AppIcon.sm,
+              color: Colors.green,
             ),
-          ),
-        ],
-      ],
+            const SizedBox(width: AppSpace.xs),
+            StaminaBar(current: state.bars, max: state.max),
+            if (widget.showCountdown) ...[
+              const SizedBox(width: AppSpace.sm),
+              Text(
+                countdown,
+                style: TextStyle(
+                  fontSize: AppType.caption,
+                  color: state.bars >= state.max
+                      ? Colors.green.shade700
+                      : Colors.grey.shade600,
+                  fontWeight: AppWeight.semibold,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

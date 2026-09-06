@@ -141,16 +141,6 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
       return false;
     }
 
-    // Call CreatureDao to get instance and spend stamina
-    final inst = await db.creatureDao.getInstance(creatureInstanceId);
-    if (inst == null || inst.staminaBars <= 0) return false;
-
-    await db.creatureDao.updateStamina(
-      instanceId: inst.instanceId,
-      staminaBars: inst.staminaBars - 1,
-      staminaLastUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
-    );
-
     final startTime = DateTime.now().toUtc();
     final startMs = startTime.millisecondsSinceEpoch;
     final normalizedRatePerMinute = _normalizeRatePerMinute(ratePerMinute);

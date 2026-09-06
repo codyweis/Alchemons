@@ -497,14 +497,13 @@ class ForcedFactionBrightness extends StatelessWidget {
     final factionId = context.watch<FactionService>().current;
     final themeNotifier = context.watch<ThemeNotifier>();
     final forcedTheme = factionThemeFor(factionId, brightness: brightness);
-    final textTheme = themeNotifier.currentTextThemeFn(Theme.of(context).textTheme);
+    final textTheme = themeNotifier.currentTextThemeFn(
+      Theme.of(context).textTheme,
+    );
 
     return Provider<FactionTheme>.value(
       value: forcedTheme,
-      child: Theme(
-        data: forcedTheme.toMaterialTheme(textTheme),
-        child: child,
-      ),
+      child: Theme(data: forcedTheme.toMaterialTheme(textTheme), child: child),
     );
   }
 }

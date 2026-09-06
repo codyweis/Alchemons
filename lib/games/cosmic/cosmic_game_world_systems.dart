@@ -119,13 +119,15 @@ extension CosmicGameWorldSystems on CosmicGame {
     final element = _randomEnemyElement(rng);
     final variant = switch (tier) {
       EnemyTier.brute || EnemyTier.colossus
-        when (behavior == EnemyBehavior.aggressive ||
-          behavior == EnemyBehavior.territorial) &&
-          rng.nextDouble() < 0.22 => CosmicEnemyVariant.crusher,
+          when (behavior == EnemyBehavior.aggressive ||
+                  behavior == EnemyBehavior.territorial) &&
+              rng.nextDouble() < 0.22 =>
+        CosmicEnemyVariant.crusher,
       EnemyTier.drone || EnemyTier.phantom
-        when (behavior == EnemyBehavior.aggressive ||
-          behavior == EnemyBehavior.stalking) &&
-          rng.nextDouble() < 0.28 => CosmicEnemyVariant.pouncer,
+          when (behavior == EnemyBehavior.aggressive ||
+                  behavior == EnemyBehavior.stalking) &&
+              rng.nextDouble() < 0.28 =>
+        CosmicEnemyVariant.pouncer,
       _ => CosmicEnemyVariant.standard,
     };
 
@@ -505,9 +507,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       forcedType: template.preferredType,
     );
     bossProjectiles.clear();
-    onBossSpawned?.call(
-      'Lv$safeLevel ${template.name}',
-    );
+    onBossSpawned?.call('Lv$safeLevel ${template.name}');
   }
 
   /// Spawn a feeding pack: 1 sentinel alpha + 3-5 wisp minions clustered
@@ -1511,9 +1511,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       isTitanic: lair.template.isTitanic,
       colossalTrait: lair.template.colossalTrait,
     );
-    onBossSpawned?.call(
-      'Lv$lvl ${lair.template.name}',
-    );
+    onBossSpawned?.call('Lv$lvl ${lair.template.name}');
   }
 
   /// Respawn a single galaxy whirl at a new random position.
@@ -1587,9 +1585,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       isTitanic: template.isTitanic,
       colossalTrait: template.colossalTrait,
     );
-    onBossSpawned?.call(
-      'Lv$lvl ${template.name}',
-    );
+    onBossSpawned?.call('Lv$lvl ${template.name}');
   }
 
   /// Spawn a guaranteed boss when a planet is first discovered.
@@ -1634,9 +1630,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       isTitanic: template.isTitanic,
       colossalTrait: template.colossalTrait,
     );
-    onBossSpawned?.call(
-      'Lv$lvl ${template.name}',
-    );
+    onBossSpawned?.call('Lv$lvl ${template.name}');
   }
 
   void _updateBossAI(CosmicBoss boss, double dt) {
@@ -1738,10 +1732,11 @@ extension CosmicGameWorldSystems on CosmicGame {
                 position: boss.position,
                 angle: a,
                 element: boss.element,
-                damage: CosmicBalance.bossProjectileDamage(
-                  level: boss.level,
-                  type: boss.type,
-                ) *
+                damage:
+                    CosmicBalance.bossProjectileDamage(
+                      level: boss.level,
+                      type: boss.type,
+                    ) *
                     0.92,
                 speed: 170,
                 radius: 6.4,
@@ -1759,7 +1754,8 @@ extension CosmicGameWorldSystems on CosmicGame {
           for (var i = 0; i < 3; i++) {
             final ringAngle = boss.phaseTimer * 0.7 + i * (2 * pi / 3);
             final rift = _wrap(
-              boss.position + Offset(cos(ringAngle) * 170, sin(ringAngle) * 170),
+              boss.position +
+                  Offset(cos(ringAngle) * 170, sin(ringAngle) * 170),
             );
             for (final offset in [-0.16, 0.0, 0.16]) {
               bossProjectiles.add(
@@ -1767,10 +1763,11 @@ extension CosmicGameWorldSystems on CosmicGame {
                   position: rift,
                   angle: targetAngle + offset,
                   element: boss.element,
-                  damage: CosmicBalance.bossProjectileDamage(
-                    level: boss.level,
-                    type: boss.type,
-                  ) *
+                  damage:
+                      CosmicBalance.bossProjectileDamage(
+                        level: boss.level,
+                        type: boss.type,
+                      ) *
                       0.86,
                   speed: 245,
                   radius: 5.2,
@@ -1791,12 +1788,18 @@ extension CosmicGameWorldSystems on CosmicGame {
             type: boss.type,
           );
           final pulseRadius = boss.radius * 2.1;
-          _spawnKillVfx(boss.position, elementColor(boss.element), pulseRadius, true);
+          _spawnKillVfx(
+            boss.position,
+            elementColor(boss.element),
+            pulseRadius,
+            true,
+          );
           if (dist <= pulseRadius + 20) {
             _damageShip(pulseDamage * 1.15);
           }
           if (activeCompanion != null && activeCompanion!.isAlive) {
-            final compDist = (activeCompanion!.position - boss.position).distance;
+            final compDist =
+                (activeCompanion!.position - boss.position).distance;
             if (compDist <= pulseRadius + 14) {
               activeCompanion!.takeDamage((pulseDamage * 1.1).round());
             }

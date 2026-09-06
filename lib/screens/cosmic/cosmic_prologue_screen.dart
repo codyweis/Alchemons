@@ -78,10 +78,10 @@ const CreatureStats kCrossingLetStats = CreatureStats(
   intelligence: 2.5,
   strength: 2.5,
   beauty: 2.5,
-  speedPotential: 3.8,
-  intelligencePotential: 3.8,
-  strengthPotential: 3.8,
-  beautyPotential: 3.8,
+  speedPotential: 76,
+  intelligencePotential: 76,
+  strengthPotential: 76,
+  beautyPotential: 76,
 );
 
 /// Stamp the crossing's authored identity onto a freshly generated creature.
@@ -92,7 +92,7 @@ const CreatureStats kCrossingLetStats = CreatureStats(
 ///     of a washed-out or hue-shifted body, so the `tinting` track is forced
 ///     back to `normal`. Everything else about the genetics (size and so on)
 ///     is left alone.
-///   • **Stats.** Fixed at 2.5 across the board with 3.8 potentials. The egg
+///   • **Stats.** Fixed at 2.5 across the board with 76 Potential. The egg
 ///     payload honours these verbatim (`hasFixedStats`), so what hatches is
 ///     what is set here.
 Creature shapeCrossingLet(Creature hydrated) {
@@ -330,9 +330,9 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
 
   void _finish({required bool caught}) {
     if (!mounted) return;
-    Navigator.of(context).pop(
-      CosmicPrologueResult(caught: caught, chosenElement: _chosenElement),
-    );
+    Navigator.of(
+      context,
+    ).pop(CosmicPrologueResult(caught: caught, chosenElement: _chosenElement));
   }
 
   // ── build ────────────────────────────────────────────
@@ -790,7 +790,9 @@ class _HarvesterRelicPainter extends CustomPainter {
       c,
       base * 2.4 * breathe * (1 + claim * 1.4),
       Paint()
-        ..color = _gold.withValues(alpha: (0.16 + claim * 0.3) * (1 - claim * 0.5))
+        ..color = _gold.withValues(
+          alpha: (0.16 + claim * 0.3) * (1 - claim * 0.5),
+        )
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, 22 + claim * 40),
     );
 

@@ -218,7 +218,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
 
   Map<String, String> _buildNatureOptions() {
     final Map<String, String> out = {};
-    for (final def in NatureCatalog.all) {
+    for (final def in NatureCatalog.rollable) {
       out[def.id] = def.id.toUpperCase();
     }
     final sorted = out.entries.toList()
@@ -299,7 +299,9 @@ class _InstancesSheetState extends State<InstancesSheet> {
               if (_filterTint != null && g?.get('tinting') != _filterTint) {
                 return false;
               }
-              if (_filterNature != null && inst.natureId != _filterNature) {
+              if (_filterNature != null &&
+                  inst.natureId != _filterNature &&
+                  inst.natureId2 != _filterNature) {
                 return false;
               }
               return true;
@@ -592,7 +594,11 @@ class _InstancesSheetState extends State<InstancesSheet> {
               },
               child: Padding(
                 padding: EdgeInsets.only(right: 8),
-                child: Icon(AppIcons.close_rounded, size: 13, color: t.textMuted),
+                child: Icon(
+                  AppIcons.close_rounded,
+                  size: 13,
+                  color: t.textMuted,
+                ),
               ),
             ),
         ],

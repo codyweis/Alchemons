@@ -5,6 +5,9 @@ import 'package:alchemons/models/offspring_lineage.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/special_breeding.dart';
 import 'package:alchemons/models/creature_stats.dart';
+import 'package:alchemons/models/stat_system.dart';
+
+const Object _copyUnset = Object();
 
 /// Sprite sheet metadata for animated rendering.
 class SpriteData {
@@ -121,6 +124,7 @@ class Creature {
 
   final List<List<String>>? guaranteedBreeding;
   final NatureDef? nature;
+  final NatureDef? nature2;
   final Genetics? genetics;
 
   /// Prismatic skin flag (e.g. special cosmetic)
@@ -140,6 +144,7 @@ class Creature {
 
   /// NEW: Hidden stats for the creature
   final CreatureStats? stats;
+  final SpeciesBaseStats? baseStats;
   final OffspringLineageData? lineageData;
   final bool isPure;
 
@@ -160,10 +165,12 @@ class Creature {
     this.isVariant = false,
     this.spriteData,
     this.nature,
+    this.nature2,
     this.genetics,
     this.isPrismaticSkin = false,
     this.parentage,
     this.stats, // NEW
+    this.baseStats,
     this.lineageData,
     this.isPure = false,
     this.alchemyEffect,
@@ -190,9 +197,11 @@ class Creature {
     final variantJson = json['variant'];
     final geneticsJson = json['genetics'];
     final natureJson = json['nature'];
+    final nature2Json = json['nature2'];
     final parentageJson = json['parentage'];
     final spriteDataJson = json['spriteData'];
     final statsJson = json['stats']; // NEW
+    final baseStatsJson = json['baseStats'];
     final lineageJson = json['lineageData'];
     final isPure = json['isPure'] as bool?;
 
@@ -236,6 +245,9 @@ class Creature {
       nature: natureJson is Map<String, dynamic>
           ? NatureDef.fromJson(natureJson)
           : null,
+      nature2: nature2Json is Map<String, dynamic>
+          ? NatureDef.fromJson(nature2Json)
+          : null,
 
       parentage: parentageJson is Map<String, dynamic>
           ? Parentage.fromJson(parentageJson)
@@ -253,6 +265,9 @@ class Creature {
       stats: statsJson is Map<String, dynamic>
           ? CreatureStats.fromJson(statsJson)
           : null, // NEW
+      baseStats: baseStatsJson is Map<String, dynamic>
+          ? SpeciesBaseStats.fromJson(baseStatsJson)
+          : null,
       lineageData: lineageJson is Map<String, dynamic>
           ? OffspringLineageData.fromJson(lineageJson)
           : null, // NEW
@@ -270,6 +285,7 @@ class Creature {
     required String baseImage,
     SpriteData? spriteVariantData,
     CreatureStats? stats, // NEW
+    SpeciesBaseStats? baseStats,
   }) {
     return Creature(
       id: "${baseId}_$secondaryType",
@@ -294,6 +310,7 @@ class Creature {
       guaranteedBreeding: null,
       parentage: null,
       stats: stats, // NEW
+      baseStats: baseStats,
       lineageData: null, // NEW
       isPure: false,
     );
@@ -312,10 +329,12 @@ class Creature {
     'isVariant': isVariant,
     if (spriteData != null) 'spriteData': spriteData!.toJson(),
     if (nature != null) 'nature': nature!.toJson(),
+    if (nature2 != null) 'nature2': nature2!.toJson(),
     if (genetics != null) 'genetics': genetics!.toJson(),
     'isPrismaticSkin': isPrismaticSkin,
     if (parentage != null) 'parentage': parentage!.toJson(),
     if (stats != null) 'stats': stats!.toJson(), // NEW
+    if (baseStats != null) 'baseStats': baseStats!.toJson(),
     if (lineageData != null) 'lineageData': lineageData!.toJson(), // NEW
     'isPure': isPure,
   };
@@ -336,10 +355,12 @@ extension CreatureCopy on Creature {
     bool? isVariant,
     SpriteData? spriteData,
     bool? isPrismaticSkin,
-    NatureDef? nature,
+    Object? nature = _copyUnset,
+    Object? nature2 = _copyUnset,
     Genetics? genetics,
     Parentage? parentage,
     CreatureStats? stats, // NEW
+    SpeciesBaseStats? baseStats,
     OffspringLineageData? lineageData, // NEW
     bool? isPure,
     String? alchemyEffect,
@@ -359,10 +380,16 @@ extension CreatureCopy on Creature {
       isVariant: isVariant ?? this.isVariant,
       spriteData: spriteData ?? this.spriteData,
       isPrismaticSkin: isPrismaticSkin ?? this.isPrismaticSkin,
-      nature: nature ?? this.nature,
+      nature: identical(nature, _copyUnset)
+          ? this.nature
+          : nature as NatureDef?,
+      nature2: identical(nature2, _copyUnset)
+          ? this.nature2
+          : nature2 as NatureDef?,
       genetics: genetics ?? this.genetics,
       parentage: parentage ?? this.parentage,
       stats: stats ?? this.stats, // NEW
+      baseStats: baseStats ?? this.baseStats,
       lineageData: lineageData ?? this.lineageData, // NEW
       isPure: isPure ?? this.isPure,
       alchemyEffect: alchemyEffect ?? this.alchemyEffect,

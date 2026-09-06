@@ -133,7 +133,9 @@ class _TutorialHighlightState extends State<TutorialHighlight>
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.amber.withValues(alpha: _glowAnimation.value),
+                          color: Colors.amber.withValues(
+                            alpha: _glowAnimation.value,
+                          ),
                           blurRadius: 20 * _glowAnimation.value,
                           spreadRadius: 4 * _glowAnimation.value,
                         ),

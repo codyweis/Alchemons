@@ -531,7 +531,12 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                       bottom: 110,
                       child: IgnorePointer(
                         child: Opacity(
-                          opacity: _intervalValue(t, 0.82, 0.90, Curves.easeOut),
+                          opacity: _intervalValue(
+                            t,
+                            0.82,
+                            0.90,
+                            Curves.easeOut,
+                          ),
                           child: Center(
                             child: Text(
                               '✦ PURE ${widget.pureElementTypeId!.toUpperCase()} LINEAGE ✦',

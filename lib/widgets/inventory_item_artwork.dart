@@ -12,9 +12,11 @@
 // in the same order, so an item looks identical wherever it appears.
 
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/static_effect_snapshot.dart';
+import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:flutter/material.dart';
 
 class InventoryItemArtwork extends StatelessWidget {
@@ -56,6 +58,10 @@ class InventoryItemArtwork extends StatelessWidget {
           child: AlchemicalPowerupOrbSphere(type: powerup, size: size),
         ),
       );
+    }
+
+    if (inventoryKey == InvKeys.potentialSoul) {
+      return PotentialSoulSphere(size: size);
     }
 
     // 2. Alchemy effects — the real sprite effect, baked unless animating.

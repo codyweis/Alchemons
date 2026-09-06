@@ -6,6 +6,7 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/services/alchemical_encyclopedia_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/utils/nature_effect_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -246,7 +247,7 @@ class _AlchemicalEncyclopediaScreenState
     for (final entry in natures) {
       if (_searchQuery.isNotEmpty) {
         final haystack =
-            '${entry.nature.id} ${_formatNatureEffects(entry.nature.effect)}'
+            '${entry.nature.id} ${formatNatureEffectSummary(entry.nature.effect)}'
                 .toLowerCase();
         if (!haystack.contains(_searchQuery)) continue;
       }
@@ -2362,7 +2363,7 @@ class _NatureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = _natureAccentColor(context, entry.nature);
-    final summary = _formatNatureEffects(entry.nature.effect);
+    final summary = formatNatureEffectSummary(entry.nature.effect);
     final observedText = entry.observedCount > 0
         ? 'Observed on ${entry.observedCount} active specimen${entry.observedCount == 1 ? '' : 's'}'
         : 'Archived from prior specimen records';
@@ -2621,62 +2622,6 @@ Color _natureLabelColor(BuildContext context) {
     return palette.textPrimary.withValues(alpha: 0.78);
   }
   return palette.textSecondary;
-}
-
-String _formatNatureEffects(NatureEffect effect) {
-  if (effect.modifiers.isEmpty) {
-    return 'No special behavioral modifications known';
-  }
-
-  final effects = <String>[];
-  effect.modifiers.forEach((key, value) {
-    switch (key) {
-      case 'stamina_extra':
-        effects.add('Stamina +${value.toInt()}');
-        break;
-      case 'stamina_breeding_cost_mult':
-        effects.add('Breeding cost -${((1 - value) * 100).round()}%');
-        break;
-      case 'stamina_wilderness_drain_mult':
-        effects.add('Wilderness stamina -${((1 - value) * 100).round()}%');
-        break;
-      case 'breed_same_species_chance_mult':
-        final p = ((value - 1) * 100).round();
-        effects.add('Same-species breeding ${p >= 0 ? '+' : ''}$p%');
-        break;
-      case 'breed_same_type_chance_mult':
-        final p = ((value - 1) * 100).round();
-        effects.add('Same-type breeding ${p >= 0 ? '+' : ''}$p%');
-        break;
-      case 'egg_hatch_time_mult':
-        effects.add('Hatch time -${((1 - value) * 100).round()}%');
-        break;
-      case 'xp_gain_mult':
-        final p = ((value - 1) * 100).round();
-        effects.add('XP gain ${p >= 0 ? '+' : ''}$p%');
-        break;
-      case 'stat_speed_bonus':
-        effects.add('Speed +${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}');
-        break;
-      case 'stat_intelligence_bonus':
-        effects.add(
-          'Intelligence +${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}',
-        );
-        break;
-      case 'stat_strength_bonus':
-        effects.add(
-          'Strength +${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}',
-        );
-        break;
-      case 'stat_beauty_bonus':
-        effects.add('Beauty +${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}');
-        break;
-      default:
-        effects.add('$key: $value');
-        break;
-    }
-  });
-  return effects.join(' • ');
 }
 
 // ─── Discovery stat ──────────────────────────────────────────────────────────

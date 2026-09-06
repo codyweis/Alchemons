@@ -5,7 +5,9 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/models/economy_balance.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -21,6 +23,7 @@ import 'package:alchemons/widgets/animations/sprite_effects/strength_forge.dart'
 import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/void_rift.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/wavebreaker_crown.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -71,6 +74,9 @@ class ShopService extends ChangeNotifier {
   static const strengthContestEffectOfferId = 'effects.strength_forge';
   static const intelligenceContestEffectOfferId = 'effects.intelligence_halo';
   static const ritualGoldEffectOfferId = 'effects.ritual_gold';
+  static const wavebreakerCrownEffectOfferId = 'effects.wavebreaker_crown';
+  static const _wavebreakerCrownUnlockSetting =
+      'shop_unlock.effect.wavebreaker_crown';
   static const elementalCreatorOfferId = 'unlock.elemental_creator';
 
   static const Map<String, String> _contestEffectUnlockSettingByOfferId = {
@@ -79,6 +85,7 @@ class ShopService extends ChangeNotifier {
     strengthContestEffectOfferId: 'shop_unlock.effect.strength_forge',
     intelligenceContestEffectOfferId: 'shop_unlock.effect.intelligence_halo',
     ritualGoldEffectOfferId: 'shop_unlock.effect.ritual_gold',
+    wavebreakerCrownEffectOfferId: _wavebreakerCrownUnlockSetting,
   };
 
   // Track purchases
@@ -229,6 +236,11 @@ class ShopService extends ChangeNotifier {
           dimension: size,
           child: BloodAura(size: effectSizeFromWidgetSize(size)),
         );
+      case InvKeys.alchemyWavebreakerCrown:
+        return SizedBox.square(
+          dimension: size,
+          child: WavebreakerCrown(size: effectSizeFromWidgetSize(size)),
+        );
 
       default:
         return null;
@@ -290,6 +302,34 @@ class ShopService extends ChangeNotifier {
     }
     notifyListeners();
     return offer?.name;
+  }
+
+  /// Atomically grants the account's one-time Survival wave-50 bundle.
+  /// The effect unlock doubles as the durable claim marker.
+  Future<bool> grantWave50Milestone({required String portalKey}) async {
+    var granted = false;
+    await _db.transaction(() async {
+      final alreadyClaimed =
+          await _db.settingsDao.getSetting(_wavebreakerCrownUnlockSetting) ==
+          '1';
+      if (alreadyClaimed) return;
+
+      await _db.inventoryDao.addItemQty(InvKeys.potentialSoul, 1);
+      await _db.inventoryDao.addItemQty(portalKey, 1);
+      await _db.inventoryDao.addItemQty(InvKeys.alchemyWavebreakerCrown, 1);
+      await _db.settingsDao.setSetting(_wavebreakerCrownUnlockSetting, '1');
+      granted = true;
+    });
+
+    if (!granted) return false;
+    _unlockedContestEffectOfferIds.add(wavebreakerCrownEffectOfferId);
+    _inventoryCache.update(
+      InvKeys.alchemyWavebreakerCrown,
+      (value) => value + 1,
+      ifAbsent: () => 1,
+    );
+    notifyListeners();
+    return true;
   }
 
   static const Map<int, ElementalGroup> _weekday2Group = {
@@ -370,7 +410,7 @@ class ShopService extends ChangeNotifier {
       id: 'boost.instant_stamina_potion',
       name: 'Stamina Elixir',
       description:
-          'Fully restores an Alchemon\'s stamina so it can battle, harvest, or breed again immediately.',
+          'Fully restores an Alchemon\'s breeding stamina so it can use the Fusion Chamber again immediately.',
       icon: AppIcons.local_drink_rounded,
       cost: const {'silver': 2500}, // tweak cost as desired
       reward: const {},
@@ -381,12 +421,25 @@ class ShopService extends ChangeNotifier {
           'assets/images/ui/instantstaminaicon.png', // optional, if you add one
     ),
     ShopOffer(
+      id: 'boost.wild_fusion',
+      name: 'Wild Fusion',
+      description:
+          'A single-use field catalyst required for one fusion attempt with a wild Alchemon.',
+      icon: AppIcons.merge_type_rounded,
+      cost: const {'silver': 1250},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.wildFusion,
+    ),
+    ShopOffer(
       // Shop id kept for purchase-history continuity.
       id: 'boost.instant_boss_refresh',
       name: 'Raid Beacon',
       description:
           'Summons a raid on a conquered planet now, instead of waiting for '
-          'the 48h rotation. Raids drop three elemental loot caches.',
+          'the 48h rotation. Clear all three levels, then return for one '
+          'Level 3 echo after its 12-hour respawn.',
       icon: AppIcons.whatshot_rounded,
       cost: const {'gold': 25},
       reward: const {},
@@ -508,27 +561,27 @@ class ShopService extends ChangeNotifier {
       inventoryKey: InvKeys.instantHatch, // NEW
     ),
 
-    // --- NEW: Currency exchange units (5% fee baked in) ---
+    // --- Currency exchange anchors (premium Gold keeps a 2:1 spread) ---
     ShopOffer(
       id: 'fx.silver_to_gold.unit',
       name: 'Silver → Gold (5g)',
       description:
-          'Exchange 100,000 silver for 5 gold. Use gold for premium items, portal keys, and rare cosmetics.',
+          'Exchange 50,000 silver for 5 gold. Use gold for premium items, portal keys, and rare cosmetics.',
       icon: AppIcons.currency_exchange_rounded,
       iconColor: const Color(0xFFF59E0B),
-      cost: const {'silver': 100000},
-      reward: const {'gold': 5},
+      cost: const {'silver': EconomyBalance.standardGoldBundleSilverCost},
+      reward: const {'gold': EconomyBalance.standardGoldBundle},
       rewardType: 'currency',
       limit: PurchaseLimit.unlimited,
     ),
     ShopOffer(
       id: 'fx.gold_to_silver.unit',
-      name: 'Gold → Silver (1,000s)',
+      name: 'Gold → Silver (5,000s)',
       description:
-          'Exchange 1 gold for 1,000 silver. Stock up on silver for harvesters, elixirs, and daily essentials.',
+          'Exchange 1 gold for 5,000 silver. Stock up on silver for harvesters, elixirs, and daily essentials.',
       icon: AppIcons.currency_exchange_rounded,
       cost: const {'gold': 1},
-      reward: const {'silver': 1000},
+      reward: const {'silver': EconomyBalance.silverPerGoldPayout},
       rewardType: 'currency',
       limit: PurchaseLimit.unlimited,
     ),
@@ -733,6 +786,19 @@ class ShopService extends ChangeNotifier {
       inventoryKey: InvKeys.alchemyBloodAura,
     ),
     ShopOffer(
+      id: wavebreakerCrownEffectOfferId,
+      name: 'Wavebreaker Crown',
+      description:
+          'Survival wave-50 trophy effect. A broken amber-and-cyan crown circles your Alchemon. Earn the first one before additional copies appear here.',
+      icon: AppIcons.workspace_premium_rounded,
+      iconColor: const Color(0xFF57E7F2),
+      cost: const {'gold': 50},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyWavebreakerCrown,
+    ),
+    ShopOffer(
       id: beautyContestEffectOfferId,
       name: 'Beauty Radiance',
       description:
@@ -861,7 +927,7 @@ class ShopService extends ChangeNotifier {
           'Forged in the Void — an orb crackling with dark energy runes. +12% guardian damage, but −10% orb HP.',
       icon: AppIcons.nightlight_round,
       iconColor: const Color(0xFFBB00FF),
-      cost: const {'gold': 50},
+      cost: {'gold': getOrbBaseDef(OrbBaseSkin.voidforgeOrb).cost},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -873,7 +939,7 @@ class ShopService extends ChangeNotifier {
           'A radiant sphere of starlight — pulsing with cosmic power. Heals guardians and ship 3% every 8s.',
       icon: AppIcons.auto_awesome_rounded,
       iconColor: const Color(0xFFFFD700),
-      cost: const {'gold': 1},
+      cost: {'gold': getOrbBaseDef(OrbBaseSkin.celestialOrb).cost},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -885,7 +951,7 @@ class ShopService extends ChangeNotifier {
           'Molten iron and dragonfire — enemies take burn damage near the orb. Burn aura damages nearby enemies every 0.5s.',
       icon: AppIcons.local_fire_department_rounded,
       iconColor: const Color(0xFFFF4500),
-      cost: const {'gold': 1},
+      cost: {'gold': getOrbBaseDef(OrbBaseSkin.infernalOrb).cost},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -897,7 +963,7 @@ class ShopService extends ChangeNotifier {
           'An ancient ice crystal — jagged frost shards orbit its frozen core. Slows nearby enemies and grants +5% orb HP.',
       icon: AppIcons.ac_unit_rounded,
       iconColor: const Color(0xFF88DDFF),
-      cost: const {'gold': 50},
+      cost: {'gold': getOrbBaseDef(OrbBaseSkin.frozenNexusOrb).cost},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -909,7 +975,7 @@ class ShopService extends ChangeNotifier {
           'A ghostly sphere that phases between realms — flickering and ethereal. 10% chance to dodge enemy projectiles, but −5% orb HP.',
       icon: AppIcons.blur_on_rounded,
       iconColor: const Color(0xFF7BFFCE),
-      cost: const {'gold': 50},
+      cost: {'gold': getOrbBaseDef(OrbBaseSkin.phantomWispOrb).cost},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -921,7 +987,7 @@ class ShopService extends ChangeNotifier {
           'A crystalline prism refracting all light — shifts through every color. Grants +10% orb HP and passive regen of +0.3 HP/s.',
       icon: AppIcons.diamond_rounded,
       iconColor: const Color(0xFFFF69B4),
-      cost: const {'gold': 50},
+      cost: {'gold': getOrbBaseDef(OrbBaseSkin.prismHeartOrb).cost},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -933,7 +999,7 @@ class ShopService extends ChangeNotifier {
           'A living orb of tangled vines and blossoms — pulses with nature\'s rhythm. Grants +15% orb HP and passive regen of +1 HP/s.',
       icon: AppIcons.eco_rounded,
       iconColor: const Color(0xFF32CD32),
-      cost: const {'gold': 50},
+      cost: {'gold': getOrbBaseDef(OrbBaseSkin.verdantBloomOrb).cost},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -1332,6 +1398,9 @@ class ShopService extends ChangeNotifier {
       case 'effects.blood_aura':
         await _db.inventoryDao.addItemQty(InvKeys.alchemyBloodAura, qty);
         return true;
+      case wavebreakerCrownEffectOfferId:
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyWavebreakerCrown, qty);
+        return true;
 
       case 'unlock.fusion_slot.1':
       case 'unlock.fusion_slot.2':
@@ -1359,6 +1428,10 @@ class ShopService extends ChangeNotifier {
 
       case 'boost.instant_stamina_potion':
         await _db.inventoryDao.addItemQty(InvKeys.staminaPotion, qty);
+        return true;
+
+      case 'boost.wild_fusion':
+        await _db.inventoryDao.addItemQty(InvKeys.wildFusion, qty);
         return true;
 
       case 'boost.instant_boss_refresh':

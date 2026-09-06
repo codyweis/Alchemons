@@ -64,6 +64,7 @@ class TopHud extends StatefulWidget {
   final VoidCallback onMiniMap;
   final VoidCallback onMeterTap;
   final bool showMeter;
+
   /// Recipe of the planet the ship is standing at, if any. When set, its
   /// target percentages are drawn onto the meter as notches, so matching the
   /// recipe becomes "line your colours up with the marks" rather than reading
@@ -132,7 +133,11 @@ class TopHudState extends State<TopHud> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(AppIcons.public_rounded, color: _palette.muted, size: 14),
+                    Icon(
+                      AppIcons.public_rounded,
+                      color: _palette.muted,
+                      size: 14,
+                    ),
                     const SizedBox(width: 7),
                     Text(
                       'Cosmos',
@@ -310,9 +315,7 @@ class TopHudState extends State<TopHud> {
                           );
                         }
 
-                        final sorted = meterSegmentsInDrawOrder(
-                          widget.meter,
-                        );
+                        final sorted = meterSegmentsInDrawOrder(widget.meter);
 
                         return Stack(
                           children: [

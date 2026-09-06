@@ -218,13 +218,7 @@ extension CosmicGameElementalCaches on CosmicGame {
     for (final cache in elementalCacheField.caches) {
       if (!cache.isPresent) continue;
 
-      final p = _wrappedRenderPos(
-        cache.position,
-        camX,
-        camY,
-        screenW,
-        screenH,
-      );
+      final p = _wrappedRenderPos(cache.position, camX, camY, screenW, screenH);
       // Cull anything comfortably off-screen.
       if ((p.dx - camX - screenW / 2).abs() > screenW * 0.9 ||
           (p.dy - camY - screenH / 2).abs() > screenH * 0.9) {

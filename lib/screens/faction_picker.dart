@@ -606,11 +606,7 @@ class _PerkCard extends StatelessWidget {
             padding: const EdgeInsets.only(left: 14),
             child: Text(
               perk.description,
-              style: TextStyle(
-                fontSize: 12,
-                color: bodyTextColor,
-                height: 1.4,
-              ),
+              style: TextStyle(fontSize: 12, color: bodyTextColor, height: 1.4),
             ),
           ),
           const SizedBox(height: 10),
@@ -751,11 +747,7 @@ class _ConfirmButton extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(
-              AppIcons.arrow_forward_rounded,
-              color: iconColor,
-              size: 18,
-            ),
+            Icon(AppIcons.arrow_forward_rounded, color: iconColor, size: 18),
           ],
         ),
       ),

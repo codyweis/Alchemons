@@ -21,6 +21,7 @@ class ParentSnapshot {
   final bool isPrismaticSkin;
   final Genetics? genetics;
   final NatureDef? nature;
+  final NatureDef? nature2;
   final SpriteData? spriteData;
   final CreatureStats? stats;
 
@@ -44,6 +45,7 @@ class ParentSnapshot {
     this.isPrismaticSkin = false,
     this.genetics,
     this.nature,
+    this.nature2,
     this.spriteData,
     this.stats,
     // NEW required (with defaults in factories for backcompat)
@@ -104,6 +106,9 @@ class ParentSnapshot {
       nature: inst.natureId != null
           ? NatureCatalog.byId(inst.natureId!)
           : base.nature,
+      nature2: inst.natureId2 != null
+          ? NatureCatalog.byId(inst.natureId2!)
+          : base.nature2,
       spriteData: base.spriteData,
       stats: CreatureStats(
         speed: inst.statSpeed,
@@ -151,6 +156,7 @@ class ParentSnapshot {
       isPrismaticSkin: c.isPrismaticSkin,
       genetics: c.genetics,
       nature: c.nature,
+      nature2: c.nature2,
       spriteData: c.spriteData,
       stats: null,
 
@@ -190,6 +196,7 @@ class ParentSnapshot {
       isPrismaticSkin: c.isPrismaticSkin,
       genetics: c.genetics,
       nature: c.nature,
+      nature2: c.nature2,
       spriteData: c.spriteData,
       stats: stats ?? c.stats,
 
@@ -245,6 +252,9 @@ class ParentSnapshot {
       nature: j['nature'] != null
           ? NatureDef.fromJson(j['nature'] as Map<String, dynamic>)
           : null,
+      nature2: j['nature2'] != null
+          ? NatureDef.fromJson(j['nature2'] as Map<String, dynamic>)
+          : null,
       spriteData: j['spriteData'] != null
           ? SpriteData.fromJson(j['spriteData'] as Map<String, dynamic>)
           : null,
@@ -276,6 +286,7 @@ class ParentSnapshot {
     'isPrismaticSkin': isPrismaticSkin,
     if (genetics != null) 'genetics': genetics!.variants,
     if (nature != null) 'nature': nature!.toJson(),
+    if (nature2 != null) 'nature2': nature2!.toJson(),
     if (spriteData != null)
       'spriteData': {
         'frameWidth': spriteData!.frameWidth,
@@ -312,6 +323,7 @@ class ParentSnapshot {
       isPrismaticSkin: isPrismaticSkin,
       genetics: genetics ?? base.genetics,
       nature: nature ?? base.nature,
+      nature2: nature2 ?? base.nature2,
       spriteData: spriteData ?? base.spriteData,
       stats: stats,
 

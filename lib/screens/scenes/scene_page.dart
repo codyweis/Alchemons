@@ -15,7 +15,6 @@ import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
-import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/opening_wilderness_service.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
@@ -109,7 +108,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
   // Saved references
   late WildernessSpawnService _spawnService;
-  late FactionService _factionService;
   late AlchemonsDatabase _db;
   late CreatureCatalog _repo;
 
@@ -194,7 +192,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     super.didChangeDependencies();
 
     _spawnService = context.read<WildernessSpawnService>();
-    _factionService = context.read<FactionService>();
     _db = context.read<AlchemonsDatabase>();
     _repo = context.read<CreatureCatalog>();
 
@@ -253,6 +250,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
           // Keep tutorial scenes pinned to the matching main Let.
           if (widget.isTutorial || _isCaptureTutorialScene) {
+            if (widget.isTutorial) {
+              await _ensureTutorialWildFusion();
+            }
             await _ensureTutorialSpawn();
             if (_isCaptureTutorialScene) {
               await _ensureCaptureTutorialHarvester();
@@ -296,6 +296,13 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       _game.syncWildFromEncounters();
     } else {
       _syncSpawnsFromService();
+    }
+  }
+
+  Future<void> _ensureTutorialWildFusion() async {
+    final qty = await _db.inventoryDao.getItemQty(InvKeys.wildFusion);
+    if (qty < 1) {
+      await _db.inventoryDao.addItemQty(InvKeys.wildFusion, 1);
     }
   }
 
@@ -488,7 +495,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     }
 
     _biomeAmbienceCtrl.dispose();
-    _maybeRestoreWaterParty();
     _spawnService.markSceneInactive(widget.sceneId);
     _spawnService.removeListener(_onSpawnServiceChanged);
 
@@ -935,25 +941,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     );
   }
 
-  Future<void> _maybeRestoreWaterParty() async {
-    if (!(_factionService.isWater() && await _factionService.perk2Active())) {
-      return;
-    }
-
-    for (final p in widget.party) {
-      final inst = await _db.creatureDao.getInstance(p.instanceId);
-      if (inst == null) continue;
-      final base = _repo.getCreatureById(inst.baseId);
-      if (base?.types.contains('Water') != true) continue;
-
-      await _db.creatureDao.updateStamina(
-        instanceId: inst.instanceId,
-        staminaBars: inst.staminaMax,
-        staminaLastUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
-      );
-    }
-  }
-
   void _onPartyCreatureSelected(Creature hydrated) {
     if (_showTutorialHighlight) {
       setState(() {
@@ -976,7 +963,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
     HapticFeedback.lightImpact();
   }
-
 
   // ── Rift persistence ───────────────────────────────────────────────────────
   //
@@ -1376,11 +1362,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                     },
                     // The harvest belongs to the scene: it plays on the wild
                     // component that is already standing there.
-                    onHarvestInScene: (accent, task) =>
-                        _game.playHarvestOnEncounter(
-                          accent: accent,
-                          task: task,
-                        ),
+                    onHarvestInScene: (accent, task) => _game
+                        .playHarvestOnEncounter(accent: accent, task: task),
                     onFusionInScene: (party, wild) =>
                         _game.playFusionOnEncounter(
                           accentParty: party,

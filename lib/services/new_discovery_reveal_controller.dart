@@ -56,8 +56,7 @@ class NewDiscoveryReveal {
       return;
     }
 
-    final boundary =
-        cardCtx.findRenderObject() as RenderRepaintBoundary?;
+    final boundary = cardCtx.findRenderObject() as RenderRepaintBoundary?;
     if (boundary == null) {
       revealOnly();
       return;
@@ -67,8 +66,7 @@ class NewDiscoveryReveal {
 
     ui.Image? snapshot;
     try {
-      final pixelRatio =
-          MediaQuery.maybeOf(context)?.devicePixelRatio ?? 2.0;
+      final pixelRatio = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 2.0;
       snapshot = await boundary.toImage(pixelRatio: pixelRatio);
     } catch (_) {
       // toImage can fail mid-frame; fall back to a graceful reveal.
@@ -190,10 +188,7 @@ class _FilingAwayOverlayState extends State<_FilingAwayOverlay>
               opacity: opacity,
               child: Transform.rotate(
                 angle: rotation,
-                child: RawImage(
-                  image: widget.image,
-                  fit: BoxFit.fill,
-                ),
+                child: RawImage(image: widget.image, fit: BoxFit.fill),
               ),
             ),
           ),
@@ -202,4 +197,3 @@ class _FilingAwayOverlayState extends State<_FilingAwayOverlay>
     );
   }
 }
-

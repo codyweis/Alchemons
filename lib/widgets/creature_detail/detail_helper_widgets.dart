@@ -4,13 +4,15 @@ import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/stat_system.dart';
 
 class StaminaInlineRow extends StatelessWidget {
   // ignore: unused_field
   final FactionTheme? theme;
   final String label;
   final String instanceId;
-  const StaminaInlineRow({super.key, 
+  const StaminaInlineRow({
+    super.key,
     this.theme,
     required this.label,
     required this.instanceId,
@@ -44,15 +46,21 @@ class StatBarRow extends StatelessWidget {
   final String label;
   final double value;
 
-  const StatBarRow({super.key, this.theme, required this.label, required this.value});
+  const StatBarRow({
+    super.key,
+    this.theme,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
     final ft = FT(fc);
     final descriptor = getStatDescriptor(value, label.toLowerCase());
-    final fill = (value / 5.0).clamp(0.0, 1.0);
-    final isMaxed = value == 5.0;
+    final rating = AlchemonStatSystem.displayRating(value);
+    final fill = AlchemonStatSystem.displayFraction(value);
+    final isMaxed = rating >= 130;
     final barColor = fc.amber;
     final dimColor = fc.amberDim;
 
@@ -101,7 +109,9 @@ class StatBarRow extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: isMaxed ? fc.amber.withValues(alpha: .18) : fc.bg3,
+                        color: isMaxed
+                            ? fc.amber.withValues(alpha: .18)
+                            : fc.bg3,
                         borderRadius: BorderRadius.circular(2),
                         border: Border.all(
                           color: isMaxed
@@ -110,7 +120,7 @@ class StatBarRow extends StatelessWidget {
                         ),
                       ),
                       child: Text(
-                        value.toStringAsFixed(1),
+                        '$rating',
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: isMaxed ? fc.amberGlow : fc.textPrimary,
@@ -167,7 +177,8 @@ class LabeledInlineValue extends StatelessWidget {
   final String valueText;
   final Color? valueColor;
 
-  const LabeledInlineValue({super.key, 
+  const LabeledInlineValue({
+    super.key,
     required this.label,
     required this.valueText,
     this.valueColor,

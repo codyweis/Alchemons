@@ -138,5 +138,49 @@ void main() {
         expect(speciesMechanic.percentage, lessThan(100));
       },
     );
+
+    test('Hereditary parents guarantee both protected second Natures', () {
+      final hereditary = NatureCatalog.byId('Hereditary')!;
+      final titanic = NatureCatalog.byId('Titanic')!;
+      final noetic = NatureCatalog.byId('Noetic')!;
+      final parentA = repository
+          .getCreatureById('LET02')!
+          .copyWith(nature: hereditary, nature2: titanic);
+      final parentB = repository
+          .getCreatureById('PIP02')!
+          .copyWith(nature: hereditary, nature2: noetic);
+      final hereditaryRepository = CreatureCatalog.fromList([
+        for (final creature in repository.creatures)
+          if (creature.id == parentA.id)
+            parentA
+          else if (creature.id == parentB.id)
+            parentB
+          else
+            creature,
+      ]);
+
+      for (var seed = 0; seed < 100; seed++) {
+        final engine = BreedingEngine(
+          hereditaryRepository,
+          elementRecipes: elementRecipes,
+          familyRecipes: familyRecipes,
+          tuning: const BreedingTuning(globalMutationChance: 0),
+          random: Random(seed),
+        );
+        final child = engine.breed(parentA.id, parentB.id).creature!;
+        expect({
+          child.nature?.id,
+          child.nature2?.id,
+        }, containsAll(<String>{'Titanic', 'Noetic'}));
+        expect(
+          engine.natureAppearanceChancePct(parentA, parentB, 'Titanic'),
+          100,
+        );
+        expect(
+          engine.natureAppearanceChancePct(parentA, parentB, 'Noetic'),
+          100,
+        );
+      }
+    });
   });
 }

@@ -64,16 +64,14 @@ Future<_WelcomeChoice?> _showWelcomeDialog(BuildContext context) {
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pop(context, _WelcomeChoice.newPlayer),
+            onPressed: () => Navigator.pop(context, _WelcomeChoice.newPlayer),
             child: Text(
               "I'M NEW",
               style: _label(t).copyWith(color: t.textMuted),
             ),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.pop(context, _WelcomeChoice.returning),
+            onPressed: () => Navigator.pop(context, _WelcomeChoice.returning),
             child: Text(
               'I HAVE AN ACCOUNT',
               style: _label(t).copyWith(color: t.amberBright),
@@ -266,7 +264,11 @@ void _snack(String message, {bool isError = false}) {
   );
 }
 
-InputDecoration _inputDecoration(ForgeTokens t, String label, {Widget? suffix}) {
+InputDecoration _inputDecoration(
+  ForgeTokens t,
+  String label, {
+  Widget? suffix,
+}) {
   return InputDecoration(
     labelText: label,
     labelStyle: TextStyle(color: t.textSecondary),

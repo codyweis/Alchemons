@@ -48,13 +48,13 @@ class _StarfieldBackgroundState extends State<StarfieldBackground>
         size: layer == _StarLayer.far
             ? 0.6 + rng.nextDouble() * 0.8
             : layer == _StarLayer.mid
-                ? 1.0 + rng.nextDouble() * 0.9
-                : 1.6 + rng.nextDouble() * 1.2,
+            ? 1.0 + rng.nextDouble() * 0.9
+            : 1.6 + rng.nextDouble() * 1.2,
         baseOpacity: layer == _StarLayer.far
             ? 0.18 + rng.nextDouble() * 0.18
             : layer == _StarLayer.mid
-                ? 0.32 + rng.nextDouble() * 0.28
-                : 0.55 + rng.nextDouble() * 0.35,
+            ? 0.32 + rng.nextDouble() * 0.28
+            : 0.55 + rng.nextDouble() * 0.35,
         twinkleSpeed: 0.4 + rng.nextDouble() * 1.4,
         phase: rng.nextDouble() * math.pi * 2,
       );

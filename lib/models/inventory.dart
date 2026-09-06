@@ -237,6 +237,7 @@ class LootBoxConfig {
       maxQty: 2,
       weight: 2.0,
     ),
+    LootBoxDrop(itemKey: InvKeys.wildFusion, minQty: 1, maxQty: 2, weight: 1.5),
     LootBoxDrop(
       itemKey: InvKeys.alchemyGlow,
       minQty: 1,
@@ -382,23 +383,27 @@ class LootBoxConfig {
     return null;
   }
 
-  /// Raid victory currency. Separate from [rollBossRematchBonusCurrency],
-  /// which is deliberately gold-scarce because rematches are repeatable —
-  /// raids are gated behind a 48h rotation or a 25 gold beacon, so they pay
-  /// in gold rather than teasing a 1-in-20 single coin.
-  static Map<String, int> rollRaidVictoryCurrency(int bossOrder, Random rng) {
-    final difficulty = bossOrder.clamp(1, 17);
-    final silver = 150 + (difficulty * 25) + rng.nextInt(151);
-    // 5..10, weighted up by the planet's altar order so late planets pay more.
-    final scaled = (difficulty / 17 * 3).round(); // 0..3
-    final gold = 5 + scaled + rng.nextInt(3);
+  /// Raid currency is determined only by raid level, never planet order.
+  static Map<String, int> rollRaidVictoryCurrency(int level, Random rng) {
+    final safeLevel = level.clamp(1, 3);
+    final (
+      silverBase,
+      silverVariance,
+      goldBase,
+      goldVariance,
+    ) = switch (safeLevel) {
+      1 => (200, 151, 2, 3), // 200–350 silver, 2–4 gold
+      2 => (400, 201, 4, 3), // 400–600 silver, 4–6 gold
+      _ => (650, 251, 7, 4), // 650–900 silver, 7–10 gold
+    };
+    final silver = silverBase + rng.nextInt(silverVariance);
+    final gold = goldBase + rng.nextInt(goldVariance);
     return {'silver': silver, 'gold': gold};
   }
 
-  /// The stat orbs, which drop nowhere else — they are otherwise 40 gold
-  /// apiece in the shop. Raid-only on purpose: the shared boss pool also
-  /// feeds survival, which is farmable, and seeding 40 gold items into a
-  /// repeatable loop is how an economy comes apart.
+  /// Raids are a high-value gated source of stat orbs. Repeatable survival
+  /// and rift sources use deliberately scarce drop rates to protect the
+  /// progression economy.
   static const List<LootBoxDrop> raidPowerupPool = [
     // Equal weights — which orb you get is a flat pick between the four.
     LootBoxDrop(
@@ -427,15 +432,25 @@ class LootBoxConfig {
     ),
   ];
 
-  /// Every raid yields one of each stat orb — four in total, guaranteed.
-  ///
-  /// There are exactly four orb types, so "four orbs" is one of each rather
-  /// than four random picks: no raid can hand you four of a stat you do not
-  /// need, and the reward popup reads the same every time. This is the bulk
-  /// of what makes a 25 gold beacon worth spending.
-  static List<MapEntry<String, int>> rollRaidPowerupDrops(Random rng) => [
-    for (final drop in raidPowerupPool) MapEntry(drop.itemKey, drop.minQty),
-  ];
+  /// Level 1 gives one random orb, Level 2 two distinct orbs, and Level 3 the
+  /// complete four-orb set. Sequential clears therefore build toward a full
+  /// stat spread without front-loading the old raid payout at Level 1.
+  static List<MapEntry<String, int>> rollRaidPowerupDropsForLevel(
+    int level,
+    Random rng,
+  ) {
+    final safeLevel = level.clamp(1, 3);
+    final shuffled = [...raidPowerupPool]..shuffle(rng);
+    final count = switch (safeLevel) {
+      1 => 1,
+      2 => 2,
+      _ => raidPowerupPool.length,
+    };
+    return [
+      for (final drop in shuffled.take(count))
+        MapEntry(drop.itemKey, drop.minQty),
+    ];
+  }
 
   static Map<String, int> rollBossRematchBonusCurrency(
     int bossOrder,
@@ -477,10 +492,11 @@ class LootBoxConfig {
 
     var gold = 0;
     if (wave > 25) {
-      // Guaranteed minimum past stage 25, scaling slowly with wave.
-      gold = 5 + ((wave - 26) ~/ 5);
-      if (wave >= 55 && rng.nextDouble() < 0.25) {
-        gold += 1;
+      // Survival is repeatable, so premium currency remains an occasional
+      // bonus rather than becoming a farmable guaranteed payout.
+      final goldChance = (0.02 + (wave - 25) * 0.005).clamp(0.02, 0.20);
+      if (rng.nextDouble() <= goldChance) {
+        gold = 1;
       }
     } else {
       final goldChance = wave >= 25 ? 0.04 : 0.01;
@@ -526,6 +542,7 @@ class InvKeys {
   static const powerupIntelligence = 'item.powerup.intelligence';
   static const powerupStrength = 'item.powerup.strength';
   static const powerupBeauty = 'item.powerup.beauty';
+  static const potentialSoul = 'item.potential_soul';
   static const harvesterStdVolcanic = 'item.harvest_std_volcanic';
   static const harvesterStdOceanic = 'item.harvest_std_oceanic';
   static const harvesterStdVerdant = 'item.harvest_std_verdant';
@@ -543,7 +560,9 @@ class InvKeys {
   static const alchemyStrengthForge = 'alchemy.strength_forge';
   static const alchemyIntelligenceHalo = 'alchemy.intelligence_halo';
   static const alchemyBloodAura = 'alchemy.blood_aura';
+  static const alchemyWavebreakerCrown = 'alchemy.wavebreaker_crown';
   static const staminaPotion = 'item.stamina_potion';
+  static const wildFusion = 'item.wild_fusion';
   // Historic key string kept so existing player stacks convert for free.
   static const raidBeacon = 'item.boss_refresh';
   static const bossSummon = 'item.boss_summon';
@@ -585,33 +604,37 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
     InvKeys.powerupSpeed: InventoryItemDef(
       key: InvKeys.powerupSpeed,
       name: 'Velocity Orb',
-      description:
-          'An alchemical powerup that raises Speed up to the specimen\'s potential.',
+      description: 'Permanently adds one rank of Speed Enhancement.',
       icon: AppIcons.bolt_rounded,
       canUse: false,
     ),
     InvKeys.powerupIntelligence: InventoryItemDef(
       key: InvKeys.powerupIntelligence,
       name: 'Insight Orb',
-      description:
-          'An alchemical powerup that raises Intelligence up to the specimen\'s potential.',
+      description: 'Permanently adds one rank of Intelligence Enhancement.',
       icon: AppIcons.psychology_rounded,
       canUse: false,
     ),
     InvKeys.powerupStrength: InventoryItemDef(
       key: InvKeys.powerupStrength,
       name: 'Forge Orb',
-      description:
-          'An alchemical powerup that raises Strength up to the specimen\'s potential.',
+      description: 'Permanently adds one rank of Strength Enhancement.',
       icon: AppIcons.fitness_center_rounded,
       canUse: false,
     ),
     InvKeys.powerupBeauty: InventoryItemDef(
       key: InvKeys.powerupBeauty,
       name: 'Radiance Orb',
-      description:
-          'An alchemical powerup that raises Beauty up to the specimen\'s potential.',
+      description: 'Permanently adds one rank of Beauty Enhancement.',
       icon: AppIcons.auto_awesome_rounded,
+      canUse: false,
+    ),
+    InvKeys.potentialSoul: InventoryItemDef(
+      key: InvKeys.potentialSoul,
+      name: 'Potential Soul',
+      description:
+          'Permanently raise a selected Potential in Stat Infusion. The exact Silver cost is shown before use.',
+      icon: AppIcons.diamond_rounded,
       canUse: false,
     ),
     InvKeys.harvesterStdVolcanic: InventoryItemDef(
@@ -733,11 +756,27 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
           'Wrap an Alchemon in a blood-red alchemical field with pulsing crimson motes.',
       icon: AppIcons.opacity_rounded,
     ),
+    InvKeys.alchemyWavebreakerCrown: InventoryItemDef(
+      key: InvKeys.alchemyWavebreakerCrown,
+      name: 'Wavebreaker Crown',
+      description:
+          'A fractured cosmic crown earned by breaking wave 50 in Survival.',
+      icon: AppIcons.workspace_premium_rounded,
+    ),
     InvKeys.staminaPotion: InventoryItemDef(
       key: InvKeys.staminaPotion,
       name: 'Stamina Elixir',
-      description: 'Fully restores an Alchemon\'s stamina.',
+      description:
+          'Fully restores an Alchemon\'s breeding stamina for the Fusion Chamber.',
       icon: AppIcons.local_drink_rounded,
+    ),
+    InvKeys.wildFusion: InventoryItemDef(
+      key: InvKeys.wildFusion,
+      name: 'Wild Fusion',
+      description:
+          'Consumed to fuse one party Alchemon with a wild Alchemon. One is used per attempt.',
+      icon: AppIcons.merge_type_rounded,
+      canUse: false,
     ),
     InvKeys.raidBeacon: InventoryItemDef(
       key: InvKeys.raidBeacon,
@@ -820,7 +859,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
           '${element[0].toUpperCase()}${element.substring(1)} Mystic Loot Box',
       description:
           'Late-game reward chest from a powered-up ${element.toUpperCase()} Mystic rematch. '
-          'Contains survival items like Harvesters, Stamina Elixirs, Alchemy effects, and rare Stabilized Harvesters.',
+          'Contains survival items like Harvesters, breeding Stamina Elixirs, Wild Fusion catalysts, Alchemy effects, and rare Stabilized Harvesters.',
       icon: meta.lootboxIcon,
       stackable: true,
       canUse: false,

@@ -9,7 +9,6 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
-import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/utils/harvest_rate.dart';
@@ -266,7 +265,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     final busyIds = farm.activeJob != null
         ? [farm.activeJob!.creatureInstanceId]
         : <String>[];
-    final stamina = context.read<StaminaService>();
     final picked = await Navigator.of(context).push<CreatureInstance>(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 300),
@@ -299,24 +297,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
               return false;
             }
 
-            final refreshed = await stamina.refreshAndGet(inst.instanceId);
-            if ((refreshed?.staminaBars ?? 0) >= 1) {
-              return true;
-            }
-
-            final perBar = stamina.regenPerBar;
-            final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-            final last = refreshed?.staminaLastUtcMs ?? now;
-            final elapsed = now - last;
-            final remMs =
-                perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
-            final mins = (remMs / 60000).ceil();
-            _showToast(
-              'Specimen is resting, next stamina in ~${mins}m',
-              icon: AppIcons.hourglass_bottom_rounded,
-              color: Colors.orange.shade400,
-            );
-            return false;
+            return true;
           },
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -334,17 +315,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
     if (picked == null || !mounted) return;
 
-    final inst = await stamina.refreshAndGet(picked.instanceId);
-    if (inst == null) return;
-
-    if (inst.staminaBars == 0) {
-      _showToast(
-        'This creature is too exhausted to work right now.',
-        icon: AppIcons.error_outline,
-        color: Colors.red.shade400,
-      );
-      return;
-    }
+    final inst = picked;
 
     final base = repo.getCreatureById(inst.baseId);
     if (base == null || base.types.isEmpty) return;
@@ -447,7 +418,11 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Icon(AppIcons.refresh_rounded, color: t.amberBright, size: 18),
+                    Icon(
+                      AppIcons.refresh_rounded,
+                      color: t.amberBright,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'EXTRACTION COMPLETE',

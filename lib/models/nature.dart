@@ -19,17 +19,26 @@ class NatureEffect {
 class NatureDef {
   final String id;
   final int dominance;
+  final int wildWeight;
+  final String tier;
+  final String? description;
   final NatureEffect effect;
 
   const NatureDef({
     required this.id,
     required this.dominance,
+    this.wildWeight = 1,
+    this.tier = 'Utility',
+    this.description,
     required this.effect,
   });
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'dominance': dominance,
+    'wildWeight': wildWeight,
+    'tier': tier,
+    if (description != null) 'description': description,
     'effect': effect.modifiers,
   };
 
@@ -39,12 +48,21 @@ class NatureDef {
       throw FormatException('Nature is missing a non-empty "id": $json');
     }
     final dom = (json['dominance'] as num?)?.toInt() ?? 0;
+    final wildWeight = (json['wildWeight'] as num?)?.toInt() ?? dom;
+    final tier = json['tier'] as String? ?? 'Utility';
 
     final raw = json['effect'];
     final effectMap = raw is Map
         ? raw.map((k, v) => MapEntry(k.toString(), (v as num)))
         : <String, num>{};
 
-    return NatureDef(id: id, dominance: dom, effect: NatureEffect(effectMap));
+    return NatureDef(
+      id: id,
+      dominance: dom,
+      wildWeight: wildWeight,
+      tier: tier,
+      description: json['description'] as String?,
+      effect: NatureEffect(effectMap),
+    );
   }
 }

@@ -9,7 +9,8 @@ import 'package:alchemons/models/nature.dart';
 /// - Each instance has staminaBars / staminaMax / staminaLastUtcMs in DB
 /// - Regenerates 1 bar every [regenPerBar] (default 6h)
 /// - Breed costs 1 bar * nature multiplier (stochastic rounding).
-/// - Wilderness drains all bars * nature multiplier (stochastic rounding).
+/// Stamina is deliberately breeding-only. Field work, contests, combat, and
+/// wild encounters use their own systems and never read or spend these bars.
 class StaminaService {
   final AlchemonsDatabase db;
   final Duration regenPerBar;
@@ -58,16 +59,29 @@ class StaminaService {
     Creature? instanceOverlayForNature,
     int baseCostBars = 1,
     DateTime? nowUtc,
+  }) => _spend(
+    instanceId,
+    natureEffectKeys: const ['stamina_breeding_cost_mult'],
+    instanceOverlayForNature: instanceOverlayForNature,
+    baseCostBars: baseCostBars,
+    nowUtc: nowUtc,
+  );
+
+  Future<CreatureInstance?> _spend(
+    String instanceId, {
+    required List<String> natureEffectKeys,
+    Creature? instanceOverlayForNature,
+    required int baseCostBars,
+    DateTime? nowUtc,
   }) async {
     final row = await refreshAndGet(instanceId, nowUtc: nowUtc);
     if (row == null) return null;
 
-    final nature = _natureFromRowOrOverlay(row, instanceOverlayForNature);
-    final mult = _natureNum(
-      nature,
-      'stamina_breeding_cost_mult',
-      defaultVal: 1.0,
-    );
+    final natures = _naturesFromRowOrOverlay(row, instanceOverlayForNature);
+    var mult = 1.0;
+    for (final key in natureEffectKeys) {
+      mult *= _natureProduct(natures, key);
+    }
 
     final charge = _stochasticCost(baseCostBars * mult);
 
@@ -119,15 +133,11 @@ class StaminaService {
   /// Applies time-based regeneration in-memory.
   (int, int)? _applyRegen(CreatureInstance row, {required DateTime nowUtc}) {
     // --- NEW: derive effective regen duration from nature ---
-    final NatureDef? n = (row.natureId == null || row.natureId!.isEmpty)
-        ? null
-        : NatureCatalog.byId(row.natureId!);
+    final natures = _naturesFromRowOrOverlay(row, null);
 
     // clamp(0.25, 4.0): at most 4× slower, at least 4× faster
     final regenMult = (() {
-      final v = n?.effect.modifiers['stamina_regen_mult'];
-      final d = (v is num) ? v.toDouble() : 1.0; // <-- CORRECTED LINE
-      return d.clamp(0.25, 4.0);
+      return _natureProduct(natures, 'stamina_regen_mult').clamp(0.25, 4.0);
     })();
 
     final effectiveMsPerBar = (regenPerBar.inMilliseconds / regenMult)
@@ -167,8 +177,8 @@ class StaminaService {
 
   int effectiveMaxStamina(CreatureInstance row, {Creature? overlay}) {
     final base = row.staminaMax; // should be 3 in DB
-    final nature = _natureFromRowOrOverlay(row, overlay);
-    final bonus = _natureNum(nature, 'stamina_extra', defaultVal: 0.0);
+    final natures = _naturesFromRowOrOverlay(row, overlay);
+    final bonus = _natureSum(natures, 'stamina_extra');
 
     // We want +1.5 = sometimes +1, sometimes +2
     // Use stochastic rounding so expectation is right
@@ -177,16 +187,35 @@ class StaminaService {
   }
 
   /// Pulls nature from overlay Creature first (if provided), else from catalog by ID on row.
-  NatureDef? _natureFromRowOrOverlay(CreatureInstance row, Creature? overlay) {
-    if (overlay?.nature != null) return overlay!.nature;
-    if (row.natureId == null || row.natureId!.isEmpty) return null;
-    return NatureCatalog.byId(row.natureId!);
+  List<NatureDef> _naturesFromRowOrOverlay(
+    CreatureInstance row,
+    Creature? overlay,
+  ) {
+    final ids = overlay == null
+        ? [row.natureId, row.natureId2]
+        : [overlay.nature?.id, overlay.nature2?.id];
+    return ids
+        .whereType<String>()
+        .map(NatureCatalog.byId)
+        .whereType<NatureDef>()
+        .toList(growable: false);
   }
 
   /// Reads a numeric nature modifier (returns [defaultVal] if missing).
-  double _natureNum(NatureDef? n, String key, {double defaultVal = 1.0}) {
-    final v = n?.effect.modifiers[key];
-    return (v is num) ? v.toDouble() : defaultVal;
+  double _natureProduct(List<NatureDef> natures, String key) {
+    var result = 1.0;
+    for (final nature in natures) {
+      result *= nature.effect.getDouble(key, fallback: 1);
+    }
+    return result;
+  }
+
+  double _natureSum(List<NatureDef> natures, String key) {
+    var result = 0.0;
+    for (final nature in natures) {
+      result += nature.effect.getDouble(key, fallback: 0);
+    }
+    return result;
   }
 
   /// Converts a real-valued cost into an integer cost with correct expectation.
@@ -216,14 +245,10 @@ extension StaminaHelpers on StaminaService {
     final nowMs = nowUtc.millisecondsSinceEpoch;
 
     // --- Same nature-aware regen as _applyRegen ---
-    final NatureDef? n = (row.natureId == null || row.natureId!.isEmpty)
-        ? null
-        : NatureCatalog.byId(row.natureId!);
+    final natures = _naturesFromRowOrOverlay(row, null);
 
     final regenMult = (() {
-      final v = n?.effect.modifiers['stamina_regen_mult'];
-      final d = (v is num) ? v.toDouble() : 1.0;
-      return d.clamp(0.25, 4.0);
+      return _natureProduct(natures, 'stamina_regen_mult').clamp(0.25, 4.0);
     })();
 
     final effectiveMsPerBar = (regenPerBar.inMilliseconds / regenMult)

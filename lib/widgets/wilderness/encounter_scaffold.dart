@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
-import 'package:alchemons/widgets/stamina_bar.dart';
 
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -154,9 +153,7 @@ class EncounterScaffold extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: _breedAccent.withValues(alpha: 0.14),
-        border: const Border(
-          left: BorderSide(color: _breedAccent, width: 2),
-        ),
+        border: const Border(left: BorderSide(color: _breedAccent, width: 2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -276,9 +273,7 @@ class _EncounterButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = onTap != null;
     final baseColor = enabled ? color : _palette.muted;
-    final fg = filled
-        ? (enabled ? Colors.white : _palette.muted)
-        : baseColor;
+    final fg = filled ? (enabled ? Colors.white : _palette.muted) : baseColor;
     final height = large ? 50.0 : 44.0;
 
     return GestureDetector(
@@ -286,9 +281,7 @@ class _EncounterButton extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: CustomPaint(
         painter: BracketFramePainter(
-          color: enabled
-              ? baseColor
-              : _palette.line.withValues(alpha: 0.6),
+          color: enabled ? baseColor : _palette.line.withValues(alpha: 0.6),
           bracketSize: 9,
           strokeWidth: large ? 1.4 : 1.1,
         ),
@@ -440,13 +433,6 @@ class _PartyMemberTile extends StatelessWidget {
                               ),
                           ],
                         ),
-                        if (inst != null) ...[
-                          const SizedBox(height: 6),
-                          StaminaBadge(
-                            instanceId: inst.instanceId,
-                            showCountdown: true,
-                          ),
-                        ],
                       ],
                     ),
                   ),

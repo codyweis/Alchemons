@@ -1,98 +1,31 @@
 {
   "natures": [
-    {
-      "id": "Metabolic",
-      "dominance": 1,
-      "effect": { "stamina_extra": 1 }
-    },
-    {
-      "id": "Reproductive",
-      "dominance": 1,
-      "effect": { "stamina_breeding_cost_mult": 0.5 }
-    },
-    {
-      "id": "Ecophysiological",
-      "dominance": 1,
-      "effect": { "stamina_wilderness_drain_mult": 0.75 }
-    },
-    {
-      "id": "Sympatric",
-      "dominance": 1,
-      "effect": { "breed_same_species_chance_mult": 0.70 }
-    },
-    {
-      "id": "Conspecific",
-      "dominance": 1,
-      "effect": { "breed_same_species_chance_mult": 1.30 }
-    },
-    {
-      "id": "Homotypic",
-      "dominance": 1,
-      "effect": { "breed_same_type_chance_mult": 1.50 }
-    },
-    {
-      "id": "Heterotypic",
-      "dominance": 1,
-      "effect": { "breed_same_type_chance_mult": 0.50 }
-    },
-    {
-      "id": "Precocial",
-      "dominance": 1,
-      "effect": { "egg_hatch_time_mult": 0.80 }
-    },
-    {
-      "id": "Neuroadaptive",
-      "dominance": 1,
-      "effect": { "xp_gain_mult": 1.15 }
-    },
-    {
-      "id": "Swift",
-      "dominance": 1,
-      "effect": { "stat_speed_bonus": 0.5 },
-      "description": "Enhances speed capabilities"
-    },
-    {
-      "id": "Clever",
-      "dominance": 1,
-      "effect": { "stat_intelligence_bonus": 0.5 },
-      "description": "Sharpens intellectual prowess"
-    },
-    {
-      "id": "Mighty",
-      "dominance": 1,
-      "effect": { "stat_strength_bonus": 0.5 },
-      "description": "Amplifies physical power"
-    },
-    {
-      "id": "Elegant",
-      "dominance": 1,
-      "effect": { "stat_beauty_bonus": 0.5 },
-      "description": "Enhances aesthetic grace"
-    },
-    {
-      "id": "Homeostatic",
-      "dominance": 2,
-      "effect": {}
-    },
-    {
-      "id": "Placid",
-      "dominance": 1,
-      "effect": { "xp_gain_mult": 0.85 }
-    },
-    {
-      "id": "Dormant",
-      "dominance": 2,
-      "effect": {}
-    },
-    {
-      "id": "Apathetic",
-      "dominance": 2,
-      "effect": {}
-    },
-    {
-      "id": "Nullic",
-      "dominance": 2,
-      "effect": {}
-    }
+    { "id": "Metabolic", "tier": "Utility", "wildWeight": 3, "dominance": 1, "effect": { "harvest_rate_mult": 1.20 }, "description": "Harvests resources 20% faster" },
+    { "id": "Reproductive", "tier": "Utility", "wildWeight": 3, "dominance": 1, "effect": { "stamina_breeding_cost_mult": 0.50 }, "description": "Breeding uses 50% less stamina on average" },
+    { "id": "Ecophysiological", "tier": "Utility", "wildWeight": 3, "dominance": 1, "effect": { "wild_fusion_stability_add": 0.05 }, "description": "Adds 5% stability to Wild Fusion attempts" },
+    { "id": "Sympatric", "tier": "Utility", "wildWeight": 2, "dominance": 1, "effect": { "breed_same_species_chance_mult": 0.70 }, "description": "Favors divergent family outcomes when breeding" },
+    { "id": "Conspecific", "tier": "Utility", "wildWeight": 2, "dominance": 1, "effect": { "breed_same_species_chance_mult": 1.30 }, "description": "Favors the parents' species family when breeding" },
+    { "id": "Homotypic", "tier": "Utility", "wildWeight": 2, "dominance": 1, "effect": { "breed_same_type_chance_mult": 1.50 }, "description": "Favors parent elements when breeding" },
+    { "id": "Heterotypic", "tier": "Utility", "wildWeight": 2, "dominance": 1, "effect": { "breed_same_type_chance_mult": 0.50 }, "description": "Favors new elements when breeding" },
+    { "id": "Precocial", "tier": "Utility", "wildWeight": 3, "dominance": 1, "effect": { "egg_hatch_time_mult": 0.80 }, "description": "Its eggs hatch 20% faster" },
+    { "id": "Neuroadaptive", "tier": "Utility", "wildWeight": 3, "dominance": 1, "effect": { "xp_gain_mult": 1.15 }, "description": "Gains 15% more experience" },
+    { "id": "Homeostatic", "tier": "Utility", "wildWeight": 3, "dominance": 1, "effect": { "stamina_regen_mult": 1.25 }, "description": "Recovers stamina 25% faster" },
+    { "id": "Dormant", "tier": "Utility", "wildWeight": 3, "dominance": 1, "effect": { "stamina_extra": 1 }, "description": "Has one additional stamina bar" },
+    { "id": "Apathetic", "tier": "Utility", "wildWeight": 3, "dominance": 1, "effect": { "stamina_breeding_cost_mult": 0.75 }, "description": "Breeding uses 25% less stamina on average" },
+    { "id": "Swift", "tier": "Common", "wildWeight": 8, "dominance": 1, "effect": { "stat_speed_bonus": 0.05 }, "description": "Speed +5%" },
+    { "id": "Clever", "tier": "Common", "wildWeight": 8, "dominance": 1, "effect": { "stat_intelligence_bonus": 0.05 }, "description": "Intelligence +5%" },
+    { "id": "Mighty", "tier": "Common", "wildWeight": 8, "dominance": 1, "effect": { "stat_strength_bonus": 0.05 }, "description": "Strength +5%" },
+    { "id": "Elegant", "tier": "Common", "wildWeight": 8, "dominance": 1, "effect": { "stat_beauty_bonus": 0.05 }, "description": "Beauty +5%" },
+    { "id": "Frenetic", "tier": "Uncommon", "wildWeight": 6, "dominance": 1, "effect": { "stat_speed_bonus": 0.10, "stat_intelligence_bonus": -0.05 }, "description": "Speed +10%, Intelligence -5%" },
+    { "id": "Methodical", "tier": "Uncommon", "wildWeight": 6, "dominance": 1, "effect": { "stat_intelligence_bonus": 0.10, "stat_speed_bonus": -0.05 }, "description": "Intelligence +10%, Speed -5%" },
+    { "id": "Ferocious", "tier": "Uncommon", "wildWeight": 6, "dominance": 1, "effect": { "stat_strength_bonus": 0.10, "stat_beauty_bonus": -0.05 }, "description": "Strength +10%, Beauty -5%" },
+    { "id": "Placid", "tier": "Uncommon", "wildWeight": 6, "dominance": 1, "effect": { "stat_beauty_bonus": 0.10, "stat_strength_bonus": -0.05 }, "description": "Beauty +10%, Strength -5%" },
+    { "id": "Hyperbolic", "tier": "Rare", "wildWeight": 2, "dominance": 1, "effect": { "stat_speed_bonus": 0.15 }, "description": "Speed +15%" },
+    { "id": "Noetic", "tier": "Rare", "wildWeight": 2, "dominance": 1, "effect": { "stat_intelligence_bonus": 0.15 }, "description": "Intelligence +15%" },
+    { "id": "Titanic", "tier": "Rare", "wildWeight": 2, "dominance": 1, "effect": { "stat_strength_bonus": 0.15 }, "description": "Strength +15%" },
+    { "id": "Resplendent", "tier": "Rare", "wildWeight": 2, "dominance": 1, "effect": { "stat_beauty_bonus": 0.15 }, "description": "Beauty +15%" },
+    { "id": "Coveted", "tier": "Rare", "wildWeight": 1, "dominance": 1, "effect": { "sale_value_mult": 1.50 }, "description": "Sells for 50% more currency" },
+    { "id": "Hereditary", "tier": "Rare", "wildWeight": 1, "dominance": 1, "effect": { "guarantee_second_nature_inheritance": 1 }, "description": "Guarantees this parent's second Nature passes to its child" },
+    { "id": "Nullic", "tier": "Legacy", "wildWeight": 0, "dominance": 1, "effect": {}, "description": "No nature" }
   ]
 }

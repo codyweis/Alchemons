@@ -236,12 +236,9 @@ class _MysticGraphxScene extends GSprite {
   }
 
   void _autoDispose(GDisplayObject obj, double lifetime) {
-    GTween.to(
-      obj,
-      lifetime,
-      {'alpha': 0.0},
-      GVars(ease: GEase.easeIn, onComplete: () => obj.removeFromParent(true)),
-    );
+    GTween.to(obj, lifetime, {
+      'alpha': 0.0,
+    }, GVars(ease: GEase.easeIn, onComplete: () => obj.removeFromParent(true)));
   }
 
   _MysticPalette _paletteFor(String element) {

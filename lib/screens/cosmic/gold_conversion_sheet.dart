@@ -718,7 +718,8 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
   Widget _buildSummary(ForgeTokens t) {
     final outputIcon = _isShardsMode
         ? CosmicScreenStyles.astralShardIcon
-        : ElementResources.byBiomeId[_selectedResource]?.icon ?? AppIcons.circle;
+        : ElementResources.byBiomeId[_selectedResource]?.icon ??
+              AppIcons.circle;
     final outputColor = _isShardsMode
         ? CosmicScreenStyles.astralShardColor
         : ElementResources.byBiomeId[_selectedResource]?.color ?? Colors.white;

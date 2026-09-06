@@ -8,6 +8,7 @@ import 'dart:ui';
 import 'package:alchemons/games/shared/enemy_movement.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/models/elemental_group.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/systems/effects/has_effects.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
@@ -127,7 +128,10 @@ class CosmicBalance {
   static const int maxCombatLevel = 5;
   static const int maxCompanionLevel = 10;
   static const double minCombatStat = 1.0;
-  static const double maxCombatStat = 5.0;
+  // Arena enemies retain the proven 1-5 authored band. Player Alchemons can
+  // exceed it through species Base, Potential, and Enhancement.
+  static const double maxCombatStat = AlchemonStatSystem.legacyCombatCeiling;
+  static const double maxEffectiveStat = double.infinity;
   static const double shipMaxHealth = 100.0;
 
   static int clampLevel(int level) => level.clamp(1, maxCombatLevel);
@@ -135,6 +139,9 @@ class CosmicBalance {
       level.clamp(1, maxCompanionLevel);
 
   static double clampStat(double stat) =>
+      stat.clamp(minCombatStat, maxEffectiveStat).toDouble();
+
+  static double legacyStat(double stat) =>
       stat.clamp(minCombatStat, maxCombatStat).toDouble();
 
   static double _levelT(int level) => (clampLevel(level) - 1) / 4.0;
@@ -147,8 +154,10 @@ class CosmicBalance {
   // (_guardianStatTier breakpoints) and cooldowns are independent of this.
   static double statPower(double stat, {double exponent = 1.3}) {
     final normalized =
-        (clampStat(stat) - minCombatStat) / (maxCombatStat - minCombatStat);
-    return pow(normalized, exponent).toDouble();
+        (legacyStat(stat) - minCombatStat) / (maxCombatStat - minCombatStat);
+    final legacyPower = pow(normalized, exponent).toDouble();
+    final overcap = AlchemonStatSystem.combatOvercapProgress(stat);
+    return legacyPower * (1.0 + overcap * 0.30);
   }
 
   static double arenaMinStat(int level) {
@@ -233,15 +242,17 @@ class CosmicBalance {
   }
 
   static double companionCooldownReduction(double speed) {
-    return (0.72 + clampStat(speed) * 0.08).clamp(0.78, 1.16).toDouble();
+    final legacy = 0.72 + legacyStat(speed) * 0.08;
+    final overcap = AlchemonStatSystem.combatOvercapProgress(speed) * 0.08;
+    return (legacy + overcap).clamp(0.78, 1.20).toDouble();
   }
 
   static double companionCritChance(double strength) {
-    return (0.04 + statPower(strength) * 0.24).clamp(0.04, 0.28).toDouble();
+    return (0.04 + statPower(strength) * 0.24).clamp(0.04, 0.36).toDouble();
   }
 
   static double companionBaseRange(double intelligence) {
-    return 95.0 + clampStat(intelligence) * 30.0;
+    return 95.0 + AlchemonStatSystem.legacyGameplayRating(intelligence) * 30.0;
   }
 
   static double shipDamageMultiplier(int level) {
@@ -1839,7 +1850,6 @@ bool cosmicPartySatisfiesEntry(
   }
   return true;
 }
-
 
 // ─────────────────────────────────────────────────────────
 // PLANET STAR STATE PERSISTENCE
@@ -4973,16 +4983,11 @@ CosmicSpecialResult _applyGuardianFamilyThresholds(
   );
 }
 
-// Effective stat range for survival ability scaling.
-// 0.5 = the threshold floor used by _companionThreshold* getters.
-// 8.0 = realistic ceiling once a creature stacks all in-run boosters
-// (Chrono Surge, Spellbloom, cooldown stacks, etc.) on top of a max
-// 5.0 genetic stat. CosmicBalance.clampStat would force [1.0, 5.0]
-// and throw away booster contribution — these helpers use the wider
-// effective range so abilities that scale with stats actually reward
-// late-run builds.
+// Effective stat range for ability scaling. The ceiling matches the canonical
+// Power 180 internal limit, so Potential, Enhancement, and in-run boosts are
+// handled consistently instead of being cut off at the legacy 5.0 band.
 const double _abilityStatFloor = 0.5;
-const double _abilityStatCeiling = 8.0;
+const double _abilityStatCeiling = double.infinity;
 
 double _specialStatScaleFromBaseline(
   double stat, {
@@ -4991,7 +4996,11 @@ double _specialStatScaleFromBaseline(
   double min = 0.8,
   double max = 1.2,
 }) {
-  final clamped = stat.clamp(_abilityStatFloor, _abilityStatCeiling).toDouble();
+  final clamped = stat > AlchemonStatSystem.legacyCombatCeiling
+      ? AlchemonStatSystem.legacyGameplayRating(stat)
+      : stat
+            .clamp(_abilityStatFloor, AlchemonStatSystem.legacyCombatCeiling)
+            .toDouble();
   return (1.0 + (clamped - baseline) * perPoint).clamp(min, max).toDouble();
 }
 
@@ -5004,12 +5013,17 @@ double _specialCountScaleFromBaseline(
   double min = 0.72,
   double max = 1.34,
 }) {
-  final clampedBeauty = beauty
-      .clamp(_abilityStatFloor, _abilityStatCeiling)
-      .toDouble();
-  final clampedIntelligence = intelligence
-      .clamp(_abilityStatFloor, _abilityStatCeiling)
-      .toDouble();
+  final clampedBeauty = beauty > AlchemonStatSystem.legacyCombatCeiling
+      ? AlchemonStatSystem.legacyGameplayRating(beauty)
+      : beauty
+            .clamp(_abilityStatFloor, AlchemonStatSystem.legacyCombatCeiling)
+            .toDouble();
+  final clampedIntelligence =
+      intelligence > AlchemonStatSystem.legacyCombatCeiling
+      ? AlchemonStatSystem.legacyGameplayRating(intelligence)
+      : intelligence
+            .clamp(_abilityStatFloor, AlchemonStatSystem.legacyCombatCeiling)
+            .toDouble();
   return (1.0 +
           (clampedBeauty - baseline) * beautyPerPoint +
           (clampedIntelligence - baseline) * intelligencePerPoint)
@@ -6970,6 +6984,9 @@ List<WingBeamEffect> _wingBeamEffects({
   required double casterBeauty,
   required double casterIntelligence,
 }) {
+  final effectiveIntelligence = AlchemonStatSystem.legacyGameplayRating(
+    casterIntelligence,
+  );
   final powerScale = _specialStatScaleFromBaseline(
     casterBeauty,
     perPoint: 0.13,
@@ -6986,7 +7003,7 @@ List<WingBeamEffect> _wingBeamEffects({
   // buffer so the post-charge blast tick lands before the beam expires.
   final duration = element == 'Lightning'
       ? 3.2
-      : (1.8 + casterIntelligence * 0.10).clamp(1.6, 3.4);
+      : (1.8 + effectiveIntelligence * 0.10).clamp(1.6, 3.4);
   final tick = (0.22 / targetingScale).clamp(0.12, 0.28).toDouble();
   final beamDamage = damage * 0.46 * powerScale;
   // A single slightly wider beam reads better than 2–3 thrashing
@@ -7010,9 +7027,9 @@ List<WingBeamEffect> _wingBeamEffects({
       _ => 0,
     },
     width: width,
-    range: 430 + casterIntelligence * 18,
+    range: 430 + effectiveIntelligence * 18,
     radius: switch (element) {
-      'Poison' || 'Fire' => 140 + casterIntelligence * 12,
+      'Poison' || 'Fire' => 140 + effectiveIntelligence * 12,
       _ => 0,
     },
     refractionCount: element == 'Light' ? 1 : 0,
@@ -8061,10 +8078,8 @@ CosmicSpecialResult _maneSpecial(
   }
 
   int scaledManePowerCount({int min = 4, int max = 10}) {
-    final weightedStat = (casterStrength * 0.62 + casterBeauty * 0.38)
-        .clamp(1.0, 5.0)
-        .toDouble();
-    final t = (weightedStat - 1.0) / 4.0;
+    final weightedStat = casterStrength * 0.62 + casterBeauty * 0.38;
+    final t = AlchemonStatSystem.combatProgress(weightedStat);
     return (min + (max - min) * t).round().clamp(min, max);
   }
 
@@ -9525,7 +9540,10 @@ CosmicSpecialResult _kinSpecial(
     'Steam' => max(1, (CosmicBalance.shipMaxHealth * 0.02 * healScale).round()),
     _ => 0,
   };
-  final power = casterPower.clamp(1.0, 5.0);
+  final power = casterPower.clamp(
+    CosmicBalance.minCombatStat,
+    CosmicBalance.maxEffectiveStat,
+  );
 
   final projs = _kinElementExtraProjectiles(
     origin,
@@ -9610,12 +9628,12 @@ int _kinEscortOrbCount(String element, double power) {
 }
 
 double _kinEscortSpinUpDuration(double power) {
-  final normalized = ((power.clamp(1.0, 5.0) - 1.0) / 4.0);
+  final normalized = AlchemonStatSystem.combatProgress(power);
   return 1.2 + normalized * 0.6;
 }
 
 double _kinEscortShipDuration(double power) {
-  final normalized = ((power.clamp(1.0, 5.0) - 1.0) / 4.0);
+  final normalized = AlchemonStatSystem.combatProgress(power);
   return 4.5 + normalized * 3.5;
 }
 
@@ -9785,7 +9803,7 @@ List<Projectile> _kinElementExtraProjectiles(
   final longEscort = _kinEscortShipDuration(power);
   // mediumDuration kept for the remaining ward-style cases.
   // ignore: unused_local_variable
-  final mediumDuration = 3.8 + ((power.clamp(1.0, 5.0) - 1.0) / 4.0) * 2.6;
+  final mediumDuration = 3.8 + AlchemonStatSystem.combatProgress(power) * 2.6;
   // ignore: unused_local_variable
   final target = _kinFocusPoint(origin, baseAngle, targetPos);
   switch (element) {
@@ -9936,7 +9954,8 @@ List<Projectile> _kinElementExtraProjectiles(
       // Signature: Venom Swirl — a radial burst of homing poison darts
       // fired in all directions from the caster. Each dart seeks a
       // nearby enemy and applies stacking poison on hit.
-      final dartCount = 8 + ((power.clamp(1.0, 5.0) - 1.0) / 4.0 * 8).round();
+      final dartCount =
+          8 + (AlchemonStatSystem.combatProgress(power) * 8).round();
       return List.generate(dartCount, (i) {
         final a = i * (pi * 2 / dartCount);
         return Projectile(
@@ -10201,7 +10220,7 @@ CosmicSpecialResult _mysticSpecial(
     int max = 20,
     double perPoint = 1.0,
   }) {
-    final clamped = CosmicBalance.clampStat(stat);
+    final clamped = AlchemonStatSystem.legacyGameplayRating(stat);
     return (base + (clamped - 4.0) * perPoint).round().clamp(min, max);
   }
 
@@ -12319,6 +12338,13 @@ class CosmicPartyMember {
   final double statStrength;
   final double statBeauty;
 
+  /// Immutable 1-100 genetic Potential, retained with the lightweight combat
+  /// member so practice encounters and stat readouts never fabricate it.
+  final double statSpeedPotential;
+  final double statIntelligencePotential;
+  final double statStrengthPotential;
+  final double statBeautyPotential;
+
   /// Slot index in the owning formation or garrison.
   final int slotIndex;
 
@@ -12349,6 +12375,10 @@ class CosmicPartyMember {
     required this.statIntelligence,
     required this.statStrength,
     required this.statBeauty,
+    this.statSpeedPotential = 50,
+    this.statIntelligencePotential = 50,
+    this.statStrengthPotential = 50,
+    this.statBeautyPotential = 50,
     required this.slotIndex,
     required this.staminaBars,
     required this.staminaMax,

@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -61,6 +60,7 @@ class CustomizationMenuOverlay extends StatefulWidget {
 
   /// Reports tab changes upward so [initialTab] can be kept current.
   final ValueChanged<int>? onTabChanged;
+
   /// Dismiss the whole panel stack back to the world.
   final VoidCallback onClose;
 
@@ -459,10 +459,11 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     // Sort by amount descending, drop zeroes, and drop keys the game no longer
     // knows — stale saves carry elements that were renamed or removed, and
     // `elementColor` renders those as flat grey so they read as real resources.
-    final entries = stored.entries
-        .where((e) => e.value > 0 && isKnownElement(e.key))
-        .toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final entries =
+        stored.entries
+            .where((e) => e.value > 0 && isKnownElement(e.key))
+            .toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
 
     showDialog(
       context: context,

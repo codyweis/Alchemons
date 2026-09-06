@@ -32,11 +32,7 @@ const CreatureBgOption defaultCreatureBg = CreatureBgOption.space(
 
 const List<CreatureBgOption> creatureBgOptions = [
   defaultCreatureBg,
-  CreatureBgOption.color(
-    id: 'black',
-    label: 'Black',
-    color: Color(0xFF000000),
-  ),
+  CreatureBgOption.color(id: 'black', label: 'Black', color: Color(0xFF000000)),
   CreatureBgOption.color(
     id: 'charcoal',
     label: 'Charcoal',

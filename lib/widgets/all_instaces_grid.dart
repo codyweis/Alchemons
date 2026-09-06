@@ -253,7 +253,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
 
   Map<String, String> _buildNatureOptions() {
     final Map<String, String> out = {};
-    for (final def in NatureCatalog.all) {
+    for (final def in NatureCatalog.rollable) {
       final String id = def.id;
       final String display = id.toUpperCase();
       out[id] = display;
@@ -421,7 +421,9 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
       if (_filterPrismatic && !inst.isPrismaticSkin) {
         return false;
       }
-      if (_filterNature != null && inst.natureId != _filterNature) {
+      if (_filterNature != null &&
+          inst.natureId != _filterNature &&
+          inst.natureId2 != _filterNature) {
         return false;
       }
       final species = repo.getCreatureById(inst.baseId);

@@ -189,7 +189,7 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
     final rng = Random();
     final picked = pool[rng.nextInt(pool.length)];
 
-    // Generate prismatic version with fixed stats: 3.0 starting, 4.5 potential
+    // Generate a prismatic version with exceptional fixed Potential.
     final gen = WildlifeGenerator(
       repo,
       tuning: const WildlifeTuning(prismaticSkinChance: 1.0),
@@ -207,10 +207,10 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
         intelligence: 3.0,
         strength: 3.0,
         beauty: 3.0,
-        speedPotential: 4.5,
-        intelligencePotential: 4.5,
-        strengthPotential: 4.5,
-        beautyPotential: 4.5,
+        speedPotential: 90,
+        intelligencePotential: 90,
+        strengthPotential: 90,
+        beautyPotential: 90,
       ),
       isPrismaticSkin: true,
     );
@@ -496,7 +496,12 @@ class _ElementalPortalGrid extends StatelessWidget {
       Color(0xFF1A0A00),
       AppIcons.terrain_rounded,
     ),
-    _PortalDef('Air', Color(0xFF81D4FA), Color(0xFF001020), AppIcons.air_rounded),
+    _PortalDef(
+      'Air',
+      Color(0xFF81D4FA),
+      Color(0xFF001020),
+      AppIcons.air_rounded,
+    ),
   ];
 
   @override

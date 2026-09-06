@@ -84,7 +84,11 @@ class BreedingMilestoneWidget extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(AppIcons.auto_awesome_outlined, color: theme.textMuted, size: 16),
+            Icon(
+              AppIcons.auto_awesome_outlined,
+              color: theme.textMuted,
+              size: 16,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -122,7 +126,10 @@ class BreedingMilestoneWidget extends StatelessWidget {
           ],
         ),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.primary.withValues(alpha: .3), width: 1.5),
+        border: Border.all(
+          color: theme.primary.withValues(alpha: .3),
+          width: 1.5,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -230,7 +237,11 @@ class BreedingMilestoneWidget extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(AppIcons.auto_awesome, color: Colors.white, size: 10),
+                      Icon(
+                        AppIcons.auto_awesome,
+                        color: Colors.white,
+                        size: 10,
+                      ),
                       const SizedBox(width: 3),
                       Text(
                         '+$pointsForRarity',

@@ -316,9 +316,6 @@ class FactionService extends ChangeNotifier {
     return isWater() && perk1 && bothWater;
   }
 
-  bool get waterSkipWildernessStaminaAfterExpedition =>
-      false; // perk2 handled elsewhere
-
   // ---------------------------------------------------------------------------
   // AIR FACTION PERKS
   // ---------------------------------------------------------------------------

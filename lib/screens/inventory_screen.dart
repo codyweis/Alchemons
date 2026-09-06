@@ -4,6 +4,7 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
+import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -74,6 +75,9 @@ class InventoryImageHelper {
     final powerupType = alchemicalPowerupTypeFromInventoryKey(key);
     if (powerupType != null) {
       return AlchemicalPowerupOrbSphere(type: powerupType, size: size);
+    }
+    if (key == InvKeys.potentialSoul) {
+      return PotentialSoulSphere(size: size);
     }
 
     // 1. Check if it's an alchemy effect using the key prefix
@@ -1013,6 +1017,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       InvKeys.alchemyStrengthForge => 'strength_forge',
       InvKeys.alchemyIntelligenceHalo => 'intelligence_halo',
       InvKeys.alchemyBloodAura => 'blood_aura',
+      InvKeys.alchemyWavebreakerCrown => 'wavebreaker_crown',
       _ => null,
     };
 

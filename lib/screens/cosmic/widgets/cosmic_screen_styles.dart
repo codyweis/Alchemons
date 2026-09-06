@@ -27,7 +27,6 @@ class CosmicScreenStyles {
 // SHIP MENU OVERLAY
 // ─────────────────────────────────────────────────────────
 
-
 /// Element colours are tuned for planets against a starfield. Several of them —
 /// Dark (#4A148C), Mud (#5D4037), Earth (#795548), Spirit (#3F51B5) — are close
 /// to invisible as small text or hairline borders on the panel chrome, which is

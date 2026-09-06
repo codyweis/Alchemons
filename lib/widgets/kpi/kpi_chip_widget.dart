@@ -373,7 +373,9 @@ class _ChipSurface extends StatelessWidget {
         color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: accent.withValues(alpha: 0.55)),
-        boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.16), blurRadius: 12)],
+        boxShadow: [
+          BoxShadow(color: accent.withValues(alpha: 0.16), blurRadius: 12),
+        ],
       ),
       child: child,
     );
@@ -596,8 +598,8 @@ class _GlassButton extends StatelessWidget {
           color: Colors.white.withValues(alpha: accent != null ? 0.08 : 0.04),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: (accent ?? Colors.white).withValues(alpha: 
-              accent != null ? 0.6 : 0.25,
+            color: (accent ?? Colors.white).withValues(
+              alpha: accent != null ? 0.6 : 0.25,
             ),
           ),
         ),

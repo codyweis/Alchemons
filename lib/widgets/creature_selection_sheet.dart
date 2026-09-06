@@ -656,7 +656,11 @@ class _DefaultHeader extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(AppIcons.sort_rounded, size: 14, color: theme.accent),
+                      Icon(
+                        AppIcons.sort_rounded,
+                        size: 14,
+                        color: theme.accent,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         selectedSort!,

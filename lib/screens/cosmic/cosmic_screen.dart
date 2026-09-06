@@ -34,15 +34,16 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
-import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
 import 'package:alchemons/screens/cosmic/elemental_nexus_screen.dart';
 import 'package:alchemons/screens/cosmic/cosmic_prologue_screen.dart';
@@ -771,9 +772,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     game.onCacheOpened = _onCacheOpened;
     game.onCacheDiscovered = (_) => unawaited(_saveCacheState());
     game.onCacheRespawned = (_) => unawaited(_saveCacheState());
-    if (!widget.memoryTutorial &&
-        cachesRaw != null &&
-        cachesRaw.isNotEmpty) {
+    if (!widget.memoryTutorial && cachesRaw != null && cachesRaw.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         game.elementalCacheField.restore(cachesRaw);
       });
@@ -910,6 +909,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
+    final combatBonuses = context.read<ConstellationEffectsService>();
     final slots = await db.settingsDao.getCosmicPartySlotsUnlocked();
     final savedIds = await db.settingsDao.getCosmicPartySlots();
 
@@ -919,15 +919,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       if (id != null) {
         final inst = await db.creatureDao.getInstance(id);
         if (inst != null) {
-          // Compute effective stamina (with time-based regen)
-          final elapsed =
-              DateTime.now().toUtc().millisecondsSinceEpoch -
-              inst.staminaLastUtcMs;
-          final regenBars = elapsed ~/ (6 * 3600 * 1000); // 1 bar per 6 h
-          final effectiveBars = (inst.staminaBars + regenBars).clamp(
-            0,
-            inst.staminaMax,
-          );
+          final staminaState = StaminaService(db).computeState(inst);
 
           final base = catalog.getCreatureById(inst.baseId);
           final typeName = (base?.types.isNotEmpty ?? false)
@@ -950,13 +942,29 @@ class _CosmicScreenState extends State<CosmicScreen>
               element: typeName,
               family: family,
               level: inst.level,
-              statSpeed: inst.statSpeed.toDouble(),
-              statIntelligence: inst.statIntelligence.toDouble(),
-              statStrength: inst.statStrength.toDouble(),
-              statBeauty: inst.statBeauty.toDouble(),
+              statSpeed: combatBonuses.applyCombatStatBonus(
+                'speed',
+                inst.statSpeed,
+              ),
+              statIntelligence: combatBonuses.applyCombatStatBonus(
+                'intelligence',
+                inst.statIntelligence,
+              ),
+              statStrength: combatBonuses.applyCombatStatBonus(
+                'strength',
+                inst.statStrength,
+              ),
+              statBeauty: combatBonuses.applyCombatStatBonus(
+                'beauty',
+                inst.statBeauty,
+              ),
+              statSpeedPotential: inst.statSpeedPotential,
+              statIntelligencePotential: inst.statIntelligencePotential,
+              statStrengthPotential: inst.statStrengthPotential,
+              statBeautyPotential: inst.statBeautyPotential,
               slotIndex: i,
-              staminaBars: effectiveBars,
-              staminaMax: inst.staminaMax,
+              staminaBars: staminaState.bars,
+              staminaMax: staminaState.max,
               spriteSheet: sheet,
               spriteVisuals: visuals,
             ),
@@ -977,6 +985,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   Future<void> _initMemoryTutorialParty() async {
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
+    final combatBonuses = context.read<ConstellationEffectsService>();
     final instances = await db.creatureDao.listAllInstances();
 
     if (!mounted) return;
@@ -1010,11 +1019,27 @@ class _CosmicScreenState extends State<CosmicScreen>
               : null,
           element: typeName,
           family: family,
-          level: 10,
-          statSpeed: 2.0,
-          statIntelligence: 2.0,
-          statStrength: 2.0,
-          statBeauty: 2.0,
+          level: inst.level,
+          statSpeed: combatBonuses.applyCombatStatBonus(
+            'speed',
+            inst.statSpeed,
+          ),
+          statIntelligence: combatBonuses.applyCombatStatBonus(
+            'intelligence',
+            inst.statIntelligence,
+          ),
+          statStrength: combatBonuses.applyCombatStatBonus(
+            'strength',
+            inst.statStrength,
+          ),
+          statBeauty: combatBonuses.applyCombatStatBonus(
+            'beauty',
+            inst.statBeauty,
+          ),
+          statSpeedPotential: inst.statSpeedPotential,
+          statIntelligencePotential: inst.statIntelligencePotential,
+          statStrengthPotential: inst.statStrengthPotential,
+          statBeautyPotential: inst.statBeautyPotential,
           slotIndex: 0,
           staminaBars: max(1, inst.staminaBars),
           staminaMax: max(1, inst.staminaMax),
@@ -1098,79 +1123,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  CosmicPartyMember _copyMemberWithStamina(
-    CosmicPartyMember member, {
-    required int staminaBars,
-    int? staminaMax,
-  }) {
-    return CosmicPartyMember(
-      instanceId: member.instanceId,
-      baseId: member.baseId,
-      displayName: member.displayName,
-      imagePath: member.imagePath,
-      element: member.element,
-      family: member.family,
-      level: member.level,
-      statSpeed: member.statSpeed,
-      statIntelligence: member.statIntelligence,
-      statStrength: member.statStrength,
-      statBeauty: member.statBeauty,
-      slotIndex: member.slotIndex,
-      staminaBars: staminaBars,
-      staminaMax: staminaMax ?? member.staminaMax,
-      spriteSheet: member.spriteSheet,
-      spriteVisuals: member.spriteVisuals,
-      visualVariant: member.visualVariant,
-      spawnPosition: member.spawnPosition,
-    );
-  }
-
-  Future<bool> _consumeContestStamina({
-    required int slotIndex,
-    required CosmicPartyMember member,
-  }) async {
-    final db = context.read<AlchemonsDatabase>();
-    final staminaService = StaminaService(db);
-    final refreshed = await staminaService.refreshAndGet(member.instanceId);
-    if (refreshed == null) {
-      _showQuote('Active companion missing.');
-      return false;
-    }
-
-    if (refreshed.staminaBars < 1) {
-      _showQuote(
-        'No stamina left for contests. Return home or wait to recover.',
-      );
-      await _initCosmicParty();
-      return false;
-    }
-
-    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
-    final remaining = refreshed.staminaBars - 1;
-    await db.creatureDao.updateStamina(
-      instanceId: refreshed.instanceId,
-      staminaBars: remaining,
-      staminaLastUtcMs: nowMs,
-    );
-
-    if (!mounted) return true;
-
-    if (slotIndex >= 0 && slotIndex < _partyMembers.length) {
-      final slotMember = _partyMembers[slotIndex];
-      if (slotMember != null && slotMember.instanceId == member.instanceId) {
-        setState(() {
-          _partyMembers[slotIndex] = _copyMemberWithStamina(
-            slotMember,
-            staminaBars: remaining,
-            staminaMax: refreshed.staminaMax,
-          );
-        });
-      }
-    }
-
-    return true;
-  }
-
   Future<void> _handleSummonCompanionAsync(int slotIndex) async {
     if (_homeBuildTutorialLock) {
       _showQuote('Build your home base first.');
@@ -1189,6 +1141,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     // previews after any recent alchemy/effect changes.
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
+    final combatBonuses = context.read<ConstellationEffectsService>();
     final latestInst = await db.creatureDao.getInstance(member.instanceId);
     if (latestInst != null) {
       final latestBase = catalog.getCreatureById(latestInst.baseId);
@@ -1204,10 +1157,26 @@ class _CosmicScreenState extends State<CosmicScreen>
         element: member.element,
         family: member.family,
         level: member.level,
-        statSpeed: member.statSpeed,
-        statIntelligence: member.statIntelligence,
-        statStrength: member.statStrength,
-        statBeauty: member.statBeauty,
+        statSpeed: combatBonuses.applyCombatStatBonus(
+          'speed',
+          latestInst.statSpeed,
+        ),
+        statIntelligence: combatBonuses.applyCombatStatBonus(
+          'intelligence',
+          latestInst.statIntelligence,
+        ),
+        statStrength: combatBonuses.applyCombatStatBonus(
+          'strength',
+          latestInst.statStrength,
+        ),
+        statBeauty: combatBonuses.applyCombatStatBonus(
+          'beauty',
+          latestInst.statBeauty,
+        ),
+        statSpeedPotential: latestInst.statSpeedPotential,
+        statIntelligencePotential: latestInst.statIntelligencePotential,
+        statStrengthPotential: latestInst.statStrengthPotential,
+        statBeautyPotential: latestInst.statBeautyPotential,
         slotIndex: member.slotIndex,
         staminaBars: member.staminaBars,
         staminaMax: member.staminaMax,
@@ -1657,7 +1626,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!mounted) return;
     // If in a ring battle the loss callback handles everything – just clean up here.
     if (_game?.battleRing.inBattle == true) {
-      // Mark slot dead and clear, but don't drain stamina (ring is consequence-free).
+      // Mark slot dead and clear. Combat never changes breeding stamina.
       if (_activeCompanionSlot != null) {
         _companionHpFraction[_activeCompanionSlot!] = 0.0;
         _companionSpecialCooldown[_activeCompanionSlot!] = 0.0;
@@ -1671,16 +1640,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (_activeCompanionSlot != null) {
       _companionHpFraction[_activeCompanionSlot!] = 0.0;
       _companionSpecialCooldown[_activeCompanionSlot!] = 0.0;
-    }
-    // Drain the dead companion's stamina to 0, except for synthetic sandbox summons.
-    if (!member.instanceId.startsWith('sandbox_')) {
-      final db = context.read<AlchemonsDatabase>();
-      final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
-      db.creatureDao.updateStamina(
-        instanceId: member.instanceId,
-        staminaBars: 0,
-        staminaLastUtcMs: nowMs,
-      );
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -1727,9 +1686,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     astralBank: _homePlanet?.astralBank ?? 0,
     dustCollected: _collectedDust.length,
     dustTotal: 50,
-    garrisonStationed: _garrisonMembers
-        .whereType<CosmicPartyMember>()
-        .length,
+    garrisonStationed: _garrisonMembers.whereType<CosmicPartyMember>().length,
     garrisonSlots: _garrisonSlots,
     fuel: _game?.shipFuel.fuel ?? 0,
     fuelCapacity: _game?.shipFuel.capacity ?? 0,
@@ -1740,6 +1697,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!mounted) return;
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
+    final combatBonuses = context.read<ConstellationEffectsService>();
     final savedIds = await db.settingsDao.getCosmicGarrisonSlots();
     final slots = _garrisonSlots;
 
@@ -1778,10 +1736,26 @@ class _CosmicScreenState extends State<CosmicScreen>
               element: typeName,
               family: family,
               level: inst.level,
-              statSpeed: inst.statSpeed.toDouble(),
-              statIntelligence: inst.statIntelligence.toDouble(),
-              statStrength: inst.statStrength.toDouble(),
-              statBeauty: inst.statBeauty.toDouble(),
+              statSpeed: combatBonuses.applyCombatStatBonus(
+                'speed',
+                inst.statSpeed,
+              ),
+              statIntelligence: combatBonuses.applyCombatStatBonus(
+                'intelligence',
+                inst.statIntelligence,
+              ),
+              statStrength: combatBonuses.applyCombatStatBonus(
+                'strength',
+                inst.statStrength,
+              ),
+              statBeauty: combatBonuses.applyCombatStatBonus(
+                'beauty',
+                inst.statBeauty,
+              ),
+              statSpeedPotential: inst.statSpeedPotential,
+              statIntelligencePotential: inst.statIntelligencePotential,
+              statStrengthPotential: inst.statStrengthPotential,
+              statBeautyPotential: inst.statBeautyPotential,
               slotIndex: i,
               staminaBars: 3,
               staminaMax: inst.staminaMax,
@@ -2610,59 +2584,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
-  double _natureContestBonus(CosmicContestTrait trait, String? natureId) {
-    if (natureId == null || natureId.trim().isEmpty) return 0.0;
-    final id = natureId.trim();
-    final lowered = id.toLowerCase();
-    final nature = NatureCatalog.byId(id);
-    final effect = nature?.effect;
-    double effectVal(String key, {double fallback = 0.0}) {
-      final value = effect?[key];
-      return value is num ? value.toDouble() : fallback;
-    }
-
-    var bonus = 0.0;
-    if (trait == CosmicContestTrait.speed) {
-      bonus += effectVal('stat_speed_bonus') * 0.42;
-      if (lowered == 'swift' || lowered == 'hyperbolic') bonus += 0.18;
-    }
-    if (trait == CosmicContestTrait.intelligence) {
-      bonus += effectVal('stat_intelligence_bonus') * 0.42;
-      final xpMult = effectVal('xp_gain_mult', fallback: 1.0);
-      if (xpMult > 1.0) bonus += (xpMult - 1.0) * 0.95;
-      if (lowered == 'clever' || lowered == 'neuroadaptive') bonus += 0.16;
-    }
-    if (trait == CosmicContestTrait.strength) {
-      bonus += effectVal('stat_strength_bonus') * 0.42;
-      if (lowered == 'mighty') bonus += 0.16;
-    }
-    if (trait == CosmicContestTrait.beauty) {
-      bonus += effectVal('stat_beauty_bonus') * 0.42;
-      if (lowered == 'elegant') bonus += 0.16;
-    }
-
-    final sameSpeciesMult = effectVal(
-      'breed_same_species_chance_mult',
-      fallback: 1.0,
-    );
-    if (sameSpeciesMult > 1.0 &&
-        (trait == CosmicContestTrait.beauty ||
-            trait == CosmicContestTrait.intelligence)) {
-      bonus += (sameSpeciesMult - 1.0) * 0.14;
-    }
-
-    final sameTypeMult = effectVal(
-      'breed_same_type_chance_mult',
-      fallback: 1.0,
-    );
-    if (sameTypeMult > 1.0 &&
-        (trait == CosmicContestTrait.speed ||
-            trait == CosmicContestTrait.strength)) {
-      bonus += (sameTypeMult - 1.0) * 0.10;
-    }
-    return bonus;
-  }
-
   Future<double> _computePlayerContestScore(
     CosmicContestTrait trait,
     CosmicPartyMember member,
@@ -2722,8 +2643,6 @@ class _CosmicScreenState extends State<CosmicScreen>
         traitBonus += genDepth * 0.011;
       }
 
-      traitBonus += _natureContestBonus(trait, inst.natureId);
-
       final pureElement = _singleLineageKey(inst.elementLineageJson);
       final pureFamily = _singleLineageKey(
         inst.familyLineageJson,
@@ -2766,8 +2685,9 @@ class _CosmicScreenState extends State<CosmicScreen>
         .clamp(-0.70, _contestTraitBonusCaps[trait]!)
         .toDouble();
     final variance = (Random().nextDouble() * 0.18) - 0.09;
-    final score = baseStat + traitBonus + variance;
-    return score.clamp(0.0, 5.65).toDouble();
+    final effectiveStat = AlchemonStatSystem.legacyGameplayRating(baseStat);
+    final score = effectiveStat + traitBonus + variance;
+    return score.clamp(0.0, 6.85).toDouble();
   }
 
   double _computeOpponentContestScore(
@@ -2779,7 +2699,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     traitBonus = traitBonus.clamp(-0.35, 0.45).toDouble();
     final variance = (Random().nextDouble() * 0.16) - 0.08;
     final score = opponent.targetScore + traitBonus + variance;
-    return score.clamp(0.0, 5.60).toDouble();
+    return score.clamp(0.0, 6.80).toDouble();
   }
 
   SpriteVisuals _applyContestThemeVisuals(
@@ -2932,13 +2852,13 @@ class _CosmicScreenState extends State<CosmicScreen>
         ((inst.statBeauty.toDouble() * 0.72) +
                 (opponent.targetScore * 0.28) +
                 (rng.nextDouble() * 0.16 - 0.08))
-            .clamp(1.0, 5.0)
+            .clamp(1.0, AlchemonStatSystem.authoredStatReference)
             .toDouble();
     double blendSecondary(double source) =>
         ((source * 0.72) +
                 (opponent.targetScore * 0.22) +
                 (rng.nextDouble() * 0.20 - 0.10))
-            .clamp(1.0, 5.0)
+            .clamp(1.0, AlchemonStatSystem.authoredStatReference)
             .toDouble();
 
     return CosmicPartyMember(
@@ -3279,12 +3199,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       HapticFeedback.selectionClick();
       return;
     }
-
-    final staminaSpent = await _consumeContestStamina(
-      slotIndex: activeSlot,
-      member: member,
-    );
-    if (!staminaSpent) return;
 
     final level = levels[completed];
     final levelOpponent = trait == CosmicContestTrait.beauty
@@ -3938,6 +3852,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       source: 'bloodborn',
       vialName: 'Bloodborn Vial',
       natureId: sacrificed.natureId,
+      natureId2: sacrificed.natureId2,
       isPrismaticSkin: sacrificed.isPrismaticSkin,
       genetics: _decodeGeneticsJson(sacrificed.geneticsJson),
       stats: CreatureStats(
@@ -4264,23 +4179,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       }
     }
 
-    // Drain ALL party Alchemon stamina to 0
-    final db = context.read<AlchemonsDatabase>();
-    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
-    for (final m in _partyMembers) {
-      if (m == null) continue;
-      db.creatureDao.updateStamina(
-        instanceId: m.instanceId,
-        staminaBars: 0,
-        staminaLastUtcMs: nowMs,
-      );
-    }
-
-    _showQuote(
-      'Your ship was destroyed! Cargo and unbanked shards were lost. Your Alchemons are exhausted…',
-    );
-    // Refresh party so drained members are removed from slots
-    _initCosmicParty();
+    _showQuote('Your ship was destroyed! Cargo and unbanked shards were lost.');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() {});
     });
@@ -5130,22 +5029,17 @@ class _CosmicScreenState extends State<CosmicScreen>
               (_companionHpFraction[i] ?? 1.0))
         : (_companionHpFraction[i] ?? 1.0);
     final isDead = member != null && hpFrac <= 0;
-    final noStamina = member != null && member.staminaBars < 1;
     // Allow tapping another slot while a companion is active — tapping
     // will auto-recall the current companion and summon the new one.
-    final isDisabled = member == null || isDead || noStamina;
+    final isDisabled = member == null || isDead;
 
     return GestureDetector(
       onTap: isDisabled
-          ? ((isDead || noStamina) && _isNearHome
+          ? (isDead && _isNearHome
                 ? _openPartyPickerFromSlotButton
                 : isDead
                 ? () => _showQuote(
                     'This Alchemon is exhausted! Return home to heal.',
-                  )
-                : noStamina
-                ? () => _showQuote(
-                    'No stamina! Use a potion or wait to regenerate.',
                   )
                 : null)
           : isActive
@@ -5279,37 +5173,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                         AppIcons.close_rounded,
                         color: Color(0xFFE53935),
                         size: 28,
-                      ),
-                    // Stamina dots (top of slot)
-                    if (!isDead && member.staminaMax > 0)
-                      Positioned(
-                        top: 2,
-                        left: 0,
-                        right: 0,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(
-                            member.staminaMax,
-                            (si) => Container(
-                              width: 5,
-                              height: 5,
-                              margin: const EdgeInsets.symmetric(horizontal: 1),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: si < member.staminaBars
-                                    ? const Color(0xFF00E676)
-                                    : Colors.white12,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    // No stamina overlay
-                    if (noStamina && !isDead)
-                      Icon(
-                        AppIcons.battery_0_bar_rounded,
-                        color: const Color(0xFFFF9800).withValues(alpha: 0.8),
-                        size: 18,
                       ),
                   ],
                 ),
@@ -6311,6 +6174,14 @@ class _CosmicScreenState extends State<CosmicScreen>
   Future<void> _enterRaid(CosmicPlanet planet) async {
     final raid = _raid;
     if (raid == null || raid.element != planet.element || !_raidLive) return;
+    final now = DateTime.now().toUtc();
+    if (!raid.canEnter(now)) {
+      final left = raid.respawnRemaining(now);
+      final hours = left.inHours;
+      final minutes = left.inMinutes % 60;
+      _showQuote('The Level 3 guardian reforms in ${hours}h ${minutes}m.');
+      return;
+    }
     if (!_unsealedGates.contains(planet.element)) return;
     final roster = await _pickRaidSquad();
     if (roster == null || !mounted) return;
@@ -6321,8 +6192,8 @@ class _CosmicScreenState extends State<CosmicScreen>
         builder: (_) => PlanetDungeonScreen(
           element: planet.element,
           party: roster,
-          raid: const RaidConfig(),
-          onRaidCleared: () => _raidService.markCleared(),
+          raid: RaidConfig(level: raid.level, level3Clears: raid.level3Clears),
+          onRaidCleared: () => _raidService.markLevelCleared(),
         ),
       ),
     );
@@ -6330,7 +6201,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     await _refreshRaidState();
     if (!_anyOverlayOpen && !_showMiniMap) _game?.resumeEngine();
   }
-
 
   /// Ask the player to assemble a raid squad, then build it.
   ///
@@ -6358,6 +6228,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
+    final combatBonuses = context.read<ConstellationEffectsService>();
     final squad = <CosmicPartyMember>[];
     for (final m in picked) {
       final inst = await db.creatureDao.getInstance(m.instanceId as String);
@@ -6376,10 +6247,26 @@ class _CosmicScreenState extends State<CosmicScreen>
               : 'Spirit',
           family: base?.mutationFamily ?? 'kin',
           level: inst.level,
-          statSpeed: inst.statSpeed.toDouble(),
-          statIntelligence: inst.statIntelligence.toDouble(),
-          statStrength: inst.statStrength.toDouble(),
-          statBeauty: inst.statBeauty.toDouble(),
+          statSpeed: combatBonuses.applyCombatStatBonus(
+            'speed',
+            inst.statSpeed,
+          ),
+          statIntelligence: combatBonuses.applyCombatStatBonus(
+            'intelligence',
+            inst.statIntelligence,
+          ),
+          statStrength: combatBonuses.applyCombatStatBonus(
+            'strength',
+            inst.statStrength,
+          ),
+          statBeauty: combatBonuses.applyCombatStatBonus(
+            'beauty',
+            inst.statBeauty,
+          ),
+          statSpeedPotential: inst.statSpeedPotential,
+          statIntelligencePotential: inst.statIntelligencePotential,
+          statStrengthPotential: inst.statStrengthPotential,
+          statBeautyPotential: inst.statBeautyPotential,
           // Position in the squad, not a ship slot — a raid squad is picked
           // fresh and has nothing to do with which Alchemons are aboard.
           slotIndex: squad.length,
@@ -6444,11 +6331,13 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// layout nothing, and it collapses away with the rest of the HUD chrome.
   Widget _raidBadge() {
     final raid = _raid!;
-    final left = raid.remaining(DateTime.now().toUtc());
+    final now = DateTime.now().toUtc();
+    final coolingDown = raid.isCoolingDown(now);
+    final left = coolingDown ? raid.respawnRemaining(now) : raid.remaining(now);
     String two(int v) => v.toString().padLeft(2, '0');
     final clock =
         '${two(left.inHours)}:${two(left.inMinutes % 60)}:${two(left.inSeconds % 60)}';
-    final closing = left.inMinutes < 60;
+    final closing = !coolingDown && left.inMinutes < 60;
 
     const ember = Color(0xFFE25544);
     final font = appFontFamily(context);
@@ -6480,7 +6369,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                     Row(
                       children: [
                         Text(
-                          'RAID',
+                          'RAID L${raid.level}',
                           style: TextStyle(
                             fontFamily: font,
                             color: ember,
@@ -6510,7 +6399,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      clock,
+                      coolingDown ? 'ECHO $clock' : clock,
                       style: TextStyle(
                         color: closing
                             ? ember
@@ -6723,9 +6612,10 @@ class _CosmicScreenState extends State<CosmicScreen>
       for (final g in gates)
         if (seen.add('${g.element}/${g.family}')) g,
     ];
-    final unmet = unmetEntryDemands(element, _partyMembers)
-        .map((d) => '${d.element ?? kAnyElement}/${d.family}')
-        .toSet();
+    final unmet = unmetEntryDemands(
+      element,
+      _partyMembers,
+    ).map((d) => '${d.element ?? kAnyElement}/${d.family}').toSet();
     return [
       const SizedBox(height: 9),
       Row(
@@ -6768,9 +6658,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     final famColor = FamilyColors.of(gate.family);
     // A verb-only gate names no element, so it gets the family's own colour
     // rather than a dot for an element it does not care about.
-    final elColor = gate.needsElement
-        ? elementColor(gate.element)
-        : famColor;
+    final elColor = gate.needsElement ? elementColor(gate.element) : famColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -6823,11 +6711,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           ),
           if (unmet) ...[
             const SizedBox(width: 5),
-            const Icon(
-              Icons.block_flipped,
-              size: 10,
-              color: Color(0xFFE25544),
-            ),
+            const Icon(Icons.block_flipped, size: 10, color: Color(0xFFE25544)),
           ],
         ],
       ),
@@ -6851,6 +6735,17 @@ class _CosmicScreenState extends State<CosmicScreen>
     final color = planet.color;
     final planetTitle = (kPlanetDisplayName[planet.element] ?? planet.element)
         .toUpperCase();
+    final raid = raidHere ? _raid : null;
+    final raidNow = DateTime.now().toUtc();
+    final raidCoolingDown = raid?.isCoolingDown(raidNow) ?? false;
+    final raidRespawnRemaining =
+        raid?.respawnRemaining(raidNow) ?? Duration.zero;
+    final raidActionLabel = raidCoolingDown
+        ? 'LEVEL 3 ECHO REFORMS  ·  '
+              '${raidRespawnRemaining.inHours}H '
+              '${raidRespawnRemaining.inMinutes % 60}M'
+        : 'ENTER RAID  ·  LEVEL ${raid?.level}'
+              '${(raid?.level3Clears ?? 0) > 0 ? ' ECHO' : ''}';
 
     // Minimized: a soft glowing pill (name + stars) that taps back open.
     if (_descentPlacardMinimized) {
@@ -7045,7 +6940,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           if (raidHere) ...[
             const SizedBox(height: 14),
             _planetCta(
-              label: 'ENTER RAID',
+              label: raidActionLabel,
               accent: const Color(0xFFE25544),
               glow: const Color(0xFFE25544),
               icon: Icons.whatshot_rounded,
@@ -7268,7 +7163,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     });
   }
 
-
   void _handleMeterTap() {
     if (_homeBuildTutorialLock) {
       _showQuote('Build your home base first.');
@@ -7488,15 +7382,14 @@ class _CosmicScreenState extends State<CosmicScreen>
         : (hasPinnedRecipe ? pinnedPlanet : _nearPlanet);
     // Whether the HUD planet runs the gate ritual — built dungeon OR
     // coming-soon. Drives the UNSEAL GATE label and one-time offering.
-    final hudIsGate = hudPlanet != null && isDungeonGatePlanet(hudPlanet.element);
+    final hudIsGate =
+        hudPlanet != null && isDungeonGatePlanet(hudPlanet.element);
     final hudGateUnsealed =
         hudPlanet != null && _unsealedGates.contains(hudPlanet.element);
     // Gated planets: the recipe HUD is the one-time gate OFFERING — shown
     // until the gate unseals, then never again. Ungated planets unchanged.
     final recipeHudVisible =
-        hudPlanet != null &&
-        !_isNearHome &&
-        (!hudIsGate || !hudGateUnsealed);
+        hudPlanet != null && !_isNearHome && (!hudIsGate || !hudGateUnsealed);
     // Dungeon descent: at an UNSEALED gated planet, carrying the trio.
     final nearEl = _nearPlanet?.element;
     final descendReady =
@@ -7843,9 +7736,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Virtual joystick (bottom-left) ──
-              if (showJoystickControl &&
-                  !_showMiniMap &&
-                  !_anyOverlayOpen)
+              if (showJoystickControl && !_showMiniMap && !_anyOverlayOpen)
                 Positioned(
                   bottom: 20,
                   left: 12,
@@ -8085,9 +7976,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   left: 0,
                   right: 0,
                   child: SafeArea(
-                    child: Center(
-                      child: _buildComingSoonPlacard(_nearPlanet!),
-                    ),
+                    child: Center(child: _buildComingSoonPlacard(_nearPlanet!)),
                   ),
                 ),
 
@@ -8904,9 +8793,7 @@ class _CosmicScreenState extends State<CosmicScreen>
               // Companion HUD moved: small health bars are shown above each
               // companion slot button below (no floating HUD).
               // ── Left action rail (ship, plus home actions when nearby) ──
-              if (showCosmicHud &&
-                  !_showMiniMap &&
-                  !_anyOverlayOpen)
+              if (showCosmicHud && !_showMiniMap && !_anyOverlayOpen)
                 Positioned(
                   bottom: showJoystickControl
                       ? (largeJoystickControl ? 238.0 : 190.0)
@@ -9131,9 +9018,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Companion column (stacked on right side) ──
-              if (!_showMiniMap &&
-                  !_anyOverlayOpen &&
-                  !_awaitingShipMenuTap)
+              if (!_showMiniMap && !_anyOverlayOpen && !_awaitingShipMenuTap)
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeOut,
@@ -9478,7 +9363,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                     onDismiss: _dismissCacheReward,
                   ),
                 ),
-
             ],
           ),
         ),
@@ -10731,9 +10615,9 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                           'DEVELOPER',
                           style: TextStyle(
                             fontFamily: appFontFamily(context),
-                            color: const Color(0xFF7BE88C).withValues(
-                              alpha: 0.8,
-                            ),
+                            color: const Color(
+                              0xFF7BE88C,
+                            ).withValues(alpha: 0.8),
                             fontSize: 9,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.6,

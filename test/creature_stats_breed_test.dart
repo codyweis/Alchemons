@@ -1,173 +1,155 @@
 import 'dart:math';
 
 import 'package:alchemons/models/creature_stats.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+class _FixedRandom implements Random {
+  final double doubleValue;
+
+  const _FixedRandom(this.doubleValue);
+
+  @override
+  bool nextBool() => doubleValue >= 0.5;
+
+  @override
+  double nextDouble() => doubleValue;
+
+  @override
+  int nextInt(int max) => 49.clamp(0, max - 1);
+}
+
 void main() {
-  group('CreatureStats.breed base stat inheritance', () {
-    const eliteParent = CreatureStats(
-      speed: 4.0,
-      intelligence: 4.0,
-      strength: 4.0,
-      beauty: 4.0,
-      speedPotential: 5.0,
-      intelligencePotential: 5.0,
-      strengthPotential: 5.0,
-      beautyPotential: 5.0,
-    );
+  const parentA = CreatureStats(
+    speed: 5,
+    intelligence: 4,
+    strength: 3,
+    beauty: 2,
+    speedPotential: 100,
+    intelligencePotential: 80,
+    strengthPotential: 60,
+    beautyPotential: 40,
+  );
+  const parentB = CreatureStats(
+    speed: 1,
+    intelligence: 2,
+    strength: 3,
+    beauty: 4,
+    speedPotential: 10,
+    intelligencePotential: 30,
+    strengthPotential: 50,
+    beautyPotential: 70,
+  );
 
-    const weakParent = CreatureStats(
-      speed: 1.0,
-      intelligence: 1.0,
-      strength: 1.0,
-      beauty: 1.0,
-      speedPotential: 5.0,
-      intelligencePotential: 5.0,
-      strengthPotential: 5.0,
-      beautyPotential: 5.0,
-    );
-
-    test('often produces children near the stronger parent', () {
-      var strongLikeStats = 0;
-      var totalStats = 0;
-      var sum = 0.0;
-
-      for (var seed = 0; seed < 250; seed++) {
-        final child = CreatureStats.breed(
-          eliteParent,
-          weakParent,
-          Random(seed),
-          mutationChance: 0,
-        );
-
-        final stats = [
-          child.speed,
-          child.intelligence,
-          child.strength,
-          child.beauty,
-        ];
-
-        for (final stat in stats) {
-          totalStats++;
-          sum += stat;
-          if (stat >= 3.0) {
-            strongLikeStats++;
-          }
-        }
-      }
-
-      final averageStat = sum / totalStats;
-      expect(averageStat, greaterThan(2.5));
-      expect(strongLikeStats, greaterThan(totalStats * 0.35));
-    });
-
-    test('still allows weak-parent inheritance on some stats', () {
-      var weakLikeStats = 0;
-
-      for (var seed = 0; seed < 250; seed++) {
-        final child = CreatureStats.breed(
-          eliteParent,
-          weakParent,
-          Random(seed),
-          mutationChance: 0,
-        );
-
-        final stats = [
-          child.speed,
-          child.intelligence,
-          child.strength,
-          child.beauty,
-        ];
-
-        for (final stat in stats) {
-          if (stat <= 2.0) {
-            weakLikeStats++;
-          }
-        }
-      }
-
-      expect(weakLikeStats, greaterThan(0));
-    });
+  test('breeding inherits only Potential and resets trained stats', () {
+    for (var seed = 0; seed < 100; seed++) {
+      final child = CreatureStats.breed(parentA, parentB, Random(seed));
+      expect(child.speed, 1);
+      expect(child.intelligence, 1);
+      expect(child.strength, 1);
+      expect(child.beauty, 1);
+      expect(child.speedPotential, inInclusiveRange(1, 100));
+      expect(child.intelligencePotential, inInclusiveRange(1, 100));
+      expect(child.strengthPotential, inInclusiveRange(1, 100));
+      expect(child.beautyPotential, inInclusiveRange(1, 100));
+    }
   });
 
-  group('CreatureStats.breed potential protection', () {
-    const swiftParentA = CreatureStats(
-      speed: 2.0,
-      intelligence: 4.0,
-      strength: 4.0,
-      beauty: 1.0,
-      speedPotential: 2.0,
-      intelligencePotential: 5.0,
-      strengthPotential: 5.0,
-      beautyPotential: 1.0,
+  test('Potential inheritance uses exact 35/35/30 boundaries', () {
+    expect(
+      AlchemonStatSystem.inheritPotential(
+        const _FixedRandom(0.349999),
+        100,
+        10,
+      ),
+      100,
+    );
+    expect(
+      AlchemonStatSystem.inheritPotential(const _FixedRandom(0.35), 100, 10),
+      10,
+    );
+    expect(
+      AlchemonStatSystem.inheritPotential(
+        const _FixedRandom(0.699999),
+        100,
+        10,
+      ),
+      10,
+    );
+    expect(
+      AlchemonStatSystem.inheritPotential(const _FixedRandom(0.70), 100, 10),
+      50,
+    );
+  });
+
+  test('legacy Potential values normalize from 0-5 to 1-100', () {
+    expect(AlchemonStatSystem.normalizePotential(0), 1);
+    expect(AlchemonStatSystem.normalizePotential(2.5), 3);
+    expect(AlchemonStatSystem.normalizePotential(2.5, legacyScale: true), 50);
+    expect(AlchemonStatSystem.normalizePotential(5), 5);
+    expect(AlchemonStatSystem.normalizePotential(76), 76);
+
+    final restoredLegacy = CreatureStats.fromJson({
+      'speedPotential': 1.0,
+      'intelligencePotential': 2.0,
+      'strengthPotential': 3.0,
+      'beautyPotential': 4.0,
+    });
+    expect(restoredLegacy.speedPotential, 20);
+    expect(restoredLegacy.beautyPotential, 80);
+  });
+
+  test('versioned saves preserve legitimate new Potential rolls of 1-5', () {
+    final restored = CreatureStats.fromJson({
+      'statScaleVersion': 2,
+      'speedPotential': 1,
+      'intelligencePotential': 2,
+      'strengthPotential': 3,
+      'beautyPotential': 4,
+    });
+
+    expect(restored.speedPotential, 1);
+    expect(restored.intelligencePotential, 2);
+    expect(restored.strengthPotential, 3);
+    expect(restored.beautyPotential, 4);
+  });
+
+  test('level and Enhancement are deterministic multipliers', () {
+    final levelOne = AlchemonStatSystem.effectiveInternal(
+      speciesBase: 60,
+      level: 1,
+      potential: 50,
+    );
+    final mature = AlchemonStatSystem.effectiveInternal(
+      speciesBase: 60,
+      level: 10,
+      potential: 50,
+    );
+    final enhanced = AlchemonStatSystem.effectiveInternal(
+      speciesBase: 60,
+      level: 10,
+      potential: 50,
+      enhancementRank: 10,
     );
 
-    const swiftParentB = CreatureStats(
-      speed: 2.0,
-      intelligence: 1.0,
-      strength: 1.0,
-      beauty: 4.0,
-      speedPotential: 2.1,
-      intelligencePotential: 1.0,
-      strengthPotential: 1.0,
-      beautyPotential: 5.0,
-    );
+    expect(levelOne, closeTo(1.8975, 0.0001));
+    expect(mature, closeTo(3.45, 0.0001));
+    expect(enhanced, closeTo(4.485, 0.0001));
+  });
 
-    const doubleSwiftA = CreatureStats(
-      speed: 4.0,
-      intelligence: 2.0,
-      strength: 2.0,
-      beauty: 2.0,
-      speedPotential: 4.6,
-      intelligencePotential: 2.0,
-      strengthPotential: 2.0,
-      beautyPotential: 2.0,
-    );
+  test('orb costs escalate toward rank ten', () {
+    expect(AlchemonStatSystem.orbCostForNextRank(0), 1);
+    expect(AlchemonStatSystem.orbCostForNextRank(3), 2);
+    expect(AlchemonStatSystem.orbCostForNextRank(6), 4);
+    expect(AlchemonStatSystem.orbCostForNextRank(9), 6);
+  });
 
-    const doubleSwiftB = CreatureStats(
-      speed: 4.0,
-      intelligence: 2.0,
-      strength: 2.0,
-      beauty: 2.0,
-      speedPotential: 4.2,
-      intelligencePotential: 2.0,
-      strengthPotential: 2.0,
-      beautyPotential: 2.0,
-    );
-
-    test(
-      'matching nature keeps the protected stat out of wildcard crashes',
-      () {
-        for (var seed = 0; seed < 250; seed++) {
-          final child = CreatureStats.breed(
-            swiftParentA,
-            swiftParentB,
-            Random(seed),
-            mutationChance: 0,
-            parent1NatureId: 'Swift',
-          );
-
-          expect(child.speedPotential, greaterThanOrEqualTo(1.9));
-        }
-      },
-    );
-
-    test(
-      'shared matching nature floors the protected stat at weaker parent',
-      () {
-        for (var seed = 0; seed < 250; seed++) {
-          final child = CreatureStats.breed(
-            doubleSwiftA,
-            doubleSwiftB,
-            Random(seed),
-            mutationChance: 0,
-            parent1NatureId: 'Swift',
-            parent2NatureId: 'Swift',
-          );
-
-          expect(child.speedPotential, greaterThanOrEqualTo(4.2));
-        }
-      },
-    );
+  test('display Power and legacy combat conversion share one scale', () {
+    expect(AlchemonStatSystem.displayRating(5.0), 500);
+    expect(AlchemonStatSystem.displayRating(9.0), 900);
+    expect(AlchemonStatSystem.combatProgress(1.0), 0.0);
+    expect(AlchemonStatSystem.combatProgress(5.0), 1.0);
+    expect(AlchemonStatSystem.combatProgress(9.0), 1.30);
+    expect(AlchemonStatSystem.legacyGameplayRating(9.0), 6.20);
   });
 }

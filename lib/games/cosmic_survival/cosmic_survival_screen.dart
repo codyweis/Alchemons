@@ -11,13 +11,15 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/components/mystic_graphx_overlay.dart';
 import 'package:alchemons/games/cosmic_survival/components/powerup_selection_overlay.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_base_command_screen.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/models/potential_soul.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/providers/audio_provider.dart';
@@ -25,8 +27,10 @@ import 'package:alchemons/screens/cosmic/widgets/virtual_joystick.dart';
 import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
@@ -416,6 +420,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   int _finalScore = 0;
   String _finalTime = '00:00';
   bool _resolvingGameOver = false;
+  bool _resolvingWave50Reward = false;
   static const int _defaultPartySize = 5;
   static const int _testTeamSize = 17;
 
@@ -708,6 +713,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   Future<List<CosmicPartyMember>?> _buildParty(List<String> instanceIds) async {
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
+    final combatBonuses = context.read<ConstellationEffectsService>();
     final members = <CosmicPartyMember>[];
 
     for (var i = 0; i < instanceIds.length && i < _defaultPartySize; i++) {
@@ -731,10 +737,26 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           element: typeName,
           family: family,
           level: inst.level,
-          statSpeed: inst.statSpeed.toDouble(),
-          statIntelligence: inst.statIntelligence.toDouble(),
-          statStrength: inst.statStrength.toDouble(),
-          statBeauty: inst.statBeauty.toDouble(),
+          statSpeed: combatBonuses.applyCombatStatBonus(
+            'speed',
+            inst.statSpeed,
+          ),
+          statIntelligence: combatBonuses.applyCombatStatBonus(
+            'intelligence',
+            inst.statIntelligence,
+          ),
+          statStrength: combatBonuses.applyCombatStatBonus(
+            'strength',
+            inst.statStrength,
+          ),
+          statBeauty: combatBonuses.applyCombatStatBonus(
+            'beauty',
+            inst.statBeauty,
+          ),
+          statSpeedPotential: inst.statSpeedPotential,
+          statIntelligencePotential: inst.statIntelligencePotential,
+          statStrengthPotential: inst.statStrengthPotential,
+          statBeautyPotential: inst.statBeautyPotential,
           slotIndex: i,
           staminaBars: inst.staminaMax, // full stamina for survival
           staminaMax: inst.staminaMax,
@@ -863,6 +885,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       party: party,
       onGameOver: _handleGameOver,
       onWaveIntermission: _handleWaveIntermission,
+      onWaveCleared: _handleWaveCleared,
       onBossSpawn: _handleBossSpawn,
       onMysticSpecialCast: _mysticOverlayController.spawn,
       upgradeState: upgradeSvc.state,
@@ -931,6 +954,73 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _powerUpChoices = choices);
     });
+  }
+
+  void _handleWaveCleared(int wave) {
+    if (wave != 50 || _resolvingWave50Reward) return;
+    unawaited(_grantWave50Milestone());
+  }
+
+  Future<void> _grantWave50Milestone() async {
+    final game = _game;
+    if (game == null || !mounted || _resolvingWave50Reward) return;
+
+    _resolvingWave50Reward = true;
+    game.gamePaused = true;
+    try {
+      final db = context.read<AlchemonsDatabase>();
+      final shop = context.read<ShopService>();
+      final portalKey = LootBoxConfig.rollSurvivalBonusPortalKey(50, Random());
+      if (portalKey == null) return;
+      final granted = await shop.grantWave50Milestone(portalKey: portalKey);
+
+      // False means this account has already claimed the milestone.
+      if (!granted) return;
+
+      if (!mounted) return;
+      final registry = buildInventoryRegistry(db);
+      LootOpeningEntry itemEntry(
+        String key,
+        String label, {
+        Color color = _C.accent,
+      }) {
+        final def = registry[key];
+        final imagePath = InventoryImageHelper.getImage(key);
+        return LootOpeningEntry(
+          icon: def?.icon ?? AppIcons.inventory_2_rounded,
+          name: def?.name ?? key,
+          label: label,
+          color: color,
+          imagePath: imagePath,
+          visualBuilder: (size) => InventoryImageHelper.getVisualWidget(
+            key: key,
+            assetName: imagePath,
+            icon: def?.icon,
+            size: size,
+          ),
+        );
+      }
+
+      final entries = <LootOpeningEntry>[
+        itemEntry(InvKeys.potentialSoul, 'x1', color: const Color(0xFFB66CFF)),
+        itemEntry(portalKey, 'x1', color: const Color(0xFF57E7F2)),
+        itemEntry(
+          InvKeys.alchemyWavebreakerCrown,
+          'x1',
+          color: const Color(0xFFE4C16A),
+        ),
+      ];
+      await showLootOpeningDialog(
+        context: context,
+        entries: entries,
+        title: 'WAVE 50 BROKEN',
+      );
+    } finally {
+      _resolvingWave50Reward = false;
+      if (identical(_game, game) && !game.isGameOver) {
+        game.gamePaused = false;
+      }
+    }
   }
 
   void _selectPowerUp(PowerUpDef def, {int? targetSlot, String? targetName}) {
@@ -1094,6 +1184,24 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           }),
         );
       }
+    }
+
+    if (PotentialSoulRules.rollsFromSurvival(wave, rng)) {
+      await db.inventoryDao.addItemQty(InvKeys.potentialSoul, 1);
+      final def = registry[InvKeys.potentialSoul];
+      popupEntries.add(
+        LootOpeningEntry(
+          icon: def?.icon ?? AppIcons.diamond_rounded,
+          name: def?.name ?? 'Potential Soul',
+          label: 'x1',
+          color: const Color(0xFFB66CFF),
+          visualBuilder: (size) => InventoryImageHelper.getVisualWidget(
+            key: InvKeys.potentialSoul,
+            icon: def?.icon,
+            size: size,
+          ),
+        ),
+      );
     }
 
     // Currency always granted regardless of loot box roll.
@@ -4212,62 +4320,17 @@ class _PauseCompanionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final live = companion;
 
-    // Compute base stats for benched companions using the same formulas as the game engine
-    int basePhysAtk = 0;
-    int baseElemAtk = 0;
-    int basePhysDef = 0;
-    int baseElemDef = 0;
-    double baseCrit = 0;
     final slotIndex = member.slotIndex;
     final effSpeed = member.statSpeed + powerUps.speedBonus(slotIndex);
-    if (live == null) {
-      final str = member.statStrength + powerUps.strengthBonus(slotIndex);
-      final intel =
-          member.statIntelligence + powerUps.intelligenceBonus(slotIndex);
-      final beauty = member.statBeauty + powerUps.beautyBonus(slotIndex);
-      final level = member.level;
-      final family = member.family;
-
-      final (
-        physAtkMult,
-        elemAtkMult,
-        _,
-        physDefMult,
-        elemDefMult,
-        critMult,
-      ) = switch (family) {
-        'horn' => (1.40, 1.10, 0.80, 1.30, 1.20, 0.90),
-        'mane' => (1.15, 1.15, 1.00, 1.10, 1.00, 1.10),
-        'wing' => (0.85, 0.90, 1.30, 0.85, 0.90, 1.00),
-        'let' => (1.20, 1.25, 1.10, 1.15, 1.10, 0.85),
-        'pip' => (0.80, 1.00, 0.95, 0.80, 0.85, 1.40),
-        'mask' => (1.00, 1.10, 1.10, 1.00, 1.05, 1.20),
-        'kin' => (1.20, 0.90, 0.90, 1.10, 1.15, 0.90),
-        'mystic' => (0.90, 0.85, 1.45, 0.85, 0.90, 1.00),
-        _ => (1.00, 1.00, 1.00, 1.00, 1.00, 1.00),
-      };
-
-      final strPow = CosmicSurvivalBalance.survivalStatPower(str);
-      final intPow = CosmicSurvivalBalance.survivalStatPower(intel);
-      final beautyPow = CosmicSurvivalBalance.survivalStatPower(beauty);
-
-      final levelFactor = 1.04 + (level - 1) * 0.065;
-      basePhysAtk = max(
-        1,
-        ((5.0 + 24.0 * strPow) * levelFactor * physAtkMult).round(),
-      );
-      baseElemAtk = max(
-        1,
-        ((5.5 + 25.0 * beautyPow) * levelFactor * elemAtkMult).round(),
-      );
-      basePhysDef =
-          ((15 + level * 2.8 + 58 * strPow + 34 * intPow) * physDefMult)
-              .round();
-      baseElemDef =
-          ((15 + level * 2.8 + 58 * beautyPow + 34 * intPow) * elemDefMult)
-              .round();
-      baseCrit = ((0.05 + strPow * 0.32) * critMult).clamp(0.05, 0.55);
-    }
+    final benchedStats = live == null
+        ? deriveCosmicSurvivalCompanionStats(
+            member: member,
+            strengthBonus: powerUps.strengthBonus(slotIndex),
+            intelligenceBonus: powerUps.intelligenceBonus(slotIndex),
+            beautyBonus: powerUps.beautyBonus(slotIndex),
+            speedBonus: powerUps.speedBonus(slotIndex),
+          )
+        : null;
 
     return GestureDetector(
       onTap: onTap,
@@ -4314,26 +4377,37 @@ class _PauseCompanionCard extends StatelessWidget {
               children: [
                 _MiniReadout(
                   label: 'ATK',
-                  value: live != null ? '${live.physAtk}' : '$basePhysAtk',
+                  value: live != null
+                      ? '${live.physAtk}'
+                      : '${benchedStats!.physAtk}',
                 ),
                 _MiniReadout(
                   label: 'ELEM',
-                  value: live != null ? '${live.elemAtk}' : '$baseElemAtk',
+                  value: live != null
+                      ? '${live.elemAtk}'
+                      : '${benchedStats!.elemAtk}',
                 ),
                 _MiniReadout(
                   label: 'PDEF',
-                  value: live != null ? '${live.physDef}' : '$basePhysDef',
+                  value: live != null
+                      ? '${live.physDef}'
+                      : '${benchedStats!.physDef}',
                 ),
                 _MiniReadout(
                   label: 'EDEF',
-                  value: live != null ? '${live.elemDef}' : '$baseElemDef',
+                  value: live != null
+                      ? '${live.elemDef}'
+                      : '${benchedStats!.elemDef}',
                 ),
-                _MiniReadout(label: 'SPD', value: effSpeed.toStringAsFixed(1)),
+                _MiniReadout(
+                  label: 'SPD',
+                  value: AlchemonStatSystem.displayRating(effSpeed).toString(),
+                ),
                 _MiniReadout(
                   label: 'CRIT',
                   value: live != null
                       ? '${(live.critChance * 100).round()}%'
-                      : '${(baseCrit * 100).round()}%',
+                      : '${(benchedStats!.critChance * 100).round()}%',
                 ),
               ],
             ),

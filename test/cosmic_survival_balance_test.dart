@@ -5,11 +5,23 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Cosmic survival balance', () {
-    test('0-5 stat scale has strong separation for high-end alchemons', () {
+    test('legacy Power 20-100 keeps strong high-end separation', () {
       final average = CosmicSurvivalBalance.qualityScore(2.5);
       final elite = CosmicSurvivalBalance.qualityScore(4.3);
 
       expect(elite, greaterThan(average * 1.7));
+    });
+
+    test('Power above 100 helps without breaking the survival curve', () {
+      final legacyPeak = CosmicSurvivalBalance.survivalStatPower(5.0);
+      final absolutePeak = CosmicSurvivalBalance.survivalStatPower(9.0);
+
+      expect(absolutePeak, greaterThan(legacyPeak));
+      expect(absolutePeak, closeTo(legacyPeak * 1.30, 0.000001));
+      expect(
+        CosmicSurvivalBalance.estimatedWaveReach(averageStat: 9.0),
+        greaterThan(CosmicSurvivalBalance.estimatedWaveReach(averageStat: 5.0)),
+      );
     });
 
     test('average 2.0-3.0 solo alchemons land around wave 15', () {

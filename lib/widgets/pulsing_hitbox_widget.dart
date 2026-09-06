@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 class PulsingDebugHitbox extends StatefulWidget {
   const PulsingDebugHitbox({
     super.key, // Added key for best practice

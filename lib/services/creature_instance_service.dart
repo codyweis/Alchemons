@@ -3,6 +3,9 @@ import 'dart:math';
 import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/models/potential_soul.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:uuid/uuid.dart';
@@ -27,6 +30,79 @@ class CreatureInstanceService {
 
   CreatureInstanceService(this._db, {this.speciesCap = 100});
 
+  static Map<String, double> _deriveStats({
+    required db.CreatureInstance instance,
+    required CreatureCatalog repo,
+    int? level,
+    int? speedEnhancement,
+    int? intelligenceEnhancement,
+    int? strengthEnhancement,
+    int? beautyEnhancement,
+    num? speedPotential,
+    num? intelligencePotential,
+    num? strengthPotential,
+    num? beautyPotential,
+  }) {
+    final species = repo.getCreatureById(instance.baseId);
+    final base =
+        species?.baseStats ??
+        const SpeciesBaseStats(
+          speed: 60,
+          intelligence: 60,
+          strength: 60,
+          beauty: 60,
+        );
+    final resolvedLevel = level ?? instance.level;
+    return {
+      'speed': AlchemonStatSystem.effectiveInternal(
+        speciesBase: base.speed,
+        level: resolvedLevel,
+        potential: speedPotential ?? instance.statSpeedPotential,
+        enhancementRank: speedEnhancement ?? instance.statSpeedEnhancement,
+        additionalMultiplier: AlchemonStatSystem.natureMultiplier(
+          instance.natureId,
+          'speed',
+          instance.natureId2,
+        ),
+      ),
+      'intelligence': AlchemonStatSystem.effectiveInternal(
+        speciesBase: base.intelligence,
+        level: resolvedLevel,
+        potential: intelligencePotential ?? instance.statIntelligencePotential,
+        enhancementRank:
+            intelligenceEnhancement ?? instance.statIntelligenceEnhancement,
+        additionalMultiplier: AlchemonStatSystem.natureMultiplier(
+          instance.natureId,
+          'intelligence',
+          instance.natureId2,
+        ),
+      ),
+      'strength': AlchemonStatSystem.effectiveInternal(
+        speciesBase: base.strength,
+        level: resolvedLevel,
+        potential: strengthPotential ?? instance.statStrengthPotential,
+        enhancementRank:
+            strengthEnhancement ?? instance.statStrengthEnhancement,
+        additionalMultiplier: AlchemonStatSystem.natureMultiplier(
+          instance.natureId,
+          'strength',
+          instance.natureId2,
+        ),
+      ),
+      'beauty': AlchemonStatSystem.effectiveInternal(
+        speciesBase: base.beauty,
+        level: resolvedLevel,
+        potential: beautyPotential ?? instance.statBeautyPotential,
+        enhancementRank: beautyEnhancement ?? instance.statBeautyEnhancement,
+        additionalMultiplier: AlchemonStatSystem.natureMultiplier(
+          instance.natureId,
+          'beauty',
+          instance.natureId2,
+        ),
+      ),
+    };
+  }
+
   /// Call this when an Egg finishes hatching or breeding returns a Creature.
   /// - baseId: the species/catalog id (e.g., "CR001")
   /// - natureId/genetics/parentage: serialized models from your breeding result
@@ -34,6 +110,7 @@ class CreatureInstanceService {
     required String baseId,
     required String rarity, // optional to use for reward logic
     String? natureId,
+    String? natureId2,
     Map<String, String>? genetics, // track -> variantId
     Map<String, dynamic>? parentage, // Parentage.toJson()
     bool isPrismaticSkin = false,
@@ -82,6 +159,7 @@ class CreatureInstanceService {
           nickname: nickname,
           isPrismaticSkin: isPrismaticSkin,
           natureId: natureId,
+          natureId2: natureId2,
           source: source,
           genetics: genetics,
           parentage: parentage,
@@ -211,6 +289,42 @@ class PowerupApplyResult {
       );
 }
 
+class PotentialSoulApplyResult {
+  final bool ok;
+  final String statKey;
+  final int rolledGain;
+  final int appliedGain;
+  final int newPotential;
+  final int silverCost;
+  final String? error;
+
+  const PotentialSoulApplyResult({
+    required this.ok,
+    required this.statKey,
+    required this.rolledGain,
+    required this.appliedGain,
+    required this.newPotential,
+    required this.silverCost,
+    this.error,
+  });
+
+  factory PotentialSoulApplyResult.fail(String statKey, String message) =>
+      PotentialSoulApplyResult(
+        ok: false,
+        statKey: statKey,
+        rolledGain: 0,
+        appliedGain: 0,
+        newPotential: 0,
+        silverCost: 0,
+        error: message,
+      );
+}
+
+class _PotentialSoulApplyAbort implements Exception {
+  const _PotentialSoulApplyAbort(this.message);
+  final String message;
+}
+
 extension CreatureInstanceServiceFeeding on CreatureInstanceService {
   static const Map<String, List<int>> _xpCurveByRarity = {
     'common': [20, 24, 28, 34, 60, 75, 95, 125, 159],
@@ -327,10 +441,15 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     required db.CreatureInstance target,
     ConstellationEffectsService? constellationEffects,
   }) {
-    final n = target.natureId != null
-        ? NatureCatalog.byId(target.natureId!)
-        : null;
-    final natureMult = (n?.effect['xp_gain_mult'])?.toDouble() ?? 1.0;
+    var natureMult = 1.0;
+    for (final id in [target.natureId, target.natureId2]) {
+      if (id == null || id.isEmpty) continue;
+      natureMult *=
+          NatureCatalog.byId(
+            id,
+          )?.effect.getDouble('xp_gain_mult', fallback: 1) ??
+          1;
+    }
     final constellationMult =
         constellationEffects?.getXpBoostMultiplier() ?? 1.0;
     return natureMult * constellationMult;
@@ -370,76 +489,18 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     );
   }
 
-  /// Calculate stat gains from feeding.
-  /// - Grants +0.1 to the sacrificed specimen's highest stat
-  /// - Applies -0.01 to the sacrificed specimen's lowest stat
-  /// - Uses 0.01 increments for fine control
-  /// - CONSTELLATION BONUSES: add per-fodder bonuses
-  /// - All stats & potentials are hard-capped in [0, 5].
+  /// Feeding now grants XP only. Effective stats are derived from species,
+  /// level, Potential, and Enhancement after the level change.
   static Map<String, double> calculateStatGains({
     required db.CreatureInstance target,
     required List<db.CreatureInstance> fodders,
     ConstellationEffectsService? constellationEffects,
-  }) {
-    final gains = <String, double>{
-      'speed': 0.0,
-      'intelligence': 0.0,
-      'strength': 0.0,
-      'beauty': 0.0,
-    };
-
-    var currentTargetStats = {
-      'speed': target.statSpeed,
-      'intelligence': target.statIntelligence,
-      'strength': target.statStrength,
-      'beauty': target.statBeauty,
-    };
-
-    for (final fodder in fodders) {
-      final profile = analyzeEnhancementMaterial(fodder);
-
-      // Always grant +0.1 to fodder's highest stat
-      const double gain = 0.1;
-      gains[profile.highestStatName] =
-          (gains[profile.highestStatName] ?? 0) + gain;
-
-      // Apply -0.01 to the sacrificed specimen's lowest stat
-      const double penalty = 0.01;
-      gains[profile.lowestStatName] =
-          (gains[profile.lowestStatName] ?? 0) - penalty;
-
-      // Update current stats for next iteration (simulate the change)
-      currentTargetStats[profile.highestStatName] =
-          (currentTargetStats[profile.highestStatName]! + gain).clamp(0.0, 5.0);
-      currentTargetStats[profile.lowestStatName] =
-          (currentTargetStats[profile.lowestStatName]! - penalty).clamp(
-            0.0,
-            5.0,
-          );
-    }
-
-    // Apply constellation bonuses
-    if (constellationEffects != null) {
-      // Each fodder consumed grants the constellation bonus
-      final bonusPerFodder = {
-        'speed': constellationEffects.getStatBoostMultiplier('speed'),
-        'intelligence': constellationEffects.getStatBoostMultiplier(
-          'intelligence',
-        ),
-        'strength': constellationEffects.getStatBoostMultiplier('strength'),
-        'beauty': constellationEffects.getStatBoostMultiplier('beauty'),
-      };
-
-      bonusPerFodder.forEach((stat, bonus) {
-        if (bonus > 0) {
-          // Apply bonus per fodder consumed
-          gains[stat] = (gains[stat] ?? 0) + (bonus * fodders.length);
-        }
-      });
-    }
-
-    return gains;
-  }
+  }) => const {
+    'speed': 0.0,
+    'intelligence': 0.0,
+    'strength': 0.0,
+    'beauty': 0.0,
+  };
 
   // ---------------------------------------------------------------------------
   // Preview feed
@@ -490,34 +551,12 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     );
     final appliedXp = (baseTotalXp * xpMult).round();
 
-    // Stat gains
-    final statGains = calculateStatGains(
-      target: target,
-      fodders: fodders,
-      constellationEffects: constellationEffects,
-    );
-
-    // Cap gains so we don't exceed potentials; potentials are 0–5.
-    final cappedGains = <String, double>{};
-    cappedGains['speed'] = min(
-      statGains['speed'] ?? 0.0,
-      target.statSpeedPotential - target.statSpeed,
-    ).clamp(-10.0, 10.0);
-
-    cappedGains['intelligence'] = min(
-      statGains['intelligence'] ?? 0.0,
-      target.statIntelligencePotential - target.statIntelligence,
-    ).clamp(-10.0, 10.0);
-
-    cappedGains['strength'] = min(
-      statGains['strength'] ?? 0.0,
-      target.statStrengthPotential - target.statStrength,
-    ).clamp(-10.0, 10.0);
-
-    cappedGains['beauty'] = min(
-      statGains['beauty'] ?? 0.0,
-      target.statBeautyPotential - target.statBeauty,
-    ).clamp(-10.0, 10.0);
+    const cappedGains = <String, double>{
+      'speed': 0.0,
+      'intelligence': 0.0,
+      'strength': 0.0,
+      'beauty': 0.0,
+    };
 
     // Simulate level-ups using APPLIED XP
     final targetBase = repo.getCreatureById(target.baseId);
@@ -589,33 +628,12 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     );
     final appliedXp = (baseTotalXp * xpMult).round();
 
-    // Stat gains
-    final statGains = calculateStatGains(
-      target: target,
-      fodders: fodders,
-      constellationEffects: constellationEffects,
-    );
-
-    final cappedGains = <String, double>{};
-    cappedGains['speed'] = min(
-      statGains['speed'] ?? 0.0,
-      target.statSpeedPotential - target.statSpeed,
-    ).clamp(-10.0, 10.0);
-
-    cappedGains['intelligence'] = min(
-      statGains['intelligence'] ?? 0.0,
-      target.statIntelligencePotential - target.statIntelligence,
-    ).clamp(-10.0, 10.0);
-
-    cappedGains['strength'] = min(
-      statGains['strength'] ?? 0.0,
-      target.statStrengthPotential - target.statStrength,
-    ).clamp(-10.0, 10.0);
-
-    cappedGains['beauty'] = min(
-      statGains['beauty'] ?? 0.0,
-      target.statBeautyPotential - target.statBeauty,
-    ).clamp(-10.0, 10.0);
+    const cappedGains = <String, double>{
+      'speed': 0.0,
+      'intelligence': 0.0,
+      'strength': 0.0,
+      'beauty': 0.0,
+    };
 
     await _db.transaction(() async {
       final targetBase = repo.getCreatureById(target.baseId);
@@ -630,31 +648,20 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
         maxLevel: maxLevel,
       );
 
-      // Apply stat gains; stats & potentials are 0–5, so clamp to potential.
-      final newStats = {
-        'speed': (target.statSpeed + cappedGains['speed']!).clamp(
-          0.0,
-          target.statSpeedPotential,
-        ),
-        'intelligence': (target.statIntelligence + cappedGains['intelligence']!)
-            .clamp(0.0, target.statIntelligencePotential),
-        'strength': (target.statStrength + cappedGains['strength']!).clamp(
-          0.0,
-          target.statStrengthPotential,
-        ),
-        'beauty': (target.statBeauty + cappedGains['beauty']!).clamp(
-          0.0,
-          target.statBeautyPotential,
-        ),
-      };
-
-      await _db.creatureDao.updateStats(
-        instanceId: target.instanceId,
-        statSpeed: newStats['speed']!,
-        statIntelligence: newStats['intelligence']!,
-        statStrength: newStats['strength']!,
-        statBeauty: newStats['beauty']!,
-      );
+      final leveled = await _db.creatureDao.getInstance(target.instanceId);
+      if (leveled != null) {
+        final derived = CreatureInstanceService._deriveStats(
+          instance: leveled,
+          repo: repo,
+        );
+        await _db.creatureDao.updateStats(
+          instanceId: leveled.instanceId,
+          statSpeed: derived['speed']!,
+          statIntelligence: derived['intelligence']!,
+          statStrength: derived['strength']!,
+          statBeauty: derived['beauty']!,
+        );
+      }
 
       await _db.creatureDao.deleteInstances(
         fodders.map((e) => e.instanceId).toList(),
@@ -696,79 +703,204 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
   Future<PowerupApplyResult> applyAlchemicalPowerup({
     required String targetInstanceId,
     required AlchemicalPowerupType powerup,
-    Random? rng,
-    AlchemicalPowerupRoll? forcedRoll,
+    required CreatureCatalog repo,
   }) async {
     final target = await _db.creatureDao.getInstance(targetInstanceId);
     if (target == null) {
       return PowerupApplyResult.fail(powerup.statKey, 'Target not found');
     }
-
-    final currentValue = switch (powerup) {
-      AlchemicalPowerupType.speed => target.statSpeed,
-      AlchemicalPowerupType.intelligence => target.statIntelligence,
-      AlchemicalPowerupType.strength => target.statStrength,
-      AlchemicalPowerupType.beauty => target.statBeauty,
-    };
-    final potentialValue = switch (powerup) {
-      AlchemicalPowerupType.speed => target.statSpeedPotential,
-      AlchemicalPowerupType.intelligence => target.statIntelligencePotential,
-      AlchemicalPowerupType.strength => target.statStrengthPotential,
-      AlchemicalPowerupType.beauty => target.statBeautyPotential,
-    };
-
-    final roll =
-        forcedRoll ??
-        rollAlchemicalPowerup(
-          currentValue: currentValue,
-          potentialValue: potentialValue,
-          rng: rng,
-        );
-    final delta = roll.appliedDelta;
-    if (delta <= 0) {
+    if (target.level < AlchemonStatSystem.maxLevel) {
       return PowerupApplyResult.fail(
         powerup.statKey,
-        '${powerup.name} has no effect because this stat is already at potential.',
+        'Reach level ${AlchemonStatSystem.maxLevel} before enhancing stats.',
       );
     }
 
-    final hadItem = await _db.inventoryDao.consumeItem(powerup.inventoryKey);
+    final currentRank = switch (powerup) {
+      AlchemicalPowerupType.speed => target.statSpeedEnhancement,
+      AlchemicalPowerupType.intelligence => target.statIntelligenceEnhancement,
+      AlchemicalPowerupType.strength => target.statStrengthEnhancement,
+      AlchemicalPowerupType.beauty => target.statBeautyEnhancement,
+    };
+    if (currentRank >= AlchemonStatSystem.maxEnhancementRank) {
+      return PowerupApplyResult.fail(
+        powerup.statKey,
+        '${powerup.name} is already fully enhanced.',
+      );
+    }
+
+    final cost = AlchemonStatSystem.orbCostForNextRank(currentRank);
+    final nextRank = currentRank + 1;
+    final speedRank = powerup == AlchemicalPowerupType.speed
+        ? nextRank
+        : target.statSpeedEnhancement;
+    final intelligenceRank = powerup == AlchemicalPowerupType.intelligence
+        ? nextRank
+        : target.statIntelligenceEnhancement;
+    final strengthRank = powerup == AlchemicalPowerupType.strength
+        ? nextRank
+        : target.statStrengthEnhancement;
+    final beautyRank = powerup == AlchemicalPowerupType.beauty
+        ? nextRank
+        : target.statBeautyEnhancement;
+    final derived = CreatureInstanceService._deriveStats(
+      instance: target,
+      repo: repo,
+      speedEnhancement: speedRank,
+      intelligenceEnhancement: intelligenceRank,
+      strengthEnhancement: strengthRank,
+      beautyEnhancement: beautyRank,
+    );
+    final hadItem = await _db.transaction(() async {
+      final consumed = await _db.inventoryDao.consumeItem(
+        powerup.inventoryKey,
+        qty: cost,
+      );
+      if (!consumed) return false;
+      await _db.creatureDao.updateStatProgression(
+        instanceId: target.instanceId,
+        statSpeed: derived['speed']!,
+        statIntelligence: derived['intelligence']!,
+        statStrength: derived['strength']!,
+        statBeauty: derived['beauty']!,
+        statSpeedEnhancement: speedRank,
+        statIntelligenceEnhancement: intelligenceRank,
+        statStrengthEnhancement: strengthRank,
+        statBeautyEnhancement: beautyRank,
+      );
+      return true;
+    });
     if (!hadItem) {
       return PowerupApplyResult.fail(
         powerup.statKey,
-        'No ${powerup.name} available.',
+        'Rank $nextRank requires $cost ${powerup.name}${cost == 1 ? '' : 's'}.',
       );
     }
 
-    final newValue = (currentValue + delta).clamp(0.0, potentialValue);
-    await _db.creatureDao.updateStats(
-      instanceId: target.instanceId,
-      statSpeed: powerup == AlchemicalPowerupType.speed
-          ? newValue
-          : target.statSpeed,
-      statIntelligence: powerup == AlchemicalPowerupType.intelligence
-          ? newValue
-          : target.statIntelligence,
-      statStrength: powerup == AlchemicalPowerupType.strength
-          ? newValue
-          : target.statStrength,
-      statBeauty: powerup == AlchemicalPowerupType.beauty
-          ? newValue
-          : target.statBeauty,
-    );
+    final newValue = derived[powerup.statKey]!;
 
     return PowerupApplyResult(
       ok: true,
-      delta: delta,
+      delta: 3.0,
       newValue: newValue,
       statKey: powerup.statKey,
-      rolledDelta: roll.rolledDelta,
-      rollLabel: roll.label,
-      isRareRoll: roll.isRare,
-      isJackpotRoll: roll.isJackpot,
-      animationDuration: roll.animationDuration,
-      flashDuration: roll.flashDuration,
-      glowBoost: roll.glowBoost,
+      rolledDelta: 3.0,
+      rollLabel: 'ENHANCED $nextRank/10',
+      isRareRoll: false,
+      isJackpotRoll: nextRank == AlchemonStatSystem.maxEnhancementRank,
+      animationDuration: const Duration(milliseconds: 1500),
+      flashDuration: const Duration(milliseconds: 500),
+      glowBoost: nextRank == AlchemonStatSystem.maxEnhancementRank ? 1.5 : 1.0,
+    );
+  }
+
+  Future<PotentialSoulApplyResult> applyPotentialSoul({
+    required String targetInstanceId,
+    required AlchemicalPowerupType stat,
+    required CreatureCatalog repo,
+    Random? random,
+  }) async {
+    final target = await _db.creatureDao.getInstance(targetInstanceId);
+    if (target == null) {
+      return PotentialSoulApplyResult.fail(stat.statKey, 'Target not found');
+    }
+
+    final currentPotential = switch (stat) {
+      AlchemicalPowerupType.speed => target.statSpeedPotential.round(),
+      AlchemicalPowerupType.intelligence =>
+        target.statIntelligencePotential.round(),
+      AlchemicalPowerupType.strength => target.statStrengthPotential.round(),
+      AlchemicalPowerupType.beauty => target.statBeautyPotential.round(),
+    };
+    if (currentPotential >= AlchemonStatSystem.maxPotential) {
+      return PotentialSoulApplyResult.fail(
+        stat.statKey,
+        '${stat.statKey} Potential is already 100.',
+      );
+    }
+
+    final silverCost = AlchemonStatSystem.potentialSoulSilverCost(
+      currentPotential,
+    );
+    if (await _db.inventoryDao.getItemQty(InvKeys.potentialSoul) < 1) {
+      return PotentialSoulApplyResult.fail(
+        stat.statKey,
+        'A Potential Soul is required.',
+      );
+    }
+    final silverBalance = await _db.currencyDao.getSilverBalance();
+    if (silverBalance < silverCost) {
+      return PotentialSoulApplyResult.fail(
+        stat.statKey,
+        '$silverCost Silver is required for this Potential infusion.',
+      );
+    }
+
+    final rolledGain = PotentialSoulRules.rollGain(random ?? Random());
+    final newPotential = min(
+      AlchemonStatSystem.maxPotential,
+      currentPotential + rolledGain,
+    );
+    final appliedGain = newPotential - currentPotential;
+    final speedPotential = stat == AlchemicalPowerupType.speed
+        ? newPotential.toDouble()
+        : target.statSpeedPotential;
+    final intelligencePotential = stat == AlchemicalPowerupType.intelligence
+        ? newPotential.toDouble()
+        : target.statIntelligencePotential;
+    final strengthPotential = stat == AlchemicalPowerupType.strength
+        ? newPotential.toDouble()
+        : target.statStrengthPotential;
+    final beautyPotential = stat == AlchemicalPowerupType.beauty
+        ? newPotential.toDouble()
+        : target.statBeautyPotential;
+    final derived = CreatureInstanceService._deriveStats(
+      instance: target,
+      repo: repo,
+      speedPotential: speedPotential,
+      intelligencePotential: intelligencePotential,
+      strengthPotential: strengthPotential,
+      beautyPotential: beautyPotential,
+    );
+
+    try {
+      await _db.transaction(() async {
+        final consumed = await _db.inventoryDao.consumeItem(
+          InvKeys.potentialSoul,
+          qty: 1,
+        );
+        if (!consumed) {
+          throw const _PotentialSoulApplyAbort('A Potential Soul is required.');
+        }
+        final paid = await _db.currencyDao.spendSilver(silverCost);
+        if (!paid) {
+          throw _PotentialSoulApplyAbort(
+            '$silverCost Silver is required for this Potential infusion.',
+          );
+        }
+        await _db.creatureDao.updatePotentialProgression(
+          instanceId: target.instanceId,
+          statSpeed: derived['speed']!,
+          statIntelligence: derived['intelligence']!,
+          statStrength: derived['strength']!,
+          statBeauty: derived['beauty']!,
+          statSpeedPotential: speedPotential,
+          statIntelligencePotential: intelligencePotential,
+          statStrengthPotential: strengthPotential,
+          statBeautyPotential: beautyPotential,
+        );
+      });
+    } on _PotentialSoulApplyAbort catch (failure) {
+      return PotentialSoulApplyResult.fail(stat.statKey, failure.message);
+    }
+
+    return PotentialSoulApplyResult(
+      ok: true,
+      statKey: stat.statKey,
+      rolledGain: rolledGain,
+      appliedGain: appliedGain,
+      newPotential: newPotential,
+      silverCost: silverCost,
     );
   }
 }

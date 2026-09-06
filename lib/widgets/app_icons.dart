@@ -14,7 +14,7 @@
 // ignore_for_file: constant_identifier_names
 
 import 'package:flutter/widgets.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 class AppIcons {
   AppIcons._();
@@ -25,12 +25,14 @@ class AppIcons {
   static const IconData ac_unit_rounded = PhosphorIconsBold.snowflake;
   static const IconData access_alarms = PhosphorIconsBold.alarm;
   static const IconData access_time_rounded = PhosphorIconsBold.clock;
-  static const IconData account_balance_wallet_outlined = PhosphorIconsBold.wallet;
+  static const IconData account_balance_wallet_outlined =
+      PhosphorIconsBold.wallet;
   static const IconData account_tree_outlined = PhosphorIconsBold.treeStructure;
   static const IconData account_tree_rounded = PhosphorIconsBold.treeStructure;
   static const IconData add = PhosphorIconsBold.plus;
   static const IconData add_circle_outline = PhosphorIconsBold.plusCircle;
-  static const IconData add_circle_outline_rounded = PhosphorIconsBold.plusCircle;
+  static const IconData add_circle_outline_rounded =
+      PhosphorIconsBold.plusCircle;
   static const IconData add_location_alt_rounded = PhosphorIconsBold.mapPin;
   static const IconData add_outlined = PhosphorIconsBold.plus;
   static const IconData add_rounded = PhosphorIconsBold.plus;
@@ -41,12 +43,14 @@ class AppIcons {
   static const IconData album_outlined = PhosphorIconsBold.vinylRecord;
   static const IconData all_inclusive_rounded = PhosphorIconsBold.infinity;
   static const IconData arrow_back = PhosphorIconsBold.arrowLeft;
-  static const IconData arrow_back_ios_new_rounded = PhosphorIconsBold.caretLeft;
+  static const IconData arrow_back_ios_new_rounded =
+      PhosphorIconsBold.caretLeft;
   static const IconData arrow_back_rounded = PhosphorIconsBold.arrowLeft;
   static const IconData arrow_downward_rounded = PhosphorIconsBold.arrowDown;
   static const IconData arrow_drop_down = PhosphorIconsBold.caretDown;
   static const IconData arrow_forward = PhosphorIconsBold.arrowRight;
-  static const IconData arrow_forward_ios_rounded = PhosphorIconsBold.caretRight;
+  static const IconData arrow_forward_ios_rounded =
+      PhosphorIconsBold.caretRight;
   static const IconData arrow_forward_rounded = PhosphorIconsBold.arrowRight;
   static const IconData arrow_upward_rounded = PhosphorIconsBold.arrowUp;
   static const IconData auto_awesome = PhosphorIconsBold.sparkle;
@@ -77,7 +81,8 @@ class AppIcons {
   static const IconData brightness_4_rounded = PhosphorIconsBold.moon;
   static const IconData brightness_high_outlined = PhosphorIconsBold.sun;
   static const IconData broken_image = PhosphorIconsBold.imageBroken;
-  static const IconData bubble_chart_rounded = PhosphorIconsBold.dotsThreeCircle;
+  static const IconData bubble_chart_rounded =
+      PhosphorIconsBold.dotsThreeCircle;
   static const IconData bug_report = PhosphorIconsBold.bug;
   static const IconData bug_report_rounded = PhosphorIconsBold.bug;
 
@@ -86,12 +91,14 @@ class AppIcons {
   static const IconData catching_pokemon = PhosphorIconsBold.target;
   static const IconData catching_pokemon_rounded = PhosphorIconsBold.target;
   static const IconData category_rounded = PhosphorIconsBold.squaresFour;
-  static const IconData center_focus_strong_rounded = PhosphorIconsBold.crosshair;
+  static const IconData center_focus_strong_rounded =
+      PhosphorIconsBold.crosshair;
   static const IconData change_history_rounded = PhosphorIconsBold.triangle;
   static const IconData check = PhosphorIconsBold.check;
   static const IconData check_circle = PhosphorIconsBold.checkCircle;
   static const IconData check_circle_outline = PhosphorIconsBold.checkCircle;
-  static const IconData check_circle_outline_rounded = PhosphorIconsBold.checkCircle;
+  static const IconData check_circle_outline_rounded =
+      PhosphorIconsBold.checkCircle;
   static const IconData check_circle_rounded = PhosphorIconsBold.checkCircle;
   static const IconData check_rounded = PhosphorIconsBold.check;
   static const IconData chevron_left_rounded = PhosphorIconsBold.caretLeft;
@@ -105,10 +112,12 @@ class AppIcons {
   static const IconData close = PhosphorIconsBold.x;
   static const IconData close_rounded = PhosphorIconsBold.x;
   static const IconData cloud = PhosphorIconsBold.cloud;
-  static const IconData cloud_download_rounded = PhosphorIconsBold.cloudArrowDown;
+  static const IconData cloud_download_rounded =
+      PhosphorIconsBold.cloudArrowDown;
   static const IconData cloud_rounded = PhosphorIconsBold.cloud;
   static const IconData cloud_upload_rounded = PhosphorIconsBold.cloudArrowUp;
-  static const IconData currency_exchange_rounded = PhosphorIconsBold.currencyCircleDollar;
+  static const IconData currency_exchange_rounded =
+      PhosphorIconsBold.currencyCircleDollar;
   static const IconData cyclone_rounded = PhosphorIconsBold.tornado;
 
   // ── D ───────────────────────────────────────────────────────────────────
@@ -121,7 +130,8 @@ class AppIcons {
   static const IconData delete_outline_rounded = PhosphorIconsBold.trash;
   static const IconData delete_rounded = PhosphorIconsBold.trash;
   static const IconData delete_sweep_rounded = PhosphorIconsBold.trash;
-  static const IconData device_thermostat_rounded = PhosphorIconsBold.thermometer;
+  static const IconData device_thermostat_rounded =
+      PhosphorIconsBold.thermometer;
   static const IconData diamond = PhosphorIconsBold.diamond;
   static const IconData diamond_outlined = PhosphorIconsBold.diamond;
   static const IconData diamond_rounded = PhosphorIconsBold.diamond;
@@ -160,7 +170,8 @@ class AppIcons {
   static const IconData flash_off_rounded = PhosphorIconsBold.lightningSlash;
   static const IconData flash_on = PhosphorIconsBold.lightning;
   static const IconData flash_on_rounded = PhosphorIconsBold.lightning;
-  static const IconData flight_takeoff_rounded = PhosphorIconsBold.airplaneTakeoff;
+  static const IconData flight_takeoff_rounded =
+      PhosphorIconsBold.airplaneTakeoff;
   static const IconData folder_open = PhosphorIconsBold.folderOpen;
   static const IconData forest_rounded = PhosphorIconsBold.tree;
 
@@ -191,7 +202,8 @@ class AppIcons {
   static const IconData hub_rounded = PhosphorIconsBold.graph;
 
   // ── I ───────────────────────────────────────────────────────────────────
-  static const IconData image_not_supported_rounded = PhosphorIconsBold.imageBroken;
+  static const IconData image_not_supported_rounded =
+      PhosphorIconsBold.imageBroken;
   static const IconData info = PhosphorIconsBold.info;
   static const IconData info_outline = PhosphorIconsBold.info;
   static const IconData info_outline_rounded = PhosphorIconsBold.info;
@@ -203,9 +215,11 @@ class AppIcons {
 
   // ── K ───────────────────────────────────────────────────────────────────
   static const IconData key_rounded = PhosphorIconsBold.key;
-  static const IconData keyboard_arrow_down_rounded = PhosphorIconsBold.caretDown;
+  static const IconData keyboard_arrow_down_rounded =
+      PhosphorIconsBold.caretDown;
   static const IconData keyboard_arrow_up_rounded = PhosphorIconsBold.caretUp;
-  static const IconData keyboard_double_arrow_up_rounded = PhosphorIconsBold.caretDoubleUp;
+  static const IconData keyboard_double_arrow_up_rounded =
+      PhosphorIconsBold.caretDoubleUp;
 
   // ── L ───────────────────────────────────────────────────────────────────
   static const IconData landscape_rounded = PhosphorIconsBold.mountains;
@@ -262,7 +276,8 @@ class AppIcons {
   static const IconData offline_bolt_rounded = PhosphorIconsBold.lightningSlash;
   static const IconData opacity = PhosphorIconsBold.drop;
   static const IconData opacity_rounded = PhosphorIconsBold.drop;
-  static const IconData open_in_full_rounded = PhosphorIconsBold.arrowsOutSimple;
+  static const IconData open_in_full_rounded =
+      PhosphorIconsBold.arrowsOutSimple;
 
   // ── P ───────────────────────────────────────────────────────────────────
   static const IconData paid_rounded = PhosphorIconsBold.coin;
@@ -270,7 +285,8 @@ class AppIcons {
   static const IconData palette_outlined = PhosphorIconsBold.palette;
   static const IconData park_rounded = PhosphorIconsBold.tree;
   static const IconData password_rounded = PhosphorIconsBold.password;
-  static const IconData pause_circle_outline_rounded = PhosphorIconsBold.pauseCircle;
+  static const IconData pause_circle_outline_rounded =
+      PhosphorIconsBold.pauseCircle;
   static const IconData pause_rounded = PhosphorIconsBold.pause;
   static const IconData person_add_alt_1_rounded = PhosphorIconsBold.userPlus;
   static const IconData person_rounded = PhosphorIconsBold.user;
@@ -294,15 +310,18 @@ class AppIcons {
   static const IconData radio_button_checked = PhosphorIconsBold.record;
   static const IconData radio_button_checked_rounded = PhosphorIconsBold.record;
   static const IconData radio_button_unchecked = PhosphorIconsBold.circle;
-  static const IconData radio_button_unchecked_rounded = PhosphorIconsBold.circle;
+  static const IconData radio_button_unchecked_rounded =
+      PhosphorIconsBold.circle;
   static const IconData refresh_rounded = PhosphorIconsBold.arrowClockwise;
   static const IconData remove = PhosphorIconsBold.minus;
   static const IconData remove_circle_outline = PhosphorIconsBold.minusCircle;
-  static const IconData remove_circle_outline_rounded = PhosphorIconsBold.minusCircle;
+  static const IconData remove_circle_outline_rounded =
+      PhosphorIconsBold.minusCircle;
   static const IconData remove_circle_rounded = PhosphorIconsBold.minusCircle;
   static const IconData remove_red_eye_rounded = PhosphorIconsBold.eye;
   static const IconData remove_rounded = PhosphorIconsBold.minus;
-  static const IconData replay_rounded = PhosphorIconsBold.arrowCounterClockwise;
+  static const IconData replay_rounded =
+      PhosphorIconsBold.arrowCounterClockwise;
   static const IconData rocket_launch_outlined = PhosphorIconsBold.rocketLaunch;
   static const IconData rocket_launch_rounded = PhosphorIconsBold.rocketLaunch;
   static const IconData run_circle_rounded = PhosphorIconsBold.personSimpleRun;
@@ -316,7 +335,8 @@ class AppIcons {
   static const IconData science_outlined = PhosphorIconsBold.flask;
   static const IconData science_rounded = PhosphorIconsBold.flask;
   static const IconData search = PhosphorIconsBold.magnifyingGlass;
-  static const IconData search_off_rounded = PhosphorIconsBold.magnifyingGlassMinus;
+  static const IconData search_off_rounded =
+      PhosphorIconsBold.magnifyingGlassMinus;
   static const IconData search_rounded = PhosphorIconsBold.magnifyingGlass;
   static const IconData security_rounded = PhosphorIconsBold.shield;
   static const IconData sell_rounded = PhosphorIconsBold.tag;

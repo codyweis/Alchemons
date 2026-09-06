@@ -100,358 +100,360 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
         child: CosmicOverlayBackdrop(
           alpha: 0.96,
           child: Column(
-          children: [
-            // ── Header ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 12, 6),
-              child: Row(
-                children: [
-                  Container(
-                    width: 3,
-                    height: 22,
-                    color: CosmicScreenStyles.teal,
+            children: [
+              // ── Header ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 12, 6),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 22,
+                      color: CosmicScreenStyles.teal,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Alchemy chambers',
+                            style: bracketText(
+                              context,
+                              17,
+                              palette.ink,
+                              weight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Assign Alchemons to orbit your home planet.',
+                            style: bracketText(
+                              context,
+                              12,
+                              palette.muted,
+                              weight: FontWeight.w500,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _OverlayCloseButton(
+                      palette: palette,
+                      onTap: widget.onClose,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // ── Chamber slots — compact 3-across row ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: List.generate(widget.chambers.length, (i) {
+                    final chamber = widget.chambers[i];
+                    final base = chamber.instanceId != null
+                        ? catalog.getCreatureById(chamber.baseCreatureId ?? '')
+                        : null;
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: i == widget.chambers.length - 1 ? 0 : 8,
+                        ),
+                        child: _ChamberSlotTile(
+                          slotIndex: i,
+                          chamber: chamber,
+                          base: base,
+                          palette: palette,
+                          onClear: () => widget.onClear(i),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Divider ──
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: BracketSectionDivider(label: 'Your alchemons'),
+              ),
+              const SizedBox(height: 10),
+
+              // ── Search bar ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: CustomPaint(
+                  painter: BracketFramePainter(
+                    color: palette.line.withValues(alpha: 0.6),
+                    bracketSize: 7,
+                    strokeWidth: 1.05,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: palette.surfaceMutedFill(),
+                      border: Border.all(
+                        color: palette.lineSoft.withValues(alpha: 0.4),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
                       children: [
-                        Text(
-                          'Alchemy chambers',
-                          style: bracketText(
-                            context,
-                            17,
-                            palette.ink,
-                            weight: FontWeight.w700,
-                            letterSpacing: 0.3,
+                        Padding(
+                          padding: const EdgeInsets.only(left: 12),
+                          child: Icon(
+                            AppIcons.search_rounded,
+                            color: palette.muted,
+                            size: 16,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Assign Alchemons to orbit your home planet.',
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (v) => setState(() => _searchQuery = v),
+                            cursorColor: CosmicScreenStyles.teal,
+                            style: bracketText(
+                              context,
+                              13,
+                              palette.ink,
+                              weight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Search',
+                              hintStyle: bracketText(
+                                context,
+                                13,
+                                palette.muted,
+                                weight: FontWeight.w500,
+                                letterSpacing: 0.2,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (_searchQuery.isNotEmpty)
+                          GestureDetector(
+                            onTap: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: Icon(
+                                AppIcons.close_rounded,
+                                color: palette.muted,
+                                size: 14,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // ── Creature grid ──
+              Expanded(
+                child: _loading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: CosmicScreenStyles.teal,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : filtered.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No Alchemons found.',
                           style: bracketText(
                             context,
-                            12,
+                            12.5,
                             palette.muted,
                             weight: FontWeight.w500,
                             fontStyle: FontStyle.italic,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  _OverlayCloseButton(
-                    palette: palette,
-                    onTap: widget.onClose,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            // ── Chamber slots — compact 3-across row ──
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: List.generate(widget.chambers.length, (i) {
-                  final chamber = widget.chambers[i];
-                  final base = chamber.instanceId != null
-                      ? catalog.getCreatureById(chamber.baseCreatureId ?? '')
-                      : null;
-                  return Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        right: i == widget.chambers.length - 1 ? 0 : 8,
-                      ),
-                      child: _ChamberSlotTile(
-                        slotIndex: i,
-                        chamber: chamber,
-                        base: base,
-                        palette: palette,
-                        onClear: () => widget.onClear(i),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── Divider ──
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: BracketSectionDivider(label: 'Your alchemons'),
-            ),
-            const SizedBox(height: 10),
-
-            // ── Search bar ──
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: CustomPaint(
-                painter: BracketFramePainter(
-                  color: palette.line.withValues(alpha: 0.6),
-                  bracketSize: 7,
-                  strokeWidth: 1.05,
-                ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: palette.surfaceMutedFill(),
-                    border: Border.all(
-                      color: palette.lineSoft.withValues(alpha: 0.4),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 12),
-                        child: Icon(
-                          AppIcons.search_rounded,
-                          color: palette.muted,
-                          size: 16,
-                        ),
-                      ),
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: (v) => setState(() => _searchQuery = v),
-                          cursorColor: CosmicScreenStyles.teal,
-                          style: bracketText(
-                            context,
-                            13,
-                            palette.ink,
-                            weight: FontWeight.w600,
-                            letterSpacing: 0.2,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Search',
-                            hintStyle: bracketText(
-                              context,
-                              13,
-                              palette.muted,
-                              weight: FontWeight.w500,
-                              letterSpacing: 0.2,
+                      )
+                    : GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                              childAspectRatio: 0.74,
                             ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (_searchQuery.isNotEmpty)
-                        GestureDetector(
-                          onTap: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 12),
-                            child: Icon(
-                              AppIcons.close_rounded,
-                              color: palette.muted,
-                              size: 14,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final inst = filtered[index];
+                          final alreadyAssigned = assignedIds.contains(
+                            inst.instanceId,
+                          );
+                          final species = catalog.getCreatureById(inst.baseId);
+                          final typeName = (species?.types.isNotEmpty ?? false)
+                              ? species!.types.first
+                              : 'Earth';
+                          final elemCol = BreedConstants.getTypeColor(typeName);
+                          final displayName =
+                              inst.nickname ?? species?.name ?? inst.baseId;
+                          final emptySlot = widget.chambers.indexWhere(
+                            (c) => c.instanceId == null,
+                          );
 
-            // ── Creature grid ──
-            Expanded(
-              child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: CosmicScreenStyles.teal,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : filtered.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No Alchemons found.',
-                        style: bracketText(
-                          context,
-                          12.5,
-                          palette.muted,
-                          weight: FontWeight.w500,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    )
-                  : GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                            childAspectRatio: 0.74,
-                          ),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final inst = filtered[index];
-                        final alreadyAssigned = assignedIds.contains(
-                          inst.instanceId,
-                        );
-                        final species = catalog.getCreatureById(inst.baseId);
-                        final typeName = (species?.types.isNotEmpty ?? false)
-                            ? species!.types.first
-                            : 'Earth';
-                        final elemCol = BreedConstants.getTypeColor(typeName);
-                        final displayName =
-                            inst.nickname ?? species?.name ?? inst.baseId;
-                        final emptySlot = widget.chambers.indexWhere(
-                          (c) => c.instanceId == null,
-                        );
-
-                        return GestureDetector(
-                          onTap: alreadyAssigned || emptySlot < 0
-                              ? null
-                              : () =>
-                                    widget.onAssign(emptySlot, inst.instanceId),
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 150),
-                            opacity: alreadyAssigned ? 0.4 : 1.0,
-                            child: CustomPaint(
-                              painter: BracketFramePainter(
-                                color: elemCol.withValues(alpha: 0.7),
-                                bracketSize: 8,
-                                strokeWidth: 1.05,
-                              ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: elemCol.withValues(alpha: 0.07),
-                                  border: Border.all(
-                                    color: palette.lineSoft.withValues(
-                                      alpha: 0.4,
-                                    ),
-                                    width: 1,
+                          return GestureDetector(
+                            onTap: alreadyAssigned || emptySlot < 0
+                                ? null
+                                : () => widget.onAssign(
+                                    emptySlot,
+                                    inst.instanceId,
                                   ),
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 150),
+                              opacity: alreadyAssigned ? 0.4 : 1.0,
+                              child: CustomPaint(
+                                painter: BracketFramePainter(
+                                  color: elemCol.withValues(alpha: 0.7),
+                                  bracketSize: 8,
+                                  strokeWidth: 1.05,
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8,
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        gradient: RadialGradient(
-                                          colors: [
-                                            Color.lerp(
-                                              elemCol,
-                                              Colors.white,
-                                              0.2,
-                                            )!,
-                                            elemCol,
-                                          ],
-                                        ),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: elemCol.withValues(alpha: 0.07),
+                                    border: Border.all(
+                                      color: palette.lineSoft.withValues(
+                                        alpha: 0.4,
                                       ),
-                                      child: species?.image != null
-                                          ? ClipOval(
-                                              child: Image.asset(
-                                                'assets/images/${species!.image}',
-                                                width: 50,
-                                                height: 50,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (_, __, ___) =>
-                                                    Center(
-                                                      child: Text(
-                                                        displayName[0]
-                                                            .toUpperCase(),
-                                                        style: TextStyle(
-                                                          color: Colors.white,
-                                                          fontSize: 16,
-                                                          fontWeight:
-                                                              FontWeight.w900,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 50,
+                                        height: 50,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: RadialGradient(
+                                            colors: [
+                                              Color.lerp(
+                                                elemCol,
+                                                Colors.white,
+                                                0.2,
+                                              )!,
+                                              elemCol,
+                                            ],
+                                          ),
+                                        ),
+                                        child: species?.image != null
+                                            ? ClipOval(
+                                                child: Image.asset(
+                                                  'assets/images/${species!.image}',
+                                                  width: 50,
+                                                  height: 50,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, __, ___) =>
+                                                      Center(
+                                                        child: Text(
+                                                          displayName[0]
+                                                              .toUpperCase(),
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 16,
+                                                            fontWeight:
+                                                                FontWeight.w900,
+                                                          ),
                                                         ),
                                                       ),
-                                                    ),
-                                              ),
-                                            )
-                                          : Center(
-                                              child: Text(
-                                                displayName[0].toUpperCase(),
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              )
+                                            : Center(
+                                                child: Text(
+                                                  displayName[0].toUpperCase(),
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                    ),
-                                    const SizedBox(height: 7),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 4,
                                       ),
-                                      child: Text(
-                                        displayName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.center,
-                                        style: bracketText(
-                                          context,
-                                          12,
-                                          palette.ink,
-                                          weight: FontWeight.w700,
+                                      const SizedBox(height: 7),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                        child: Text(
+                                          displayName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                          style: bracketText(
+                                            context,
+                                            12,
+                                            palette.ink,
+                                            weight: FontWeight.w700,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 1),
-                                    Text(
-                                      'Lv ${inst.level}  \u2022  $typeName',
-                                      style: bracketText(
-                                        context,
-                                        10.5,
-                                        elemCol,
-                                        weight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    if (alreadyAssigned)
+                                      const SizedBox(height: 1),
                                       Text(
-                                        'IN ORBIT',
+                                        'Lv ${inst.level}  \u2022  $typeName',
                                         style: bracketText(
                                           context,
-                                          8.5,
-                                          palette.muted,
-                                          weight: FontWeight.w700,
-                                          letterSpacing: 0.6,
-                                        ),
-                                      )
-                                    else if (emptySlot >= 0)
-                                      Text(
-                                        'ASSIGN',
-                                        style: bracketText(
-                                          context,
-                                          8.5,
-                                          CosmicScreenStyles.teal,
-                                          weight: FontWeight.w800,
-                                          letterSpacing: 0.8,
+                                          10.5,
+                                          elemCol,
+                                          weight: FontWeight.w600,
                                         ),
                                       ),
-                                  ],
+                                      const SizedBox(height: 6),
+                                      if (alreadyAssigned)
+                                        Text(
+                                          'IN ORBIT',
+                                          style: bracketText(
+                                            context,
+                                            8.5,
+                                            palette.muted,
+                                            weight: FontWeight.w700,
+                                            letterSpacing: 0.6,
+                                          ),
+                                        )
+                                      else if (emptySlot >= 0)
+                                        Text(
+                                          'ASSIGN',
+                                          style: bracketText(
+                                            context,
+                                            8.5,
+                                            CosmicScreenStyles.teal,
+                                            weight: FontWeight.w800,
+                                            letterSpacing: 0.8,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
+                          );
+                        },
+                      ),
+              ),
+            ],
           ),
         ),
       ),

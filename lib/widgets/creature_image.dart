@@ -22,7 +22,11 @@ class CreatureImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
     if (!discovered) {
-      return Icon(AppIcons.help_outline_rounded, color: theme.textMuted, size: 24);
+      return Icon(
+        AppIcons.help_outline_rounded,
+        color: theme.textMuted,
+        size: 24,
+      );
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(rounded),
@@ -33,7 +37,9 @@ class CreatureImage extends StatelessWidget {
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => Container(
           decoration: BoxDecoration(
-            color: BreedConstants.getTypeColor(c.types.first).withValues(alpha: .12),
+            color: BreedConstants.getTypeColor(
+              c.types.first,
+            ).withValues(alpha: .12),
             borderRadius: BorderRadius.circular(rounded),
           ),
           child: Icon(

@@ -233,9 +233,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
                   fontSize: 56,
                   fontWeight: FontWeight.w900,
                   height: 1,
-                  shadows: [
-                    Shadow(color: Color(0xCC000000), blurRadius: 16),
-                  ],
+                  shadows: [Shadow(color: Color(0xCC000000), blurRadius: 16)],
                 ),
               ),
             ],

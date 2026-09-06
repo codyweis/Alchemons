@@ -489,9 +489,11 @@ class AlchemicalEncyclopediaService {
     final observedCounts = <String, int>{};
 
     for (final instance in instances) {
-      final natureId = instance.natureId?.trim();
-      if (natureId == null || natureId.isEmpty) continue;
-      observedCounts[natureId] = (observedCounts[natureId] ?? 0) + 1;
+      for (final natureId in [instance.natureId, instance.natureId2]) {
+        final id = natureId?.trim();
+        if (id == null || id.isEmpty) continue;
+        observedCounts[id] = (observedCounts[id] ?? 0) + 1;
+      }
     }
 
     final merged = {...stored, ...observedCounts.keys};

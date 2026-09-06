@@ -101,18 +101,14 @@ class BracketPalette {
   Color surfaceFill({double darkAlpha = 0.72, double lightAlpha = 0.94}) =>
       bg1.withValues(alpha: isDark ? darkAlpha : lightAlpha);
 
-  Color surfaceMutedFill({
-    double darkAlpha = 0.55,
-    double lightAlpha = 0.90,
-  }) => bg1.withValues(alpha: isDark ? darkAlpha : lightAlpha);
+  Color surfaceMutedFill({double darkAlpha = 0.55, double lightAlpha = 0.90}) =>
+      bg1.withValues(alpha: isDark ? darkAlpha : lightAlpha);
 
   Color chromeFill({double darkAlpha = 0.88, double lightAlpha = 0.97}) =>
       bg0.withValues(alpha: isDark ? darkAlpha : lightAlpha);
 
-  Color chromeMutedFill({
-    double darkAlpha = 0.55,
-    double lightAlpha = 0.92,
-  }) => bg0.withValues(alpha: isDark ? darkAlpha : lightAlpha);
+  Color chromeMutedFill({double darkAlpha = 0.55, double lightAlpha = 0.92}) =>
+      bg0.withValues(alpha: isDark ? darkAlpha : lightAlpha);
 
   Color accentWash(
     Color accent, {

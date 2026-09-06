@@ -118,14 +118,22 @@ class DamageNumberField {
             // either. Four hard offsets read as an outline and cost four
             // glyph blits.
             shadows: [
-              Shadow(color: Color(0xE6000000).withValues(alpha: 0.92 * a),
-                  offset: Offset(1, 1)),
-              Shadow(color: Color(0xE6000000).withValues(alpha: 0.92 * a),
-                  offset: Offset(-1, 1)),
-              Shadow(color: Color(0xE6000000).withValues(alpha: 0.92 * a),
-                  offset: Offset(1, -1)),
-              Shadow(color: Color(0x99000000).withValues(alpha: 0.70 * a),
-                  offset: Offset(-1, -1)),
+              Shadow(
+                color: Color(0xE6000000).withValues(alpha: 0.92 * a),
+                offset: Offset(1, 1),
+              ),
+              Shadow(
+                color: Color(0xE6000000).withValues(alpha: 0.92 * a),
+                offset: Offset(-1, 1),
+              ),
+              Shadow(
+                color: Color(0xE6000000).withValues(alpha: 0.92 * a),
+                offset: Offset(1, -1),
+              ),
+              Shadow(
+                color: Color(0x99000000).withValues(alpha: 0.70 * a),
+                offset: Offset(-1, -1),
+              ),
             ],
           ),
         ),
@@ -150,8 +158,10 @@ class DamageNumberField {
       // frames. Eight steps is imperceptible in a 0.15s pop.
       final rawScale = t < 0.15 ? (0.7 + 0.4 * (t / 0.15)) : 1.0;
       final scale = t < 0.15
-          ? (0.7 + 0.4 * ((rawScale - 0.7) / 0.4 * _fadeSteps).round() /
-                _fadeSteps)
+          ? (0.7 +
+                0.4 *
+                    ((rawScale - 0.7) / 0.4 * _fadeSteps).round() /
+                    _fadeSteps)
           : 1.0;
       var step = (alpha * _fadeSteps).ceil() - 1;
       if (step < 0) step = 0;

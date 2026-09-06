@@ -42,7 +42,10 @@ class GameCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme?.surface ?? fallbackSurface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.06),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.45),

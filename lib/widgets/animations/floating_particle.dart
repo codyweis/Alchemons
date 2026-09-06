@@ -6,7 +6,11 @@ class FloatingParticle extends StatelessWidget {
   final AnimationController controller;
   final int index;
 
-  const FloatingParticle({super.key, required this.controller, required this.index});
+  const FloatingParticle({
+    super.key,
+    required this.controller,
+    required this.index,
+  });
 
   @override
   Widget build(BuildContext context) {
