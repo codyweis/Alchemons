@@ -176,6 +176,40 @@ abstract final class AlchemonStatSystem {
     return baseCost;
   }
 
+  /// Silver charged alongside the Orbs, per rank bought, accelerating from 50
+  /// at the first rank to 1000 at the tenth. Orbs alone made Enhancement a
+  /// pure inventory sink; the Silver gives the late ranks a running cost that
+  /// scales with how far a stat has already been pushed.
+  static const List<int> enhancementSilverLadder = [
+    50,
+    80,
+    120,
+    180,
+    260,
+    360,
+    480,
+    640,
+    820,
+    1000,
+  ];
+
+  /// Silver for the rank after [currentRank]. Returns 0 at the cap, where
+  /// there is no next rank to buy.
+  static int enhancementSilverForNextRank(int currentRank) {
+    if (currentRank >= maxEnhancementRank) return 0;
+    final next = currentRank.clamp(0, maxEnhancementRank - 1);
+    return enhancementSilverLadder[next];
+  }
+
+  /// Total Silver to carry a stat from [currentRank] to the cap.
+  static int enhancementSilverToMaxRank(int currentRank) {
+    var total = 0;
+    for (var rank = currentRank; rank < maxEnhancementRank; rank++) {
+      total += enhancementSilverForNextRank(rank);
+    }
+    return total;
+  }
+
   /// Total orbs needed to carry a stat from [currentRank] to the cap. The
   /// per-rank cost steps up, so a player sitting on a pile of orbs cannot tell
   /// whether it is enough without summing the remaining tiers for them.

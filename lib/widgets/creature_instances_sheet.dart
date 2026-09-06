@@ -610,12 +610,14 @@ class _InstancesSheetState extends State<InstancesSheet> {
     final label = switch (_detailMode) {
       InstanceDetailMode.stats => 'STATS',
       InstanceDetailMode.genetics => 'GENES',
+      InstanceDetailMode.enhancement => 'ENH',
       InstanceDetailMode.info => 'STATS',
     };
     // Each mode gets a distinct accent so it's not just a text change
     final color = switch (_detailMode) {
       InstanceDetailMode.stats => t.amberBright,
       InstanceDetailMode.genetics => const Color(0xFF34D399), // teal-green
+      InstanceDetailMode.enhancement => const Color(0xFF38BDF8), // sky
       InstanceDetailMode.info => t.amberBright,
     };
 
@@ -624,6 +626,9 @@ class _InstancesSheetState extends State<InstancesSheet> {
         _detailMode = switch (_detailMode) {
           InstanceDetailMode.stats => InstanceDetailMode.genetics,
           InstanceDetailMode.genetics => InstanceDetailMode.stats,
+          // This sheet never offers Enhancement; the arm exists only to keep
+          // the switch total.
+          InstanceDetailMode.enhancement => InstanceDetailMode.genetics,
           InstanceDetailMode.info => InstanceDetailMode.genetics,
         };
       }),

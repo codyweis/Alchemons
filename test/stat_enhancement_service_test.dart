@@ -61,6 +61,7 @@ void main() {
       statBeautyPotential: 50,
     );
     await db.inventoryDao.addItemQty(InvKeys.powerupSpeed, 1);
+    await db.settingsDao.setSetting('wallet_silver', '5000');
 
     final result = await CreatureInstanceService(db).applyAlchemicalPowerup(
       targetInstanceId: 'instance-1',
@@ -77,13 +78,14 @@ void main() {
     expect(await db.inventoryDao.getItemQty(InvKeys.powerupSpeed), 0);
   });
 
-  test('Enhancement is locked until level ten', () async {
+  test('Enhancement no longer waits for level ten', () async {
     await db.creatureDao.insertInstance(
       instanceId: 'instance-2',
       baseId: 'TEST01',
-      level: 9,
+      level: 1,
     );
     await db.inventoryDao.addItemQty(InvKeys.powerupSpeed, 1);
+    await db.settingsDao.setSetting('wallet_silver', '5000');
 
     final result = await CreatureInstanceService(db).applyAlchemicalPowerup(
       targetInstanceId: 'instance-2',
@@ -91,8 +93,12 @@ void main() {
       repo: catalog,
     );
 
-    expect(result.ok, isFalse);
-    expect(await db.inventoryDao.getItemQty(InvKeys.powerupSpeed), 1);
+    expect(result.ok, isTrue);
+    // The Orb is spent and the rank actually lands, so the level gate is gone
+    // rather than merely unreported.
+    expect(await db.inventoryDao.getItemQty(InvKeys.powerupSpeed), 0);
+    final updated = await db.creatureDao.getInstance('instance-2');
+    expect(updated!.statSpeedEnhancement, 1);
   });
 
   test(
@@ -275,5 +281,81 @@ void main() {
       100,
     );
     expect(await db.inventoryDao.getItemQty(InvKeys.potentialSoul), 1);
+  });
+
+  test('Enhancement Silver runs 50 to 1000 across the ten ranks', () {
+    expect(AlchemonStatSystem.enhancementSilverForNextRank(0), 50);
+    expect(AlchemonStatSystem.enhancementSilverForNextRank(9), 1000);
+    // No next rank to buy at the cap.
+    expect(
+      AlchemonStatSystem.enhancementSilverForNextRank(
+        AlchemonStatSystem.maxEnhancementRank,
+      ),
+      0,
+    );
+    var previous = 0;
+    for (var rank = 0; rank < AlchemonStatSystem.maxEnhancementRank; rank++) {
+      final cost = AlchemonStatSystem.enhancementSilverForNextRank(rank);
+      expect(cost, greaterThan(previous), reason: 'rank $rank');
+      previous = cost;
+    }
+    // Summed independently of the implementation, so a reshuffled ladder
+    // cannot silently desync the running total the tray quotes.
+    var expected = 0;
+    for (var rank = 0; rank < AlchemonStatSystem.maxEnhancementRank; rank++) {
+      expected += AlchemonStatSystem.enhancementSilverForNextRank(rank);
+    }
+    expect(AlchemonStatSystem.enhancementSilverToMaxRank(0), expected);
+    expect(AlchemonStatSystem.enhancementSilverToMaxRank(0), 3990);
+    expect(
+      AlchemonStatSystem.enhancementSilverToMaxRank(
+        AlchemonStatSystem.maxEnhancementRank,
+      ),
+      0,
+    );
+  });
+
+  test('an Enhancement charges Orbs and Silver together', () async {
+    await db.creatureDao.insertInstance(
+      instanceId: 'instance-silver',
+      baseId: 'TEST01',
+      level: 10,
+    );
+    await db.inventoryDao.addItemQty(InvKeys.powerupSpeed, 1);
+    await db.settingsDao.setSetting('wallet_silver', '500');
+
+    final result = await CreatureInstanceService(db).applyAlchemicalPowerup(
+      targetInstanceId: 'instance-silver',
+      powerup: AlchemicalPowerupType.speed,
+      repo: catalog,
+    );
+
+    expect(result.ok, isTrue);
+    expect(await db.inventoryDao.getItemQty(InvKeys.powerupSpeed), 0);
+    expect(await db.currencyDao.getSilverBalance(), 450);
+  });
+
+  test('too little Silver leaves the Orb unspent', () async {
+    await db.creatureDao.insertInstance(
+      instanceId: 'instance-broke',
+      baseId: 'TEST01',
+      level: 10,
+    );
+    await db.inventoryDao.addItemQty(InvKeys.powerupSpeed, 1);
+    await db.settingsDao.setSetting('wallet_silver', '49');
+
+    final result = await CreatureInstanceService(db).applyAlchemicalPowerup(
+      targetInstanceId: 'instance-broke',
+      powerup: AlchemicalPowerupType.speed,
+      repo: catalog,
+    );
+    final updated = await db.creatureDao.getInstance('instance-broke');
+
+    expect(result.ok, isFalse);
+    // The Orb is consumed before the Silver is taken, so the whole
+    // transaction has to roll back or the player pays for nothing.
+    expect(await db.inventoryDao.getItemQty(InvKeys.powerupSpeed), 1);
+    expect(await db.currencyDao.getSilverBalance(), 49);
+    expect(updated!.statSpeedEnhancement, 0);
   });
 }

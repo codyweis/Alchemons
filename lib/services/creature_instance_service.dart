@@ -320,6 +320,12 @@ class PotentialSoulApplyResult {
       );
 }
 
+/// Thrown to roll back an Enhancement transaction when the Silver half of the
+/// price cannot be paid, so the Orb is never consumed for nothing.
+class _EnhancementApplyAbort implements Exception {
+  const _EnhancementApplyAbort();
+}
+
 class _PotentialSoulApplyAbort implements Exception {
   const _PotentialSoulApplyAbort(this.message);
   final String message;
@@ -709,13 +715,6 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     if (target == null) {
       return PowerupApplyResult.fail(powerup.statKey, 'Target not found');
     }
-    if (target.level < AlchemonStatSystem.maxLevel) {
-      return PowerupApplyResult.fail(
-        powerup.statKey,
-        'Reach level ${AlchemonStatSystem.maxLevel} before enhancing stats.',
-      );
-    }
-
     final currentRank = switch (powerup) {
       AlchemicalPowerupType.speed => target.statSpeedEnhancement,
       AlchemicalPowerupType.intelligence => target.statIntelligenceEnhancement,
@@ -730,6 +729,9 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     }
 
     final cost = AlchemonStatSystem.orbCostForNextRank(currentRank);
+    final silverCost = AlchemonStatSystem.enhancementSilverForNextRank(
+      currentRank,
+    );
     final nextRank = currentRank + 1;
     final speedRank = powerup == AlchemicalPowerupType.speed
         ? nextRank
@@ -751,29 +753,46 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
       strengthEnhancement: strengthRank,
       beautyEnhancement: beautyRank,
     );
-    final hadItem = await _db.transaction(() async {
-      final consumed = await _db.inventoryDao.consumeItem(
-        powerup.inventoryKey,
-        qty: cost,
-      );
-      if (!consumed) return false;
-      await _db.creatureDao.updateStatProgression(
-        instanceId: target.instanceId,
-        statSpeed: derived['speed']!,
-        statIntelligence: derived['intelligence']!,
-        statStrength: derived['strength']!,
-        statBeauty: derived['beauty']!,
-        statSpeedEnhancement: speedRank,
-        statIntelligenceEnhancement: intelligenceRank,
-        statStrengthEnhancement: strengthRank,
-        statBeautyEnhancement: beautyRank,
-      );
-      return true;
-    });
+    var shortOnSilver = false;
+    final hadItem = await _db
+        .transaction(() async {
+          final consumed = await _db.inventoryDao.consumeItem(
+            powerup.inventoryKey,
+            qty: cost,
+          );
+          if (!consumed) return false;
+          if (silverCost > 0) {
+            final paid = await _db.currencyDao.spendSilver(silverCost);
+            if (!paid) {
+              shortOnSilver = true;
+              // Roll the consumed Orb back with the rest of the transaction.
+              throw const _EnhancementApplyAbort();
+            }
+          }
+          await _db.creatureDao.updateStatProgression(
+            instanceId: target.instanceId,
+            statSpeed: derived['speed']!,
+            statIntelligence: derived['intelligence']!,
+            statStrength: derived['strength']!,
+            statBeauty: derived['beauty']!,
+            statSpeedEnhancement: speedRank,
+            statIntelligenceEnhancement: intelligenceRank,
+            statStrengthEnhancement: strengthRank,
+            statBeautyEnhancement: beautyRank,
+          );
+          return true;
+        })
+        .catchError((Object error) {
+          if (error is _EnhancementApplyAbort) return false;
+          throw error;
+        });
     if (!hadItem) {
       return PowerupApplyResult.fail(
         powerup.statKey,
-        'Rank $nextRank requires $cost ${powerup.name}${cost == 1 ? '' : 's'}.',
+        shortOnSilver
+            ? 'Rank $nextRank also costs $silverCost Silver.'
+            : 'Rank $nextRank requires $cost ${powerup.name}'
+                  '${cost == 1 ? '' : 's'}.',
       );
     }
 

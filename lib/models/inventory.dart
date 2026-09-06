@@ -432,9 +432,12 @@ class LootBoxConfig {
     ),
   ];
 
-  /// Level 1 gives one random orb, Level 2 two distinct orbs, and Level 3 the
-  /// complete four-orb set. Sequential clears therefore build toward a full
-  /// stat spread without front-loading the old raid payout at Level 1.
+  /// Level 1 and 2 each give one random orb, Level 3 two distinct orbs. A
+  /// full event is L1 + L2 + L3 + the delayed L3 echo, so six orbs in total.
+  ///
+  /// This was 1/2/4 (eleven per event) while orbs sold for 5 gold. At 10 gold
+  /// that paid over six times the beacon that summons the raid, so the count
+  /// is halved rather than the orb being made cheap again.
   static List<MapEntry<String, int>> rollRaidPowerupDropsForLevel(
     int level,
     Random rng,
@@ -443,8 +446,8 @@ class LootBoxConfig {
     final shuffled = [...raidPowerupPool]..shuffle(rng);
     final count = switch (safeLevel) {
       1 => 1,
-      2 => 2,
-      _ => raidPowerupPool.length,
+      2 => 1,
+      _ => 2,
     };
     return [
       for (final drop in shuffled.take(count))

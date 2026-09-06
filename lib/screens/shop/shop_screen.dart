@@ -26,7 +26,9 @@ import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
 import 'package:alchemons/utils/specimen_picker_route.dart';
+import 'package:alchemons/models/inventory.dart' show InvKeys;
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
+import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
@@ -1742,37 +1744,70 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: AlchemicalPowerupType.values.map((type) {
-              final offerId = type.shopOfferId;
-              final offer = ShopService.allOffers.firstWhere(
-                (o) => o.id == offerId,
-              );
-              final effectiveCost = shopService.getEffectiveCost(offer);
-              final qty = inventory[type.inventoryKey] ?? 0;
-              final canAfford = effectiveCost.entries.every(
-                (e) => (allCurrencies[e.key] ?? 0) >= e.value,
-              );
-              final canPurchase = shopService.canPurchase(offerId);
-              return _ShopPowerupOrb(
-                type: type,
-                qty: qty,
-                canAfford: canAfford,
-                cost: effectiveCost,
-                theme: theme,
-                phaseDelay: Duration(
-                  milliseconds:
-                      AlchemicalPowerupType.values.indexOf(type) * 320,
-                ),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  if (canPurchase) {
-                    _handlePurchase(context, offer, allCurrencies, canAfford);
-                  } else {
-                    _showDetails(context, offer, allCurrencies, canAfford);
-                  }
+            children: [
+              ...AlchemicalPowerupType.values.map((type) {
+                final offerId = type.shopOfferId;
+                final offer = ShopService.allOffers.firstWhere(
+                  (o) => o.id == offerId,
+                );
+                final effectiveCost = shopService.getEffectiveCost(offer);
+                final qty = inventory[type.inventoryKey] ?? 0;
+                final canAfford = effectiveCost.entries.every(
+                  (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+                );
+                final canPurchase = shopService.canPurchase(offerId);
+                return _ShopPowerupOrb(
+                  type: type,
+                  qty: qty,
+                  canAfford: canAfford,
+                  cost: effectiveCost,
+                  theme: theme,
+                  phaseDelay: Duration(
+                    milliseconds:
+                        AlchemicalPowerupType.values.indexOf(type) * 320,
+                  ),
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    if (canPurchase) {
+                      _handlePurchase(context, offer, allCurrencies, canAfford);
+                    } else {
+                      _showDetails(context, offer, allCurrencies, canAfford);
+                    }
+                  },
+                );
+              }),
+              Builder(
+                builder: (context) {
+                  final offer = ShopService.allOffers.firstWhere(
+                    (o) => o.id == ShopService.potentialSoulOfferId,
+                  );
+                  final effectiveCost = shopService.getEffectiveCost(offer);
+                  final canAfford = effectiveCost.entries.every(
+                    (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+                  );
+                  final canPurchase = shopService.canPurchase(offer.id);
+                  return _ShopSoulOrb(
+                    qty: inventory[InvKeys.potentialSoul] ?? 0,
+                    canAfford: canAfford,
+                    cost: effectiveCost,
+                    theme: theme,
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      if (canPurchase) {
+                        _handlePurchase(
+                          context,
+                          offer,
+                          allCurrencies,
+                          canAfford,
+                        );
+                      } else {
+                        _showDetails(context, offer, allCurrencies, canAfford);
+                      }
+                    },
+                  );
                 },
-              );
-            }).toList(),
+              ),
+            ],
           ),
         );
       },
@@ -2019,6 +2054,110 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
 }
 
 // ── Animated powerup orb for shop ─────────────────────────────────────────────
+
+/// Sits beside the Power Orbs on the shop shelf: same footprint, but the
+/// molecular soul artwork and a Silver-cost caveat, since infusing one costs
+/// again on top of the purchase.
+class _ShopSoulOrb extends StatelessWidget {
+  final int qty;
+  final bool canAfford;
+  final Map<String, int> cost;
+  final FactionTheme theme;
+  final VoidCallback onTap;
+
+  const _ShopSoulOrb({
+    required this.qty,
+    required this.canAfford,
+    required this.cost,
+    required this.theme,
+    required this.onTap,
+  });
+
+  static const Color _soul = Color(0xFFCF9BFF);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    final goldCost = cost['gold'] ?? 0;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Opacity(
+        opacity: canAfford ? 1.0 : 0.55,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const PotentialSoulSphere(size: 62, animate: true),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: qty > 0 ? _soul.withValues(alpha: 0.14) : t.bg3,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(
+                  color: qty > 0 ? _soul.withValues(alpha: 0.45) : t.borderDim,
+                ),
+              ),
+              child: Text(
+                'x$qty',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: qty > 0 ? _soul : t.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(height: 5),
+            const Text(
+              'POTENTIAL SOUL',
+              softWrap: true,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: _soul,
+                fontSize: 7,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'GENETICS',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: t.textMuted,
+                fontSize: 7,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.0,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CoinIcon(kind: CoinKind.gold, size: 12),
+                const SizedBox(width: 3),
+                Text(
+                  '$goldCost',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: canAfford ? const Color(0xFFFFD700) : t.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _ShopPowerupOrb extends StatefulWidget {
   final AlchemicalPowerupType type;

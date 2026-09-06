@@ -11,6 +11,9 @@ import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
+import 'package:alchemons/widgets/creature_selection_sheet.dart'
+    show InstanceDetailMode;
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
@@ -43,8 +46,6 @@ class AlchemicalPowerupFeedingScreen extends StatefulWidget {
 class _AlchemicalPowerupFeedingScreenState
     extends State<AlchemicalPowerupFeedingScreen>
     with TickerProviderStateMixin {
-  static const int _requiredPowerupLevel = 10;
-
   int _enhancementRank(CreatureInstance instance, AlchemicalPowerupType type) =>
       switch (type) {
         AlchemicalPowerupType.speed => instance.statSpeedEnhancement,
@@ -75,17 +76,32 @@ class _AlchemicalPowerupFeedingScreenState
   // at the actual orb and the actual sprite rather than guessed fractions.
   AlchemicalPowerupType? _draggingType;
   _InfusionKind? _draggingKind;
+  bool _overDropTarget = false;
   bool _traySoulMode = false;
+
+  // Souls spend Silver, so the commitment happens before the gesture: pick a
+  // Potential, confirm the price, and only then does the soul become
+  // draggable. Dropping an armed soul applies it with no further prompt.
+  AlchemicalPowerupType? _soulStat;
+  bool _soulArmed = false;
   bool _dragHintChecked = false;
   bool _dragHintVisible = false;
   Offset? _hintFrom;
   Offset? _hintTo;
   final GlobalKey _chamberKey = GlobalKey();
   final GlobalKey _spriteKey = GlobalKey();
-  final GlobalKey _orbRowKey = GlobalKey();
+  final GlobalKey _trayKey = GlobalKey();
 
   late final AnimationController _orbController;
   late final AnimationController _flashController;
+
+  /// Fires when the chosen Potential changes, so the soul visibly recrystallises
+  /// into the new stat instead of snapping colour.
+  late final AnimationController _soulSwapController;
+
+  /// Drives the tray's horizontal slide between the Orb and Soul pages.
+  late final AnimationController _trayPageController;
+  late final Animation<double> _trayPage;
 
   @override
   void initState() {
@@ -97,6 +113,19 @@ class _AlchemicalPowerupFeedingScreenState
     _flashController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
+    );
+    _soulSwapController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 620),
+    );
+    _trayPageController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _trayPage = CurvedAnimation(
+      parent: _trayPageController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeOutCubic,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeShowPowerupTutorial();
@@ -148,14 +177,6 @@ class _AlchemicalPowerupFeedingScreenState
               const SizedBox(height: 12),
               TutorialStep(
                 theme: theme,
-                icon: AppIcons.workspace_premium_rounded,
-                title: 'Step 0 - Reach Level 10',
-                body:
-                    'A specimen must be level 10 before it can use powerup orbs.',
-              ),
-              const SizedBox(height: 6),
-              TutorialStep(
-                theme: theme,
                 icon: AppIcons.diamond_rounded,
                 title: 'Potential Souls',
                 body:
@@ -204,6 +225,8 @@ class _AlchemicalPowerupFeedingScreenState
   void dispose() {
     _orbController.dispose();
     _flashController.dispose();
+    _soulSwapController.dispose();
+    _trayPageController.dispose();
     super.dispose();
   }
 
@@ -309,7 +332,7 @@ class _AlchemicalPowerupFeedingScreenState
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Choose any specimen for Potential infusion. Power Orb Enhancement unlocks at level 10.',
+                        'Choose any specimen to infuse with Power Orbs or Potential Souls.',
                         style: TextStyle(
                           color: t.textSecondary,
                           fontSize: 12,
@@ -328,6 +351,10 @@ class _AlchemicalPowerupFeedingScreenState
           child: AllCreatureInstances(
             theme: theme,
             prefsScopeKey: 'powerup_feed_select',
+            // This screen is about Enhancement, so it is the only picker that
+            // offers that mode — and it opens on it.
+            allowEnhancementMode: true,
+            initialDetailMode: InstanceDetailMode.enhancement,
             selectedInstanceIds: const [],
             onTap: (inst) {
               HapticFeedback.selectionClick();
@@ -518,32 +545,43 @@ class _AlchemicalPowerupFeedingScreenState
               child: Column(
                 children: [
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Flexible(
-                        child: Text(
-                          creature.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: t.textPrimary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.2,
-                          ),
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                creature.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: t.textPrimary,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              creature.rarity.toUpperCase(),
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Text(
-                        creature.rarity.toUpperCase(),
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
+                      const SizedBox(width: 8),
+                      // Every infusion on this screen now spends Silver, so the
+                      // balance belongs next to the specimen rather than a
+                      // screen away.
+                      _SilverBadge(balance: silverBalance, theme: theme),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -556,29 +594,44 @@ class _AlchemicalPowerupFeedingScreenState
                         );
                         return DragTarget<_InfusionPayload>(
                           onWillAcceptWithDetails: (details) =>
-                              switch (details.data.kind) {
-                                _InfusionKind.orb => _canApplyPowerup(
-                                  instance,
-                                  inventory,
-                                  details.data.type,
-                                ),
-                                _InfusionKind.soul => _canApplySoul(
-                                  instance,
-                                  inventory,
-                                  silverBalance,
-                                  details.data.type,
-                                ),
-                              },
+                              _acceptsInfusion(
+                                instance,
+                                inventory,
+                                silverBalance,
+                                details.data,
+                              ),
+                          // Crossing onto the specimen is the moment the drag
+                          // becomes a commitment, so it gets a distinct knock —
+                          // a duller one when the orb cannot land there.
+                          onMove: (details) {
+                            if (_overDropTarget) return;
+                            _overDropTarget = true;
+                            if (_acceptsInfusion(
+                              instance,
+                              inventory,
+                              silverBalance,
+                              details.data,
+                            )) {
+                              HapticFeedback.mediumImpact();
+                            } else {
+                              HapticFeedback.lightImpact();
+                            }
+                          },
+                          onLeave: (_) {
+                            if (!_overDropTarget) return;
+                            _overDropTarget = false;
+                            HapticFeedback.selectionClick();
+                          },
                           onAcceptWithDetails: (details) {
+                            _overDropTarget = false;
                             HapticFeedback.mediumImpact();
                             switch (details.data.kind) {
                               case _InfusionKind.orb:
                                 _applyPowerup(instance, details.data.type);
                               case _InfusionKind.soul:
-                                _confirmSoulInfusion(
+                                _applyPotentialSoul(
                                   instance,
                                   details.data.type,
-                                  theme,
                                 );
                             }
                           },
@@ -828,6 +881,11 @@ class _AlchemicalPowerupFeedingScreenState
                   onChanged: (soul) {
                     if (_busy || soul == _traySoulMode) return;
                     HapticFeedback.selectionClick();
+                    if (soul) {
+                      _trayPageController.forward();
+                    } else {
+                      _trayPageController.reverse();
+                    }
                     setState(() => _traySoulMode = soul);
                   },
                 ),
@@ -835,10 +893,52 @@ class _AlchemicalPowerupFeedingScreenState
             ),
           ),
           Padding(
+            key: _trayKey,
             padding: const EdgeInsets.fromLTRB(8, 12, 8, 14),
-            child: _traySoulMode
-                ? _buildSoulRow(instance, soulQty, silverBalance, theme)
-                : _buildOrbRow(instance, inventory, theme),
+            // Both pages stay laid out in the Stack, so the panel's height is
+            // fixed at the taller of the two and never reflows mid-swipe. The
+            // slide is paint-time translation only.
+            // Clipped on X only: the offscreen page must stay hidden, but the
+            // orbs' glow, float and pulse all paint past the row's height and
+            // a full ClipRect beheads them.
+            child: ClipRect(
+              clipper: const _HorizontalOnlyClipper(),
+              child: AnimatedBuilder(
+                animation: _trayPage,
+                builder: (context, _) {
+                  final t = _trayPage.value;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      FractionalTranslation(
+                        translation: Offset(-t, 0),
+                        child: IgnorePointer(
+                          ignoring: t > 0.5,
+                          child: _buildOrbRow(
+                            instance,
+                            inventory,
+                            silverBalance,
+                            theme,
+                          ),
+                        ),
+                      ),
+                      FractionalTranslation(
+                        translation: Offset(1 - t, 0),
+                        child: IgnorePointer(
+                          ignoring: t <= 0.5,
+                          child: _buildSoulRow(
+                            instance,
+                            soulQty,
+                            silverBalance,
+                            theme,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),
@@ -848,10 +948,10 @@ class _AlchemicalPowerupFeedingScreenState
   Widget _buildOrbRow(
     CreatureInstance instance,
     Map<String, int> inventory,
+    int silverBalance,
     FactionTheme theme,
   ) {
     return Row(
-      key: _orbRowKey,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (var i = 0; i < AlchemicalPowerupType.values.length; i++)
@@ -863,12 +963,26 @@ class _AlchemicalPowerupFeedingScreenState
                 final rank = _enhancementRank(instance, type);
                 final cost = AlchemonStatSystem.orbCostForNextRank(rank);
                 final maxed = rank >= AlchemonStatSystem.maxEnhancementRank;
-                final canUse = _canApplyPowerup(instance, inventory, type);
+                final canUse = _canApplyPowerup(
+                  instance,
+                  inventory,
+                  silverBalance,
+                  type,
+                );
                 return _AnimatedOrbButton(
                   type: type,
                   qty: qty,
                   requiredCost: cost,
                   costToMax: AlchemonStatSystem.orbCostToMaxRank(rank),
+                  silverCost: AlchemonStatSystem.enhancementSilverForNextRank(
+                    rank,
+                  ),
+                  silverAffordable:
+                      silverBalance >=
+                      AlchemonStatSystem.enhancementSilverForNextRank(rank),
+                  silverLabel: _formatSilver(
+                    AlchemonStatSystem.enhancementSilverForNextRank(rank),
+                  ),
                   maxed: maxed,
                   canUse: canUse,
                   isLaunching: _launchingType == type,
@@ -897,73 +1011,400 @@ class _AlchemicalPowerupFeedingScreenState
     );
   }
 
+  static String _shortStat(AlchemicalPowerupType type) => switch (type) {
+    AlchemicalPowerupType.speed => 'SPD',
+    AlchemicalPowerupType.intelligence => 'INT',
+    AlchemicalPowerupType.strength => 'STR',
+    AlchemicalPowerupType.beauty => 'BTY',
+  };
+
+  /// One soul, one selector. The stat is chosen and its price confirmed up
+  /// front; arming turns the sphere live and the drag then just spends it.
   Widget _buildSoulRow(
     CreatureInstance instance,
     int soulQty,
     int silverBalance,
     FactionTheme theme,
   ) {
+    final stat = _soulStat;
+    final hasSouls = soulQty > 0;
+    final cost = stat == null ? 0 : _soulCostFor(instance, stat);
+    final potential = stat == null ? 0 : _potentialFor(instance, stat);
+    final maxed = stat != null && potential >= AlchemonStatSystem.maxPotential;
+    final affordable = stat != null && silverBalance >= cost;
+    final ready = stat != null && hasSouls && !maxed && affordable && !_busy;
+    final tint = stat?.color ?? const Color(0xFFCF9BFF);
+
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        for (var i = 0; i < AlchemicalPowerupType.values.length; i++)
-          Expanded(
-            child: Builder(
-              builder: (context) {
-                final type = AlchemicalPowerupType.values[i];
-                final potential = _potentialFor(instance, type);
-                final cost = _soulCostFor(instance, type);
-                final maxed = potential >= AlchemonStatSystem.maxPotential;
-                final canUse =
-                    soulQty > 0 && !maxed && silverBalance >= cost && !_busy;
-                return _SoulOrbButton(
-                  type: type,
-                  soulQty: soulQty,
-                  potential: potential,
-                  silverCost: cost,
-                  affordable: silverBalance >= cost,
-                  maxed: maxed,
-                  canUse: canUse,
-                  costLabel: _formatSilver(cost),
-                  theme: theme,
-                  phaseDelay: Duration(milliseconds: i * 320),
-                  onDragStarted: () {
-                    HapticFeedback.selectionClick();
-                    _dismissDragHint();
-                    setState(() {
-                      _draggingType = type;
-                      _draggingKind = _InfusionKind.soul;
-                    });
-                  },
-                  onDragFinished: () {
-                    if (!mounted) return;
-                    setState(() {
-                      _draggingType = null;
-                      _draggingKind = null;
-                    });
-                  },
-                );
-              },
-            ),
+        _buildSoulSphere(stat, tint, soulQty, theme),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  for (final type in AlchemicalPowerupType.values)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: _soulStatChip(
+                          instance,
+                          type,
+                          selected: stat == type,
+                          theme: theme,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _soulStatusLine(
+                theme: theme,
+                stat: stat,
+                potential: potential,
+                cost: cost,
+                hasSouls: hasSouls,
+                maxed: maxed,
+                affordable: affordable,
+                ready: ready,
+              ),
+            ],
           ),
+        ),
       ],
     );
   }
 
-  /// Single source of truth for "can this orb go in right now", shared by the
-  /// orb tile (to arm the drag) and the sprite (to accept the drop).
+  Widget _buildSoulSphere(
+    AlchemicalPowerupType? stat,
+    Color tint,
+    int soulQty,
+    FactionTheme theme,
+  ) {
+    final t = ForgeTokens(theme);
+    const orbSize = 72.0;
+
+    // Colour lerps continuously so the shells never restart, while the swap
+    // controller adds a one-shot contraction and shock ring on top.
+    final sphere = TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: tint),
+      duration: const Duration(milliseconds: 480),
+      curve: Curves.easeOutCubic,
+      builder: (context, lerped, _) => AnimatedBuilder(
+        animation: _soulSwapController,
+        builder: (context, child) {
+          final v = _soulSwapController.value;
+          // Pinch in, then overshoot back out — the soul re-forming.
+          final squeeze = 1.0 - 0.16 * math.sin(math.pi * v);
+          return SizedBox.square(
+            dimension: orbSize,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (v > 0 && v < 1)
+                  CustomPaint(
+                    size: const Size.square(orbSize),
+                    painter: _SoulShockRingPainter(
+                      progress: v,
+                      color: lerped ?? tint,
+                    ),
+                  ),
+                Transform.scale(scale: squeeze, child: child),
+              ],
+            ),
+          );
+        },
+        child: PotentialSoulSphere(
+          size: orbSize,
+          tint: lerped ?? tint,
+          animate: _soulArmed,
+        ),
+      ),
+    );
+
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: _soulArmed ? 1.0 : 0.42,
+          child: sphere,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '$soulQty held',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: soulQty > 0 ? t.textSecondary : t.textMuted,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+
+    if (!_soulArmed || stat == null) {
+      return SizedBox(width: orbSize + 8, child: column);
+    }
+
+    return SizedBox(
+      width: orbSize + 8,
+      child: Draggable<_InfusionPayload>(
+        data: _InfusionPayload(_InfusionKind.soul, stat),
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        onDragStarted: () {
+          HapticFeedback.selectionClick();
+          _dismissDragHint();
+          setState(() {
+            _draggingType = stat;
+            _draggingKind = _InfusionKind.soul;
+          });
+        },
+        onDragEnd: (details) {
+          if (!mounted) return;
+          if (!details.wasAccepted) HapticFeedback.lightImpact();
+          setState(() {
+            _draggingType = null;
+            _draggingKind = null;
+          });
+        },
+        feedback: FractionalTranslation(
+          translation: const Offset(-0.5, -0.5),
+          child: PotentialSoulSphere(
+            size: orbSize * 1.18,
+            tint: tint,
+            animate: true,
+          ),
+        ),
+        childWhenDragging: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: orbSize,
+              height: orbSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: tint.withValues(alpha: 0.06),
+                border: Border.all(
+                  color: tint.withValues(alpha: 0.45),
+                  width: 1.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'DRAGGING',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: tint,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        child: column,
+      ),
+    );
+  }
+
+  Widget _soulStatChip(
+    CreatureInstance instance,
+    AlchemicalPowerupType type, {
+    required bool selected,
+    required FactionTheme theme,
+  }) {
+    final t = ForgeTokens(theme);
+    final potential = _potentialFor(instance, type);
+    final maxed = potential >= AlchemonStatSystem.maxPotential;
+    return GestureDetector(
+      onTap: _busy
+          ? null
+          : () {
+              HapticFeedback.selectionClick();
+              if (_soulStat != type) _soulSwapController.forward(from: 0);
+              setState(() {
+                // Re-tapping the armed stat disarms rather than doing nothing,
+                // so there is always a way back out of a committed soul.
+                if (_soulStat == type && _soulArmed) {
+                  _soulArmed = false;
+                } else {
+                  _soulStat = type;
+                  _soulArmed = false;
+                }
+              });
+            },
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? type.color.withValues(alpha: 0.18) : t.bg1,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: selected ? type.color.withValues(alpha: 0.75) : t.borderDim,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                _shortStat(type),
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: selected ? type.color : t.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            const SizedBox(height: 1),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                maxed ? 'MAX' : 'P$potential',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: maxed ? t.amberBright : t.textMuted,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _soulStatusLine({
+    required FactionTheme theme,
+    required AlchemicalPowerupType? stat,
+    required int potential,
+    required int cost,
+    required bool hasSouls,
+    required bool maxed,
+    required bool affordable,
+    required bool ready,
+  }) {
+    final t = ForgeTokens(theme);
+    final accent = stat?.color ?? t.amberBright;
+
+    String message;
+    Color color = t.textSecondary;
+    if (!hasSouls) {
+      message = 'No Potential Souls held.';
+      color = t.textMuted;
+    } else if (stat == null) {
+      message = 'Choose a Potential to infuse.';
+    } else if (maxed) {
+      message = '${_shortStat(stat)} Potential is already at 100.';
+      color = t.textMuted;
+    } else if (!affordable) {
+      message = 'Need ${_formatSilver(cost)} Silver.';
+      color = t.danger;
+    } else if (_soulArmed) {
+      message = 'Armed — drag the soul onto your Alchemon.';
+      color = accent;
+    } else {
+      message = 'P$potential → higher for ${_formatSilver(cost)} Silver.';
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            message,
+            maxLines: 2,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              height: 1.25,
+            ),
+          ),
+        ),
+        if (ready) ...[
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () {
+              if (_soulArmed) {
+                HapticFeedback.selectionClick();
+              } else {
+                HapticFeedback.mediumImpact();
+              }
+              setState(() => _soulArmed = !_soulArmed);
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: _soulArmed ? t.bg1 : accent.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(
+                  color: _soulArmed
+                      ? t.borderDim
+                      : accent.withValues(alpha: 0.7),
+                ),
+              ),
+              child: Text(
+                _soulArmed ? 'CANCEL' : 'CONFIRM',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: _soulArmed ? t.textSecondary : accent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   bool _canApplyPowerup(
     CreatureInstance instance,
     Map<String, int> inventory,
+    int silverBalance,
     AlchemicalPowerupType type,
   ) {
     final qty = inventory[type.inventoryKey] ?? 0;
     final rank = _enhancementRank(instance, type);
-    return instance.level >= _requiredPowerupLevel &&
-        rank < AlchemonStatSystem.maxEnhancementRank &&
+    return rank < AlchemonStatSystem.maxEnhancementRank &&
         qty >= AlchemonStatSystem.orbCostForNextRank(rank) &&
+        silverBalance >=
+            AlchemonStatSystem.enhancementSilverForNextRank(rank) &&
         !_busy;
   }
+
+  bool _acceptsInfusion(
+    CreatureInstance instance,
+    Map<String, int> inventory,
+    int silverBalance,
+    _InfusionPayload payload,
+  ) => switch (payload.kind) {
+    _InfusionKind.orb => _canApplyPowerup(
+      instance,
+      inventory,
+      silverBalance,
+      payload.type,
+    ),
+    _InfusionKind.soul => _canApplySoul(
+      instance,
+      inventory,
+      silverBalance,
+      payload.type,
+    ),
+  };
 
   int _soulCostFor(CreatureInstance instance, AlchemicalPowerupType type) =>
       AlchemonStatSystem.potentialSoulSilverCost(_potentialFor(instance, type));
@@ -975,7 +1416,9 @@ class _AlchemicalPowerupFeedingScreenState
     AlchemicalPowerupType type,
   ) {
     final souls = inventory[InvKeys.potentialSoul] ?? 0;
-    return souls > 0 &&
+    return _soulArmed &&
+        _soulStat == type &&
+        souls > 0 &&
         _potentialFor(instance, type) < AlchemonStatSystem.maxPotential &&
         silverBalance >= _soulCostFor(instance, type) &&
         !_busy;
@@ -984,71 +1427,6 @@ class _AlchemicalPowerupFeedingScreenState
   /// Souls burn 10k–50k Silver per use, so the drop confirms before spending.
   /// Orbs skip this: their cost is orbs you already earned, and it is printed
   /// on the tile you just dragged.
-  Future<void> _confirmSoulInfusion(
-    CreatureInstance instance,
-    AlchemicalPowerupType type,
-    FactionTheme theme,
-  ) async {
-    final t = ForgeTokens(theme);
-    final cost = _soulCostFor(instance, type);
-    final potential = _potentialFor(instance, type);
-    final stat = type.statKey[0].toUpperCase() + type.statKey.substring(1);
-
-    final go = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: t.bg2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(6),
-          side: BorderSide(color: t.borderAccent),
-        ),
-        title: Row(
-          children: [
-            PotentialSoulSphere(size: 30, tint: type.color),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'INFUSE $stat'.toUpperCase(),
-                style: TextStyle(
-                  color: t.amberBright,
-                  fontFamily: 'monospace',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.1,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Raise $stat Potential from $potential/100 using one Potential Soul '
-          'for ${_formatSilver(cost)} Silver. Potential cannot exceed 100.',
-          style: TextStyle(color: t.textSecondary, fontSize: 12, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text('Cancel', style: TextStyle(color: t.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              'Infuse',
-              style: TextStyle(
-                color: t.amberBright,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (go == true && mounted) {
-      await _applyPotentialSoul(instance, type);
-    }
-  }
-
   Future<void> _maybeShowDragHint() async {
     if (_dragHintChecked || !mounted) return;
     _dragHintChecked = true;
@@ -1070,20 +1448,20 @@ class _AlchemicalPowerupFeedingScreenState
     final chamber =
         _chamberKey.currentContext?.findRenderObject() as RenderBox?;
     final sprite = _spriteKey.currentContext?.findRenderObject() as RenderBox?;
-    final orbRow = _orbRowKey.currentContext?.findRenderObject() as RenderBox?;
-    if (chamber == null || sprite == null || orbRow == null) return;
-    if (!chamber.hasSize || !sprite.hasSize || !orbRow.hasSize) return;
+    final tray = _trayKey.currentContext?.findRenderObject() as RenderBox?;
+    if (chamber == null || sprite == null || tray == null) return;
+    if (!chamber.hasSize || !sprite.hasSize || !tray.hasSize) return;
 
     Offset toChamber(RenderBox box, Offset local) =>
         chamber.globalToLocal(box.localToGlobal(local));
 
-    // The orbs share the row evenly, so the first one's centre is an eighth
-    // of the way across; 34 is the middle of the 68px glow at the tile top.
-    final rowOrigin = toChamber(orbRow, Offset.zero);
-    _hintFrom = Offset(
-      rowOrigin.dx + orbRow.size.width * 0.125,
-      rowOrigin.dy + 34,
-    );
+    // Measured off the tray's padding box: the orbs share the row evenly, so
+    // the first one's centre is an eighth across the content width, and 34 is
+    // the middle of the 68px glow sitting at the tile top.
+    const inset = EdgeInsets.fromLTRB(8, 12, 8, 14);
+    final content = toChamber(tray, Offset(inset.left, inset.top));
+    final contentWidth = tray.size.width - inset.horizontal;
+    _hintFrom = Offset(content.dx + contentWidth * 0.125, content.dy + 34);
     _hintTo = toChamber(sprite, sprite.size.center(Offset.zero));
   }
 
@@ -1248,6 +1626,7 @@ class _AlchemicalPowerupFeedingScreenState
         _frozenPotentialValues = null;
         _lastRollLabel = null;
         _potentialSoulRoll = null;
+        _soulArmed = false;
         _message = result.error ?? 'Potential infusion failed.';
       });
       HapticFeedback.vibrate();
@@ -1294,6 +1673,7 @@ class _AlchemicalPowerupFeedingScreenState
       _orbitTurns = 2.2;
       _orbitEndProgress = 0.72;
       _potentialSoulRoll = null;
+      _soulArmed = false;
       _message =
           'SOUL AWAKENED: +${result.appliedGain} ${type.statKey} Potential$cappedNote • ${result.newPotential}/100 • -${_formatSilver(result.silverCost)} Silver';
     });
@@ -1623,236 +2003,14 @@ class _TraySwitch extends StatelessWidget {
 
 /// One draggable Potential Soul, bound to a specific stat. The stat is chosen
 /// by which sphere you drag rather than by a dialog after the fact.
-class _SoulOrbButton extends StatefulWidget {
-  const _SoulOrbButton({
-    required this.type,
-    required this.soulQty,
-    required this.potential,
-    required this.silverCost,
-    required this.affordable,
-    required this.maxed,
-    required this.canUse,
-    required this.costLabel,
-    required this.theme,
-    required this.phaseDelay,
-    required this.onDragStarted,
-    required this.onDragFinished,
-  });
-
-  final AlchemicalPowerupType type;
-  final int soulQty;
-  final int potential;
-  final int silverCost;
-  final bool affordable;
-  final bool maxed;
-  final bool canUse;
-  final String costLabel;
-  final FactionTheme theme;
-  final Duration phaseDelay;
-  final VoidCallback onDragStarted;
-  final VoidCallback onDragFinished;
-
-  @override
-  State<_SoulOrbButton> createState() => _SoulOrbButtonState();
-}
-
-class _SoulOrbButtonState extends State<_SoulOrbButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _float;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    );
-    _float = Tween<double>(
-      begin: -1.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-    Future<void>.delayed(widget.phaseDelay, () {
-      if (mounted) _ctrl.repeat(reverse: true);
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Widget _caption(ForgeTokens t, {required bool ghost}) {
-    final type = widget.type;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: widget.maxed
-                ? t.bg3
-                : widget.affordable
-                ? type.color.withValues(alpha: 0.16)
-                : t.bg3,
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(
-              color: !widget.maxed && widget.affordable
-                  ? type.color.withValues(alpha: 0.55)
-                  : t.borderDim,
-            ),
-          ),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              widget.maxed ? 'MAX' : widget.costLabel,
-              maxLines: 1,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: !widget.maxed && widget.affordable
-                    ? type.color
-                    : t.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 5),
-        SizedBox(
-          width: double.infinity,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              type.statKey.toUpperCase(),
-              maxLines: 1,
-              softWrap: false,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          ghost ? 'DRAGGING' : 'P${widget.potential}/100',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: ghost
-                ? type.color
-                : widget.maxed
-                ? t.amberBright
-                : t.textMuted,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        if (!ghost)
-          Text(
-            'SILVER',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: t.textMuted,
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.6,
-            ),
-            textAlign: TextAlign.center,
-          ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(widget.theme);
-    final canUse = widget.canUse;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final orbSize = constraints.maxWidth.isFinite
-            ? constraints.maxWidth.clamp(34.0, 64.0)
-            : 64.0;
-
-        final tile = AnimatedOpacity(
-          duration: const Duration(milliseconds: 200),
-          opacity: canUse ? 1.0 : 0.32,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedBuilder(
-                  animation: _ctrl,
-                  builder: (context, _) => Transform.translate(
-                    offset: Offset(0, _float.value * 4.5),
-                    child: PotentialSoulSphere(
-                      size: orbSize,
-                      tint: widget.type.color,
-                    ),
-                  ),
-                ),
-                _caption(t, ghost: false),
-              ],
-            ),
-          ),
-        );
-
-        if (!canUse) return tile;
-
-        return Draggable<_InfusionPayload>(
-          data: _InfusionPayload(_InfusionKind.soul, widget.type),
-          dragAnchorStrategy: pointerDragAnchorStrategy,
-          onDragStarted: widget.onDragStarted,
-          onDragEnd: (_) => widget.onDragFinished(),
-          feedback: FractionalTranslation(
-            translation: const Offset(-0.5, -0.5),
-            child: PotentialSoulSphere(
-              size: orbSize * 1.18,
-              tint: widget.type.color,
-            ),
-          ),
-          childWhenDragging: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: orbSize,
-                  height: orbSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: widget.type.color.withValues(alpha: 0.06),
-                    border: Border.all(
-                      color: widget.type.color.withValues(alpha: 0.45),
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-                _caption(t, ghost: true),
-              ],
-            ),
-          ),
-          child: tile,
-        );
-      },
-    );
-  }
-}
-
 class _AnimatedOrbButton extends StatefulWidget {
   final AlchemicalPowerupType type;
   final int qty;
   final int requiredCost;
   final int costToMax;
+  final int silverCost;
+  final bool silverAffordable;
+  final String silverLabel;
   final bool maxed;
   final bool canUse;
   final bool isLaunching;
@@ -1866,6 +2024,9 @@ class _AnimatedOrbButton extends StatefulWidget {
     required this.qty,
     required this.requiredCost,
     required this.costToMax,
+    required this.silverCost,
+    required this.silverAffordable,
+    required this.silverLabel,
     required this.maxed,
     required this.canUse,
     required this.isLaunching,
@@ -2013,6 +2174,31 @@ class _AnimatedOrbButtonState extends State<_AnimatedOrbButton>
           ),
         ),
         const SizedBox(height: 3),
+        if (!widget.maxed && !ghost)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CoinIcon(kind: CoinKind.silver, size: 10),
+              const SizedBox(width: 3),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.silverLabel,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: widget.silverAffordable
+                          ? t.textSecondary
+                          : t.danger,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         Text(
           ghost ? 'DRAGGING' : '${widget.qty} owned',
           style: TextStyle(
@@ -2099,7 +2285,10 @@ class _AnimatedOrbButtonState extends State<_AnimatedOrbButton>
           data: _InfusionPayload(_InfusionKind.orb, widget.type),
           dragAnchorStrategy: pointerDragAnchorStrategy,
           onDragStarted: widget.onDragStarted,
-          onDragEnd: (_) => widget.onDragFinished(),
+          onDragEnd: (details) {
+            if (!details.wasAccepted) HapticFeedback.lightImpact();
+            widget.onDragFinished();
+          },
           feedback: FractionalTranslation(
             translation: const Offset(-0.5, -0.5),
             child: AnimatedBuilder(
@@ -2157,12 +2346,11 @@ class _StatPlate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
-    final progress = enhancementRank / AlchemonStatSystem.maxEnhancementRank;
+    const maxRank = AlchemonStatSystem.maxEnhancementRank;
     final rating = AlchemonStatSystem.displayRating(value);
     final potentialRating = AlchemonStatSystem.normalizePotential(potential);
     final potentialMaxed = potentialRating >= AlchemonStatSystem.maxPotential;
-    final enhanceMaxed =
-        enhancementRank >= AlchemonStatSystem.maxEnhancementRank;
+    final enhanceMaxed = enhancementRank >= maxRank;
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 7),
       decoration: BoxDecoration(
@@ -2200,45 +2388,82 @@ class _StatPlate extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 1),
-          Text(
-            '$rating',
-            style: TextStyle(
-              color: t.textPrimary,
-              fontSize: 19,
-              fontWeight: FontWeight.w900,
-              height: 1.15,
-            ),
-          ),
-          const SizedBox(height: 4),
-          // The bar tracks Enhancement, so it sits beside the Enhancement
-          // label rather than under the stat value, where it used to read as
-          // progress toward some unnamed stat ceiling.
+          // Enhancement is what this screen changes, so it takes the headline
+          // and the stat value it drives rides along as context.
           Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                enhanceMaxed
-                    ? 'ENH MAX'
-                    : 'ENH $enhancementRank/${AlchemonStatSystem.maxEnhancementRank}',
+                'ENH',
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: enhancementRank > 0 ? color : t.textMuted,
-                  fontSize: 10,
+                  color: t.textMuted,
+                  fontSize: 9,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 0.4,
+                  letterSpacing: 0.6,
                 ),
               ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    minHeight: 4,
-                    value: progress,
-                    backgroundColor: t.bg3,
-                    valueColor: AlwaysStoppedAnimation<Color>(color),
+              const SizedBox(width: 4),
+              Text(
+                '$enhancementRank',
+                style: TextStyle(
+                  color: enhanceMaxed
+                      ? t.amberBright
+                      : enhancementRank > 0
+                      ? color
+                      : t.textSecondary,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                  height: 1.15,
+                ),
+              ),
+              Text(
+                '/$maxRank',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: t.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$rating',
+                style: TextStyle(
+                  color: t.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          // One pip per rank: ranks are bought one at a time, so a segmented
+          // track shows how many are left to buy in a way a continuous bar
+          // never did.
+          Row(
+            children: [
+              for (var i = 0; i < maxRank; i++) ...[
+                if (i > 0) const SizedBox(width: 2),
+                Expanded(
+                  child: Container(
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: i < enhancementRank
+                          ? (enhanceMaxed ? t.amberBright : color)
+                          : t.bg3,
+                      borderRadius: BorderRadius.circular(1.5),
+                      border: Border.all(
+                        color: i < enhancementRank
+                            ? Colors.transparent
+                            : t.borderDim,
+                        width: 0.5,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ],
@@ -2247,9 +2472,46 @@ class _StatPlate extends StatelessWidget {
   }
 }
 
-/// One-time coach mark: a hand tracing the drag from the first orb up onto
-/// the specimen. Anchored to measured geometry, so it points at the real
-/// widgets rather than at guessed screen fractions.
+class _HorizontalOnlyClipper extends CustomClipper<Rect> {
+  const _HorizontalOnlyClipper();
+
+  static const double _bleed = 400;
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, -_bleed, size.width, size.height + _bleed);
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Rect> oldClipper) => false;
+}
+
+class _SoulShockRingPainter extends CustomPainter {
+  const _SoulShockRingPainter({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.shortestSide;
+    final c = Offset(size.width / 2, size.height / 2);
+    final eased = Curves.easeOutCubic.transform(progress);
+    final fade = (1.0 - progress).clamp(0.0, 1.0);
+    canvas.drawCircle(
+      c,
+      s * (0.24 + 0.30 * eased),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.03 * fade
+        ..color = color.withValues(alpha: 0.75 * fade),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SoulShockRingPainter old) =>
+      old.progress != progress || old.color != color;
+}
+
 class _DragHintOverlay extends StatefulWidget {
   const _DragHintOverlay({
     required this.from,
@@ -2412,6 +2674,58 @@ class _DragHintPathPainter extends CustomPainter {
       old.progress != progress ||
       old.color != color ||
       old.points.length != points.length;
+}
+
+class _SilverBadge extends StatelessWidget {
+  const _SilverBadge({required this.balance, required this.theme});
+
+  final int balance;
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    // Cheapest thing this screen can charge. Below it, nothing here is
+    // affordable, which is worth flagging before a drag is refused.
+    final broke = balance < AlchemonStatSystem.enhancementSilverForNextRank(0);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: t.bg1,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(
+          color: broke ? t.danger.withValues(alpha: 0.7) : t.borderDim,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CoinIcon(kind: CoinKind.silver, size: 13),
+          const SizedBox(width: 5),
+          Text(
+            _formatSilverCompact(balance),
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: broke ? t.danger : t.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Thousands separators, so a six-figure balance stays readable in a badge.
+String _formatSilverCompact(int value) {
+  final digits = value.abs().toString();
+  final buffer = StringBuffer(value < 0 ? '-' : '');
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
 }
 
 class _PotentialPill extends StatelessWidget {

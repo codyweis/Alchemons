@@ -52,6 +52,14 @@ class AllCreatureInstances extends StatefulWidget {
   final ValueChanged<List<CreatureInstance>>? onSelectionChanged;
   final String? prefsScopeKey;
 
+  /// Mode shown the first time this scope is opened. Once the player
+  /// changes it, their saved choice wins.
+  final InstanceDetailMode initialDetailMode;
+
+  /// Whether the detail chip offers Enhancement at all. Only the Stat
+  /// Infusion picker turns this on — everywhere else the ranks are noise.
+  final bool allowEnhancementMode;
+
   const AllCreatureInstances({
     super.key,
     required this.theme,
@@ -69,6 +77,8 @@ class AllCreatureInstances extends StatefulWidget {
     this.allowedPrimaryTypes = const [],
     this.onSelectionChanged,
     this.prefsScopeKey,
+    this.initialDetailMode = InstanceDetailMode.genetics,
+    this.allowEnhancementMode = false,
   });
 
   @override
@@ -180,10 +190,12 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     );
     _detailMode = InstanceDetailMode.values.firstWhere(
       (e) => e.name == (p['detailMode'] ?? _detailMode.name),
-      orElse: () => InstanceDetailMode.genetics,
+      orElse: () => widget.initialDetailMode,
     );
-    if (_detailMode == InstanceDetailMode.info) {
-      _detailMode = InstanceDetailMode.genetics;
+    if (_detailMode == InstanceDetailMode.info ||
+        (_detailMode == InstanceDetailMode.enhancement &&
+            !widget.allowEnhancementMode)) {
+      _detailMode = widget.initialDetailMode;
     }
   }
 
@@ -204,7 +216,11 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   @override
   void initState() {
     super.initState();
-    _detailMode = InstanceDetailMode.genetics;
+    _detailMode =
+        widget.initialDetailMode == InstanceDetailMode.enhancement &&
+            !widget.allowEnhancementMode
+        ? InstanceDetailMode.genetics
+        : widget.initialDetailMode;
     _searchController = TextEditingController();
     if (widget.searchTextOverride != null) {
       _searchController.text = widget.searchTextOverride!;
@@ -706,18 +722,29 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       theme: widget.theme,
                     ),
                     _TopControlChip(
-                      label: _detailMode == InstanceDetailMode.genetics
-                          ? 'GENETICS'
-                          : 'STATS',
-                      accentColor: _detailMode == InstanceDetailMode.genetics
-                          ? const Color(0xFFC084FC)
-                          : const Color(0xFFFDE047),
+                      label: switch (_detailMode) {
+                        InstanceDetailMode.genetics => 'GENETICS',
+                        InstanceDetailMode.enhancement => 'ENHANCE',
+                        _ => 'STATS',
+                      },
+                      accentColor: switch (_detailMode) {
+                        InstanceDetailMode.genetics => const Color(0xFFC084FC),
+                        InstanceDetailMode.enhancement => const Color(
+                          0xFF38BDF8,
+                        ),
+                        _ => const Color(0xFFFDE047),
+                      },
                       labelFontSize: 10.5,
                       selected: true,
                       onTap: () => _mutate(() {
-                        _detailMode = _detailMode == InstanceDetailMode.genetics
-                            ? InstanceDetailMode.stats
-                            : InstanceDetailMode.genetics;
+                        _detailMode = switch (_detailMode) {
+                          InstanceDetailMode.genetics =>
+                            InstanceDetailMode.stats,
+                          InstanceDetailMode.stats
+                              when widget.allowEnhancementMode =>
+                            InstanceDetailMode.enhancement,
+                          _ => InstanceDetailMode.genetics,
+                        };
                       }),
                       theme: widget.theme,
                     ),

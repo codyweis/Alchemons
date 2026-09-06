@@ -57,16 +57,18 @@ void main() {
       );
     });
 
-    test('levels grant one, two distinct, then all four orbs', () {
+    test('levels grant one, one, then two distinct orbs', () {
       for (var seed = 0; seed < 500; seed++) {
         final l1 = LootBoxConfig.rollRaidPowerupDropsForLevel(1, Random(seed));
         final l2 = LootBoxConfig.rollRaidPowerupDropsForLevel(2, Random(seed));
         final l3 = LootBoxConfig.rollRaidPowerupDropsForLevel(3, Random(seed));
         expect(l1, hasLength(1));
-        expect(l2, hasLength(2));
-        expect(l2.map((e) => e.key).toSet(), hasLength(2));
-        expect(l3.map((e) => e.key).toSet(), orbKeys);
-        expect(l3.fold<int>(0, (a, e) => a + e.value), 4);
+        expect(l2, hasLength(1));
+        expect(l3, hasLength(2));
+        // Level 3 must not hand out the same orb twice to fill its quota.
+        expect(l3.map((e) => e.key).toSet(), hasLength(2));
+        expect(l3.every((e) => orbKeys.contains(e.key)), isTrue);
+        expect(l3.fold<int>(0, (a, e) => a + e.value), 2);
       }
     });
 
@@ -104,7 +106,7 @@ void main() {
     // Prices are resolved from the live offer list rather than transcribed.
     // A hardcoded table is what got this wrong the first time: the stat orbs
     // were assumed to be 40 gold (the price of the unrelated stat AURAS) when
-    // they are 5, which overstated a raid by more than 10,000 silver.
+    // they are 10, which overstated a raid by more than 10,000 silver.
     int unit(String key) {
       for (final o in ShopService.allOffers) {
         if (o.inventoryKey != key) continue;
@@ -153,7 +155,7 @@ void main() {
           'vs a ${beacon}g beacon — summoning must be worth it',
     );
     // The full event is endgame content and includes nine cache openings plus
-    // eleven orbs. Most of that value is account-bound loot rather than Gold,
+    // six orbs. Most of that value is account-bound loot rather than Gold,
     // and the echo enforces a twelve-hour time gate, but the bundle still must
     // not wildly exceed the premium summon price.
     expect(

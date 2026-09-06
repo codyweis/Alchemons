@@ -136,6 +136,12 @@ class InstanceCard extends StatelessWidget {
               selectionNumber: selectionNumber,
               creatureName: species.name,
             ),
+            InstanceDetailMode.enhancement => _EnhancementBlock(
+              instance: instance,
+              isSelected: isSelected,
+              selectionNumber: selectionNumber,
+              creatureName: species.name,
+            ),
           };
 
     final palette = BracketPalette.fromTheme(theme);
@@ -484,6 +490,202 @@ class _StatTile extends StatelessWidget {
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ENHANCEMENT BLOCK
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _EnhancementBlock extends StatelessWidget {
+  final CreatureInstance instance;
+  final bool isSelected;
+  final int? selectionNumber;
+  final String creatureName;
+
+  const _EnhancementBlock({
+    required this.instance,
+    required this.isSelected,
+    required this.selectionNumber,
+    required this.creatureName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isSelected && selectionNumber != null) ...[
+          _ParentChip(selectionNumber: selectionNumber!),
+          const SizedBox(height: 4),
+        ],
+        _CardNameLine(
+          instance: instance,
+          creatureName: creatureName,
+          trailing: _TotalEnhancementSummary(instance: instance),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: _EnhancementTile(
+                color: const Color(0xFFFDE047),
+                label: 'SPD',
+                rank: instance.statSpeedEnhancement,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: _EnhancementTile(
+                color: const Color(0xFFC084FC),
+                label: 'INT',
+                rank: instance.statIntelligenceEnhancement,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: _EnhancementTile(
+                color: const Color(0xFFF87171),
+                label: 'STR',
+                rank: instance.statStrengthEnhancement,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: _EnhancementTile(
+                color: const Color(0xFFF9A8D4),
+                label: 'BEA',
+                rank: instance.statBeautyEnhancement,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Ranks bought out of the 40 available, so a card can be read at a glance
+/// without adding up four tiles.
+class _TotalEnhancementSummary extends StatelessWidget {
+  final CreatureInstance instance;
+
+  const _TotalEnhancementSummary({required this.instance});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
+    const perStatMax = AlchemonStatSystem.maxEnhancementRank;
+    final total =
+        instance.statSpeedEnhancement +
+        instance.statIntelligenceEnhancement +
+        instance.statStrengthEnhancement +
+        instance.statBeautyEnhancement;
+    final full = total >= perStatMax * 4;
+    return Text(
+      'ENH $total/${perStatMax * 4}',
+      style: bracketText(
+        context,
+        10,
+        full ? t.amberBright : palette.muted,
+        weight: FontWeight.w800,
+        letterSpacing: 0.4,
+      ),
+    );
+  }
+}
+
+class _EnhancementTile extends StatelessWidget {
+  final Color color;
+  final String label;
+  final int rank;
+
+  const _EnhancementTile({
+    required this.color,
+    required this.label,
+    required this.rank,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
+    final displayColor = t.readableAccent(color);
+    const maxRank = AlchemonStatSystem.maxEnhancementRank;
+    final maxed = rank >= maxRank;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(width: 2, height: 18, color: displayColor),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: bracketText(
+                          context,
+                          10,
+                          palette.muted,
+                          weight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '$rank/$maxRank',
+                      style: bracketText(
+                        context,
+                        10,
+                        maxed ? t.amberBright : displayColor,
+                        weight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                // One pip per rank, matching the Stat Infusion plate so the
+                // two screens read the same way.
+                Row(
+                  children: [
+                    for (var i = 0; i < maxRank; i++) ...[
+                      if (i > 0) const SizedBox(width: 1),
+                      Expanded(
+                        child: Container(
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: i < rank
+                                ? (maxed ? t.amberBright : displayColor)
+                                : palette.line.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

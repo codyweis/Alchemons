@@ -69,6 +69,7 @@ class ShopService extends ChangeNotifier {
   // Keep false in normal gameplay; set true only for temporary local debug.
   static const bool _debugUnlockContestEffectsInShop = false;
 
+  static const potentialSoulOfferId = 'boost.potential_soul';
   static const beautyContestEffectOfferId = 'effects.beauty_radiance';
   static const speedContestEffectOfferId = 'effects.speed_flux';
   static const strengthContestEffectOfferId = 'effects.strength_forge';
@@ -454,13 +455,28 @@ class ShopService extends ChangeNotifier {
         name: powerup.name,
         description: powerup.description,
         icon: powerup.icon,
-        cost: const {'gold': 5},
+        cost: const {'gold': 10},
         reward: const {},
         rewardType: 'boost',
         limit: PurchaseLimit.unlimited,
         inventoryKey: powerup.inventoryKey,
         iconColor: powerup.color,
       ),
+    ShopOffer(
+      id: potentialSoulOfferId,
+      name: 'Potential Soul',
+      description:
+          'Permanently raises one selected Potential in Stat Infusion, and '
+          'the improved genetics pass through breeding. Costs Silver to '
+          'infuse on top of this purchase.',
+      icon: AppIcons.diamond_rounded,
+      cost: const {'gold': 150},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.potentialSoul,
+      iconColor: const Color(0xFFCF9BFF),
+    ),
     // Elemental Essence Creator is no longer sold — it now auto-unlocks
     // after the player breeds [kAutoUnlockBredThreshold] Alchemons.
 

@@ -16,7 +16,7 @@ import 'package:alchemons/widgets/app_icons.dart';
 // ------------------------------------
 // VIEW MODES
 // ------------------------------------
-enum InstanceDetailMode { info, stats, genetics }
+enum InstanceDetailMode { info, stats, genetics, enhancement }
 
 enum SelectionSheetView { species, allInstances }
 
