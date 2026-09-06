@@ -67,19 +67,47 @@ class _PotentialSoulSphereState extends State<PotentialSoulSphere>
     final tint = widget.tint ?? const Color(0xFFB66CFF);
     final ctrl = _ctrl;
     if (ctrl == null) {
-      return SizedBox.square(
-        dimension: widget.size,
-        child: CustomPaint(
-          painter: _SoulMoleculePainter(progress: 0, tint: tint),
-        ),
-      );
+      return _buildSphere(tint, 0);
     }
+    return AnimatedBuilder(
+      animation: ctrl,
+      builder: (context, _) => _buildSphere(tint, ctrl.value),
+    );
+  }
+
+  Widget _buildSphere(Color tint, double progress) {
+    final pulse = 0.5 + 0.5 * math.sin(progress * math.pi * 2);
     return SizedBox.square(
       dimension: widget.size,
-      child: AnimatedBuilder(
-        animation: ctrl,
-        builder: (context, _) => CustomPaint(
-          painter: _SoulMoleculePainter(progress: ctrl.value, tint: tint),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.22 + pulse * 0.08),
+              tint.withValues(alpha: 0.20 + pulse * 0.08),
+              tint.withValues(alpha: 0.04),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.38, 0.72, 1.0],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: tint.withValues(alpha: 0.46 + pulse * 0.18),
+              blurRadius: widget.size * (0.30 + pulse * 0.10),
+              spreadRadius: widget.size * (0.045 + pulse * 0.035),
+            ),
+            BoxShadow(
+              color: const Color(
+                0xFFFFE9A8,
+              ).withValues(alpha: 0.16 + pulse * 0.10),
+              blurRadius: widget.size * 0.16,
+              spreadRadius: widget.size * 0.015,
+            ),
+          ],
+        ),
+        child: CustomPaint(
+          painter: _SoulMoleculePainter(progress: progress, tint: tint),
         ),
       ),
     );

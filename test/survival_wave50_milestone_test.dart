@@ -55,4 +55,19 @@ void main() {
       );
     },
   );
+
+  test('shop purchase grants Potential Souls and charges Gold', () async {
+    final startingGold = await db.currencyDao.getGoldBalance();
+    await db.currencyDao.addGold(300);
+
+    final purchased = await shop.purchase(
+      ShopService.potentialSoulOfferId,
+      qty: 2,
+    );
+
+    expect(purchased, isTrue);
+    expect(await db.currencyDao.getGoldBalance(), startingGold);
+    expect(await db.inventoryDao.getItemQty(InvKeys.potentialSoul), 2);
+    expect(shop.inventoryCountForOffer(ShopService.potentialSoulOfferId), 2);
+  });
 }

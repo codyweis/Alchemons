@@ -1261,13 +1261,13 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
       case SortBy.statBeauty:
         return 'BEA ${AlchemonStatSystem.displayRating(ci.statBeauty)}';
       case SortBy.potentialSpeed:
-        return 'PSPD ${ci.statSpeedPotential.round()}';
+        return 'pSPD ${ci.statSpeedPotential.round()}';
       case SortBy.potentialStrength:
-        return 'PSTR ${ci.statStrengthPotential.round()}';
+        return 'pSTR ${ci.statStrengthPotential.round()}';
       case SortBy.potentialIntelligence:
-        return 'PINT ${ci.statIntelligencePotential.round()}';
+        return 'pINT ${ci.statIntelligencePotential.round()}';
       case SortBy.potentialBeauty:
-        return 'PBEA ${ci.statBeautyPotential.round()}';
+        return 'pBEA ${ci.statBeautyPotential.round()}';
       default:
         return '';
     }

@@ -374,7 +374,6 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(3),
                   ),
-                  border: Border(bottom: BorderSide(color: t.borderDim)),
                 ),
                 child: Text(
                   'DELETE TEAM',
@@ -387,6 +386,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                   ),
                 ),
               ),
+              Container(height: 1, color: t.borderDim),
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                 child: Column(
@@ -483,7 +483,6 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(3),
                 ),
-                border: Border(bottom: BorderSide(color: t.borderDim)),
               ),
               child: Row(
                 children: [
@@ -502,6 +501,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                 ],
               ),
             ),
+            Container(height: 1, color: t.borderDim),
             ConstrainedBox(
               constraints: BoxConstraints(
                 maxHeight: MediaQuery.of(context).size.height * 0.7,

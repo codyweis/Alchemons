@@ -478,39 +478,38 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
         return Container(
           decoration: BoxDecoration(
             color: t.bg1,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border.all(color: _accent.withValues(alpha: 0.3)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+            border: Border.all(color: t.borderDim),
           ),
-          child: Column(
-            children: [
-              // Drag handle
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: t.borderDim,
-                  borderRadius: BorderRadius.circular(2),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+            child: Column(
+              children: [
+                Container(height: 2, color: _accent.withValues(alpha: 0.75)),
+                const SizedBox(height: 8),
+                Center(
+                  child: Container(width: 34, height: 3, color: t.borderDim),
                 ),
-              ),
-              const SizedBox(height: 12),
+                const SizedBox(height: 10),
 
-              // Title + currency header
-              _buildHeader(db, t),
+                // Title + currency header
+                _buildHeader(db, t),
 
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-              // Items list
-              Expanded(
-                child: ListView.separated(
-                  controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-                  itemCount: _items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, i) => _buildItemCard(_items[i], db, t),
+                // Items list
+                Expanded(
+                  child: ListView.separated(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) =>
+                        _buildItemCard(_items[i], db, t),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -525,27 +524,43 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Left-aligned bar + monospace title, matching every other forge
+              // panel, with the exit on the right instead of a centred label.
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(
-                      color: _accent,
-                      shape: BoxShape.circle,
+                  Container(width: 3, height: 18, color: _accent),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _title,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: _accent,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2.0,
+                      ),
                     ),
                   ),
-                  Text(
-                    _title,
-                    style: TextStyle(
-                      fontFamily: appFontFamily(context),
-                      color: t.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 2.0,
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.of(context).pop();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: t.bg2,
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: t.borderDim),
+                      ),
+                      child: Icon(
+                        AppIcons.close_rounded,
+                        size: 16,
+                        color: t.textPrimary,
+                      ),
                     ),
                   ),
                 ],
@@ -557,11 +572,9 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: t.bg2.withValues(alpha: 0.6),
+                  color: t.bg2,
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: t.borderAccent.withValues(alpha: 0.5),
-                  ),
+                  border: Border.all(color: t.borderDim),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -625,16 +638,16 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
 
             return Container(
               decoration: BoxDecoration(
-                color: t.bg2.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(8),
+                color: t.bg2,
+                borderRadius: BorderRadius.circular(4),
                 border: Border.all(
                   color: discounted
-                      ? const Color(0xFF4CAF50).withValues(alpha: 0.5)
+                      ? const Color(0xFF4CAF50).withValues(alpha: 0.6)
                       : t.borderDim,
                 ),
               ),
               child: InkWell(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(4),
                 onTap: canAfford ? () => _purchase(item) : null,
                 child: Padding(
                   padding: const EdgeInsets.all(12),

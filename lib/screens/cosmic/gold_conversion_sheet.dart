@@ -417,6 +417,8 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     return confirmed == true;
   }
 
+  // ── Shell ──────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
@@ -424,67 +426,41 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     final t = ForgeTokens(theme);
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.65,
-      minChildSize: 0.4,
-      maxChildSize: 0.85,
+      initialChildSize: 0.72,
+      minChildSize: 0.45,
+      maxChildSize: 0.94,
       builder: (context, scrollController) {
         return Container(
+          // Border.paint throws on a non-uniform border with a borderRadius,
+          // which blanks the whole sheet. The accent top edge is drawn as its
+          // own clipped bar instead of a differently coloured border side.
           decoration: BoxDecoration(
             color: t.bg1,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border.all(color: _accent.withValues(alpha: 0.3)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+            border: Border.all(color: t.borderDim),
           ),
-          child: SingleChildScrollView(
-            controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
             child: Column(
               children: [
-                const SizedBox(height: 8),
-                // Drag handle
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: t.borderDim,
-                    borderRadius: BorderRadius.circular(2),
+                Container(height: 2, color: _accent.withValues(alpha: 0.75)),
+                _grabHandle(t),
+                _header(t),
+                _walletStrip(db, t),
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _convertPanel(t),
+                        const SizedBox(height: 12),
+                        _sellPanel(db, t),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // Title
-                Text(
-                  'GOLD CONVERSION',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: _accent,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Trade gold for particles or shards',
-                  style: TextStyle(color: t.textSecondary, fontSize: 12),
-                ),
-                const SizedBox(height: 16),
-
-                // Gold balance
-                _buildGoldBalance(db, t),
-                const SizedBox(height: 20),
-
-                // Output type selector
-                _buildOutputSelector(t),
-                const SizedBox(height: 20),
-
-                // Quantity selector
-                _buildQuantitySelector(t),
-                const SizedBox(height: 20),
-
-                // Summary + convert button
-                _buildSummary(t),
-                const SizedBox(height: 24),
-                _buildSellSection(db, t),
               ],
             ),
           ),
@@ -493,86 +469,165 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     );
   }
 
-  Widget _buildGoldBalance(AlchemonsDatabase db, ForgeTokens t) {
+  Widget _grabHandle(ForgeTokens t) => Padding(
+    padding: const EdgeInsets.only(top: 8, bottom: 10),
+    child: Center(child: Container(width: 34, height: 3, color: t.borderDim)),
+  );
+
+  Widget _header(ForgeTokens t) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 0, 8, 10),
+      child: Row(
+        children: [
+          Container(width: 3, height: 22, color: _accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'GOLD CONVERSION',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: _accent,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.0,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  'Trade Gold for matter, or matter for Silver',
+                  style: TextStyle(
+                    color: t.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).pop();
+            },
+            child: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: t.bg2,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: t.borderDim),
+              ),
+              child: Icon(
+                AppIcons.close_rounded,
+                size: 18,
+                color: t.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Balances read left-to-right on one baseline instead of a centred cluster,
+  /// so the numbers line up with the panels beneath them.
+  Widget _walletStrip(AlchemonsDatabase db, ForgeTokens t) {
     return StreamBuilder<Map<String, int>>(
       stream: db.currencyDao.watchAllCurrencies(),
       builder: (context, snap) {
         final gold = snap.data?['gold'] ?? 0;
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CoinIcon(kind: CoinKind.gold, size: 20),
-            const SizedBox(width: 6),
-            Text(
-              '$gold Gold',
-              style: TextStyle(
-                color: t.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
+        final silver = snap.data?['silver'] ?? 0;
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: t.bg2,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: t.borderDim),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _walletCell(
+                  t,
+                  icon: const CoinIcon(kind: CoinKind.gold, size: 14),
+                  label: 'GOLD',
+                  value: '$gold',
+                  valueColor: _accent,
+                ),
               ),
-            ),
-            const SizedBox(width: 20),
-            const Icon(
-              CosmicScreenStyles.astralShardIcon,
-              size: 18,
-              color: CosmicScreenStyles.astralShardColor,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '$_carriedShards / ${widget.shardCapacity} Shards',
-              style: TextStyle(color: t.textSecondary, fontSize: 14),
-            ),
-          ],
+              Container(width: 1, height: 26, color: t.borderDim),
+              Expanded(
+                child: _walletCell(
+                  t,
+                  icon: const CoinIcon(kind: CoinKind.silver, size: 14),
+                  label: 'SILVER',
+                  value: '$silver',
+                  valueColor: t.textPrimary,
+                ),
+              ),
+              Container(width: 1, height: 26, color: t.borderDim),
+              Expanded(
+                child: _walletCell(
+                  t,
+                  icon: const Icon(
+                    CosmicScreenStyles.astralShardIcon,
+                    size: 14,
+                    color: CosmicScreenStyles.astralShardColor,
+                  ),
+                  label: 'SHARDS',
+                  value: '$_carriedShards/${widget.shardCapacity}',
+                  valueColor: CosmicScreenStyles.astralShardColor,
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _buildOutputSelector(ForgeTokens t) {
+  Widget _walletCell(
+    ForgeTokens t, {
+    required Widget icon,
+    required String label,
+    required String value,
+    required Color valueColor,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          'CONVERT TO',
-          style: TextStyle(
-            color: t.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
-          ),
+        Row(
+          children: [
+            icon,
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: t.textMuted,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-
-        // Shards option
-        _buildOptionTile(
-          icon: CosmicScreenStyles.astralShardIcon,
-          iconColor: CosmicScreenStyles.astralShardColor,
-          label: 'Astral Shards',
-          subtitle: '$_shardsPer shards per 5 gold',
-          selected: _isShardsMode,
-          onTap: () => setState(() {
-            _isShardsMode = true;
-            _selectedResource = null;
-          }),
-          t: t,
-        ),
-        const SizedBox(height: 6),
-
-        // Element particle options
-        ...ElementResources.all.map(
-          (res) => Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: _buildOptionTile(
-              icon: res.icon,
-              iconColor: res.color,
-              label: '${res.biomeLabel} Particles',
-              subtitle: '$_particlesPer particles per 5 gold',
-              selected: !_isShardsMode && _selectedResource == res.biomeId,
-              onTap: () => setState(() {
-                _isShardsMode = false;
-                _selectedResource = res.biomeId;
-              }),
-              t: t,
+        const SizedBox(height: 1),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            maxLines: 1,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: valueColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ),
@@ -580,219 +635,336 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     );
   }
 
-  Widget _buildOptionTile({
-    required IconData icon,
-    required Color iconColor,
-    required String label,
-    required String subtitle,
-    required bool selected,
-    required VoidCallback onTap,
-    required ForgeTokens t,
+  // ── Shared furniture ───────────────────────────────────────────────────────
+
+  Widget _panel(
+    ForgeTokens t, {
+    required String title,
+    required Color accent,
+    Widget? trailing,
+    required Widget child,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected
-              ? _accent.withValues(alpha: 0.1)
-              : Colors.white.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: selected
-                ? _accent.withValues(alpha: 0.6)
-                : t.borderDim.withValues(alpha: 0.3),
-            width: selected ? 1.5 : 1,
+    return Container(
+      decoration: BoxDecoration(
+        color: t.bg2,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: t.borderDim),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 6, 10, 6),
+            decoration: BoxDecoration(
+              color: t.bg3,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 3,
+                  height: 12,
+                  color: accent,
+                  margin: const EdgeInsets.only(right: 8),
+                ),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.0,
+                    ),
+                  ),
+                ),
+                if (trailing != null) trailing,
+              ],
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 22, color: iconColor),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
+          Container(height: 1, color: t.borderDim),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fieldLabel(ForgeTokens t, String text) => Text(
+    text,
+    style: TextStyle(
+      fontFamily: 'monospace',
+      color: t.textMuted,
+      fontSize: 10,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 1.4,
+    ),
+  );
+
+  /// Compact selectable chip. Replaces the full-width tiles and 148px cards
+  /// that made the sheet scroll for ever and never lined up with each other.
+  Widget _choiceChip({
+    required ForgeTokens t,
+    required IconData icon,
+    required Color color,
+    required String label,
+    String? note,
+    required bool selected,
+    required VoidCallback? onTap,
+    bool flagged = false,
+  }) {
+    final enabled = onTap != null;
+    return GestureDetector(
+      onTap: enabled
+          ? () {
+              HapticFeedback.selectionClick();
+              onTap();
+            }
+          : null,
+      behavior: HitTestBehavior.opaque,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? color.withValues(alpha: 0.16) : t.bg1,
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(
+              color: selected ? color.withValues(alpha: 0.8) : t.borderDim,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: selected ? color : t.textSecondary),
+              const SizedBox(width: 6),
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     label,
                     style: TextStyle(
-                      color: t.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontFamily: 'monospace',
+                      color: selected ? color : t.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.6,
                     ),
                   ),
-                  Text(
-                    subtitle,
-                    style: TextStyle(color: t.textSecondary, fontSize: 12),
-                  ),
+                  if (note != null)
+                    Text(
+                      note,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: t.textMuted,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                 ],
               ),
-            ),
-            if (selected)
-              Icon(AppIcons.check_circle_rounded, size: 20, color: _accent),
-          ],
+              if (flagged) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _accent.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: Text(
+                    'TODAY',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: _accent,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildQuantitySelector(ForgeTokens t) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  /// Label on the left, steppers on the right — one alignment for both panels
+  /// rather than a centred cluster under a left-aligned heading.
+  Widget _stepperRow({
+    required ForgeTokens t,
+    required Color accent,
+    required String value,
+    required String unit,
+    required VoidCallback? onMinus,
+    required VoidCallback? onPlus,
+  }) {
+    return Row(
       children: [
-        Text(
-          'AMOUNT',
-          style: TextStyle(
-            color: t.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: t.bg1,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: accent.withValues(alpha: 0.35)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: accent,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  unit,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.textMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildStepButton(AppIcons.remove, () {
-              if (_multiplier > 1) setState(() => _multiplier--);
-            }, t),
-            const SizedBox(width: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: _accent.withValues(alpha: 0.3)),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    '${_goldPer * _multiplier}',
-                    style: TextStyle(
-                      color: const Color(0xFFFFD700),
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  Text(
-                    'GOLD',
-                    style: TextStyle(
-                      color: t.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            _buildStepButton(AppIcons.add, () {
-              setState(() => _multiplier++);
-            }, t),
-          ],
-        ),
+        const SizedBox(width: 8),
+        _stepButton(t, AppIcons.remove, accent, onMinus),
+        const SizedBox(width: 6),
+        _stepButton(t, AppIcons.add, accent, onPlus),
       ],
     );
   }
 
-  Widget _buildStepButton(IconData icon, VoidCallback onTap, ForgeTokens t) {
+  Widget _stepButton(
+    ForgeTokens t,
+    IconData icon,
+    Color accent,
+    VoidCallback? onTap,
+  ) {
+    final enabled = onTap != null;
     return GestureDetector(
-      onTap: () {
-        onTap();
-        HapticFeedback.selectionClick();
-      },
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: _accent.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _accent.withValues(alpha: 0.4)),
+      onTap: enabled
+          ? () {
+              HapticFeedback.selectionClick();
+              onTap();
+            }
+          : null,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.35,
+        child: Container(
+          width: 38,
+          height: 38,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: accent.withValues(alpha: 0.45)),
+          ),
+          child: Icon(icon, color: accent, size: 20),
         ),
-        child: Icon(icon, color: _accent, size: 22),
       ),
     );
   }
 
-  Widget _buildSummary(ForgeTokens t) {
-    final outputIcon = _isShardsMode
-        ? CosmicScreenStyles.astralShardIcon
-        : ElementResources.byBiomeId[_selectedResource]?.icon ??
-              AppIcons.circle;
-    final outputColor = _isShardsMode
-        ? CosmicScreenStyles.astralShardColor
-        : ElementResources.byBiomeId[_selectedResource]?.color ?? Colors.white;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _accent.withValues(alpha: 0.25)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const CoinIcon(kind: CoinKind.gold, size: 18),
-                  const SizedBox(width: 6),
-                  Text(
-                    '$_goldCost Gold',
-                    style: TextStyle(
-                      color: t.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const Icon(
-                AppIcons.arrow_forward_rounded,
-                size: 18,
-                color: Colors.white38,
-              ),
-              Row(
-                children: [
-                  Icon(outputIcon, size: 18, color: outputColor),
-                  const SizedBox(width: 6),
-                  Text(
-                    '$_outputAmount',
-                    style: TextStyle(
-                      color: t.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _outputLabel,
-                    style: TextStyle(color: t.textSecondary, fontSize: 12),
-                  ),
-                ],
-              ),
-            ],
+  Widget _quickChip(ForgeTokens t, String label, VoidCallback? onTap) {
+    final enabled = onTap != null;
+    return GestureDetector(
+      onTap: enabled
+          ? () {
+              HapticFeedback.selectionClick();
+              onTap();
+            }
+          : null,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.35,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: t.bg1,
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: t.borderDim),
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: _accent,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: _convert,
-              child: const Text(
-                'CONVERT',
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: t.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// cost → output, on one line, so the trade reads as a single sentence.
+  Widget _tradeLine(
+    ForgeTokens t, {
+    required Widget fromIcon,
+    required String fromText,
+    required IconData toIcon,
+    required Color toColor,
+    required String toText,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: t.bg1,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: t.borderDim),
+      ),
+      child: Row(
+        children: [
+          fromIcon,
+          const SizedBox(width: 6),
+          Text(
+            fromText,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: t.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const Spacer(),
+          Icon(AppIcons.arrow_forward_rounded, size: 14, color: t.textMuted),
+          const Spacer(),
+          Icon(toIcon, size: 14, color: toColor),
+          const SizedBox(width: 6),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                toText,
+                maxLines: 1,
                 style: TextStyle(
-                  color: Colors.black87,
-                  fontSize: 15,
+                  fontFamily: 'monospace',
+                  color: toColor,
+                  fontSize: 12,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
                 ),
               ),
             ),
@@ -802,431 +974,286 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     );
   }
 
-  Widget _buildSellSection(AlchemonsDatabase db, ForgeTokens t) {
-    return StreamBuilder<Map<String, int>>(
-      stream: db.currencyDao.watchAllCurrencies(),
-      builder: (context, currencySnap) {
-        final silver = currencySnap.data?['silver'] ?? 0;
-        return StreamBuilder<Map<String, int>>(
-          stream: db.currencyDao.watchResourceBalances(),
-          builder: (context, resourceSnap) {
-            final balances =
-                resourceSnap.data ??
-                {for (final res in ElementResources.all) res.settingsKey: 0};
-            final selectedAvailable =
-                balances[_selectedSellElement.settingsKey] ?? 0;
-            final effectiveSellQty = selectedAvailable <= 0
-                ? 0
-                : _sellQuantity.clamp(1, selectedAvailable);
-            final effectiveSellPayout = _sellSilverPayoutFor(
-              _selectedSellElement.biomeId,
-              effectiveSellQty,
-            );
-
-            return Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _accent.withValues(alpha: 0.25)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        AppIcons.science_rounded,
-                        color: _dailySaleResource.color,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'SELL ALCHEMICAL MATTER',
-                          style: TextStyle(
-                            color: t.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${_dailySaleResource.biomeLabel} is the alchemical of the day: 500 silver per 100. All others sell for 1 silver each.',
-                    style: TextStyle(
-                      color: t.textSecondary,
-                      fontSize: 12,
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const CoinIcon(kind: CoinKind.silver, size: 16),
-                      const SizedBox(width: 6),
-                      Text(
-                        '$silver Silver',
-                        style: TextStyle(
-                          color: t.textPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Text(
-                        'Home storage',
-                        style: TextStyle(
-                          color: t.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final res in ElementResources.all)
-                        _buildSellResourceChip(
-                          res: res,
-                          available: balances[res.settingsKey] ?? 0,
-                          selected: _selectedSellResource == res.biomeId,
-                          isDaily: res.biomeId == _dailySaleResource.biomeId,
-                          onTap: () {
-                            setState(() {
-                              _selectedSellResource = res.biomeId;
-                              final nextAvailable =
-                                  balances[res.settingsKey] ?? 0;
-                              if (nextAvailable <= 0) {
-                                _sellQuantity = 0;
-                              } else {
-                                _sellQuantity = _sellQuantity.clamp(
-                                  1,
-                                  nextAvailable,
-                                );
-                              }
-                            });
-                          },
-                          t: t,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'SELL QUANTITY',
-                    style: TextStyle(
-                      color: t.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildStepButton(AppIcons.remove, () {
-                        if (selectedAvailable <= 0) return;
-                        setState(() {
-                          _sellQuantity = (_sellQuantity - 1).clamp(
-                            1,
-                            selectedAvailable,
-                          );
-                        });
-                      }, t),
-                      const SizedBox(width: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: _selectedSellElement.color.withValues(
-                              alpha: 0.4,
-                            ),
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              '$effectiveSellQty',
-                              style: TextStyle(
-                                color: _selectedSellElement.color,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            Text(
-                              'IN STORAGE: $selectedAvailable',
-                              style: TextStyle(
-                                color: t.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      _buildStepButton(AppIcons.add, () {
-                        if (selectedAvailable <= 0) return;
-                        setState(() {
-                          _sellQuantity = (_sellQuantity + 1).clamp(
-                            1,
-                            selectedAvailable,
-                          );
-                        });
-                      }, t),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _buildQuickQtyChip(
-                        label: '1',
-                        onTap: selectedAvailable <= 0
-                            ? null
-                            : () => setState(() => _sellQuantity = 1),
-                        t: t,
-                      ),
-                      _buildQuickQtyChip(
-                        label: '10',
-                        onTap: selectedAvailable <= 0
-                            ? null
-                            : () => setState(() {
-                                _sellQuantity = 10.clamp(1, selectedAvailable);
-                              }),
-                        t: t,
-                      ),
-                      _buildQuickQtyChip(
-                        label: '100',
-                        onTap: selectedAvailable <= 0
-                            ? null
-                            : () => setState(() {
-                                _sellQuantity = 100.clamp(1, selectedAvailable);
-                              }),
-                        t: t,
-                      ),
-                      _buildQuickQtyChip(
-                        label: 'MAX',
-                        onTap: selectedAvailable <= 0
-                            ? null
-                            : () => setState(
-                                () => _sellQuantity = selectedAvailable,
-                              ),
-                        t: t,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _selectedSellElement.color.withValues(
-                          alpha: 0.25,
-                        ),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  _selectedSellElement.icon,
-                                  size: 18,
-                                  color: _selectedSellElement.color,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '$effectiveSellQty ${_selectedSellElement.biomeLabel} Matter',
-                                  style: TextStyle(
-                                    color: t.textPrimary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                const CoinIcon(kind: CoinKind.silver, size: 18),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '$effectiveSellPayout Silver',
-                                  style: TextStyle(
-                                    color: t.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _selectedSellElement.biomeId ==
-                                  _dailySaleResource.biomeId
-                              ? 'Daily bonus active: 5 silver each, or 500 silver per 100.'
-                              : 'Standard rate: 1 silver per matter.',
-                          style: TextStyle(
-                            color: t.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _selectedSellElement.color,
-                              foregroundColor: Colors.black87,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            onPressed: selectedAvailable <= 0
-                                ? null
-                                : () =>
-                                      _sellAlchemicalMatter(selectedAvailable),
-                            child: const Text(
-                              'SELL FROM HOME STORAGE',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildSellResourceChip({
-    required ElementResource res,
-    required int available,
-    required bool selected,
-    required bool isDaily,
-    required VoidCallback onTap,
+  Widget _actionButton({
     required ForgeTokens t,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 148,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected
-              ? res.color.withValues(alpha: 0.14)
-              : Colors.white.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected
-                ? res.color.withValues(alpha: 0.75)
-                : t.borderDim.withValues(alpha: 0.3),
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(res.icon, color: res.color, size: 18),
-                const Spacer(),
-                if (isDaily)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _accent.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      'TODAY',
-                      style: TextStyle(
-                        color: _accent,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              res.biomeLabel,
-              style: TextStyle(
-                color: t.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '$available in storage',
-              style: TextStyle(color: t.textSecondary, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickQtyChip({
     required String label,
+    required Color accent,
     required VoidCallback? onTap,
-    required ForgeTokens t,
   }) {
+    final enabled = onTap != null;
     return GestureDetector(
-      onTap: onTap,
+      onTap: enabled
+          ? () {
+              HapticFeedback.mediumImpact();
+              onTap();
+            }
+          : null,
+      behavior: HitTestBehavior.opaque,
       child: Opacity(
-        opacity: onTap == null ? 0.4 : 1,
+        opacity: enabled ? 1 : 0.35,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: t.borderDim.withValues(alpha: 0.35)),
+            color: accent.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: accent.withValues(alpha: 0.75)),
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: t.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.9,
+              fontFamily: 'monospace',
+              color: accent,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.6,
             ),
           ),
         ),
       ),
+    );
+  }
+
+  // ── Convert ────────────────────────────────────────────────────────────────
+
+  Widget _convertPanel(ForgeTokens t) {
+    final outputIcon = _isShardsMode
+        ? CosmicScreenStyles.astralShardIcon
+        : ElementResources.byBiomeId[_selectedResource]?.icon ??
+              AppIcons.circle;
+    final outputColor = _isShardsMode
+        ? CosmicScreenStyles.astralShardColor
+        : ElementResources.byBiomeId[_selectedResource]?.color ?? _accent;
+    final ready = _isShardsMode || _selectedResource != null;
+
+    return _panel(
+      t,
+      title: 'CONVERT GOLD',
+      accent: _accent,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _fieldLabel(t, 'CONVERT TO'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _choiceChip(
+                t: t,
+                icon: CosmicScreenStyles.astralShardIcon,
+                color: CosmicScreenStyles.astralShardColor,
+                label: 'SHARDS',
+                note: '$_shardsPer / $_goldPer g',
+                selected: _isShardsMode,
+                onTap: () => setState(() {
+                  _isShardsMode = true;
+                  _selectedResource = null;
+                }),
+              ),
+              for (final res in ElementResources.all)
+                _choiceChip(
+                  t: t,
+                  icon: res.icon,
+                  color: res.color,
+                  label: res.biomeLabel.toUpperCase(),
+                  note: '$_particlesPer / $_goldPer g',
+                  selected: !_isShardsMode && _selectedResource == res.biomeId,
+                  onTap: () => setState(() {
+                    _isShardsMode = false;
+                    _selectedResource = res.biomeId;
+                  }),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _fieldLabel(t, 'SPEND'),
+          const SizedBox(height: 8),
+          _stepperRow(
+            t: t,
+            accent: _accent,
+            value: '$_goldCost',
+            unit: 'GOLD',
+            onMinus: _multiplier > 1
+                ? () => setState(() => _multiplier--)
+                : null,
+            onPlus: () => setState(() => _multiplier++),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final m in const [1, 2, 5, 10, 20])
+                _quickChip(
+                  t,
+                  '${_goldPer * m}g',
+                  () => setState(() => _multiplier = m),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _tradeLine(
+            t,
+            fromIcon: const CoinIcon(kind: CoinKind.gold, size: 14),
+            fromText: '$_goldCost Gold',
+            toIcon: outputIcon,
+            toColor: outputColor,
+            toText: ready ? '$_outputAmount $_outputLabel' : 'Pick a target',
+          ),
+          const SizedBox(height: 10),
+          _actionButton(
+            t: t,
+            label: 'CONVERT',
+            accent: _accent,
+            onTap: ready ? _convert : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Sell ───────────────────────────────────────────────────────────────────
+
+  Widget _sellPanel(AlchemonsDatabase db, ForgeTokens t) {
+    return StreamBuilder<Map<String, int>>(
+      stream: db.currencyDao.watchResourceBalances(),
+      builder: (context, resourceSnap) {
+        final balances =
+            resourceSnap.data ??
+            {for (final res in ElementResources.all) res.settingsKey: 0};
+        final selected = _selectedSellElement;
+        final available = balances[selected.settingsKey] ?? 0;
+        final qty = available <= 0 ? 0 : _sellQuantity.clamp(1, available);
+        final payout = _sellSilverPayoutFor(selected.biomeId, qty);
+        final isDaily = selected.biomeId == _dailySaleResource.biomeId;
+
+        return _panel(
+          t,
+          title: 'SELL MATTER',
+          accent: selected.color,
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: _accent.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: Text(
+              'TODAY · ${_dailySaleResource.biomeLabel.toUpperCase()} ×5',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: _accent,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _fieldLabel(t, 'FROM HOME STORAGE'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final res in ElementResources.all)
+                    _choiceChip(
+                      t: t,
+                      icon: res.icon,
+                      color: res.color,
+                      label: res.biomeLabel.toUpperCase(),
+                      note: '${balances[res.settingsKey] ?? 0} held',
+                      selected: _selectedSellResource == res.biomeId,
+                      flagged: res.biomeId == _dailySaleResource.biomeId,
+                      onTap: () => setState(() {
+                        _selectedSellResource = res.biomeId;
+                        final next = balances[res.settingsKey] ?? 0;
+                        _sellQuantity = next <= 0
+                            ? 0
+                            : _sellQuantity.clamp(1, next);
+                      }),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _fieldLabel(t, 'QUANTITY'),
+              const SizedBox(height: 8),
+              _stepperRow(
+                t: t,
+                accent: selected.color,
+                value: '$qty',
+                unit: 'OF $available',
+                onMinus: available <= 0
+                    ? null
+                    : () => setState(() {
+                        _sellQuantity = (_sellQuantity - 1).clamp(1, available);
+                      }),
+                onPlus: available <= 0
+                    ? null
+                    : () => setState(() {
+                        _sellQuantity = (_sellQuantity + 1).clamp(1, available);
+                      }),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final preset in const [1, 10, 100])
+                    _quickChip(
+                      t,
+                      '$preset',
+                      available <= 0
+                          ? null
+                          : () => setState(() {
+                              _sellQuantity = preset.clamp(1, available);
+                            }),
+                    ),
+                  _quickChip(
+                    t,
+                    'MAX',
+                    available <= 0
+                        ? null
+                        : () => setState(() => _sellQuantity = available),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _tradeLine(
+                t,
+                fromIcon: Icon(selected.icon, size: 14, color: selected.color),
+                fromText: '$qty ${selected.biomeLabel}',
+                toIcon: AppIcons.paid_rounded,
+                toColor: isDaily ? _accent : t.textPrimary,
+                toText: '$payout Silver',
+              ),
+              const SizedBox(height: 6),
+              Text(
+                isDaily
+                    ? 'Daily bonus: 5 Silver each.'
+                    : 'Standard rate: 1 Silver each.',
+                style: TextStyle(
+                  color: t.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _actionButton(
+                t: t,
+                label: 'SELL',
+                accent: selected.color,
+                onTap: available <= 0
+                    ? null
+                    : () => _sellAlchemicalMatter(available),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

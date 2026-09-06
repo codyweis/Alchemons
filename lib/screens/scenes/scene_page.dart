@@ -114,6 +114,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   // Encounter state
   bool _inEncounter = false;
   Creature? _wildCreature;
+  final Map<String, Creature> _preparedWildBySpawnId = <String, Creature>{};
   bool _showTutorialHighlight = false;
   bool _isCaptureTutorialScene = false;
   bool _riftSpawned = false;
@@ -174,10 +175,12 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     _game.attachEncounters(_encounters);
 
     _game.onStartEncounter = (spawnId, speciesId, hydrated) {
+      final incoming = hydrated as Creature;
+      final prepared = _preparedWildBySpawnId[spawnId];
       _usedSpawnPointId = spawnId;
       setState(() {
         _inEncounter = true;
-        _wildCreature = hydrated as Creature;
+        _wildCreature = prepared?.id == incoming.id ? prepared : incoming;
         _showTutorialHighlight = widget.isTutorial || _isCaptureTutorialScene;
       });
       HapticFeedback.mediumImpact();
@@ -711,6 +714,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   }
 
   void _removeTransientSpawn(String spawnId) {
+    _preparedWildBySpawnId.remove(spawnId);
     _sessionSceneSpawns.remove(spawnId);
     final remaining = _encounters.spawns
         .where((s) => s.spawnPointId != spawnId)
@@ -1348,6 +1352,12 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                       rarity: _wildCreature!.rarity,
                     ),
                     hydratedWildCreature: _wildCreature!,
+                    onWildCreaturePrepared: (prepared) {
+                      final spawnId = _usedSpawnPointId;
+                      if (spawnId == null) return;
+                      _preparedWildBySpawnId[spawnId] = prepared;
+                      _wildCreature = prepared;
+                    },
                     party: widget.party,
                     highlightPartyHUD: _showTutorialHighlight,
                     isTutorial: widget.isTutorial,

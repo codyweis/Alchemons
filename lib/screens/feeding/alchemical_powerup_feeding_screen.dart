@@ -258,17 +258,17 @@ class _AlchemicalPowerupFeedingScreenState
                   canGoBack: _selectedInstanceId != null,
                   onBack: () {
                     HapticFeedback.lightImpact();
-                    if (_selectedInstanceId == null) {
-                      Navigator.of(context).pop();
-                    } else {
-                      setState(() {
-                        _selectedInstanceId = null;
-                        _message = null;
-                        _lastDelta = null;
-                        _frozenStatValues = null;
-                        _frozenPotentialValues = null;
-                      });
-                    }
+                    setState(() {
+                      _selectedInstanceId = null;
+                      _message = null;
+                      _lastDelta = null;
+                      _frozenStatValues = null;
+                      _frozenPotentialValues = null;
+                    });
+                  },
+                  onClose: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.of(context).pop();
                   },
                   onChooseDifferent: _selectedInstanceId == null
                       ? null
@@ -845,12 +845,13 @@ class _AlchemicalPowerupFeedingScreenState
         children: [
           Container(
             padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+            // A bottom-only border alongside a borderRadius throws in
+            // Border.paint and blanks the strip, so the divider is its own row.
             decoration: BoxDecoration(
               color: t.bg3,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(3),
               ),
-              border: Border(bottom: BorderSide(color: t.borderDim)),
             ),
             child: Row(
               children: [
@@ -892,6 +893,7 @@ class _AlchemicalPowerupFeedingScreenState
               ],
             ),
           ),
+          Container(height: 1, color: t.borderDim),
           Padding(
             key: _trayKey,
             padding: const EdgeInsets.fromLTRB(8, 12, 8, 14),
@@ -1653,10 +1655,12 @@ class _AlchemicalPowerupFeedingScreenState
     await _flashController.forward(from: 0);
     if (!mounted) return;
 
+    HapticFeedback.heavyImpact();
     if (result.rolledGain >= 4) {
+      // A second thump reads as an aftershock rather than a louder tap.
+      await Future<void>.delayed(const Duration(milliseconds: 110));
+      if (!mounted) return;
       HapticFeedback.heavyImpact();
-    } else {
-      HapticFeedback.mediumImpact();
     }
     final cappedNote = result.appliedGain < result.rolledGain
         ? ' (rolled +${result.rolledGain}, capped at 100)'
@@ -1688,51 +1692,55 @@ class _AlchemicalPowerupFeedingScreenState
     Duration orbDuration,
     Duration flashDuration,
   })
+  // An Orb infusion runs 1500ms at glowBoost 1.0 over 2.2 orbit turns. Every
+  // Soul roll now starts well above that: the weakest awakening used to be
+  // shorter and dimmer than a routine Orb, which read as an anticlimax for an
+  // item that costs tens of thousands of Silver.
   _soulRevealProfile(int rolledGain) => switch (rolledGain) {
     1 => (
       label: 'SOUL AWAKENED',
-      glowBoost: 1.0,
-      isJackpot: false,
-      orbitTurns: 2.2,
-      orbitEndProgress: 0.72,
-      orbDuration: const Duration(milliseconds: 1300),
-      flashDuration: const Duration(milliseconds: 420),
-    ),
-    2 => (
-      label: 'SOUL STIRRING',
-      glowBoost: 1.18,
-      isJackpot: false,
-      orbitTurns: 2.6,
-      orbitEndProgress: 0.74,
-      orbDuration: const Duration(milliseconds: 1450),
-      flashDuration: const Duration(milliseconds: 520),
-    ),
-    3 => (
-      label: 'SOUL RESONANCE',
-      glowBoost: 1.45,
+      glowBoost: 1.55,
       isJackpot: false,
       orbitTurns: 3.2,
       orbitEndProgress: 0.78,
-      orbDuration: const Duration(milliseconds: 1650),
-      flashDuration: const Duration(milliseconds: 650),
+      orbDuration: const Duration(milliseconds: 2100),
+      flashDuration: const Duration(milliseconds: 720),
+    ),
+    2 => (
+      label: 'SOUL STIRRING',
+      glowBoost: 1.8,
+      isJackpot: false,
+      orbitTurns: 3.8,
+      orbitEndProgress: 0.80,
+      orbDuration: const Duration(milliseconds: 2350),
+      flashDuration: const Duration(milliseconds: 840),
+    ),
+    3 => (
+      label: 'SOUL RESONANCE',
+      glowBoost: 2.15,
+      isJackpot: true,
+      orbitTurns: 4.6,
+      orbitEndProgress: 0.83,
+      orbDuration: const Duration(milliseconds: 2650),
+      flashDuration: const Duration(milliseconds: 980),
     ),
     4 => (
       label: 'EXALTED SOUL',
-      glowBoost: 1.8,
+      glowBoost: 2.7,
       isJackpot: true,
-      orbitTurns: 4.0,
-      orbitEndProgress: 0.82,
-      orbDuration: const Duration(milliseconds: 1900),
-      flashDuration: const Duration(milliseconds: 800),
+      orbitTurns: 5.6,
+      orbitEndProgress: 0.86,
+      orbDuration: const Duration(milliseconds: 3050),
+      flashDuration: const Duration(milliseconds: 1200),
     ),
     _ => (
       label: 'PERFECT AWAKENING',
-      glowBoost: 2.25,
+      glowBoost: 3.4,
       isJackpot: true,
-      orbitTurns: 5.0,
-      orbitEndProgress: 0.86,
-      orbDuration: const Duration(milliseconds: 2250),
-      flashDuration: const Duration(milliseconds: 1000),
+      orbitTurns: 6.8,
+      orbitEndProgress: 0.89,
+      orbDuration: const Duration(milliseconds: 3600),
+      flashDuration: const Duration(milliseconds: 1500),
     ),
   };
 
@@ -1795,15 +1803,38 @@ class _AlchemicalPowerupFeedingScreenState
 class _PowerupHeader extends StatelessWidget {
   final bool canGoBack;
   final VoidCallback onBack;
+  final VoidCallback onClose;
   final VoidCallback? onChooseDifferent;
   final FactionTheme theme;
 
   const _PowerupHeader({
     required this.canGoBack,
     required this.onBack,
+    required this.onClose,
     required this.theme,
     this.onChooseDifferent,
   });
+
+  Widget _iconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required ForgeTokens t,
+    EdgeInsets margin = EdgeInsets.zero,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(7),
+        margin: margin,
+        decoration: BoxDecoration(
+          color: t.bg2,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: t.borderDim),
+        ),
+        child: Icon(icon, color: t.textPrimary, size: 18),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1817,23 +1848,14 @@ class _PowerupHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 6, 12, 6),
         child: Row(
           children: [
-            GestureDetector(
-              onTap: onBack,
-              child: Container(
-                padding: const EdgeInsets.all(7),
+            // Back only ever goes back; leaving the screen lives on the right.
+            if (canGoBack)
+              _iconButton(
+                icon: AppIcons.arrow_back,
+                onTap: onBack,
+                t: t,
                 margin: const EdgeInsets.only(right: 10),
-                decoration: BoxDecoration(
-                  color: t.bg2,
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: t.borderDim),
-                ),
-                child: Icon(
-                  canGoBack ? AppIcons.arrow_back : AppIcons.close_rounded,
-                  color: t.textPrimary,
-                  size: 18,
-                ),
               ),
-            ),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1897,6 +1919,8 @@ class _PowerupHeader extends StatelessWidget {
                   ),
                 ),
               ),
+            if (onChooseDifferent != null) const SizedBox(width: 8),
+            _iconButton(icon: AppIcons.close_rounded, onTap: onClose, t: t),
           ],
         ),
       ),
@@ -2792,10 +2816,129 @@ class _PowerOrbPainter extends CustomPainter {
     this.soulRoll,
   });
 
+  /// Souls get layers an Orb never does. Gated on the payload rather than the
+  /// roll, so even the weakest awakening outclasses a routine Enhancement.
+  bool get _isSoul => soulRoll != null;
+
+  /// Graduated ring echoing the containment ring on the soul artwork, drawn
+  /// closing in on the specimen as the infusion gathers.
+  void _paintSigil(Canvas canvas, Offset center) {
+    if (progress < 0.14) return;
+    final local = ((progress - 0.14) / (orbitEndProgress - 0.14)).clamp(
+      0.0,
+      1.0,
+    );
+    final radius = lerpDouble(150.0 * glowBoost, 54.0, local)!;
+    final alpha = (local < 0.15 ? local / 0.15 : 1.0 - local) * 0.85;
+    if (alpha <= 0) return;
+
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..color = glowColor.withValues(alpha: alpha * 0.7);
+    canvas.drawCircle(center, radius, ring);
+
+    final tick = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFFFE9A8).withValues(alpha: alpha);
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(progress * math.pi * 1.6);
+    const ticks = 16;
+    for (var i = 0; i < ticks; i++) {
+      final a = (math.pi * 2 * i) / ticks;
+      final dir = Offset(math.cos(a), math.sin(a));
+      canvas.drawLine(dir * radius, dir * (radius + 9), tick);
+    }
+    canvas.restore();
+  }
+
+  /// Motes dragged out of the ether and pulled into the specimen.
+  void _paintMotes(Canvas canvas, Offset center) {
+    if (progress < 0.10 || progress > orbitEndProgress) return;
+    final local = ((progress - 0.10) / (orbitEndProgress - 0.10)).clamp(
+      0.0,
+      1.0,
+    );
+    final eased = Curves.easeInCubic.transform(local);
+    final count = 6 + (soulRoll ?? 1) * 2;
+    final fade = 1.0 - Curves.easeIn.transform(local);
+    for (var i = 0; i < count; i++) {
+      final phase = i / count;
+      final angle =
+          phase * math.pi * 2 + progress * math.pi * 2.4 * (i.isEven ? 1 : -1);
+      final radius = lerpDouble(165.0 * glowBoost, 10.0, eased)!;
+      final p =
+          center + Offset(math.cos(angle) * radius, math.sin(angle) * radius);
+      canvas.drawCircle(
+        p,
+        3.4,
+        Paint()
+          ..color = glowColor.withValues(alpha: 0.55 * fade)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      );
+      canvas.drawCircle(
+        p,
+        1.7,
+        Paint()..color = Colors.white.withValues(alpha: 0.85 * fade),
+      );
+    }
+  }
+
+  /// Staggered shockwaves plus a light column, so the payoff lands as an event
+  /// rather than a brighter version of the Orb flash.
+  void _paintSoulBurst(Canvas canvas, Offset center, Size size) {
+    for (var k = 0; k < 3; k++) {
+      final local = (flash - k * 0.16).clamp(0.0, 1.0);
+      if (local <= 0) continue;
+      final eased = Curves.easeOutCubic.transform(local);
+      canvas.drawCircle(
+        center,
+        (46 + 210 * eased) * glowBoost,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = (3.4 - k) * (1 - local) * 2.4
+          ..color = (k.isEven ? glowColor : Colors.white).withValues(
+            alpha: (1 - local) * 0.5,
+          ),
+      );
+    }
+
+    final columnWidth = (36 + 70 * flash) * glowBoost;
+    final column = Rect.fromCenter(
+      center: Offset(center.dx, size.height / 2),
+      width: columnWidth,
+      height: size.height * 1.4,
+    );
+    canvas.drawRect(
+      column,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.transparent,
+            glowColor.withValues(alpha: 0.30 * flash),
+            Colors.white.withValues(alpha: 0.20 * flash),
+            glowColor.withValues(alpha: 0.30 * flash),
+            Colors.transparent,
+          ],
+          stops: const [0.0, 0.28, 0.5, 0.72, 1.0],
+        ).createShader(column),
+    );
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height * 0.47);
     final orbOffset = _orbCenter(center, size);
+
+    if (_isSoul) {
+      _paintSigil(canvas, center);
+      _paintMotes(canvas, center);
+    }
 
     final double orbRadius;
     if (progress < 0.22) {
@@ -2840,6 +2983,7 @@ class _PowerOrbPainter extends CustomPainter {
     }
 
     if (flash > 0) {
+      if (_isSoul) _paintSoulBurst(canvas, center, size);
       final flashPaint = Paint()
         ..shader =
             RadialGradient(
@@ -2857,7 +3001,7 @@ class _PowerOrbPainter extends CustomPainter {
       canvas.drawCircle(center, (130 * flash + 40) * glowBoost, flashPaint);
 
       final revealRoll = soulRoll ?? 0;
-      if (revealRoll >= 3) {
+      if (_isSoul) {
         final rayCount = 8 + (revealRoll * 4);
         final rayPaint = Paint()
           ..color = Colors.white.withValues(
@@ -2886,7 +3030,7 @@ class _PowerOrbPainter extends CustomPainter {
         }
         canvas.restore();
 
-        if (revealRoll >= 4) {
+        if (revealRoll >= 2) {
           final resonancePaint = Paint()
             ..color = glowColor.withValues(alpha: 0.55 * flash)
             ..style = PaintingStyle.stroke

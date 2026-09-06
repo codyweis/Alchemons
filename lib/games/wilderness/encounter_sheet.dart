@@ -57,6 +57,7 @@ class EncounterOverlay extends StatefulWidget {
   final List<PartyMember> party;
   final ValueChanged<bool>? onClosedWithResult;
   final ValueChanged<Creature>? onPartyCreatureSelected;
+  final ValueChanged<Creature>? onWildCreaturePrepared;
   final VoidCallback? onPreRollShake;
 
   /// Plays the harvest on the creature standing in the scene and answers with
@@ -92,6 +93,7 @@ class EncounterOverlay extends StatefulWidget {
     required this.party,
     this.onClosedWithResult,
     this.onPartyCreatureSelected,
+    this.onWildCreaturePrepared,
     this.onPreRollShake,
     this.onHarvestInScene,
     this.onFusionInScene,
@@ -162,6 +164,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       _wildFusionQty = qty;
       _wildReady = true;
     });
+    widget.onWildCreaturePrepared?.call(prepared);
   }
 
   bool get _supportsFusion =>

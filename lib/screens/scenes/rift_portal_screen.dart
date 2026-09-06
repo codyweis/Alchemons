@@ -157,6 +157,62 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     super.dispose();
   }
 
+  /// The Portal Key is spent on entry, so leaving early costs it. The
+  /// encounter's own run action already warns; this matches it.
+  Future<void> _confirmExit(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF141820),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(6),
+          side: BorderSide(
+            color: widget.faction.primaryColor.withValues(alpha: 0.6),
+          ),
+        ),
+        title: const Text(
+          'LEAVE THE RIFT?',
+          style: TextStyle(
+            color: Color(0xFFE8DCC8),
+            fontFamily: 'monospace',
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+          ),
+        ),
+        content: const Text(
+          'Your Portal Key is already spent. Leaving now returns you to space '
+          'with nothing from this rift.',
+          style: TextStyle(color: Color(0xFF8A7B6A), fontSize: 12, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text(
+              'Stay',
+              style: TextStyle(color: Color(0xFF8A7B6A)),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              'Leave',
+              style: TextStyle(
+                color: widget.faction.primaryColor,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (leave == true && context.mounted) {
+      // false: the portal is not cleared, matching the run-away path.
+      Navigator.of(context).pop(false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const palette = BracketPalette.dark;
@@ -231,6 +287,13 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                         ),
                       ),
                     ],
+                  ),
+                  const Spacer(),
+                  // Without this the only exits are through the encounter
+                  // overlay, so a portal with no live encounter traps you.
+                  _ExitPortalButton(
+                    color: color,
+                    onExit: () => _confirmExit(context),
                   ),
                 ],
               ),
@@ -646,4 +709,28 @@ class _EntryFlashPainter extends CustomPainter {
   @override
   bool shouldRepaint(_EntryFlashPainter old) =>
       old.progress != progress || old.faction != faction;
+}
+
+class _ExitPortalButton extends StatelessWidget {
+  const _ExitPortalButton({required this.color, required this.onExit});
+
+  final Color color;
+  final VoidCallback onExit;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onExit,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: color.withValues(alpha: 0.55)),
+        ),
+        child: Icon(AppIcons.close_rounded, color: color, size: 20),
+      ),
+    );
+  }
 }

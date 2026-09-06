@@ -2130,11 +2130,6 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                               borderRadius: BorderRadius.vertical(
                                 top: Radius.circular(2),
                               ),
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: CosmicScreenStyles.borderDim,
-                                ),
-                              ),
                             ),
                             child: Row(
                               children: [
@@ -2156,6 +2151,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                                 ),
                               ],
                             ),
+                          ),
+                          Container(
+                            height: 1,
+                            color: CosmicScreenStyles.borderDim,
                           ),
                           Padding(
                             padding: const EdgeInsets.all(10),

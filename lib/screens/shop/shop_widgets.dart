@@ -5,6 +5,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
+import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/shop_service.dart';
@@ -14,6 +15,7 @@ import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/static_effect_snapshot.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -601,6 +603,15 @@ Widget _buildOfferPreview(
   required FactionTheme theme,
   bool animate = true,
 }) {
+  // Potential Souls use their real molecular orb everywhere, including this
+  // detail preview, rather than falling through to the placeholder icon.
+  if (offer.id == ShopService.potentialSoulOfferId ||
+      offer.inventoryKey == InvKeys.potentialSoul) {
+    return Center(
+      child: PotentialSoulSphere(size: size, animate: animate),
+    );
+  }
+
   // 0b. Alchemical powerup orb — render glowing sphere in stat color
   if (offer.id.startsWith('boost.powerup.')) {
     final type = AlchemicalPowerupType.values.firstWhere(

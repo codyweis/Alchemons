@@ -1450,6 +1450,10 @@ class ShopService extends ChangeNotifier {
         await _db.inventoryDao.addItemQty(InvKeys.wildFusion, qty);
         return true;
 
+      case potentialSoulOfferId:
+        await _db.inventoryDao.addItemQty(InvKeys.potentialSoul, qty);
+        return true;
+
       case 'boost.instant_boss_refresh':
         await _db.inventoryDao.addItemQty(InvKeys.raidBeacon, qty);
         return true;

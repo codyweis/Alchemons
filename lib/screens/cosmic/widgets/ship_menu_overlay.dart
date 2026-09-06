@@ -161,9 +161,6 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
             decoration: const BoxDecoration(
               color: CosmicScreenStyles.bg3,
               borderRadius: BorderRadius.vertical(top: Radius.circular(2)),
-              border: Border(
-                bottom: BorderSide(color: CosmicScreenStyles.borderDim),
-              ),
             ),
             child: Row(
               children: [
@@ -186,6 +183,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
               ],
             ),
           ),
+          Container(height: 1, color: CosmicScreenStyles.borderDim),
           Padding(padding: const EdgeInsets.all(12), child: child),
         ],
       ),

@@ -92,14 +92,10 @@ class _DraggableSheetState extends State<DraggableSheet> {
                       onVerticalDragEnd: _onVerticalDragEnd,
                       child: Container(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                        // A bottom-only border with a borderRadius throws in
+                        // Border.paint; the rule is drawn as a sibling below.
                         decoration: BoxDecoration(
                           color: widget.theme.surface,
-                          border: Border(
-                            bottom: BorderSide(
-                              color: widget.theme.border,
-                              width: 1.5,
-                            ),
-                          ),
                           borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(20),
                           ),
@@ -156,6 +152,7 @@ class _DraggableSheetState extends State<DraggableSheet> {
                         ),
                       ),
                     ),
+                    Container(height: 1.5, color: widget.theme.border),
                     // Content - prevent drag from content area
                     Expanded(
                       child: GestureDetector(

@@ -40,7 +40,6 @@ class DeployConfirmDialog extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(3),
                 ),
-                border: Border(bottom: BorderSide(color: t.borderDim)),
               ),
               child: Row(
                 children: [
@@ -63,6 +62,7 @@ class DeployConfirmDialog extends StatelessWidget {
                 ],
               ),
             ),
+            Container(height: 1, color: t.borderDim),
             // Body
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),

@@ -1672,11 +1672,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(8),
                       ),
-                      border: Border(
-                        bottom: BorderSide(
-                          color: t.borderDim.withValues(alpha: 0.62),
-                        ),
-                      ),
                     ),
                     child: Row(
                       children: [
@@ -1712,6 +1707,10 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                         ),
                       ],
                     ),
+                  ),
+                  Container(
+                    height: 1,
+                    color: t.borderDim.withValues(alpha: 0.62),
                   ),
                   Expanded(
                     child: Padding(

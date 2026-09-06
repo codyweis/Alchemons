@@ -1663,7 +1663,6 @@ class EggHatching {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(2),
               ),
-              border: Border(bottom: BorderSide(color: fc.borderDim)),
             ),
             child: Row(
               children: [
@@ -1682,6 +1681,7 @@ class EggHatching {
               ],
             ),
           ),
+          Container(height: 1, color: fc.borderDim),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
             child: Column(

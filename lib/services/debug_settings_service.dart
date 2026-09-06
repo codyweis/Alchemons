@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Developer tools toggle — persisted, so it works in release builds on a real
 /// device (unlike `kDebugMode`, which is compile-time and off in a release
 /// install). Debug affordances gate on `DebugSettingsService.enabledNotifier`
-/// OR `kDebugMode`, so a debug build keeps its tools without the switch.
+/// alone: the switch is the whole answer, in every build type.
 ///
 /// Mirrors [CinematicQualityService]'s shape: a static cache plus a notifier so
 /// widgets can rebuild the moment it flips, without threading a service down.
@@ -37,8 +37,12 @@ class DebugSettingsService {
     await prefs.setBool(_key, enabled);
   }
 
-  /// True when developer tools should show: either the switch is on, or this
-  /// is a debug build. Safe to read synchronously during `build` once
-  /// [isEnabled] has hydrated it (call that from `initState`).
-  static bool get toolsVisible => enabledNotifier.value || kDebugMode;
+  /// True when developer tools should show. Safe to read synchronously during
+  /// `build` once [isEnabled] has hydrated it (call that from `initState`).
+  ///
+  /// This used to be `|| kDebugMode`, which meant the switch did nothing in a
+  /// debug build — and debug is the only build most testing happens in, so
+  /// developer affordances leaked into normal play with the toggle off. The
+  /// switch is now the only thing that decides.
+  static bool get toolsVisible => enabledNotifier.value;
 }
