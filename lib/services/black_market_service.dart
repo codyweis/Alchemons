@@ -8,6 +8,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart'; // <-- use Settings table
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
+import 'package:alchemons/models/economy_balance.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:drift/drift.dart';
@@ -326,7 +327,7 @@ class BlackMarketService extends ChangeNotifier {
         name: 'Gold Exchange',
         description: 'Daily exchange: convert 5,000 silver into 1 gold',
         icon: AppIcons.swap_horiz_rounded,
-        cost: {'silver': 5000},
+        cost: {'silver': EconomyBalance.dailySilverPerGoldPurchase},
         rewardType: 'currency',
         reward: {'gold': goldAmount},
       ),

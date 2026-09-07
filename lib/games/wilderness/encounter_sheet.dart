@@ -19,6 +19,8 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -35,7 +37,6 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
@@ -45,7 +46,6 @@ import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
-import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/wilderness/device_selection_dialog.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
@@ -57,6 +57,7 @@ class EncounterOverlay extends StatefulWidget {
   final List<PartyMember> party;
   final ValueChanged<bool>? onClosedWithResult;
   final ValueChanged<Creature>? onPartyCreatureSelected;
+  final ValueChanged<Creature>? onWildCreaturePrepared;
   final VoidCallback? onPreRollShake;
 
   /// Plays the harvest on the creature standing in the scene and answers with
@@ -92,6 +93,7 @@ class EncounterOverlay extends StatefulWidget {
     required this.party,
     this.onClosedWithResult,
     this.onPartyCreatureSelected,
+    this.onWildCreaturePrepared,
     this.onPreRollShake,
     this.onHarvestInScene,
     this.onFusionInScene,
@@ -114,6 +116,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   bool _visible = false; // ignore: unused_field
   String? _chosenInstanceId;
   bool _busy = false;
+  bool _wildReady = false;
+  int _wildFusionQty = 0;
+  late Creature _wildCreature;
   late String _status;
 
   double? _breedChance; // 0.0–1.0 probability
@@ -131,6 +136,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   @override
   void initState() {
     super.initState();
+    _wildCreature = widget.hydratedWildCreature;
     _status = widget.isCaptureTutorial
         ? 'Harvester calibrated. Secure the specimen.'
         : _supportsFusion
@@ -139,7 +145,26 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     // Auto-show on mount
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _show();
+      _prepareWildEncounter();
     });
+  }
+
+  Future<void> _prepareWildEncounter() async {
+    final database = context.read<AlchemonsDatabase>();
+    final arcaneBoostUnlocked = await database.settingsDao
+        .isArcanePortalUnlocked();
+    final prepared = WildCreatureRandomizer().randomizeWildCreature(
+      _wildCreature,
+      arcaneBoostUnlocked: arcaneBoostUnlocked,
+    );
+    final qty = await WildernessService(database).wildFusionQuantity();
+    if (!mounted) return;
+    setState(() {
+      _wildCreature = prepared;
+      _wildFusionQty = qty;
+      _wildReady = true;
+    });
+    widget.onWildCreaturePrepared?.call(prepared);
   }
 
   bool get _supportsFusion =>
@@ -176,14 +201,21 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     WildernessService wilderness,
     ConstellationEffectsService constellation,
   ) {
-    final totalLuck = instance.statBeauty / 100.0;
+    // Preserve the old 1-5% Beauty contribution and allow Power above 100 to
+    // extend it gradually instead of dividing an internal stat by a UI scale.
+    final totalLuck =
+        0.01 + AlchemonStatSystem.combatProgress(instance.statBeauty) * 0.04;
     final harvestBonus = constellation.getWildernessHarvestBonus();
+    final natureBonus = wildFusionStabilityBonusForNatures(
+      instance.natureId,
+      instance.natureId2,
+    );
 
     return wilderness.computeBreedChance(
       base: widget.encounter.baseBreedChance,
       partyLuck: totalLuck,
       matchupMult: 1.0,
-      wildernessBonus: harvestBonus,
+      wildernessBonus: harvestBonus + natureBonus,
     );
   }
 
@@ -406,7 +438,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final wildCreature = widget.hydratedWildCreature;
+    final wildCreature = _wildCreature;
+    final showWildPotentials = context
+        .watch<ConstellationEffectsService>()
+        .hasWildPotentialAnalyzer();
     return Stack(
       children: [
         // Center: Wild creature name title
@@ -431,6 +466,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                   showRarityBadge: widget.showRarityBadge,
                   status: _status,
                   breedChance: _supportsFusion ? _breedChance : null,
+                  showPotentials: showWildPotentials,
                 ),
               ),
             );
@@ -481,7 +517,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                   offset: Offset(0, 100 * (1 - slide)),
                   child: _ActionPanel(
                     isPartySelected: _chosenInstanceId != null,
-                    canAct: !_busy,
+                    canAct: !_busy && _wildReady,
                     isTutorial: widget.isTutorial, // 🆕 Pass tutorial flag
                     isCaptureTutorial: widget.isCaptureTutorial,
                     onBreed: !_busy
@@ -493,6 +529,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     onRun: () => _handleRun(context),
                     showFusionAction: _supportsFusion,
                     showMapAction: widget.showMapAction,
+                    wildFusionQty: _wildFusionQty,
                   ),
                 ),
               ),
@@ -538,7 +575,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   Future<void> _onSelectPartyCreature(String instanceId) async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
-    final staminaService = context.read<StaminaService>();
 
     final instRow = await db.creatureDao.getInstance(instanceId);
     if (instRow == null) return;
@@ -551,10 +587,13 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       nature: instRow.natureId != null
           ? NatureCatalog.byId(instRow.natureId!)
           : baseCreature.nature,
+      nature2: instRow.natureId2 != null
+          ? NatureCatalog.byId(instRow.natureId2!)
+          : baseCreature.nature2,
       isPrismaticSkin: instRow.isPrismaticSkin || baseCreature.isPrismaticSkin,
     );
 
-    final wilderness = WildernessService(db, staminaService);
+    final wilderness = WildernessService(db);
     if (!mounted) return;
     final constellation = context.read<ConstellationEffectsService>();
     final p = _computeWildBreedChance(instRow, wilderness, constellation);
@@ -581,7 +620,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       final db = ctx.read<AlchemonsDatabase>();
       final repo = ctx.read<CreatureCatalog>();
       final breedingService = _buildBreedingService(ctx);
-      final wilderness = WildernessService(db, ctx.read<StaminaService>());
+      final wilderness = WildernessService(db);
 
       final instance = await db.creatureDao.getInstance(_chosenInstanceId!);
       if (instance == null) {
@@ -589,7 +628,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         return;
       }
 
-      // --- Cross-species check BEFORE stamina / roll / cinematic ---
+      // --- Cross-species check BEFORE item spend / roll / cinematic ---
       final speciesA = repo.getCreatureById(instance.baseId);
       final speciesB = wildCreature;
 
@@ -625,11 +664,15 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       final constellation = ctx.read<ConstellationEffectsService>();
       final p = _computeWildBreedChance(instance, wilderness, constellation);
 
-      final spent = await wilderness.trySpendForAttempt(_chosenInstanceId!);
-      if (spent == null) {
-        setState(() => _status = 'This Alchemon is out of stamina.');
+      final consumed = await wilderness.consumeWildFusion();
+      if (!consumed) {
+        setState(() {
+          _wildFusionQty = 0;
+          _status = 'A Wild Fusion catalyst is required for this attempt.';
+        });
         return;
       }
+      if (mounted) setState(() => _wildFusionQty = max(0, _wildFusionQty - 1));
 
       widget.onPreRollShake?.call();
       HapticFeedback.mediumImpact();
@@ -727,6 +770,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         }
         _hide(true);
       } else {
+        if (widget.isTutorial) {
+          await db.inventoryDao.addItemQty(InvKeys.wildFusion, 1);
+          if (mounted) setState(() => _wildFusionQty++);
+        }
         setState(() => _status = 'Fusion destabilized. Try again.');
       }
     } finally {
@@ -923,9 +970,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           child: Container(
             decoration: BoxDecoration(
               color: const Color(0xFF12161D),
-              border: const Border(
-                left: BorderSide(color: success, width: 3),
-              ),
+              border: const Border(left: BorderSide(color: success, width: 3)),
             ),
             padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
             child: Row(
@@ -988,7 +1033,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         const Duration(minutes: 10);
 
     // 👇 apply nature + constellation
-    final natureMult = hatchMultForNature(capturedCreature.nature?.id);
+    final natureMult = hatchMultForNatures(
+      capturedCreature.nature?.id,
+      capturedCreature.nature2?.id,
+    );
     final constellation = ctx.read<ConstellationEffectsService>();
     final gestationReduction = constellation.getGestationReduction();
     final totalMult = natureMult * (1.0 - gestationReduction);
@@ -1095,6 +1143,7 @@ class _WildCreatureTitle extends StatelessWidget {
   final bool showRarityBadge;
   final String status;
   final double? breedChance;
+  final bool showPotentials;
 
   const _WildCreatureTitle({
     required this.creature,
@@ -1102,6 +1151,7 @@ class _WildCreatureTitle extends StatelessWidget {
     required this.status,
     this.showRarityBadge = true,
     this.breedChance,
+    this.showPotentials = false,
   });
 
   Color get _rarityColor {
@@ -1252,7 +1302,69 @@ class _WildCreatureTitle extends StatelessWidget {
             ],
           ),
         ),
+        if (showPotentials && creature.stats != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            color: const Color(0xFF12161D).withValues(alpha: 0.92),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _WildPotential(
+                  label: 'SPD',
+                  value: creature.stats!.speedPotential,
+                ),
+                _WildPotential(
+                  label: 'INT',
+                  value: creature.stats!.intelligencePotential,
+                ),
+                _WildPotential(
+                  label: 'STR',
+                  value: creature.stats!.strengthPotential,
+                ),
+                _WildPotential(
+                  label: 'BEA',
+                  value: creature.stats!.beautyPotential,
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+class _WildPotential extends StatelessWidget {
+  const _WildPotential({required this.label, required this.value});
+
+  final String label;
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFF60A5FA);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$label ',
+            style: bracketText(
+              context,
+              9,
+              _kPalette.muted,
+              weight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+          Text(
+            value.round().clamp(1, 100).toString(),
+            style: bracketText(context, 11.5, accent, weight: FontWeight.w900),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1398,7 +1510,6 @@ class _PartyMemberCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final repo = context.read<CreatureCatalog>();
-    final stamina = context.read<StaminaService>();
     final instanceStream = context
         .read<AlchemonsDatabase>()
         .creatureDao
@@ -1410,9 +1521,6 @@ class _PartyMemberCard extends StatelessWidget {
       builder: (context, snap) {
         final inst = snap.data;
         final base = inst == null ? null : repo.getCreatureById(inst.baseId);
-        final StaminaState? state = inst != null
-            ? stamina.computeState(inst)
-            : null;
 
         return GestureDetector(
           onTap: onTap,
@@ -1445,9 +1553,6 @@ class _PartyMemberCard extends StatelessWidget {
                     )
                   else
                     const SizedBox(width: 36, height: 36),
-                  const SizedBox(height: 4),
-                  if (state != null)
-                    StaminaBar(current: state.bars, max: state.max),
                 ],
               ),
             ),
@@ -1471,6 +1576,7 @@ class _ActionPanel extends StatelessWidget {
   final bool isCaptureTutorial;
   final bool showFusionAction;
   final bool showMapAction;
+  final int wildFusionQty;
 
   const _ActionPanel({
     required this.canAct,
@@ -1482,6 +1588,7 @@ class _ActionPanel extends StatelessWidget {
     this.isCaptureTutorial = false,
     this.showFusionAction = true,
     this.showMapAction = true,
+    this.wildFusionQty = 0,
   });
 
   @override
@@ -1498,9 +1605,9 @@ class _ActionPanel extends StatelessWidget {
           children: [
             if (showFusionAction && !isCaptureTutorial) ...[
               _ActionButton(
-                disabled: !isPartySelected,
-                label: 'Fusion',
-                icon: AppIcons.science_rounded,
+                disabled: !isPartySelected || wildFusionQty < 1,
+                label: 'Wild Fusion ×$wildFusionQty',
+                icon: AppIcons.merge_type_rounded,
                 accentColor: success,
                 onPressed: canAct ? onBreed : null,
               ),

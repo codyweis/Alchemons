@@ -26,7 +26,9 @@ import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
 import 'package:alchemons/utils/specimen_picker_route.dart';
+import 'package:alchemons/models/inventory.dart' show InvKeys;
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
+import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
@@ -147,7 +149,11 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
 
     final ok = await db.currencyDao.spendResources(cost);
     if (!ok) {
-      _toast('Not enough resources', icon: AppIcons.lock_rounded, color: t.amber);
+      _toast(
+        'Not enough resources',
+        icon: AppIcons.lock_rounded,
+        color: t.amber,
+      );
       return;
     }
 
@@ -161,7 +167,11 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
     HapticFeedback.lightImpact();
   }
 
-  void _toast(String msg, {IconData icon = AppIcons.check_rounded, Color? color}) {
+  void _toast(
+    String msg, {
+    IconData icon = AppIcons.check_rounded,
+    Color? color,
+  }) {
     if (!mounted) return;
     final backgroundColor = color ?? t.amber;
     final foregroundColor = t.onColor(backgroundColor);
@@ -404,124 +414,104 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
             ? t.borderAccent
             : t.danger.withValues(alpha: 0.5);
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: GestureDetector(
-            onTap: () {
-              if (canPurchase) {
-                _handlePurchase(context, offer, allCurrencies, canAfford);
-              } else {
-                _showDetails(context, offer, allCurrencies, canAfford);
-              }
-            },
-            child: Container(
-              height: 140,
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: borderColor, width: 1.5),
-              ),
-              child: Stack(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: ExtractionVialCard(
-                            vial: vialModel,
-                            compact: true,
-                            onAddToInventory: null,
-                            onTap: null,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                offer.name.toUpperCase(),
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: t.textPrimary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                offer.description,
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: t.textSecondary,
-                                  fontSize: 12,
-                                  letterSpacing: 0.2,
-                                  height: 1.5,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(spacing: 4, children: costWidgets),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Purchased overlay
-                  if (isPurchased)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: theme.isDark
-                              ? Colors.black.withValues(alpha: 0.65)
-                              : theme.surface.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: t.successDim.withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(3),
-                                border: Border.all(
-                                  color: t.success.withValues(alpha: 0.5),
-                                ),
-                              ),
-                              child: const Icon(
-                                AppIcons.check_rounded,
-                                color: Color(0xFF4ADE80),
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'PURCHASED',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: Color(0xFF4ADE80),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ],
+        return GestureDetector(
+          onTap: () {
+            if (canPurchase) {
+              _handlePurchase(context, offer, allCurrencies, canAfford);
+            } else {
+              _showDetails(context, offer, allCurrencies, canAfford);
+            }
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: borderColor, width: 1.5),
+            ),
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: ExtractionVialCard(
+                          vial: vialModel,
+                          compact: true,
+                          onAddToInventory: null,
+                          onTap: null,
                         ),
                       ),
                     ),
-                ],
-              ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            offer.name.toUpperCase(),
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: t.textPrimary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(spacing: 4, children: costWidgets),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Purchased overlay
+                if (isPurchased)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.isDark
+                            ? Colors.black.withValues(alpha: 0.65)
+                            : theme.surface.withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: t.successDim.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(3),
+                              border: Border.all(
+                                color: t.success.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: const Icon(
+                              AppIcons.check_rounded,
+                              color: Color(0xFF4ADE80),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'PURCHASED',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: Color(0xFF4ADE80),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         );
@@ -559,18 +549,6 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _buildSectionHeader(
-                        'DAILY VIAL',
-                        t.amberBright,
-                        AppIcons.science_rounded,
-                      ),
-                      const SizedBox(height: 10),
-                      // Runs a live brewing particle field; own layer, and
-                      // paused once it scrolls out of the viewport.
-                      ViewportTickerGate(
-                        child: _buildDailyVialSection(theme, allCurrencies),
-                      ),
-
-                      _buildSectionHeader(
                         'SPECIAL UNLOCKS',
                         t.amberBright,
                         AppIcons.auto_awesome_rounded,
@@ -582,6 +560,28 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
                       ),
 
                       _buildSectionHeader(
+                        'COMMON ITEMS',
+                        t.textPrimary,
+                        AppIcons.flash_on_rounded,
+                      ),
+                      // The vial is a routine restock like the other two, so
+                      // it shares their grid — same cell, same size — instead
+                      // of a full-width card above them. Its live brewing
+                      // particle field keeps its own layer, paused once it
+                      // scrolls out of the viewport.
+                      _buildInstantItemsGrid(
+                        theme,
+                        allCurrencies,
+                        inventoryByKey,
+                        _commonConsumableIds,
+                        leading: [
+                          ViewportTickerGate(
+                            child: _buildDailyVialSection(theme, allCurrencies),
+                          ),
+                        ],
+                      ),
+
+                      _buildSectionHeader(
                         'GOLD VAULT',
                         const Color(0xFFFFD700),
                         AppIcons.hexagon_rounded,
@@ -589,9 +589,7 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
                       ),
                       // GraphX mote scene + shimmer/float controllers; own
                       // layer, and paused once it scrolls out of the viewport.
-                      ViewportTickerGate(
-                        child: _buildGoldVaultSection(theme),
-                      ),
+                      ViewportTickerGate(child: _buildGoldVaultSection(theme)),
 
                       _buildSectionHeader(
                         'HARVEST DEVICES',
@@ -621,14 +619,15 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
                       ),
 
                       _buildSectionHeader(
-                        'INSTANT ITEMS',
-                        t.textPrimary,
-                        AppIcons.flash_on_rounded,
+                        'SPECIAL ITEMS',
+                        t.amberBright,
+                        AppIcons.auto_awesome_rounded,
                       ),
                       _buildInstantItemsGrid(
                         theme,
                         allCurrencies,
                         inventoryByKey,
+                        _specialConsumableIds,
                       ),
 
                       _buildSectionHeader(
@@ -768,7 +767,9 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
             started
                 ? 'Purchase started'
                 : (store.lastError ?? 'Store unavailable'),
-            icon: started ? AppIcons.shopping_bag_rounded : AppIcons.error_rounded,
+            icon: started
+                ? AppIcons.shopping_bag_rounded
+                : AppIcons.error_rounded,
             color: started ? goldAccent : t.danger,
           );
         }
@@ -1113,7 +1114,11 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
 
     final ok = await _spendWalletCost(db, cost);
     if (!ok) {
-      _toast('Not enough currency', icon: AppIcons.lock_rounded, color: t.amber);
+      _toast(
+        'Not enough currency',
+        icon: AppIcons.lock_rounded,
+        color: t.amber,
+      );
       return;
     }
 
@@ -1293,18 +1298,34 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
     );
   }
 
+  /// Everyday consumables. Kept above the rarer ones because these are the
+  /// two a player restocks routinely.
+  static const _commonConsumableIds = <String>[
+    'boost.instant_stamina_potion',
+    ShopService.wildFusionOfferId,
+  ];
+
+  /// Situational consumables: one summons a raid, one skips a fusion timer.
+  static const _specialConsumableIds = <String>[
+    'boost.instant_hatch',
+    'boost.instant_boss_refresh',
+  ];
+
   Widget _buildInstantItemsGrid(
     FactionTheme theme,
     Map<String, int> allCurrencies,
     Map<String, int> inventory,
-  ) {
+    List<String> ids, {
+    List<Widget> leading = const [],
+  }) {
     return Consumer<ShopService>(
       builder: (context, shopService, _) {
-        final instantOffers = ShopService.allOffers
-            .where((o) => o.id.startsWith('boost.instant'))
-            .toList();
+        final instantOffers = [
+          for (final id in ids)
+            ...ShopService.allOffers.where((o) => o.id == id),
+        ];
 
-        if (instantOffers.isEmpty) {
+        if (instantOffers.isEmpty && leading.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(12),
             child: EmptySection(
@@ -1358,7 +1379,7 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.8,
-            children: cards,
+            children: [...leading, ...cards],
           ),
         );
       },
@@ -1730,37 +1751,70 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: AlchemicalPowerupType.values.map((type) {
-              final offerId = type.shopOfferId;
-              final offer = ShopService.allOffers.firstWhere(
-                (o) => o.id == offerId,
-              );
-              final effectiveCost = shopService.getEffectiveCost(offer);
-              final qty = inventory[type.inventoryKey] ?? 0;
-              final canAfford = effectiveCost.entries.every(
-                (e) => (allCurrencies[e.key] ?? 0) >= e.value,
-              );
-              final canPurchase = shopService.canPurchase(offerId);
-              return _ShopPowerupOrb(
-                type: type,
-                qty: qty,
-                canAfford: canAfford,
-                cost: effectiveCost,
-                theme: theme,
-                phaseDelay: Duration(
-                  milliseconds:
-                      AlchemicalPowerupType.values.indexOf(type) * 320,
-                ),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  if (canPurchase) {
-                    _handlePurchase(context, offer, allCurrencies, canAfford);
-                  } else {
-                    _showDetails(context, offer, allCurrencies, canAfford);
-                  }
+            children: [
+              ...AlchemicalPowerupType.values.map((type) {
+                final offerId = type.shopOfferId;
+                final offer = ShopService.allOffers.firstWhere(
+                  (o) => o.id == offerId,
+                );
+                final effectiveCost = shopService.getEffectiveCost(offer);
+                final qty = inventory[type.inventoryKey] ?? 0;
+                final canAfford = effectiveCost.entries.every(
+                  (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+                );
+                final canPurchase = shopService.canPurchase(offerId);
+                return _ShopPowerupOrb(
+                  type: type,
+                  qty: qty,
+                  canAfford: canAfford,
+                  cost: effectiveCost,
+                  theme: theme,
+                  phaseDelay: Duration(
+                    milliseconds:
+                        AlchemicalPowerupType.values.indexOf(type) * 320,
+                  ),
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    if (canPurchase) {
+                      _handlePurchase(context, offer, allCurrencies, canAfford);
+                    } else {
+                      _showDetails(context, offer, allCurrencies, canAfford);
+                    }
+                  },
+                );
+              }),
+              Builder(
+                builder: (context) {
+                  final offer = ShopService.allOffers.firstWhere(
+                    (o) => o.id == ShopService.potentialSoulOfferId,
+                  );
+                  final effectiveCost = shopService.getEffectiveCost(offer);
+                  final canAfford = effectiveCost.entries.every(
+                    (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+                  );
+                  final canPurchase = shopService.canPurchase(offer.id);
+                  return _ShopSoulOrb(
+                    qty: inventory[InvKeys.potentialSoul] ?? 0,
+                    canAfford: canAfford,
+                    cost: effectiveCost,
+                    theme: theme,
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      if (canPurchase) {
+                        _handlePurchase(
+                          context,
+                          offer,
+                          allCurrencies,
+                          canAfford,
+                        );
+                      } else {
+                        _showDetails(context, offer, allCurrencies, canAfford);
+                      }
+                    },
+                  );
                 },
-              );
-            }).toList(),
+              ),
+            ],
           ),
         );
       },
@@ -2007,6 +2061,110 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
 }
 
 // ── Animated powerup orb for shop ─────────────────────────────────────────────
+
+/// Sits beside the Power Orbs on the shop shelf: same footprint, but the
+/// molecular soul artwork and a Silver-cost caveat, since infusing one costs
+/// again on top of the purchase.
+class _ShopSoulOrb extends StatelessWidget {
+  final int qty;
+  final bool canAfford;
+  final Map<String, int> cost;
+  final FactionTheme theme;
+  final VoidCallback onTap;
+
+  const _ShopSoulOrb({
+    required this.qty,
+    required this.canAfford,
+    required this.cost,
+    required this.theme,
+    required this.onTap,
+  });
+
+  static const Color _soul = Color(0xFFCF9BFF);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    final goldCost = cost['gold'] ?? 0;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Opacity(
+        opacity: canAfford ? 1.0 : 0.55,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const PotentialSoulSphere(size: 62, animate: true),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: qty > 0 ? _soul.withValues(alpha: 0.14) : t.bg3,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(
+                  color: qty > 0 ? _soul.withValues(alpha: 0.45) : t.borderDim,
+                ),
+              ),
+              child: Text(
+                'x$qty',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: qty > 0 ? _soul : t.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(height: 5),
+            const Text(
+              'POTENTIAL SOUL',
+              softWrap: true,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: _soul,
+                fontSize: 7,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'GENETICS',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: t.textMuted,
+                fontSize: 7,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.0,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CoinIcon(kind: CoinKind.gold, size: 12),
+                const SizedBox(width: 3),
+                Text(
+                  '$goldCost',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: canAfford ? const Color(0xFFFFD700) : t.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _ShopPowerupOrb extends StatefulWidget {
   final AlchemicalPowerupType type;

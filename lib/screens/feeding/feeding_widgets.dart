@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/stat_system.dart';
 
 // ---------- Header ----------
 
@@ -414,9 +415,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                                 end: Alignment.centerRight,
                                 colors: [
                                   Colors.white.withValues(alpha: 0.0),
-                                  Colors.white.withValues(
-                                    alpha: 0.55 * burstT,
-                                  ),
+                                  Colors.white.withValues(alpha: 0.55 * burstT),
                                   Colors.white.withValues(alpha: 0.0),
                                 ],
                                 stops: [
@@ -774,8 +773,7 @@ class CurrentStatsDisplay extends StatelessWidget {
                                 gain: gains['intelligence'] ?? 0,
                                 hasPreview: hasPreview,
                                 theme: theme,
-                                color:
-                                    AlchemicalPowerupType.intelligence.color,
+                                color: AlchemicalPowerupType.intelligence.color,
                               ),
                               UnifiedStatRow(
                                 label: 'STR',
@@ -853,11 +851,13 @@ class UnifiedStatRow extends StatelessWidget {
     final fc = FC.of(context);
     final t = ForgeTokens(theme);
 
-    const denom = 5.0;
-    final currentPct = (current / denom).clamp(0.0, 1.0);
-    final potentialPct = (potential / denom).clamp(0.0, 1.0);
-    final projected = (current + gain).clamp(0.0, potential);
-    final projectedPct = (projected / denom).clamp(0.0, 1.0);
+    final currentRating = AlchemonStatSystem.displayRating(current);
+    final potentialRating = AlchemonStatSystem.normalizePotential(potential);
+    final currentPct = AlchemonStatSystem.displayFraction(current);
+    final potentialPct = potentialRating / 100.0;
+    final projected = current + gain;
+    final projectedRating = AlchemonStatSystem.displayRating(projected);
+    final projectedPct = AlchemonStatSystem.displayFraction(projected);
 
     final showGain = hasPreview && gain != 0;
     final gainColor = gain > 0
@@ -929,12 +929,12 @@ class UnifiedStatRow extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           SizedBox(
-            width: 64,
+            width: 82,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
-                  current.toStringAsFixed(1),
+                  '$currentRating · P$potentialRating',
                   style: TextStyle(
                     color: t.textPrimary,
                     fontSize: 12,
@@ -958,7 +958,7 @@ class UnifiedStatRow extends StatelessWidget {
                             ),
                             const SizedBox(width: 1),
                             Text(
-                              projected.toStringAsFixed(1),
+                              '$projectedRating',
                               style: TextStyle(
                                 color: gainColor,
                                 fontSize: 12,
@@ -1013,10 +1013,6 @@ class FeedTargetPanel extends StatelessWidget {
     }
 
     final hasConstellationBoosts =
-        constellationEffects.getStatBoostMultiplier('strength') > 0 ||
-        constellationEffects.getStatBoostMultiplier('intelligence') > 0 ||
-        constellationEffects.getStatBoostMultiplier('beauty') > 0 ||
-        constellationEffects.getStatBoostMultiplier('speed') > 0 ||
         constellationEffects.getXpBoostMultiplier() > 1.0;
 
     return Container(
@@ -1034,7 +1030,7 @@ class FeedTargetPanel extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Max Level Reached!\nThis creature can no longer be enhanced.',
+                    'Training Complete!\nUse Power Orbs to raise Enhancement ranks.',
                     style: TextStyle(
                       color: fc.amberBright,
                       fontSize: 12,
@@ -1072,22 +1068,7 @@ class _ConstellationInfoButton extends StatelessWidget {
   void _showDialog(BuildContext context) {
     HapticFeedback.lightImpact();
     final t = ForgeTokens(theme);
-    final strBoost = effects.getStatBoostMultiplier('strength');
-    final intBoost = effects.getStatBoostMultiplier('intelligence');
-    final beaBoost = effects.getStatBoostMultiplier('beauty');
-    final spdBoost = effects.getStatBoostMultiplier('speed');
     final xpBoost = effects.getXpBoostMultiplier();
-    final hasXp = xpBoost > 1.0;
-
-    final statRows = <_BoostEntry>[
-      if (strBoost > 0)
-        _BoostEntry('STR', strBoost, AppIcons.fitness_center_rounded),
-      if (intBoost > 0)
-        _BoostEntry('INT', intBoost, AppIcons.psychology_rounded),
-      if (beaBoost > 0)
-        _BoostEntry('BEA', beaBoost, AppIcons.auto_awesome_rounded),
-      if (spdBoost > 0) _BoostEntry('SPD', spdBoost, AppIcons.bolt_rounded),
-    ];
 
     showDialog<void>(
       context: context,
@@ -1107,15 +1088,11 @@ class _ConstellationInfoButton extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(
-                      AppIcons.auto_awesome,
-                      size: 16,
-                      color: theme.primary,
-                    ),
+                    Icon(AppIcons.auto_awesome, size: 16, color: theme.primary),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Constellation Bonuses',
+                        'Training Bonus',
                         style: TextStyle(
                           color: t.textPrimary,
                           fontSize: 14,
@@ -1139,25 +1116,14 @@ class _ConstellationInfoButton extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                for (final entry in statRows) ...[
-                  _BoostRow(theme: theme, entry: entry),
-                  const SizedBox(height: 6),
-                ],
-                if (hasXp) ...[
-                  if (statRows.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Container(height: 1, color: t.borderDim),
-                    ),
-                  _BoostRow(
-                    theme: theme,
-                    entry: _BoostEntry(
-                      'XP',
-                      xpBoost - 1.0,
-                      AppIcons.trending_up_rounded,
-                    ),
+                _BoostRow(
+                  theme: theme,
+                  entry: _BoostEntry(
+                    'XP',
+                    xpBoost - 1.0,
+                    AppIcons.trending_up_rounded,
                   ),
-                ],
+                ),
               ],
             ),
           ),

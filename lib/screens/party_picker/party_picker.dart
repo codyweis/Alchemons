@@ -6,7 +6,6 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -249,8 +248,9 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                   theme: theme,
                   storageKey: widget.teamStorageKey,
                   slotCount: party.maxSize,
-                  activeMemberIds:
-                      party.members.map((m) => m.instanceId).toList(),
+                  activeMemberIds: party.members
+                      .map((m) => m.instanceId)
+                      .toList(),
                 ),
               );
             },
@@ -326,8 +326,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
         color: _C.bg2,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color:
-              isReady ? _C.success.withValues(alpha: 0.55) : _C.borderDim,
+          color: isReady ? _C.success.withValues(alpha: 0.55) : _C.borderDim,
           width: isReady ? 1.5 : 1,
         ),
         boxShadow: isReady
@@ -406,9 +405,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                                   const SizedBox(width: 4),
                                   Text(
                                     'READY',
-                                    style: _T.label.copyWith(
-                                      color: _C.success,
-                                    ),
+                                    style: _T.label.copyWith(color: _C.success),
                                   ),
                                 ],
                               )
@@ -422,7 +419,13 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                   ),
                   const SizedBox(height: 10),
                   // Slot rows
-                  _buildSlotRow(allInstances, party, repo, 0, maxSize.clamp(1, 5)),
+                  _buildSlotRow(
+                    allInstances,
+                    party,
+                    repo,
+                    0,
+                    maxSize.clamp(1, 5),
+                  ),
                   if (maxSize > 5) ...[
                     const SizedBox(height: 6),
                     _buildSlotRow(allInstances, party, repo, 5, maxSize),
@@ -462,8 +465,9 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     CreatureCatalog repo,
     int slotIndex,
   ) {
-    final member =
-        slotIndex < party.members.length ? party.members[slotIndex] : null;
+    final member = slotIndex < party.members.length
+        ? party.members[slotIndex]
+        : null;
     final instanceId = member?.instanceId;
     final instance = instanceId != null
         ? allInstances.firstWhereOrNull((i) => i.instanceId == instanceId)
@@ -482,9 +486,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
           color: isFilled ? _C.success.withValues(alpha: 0.10) : _C.bg1,
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
-            color: isFilled
-                ? _C.success.withValues(alpha: 0.55)
-                : _C.borderDim,
+            color: isFilled ? _C.success.withValues(alpha: 0.55) : _C.borderDim,
             width: isFilled ? 1.5 : 1,
           ),
         ),
@@ -566,39 +568,6 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
       child: GestureDetector(
         onTap: canDeploy
             ? () async {
-                final existingIds =
-                    allInstances.map((i) => i.instanceId).toSet();
-                final validMembers = party.members
-                    .where((m) => existingIds.contains(m.instanceId))
-                    .toList();
-                final selectedInstances = validMembers
-                    .map(
-                      (m) => allInstances.firstWhere(
-                        (i) => i.instanceId == m.instanceId,
-                      ),
-                    )
-                    .toList();
-
-                bool proceed = true;
-                if (ctx.mounted) {
-                  final stamina = ctx.read<StaminaService>();
-                  final hasZeroStamina = selectedInstances.any((inst) {
-                    final state = stamina.computeState(inst);
-                    return state.bars == 0;
-                  });
-
-                  if (hasZeroStamina) {
-                    final warn = await showDialog<bool>(
-                      context: ctx,
-                      barrierDismissible: false,
-                      builder: (_) => ZeroStaminaWarningDialog(theme: theme),
-                    );
-                    proceed = warn == true;
-                  }
-                }
-
-                if (!proceed) return;
-
                 if (widget.showDeployConfirm && ctx.mounted) {
                   final confirmed = await showDialog<bool>(
                     context: ctx,
@@ -609,10 +578,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                 }
 
                 if (ctx.mounted) {
-                  Navigator.pop(
-                    ctx,
-                    ctx.read<SelectedPartyNotifier>().members,
-                  );
+                  Navigator.pop(ctx, ctx.read<SelectedPartyNotifier>().members);
                 }
               }
             : null,
@@ -698,7 +664,8 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     final isMystic = family == 'Mystic';
     // Mystic is always unique. Under [enforceUniqueFamily] so is every other
     // family, so the general rule subsumes the Mystic one.
-    final clashingFamily = family != null &&
+    final clashingFamily =
+        family != null &&
         (isMystic || widget.enforceUniqueFamily) &&
         party.members.any((m) => familyOf(m.instanceId) == family);
     final hasMysticAlready = isMystic && clashingFamily;
@@ -748,4 +715,3 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     ctx.read<SelectedPartyNotifier>().toggle(inst.instanceId);
   }
 }
-

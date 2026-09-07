@@ -371,7 +371,8 @@ class _ContainmentFieldPainter extends CustomPainter {
         for (var k = 0; k <= steps; k++) {
           final a = a0 + (a1 - a0) * k / steps;
           // THE FLEX: the wall bulges where the specimen is leaning on it.
-          final rr = radius + flex * math.sin(a * 3 - beat.strain * math.pi * 2);
+          final rr =
+              radius + flex * math.sin(a * 3 - beat.strain * math.pi * 2);
           final p = c + Offset(math.cos(a), math.sin(a)) * rr + off;
           if (k == 0) {
             path.moveTo(p.dx, p.dy);
@@ -384,7 +385,9 @@ class _ContainmentFieldPainter extends CustomPainter {
     }
 
     // Anchors: four brackets that bite in as the field locks.
-    final bite = Curves.easeOutBack.transform(_interval(beat.seize, 0.36, 0.58));
+    final bite = Curves.easeOutBack.transform(
+      _interval(beat.seize, 0.36, 0.58),
+    );
     if (bite > 0.01 && collapse < 0.9 && shatter < 0.9) {
       final r = cage * (1.42 - 0.1 * bite) * (1 - 0.92 * collapse);
       final p = Paint()
@@ -444,9 +447,11 @@ class _ContainmentFieldPainter extends CustomPainter {
           c + u * outer,
           c + u * (outer - cage * 0.22 * (1 - lead)),
           draw
-            ..color = Color.lerp(color, _amber, 0.6)!.withValues(
-              alpha: 0.75 * (1 - lead),
-            ),
+            ..color = Color.lerp(
+              color,
+              _amber,
+              0.6,
+            )!.withValues(alpha: 0.75 * (1 - lead)),
         );
       }
     }

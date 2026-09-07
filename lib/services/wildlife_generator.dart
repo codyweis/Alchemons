@@ -4,7 +4,6 @@ import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/genetics.dart';
-import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/creature_repository.dart';
 
@@ -45,7 +44,9 @@ class WildlifeGenerator {
     final Genetics g = _rollGeneticsFor(base);
 
     // 2) roll nature (same catalog weighting used in breeding)
-    final NatureDef n = NatureCatalogWeighted.weightedRandom(_rng);
+    final rarityKey = (rarity ?? base.rarity).toLowerCase();
+    final isElite = rarityKey == 'legendary' || rarityKey == 'mythic';
+    final natures = NatureCatalogWeighted.rollWildSlots(_rng, elite: isElite);
 
     // 3) prismatic cosmetic flag
     final bool prism = _rng.nextDouble() < tuning.prismaticSkinChance;
@@ -53,7 +54,8 @@ class WildlifeGenerator {
     // 4) no parentage for wild
     return base.copyWith(
       genetics: g,
-      nature: n,
+      nature: natures.isEmpty ? null : natures.first,
+      nature2: natures.length > 1 ? natures[1] : null,
       isPrismaticSkin: prism,
       parentage: tuning.excludeParentageSnapshot ? null : base.parentage,
     );

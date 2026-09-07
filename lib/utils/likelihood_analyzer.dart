@@ -15,9 +15,11 @@ import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/breeding_config.dart';
+import 'package:alchemons/utils/nature_utils.dart';
 import 'package:flutter/material.dart';
 
 enum Likelihood {
@@ -683,25 +685,22 @@ class BreedingLikelihoodAnalyzer {
     required List<InheritanceMechanic> mechanicsOut,
     required List<String> surprisesOut,
   }) {
-    final childNature = baby.nature;
-    if (childNature == null) return;
+    final childNatures = [baby.nature, baby.nature2].whereType<NatureDef>();
+    for (final childNature in childNatures) {
+      final pct = engine.natureAppearanceChancePct(p1, p2, childNature.id);
+      mechanicsOut.add(
+        InheritanceMechanic(
+          category: 'Nature',
+          result: childNature.id,
+          mechanism: _describeNatureMechanism(p1, p2, childNature.id),
+          percentage: pct,
+          likelihood: _likelihoodFor(pct),
+        ),
+      );
 
-    final natureDist = engine.getNatureDistribution(p1, p2);
-    final naturePctMap = natureDist.asPercentages();
-    final pct = naturePctMap[childNature.id] ?? 0.0;
-
-    mechanicsOut.add(
-      InheritanceMechanic(
-        category: 'Nature',
-        result: childNature.id,
-        mechanism: _describeNatureMechanism(p1, p2, childNature.id),
-        percentage: pct,
-        likelihood: _likelihoodFor(pct),
-      ),
-    );
-
-    if (pct < 20.0) {
-      surprisesOut.add('Unexpected nature outcome');
+      if (pct < 20.0) {
+        surprisesOut.add('Unexpected nature outcome');
+      }
     }
   }
 
@@ -904,14 +903,20 @@ class BreedingLikelihoodAnalyzer {
   }
 
   String _describeNatureMechanism(Creature p1, Creature p2, String natureId) {
-    final n1 = p1.nature?.id;
-    final n2 = p2.nature?.id;
+    if ([
+      p1,
+      p2,
+    ].any((parent) => guaranteedSecondNature(parent)?.id == natureId)) {
+      return 'Guaranteed by a parent\'s Hereditary Nature';
+    }
+    final parentA = {p1.nature?.id, p1.nature2?.id}..remove(null);
+    final parentB = {p2.nature?.id, p2.nature2?.id}..remove(null);
 
-    if (n1 != null && n1 == n2 && natureId == n1) {
+    if (parentA.contains(natureId) && parentB.contains(natureId)) {
       return 'Inherited parents nature with strong likelihood';
     }
 
-    if (natureId == n1 || natureId == n2) {
+    if (parentA.contains(natureId) || parentB.contains(natureId)) {
       return 'Inherited a parent nature';
     }
 
@@ -1284,10 +1289,14 @@ class BreedingLikelihoodAnalyzer {
     final nature = (row.natureId != null)
         ? NatureCatalog.byId(row.natureId!)
         : base.nature;
+    final nature2 = (row.natureId2 != null)
+        ? NatureCatalog.byId(row.natureId2!)
+        : base.nature2;
 
     return base.copyWith(
       genetics: genetics ?? base.genetics,
       nature: nature,
+      nature2: nature2,
       isPrismaticSkin: row.isPrismaticSkin || base.isPrismaticSkin,
     );
   }

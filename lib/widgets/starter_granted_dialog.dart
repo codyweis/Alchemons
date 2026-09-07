@@ -56,7 +56,10 @@ class SystemDialog extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(2),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.3),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.white.withValues(alpha: 0.1),

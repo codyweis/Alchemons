@@ -148,12 +148,15 @@ class AccountSessionService extends ChangeNotifier {
           );
         }
 
-        transaction.set(ref, _sessionDocData(
-          activeDeviceId: _deviceId!,
-          activeEmail: user.email,
-          activeDisplayName: user.displayName,
-          status: 'active',
-        ));
+        transaction.set(
+          ref,
+          _sessionDocData(
+            activeDeviceId: _deviceId!,
+            activeEmail: user.email,
+            activeDisplayName: user.displayName,
+            status: 'active',
+          ),
+        );
       });
     } on FirebaseException catch (error) {
       throw AccountSessionException(_friendlyFirestoreError(error));

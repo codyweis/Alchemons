@@ -143,202 +143,209 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-              // Loot opening Lottie animation — fill width, unconstrained
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final size =
-                      (constraints.maxWidth * 0.7).clamp(160.0, 360.0);
-                  return Center(
-                    child: SizedBox(
-                      width: size,
-                      height: size,
-                      child: Lottie.asset(
-                        'assets/animations/loot-open-safe.json',
-                        controller: _lottieCtrl,
-                        fit: BoxFit.contain,
-                        repeat: false,
-                        onLoaded: (comp) {
-                          if (!mounted) return;
-                          _lottieCtrl.duration = comp.duration;
-                          _lottieCtrl.forward();
-                        },
+                // Loot opening Lottie animation — fill width, unconstrained
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final size = (constraints.maxWidth * 0.7).clamp(
+                      160.0,
+                      360.0,
+                    );
+                    return Center(
+                      child: SizedBox(
+                        width: size,
+                        height: size,
+                        child: Lottie.asset(
+                          'assets/animations/loot-open-safe.json',
+                          controller: _lottieCtrl,
+                          fit: BoxFit.contain,
+                          repeat: false,
+                          onLoaded: (comp) {
+                            if (!mounted) return;
+                            _lottieCtrl.duration = comp.duration;
+                            _lottieCtrl.forward();
+                          },
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.title,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  color: amber,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 5.0,
+                    );
+                  },
                 ),
-              ),
-              const SizedBox(height: 8),
-              Container(height: 1, color: amber.withValues(alpha: 0.25)),
-              const SizedBox(height: 12),
-              // Survival-parity hint — tells the player the list is
-              // interactive without shouting. Matches the small dimmed
-              // amber line in cosmic_survival's game-over screen.
-              Text(
-                'TAP FOR DETAILS',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: amber.withValues(alpha: 0.55),
-                  fontSize: 12,
-                  letterSpacing: 3.0,
-                  fontWeight: FontWeight.w700,
+                const SizedBox(height: 8),
+                Text(
+                  widget.title,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: amber,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 5.0,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              ...List.generate(widget.entries.length, (i) {
-                final e = widget.entries[i];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: FadeTransition(
-                    opacity: _rowFade[i],
-                    child: SlideTransition(
-                      position: _rowSlide[i],
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => _showRewardDetail(context, e),
-                          borderRadius: BorderRadius.circular(4),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: e.color.withValues(alpha: 0.06),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: e.color.withValues(alpha: 0.28),
-                                width: 1,
+                const SizedBox(height: 8),
+                Container(height: 1, color: amber.withValues(alpha: 0.25)),
+                const SizedBox(height: 12),
+                // Survival-parity hint — tells the player the list is
+                // interactive without shouting. Matches the small dimmed
+                // amber line in cosmic_survival's game-over screen.
+                Text(
+                  'TAP FOR DETAILS',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: amber.withValues(alpha: 0.55),
+                    fontSize: 12,
+                    letterSpacing: 3.0,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ...List.generate(widget.entries.length, (i) {
+                  final e = widget.entries[i];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: FadeTransition(
+                      opacity: _rowFade[i],
+                      child: SlideTransition(
+                        position: _rowSlide[i],
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => _showRewardDetail(context, e),
+                            borderRadius: BorderRadius.circular(4),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
                               ),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Container(
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: e.color.withValues(alpha: 0.14),
-                                    border: Border.all(
-                                      color: e.color.withValues(alpha: 0.4),
-                                      width: 1,
+                              decoration: BoxDecoration(
+                                color: e.color.withValues(alpha: 0.06),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: e.color.withValues(alpha: 0.28),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: e.color.withValues(alpha: 0.14),
+                                      border: Border.all(
+                                        color: e.color.withValues(alpha: 0.4),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: e.visualBuilder != null
+                                        ? Center(child: e.visualBuilder!(32))
+                                        : e.imagePath != null
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                            child: Image.asset(
+                                              e.imagePath!,
+                                              width: 32,
+                                              height: 32,
+                                              fit: BoxFit.contain,
+                                            ),
+                                          )
+                                        : (e.coin != null
+                                              ? CoinIcon(
+                                                  kind: e.coin!,
+                                                  size: 22,
+                                                )
+                                              : Icon(
+                                                  e.icon,
+                                                  color: e.color,
+                                                  size: 22,
+                                                )),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (e.name != null)
+                                          Text(
+                                            e.name!.toUpperCase(),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontFamily: 'monospace',
+                                              color: Color(0xFFE8DCC8),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 1.6,
+                                            ),
+                                          ),
+                                        Text(
+                                          e.label,
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            color: e.color,
+                                            fontSize: e.name != null ? 18 : 22,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: 1.0,
+                                            height: 1.1,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  child: e.visualBuilder != null
-                                      ? Center(child: e.visualBuilder!(32))
-                                      : e.imagePath != null
-                                      ? ClipRRect(
-                                          borderRadius: BorderRadius.circular(6),
-                                          child: Image.asset(
-                                            e.imagePath!,
-                                            width: 32,
-                                            height: 32,
-                                            fit: BoxFit.contain,
-                                          ),
-                                        )
-                                      : (e.coin != null
-                                            ? CoinIcon(kind: e.coin!, size: 22)
-                                            : Icon(
-                                                e.icon,
-                                                color: e.color,
-                                                size: 22,
-                                              )),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (e.name != null)
-                                        Text(
-                                          e.name!.toUpperCase(),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontFamily: 'monospace',
-                                            color: Color(0xFFE8DCC8),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                            letterSpacing: 1.6,
-                                          ),
-                                        ),
-                                      Text(
-                                        e.label,
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          color: e.color,
-                                          fontSize: e.name != null ? 18 : 22,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 1.0,
-                                          height: 1.1,
-                                        ),
-                                      ),
-                                    ],
+                                  const SizedBox(width: 6),
+                                  Icon(
+                                    AppIcons.chevron_right_rounded,
+                                    color: e.color.withValues(alpha: 0.5),
+                                    size: 18,
                                   ),
-                                ),
-                                const SizedBox(width: 6),
-                                Icon(
-                                  AppIcons.chevron_right_rounded,
-                                  color: e.color.withValues(alpha: 0.5),
-                                  size: 18,
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              }),
-              const SizedBox(height: 8),
-              FadeTransition(
-                opacity: _btnFade,
-                child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    width: double.infinity,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: amber.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: amber, width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: amber.withValues(alpha: 0.22),
-                          blurRadius: 20,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'COLLECT',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: Color(0xFFFFCC44),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 4.0,
+                  );
+                }),
+                const SizedBox(height: 8),
+                FadeTransition(
+                  opacity: _btnFade,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: double.infinity,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: amber.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: amber, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: amber.withValues(alpha: 0.22),
+                            blurRadius: 20,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'COLLECT',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: Color(0xFFFFCC44),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 4.0,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
               ],
             ),
           ),
@@ -394,10 +401,7 @@ void _showRewardDetail(BuildContext ctx, LootOpeningEntry entry) {
                   : entry.imagePath != null
                   ? Padding(
                       padding: const EdgeInsets.all(8),
-                      child: Image.asset(
-                        entry.imagePath!,
-                        fit: BoxFit.contain,
-                      ),
+                      child: Image.asset(entry.imagePath!, fit: BoxFit.contain),
                     )
                   : (entry.coin != null
                         ? CoinIcon(kind: entry.coin!, size: 34)

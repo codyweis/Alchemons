@@ -12,6 +12,7 @@ import 'package:alchemons/games/sprite_effects/sprite_speed_flux_component.dart'
 import 'package:alchemons/games/sprite_effects/sprite_strength_forge_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_void_rift_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_volcanic_aura.dart';
+import 'package:alchemons/games/sprite_effects/sprite_wavebreaker_crown_component.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -140,6 +141,8 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
         return IntelligenceHaloComponent(baseSize: baseSize);
       case 'blood_aura':
         return BloodAuraComponent(baseSize: baseSize);
+      case 'wavebreaker_crown':
+        return WavebreakerCrownComponent(baseSize: baseSize);
       default:
         return null;
     }

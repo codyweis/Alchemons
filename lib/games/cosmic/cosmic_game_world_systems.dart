@@ -119,13 +119,15 @@ extension CosmicGameWorldSystems on CosmicGame {
     final element = _randomEnemyElement(rng);
     final variant = switch (tier) {
       EnemyTier.brute || EnemyTier.colossus
-        when (behavior == EnemyBehavior.aggressive ||
-          behavior == EnemyBehavior.territorial) &&
-          rng.nextDouble() < 0.22 => CosmicEnemyVariant.crusher,
+          when (behavior == EnemyBehavior.aggressive ||
+                  behavior == EnemyBehavior.territorial) &&
+              rng.nextDouble() < 0.22 =>
+        CosmicEnemyVariant.crusher,
       EnemyTier.drone || EnemyTier.phantom
-        when (behavior == EnemyBehavior.aggressive ||
-          behavior == EnemyBehavior.stalking) &&
-          rng.nextDouble() < 0.28 => CosmicEnemyVariant.pouncer,
+          when (behavior == EnemyBehavior.aggressive ||
+                  behavior == EnemyBehavior.stalking) &&
+              rng.nextDouble() < 0.28 =>
+        CosmicEnemyVariant.pouncer,
       _ => CosmicEnemyVariant.standard,
     };
 
@@ -356,14 +358,16 @@ extension CosmicGameWorldSystems on CosmicGame {
     _respawnTimer = 0;
     _shipInvincible = 2.0;
     clearSandboxHostiles();
-    if (activeCompanion != null) {
-      activeCompanion!.currentHp = activeCompanion!.maxHp;
-      activeCompanion!.shieldHp = 0;
-      activeCompanion!.invincibleTimer = 1.2;
-      activeCompanion!.returning = false;
-      activeCompanion!.returnTimer = 0;
-      activeCompanion!.position = ship.pos + const Offset(72, 0);
-      activeCompanion!.anchorPosition = activeCompanion!.position;
+    var companionOffset = 0.0;
+    for (final comp in activeCompanions.values) {
+      comp.currentHp = comp.maxHp;
+      comp.shieldHp = 0;
+      comp.invincibleTimer = 1.2;
+      comp.returning = false;
+      comp.returnTimer = 0;
+      comp.position = ship.pos + Offset(72, companionOffset);
+      comp.anchorPosition = comp.position;
+      companionOffset += 36;
     }
     if (sandboxAreaCenter != null) {
       teleportTo(sandboxAreaCenter!);
@@ -505,9 +509,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       forcedType: template.preferredType,
     );
     bossProjectiles.clear();
-    onBossSpawned?.call(
-      'Lv$safeLevel ${template.name}',
-    );
+    onBossSpawned?.call('Lv$safeLevel ${template.name}');
   }
 
   /// Spawn a feeding pack: 1 sentinel alpha + 3-5 wisp minions clustered
@@ -1511,9 +1513,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       isTitanic: lair.template.isTitanic,
       colossalTrait: lair.template.colossalTrait,
     );
-    onBossSpawned?.call(
-      'Lv$lvl ${lair.template.name}',
-    );
+    onBossSpawned?.call('Lv$lvl ${lair.template.name}');
   }
 
   /// Respawn a single galaxy whirl at a new random position.
@@ -1587,9 +1587,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       isTitanic: template.isTitanic,
       colossalTrait: template.colossalTrait,
     );
-    onBossSpawned?.call(
-      'Lv$lvl ${template.name}',
-    );
+    onBossSpawned?.call('Lv$lvl ${template.name}');
   }
 
   /// Spawn a guaranteed boss when a planet is first discovered.
@@ -1634,9 +1632,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       isTitanic: template.isTitanic,
       colossalTrait: template.colossalTrait,
     );
-    onBossSpawned?.call(
-      'Lv$lvl ${template.name}',
-    );
+    onBossSpawned?.call('Lv$lvl ${template.name}');
   }
 
   void _updateBossAI(CosmicBoss boss, double dt) {
@@ -1658,16 +1654,15 @@ extension CosmicGameWorldSystems on CosmicGame {
     // ~30% of the time, aim at the companion instead of the ship.
     // Chargers still always rush the ship (they're melee, not ranged).
     double toShip = toShipAngle;
-    if (boss.type != BossType.charger &&
-        activeCompanion != null &&
-        activeCompanion!.isAlive) {
+    final targetCompanion = _nearestActiveCompanion(boss.position);
+    if (boss.type != BossType.charger && targetCompanion != null) {
       // Use phaseTimer as a cheap deterministic toggle so it doesn't
       // flicker every frame — switches target roughly every ~2-3 seconds.
       final cycle = (boss.phaseTimer * 0.4).floor() % 10;
       if (cycle < 3) {
         // 3 out of 10 cycles → aim at companion
-        var cdx = activeCompanion!.position.dx - boss.position.dx;
-        var cdy = activeCompanion!.position.dy - boss.position.dy;
+        var cdx = targetCompanion.position.dx - boss.position.dx;
+        var cdy = targetCompanion.position.dy - boss.position.dy;
         if (cdx > ww / 2) cdx -= ww;
         if (cdx < -ww / 2) cdx += ww;
         if (cdy > wh / 2) cdy -= wh;
@@ -1711,16 +1706,16 @@ extension CosmicGameWorldSystems on CosmicGame {
           ship.pos = _wrap(
             Offset(ship.pos.dx - away.dx * pull, ship.pos.dy - away.dy * pull),
           );
-          if (activeCompanion != null && activeCompanion!.isAlive) {
-            final cdx = boss.position.dx - activeCompanion!.position.dx;
-            final cdy = boss.position.dy - activeCompanion!.position.dy;
+          for (final comp in _livingActiveCompanions) {
+            final cdx = boss.position.dx - comp.position.dx;
+            final cdy = boss.position.dy - comp.position.dy;
             final cd = sqrt(cdx * cdx + cdy * cdy);
             if (cd > 0.001) {
               final cpull = (22.0 + 30.0 * strength) * dt;
-              activeCompanion!.position = _wrap(
+              comp.position = _wrap(
                 Offset(
-                  activeCompanion!.position.dx + (cdx / cd) * cpull,
-                  activeCompanion!.position.dy + (cdy / cd) * cpull,
+                  comp.position.dx + (cdx / cd) * cpull,
+                  comp.position.dy + (cdy / cd) * cpull,
                 ),
               );
             }
@@ -1738,10 +1733,11 @@ extension CosmicGameWorldSystems on CosmicGame {
                 position: boss.position,
                 angle: a,
                 element: boss.element,
-                damage: CosmicBalance.bossProjectileDamage(
-                  level: boss.level,
-                  type: boss.type,
-                ) *
+                damage:
+                    CosmicBalance.bossProjectileDamage(
+                      level: boss.level,
+                      type: boss.type,
+                    ) *
                     0.92,
                 speed: 170,
                 radius: 6.4,
@@ -1759,7 +1755,8 @@ extension CosmicGameWorldSystems on CosmicGame {
           for (var i = 0; i < 3; i++) {
             final ringAngle = boss.phaseTimer * 0.7 + i * (2 * pi / 3);
             final rift = _wrap(
-              boss.position + Offset(cos(ringAngle) * 170, sin(ringAngle) * 170),
+              boss.position +
+                  Offset(cos(ringAngle) * 170, sin(ringAngle) * 170),
             );
             for (final offset in [-0.16, 0.0, 0.16]) {
               bossProjectiles.add(
@@ -1767,10 +1764,11 @@ extension CosmicGameWorldSystems on CosmicGame {
                   position: rift,
                   angle: targetAngle + offset,
                   element: boss.element,
-                  damage: CosmicBalance.bossProjectileDamage(
-                    level: boss.level,
-                    type: boss.type,
-                  ) *
+                  damage:
+                      CosmicBalance.bossProjectileDamage(
+                        level: boss.level,
+                        type: boss.type,
+                      ) *
                       0.86,
                   speed: 245,
                   radius: 5.2,
@@ -1791,14 +1789,19 @@ extension CosmicGameWorldSystems on CosmicGame {
             type: boss.type,
           );
           final pulseRadius = boss.radius * 2.1;
-          _spawnKillVfx(boss.position, elementColor(boss.element), pulseRadius, true);
+          _spawnKillVfx(
+            boss.position,
+            elementColor(boss.element),
+            pulseRadius,
+            true,
+          );
           if (dist <= pulseRadius + 20) {
             _damageShip(pulseDamage * 1.15);
           }
-          if (activeCompanion != null && activeCompanion!.isAlive) {
-            final compDist = (activeCompanion!.position - boss.position).distance;
+          for (final comp in _livingActiveCompanions) {
+            final compDist = (comp.position - boss.position).distance;
             if (compDist <= pulseRadius + 14) {
-              activeCompanion!.takeDamage((pulseDamage * 1.1).round());
+              comp.takeDamage((pulseDamage * 1.1).round());
             }
           }
         }
@@ -2483,10 +2486,8 @@ extension CosmicGameWorldSystems on CosmicGame {
       }
 
       // Hit companion?
-      if (activeCompanion != null &&
-          activeCompanion!.isAlive &&
-          activeCompanion!.invincibleTimer <= 0) {
-        final comp = activeCompanion!;
+      for (final comp in _livingActiveCompanions) {
+        if (comp.invincibleTimer > 0) continue;
         final cdx = comp.position.dx - bp.position.dx;
         final cdy = comp.position.dy - bp.position.dy;
         final compHitR = bp.radius + 15;
@@ -2498,7 +2499,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           comp.takeDamage(dmg);
           _spawnHitSpark(comp.position, elementColor(bp.element));
           bossProjectiles.removeAt(i);
-          continue;
+          break;
         }
       }
     }

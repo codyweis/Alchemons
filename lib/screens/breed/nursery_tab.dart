@@ -481,10 +481,7 @@ class _NurseryTabState extends State<NurseryTab> {
             ],
           ),
         ),
-        if (trailing != null) ...[
-          const SizedBox(width: 10),
-          trailing,
-        ],
+        if (trailing != null) ...[const SizedBox(width: 10), trailing],
       ],
     );
   }
@@ -1367,9 +1364,7 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
                         shape: BoxShape.circle,
                         color: widget.primaryColor.withValues(alpha: a * .12),
                         border: Border.all(
-                          color: widget.primaryColor.withValues(
-                            alpha: a * .45,
-                          ),
+                          color: widget.primaryColor.withValues(alpha: a * .45),
                           width: 1.2,
                         ),
                       ),

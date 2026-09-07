@@ -647,7 +647,9 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
             )
             .toList(growable: false);
         final eligibleInstances = familyInstances
-            .where((i) => rite.evaluate(i, challenge: weeklyChallenge).isEligible)
+            .where(
+              (i) => rite.evaluate(i, challenge: weeklyChallenge).isEligible,
+            )
             .toList(growable: false);
 
         final isCompleted = _weeklyCompleted ?? false;
@@ -771,13 +773,15 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                       selectedInstance: weeklySelected,
                       selectedSpecies: weeklySelectedSpecies,
                       selectedCheck: weeklyCheck,
-                      isBusy: weeklySelected != null &&
+                      isBusy:
+                          weeklySelected != null &&
                           _weeklyBusyInstanceId == weeklySelected.instanceId,
                       onTap: () => _openWeeklyChamberSelection(
                         rite: rite,
                         challenge: weeklyChallenge,
                       ),
-                      onSacrifice: weeklySelected != null &&
+                      onSacrifice:
+                          weeklySelected != null &&
                               weeklySelectedSpecies != null &&
                               weeklyCheck?.isEligible == true &&
                               _weeklyBusyInstanceId != weeklySelected.instanceId
@@ -863,8 +867,9 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
     setState(() => _weeklySelectedInstanceId = selected.instanceId);
 
     if (!check.isEligible) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(check.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(check.message)));
     }
   }
 
@@ -919,8 +924,9 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
       );
     } on PurebloodRiteException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _weeklyBusyInstanceId = null);
     }
@@ -1397,7 +1403,11 @@ class _HkCircleNode extends StatelessWidget {
                           shape: BoxShape.circle,
                           border: Border.all(color: _kVoid, width: 1),
                         ),
-                        child: const Icon(AppIcons.check, size: 10, color: _kVoid),
+                        child: const Icon(
+                          AppIcons.check,
+                          size: 10,
+                          color: _kVoid,
+                        ),
                       ),
                     ),
                   ],
@@ -1502,15 +1512,15 @@ class _ChallengePanel extends StatelessWidget {
                       icon:
                           tintIcons[challenge.requiredTint] ??
                           AppIcons.brightness_high_outlined,
-                      label:
-                          'Tinting, ${_traitLabel(challenge.requiredTint!)}',
+                      label: 'Tinting, ${_traitLabel(challenge.requiredTint!)}',
                       met: true,
                     ),
                     const SizedBox(height: 6),
                   ],
                   if (challenge.requiredSize != null) ...[
                     _HkReqLine(
-                      icon: sizeIcons[challenge.requiredSize] ?? AppIcons.circle,
+                      icon:
+                          sizeIcons[challenge.requiredSize] ?? AppIcons.circle,
                       label: 'Size, ${_traitLabel(challenge.requiredSize!)}',
                       met: true,
                     ),
@@ -1628,7 +1638,11 @@ class _TriStatRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _HkStat(label: stageLabel, value: '$stageStep', color: elColor),
+          child: _HkStat(
+            label: stageLabel,
+            value: '$stageStep',
+            color: elColor,
+          ),
         ),
       ],
     );
@@ -2709,7 +2723,8 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredSize != null) ...[
                     _HkReqLine(
-                      icon: sizeIcons[challenge.requiredSize] ?? AppIcons.circle,
+                      icon:
+                          sizeIcons[challenge.requiredSize] ?? AppIcons.circle,
                       label: 'Size, ${_traitLabel(challenge.requiredSize!)}',
                       met: true,
                     ),
@@ -2717,9 +2732,11 @@ class _WeeklyChallengePanel extends StatelessWidget {
                   ],
                   if (challenge.requiredTint != null) ...[
                     _HkReqLine(
-                      icon: tintIcons[challenge.requiredTint] ??
+                      icon:
+                          tintIcons[challenge.requiredTint] ??
                           AppIcons.brightness_high_outlined,
-                      label: 'Pigmentation, ${_traitLabel(challenge.requiredTint!)}',
+                      label:
+                          'Pigmentation, ${_traitLabel(challenge.requiredTint!)}',
                       met: true,
                     ),
                     const SizedBox(height: 6),

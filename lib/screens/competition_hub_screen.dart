@@ -238,9 +238,15 @@ class _ArenaCardState extends State<_ArenaCard>
                   ],
                 ),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: color.withValues(alpha: .3), width: 1.5),
+                border: Border.all(
+                  color: color.withValues(alpha: .3),
+                  width: 1.5,
+                ),
                 boxShadow: [
-                  BoxShadow(color: color.withValues(alpha: .25), blurRadius: 20),
+                  BoxShadow(
+                    color: color.withValues(alpha: .25),
+                    blurRadius: 20,
+                  ),
                 ],
               ),
               child: Stack(
@@ -333,7 +339,9 @@ class _ArenaCardState extends State<_ArenaCard>
                           decoration: BoxDecoration(
                             color: color.withValues(alpha: .2),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: color.withValues(alpha: .4)),
+                            border: Border.all(
+                              color: color.withValues(alpha: .4),
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,

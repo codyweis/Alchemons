@@ -12,6 +12,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/data/mystic_altar_data.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/app_font_family.dart';
@@ -448,14 +449,16 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     final ok = await _confirmPlace(sp, picked);
     if (!ok || !mounted) return;
 
-    // Snapshot key stats before the instance is deleted — used later
-    // during summoning to seed the mystic egg's nature and base stats.
+    // Snapshot genetic Potential before the instance is deleted. Current
+    // Power, level, and Enhancement are individual training and never pass on.
     final snapshot = jsonEncode({
       'natureId': picked.natureId,
-      'speed': picked.statSpeed,
-      'intelligence': picked.statIntelligence,
-      'strength': picked.statStrength,
-      'beauty': picked.statBeauty,
+      'natureId2': picked.natureId2,
+      'scaleVersion': 2,
+      'speedPotential': picked.statSpeedPotential,
+      'intelligencePotential': picked.statIntelligencePotential,
+      'strengthPotential': picked.statStrengthPotential,
+      'beautyPotential': picked.statBeautyPotential,
     });
 
     await db.altarDao.placeAlchemon(
@@ -578,8 +581,9 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     setState(() => _showRitualAnimation = false);
   }
 
-  /// Parses placement snapshots and returns the dominant nature + averaged
-  /// (and slightly boosted) base stats to seed the mystic egg.
+  /// Parses placement snapshots and returns the dominant nature plus averaged
+  /// genetic Potential. Mystic rituals reward strong sacrifices with a modest
+  /// +10 Potential lift without inheriting current Power or Enhancement.
   Map<String, dynamic> _deriveFromSacrifices(List<AltarPlacement> placements) {
     final natureCounts = <String, int>{};
     double totalSpeed = 0;
@@ -592,14 +596,33 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       if (p.snapshotJson == null) continue;
       try {
         final snap = jsonDecode(p.snapshotJson!) as Map<String, dynamic>;
-        final natureId = snap['natureId'] as String?;
-        if (natureId != null && natureId.isNotEmpty) {
-          natureCounts[natureId] = (natureCounts[natureId] ?? 0) + 1;
+        for (final natureId in [snap['natureId'], snap['natureId2']]) {
+          if (natureId is String && natureId.isNotEmpty) {
+            natureCounts[natureId] = (natureCounts[natureId] ?? 0) + 1;
+          }
         }
-        totalSpeed += (snap['speed'] as num?)?.toDouble() ?? 3.0;
-        totalIntelligence += (snap['intelligence'] as num?)?.toDouble() ?? 3.0;
-        totalStrength += (snap['strength'] as num?)?.toDouble() ?? 3.0;
-        totalBeauty += (snap['beauty'] as num?)?.toDouble() ?? 3.0;
+        final version = (snap['scaleVersion'] as num?)?.toInt() ?? 1;
+        double potential(String key, String legacyKey) {
+          final direct = snap[key] as num?;
+          if (direct != null) {
+            return AlchemonStatSystem.normalizePotential(
+              direct,
+              legacyScale: version < 2 && direct <= 5,
+            ).toDouble();
+          }
+          // Placements made before the Potential migration only retained a
+          // current 0-5 stat snapshot. Convert it once for save compatibility.
+          final legacy = (snap[legacyKey] as num?)?.toDouble() ?? 3.0;
+          return AlchemonStatSystem.normalizePotential(
+            legacy,
+            legacyScale: true,
+          ).toDouble();
+        }
+
+        totalSpeed += potential('speedPotential', 'speed');
+        totalIntelligence += potential('intelligencePotential', 'intelligence');
+        totalStrength += potential('strengthPotential', 'strength');
+        totalBeauty += potential('beautyPotential', 'beauty');
         count++;
       } catch (_) {
         // Malformed snapshot — skip, defaults will be used.
@@ -607,21 +630,16 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     }
 
     // Dominant nature = most common; ties are broken by first encountered.
-    String? dominantNature;
-    if (natureCounts.isNotEmpty) {
-      dominantNature = natureCounts.entries
-          .reduce((a, b) => a.value >= b.value ? a : b)
-          .key;
-    }
+    final dominantNatures = natureCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
-    // Average stats from sacrifices, with a +2.0 mystic bonus per stat,
-    // clamped to the 1–10 range.
-    const mysticBonus = 2.0;
+    const mysticBonus = 10.0;
     double avg(double total) =>
-        count > 0 ? (total / count + mysticBonus).clamp(1.0, 10.0) : 8.0;
+        count > 0 ? (total / count + mysticBonus).clamp(1.0, 100.0) : 75.0;
 
     return {
-      'natureId': dominantNature,
+      'natureId': dominantNatures.isEmpty ? null : dominantNatures.first.key,
+      'natureId2': dominantNatures.length < 2 ? null : dominantNatures[1].key,
       'speed': avg(totalSpeed),
       'intelligence': avg(totalIntelligence),
       'strength': avg(totalStrength),
@@ -644,17 +662,20 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     'genetics': {},
     if (sacrificePayload['natureId'] != null)
       'natureId': sacrificePayload['natureId'],
+    if (sacrificePayload['natureId2'] != null)
+      'natureId2': sacrificePayload['natureId2'],
     'stats': {
+      'speed': 0.0,
+      'intelligence': 0.0,
+      'strength': 0.0,
+      'beauty': 0.0,
+    },
+    'statPotentials': {
+      'scaleVersion': 2,
       'speed': sacrificePayload['speed'],
       'intelligence': sacrificePayload['intelligence'],
       'strength': sacrificePayload['strength'],
       'beauty': sacrificePayload['beauty'],
-    },
-    'statPotentials': {
-      'speed': 10.0,
-      'intelligence': 10.0,
-      'strength': 10.0,
-      'beauty': 10.0,
     },
     'lineage': {
       'generationDepth': 0,

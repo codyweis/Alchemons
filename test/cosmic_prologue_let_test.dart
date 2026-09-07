@@ -18,16 +18,16 @@ Creature _wild({required Map<String, String> genetics}) => Creature(
     intelligence: 1.2,
     strength: 1.3,
     beauty: 1.4,
-    speedPotential: 2.0,
-    intelligencePotential: 2.0,
-    strengthPotential: 2.0,
-    beautyPotential: 2.0,
+    speedPotential: 40.0,
+    intelligencePotential: 40.0,
+    strengthPotential: 40.0,
+    beautyPotential: 40.0,
   ),
 );
 
 void main() {
   group('the Let behind the gate', () {
-    test('is authored at 2.5 across the board with 3.8 potentials', () {
+    test('is authored at 2.5 across the board with 76 potentials', () {
       final shaped = shapeCrossingLet(_wild(genetics: const {}));
       final s = shaped.stats!;
 
@@ -35,10 +35,10 @@ void main() {
       expect(s.intelligence, 2.5);
       expect(s.strength, 2.5);
       expect(s.beauty, 2.5);
-      expect(s.speedPotential, 3.8);
-      expect(s.intelligencePotential, 3.8);
-      expect(s.strengthPotential, 3.8);
-      expect(s.beautyPotential, 3.8);
+      expect(s.speedPotential, 76);
+      expect(s.intelligencePotential, 76);
+      expect(s.strengthPotential, 76);
+      expect(s.beautyPotential, 76);
     });
 
     test('keeps its prismatic skin', () {

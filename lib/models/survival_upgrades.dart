@@ -93,7 +93,7 @@ const List<OrbBaseDef> kOrbBases = [
     primaryColor: Color(0xFF6A0DAD),
     secondaryColor: Color(0xFF1A0033),
     glowColor: Color(0xFFBB00FF),
-    cost: 200,
+    cost: 25,
     shopId: 'survival.orb.voidforge',
   ),
   OrbBaseDef(
@@ -105,7 +105,7 @@ const List<OrbBaseDef> kOrbBases = [
     primaryColor: Color(0xFFFFD700),
     secondaryColor: Color(0xFFFF8C00),
     glowColor: Color(0xFFFFF176),
-    cost: 200,
+    cost: 25,
     shopId: 'survival.orb.celestial',
   ),
   OrbBaseDef(
@@ -118,7 +118,7 @@ const List<OrbBaseDef> kOrbBases = [
     primaryColor: Color(0xFFFF4500),
     secondaryColor: Color(0xFF8B0000),
     glowColor: Color(0xFFFF6347),
-    cost: 200,
+    cost: 25,
     shopId: 'survival.orb.infernal',
   ),
   OrbBaseDef(
@@ -131,7 +131,7 @@ const List<OrbBaseDef> kOrbBases = [
     primaryColor: Color(0xFF88DDFF),
     secondaryColor: Color(0xFF1A3A5C),
     glowColor: Color(0xFFB0EAFF),
-    cost: 300,
+    cost: 50,
     shopId: 'survival.orb.frozen',
   ),
   OrbBaseDef(
@@ -144,7 +144,7 @@ const List<OrbBaseDef> kOrbBases = [
     primaryColor: Color(0xFF7BFFCE),
     secondaryColor: Color(0xFF0A2A2A),
     glowColor: Color(0xFF50FFB0),
-    cost: 300,
+    cost: 50,
     shopId: 'survival.orb.phantom',
   ),
   OrbBaseDef(
@@ -157,7 +157,7 @@ const List<OrbBaseDef> kOrbBases = [
     primaryColor: Color(0xFFFF69B4),
     secondaryColor: Color(0xFF4400AA),
     glowColor: Color(0xFFFFFFFF),
-    cost: 400,
+    cost: 75,
     shopId: 'survival.orb.prism',
   ),
   OrbBaseDef(
@@ -170,7 +170,7 @@ const List<OrbBaseDef> kOrbBases = [
     primaryColor: Color(0xFF32CD32),
     secondaryColor: Color(0xFF0B3D0B),
     glowColor: Color(0xFF7FFF00),
-    cost: 300,
+    cost: 75,
     shopId: 'survival.orb.verdant',
   ),
 ];
@@ -192,7 +192,7 @@ class GuardianUpgradeDef {
   final IconData icon;
   final Color color;
   final int maxLevel;
-  final List<int> costPerLevel; // gold cost at each level
+  final List<int> costPerLevel; // silver cost at each level
   final List<double> valuePerLevel; // bonus value at each level
 
   const GuardianUpgradeDef({

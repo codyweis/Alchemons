@@ -46,7 +46,8 @@ class _AlchemyTapFXPainter extends CustomPainter {
       canvas.drawCircle(
         center,
         r,
-        ringBase..color = ringBase.color.withValues(alpha: (0.35 - i * 0.08) * inv),
+        ringBase
+          ..color = ringBase.color.withValues(alpha: (0.35 - i * 0.08) * inv),
       );
     }
 

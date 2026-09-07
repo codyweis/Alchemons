@@ -222,7 +222,7 @@ class PlanetDungeonScreen extends StatefulWidget {
   /// guardian, raid loot. Stars/clouds are neither read nor written.
   final RaidConfig? raid;
 
-  /// Persist-the-clear callback (RaidService.markCleared), awaited right
+  /// Persist-the-clear callback (RaidService.markLevelCleared), awaited right
   /// after the loot is granted.
   final Future<void> Function()? onRaidCleared;
 
@@ -382,7 +382,6 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             raid: widget.raid,
             onRaidCleared: _onRaidCleared,
             onRaidWiped: _onRaidWiped,
-            onRaidCreatureDown: _onRaidCreatureDown,
             onRaidExpired: _onRaidExpired,
             clearedGuardianCount: cleared,
             layoutOverride: buildRaidArenaLayout(widget.element),
@@ -631,20 +630,6 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// A raid party wipe ends the attempt. Nothing is banked — the raid window
   /// stays open, exactly as it does when you retreat.
 
-  /// A raid death costs the Alchemon all of its stamina, not just the run.
-  ///
-  /// Permadeath within the attempt was already the rule; this makes the loss
-  /// carry past it, so a wipe is a real setback rather than something you
-  /// immediately re-queue with the same squad.
-  Future<void> _onRaidCreatureDown(String instanceId) async {
-    final db = context.read<AlchemonsDatabase>();
-    await db.creatureDao.updateStamina(
-      instanceId: instanceId,
-      staminaBars: 0,
-      staminaLastUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
-    );
-  }
-
   void _onRaidWiped() {
     if (!mounted) return;
     _showToast('The raid drives you out');
@@ -688,6 +673,16 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
           children: [
             Container(width: 3, height: 30, color: colour),
             const SizedBox(width: 10),
+            Text(
+              'L${widget.raid!.safeLevel}',
+              style: TextStyle(
+                color: colour.withValues(alpha: 0.82),
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(width: 8),
             Text(
               '${two(left.inMinutes)}:${two(left.inSeconds % 60)}',
               style: TextStyle(
@@ -1342,6 +1337,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             if (_showRaidReward)
               RaidRewardPopup(
                 element: widget.element,
+                raidLevel: widget.raid!.safeLevel,
+                level3ClearsBeforeFight: widget.raid!.level3Clears,
                 db: context.read<AlchemonsDatabase>(),
                 onGranted: () async => widget.onRaidCleared?.call(),
                 onContinue: () => _popDungeon(true),

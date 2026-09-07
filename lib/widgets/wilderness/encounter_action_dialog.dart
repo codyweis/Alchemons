@@ -197,7 +197,10 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: theme.accent.withValues(alpha: 0.3), width: 1),
+          bottom: BorderSide(
+            color: theme.accent.withValues(alpha: 0.3),
+            width: 1,
+          ),
         ),
       ),
       child: Column(
@@ -295,7 +298,10 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
         decoration: BoxDecoration(
           color: theme.surfaceAlt.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.textMuted.withValues(alpha: 0.3), width: 2),
+          border: Border.all(
+            color: theme.textMuted.withValues(alpha: 0.3),
+            width: 2,
+          ),
         ),
         child: const Center(
           child: Padding(
@@ -312,7 +318,10 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
         decoration: BoxDecoration(
           color: theme.surfaceAlt.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.textMuted.withValues(alpha: 0.3), width: 2),
+          border: Border.all(
+            color: theme.textMuted.withValues(alpha: 0.3),
+            width: 2,
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -350,7 +359,10 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
         decoration: BoxDecoration(
           color: Colors.green.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.green.withValues(alpha: 0.5), width: 2),
+          border: Border.all(
+            color: Colors.green.withValues(alpha: 0.5),
+            width: 2,
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -451,7 +463,11 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(AppIcons.exit_to_app_rounded, color: theme.textMuted, size: 16),
+            Icon(
+              AppIcons.exit_to_app_rounded,
+              color: theme.textMuted,
+              size: 16,
+            ),
             const SizedBox(width: 8),
             Text(
               'Back',

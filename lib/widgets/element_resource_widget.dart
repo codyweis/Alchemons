@@ -327,7 +327,9 @@ class _GlowyIcon extends StatelessWidget {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: color.withValues(alpha: lerpDouble(0.15, 0.35, t)!),
+                      color: color.withValues(
+                        alpha: lerpDouble(0.15, 0.35, t)!,
+                      ),
                       blurRadius: lerpDouble(10, 22, t)!,
                       spreadRadius: lerpDouble(2, 6, t)!,
                     ),

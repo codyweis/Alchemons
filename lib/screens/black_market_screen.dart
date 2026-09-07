@@ -1,6 +1,7 @@
 // lib/screens/black_market_screen.dart
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/models/elemental_group.dart';
+import 'package:alchemons/models/economy_balance.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
@@ -1312,7 +1313,11 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: const [
-                      Icon(AppIcons.sell_rounded, color: Colors.white, size: 22),
+                      Icon(
+                        AppIcons.sell_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
                       SizedBox(width: 10),
                       Text(
                         'COMPLETE SALE',
@@ -1433,7 +1438,11 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: theme.border),
                           ),
-                          child: Icon(AppIcons.close, color: theme.text, size: 18),
+                          child: Icon(
+                            AppIcons.close,
+                            color: theme.text,
+                            size: 18,
+                          ),
                         ),
                       ),
                     ],
@@ -1571,7 +1580,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
   }
 
   int _silverToGoldValue(int silverValue) =>
-      (silverValue / 1500).ceil().clamp(2, 999999);
+      (silverValue / EconomyBalance.silverPerGoldPayout).ceil().clamp(
+        1,
+        999999,
+      );
 
   /// Final per-instance sell price with all per-creature modifiers
   /// (rarity/level/tint/prismatic) + Earthen faction perk.
@@ -1585,7 +1597,14 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
       level: inst.level,
       isPrismatic: inst.isPrismaticSkin,
       natureId: inst.natureId,
+      natureId2: inst.natureId2,
       tintId: decodeGenetics(inst.geneticsJson)!.tinting,
+      averagePotential: BlackMarketConstants.averagePotential(
+        speed: inst.statSpeedPotential,
+        intelligence: inst.statIntelligencePotential,
+        strength: inst.statStrengthPotential,
+        beauty: inst.statBeautyPotential,
+      ),
     );
 
     // Earthen perk: +50% value for earthen specimens
@@ -1785,10 +1804,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
       0,
       (sum, price) => sum + price,
     );
-    final silverBulkBonus = BlackMarketConstants.calculateBulkBonus(
-      silverPrices,
-    );
-    _totalValue = ((baseSilverTotal + silverBulkBonus) * saleMult).round();
+    _totalValue = (baseSilverTotal * saleMult).round();
     _totalGoldValue = goldTotal;
   }
 
@@ -2129,7 +2145,11 @@ class _CompactResourceRow extends StatelessWidget {
                         color: Colors.red.withValues(alpha: 0.4),
                       ),
                     ),
-                    child: const Icon(AppIcons.close, size: 14, color: Colors.red),
+                    child: const Icon(
+                      AppIcons.close,
+                      size: 14,
+                      color: Colors.red,
+                    ),
                   ),
                 ),
               ],

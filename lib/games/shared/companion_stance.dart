@@ -66,8 +66,7 @@ const CompanionStance kDefaultCompanionStance = CompanionStance(
 );
 
 CompanionStance stanceForFamily(String? family) =>
-    kCompanionStances[(family ?? '').toLowerCase()] ??
-    kDefaultCompanionStance;
+    kCompanionStances[(family ?? '').toLowerCase()] ?? kDefaultCompanionStance;
 
 /// How this companion wants to move, given where it is and what it is
 /// fighting. Returns [Offset.zero] when it is already happy.

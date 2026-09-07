@@ -498,7 +498,10 @@ class BreedingServiceV2 {
     Creature creature, {
     bool bothParentsFire = false,
   }) {
-    final natureMult = hatchMultForNature(creature.nature?.id);
+    final natureMult = hatchMultForNatures(
+      creature.nature?.id,
+      creature.nature2?.id,
+    );
 
     // Constellation gestation reduction (0–0.15)
     final gestationReduction = constellation.getGestationReduction();

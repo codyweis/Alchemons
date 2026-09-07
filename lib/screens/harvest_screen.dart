@@ -454,10 +454,7 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
               ? BoxDecoration(
                   color: const Color(0xFF22C55E).withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: const Color(0xFF22C55E),
-                    width: 2,
-                  ),
+                  border: Border.all(color: const Color(0xFF22C55E), width: 2),
                   boxShadow: [
                     BoxShadow(
                       color: const Color(0xFF22C55E).withValues(alpha: 0.35),
@@ -722,7 +719,9 @@ class _ElementChipTiny extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-      decoration: theme.chipDecoration(rim: theme.accent.withValues(alpha: 0.18)),
+      decoration: theme.chipDecoration(
+        rim: theme.accent.withValues(alpha: 0.18),
+      ),
       child: Text(
         label,
         style: TextStyle(
@@ -841,7 +840,9 @@ class _PrimaryActionButtonCompact extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = filled ? accent.withValues(alpha: .25) : Colors.white.withValues(alpha: .03);
+    final bg = filled
+        ? accent.withValues(alpha: .25)
+        : Colors.white.withValues(alpha: .03);
     final border = filled
         ? accent.withValues(alpha: .55)
         : Colors.white.withValues(alpha: .12);
@@ -1406,7 +1407,10 @@ class _TestTubeShape extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [color.withValues(alpha: 0.25), color.withValues(alpha: 0.7)],
+                  colors: [
+                    color.withValues(alpha: 0.25),
+                    color.withValues(alpha: 0.7),
+                  ],
                 ),
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(width * 0.4),

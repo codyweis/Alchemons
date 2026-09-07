@@ -65,12 +65,14 @@ class FilterDataLoader {
   // ============================================================================
 
   static List<String> getAllNatures() {
-    return NatureCatalog.all.map((n) => n.id).toList();
+    return NatureCatalog.rollable.map((n) => n.id).toList();
   }
 
   static Map<String, String> getNatureLabels() {
     // Natures use their ID as their display name
-    return Map.fromEntries(NatureCatalog.all.map((n) => MapEntry(n.id, n.id)));
+    return Map.fromEntries(
+      NatureCatalog.rollable.map((n) => MapEntry(n.id, n.id)),
+    );
   }
 
   // ============================================================================

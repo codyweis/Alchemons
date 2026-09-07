@@ -252,7 +252,11 @@ class _StorageSectionState extends State<StorageSection> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(AppIcons.inventory_2_outlined, color: theme.accentSoft, size: 16),
+          Icon(
+            AppIcons.inventory_2_outlined,
+            color: theme.accentSoft,
+            size: 16,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

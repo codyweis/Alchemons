@@ -59,11 +59,7 @@ class ElementPortalPainter extends CustomPainter {
   void _glow(Canvas canvas, Offset c, double radius, Color tint, double alpha) {
     final rect = Rect.fromCircle(center: c, radius: radius);
     canvas.drawOval(
-      Rect.fromCenter(
-        center: c,
-        width: radius * 2,
-        height: radius * 2 * _tilt,
-      ),
+      Rect.fromCenter(center: c, width: radius * 2, height: radius * 2 * _tilt),
       Paint()
         ..shader = RadialGradient(
           colors: [

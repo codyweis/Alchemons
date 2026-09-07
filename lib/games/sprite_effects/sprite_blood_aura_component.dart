@@ -70,11 +70,9 @@ class BloodAuraComponent extends PositionComponent {
     for (var i = 0; i < _motes.length; i++) {
       final orbit = (_time * 0.55) + (i * 0.85);
       final radius = baseSize * (0.48 + (0.08 * math.sin(orbit * 1.7)));
-      _motes[i].position = (size / 2) +
-          Vector2(
-            math.cos(orbit) * radius,
-            math.sin(orbit) * radius * 0.72,
-          );
+      _motes[i].position =
+          (size / 2) +
+          Vector2(math.cos(orbit) * radius, math.sin(orbit) * radius * 0.72);
     }
   }
 }

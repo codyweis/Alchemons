@@ -1,9 +1,13 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/competition.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
@@ -24,7 +28,6 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
   late final List<String> allowedTypes; // e.g. ['Earth','Mud','Dust','Crystal']
 
   String _query = '';
-  bool _onlyRested = true;
 
   late Future<List<_Candidate>> _future;
 
@@ -39,6 +42,7 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
   Future<List<_Candidate>> _loadCandidates() async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
+    final combatBonuses = context.read<ConstellationEffectsService>();
 
     // Pull all instances
     final instances = await db.creatureDao.listAllInstances();
@@ -55,11 +59,29 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
         if (!matches) continue;
       }
 
-      // Optionally filter exhausted mons
-      if (_onlyRested && inst.staminaBars <= 0) continue;
-
-      // Compute relevant stat
-      final relevant = _relevantStatForCompetition(inst, statKey);
+      final statSpeed = combatBonuses.applyCombatStatBonus(
+        'speed',
+        inst.statSpeed,
+      );
+      final statIntelligence = combatBonuses.applyCombatStatBonus(
+        'intelligence',
+        inst.statIntelligence,
+      );
+      final statStrength = combatBonuses.applyCombatStatBonus(
+        'strength',
+        inst.statStrength,
+      );
+      final statBeauty = combatBonuses.applyCombatStatBonus(
+        'beauty',
+        inst.statBeauty,
+      );
+      final relevant = _relevantStatForCompetition(
+        key: statKey,
+        speed: statSpeed,
+        intelligence: statIntelligence,
+        strength: statStrength,
+        beauty: statBeauty,
+      );
 
       // Build the sprite if available
       Widget? sprite;
@@ -73,11 +95,10 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
           displayName: inst.nickname ?? base.name,
           types: base.types,
           level: inst.level,
-          staminaBars: inst.staminaBars,
-          statSpeed: inst.statSpeed,
-          statIntelligence: inst.statIntelligence,
-          statStrength: inst.statStrength,
-          statBeauty: inst.statBeauty,
+          statSpeed: statSpeed,
+          statIntelligence: statIntelligence,
+          statStrength: statStrength,
+          statBeauty: statBeauty,
           relevantStat: relevant,
           sprite: sprite,
         ),
@@ -102,24 +123,25 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
     return filtered;
   }
 
-  double _relevantStatForCompetition(CreatureInstance inst, String key) {
+  double _relevantStatForCompetition({
+    required String key,
+    required double speed,
+    required double intelligence,
+    required double strength,
+    required double beauty,
+  }) {
     switch (key) {
       case 'statSpeed':
-        return inst.statSpeed.clamp(0.0, 10.0);
+        return max(0.0, speed);
       case 'statStrength':
-        return inst.statStrength.clamp(0.0, 10.0);
+        return max(0.0, strength);
       case 'statIntelligence':
-        return inst.statIntelligence.clamp(0.0, 10.0);
+        return max(0.0, intelligence);
       case 'statBeauty':
-        return inst.statBeauty.clamp(0.0, 10.0);
+        return max(0.0, beauty);
       case 'all': // Ultimate: average
-        final avg =
-            (inst.statSpeed +
-                inst.statStrength +
-                inst.statIntelligence +
-                inst.statBeauty) /
-            4.0;
-        return avg.clamp(0.0, 10.0);
+        final avg = (speed + strength + intelligence + beauty) / 4.0;
+        return max(0.0, avg);
       default:
         return 5.0;
     }
@@ -149,7 +171,7 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
       ),
       body: Column(
         children: [
-          // Search + Rested toggle
+          // Search
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: Row(
@@ -162,15 +184,6 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
                       _refresh();
                     },
                   ),
-                ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  label: const Text('Rested'),
-                  selected: _onlyRested,
-                  onSelected: (v) {
-                    _onlyRested = v;
-                    _refresh();
-                  },
                 ),
               ],
             ),
@@ -303,7 +316,11 @@ class _SearchField extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.white.withValues(alpha: .22)),
         ),
-        prefixIcon: const Icon(AppIcons.search, color: Colors.white70, size: 18),
+        prefixIcon: const Icon(
+          AppIcons.search,
+          color: Colors.white70,
+          size: 18,
+        ),
       ),
     );
   }
@@ -352,7 +369,7 @@ class _StatsCard extends StatelessWidget {
         ),
         child: FractionallySizedBox(
           alignment: Alignment.centerLeft,
-          widthFactor: (v / 10).clamp(0.0, 1.0),
+          widthFactor: AlchemonStatSystem.displayFraction(v),
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -397,7 +414,7 @@ class _StatsCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Name + Lv + stamina
+                  // Name + level
                   Row(
                     children: [
                       Expanded(
@@ -411,15 +428,6 @@ class _StatsCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (candidate.staminaBars <= 0)
-                        const Padding(
-                          padding: EdgeInsets.only(left: 8),
-                          child: Icon(
-                            AppIcons.battery_alert,
-                            color: Colors.redAccent,
-                            size: 16,
-                          ),
-                        ),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -470,7 +478,7 @@ class _StatsCard extends StatelessWidget {
                       Expanded(child: bar(rel, strong: true)),
                       const SizedBox(width: 8),
                       Text(
-                        rel.toStringAsFixed(1),
+                        AlchemonStatSystem.displayRating(rel).toString(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,
@@ -534,7 +542,7 @@ class _MiniStat extends StatelessWidget {
                 ),
                 child: FractionallySizedBox(
                   alignment: Alignment.centerLeft,
-                  widthFactor: (value / 10).clamp(0.0, 1.0),
+                  widthFactor: AlchemonStatSystem.displayFraction(value),
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: .2),
@@ -558,7 +566,6 @@ class _Candidate {
     required this.displayName,
     required this.types,
     required this.level,
-    required this.staminaBars,
     required this.statSpeed,
     required this.statIntelligence,
     required this.statStrength,
@@ -571,7 +578,6 @@ class _Candidate {
   final String displayName;
   final List<String> types;
   final int level;
-  final int staminaBars;
 
   final double statSpeed, statIntelligence, statStrength, statBeauty;
   final double relevantStat;

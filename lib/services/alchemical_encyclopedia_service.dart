@@ -52,10 +52,12 @@ class EncyclopediaRecipeEntry {
 class EncyclopediaNatureEntry {
   final NatureDef nature;
   final int observedCount;
+  final bool discovered;
 
   const EncyclopediaNatureEntry({
     required this.nature,
     required this.observedCount,
+    required this.discovered,
   });
 }
 
@@ -489,9 +491,11 @@ class AlchemicalEncyclopediaService {
     final observedCounts = <String, int>{};
 
     for (final instance in instances) {
-      final natureId = instance.natureId?.trim();
-      if (natureId == null || natureId.isEmpty) continue;
-      observedCounts[natureId] = (observedCounts[natureId] ?? 0) + 1;
+      for (final natureId in [instance.natureId, instance.natureId2]) {
+        final id = natureId?.trim();
+        if (id == null || id.isEmpty) continue;
+        observedCounts[id] = (observedCounts[id] ?? 0) + 1;
+      }
     }
 
     final merged = {...stored, ...observedCounts.keys};
@@ -500,18 +504,20 @@ class AlchemicalEncyclopediaService {
     }
 
     final entries = <EncyclopediaNatureEntry>[];
-    for (final natureId in merged) {
-      final nature = NatureCatalog.byId(natureId);
-      if (nature == null) continue;
+    for (final nature in NatureCatalog.all) {
       entries.add(
         EncyclopediaNatureEntry(
           nature: nature,
-          observedCount: observedCounts[natureId] ?? 0,
+          observedCount: observedCounts[nature.id] ?? 0,
+          discovered: merged.contains(nature.id),
         ),
       );
     }
 
-    entries.sort((a, b) => a.nature.id.compareTo(b.nature.id));
+    entries.sort((a, b) {
+      if (a.discovered != b.discovered) return a.discovered ? -1 : 1;
+      return a.nature.id.compareTo(b.nature.id);
+    });
     return List.unmodifiable(entries);
   }
 }

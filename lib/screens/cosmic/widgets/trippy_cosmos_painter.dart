@@ -99,11 +99,7 @@ class TrippyCosmosPainter extends CustomPainter {
   static List<_Chord> _buildChords() {
     final rng = Random(7717);
     return List.generate(14, (i) {
-      return _Chord(
-        rng.nextInt(240),
-        rng.nextInt(240),
-        rng.nextDouble(),
-      );
+      return _Chord(rng.nextInt(240), rng.nextInt(240), rng.nextDouble());
     });
   }
 
@@ -155,11 +151,7 @@ class TrippyCosmosPainter extends CustomPainter {
         c,
         washR,
         Paint()
-          ..shader = _falloff(
-            c,
-            washR,
-            accent.withValues(alpha: 0.09 * surge),
-          ),
+          ..shader = _falloff(c, washR, accent.withValues(alpha: 0.09 * surge)),
       );
     }
   }
@@ -188,8 +180,8 @@ class TrippyCosmosPainter extends CustomPainter {
     final base = (0.055 * fade + 0.035 * surge) * (1 - warp);
 
     for (var ring = 0; ring < 4; ring++) {
-      final rr = reach * (0.20 + ring * 0.19) +
-          sin(t * 0.16 + ring) * reach * 0.012;
+      final rr =
+          reach * (0.20 + ring * 0.19) + sin(t * 0.16 + ring) * reach * 0.012;
       canvas.drawOval(
         Rect.fromCenter(
           center: c,

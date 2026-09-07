@@ -338,4 +338,3 @@ class _CurrencyChip extends StatelessWidget {
     );
   }
 }
-

@@ -241,6 +241,17 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
     await setSetting('powerup_feeding_tutorial_seen', '1');
   }
 
+  /// Separate from the tutorial dialog: the drag coach mark is a one-time
+  /// gesture hint, and it retires the first time a drag actually starts.
+  Future<bool> hasSeenPowerupDragHint() async {
+    final v = await getSetting('powerup_drag_hint_seen');
+    return v == '1';
+  }
+
+  Future<void> setPowerupDragHintSeen() async {
+    await setSetting('powerup_drag_hint_seen', '1');
+  }
+
   Future<bool> hasSeenConstellationTutorial() async {
     final v = await getSetting('constellation_tutorial_seen');
     return v == '1';

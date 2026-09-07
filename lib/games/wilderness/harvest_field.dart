@@ -148,7 +148,8 @@ class HarvestFieldEffect extends PositionComponent {
       _homeScale.y * sy,
     );
 
-    final tremble = (_lock + _pressure) * (1 - _collapse - _shatter).clamp(0, 1);
+    final tremble =
+        (_lock + _pressure) * (1 - _collapse - _shatter).clamp(0, 1);
     target.position = Vector2(
       _home.x + math.sin(_t * 26) * 3.2 * tremble,
       _home.y + math.cos(_t * 21) * 1.8 * tremble + 26 * c,
@@ -210,9 +211,11 @@ class HarvestFieldEffect extends PositionComponent {
         c,
         cage * (0.5 + i * 0.32),
         Paint()
-          ..color = Color.lerp(accent, _amber, 0.5)!.withValues(
-            alpha: (0.14 * lit) / i,
-          ),
+          ..color = Color.lerp(
+            accent,
+            _amber,
+            0.5,
+          )!.withValues(alpha: (0.14 * lit) / i),
       );
     }
 
@@ -306,9 +309,11 @@ class HarvestFieldEffect extends PositionComponent {
           c + u * outer,
           c + u * (outer - cage * 0.24 * (1 - lead)),
           draw
-            ..color = Color.lerp(accent, _amber, 0.6)!.withValues(
-              alpha: 0.8 * (1 - lead),
-            ),
+            ..color = Color.lerp(
+              accent,
+              _amber,
+              0.6,
+            )!.withValues(alpha: 0.8 * (1 - lead)),
         );
       }
     }
@@ -372,7 +377,6 @@ double _norm(double t, double start, double end) {
   if (end <= start) return t >= end ? 1.0 : 0.0;
   return ((t - start) / (end - start)).clamp(0.0, 1.0);
 }
-
 
 /// THE FUSION, PLAYED ON THE TWO CREATURES STANDING IN THE SCENE.
 ///
@@ -509,9 +513,11 @@ class FusionFieldEffect extends PositionComponent {
         c,
         r * (0.35 + i * 0.22) * (1 - 0.5 * _consume),
         Paint()
-          ..color = Color.lerp(mix, _amber, 0.4)!.withValues(
-            alpha: (0.10 * (0.25 + 0.75 * _travel)) / i,
-          ),
+          ..color = Color.lerp(
+            mix,
+            _amber,
+            0.4,
+          )!.withValues(alpha: (0.10 * (0.25 + 0.75 * _travel)) / i),
       );
     }
 

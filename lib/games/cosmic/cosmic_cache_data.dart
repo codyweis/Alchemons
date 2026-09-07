@@ -112,6 +112,7 @@ class ElementalCache {
     final opened = DateTime.fromMillisecondsSinceEpoch(openedAtMs);
     return DateTime(opened.year, opened.month, opened.day + 1);
   }
+
   bool get isOpening => openTimer >= 0;
 
   /// Hard interaction gate — how close the ship must be for the prompt.
@@ -152,10 +153,7 @@ class ElementalCache {
     if (!kElementColors.containsKey(p[0])) return null;
     return ElementalCache(
       element: p[0],
-      position: Offset(
-        double.tryParse(p[1]) ?? 0,
-        double.tryParse(p[2]) ?? 0,
-      ),
+      position: Offset(double.tryParse(p[1]) ?? 0, double.tryParse(p[2]) ?? 0),
       discovered: p[3] == '1',
       respawnTimer: max(0.0, double.tryParse(p[4]) ?? 0),
       // Saves written before the daily reset have no timestamp. Treat those
@@ -234,7 +232,9 @@ class ElementalCacheField {
       );
       if (crowdedByPlanet) continue;
       final crowdedByCache = existing.any(
-        (c) => !identical(c, ignore) && (c.position - pos).distance < _minCacheDist,
+        (c) =>
+            !identical(c, ignore) &&
+            (c.position - pos).distance < _minCacheDist,
       );
       if (crowdedByCache) continue;
       final crowdedByLandmark = landmarks.any(
@@ -247,11 +247,7 @@ class ElementalCacheField {
   }
 
   /// Move [cache] to a fresh spot and forget that the player ever saw it.
-  void relocate(
-    ElementalCache cache,
-    Random rng,
-    List<CosmicPlanet> planets,
-  ) {
+  void relocate(ElementalCache cache, Random rng, List<CosmicPlanet> planets) {
     cache.position = _rollPosition(
       rng,
       worldSize,

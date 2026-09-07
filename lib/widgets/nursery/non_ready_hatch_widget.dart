@@ -244,7 +244,9 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                 );
 
                 final isLight = !theme.isDark;
-                final overlayTint = isLight ? const Color(0xFF1B1D29) : Colors.black;
+                final overlayTint = isLight
+                    ? const Color(0xFF1B1D29)
+                    : Colors.black;
                 final vignetteAlpha = isLight ? .18 : .5;
                 final bottomFadeAlpha = isLight ? .28 : .65;
                 // In light mode the panel is white, so a near-black disc keeps
@@ -254,7 +256,8 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                     : Colors.black.withValues(alpha: .45);
 
                 final parentTypes = _extractParentTypes(slot);
-                final payload = slot.payloadJson == null || slot.payloadJson!.isEmpty
+                final payload =
+                    slot.payloadJson == null || slot.payloadJson!.isEmpty
                     ? const <String, dynamic>{}
                     : jsonDecode(slot.payloadJson!) as Map<String, dynamic>;
                 final isBloodborn = isBloodbornPayload(payload);
@@ -322,7 +325,9 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                   end: Alignment.bottomCenter,
                                   colors: [
                                     Colors.transparent,
-                                    overlayTint.withValues(alpha: bottomFadeAlpha),
+                                    overlayTint.withValues(
+                                      alpha: bottomFadeAlpha,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -358,8 +363,12 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                           value: v,
                                           strokeWidth: 5,
                                           backgroundColor: isLight
-                                              ? t.borderMid.withValues(alpha: .35)
-                                              : Colors.white.withValues(alpha: .10),
+                                              ? t.borderMid.withValues(
+                                                  alpha: .35,
+                                                )
+                                              : Colors.white.withValues(
+                                                  alpha: .10,
+                                                ),
                                           valueColor:
                                               AlwaysStoppedAnimation<Color>(
                                                 rarityColor,

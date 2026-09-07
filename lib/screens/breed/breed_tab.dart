@@ -559,20 +559,20 @@ class _BreedingTabState extends State<BreedingTab>
                           opacity: (1.0 - travel).clamp(0.0, 1.0),
                           child: Column(
                             children: [
-                        Text(
-                          base.name.toUpperCase(),
-                          style: TextStyle(
-                            color: theme.text,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: .5,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 6),
-                        _buildTypeChip(base.types.first, typeColor),
+                              Text(
+                                base.name.toUpperCase(),
+                                style: TextStyle(
+                                  color: theme.text,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: .5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 6),
+                              _buildTypeChip(base.types.first, typeColor),
                             ],
                           ),
                         ),
@@ -1242,7 +1242,9 @@ class _BreedingTabState extends State<BreedingTab>
         accent: Color.lerp(gold, elementColor, .35)!,
         element: element?.toLowerCase(),
         foundedNewLine: pure.foundedNewLine,
-        caption: pure.foundedNewLine ? 'PURE LINE ESTABLISHED' : 'PURE SYNTHESIS',
+        caption: pure.foundedNewLine
+            ? 'PURE LINE ESTABLISHED'
+            : 'PURE SYNTHESIS',
       );
     }
     if (isElement) {
@@ -1260,7 +1262,9 @@ class _BreedingTabState extends State<BreedingTab>
       kind: FusionRevealKind.pureSpecies,
       accent: gold,
       foundedNewLine: pure.foundedNewFamilyLine,
-      caption: pure.foundedNewFamilyLine ? 'NEW LINEAGE FOUNDED' : 'PURE LINEAGE',
+      caption: pure.foundedNewFamilyLine
+          ? 'NEW LINEAGE FOUNDED'
+          : 'PURE LINEAGE',
     );
   }
 

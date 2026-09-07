@@ -96,9 +96,7 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
             decoration: BoxDecoration(
               color: palette.bg0,
               border: Border(
-                bottom: BorderSide(
-                  color: palette.line.withValues(alpha: 0.5),
-                ),
+                bottom: BorderSide(color: palette.line.withValues(alpha: 0.5)),
               ),
             ),
             child: SafeArea(

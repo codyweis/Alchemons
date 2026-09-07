@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 
@@ -166,7 +167,7 @@ class _CosmicBeautyContestArenaOverlayState
   List<String> _playerAbilities() {
     final tags = <String>[
       '${widget.player.element} aura',
-      'Beauty ${widget.player.statBeauty.toStringAsFixed(2)}',
+      'Beauty ${AlchemonStatSystem.displayRating(widget.player.statBeauty)}',
     ];
     final visuals = widget.player.spriteVisuals;
     if (visuals?.isPrismatic == true) {
@@ -192,7 +193,7 @@ class _CosmicBeautyContestArenaOverlayState
   List<String> _opponentAbilities() {
     final tags = <String>[
       '${widget.opponentMember.element} aura',
-      'Beauty ${widget.opponentMember.statBeauty.toStringAsFixed(2)}',
+      'Beauty ${AlchemonStatSystem.displayRating(widget.opponentMember.statBeauty)}',
     ];
     final visuals = widget.opponentMember.spriteVisuals;
     if (visuals?.isPrismatic == true) {
@@ -413,7 +414,9 @@ class _CosmicSpeedContestArenaOverlayState
   bool get _playerWon => widget.playerScore >= widget.opponentScore;
 
   List<String> _speedFactorsForMember(CosmicPartyMember member) {
-    final tags = <String>['Speed ${member.statSpeed.toStringAsFixed(2)}'];
+    final tags = <String>[
+      'Speed ${AlchemonStatSystem.displayRating(member.statSpeed)}',
+    ];
     final element = member.element.toLowerCase().trim();
     if (element == 'lightning' ||
         element == 'water' ||
@@ -669,7 +672,9 @@ class _CosmicStrengthContestArenaOverlayState
   }
 
   List<String> _strengthFactorsForMember(CosmicPartyMember member) {
-    final tags = <String>['Strength ${member.statStrength.toStringAsFixed(2)}'];
+    final tags = <String>[
+      'Strength ${AlchemonStatSystem.displayRating(member.statStrength)}',
+    ];
     final element = member.element.toLowerCase().trim();
     if (element == 'earth' ||
         element == 'lava' ||
@@ -904,7 +909,7 @@ class _CosmicIntelligenceContestArenaOverlayState
 
   List<String> _intelligenceFactorsForMember(CosmicPartyMember member) {
     final tags = <String>[
-      'Intelligence ${member.statIntelligence.toStringAsFixed(2)}',
+      'Intelligence ${AlchemonStatSystem.displayRating(member.statIntelligence)}',
     ];
     final element = member.element.toLowerCase().trim();
     if (element == 'spirit' ||

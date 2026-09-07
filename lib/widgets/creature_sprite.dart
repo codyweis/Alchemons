@@ -18,6 +18,7 @@ import 'package:alchemons/widgets/animations/sprite_effects/strength_forge.dart'
 import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/void_rift.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/wavebreaker_crown.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flame/flame.dart' show Flame;
 import 'package:flame/sprite.dart';
@@ -306,6 +307,8 @@ class _CreatureSpriteState extends State<CreatureSprite>
         return IntelligenceHalo(size: widgetEff ?? displayEff);
       case 'blood_aura':
         return BloodAura(size: widgetEff ?? displayEff);
+      case 'wavebreaker_crown':
+        return WavebreakerCrown(size: widgetEff ?? displayEff);
       default:
         return const SizedBox.shrink();
     }
@@ -491,6 +494,8 @@ class InstanceSprite extends StatelessWidget {
         return IntelligenceHalo(size: widgetEff);
       case 'blood_aura':
         return BloodAura(size: widgetEff);
+      case 'wavebreaker_crown':
+        return WavebreakerCrown(size: widgetEff);
       default:
         return const SizedBox.shrink();
     }

@@ -218,7 +218,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
 
   Map<String, String> _buildNatureOptions() {
     final Map<String, String> out = {};
-    for (final def in NatureCatalog.all) {
+    for (final def in NatureCatalog.rollable) {
       out[def.id] = def.id.toUpperCase();
     }
     final sorted = out.entries.toList()
@@ -299,7 +299,9 @@ class _InstancesSheetState extends State<InstancesSheet> {
               if (_filterTint != null && g?.get('tinting') != _filterTint) {
                 return false;
               }
-              if (_filterNature != null && inst.natureId != _filterNature) {
+              if (_filterNature != null &&
+                  inst.natureId != _filterNature &&
+                  inst.natureId2 != _filterNature) {
                 return false;
               }
               return true;
@@ -592,7 +594,11 @@ class _InstancesSheetState extends State<InstancesSheet> {
               },
               child: Padding(
                 padding: EdgeInsets.only(right: 8),
-                child: Icon(AppIcons.close_rounded, size: 13, color: t.textMuted),
+                child: Icon(
+                  AppIcons.close_rounded,
+                  size: 13,
+                  color: t.textMuted,
+                ),
               ),
             ),
         ],
@@ -604,12 +610,14 @@ class _InstancesSheetState extends State<InstancesSheet> {
     final label = switch (_detailMode) {
       InstanceDetailMode.stats => 'STATS',
       InstanceDetailMode.genetics => 'GENES',
+      InstanceDetailMode.enhancement => 'ENH',
       InstanceDetailMode.info => 'STATS',
     };
     // Each mode gets a distinct accent so it's not just a text change
     final color = switch (_detailMode) {
       InstanceDetailMode.stats => t.amberBright,
       InstanceDetailMode.genetics => const Color(0xFF34D399), // teal-green
+      InstanceDetailMode.enhancement => const Color(0xFF38BDF8), // sky
       InstanceDetailMode.info => t.amberBright,
     };
 
@@ -618,6 +626,9 @@ class _InstancesSheetState extends State<InstancesSheet> {
         _detailMode = switch (_detailMode) {
           InstanceDetailMode.stats => InstanceDetailMode.genetics,
           InstanceDetailMode.genetics => InstanceDetailMode.stats,
+          // This sheet never offers Enhancement; the arm exists only to keep
+          // the switch total.
+          InstanceDetailMode.enhancement => InstanceDetailMode.genetics,
           InstanceDetailMode.info => InstanceDetailMode.genetics,
         };
       }),

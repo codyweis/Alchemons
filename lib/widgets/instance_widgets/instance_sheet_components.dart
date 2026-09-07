@@ -5,6 +5,7 @@
 // All logic, props, and public API preserved exactly.
 //
 
+import 'dart:math' as math;
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/constants/breed_constants.dart';
@@ -13,6 +14,7 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/models/creature.dart';
@@ -135,6 +137,12 @@ class InstanceCard extends StatelessWidget {
               selectionNumber: selectionNumber,
               creatureName: species.name,
             ),
+            InstanceDetailMode.enhancement => _EnhancementBlock(
+              instance: instance,
+              isSelected: isSelected,
+              selectionNumber: selectionNumber,
+              creatureName: species.name,
+            ),
           };
 
     final palette = BracketPalette.fromTheme(theme);
@@ -145,9 +153,7 @@ class InstanceCard extends StatelessWidget {
       onLongPress: onLongPress,
       child: CustomPaint(
         painter: BracketFramePainter(
-          color: isSelected
-              ? selColor
-              : palette.line.withValues(alpha: 0.75),
+          color: isSelected ? selColor : palette.line.withValues(alpha: 0.75),
           bracketSize: 10,
           strokeWidth: isSelected ? 1.5 : 1.05,
         ),
@@ -169,61 +175,73 @@ class InstanceCard extends StatelessWidget {
             children: [
               // ── Sprite area ──────────────────────────────────────
               Expanded(
-                child: Stack(
-                  children: [
-                    Center(
-                      child: RepaintBoundary(
-                        child: sd != null
-                            ? InstanceSprite(
-                                creature: species,
-                                instance: instance,
-                                size: 90,
-                              )
-                            : Image.asset(
-                                species.image,
-                                fit: BoxFit.contain,
-                              ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      child: _CardCornerPill(
-                        label: topLeftLabel,
-                        color: topLeftTextColor,
-                        frameColor: topLeftBorderColor,
-                        palette: palette,
-                        fontSize: showSortBadge ? 9 : 10,
-                      ),
-                    ),
-                    if (instance.isFavorite ||
-                        (isSelected && selectionNumber != null))
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            if (instance.isFavorite)
-                              _CardCornerIcon(
-                                icon: AppIcons.star_rounded,
-                                color: const Color(0xFFE91E63),
-                                palette: palette,
-                              ),
-                            if (instance.isFavorite &&
-                                isSelected &&
-                                selectionNumber != null)
-                              const SizedBox(height: 4),
-                            if (isSelected && selectionNumber != null)
-                              _CardSelectionBadge(
-                                number: selectionNumber!,
-                                color: selColor,
-                                palette: palette,
-                              ),
-                          ],
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // A hardcoded 90 left most of this box empty on wider
+                    // grids. Size to the box instead, keeping a margin so the
+                    // corner pills overlaid here still clear the artwork.
+                    final box = math.min(
+                      constraints.maxWidth,
+                      constraints.maxHeight,
+                    );
+                    final spriteSize = (box * 0.94).clamp(64.0, 168.0);
+                    return Stack(
+                      children: [
+                        Center(
+                          child: RepaintBoundary(
+                            child: sd != null
+                                ? InstanceSprite(
+                                    creature: species,
+                                    instance: instance,
+                                    size: spriteSize,
+                                  )
+                                : Image.asset(
+                                    species.image,
+                                    fit: BoxFit.contain,
+                                  ),
+                          ),
                         ),
-                      ),
-                  ],
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          child: _CardCornerPill(
+                            label: topLeftLabel,
+                            color: topLeftTextColor,
+                            frameColor: topLeftBorderColor,
+                            palette: palette,
+                            fontSize: showSortBadge ? 9 : 10,
+                          ),
+                        ),
+                        if (instance.isFavorite ||
+                            (isSelected && selectionNumber != null))
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                if (instance.isFavorite)
+                                  _CardCornerIcon(
+                                    icon: AppIcons.star_filled,
+                                    color: const Color(0xFFE91E63),
+                                    palette: palette,
+                                  ),
+                                if (instance.isFavorite &&
+                                    isSelected &&
+                                    selectionNumber != null)
+                                  const SizedBox(height: 4),
+                                if (isSelected && selectionNumber != null)
+                                  _CardSelectionBadge(
+                                    number: selectionNumber!,
+                                    color: selColor,
+                                    palette: palette,
+                                  ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
               ),
 
@@ -269,9 +287,7 @@ class _CardCornerPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: palette.chromeFill(),
-        border: Border(
-          left: BorderSide(color: color, width: 2),
-        ),
+        border: Border(left: BorderSide(color: color, width: 2)),
       ),
       child: Text(
         label,
@@ -479,8 +495,8 @@ class _StatTile extends StatelessWidget {
                 ),
                 Text(
                   potentialValue == null
-                      ? currentValue.toStringAsFixed(1)
-                      : '${currentValue.toStringAsFixed(1)} / ${potentialValue!.toStringAsFixed(1)}',
+                      ? '${AlchemonStatSystem.displayRating(currentValue)}'
+                      : '${AlchemonStatSystem.displayRating(currentValue)} · P${AlchemonStatSystem.normalizePotential(potentialValue!)}',
                   style: bracketText(
                     context,
                     12.5,
@@ -490,6 +506,202 @@ class _StatTile extends StatelessWidget {
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ENHANCEMENT BLOCK
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _EnhancementBlock extends StatelessWidget {
+  final CreatureInstance instance;
+  final bool isSelected;
+  final int? selectionNumber;
+  final String creatureName;
+
+  const _EnhancementBlock({
+    required this.instance,
+    required this.isSelected,
+    required this.selectionNumber,
+    required this.creatureName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isSelected && selectionNumber != null) ...[
+          _ParentChip(selectionNumber: selectionNumber!),
+          const SizedBox(height: 4),
+        ],
+        _CardNameLine(
+          instance: instance,
+          creatureName: creatureName,
+          trailing: _TotalEnhancementSummary(instance: instance),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: _EnhancementTile(
+                color: const Color(0xFFFDE047),
+                label: 'SPD',
+                rank: instance.statSpeedEnhancement,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: _EnhancementTile(
+                color: const Color(0xFFC084FC),
+                label: 'INT',
+                rank: instance.statIntelligenceEnhancement,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: _EnhancementTile(
+                color: const Color(0xFFF87171),
+                label: 'STR',
+                rank: instance.statStrengthEnhancement,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: _EnhancementTile(
+                color: const Color(0xFFF9A8D4),
+                label: 'BEA',
+                rank: instance.statBeautyEnhancement,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Ranks bought out of the 40 available, so a card can be read at a glance
+/// without adding up four tiles.
+class _TotalEnhancementSummary extends StatelessWidget {
+  final CreatureInstance instance;
+
+  const _TotalEnhancementSummary({required this.instance});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
+    const perStatMax = AlchemonStatSystem.maxEnhancementRank;
+    final total =
+        instance.statSpeedEnhancement +
+        instance.statIntelligenceEnhancement +
+        instance.statStrengthEnhancement +
+        instance.statBeautyEnhancement;
+    final full = total >= perStatMax * 4;
+    return Text(
+      'ENH $total/${perStatMax * 4}',
+      style: bracketText(
+        context,
+        10,
+        full ? t.amberBright : palette.muted,
+        weight: FontWeight.w800,
+        letterSpacing: 0.4,
+      ),
+    );
+  }
+}
+
+class _EnhancementTile extends StatelessWidget {
+  final Color color;
+  final String label;
+  final int rank;
+
+  const _EnhancementTile({
+    required this.color,
+    required this.label,
+    required this.rank,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    final palette = BracketPalette.fromTheme(theme);
+    final displayColor = t.readableAccent(color);
+    const maxRank = AlchemonStatSystem.maxEnhancementRank;
+    final maxed = rank >= maxRank;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(width: 2, height: 18, color: displayColor),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: bracketText(
+                          context,
+                          10,
+                          palette.muted,
+                          weight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '$rank/$maxRank',
+                      style: bracketText(
+                        context,
+                        10,
+                        maxed ? t.amberBright : displayColor,
+                        weight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                // One pip per rank, matching the Stat Infusion plate so the
+                // two screens read the same way.
+                Row(
+                  children: [
+                    for (var i = 0; i < maxRank; i++) ...[
+                      if (i > 0) const SizedBox(width: 1),
+                      Expanded(
+                        child: Container(
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: i < rank
+                                ? (maxed ? t.amberBright : displayColor)
+                                : palette.line.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -557,6 +769,13 @@ class _GeneticsBlock extends StatelessWidget {
             label: instance.natureId!.toUpperCase(),
           ),
         ],
+        if (instance.natureId2?.isNotEmpty == true) ...[
+          const SizedBox(height: 2),
+          _MiniRow(
+            color: t.textSecondary,
+            label: instance.natureId2!.toUpperCase(),
+          ),
+        ],
       ],
     );
   }
@@ -612,7 +831,11 @@ class _HarvestBlock extends StatelessWidget {
             const SizedBox.shrink(),
             Row(
               children: [
-                Icon(AppIcons.inventory_2_rounded, size: 10, color: t.amberBright),
+                Icon(
+                  AppIcons.inventory_2_rounded,
+                  size: 10,
+                  color: t.amberBright,
+                ),
                 const SizedBox(width: 3),
                 Text(
                   '$total',
@@ -637,6 +860,11 @@ class _HarvestBlock extends StatelessWidget {
               _MiniRow(
                 color: t.textSecondary,
                 label: instance.natureId!.toUpperCase(),
+              ),
+            if (instance.natureId2?.isNotEmpty == true)
+              _MiniRow(
+                color: t.textSecondary,
+                label: instance.natureId2!.toUpperCase(),
               ),
           ],
         ),

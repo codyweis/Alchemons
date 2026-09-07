@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:alchemons/models/stat_system.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
@@ -7,7 +8,6 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
-import 'package:alchemons/models/wilderness_stat_ranges.dart';
 import 'package:alchemons/services/creature_repository.dart';
 
 class EggPayload {
@@ -19,6 +19,7 @@ class EggPayload {
 
   // Creature attributes
   final String? natureId;
+  final String? natureId2;
   final bool isPrismaticSkin;
   final Map<String, String> genetics;
 
@@ -41,6 +42,7 @@ class EggPayload {
     required this.source,
     this.vialName,
     this.natureId,
+    this.natureId2,
     this.isPrismaticSkin = false,
     required this.genetics,
     required this.stats,
@@ -57,6 +59,7 @@ class EggPayload {
       'source': source,
       if (vialName != null) 'vialName': vialName,
       'natureId': natureId,
+      'natureId2': natureId2,
       'isPrismaticSkin': isPrismaticSkin,
       'genetics': genetics,
       'stats': stats.toJson(),
@@ -77,6 +80,7 @@ class EggPayload {
       source: json['source'] as String? ?? 'unknown',
       vialName: (json['vialName'] as String?) ?? (json['name'] as String?),
       natureId: json['natureId'] as String?,
+      natureId2: json['natureId2'] as String?,
       isPrismaticSkin: json['isPrismaticSkin'] as bool? ?? false,
       genetics: Map<String, String>.from(json['genetics'] as Map? ?? {}),
       stats: CreatureStats.fromJson(
@@ -141,6 +145,7 @@ class CreatureStatPotentials {
   });
 
   Map<String, dynamic> toJson() => {
+    'scaleVersion': 2,
     'speed': speed,
     'intelligence': intelligence,
     'strength': strength,
@@ -148,11 +153,32 @@ class CreatureStatPotentials {
   };
 
   factory CreatureStatPotentials.fromJson(Map<String, dynamic> json) {
+    final values = <num>[
+      (json['speed'] as num?) ?? 50,
+      (json['intelligence'] as num?) ?? 50,
+      (json['strength'] as num?) ?? 50,
+      (json['beauty'] as num?) ?? 50,
+    ];
+    final scaleVersion = (json['scaleVersion'] as num?)?.toInt() ?? 1;
+    final legacyScale =
+        scaleVersion < 2 && AlchemonStatSystem.usesLegacyPotentialScale(values);
     return CreatureStatPotentials(
-      speed: (json['speed'] as num?)?.toDouble() ?? 3.0,
-      intelligence: (json['intelligence'] as num?)?.toDouble() ?? 3.0,
-      strength: (json['strength'] as num?)?.toDouble() ?? 3.0,
-      beauty: (json['beauty'] as num?)?.toDouble() ?? 3.0,
+      speed: AlchemonStatSystem.normalizePotential(
+        values[0],
+        legacyScale: legacyScale,
+      ).toDouble(),
+      intelligence: AlchemonStatSystem.normalizePotential(
+        values[1],
+        legacyScale: legacyScale,
+      ).toDouble(),
+      strength: AlchemonStatSystem.normalizePotential(
+        values[2],
+        legacyScale: legacyScale,
+      ).toDouble(),
+      beauty: AlchemonStatSystem.normalizePotential(
+        values[3],
+        legacyScale: legacyScale,
+      ).toDouble(),
     );
   }
 }
@@ -240,11 +266,13 @@ class EggPayloadFactory {
     bool arcaneBoostUnlocked = false,
   }) {
     final rng = _random;
-    final statRange = wildernessStatRangeForRarity(
-      creature.rarity,
-      arcaneBoostUnlocked: arcaneBoostUnlocked,
+    final rolledStats = _rollStatBlock(
+      rng,
+      creature,
+      natureId: creature.nature?.id,
+      natureId2: creature.nature2?.id,
+      potentialBoost: arcaneBoostUnlocked,
     );
-    final rolledStats = _rollStatBlock(rng, statRange);
     final primaryElement = creature.types.isNotEmpty
         ? creature.types.first
         : null;
@@ -259,6 +287,7 @@ class EggPayloadFactory {
       rarity: creature.rarity,
       source: sourceOverride ?? 'wild_capture',
       natureId: creature.nature?.id,
+      natureId2: creature.nature2?.id,
       isPrismaticSkin: creature.isPrismaticSkin,
       genetics: creature.genetics?.variants ?? {},
       stats: hasFixedStats
@@ -303,6 +332,7 @@ class EggPayloadFactory {
       rarity: offspring.rarity,
       source: 'standard_fusion',
       natureId: offspring.nature?.id,
+      natureId2: offspring.nature2?.id,
       isPrismaticSkin: offspring.isPrismaticSkin,
       genetics: offspring.genetics?.variants ?? {},
       stats: CreatureStats(
@@ -312,10 +342,10 @@ class EggPayloadFactory {
         beauty: offspring.stats?.beauty ?? 0.0,
       ),
       potentials: CreatureStatPotentials(
-        speed: offspring.stats?.speedPotential ?? 3.0,
-        intelligence: offspring.stats?.intelligencePotential ?? 3.0,
-        strength: offspring.stats?.strengthPotential ?? 3.0,
-        beauty: offspring.stats?.beautyPotential ?? 3.0,
+        speed: offspring.stats?.speedPotential ?? 50.0,
+        intelligence: offspring.stats?.intelligencePotential ?? 50.0,
+        strength: offspring.stats?.strengthPotential ?? 50.0,
+        beauty: offspring.stats?.beautyPotential ?? 50.0,
       ),
       lineage: _extractLineageData(offspring),
       parentage: offspring.parentage != null
@@ -352,11 +382,13 @@ class EggPayloadFactory {
         ? elementalGroupNameOf(starter)
         : factionType;
     final family = starter?.mutationFamily;
+    final starterNatures = NatureCatalogWeighted.rollWildSlots(rng);
     return EggPayload(
       baseId: baseId,
       rarity: starter?.rarity ?? 'Common',
       source: 'starter',
-      natureId: NatureCatalogWeighted.weightedRandom(rng).id,
+      natureId: starterNatures.isEmpty ? null : starterNatures.first.id,
+      natureId2: starterNatures.length > 1 ? starterNatures[1].id : null,
       isPrismaticSkin: false,
       genetics: {
         'seed': (actualSeed & 0x7fffffff).toString(),
@@ -370,10 +402,10 @@ class EggPayloadFactory {
         beauty: _lowRoll(rng, min: 0, max: 1),
       ),
       potentials: CreatureStatPotentials(
-        speed: _lowRoll(rng, min: 1, max: 2),
-        intelligence: _lowRoll(rng, min: 1, max: 2),
-        strength: _lowRoll(rng, min: 1, max: 2),
-        beauty: _lowRoll(rng, min: 1, max: 2),
+        speed: _lowRoll(rng, min: 20, max: 40),
+        intelligence: _lowRoll(rng, min: 20, max: 40),
+        strength: _lowRoll(rng, min: 20, max: 40),
+        beauty: _lowRoll(rng, min: 20, max: 40),
       ),
       parentage: null,
       lineage: LineageData(
@@ -409,6 +441,7 @@ class EggPayloadFactory {
       rarity: offspring.rarity,
       source: sourceOverride ?? 'wild_fusion',
       natureId: offspring.nature?.id,
+      natureId2: offspring.nature2?.id,
       isPrismaticSkin: offspring.isPrismaticSkin,
       genetics: offspring.genetics?.variants ?? {},
       stats: CreatureStats(
@@ -418,10 +451,10 @@ class EggPayloadFactory {
         beauty: offspring.stats?.beauty ?? 0.0,
       ),
       potentials: CreatureStatPotentials(
-        speed: offspring.stats?.speedPotential ?? 3.0,
-        intelligence: offspring.stats?.intelligencePotential ?? 3.0,
-        strength: offspring.stats?.strengthPotential ?? 3.0,
-        beauty: offspring.stats?.beautyPotential ?? 3.0,
+        speed: offspring.stats?.speedPotential ?? 50.0,
+        intelligence: offspring.stats?.intelligencePotential ?? 50.0,
+        strength: offspring.stats?.strengthPotential ?? 50.0,
+        beauty: offspring.stats?.beautyPotential ?? 50.0,
       ),
       lineage: _extractLineageData(offspring),
       parentage: parentageData,
@@ -438,18 +471,23 @@ class EggPayloadFactory {
     final family = creature.mutationFamily;
 
     // Vials get random nature
-    final nature = NatureCatalogWeighted.weightedRandom(rng);
+    final natures = NatureCatalogWeighted.rollWildSlots(rng);
+    final nature = natures.isEmpty ? null : natures.first;
 
-    // Stats based on rarity
-    final statRange = _getVialStatRangeForRarity(creature.rarity);
-    final rolledStats = _rollStatBlock(rng, statRange);
+    final rolledStats = _rollStatBlock(
+      rng,
+      creature,
+      natureId: nature?.id,
+      natureId2: natures.length > 1 ? natures[1].id : null,
+    );
 
     return EggPayload(
       baseId: creature.id,
       rarity: creature.rarity,
       source: 'vial', // Track that this came from a vial
       vialName: vialName,
-      natureId: nature.id,
+      natureId: nature?.id,
+      natureId2: natures.length > 1 ? natures[1].id : null,
       isPrismaticSkin: false,
       genetics: creature.genetics?.variants ?? {},
       stats: rolledStats.stats,
@@ -470,59 +508,53 @@ class EggPayloadFactory {
     );
   }
 
-  // Helper for stat ranges by rarity
-  ({double min, double max, double potMin, double potMax})
-  _getVialStatRangeForRarity(String rarity) {
-    switch (rarity.toLowerCase()) {
-      case 'common':
-        return (min: 0.0, max: 1.0, potMin: 1.0, potMax: 2.0);
-      case 'uncommon':
-        return (min: 0.5, max: 1.5, potMin: 1.5, potMax: 2.5);
-      case 'rare':
-        return (min: 1.0, max: 1.5, potMin: 1.5, potMax: 3.0);
-      case 'legendary':
-        return (min: 1.5, max: 3.5, potMin: 1.5, potMax: 3.5);
-      default:
-        return (min: 0.0, max: 1.0, potMin: 1.0, potMax: 2.0);
-    }
-  }
-
   ({CreatureStats stats, CreatureStatPotentials potentials}) _rollStatBlock(
     Random rng,
-    WildernessStatRange range,
-  ) {
-    final speed = _rollStatPair(rng, range);
-    final intelligence = _rollStatPair(rng, range);
-    final strength = _rollStatPair(rng, range);
-    final beauty = _rollStatPair(rng, range);
+    Creature creature, {
+    String? natureId,
+    String? natureId2,
+    bool potentialBoost = false,
+  }) {
+    final base =
+        creature.baseStats ??
+        const SpeciesBaseStats(
+          speed: 60,
+          intelligence: 60,
+          strength: 60,
+          beauty: 60,
+        );
+    final potentials = List<int>.generate(4, (_) {
+      final first = AlchemonStatSystem.rollPotential(rng);
+      return potentialBoost
+          ? max(first, AlchemonStatSystem.rollPotential(rng))
+          : first;
+    });
+    double derive(int speciesBase, int potential, String statKey) =>
+        AlchemonStatSystem.effectiveInternal(
+          speciesBase: speciesBase,
+          level: 1,
+          potential: potential,
+          additionalMultiplier: AlchemonStatSystem.natureMultiplier(
+            natureId,
+            statKey,
+            natureId2,
+          ),
+        );
 
     return (
       stats: CreatureStats(
-        speed: speed.stat,
-        intelligence: intelligence.stat,
-        strength: strength.stat,
-        beauty: beauty.stat,
+        speed: derive(base.speed, potentials[0], 'speed'),
+        intelligence: derive(base.intelligence, potentials[1], 'intelligence'),
+        strength: derive(base.strength, potentials[2], 'strength'),
+        beauty: derive(base.beauty, potentials[3], 'beauty'),
       ),
       potentials: CreatureStatPotentials(
-        speed: speed.potential,
-        intelligence: intelligence.potential,
-        strength: strength.potential,
-        beauty: beauty.potential,
+        speed: potentials[0].toDouble(),
+        intelligence: potentials[1].toDouble(),
+        strength: potentials[2].toDouble(),
+        beauty: potentials[3].toDouble(),
       ),
     );
-  }
-
-  ({double stat, double potential}) _rollStatPair(
-    Random rng,
-    WildernessStatRange range,
-  ) {
-    final potential = _rollInRange(rng, range.potMin, range.potMax);
-    final statMax = min(range.max, potential);
-    return (stat: _rollInRange(rng, range.min, statMax), potential: potential);
-  }
-
-  double _rollInRange(Random rng, double min, double max) {
-    return min + (rng.nextDouble() * (max - min));
   }
 
   // Helper methods

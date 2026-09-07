@@ -85,10 +85,7 @@ class AccountService extends ChangeNotifier {
     }
   }
 
-  Future<void> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> signIn({required String email, required String password}) async {
     final auth = _requireAuth();
     try {
       await auth.signInWithEmailAndPassword(
@@ -143,9 +140,7 @@ class AccountService extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteAccount({
-    required String currentPassword,
-  }) async {
+  Future<void> deleteAccount({required String currentPassword}) async {
     final user = _requireSignedInUserWithEmail();
     try {
       await user.reauthenticateWithCredential(

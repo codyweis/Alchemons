@@ -18,6 +18,7 @@ class SaveTransferService {
   static const String _prefix = 'ALCHEMONS_SAVE_V2:';
   static const String _legacyPrefix = 'ALCHEMONS_SAVE_V1:';
   static const int _maxCloudSaveBytes = 900 * 1024;
+  static const int _potentialScaleSchemaVersion = 37;
   static const Set<String> _protectedPreferenceKeys = {
     'account.device_id.v1',
     'account.pending_transfer_code',
@@ -119,6 +120,8 @@ class SaveTransferService {
     final rawTables = payload['tables'];
     final rawPreferences = payload['preferences'];
     final payloadOwnerAccountId = payload['ownerAccountId'];
+    final sourceSchemaVersion =
+        (payload['schemaVersion'] as num?)?.toInt() ?? 0;
     if (rawTables is! Map<String, dynamic> ||
         rawPreferences is! Map<String, dynamic>) {
       throw const SaveTransferException('Save code is missing required data.');
@@ -201,6 +204,33 @@ class SaveTransferService {
               updates: {table},
             );
           }
+        }
+
+        // Cloud restore inserts table rows directly into the current schema,
+        // so Drift's normal onUpgrade migration never sees the source save.
+        // Saves from before schema 37 still contain 0-5 Potential values and
+        // must receive the same 1-100 conversion as an on-device upgrade.
+        if (sourceSchemaVersion < _potentialScaleSchemaVersion) {
+          await db.customUpdate(
+            '''
+              UPDATE creature_instances SET
+                stat_speed_potential = CASE WHEN stat_speed_potential <= 5 THEN MAX(1, MIN(100, ROUND(stat_speed_potential * 20))) ELSE stat_speed_potential END,
+                stat_intelligence_potential = CASE WHEN stat_intelligence_potential <= 5 THEN MAX(1, MIN(100, ROUND(stat_intelligence_potential * 20))) ELSE stat_intelligence_potential END,
+                stat_strength_potential = CASE WHEN stat_strength_potential <= 5 THEN MAX(1, MIN(100, ROUND(stat_strength_potential * 20))) ELSE stat_strength_potential END,
+                stat_beauty_potential = CASE WHEN stat_beauty_potential <= 5 THEN MAX(1, MIN(100, ROUND(stat_beauty_potential * 20))) ELSE stat_beauty_potential END
+            ''',
+            updates: {db.creatureInstances},
+          );
+        }
+        if (sourceSchemaVersion < 38) {
+          await db.customUpdate(
+            "UPDATE creature_instances SET nature_id = NULL WHERE nature_id = 'Nullic'",
+            updates: {db.creatureInstances},
+          );
+          await db.customUpdate(
+            "UPDATE player_creatures SET nature_id = NULL WHERE nature_id = 'Nullic'",
+            updates: {db.playerCreatures},
+          );
         }
       } finally {
         await db.customStatement('PRAGMA foreign_keys = ON');

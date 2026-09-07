@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:alchemons/constants/breed_constants.dart';
@@ -6,6 +7,7 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/services/alchemical_encyclopedia_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/utils/nature_effect_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -43,6 +45,8 @@ class _AlchemicalEncyclopediaScreenState
   bool _showcaseRunning = false;
   bool _searchFocused = false;
   bool _hasNatureTab = false;
+  Timer? _searchDebounce;
+  _FilteredEncyclopediaView? _filteredViewCache;
 
   // Whether we've shown the initial entry animation
   bool _hasAnimatedIn = false;
@@ -60,6 +64,7 @@ class _AlchemicalEncyclopediaScreenState
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _searchFocusNode.removeListener(_onSearchFocusChanged);
@@ -186,8 +191,13 @@ class _AlchemicalEncyclopediaScreenState
 
   void _onSearchChanged() {
     final next = _searchController.text.trim().toLowerCase();
+    _searchDebounce?.cancel();
     if (next == _searchQuery) return;
-    setState(() => _searchQuery = next);
+    // Debounce so every keystroke doesn't trigger a full re-filter/rebuild.
+    _searchDebounce = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted) return;
+      setState(() => _searchQuery = next);
+    });
   }
 
   void _reloadSnapshot() {
@@ -244,9 +254,12 @@ class _AlchemicalEncyclopediaScreenState
   }) {
     final out = <EncyclopediaNatureEntry>[];
     for (final entry in natures) {
+      if (_showKnownOnly && !entry.discovered) continue;
+
       if (_searchQuery.isNotEmpty) {
+        if (!entry.discovered) continue;
         final haystack =
-            '${entry.nature.id} ${_formatNatureEffects(entry.nature.effect)}'
+            '${entry.nature.id} ${formatNatureEffectSummary(entry.nature.effect)}'
                 .toLowerCase();
         if (!haystack.contains(_searchQuery)) continue;
       }
@@ -254,11 +267,45 @@ class _AlchemicalEncyclopediaScreenState
     }
 
     out.sort((a, b) {
+      if (a.discovered != b.discovered) return a.discovered ? -1 : 1;
       final observed = b.observedCount.compareTo(a.observedCount);
       if (observed != 0) return observed;
       return a.nature.id.compareTo(b.nature.id);
     });
     return out;
+  }
+
+  _FilteredEncyclopediaView _filteredView(AlchemicalEncyclopediaSnapshot data) {
+    final cached = _filteredViewCache;
+    if (cached != null &&
+        identical(cached.snapshot, data) &&
+        cached.query == _searchQuery &&
+        cached.knownOnly == _showKnownOnly) {
+      return cached;
+    }
+
+    final next = _FilteredEncyclopediaView(
+      snapshot: data,
+      query: _searchQuery,
+      knownOnly: _showKnownOnly,
+      family: List.unmodifiable(
+        _visibleRecipes(
+          recipes: data.familyRecipes,
+          discoveredPairKeys: data.discoveredFamilyKeys,
+          discoveredOutcomeKeys: data.discoveredFamilyOutcomeKeys,
+        ),
+      ),
+      element: List.unmodifiable(
+        _visibleRecipes(
+          recipes: data.elementRecipes,
+          discoveredPairKeys: data.discoveredElementKeys,
+          discoveredOutcomeKeys: data.discoveredElementOutcomeKeys,
+        ),
+      ),
+      natures: List.unmodifiable(_visibleNatures(natures: data.natureEntries)),
+    );
+    _filteredViewCache = next;
+    return next;
   }
 
   @override
@@ -301,19 +348,10 @@ class _AlchemicalEncyclopediaScreenState
                     ? 0.0
                     : totalDiscovered / totalRecipes;
 
-                final visibleFamily = _visibleRecipes(
-                  recipes: data.familyRecipes,
-                  discoveredPairKeys: data.discoveredFamilyKeys,
-                  discoveredOutcomeKeys: data.discoveredFamilyOutcomeKeys,
-                );
-                final visibleElement = _visibleRecipes(
-                  recipes: data.elementRecipes,
-                  discoveredPairKeys: data.discoveredElementKeys,
-                  discoveredOutcomeKeys: data.discoveredElementOutcomeKeys,
-                );
-                final visibleNature = _visibleNatures(
-                  natures: data.natureEntries,
-                );
+                final filtered = _filteredView(data);
+                final visibleFamily = filtered.family;
+                final visibleElement = filtered.element;
+                final visibleNature = filtered.natures;
                 _queueShowcaseIfNeeded(
                   data: data,
                   visibleFamily: visibleFamily,
@@ -423,6 +461,24 @@ class _AlchemicalEncyclopediaScreenState
 }
 
 // ─── Showcase target ────────────────────────────────────────────────────────
+
+class _FilteredEncyclopediaView {
+  final AlchemicalEncyclopediaSnapshot snapshot;
+  final String query;
+  final bool knownOnly;
+  final List<EncyclopediaRecipeEntry> family;
+  final List<EncyclopediaRecipeEntry> element;
+  final List<EncyclopediaNatureEntry> natures;
+
+  const _FilteredEncyclopediaView({
+    required this.snapshot,
+    required this.query,
+    required this.knownOnly,
+    required this.family,
+    required this.element,
+    required this.natures,
+  });
+}
 
 class _UnlockShowcaseTarget {
   final EncyclopediaRecipeKind kind;
@@ -2306,7 +2362,7 @@ class _NatureTabListState extends State<_NatureTabList> {
             child: Row(
               children: [
                 Text(
-                  '${widget.entries.length} discovered • ${widget.entries.length} shown',
+                  '${widget.entries.where((e) => e.discovered).length} discovered • ${widget.entries.length} shown',
                   style: _T.label(context),
                 ),
                 const Spacer(),
@@ -2361,15 +2417,22 @@ class _NatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = _natureAccentColor(context, entry.nature);
-    final summary = _formatNatureEffects(entry.nature.effect);
-    final observedText = entry.observedCount > 0
+    final locked = !entry.discovered;
+    final accent = locked
+        ? _C.of(context).textMuted
+        : _natureAccentColor(context, entry.nature);
+    final summary = locked
+        ? '???'
+        : formatNatureEffectSummary(entry.nature.effect);
+    final observedText = locked
+        ? 'Not yet discovered'
+        : entry.observedCount > 0
         ? 'Observed on ${entry.observedCount} active specimen${entry.observedCount == 1 ? '' : 's'}'
         : 'Archived from prior specimen records';
 
     return _PlateFrame(
       accentColor: accent,
-      highlight: true,
+      highlight: !locked,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2378,11 +2441,13 @@ class _NatureCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  entry.nature.id,
+                  locked ? '???' : entry.nature.id,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: _C.of(context).textPrimary,
+                    color: locked
+                        ? _C.of(context).textMuted
+                        : _C.of(context).textPrimary,
                     fontWeight: FontWeight.w800,
                     fontSize: 16,
                     letterSpacing: 0.2,
@@ -2395,7 +2460,7 @@ class _NatureCard extends StatelessWidget {
           _NatureSummaryRow(
             label: 'Effect',
             value: summary,
-            valueColor: entry.nature.effect.modifiers.isEmpty
+            valueColor: locked || entry.nature.effect.modifiers.isEmpty
                 ? _natureReadableTextColor(context, muted: true)
                 : _natureReadableTextColor(context),
           ),
@@ -2621,62 +2686,6 @@ Color _natureLabelColor(BuildContext context) {
     return palette.textPrimary.withValues(alpha: 0.78);
   }
   return palette.textSecondary;
-}
-
-String _formatNatureEffects(NatureEffect effect) {
-  if (effect.modifiers.isEmpty) {
-    return 'No special behavioral modifications known';
-  }
-
-  final effects = <String>[];
-  effect.modifiers.forEach((key, value) {
-    switch (key) {
-      case 'stamina_extra':
-        effects.add('Stamina +${value.toInt()}');
-        break;
-      case 'stamina_breeding_cost_mult':
-        effects.add('Breeding cost -${((1 - value) * 100).round()}%');
-        break;
-      case 'stamina_wilderness_drain_mult':
-        effects.add('Wilderness stamina -${((1 - value) * 100).round()}%');
-        break;
-      case 'breed_same_species_chance_mult':
-        final p = ((value - 1) * 100).round();
-        effects.add('Same-species breeding ${p >= 0 ? '+' : ''}$p%');
-        break;
-      case 'breed_same_type_chance_mult':
-        final p = ((value - 1) * 100).round();
-        effects.add('Same-type breeding ${p >= 0 ? '+' : ''}$p%');
-        break;
-      case 'egg_hatch_time_mult':
-        effects.add('Hatch time -${((1 - value) * 100).round()}%');
-        break;
-      case 'xp_gain_mult':
-        final p = ((value - 1) * 100).round();
-        effects.add('XP gain ${p >= 0 ? '+' : ''}$p%');
-        break;
-      case 'stat_speed_bonus':
-        effects.add('Speed +${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}');
-        break;
-      case 'stat_intelligence_bonus':
-        effects.add(
-          'Intelligence +${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}',
-        );
-        break;
-      case 'stat_strength_bonus':
-        effects.add(
-          'Strength +${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}',
-        );
-        break;
-      case 'stat_beauty_bonus':
-        effects.add('Beauty +${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}');
-        break;
-      default:
-        effects.add('$key: $value');
-        break;
-    }
-  });
-  return effects.join(' • ');
 }
 
 // ─── Discovery stat ──────────────────────────────────────────────────────────

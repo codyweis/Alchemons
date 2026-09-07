@@ -213,10 +213,10 @@ void main() {
   });
 
   group('stat-scaled tunables', () {
-    test('glideSeconds 3..8, rises with Speed', () {
+    test('glideSeconds preserves 3..8 then grants controlled overcap', () {
       expect(glideSeconds(1.0), closeTo(3.0, 0.001));
       expect(glideSeconds(5.0), closeTo(8.0, 0.001));
-      expect(glideSeconds(9.0), closeTo(8.0, 0.001));
+      expect(glideSeconds(9.0), closeTo(9.5, 0.001));
     });
     test('revealHintTier steps 0→1→2', () {
       expect(revealHintTier(1.0), 0);
@@ -226,6 +226,7 @@ void main() {
     test('channelHoldSeconds 3..10', () {
       expect(channelHoldSeconds(1.0), closeTo(3.0, 0.001));
       expect(channelHoldSeconds(5.0), closeTo(10.0, 0.001));
+      expect(channelHoldSeconds(9.0), closeTo(12.1, 0.001));
     });
     test('charmOk needs high Beauty', () {
       expect(charmOk(5.0), isTrue);

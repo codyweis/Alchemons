@@ -284,17 +284,33 @@ void main() {
       expect(RaidConfig.squadSize, 5);
     });
 
-    test('the guardian is scaled for the bigger squad, not just buffed', () {
-      // Five Alchemons is roughly +67% DPS and +67% bodies over three. HP
-      // rises with the party so the fight still takes about as long, and
-      // damage rises further so the extra bodies are not just slack.
+    test('level 1 is scaled for the five-Alchemon squad', () {
       const cfg = RaidConfig();
       expect(cfg.hpMul, 5.0);
-      expect(cfg.dmgMul, 2.2);
+      expect(cfg.dmgMul, 1.6);
       // HP must scale at least as fast as the party, or raids got easier.
       expect(cfg.hpMul / 3.0, greaterThanOrEqualTo(RaidConfig.squadSize / 3));
-      // And damage must outpace HP, or it is only a longer fight.
-      expect(cfg.dmgMul / 1.5, greaterThan(1.0));
+    });
+
+    test('all combat pressure escalates across the three raid levels', () {
+      const l1 = RaidConfig(level: 1);
+      const l2 = RaidConfig(level: 2);
+      const l3 = RaidConfig(level: 3);
+
+      expect([l1.hpMul, l2.hpMul, l3.hpMul], [5.0, 10.0, 18.0]);
+      expect([l1.dmgMul, l2.dmgMul, l3.dmgMul], [1.6, 2.3, 3.2]);
+      expect(
+        l2.addPhaseThresholds.length,
+        greaterThan(l1.addPhaseThresholds.length),
+      );
+      expect(
+        l3.addPhaseThresholds.length,
+        greaterThan(l2.addPhaseThresholds.length),
+      );
+      expect(l2.addHpMul, greaterThan(l1.addHpMul));
+      expect(l3.addHpMul, greaterThan(l2.addHpMul));
+      expect(l2.guardianHitFraction, greaterThan(l1.guardianHitFraction));
+      expect(l3.guardianHitFraction, greaterThan(l2.guardianHitFraction));
     });
 
     test('a five-strong squad all reaches the arena', () {
@@ -328,7 +344,7 @@ void main() {
       expect(game.creatures.where((c) => c.alive).length, 5);
     });
 
-    test('the guardian scales with cleared planets on top of the raid mul', () {
+    test('raid scaling ignores campaign planet order', () {
       PlanetDungeonGame raidWith(int cleared) => PlanetDungeonGame(
         element: 'Air',
         party: [_member(slot: 0)],
@@ -340,8 +356,10 @@ void main() {
         clearedGuardianCount: cleared,
         layoutOverride: buildRaidArenaLayout('Air'),
       );
-      expect(raidWith(5).progressHpMul, greaterThan(raidWith(0).progressHpMul));
+      expect(raidWith(5).progressHpMul, raidWith(0).progressHpMul);
+      expect(raidWith(5).progressDmgMul, raidWith(0).progressDmgMul);
       expect(raidWith(0).progressHpMul, 1.0);
+      expect(raidWith(0).progressDmgMul, 1.0);
     });
   });
 

@@ -183,36 +183,36 @@ class ExtractionDialogState extends State<ExtractionDialog>
                           ],
                         ),
                       ),
-                  CultivationDialogActionArea(
-                    tokens: t,
-                    children: [
-                      CultivationDialogButton(
+                      CultivationDialogActionArea(
                         tokens: t,
-                        label: 'Extract specimen',
-                        icon: AppIcons.biotech_rounded,
-                        accentColor: rarityColor,
-                        emphasis: CultivationDialogButtonEmphasis.primary,
-                        useSolidBackground: true,
-                        foregroundColor: Colors.white,
-                        large: true,
-                        onTap: () {
-                          HapticFeedback.heavyImpact();
-                          widget.onExtract();
-                        },
-                      ),
-                      if (!widget.isTutorial) ...[
-                        const SizedBox(height: 10),
-                        Center(
-                          child: _DialogTextLink(
-                            label: 'Discard specimen',
-                            icon: AppIcons.delete_outline_rounded,
-                            color: t.danger,
-                            onTap: widget.onDiscard,
+                        children: [
+                          CultivationDialogButton(
+                            tokens: t,
+                            label: 'Extract specimen',
+                            icon: AppIcons.biotech_rounded,
+                            accentColor: rarityColor,
+                            emphasis: CultivationDialogButtonEmphasis.primary,
+                            useSolidBackground: true,
+                            foregroundColor: Colors.white,
+                            large: true,
+                            onTap: () {
+                              HapticFeedback.heavyImpact();
+                              widget.onExtract();
+                            },
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
+                          if (!widget.isTutorial) ...[
+                            const SizedBox(height: 10),
+                            Center(
+                              child: _DialogTextLink(
+                                label: 'Discard specimen',
+                                icon: AppIcons.delete_outline_rounded,
+                                color: t.danger,
+                                onTap: widget.onDiscard,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
                 ),

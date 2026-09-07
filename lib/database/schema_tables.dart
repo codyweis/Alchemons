@@ -7,6 +7,7 @@ class PlayerCreatures extends Table {
   TextColumn get id => text()();
   BoolColumn get discovered => boolean().withDefault(const Constant(false))();
   TextColumn get natureId => text().nullable()();
+  TextColumn get natureId2 => text().nullable()();
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -99,6 +100,7 @@ class CreatureInstances extends Table {
   BoolColumn get isPrismaticSkin =>
       boolean().withDefault(const Constant(false))();
   TextColumn get natureId => text().nullable()();
+  TextColumn get natureId2 => text().nullable()();
   TextColumn get source => text().withDefault(const Constant('discovery'))();
   TextColumn get parentageJson => text().nullable()();
   TextColumn get geneticsJson => text().nullable()();
@@ -116,15 +118,25 @@ class CreatureInstances extends Table {
   RealColumn get statStrength => real().withDefault(const Constant(3.0))();
   RealColumn get statBeauty => real().withDefault(const Constant(3.0))();
 
-  // POTENTIAL COLUMNS (max each stat can reach)
+  // Immutable 1-100 genetic Potential ratings.
   RealColumn get statSpeedPotential =>
-      real().withDefault(const Constant(4.0))();
+      real().withDefault(const Constant(50.0))();
   RealColumn get statIntelligencePotential =>
-      real().withDefault(const Constant(4.0))();
+      real().withDefault(const Constant(50.0))();
   RealColumn get statStrengthPotential =>
-      real().withDefault(const Constant(4.0))();
+      real().withDefault(const Constant(50.0))();
   RealColumn get statBeautyPotential =>
-      real().withDefault(const Constant(4.0))();
+      real().withDefault(const Constant(50.0))();
+
+  // Individual, non-heritable alchemical training. Each rank grants +3%.
+  IntColumn get statSpeedEnhancement =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get statIntelligenceEnhancement =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get statStrengthEnhancement =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get statBeautyEnhancement =>
+      integer().withDefault(const Constant(0))();
 
   IntColumn get generationDepth => integer().withDefault(const Constant(0))();
 
@@ -281,8 +293,8 @@ class AltarPlacements extends Table {
   IntColumn get placedAtUtcMs => integer()();
 
   /// JSON snapshot of the sacrificed creature's key attributes at commit time:
-  /// { "natureId": "N001", "speed": 4.2, "intelligence": 3.8,
-  ///   "strength": 5.0, "beauty": 4.5 }
+  /// { "natureId": "N001", "speed": 5.2, "intelligence": 4.8,
+  ///   "strength": 6.0, "beauty": 5.5 }
   /// Nullable so old placements (before schema v32) still load fine.
   TextColumn get snapshotJson => text().nullable()();
 

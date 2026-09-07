@@ -469,8 +469,11 @@ class PurebloodRiteService {
             challenge.requiredSize!.trim().toLowerCase();
     final matchesNature =
         challenge.requiredNature == null ||
-        instance.natureId?.trim().toLowerCase() ==
-            challenge.requiredNature!.trim().toLowerCase();
+        [instance.natureId, instance.natureId2].any(
+          (id) =>
+              id?.trim().toLowerCase() ==
+              challenge.requiredNature!.trim().toLowerCase(),
+        );
     final matchesVariant =
         challenge.requiredVariantFaction == null ||
         instance.variantFaction?.trim().toLowerCase() ==
@@ -773,7 +776,7 @@ class PurebloodRiteService {
     final tints = GeneticsCatalog.track(
       'tinting',
     ).variants.map((v) => v.id).where((id) => id != 'normal').toList();
-    final natures = NatureCatalog.all.map((n) => n.id).toList();
+    final natures = NatureCatalog.rollable.map((n) => n.id).toList();
     final variantFactions = FactionId.values.map((f) => f.name).toList();
 
     // Always pick at least 1 extra (to guarantee 4 total things: family +

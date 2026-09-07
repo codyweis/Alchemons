@@ -5,8 +5,9 @@
 // A raid "takes over" one conquered planet (guardian beaten) for a real-time
 // window. While active, descending enters the raid arena instead of the
 // normal dungeon. Raids spawn on an automatic rotation, or on demand via a
-// Raid Beacon. Clearing the raid banks loot; the planet returns to normal
-// when the window closes or the raid is cleared.
+// Raid Beacon. Each victory advances a three-level ladder. The first Level-3
+// victory schedules one delayed echo; the planet returns to normal when that
+// echo falls or the event window closes.
 //
 // No Flutter/DB imports here — persistence lives in RaidService, and the
 // tests exercise this file headlessly.
@@ -26,6 +27,15 @@ const Duration kRaidWindow = Duration(hours: 24);
 /// by bringing a squad that is not ready.
 const Duration kRaidFightLimit = Duration(minutes: 10);
 
+/// A defeated Level-3 guardian reforms once per raid event. The cooldown
+/// prevents the final tier's Soul, Gold, cache, and orb payout becoming an
+/// immediate infinite loop.
+const Duration kRaidLevel3RespawnCooldown = Duration(hours: 12);
+
+/// Once the first Level-3 clear lands, guarantee enough event time for the
+/// respawn cooldown plus a twelve-hour claim window.
+const Duration kRaidLevel3RespawnWindow = Duration(hours: 24);
+
 /// How often the rotation tries to spawn a raid (measured from the end of
 /// the previous raid, or from first launch).
 const Duration kRaidRotationPeriod = Duration(hours: 48);
@@ -38,6 +48,9 @@ class RaidState {
   final Duration duration;
   final RaidSource source;
   final bool cleared;
+  final int level;
+  final int level3Clears;
+  final DateTime? readyUtc;
 
   const RaidState({
     required this.element,
@@ -45,11 +58,27 @@ class RaidState {
     this.duration = kRaidWindow,
     this.source = RaidSource.rotation,
     this.cleared = false,
+    this.level = 1,
+    this.level3Clears = 0,
+    this.readyUtc,
   });
 
   DateTime get endUtc => startUtc.add(duration);
 
   bool isActive(DateTime nowUtc) => !cleared && nowUtc.isBefore(endUtc);
+
+  bool canEnter(DateTime nowUtc) =>
+      isActive(nowUtc) && (readyUtc == null || !nowUtc.isBefore(readyUtc!));
+
+  bool isCoolingDown(DateTime nowUtc) =>
+      isActive(nowUtc) && readyUtc != null && nowUtc.isBefore(readyUtc!);
+
+  Duration respawnRemaining(DateTime nowUtc) {
+    final ready = readyUtc;
+    if (ready == null) return Duration.zero;
+    final left = ready.difference(nowUtc);
+    return left.isNegative ? Duration.zero : left;
+  }
 
   Duration remaining(DateTime nowUtc) {
     final left = endUtc.difference(nowUtc);
@@ -62,7 +91,55 @@ class RaidState {
     duration: duration,
     source: source,
     cleared: true,
+    level: level,
+    level3Clears: level3Clears,
+    readyUtc: readyUtc,
   );
+
+  /// Advances a cleared tier. The first Level-3 clear schedules one respawn;
+  /// defeating that echo closes the raid.
+  RaidState advanceLevel({required DateTime nowUtc}) {
+    if (level < RaidConfig.maxLevel) {
+      return RaidState(
+        element: element,
+        startUtc: startUtc,
+        duration: duration,
+        source: source,
+        cleared: false,
+        level: level + 1,
+        level3Clears: level3Clears,
+      );
+    }
+
+    if (level3Clears == 0) {
+      final ready = nowUtc.add(kRaidLevel3RespawnCooldown);
+      final guaranteedEnd = nowUtc.add(kRaidLevel3RespawnWindow);
+      final extendedDuration = guaranteedEnd.isAfter(endUtc)
+          ? guaranteedEnd.difference(startUtc)
+          : duration;
+      return RaidState(
+        element: element,
+        startUtc: startUtc,
+        duration: extendedDuration,
+        source: source,
+        cleared: false,
+        level: RaidConfig.maxLevel,
+        level3Clears: 1,
+        readyUtc: ready,
+      );
+    }
+
+    return RaidState(
+      element: element,
+      startUtc: startUtc,
+      duration: duration,
+      source: source,
+      cleared: true,
+      level: RaidConfig.maxLevel,
+      level3Clears: 2,
+      readyUtc: null,
+    );
+  }
 
   String serialise() => [
     element,
@@ -70,15 +147,28 @@ class RaidState {
     duration.inSeconds,
     source.name,
     cleared ? 1 : 0,
+    level.clamp(1, RaidConfig.maxLevel),
+    level3Clears.clamp(0, 2),
+    readyUtc?.millisecondsSinceEpoch ?? '',
   ].join('|');
 
   static RaidState? deserialise(String? raw) {
     if (raw == null || raw.isEmpty) return null;
     final parts = raw.split('|');
-    if (parts.length != 5) return null;
+    // Five fields is the pre-tier format; migrate those raids to Level 1.
+    if (parts.length != 5 && parts.length != 6 && parts.length != 8) {
+      return null;
+    }
     final startMs = int.tryParse(parts[1]);
     final durSec = int.tryParse(parts[2]);
     if (startMs == null || durSec == null) return null;
+    final storedLevel = parts.length >= 6 ? int.tryParse(parts[5]) : null;
+    final storedLevel3Clears = parts.length == 8
+        ? int.tryParse(parts[6])
+        : null;
+    final readyMs = parts.length == 8 && parts[7].isNotEmpty
+        ? int.tryParse(parts[7])
+        : null;
     return RaidState(
       element: parts[0],
       startUtc: DateTime.fromMillisecondsSinceEpoch(startMs, isUtc: true),
@@ -87,6 +177,11 @@ class RaidState {
           ? RaidSource.summon
           : RaidSource.rotation,
       cleared: parts[4] == '1',
+      level: (storedLevel ?? 1).clamp(1, RaidConfig.maxLevel),
+      level3Clears: (storedLevel3Clears ?? 0).clamp(0, 2),
+      readyUtc: readyMs == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(readyMs, isUtc: true),
     );
   }
 }
@@ -120,8 +215,8 @@ class RaidSchedule {
 
     // Expired or cleared raid: clean up. A rotation that came due while the
     // old raid wound down is left due, so the next spawn happens right away
-    // ("you return to find another planet under attack"). markCleared()
-    // already pushes the rotation out after a victory.
+    // ("you return to find another planet under attack"). Completing level 3
+    // pushes the rotation out after the final victory.
     if (state != null) {
       state = null;
       nextRotation ??= nowUtc.add(kRaidRotationPeriod);
@@ -164,21 +259,78 @@ class RaidSchedule {
 
 /// Knobs for the raid-empowered guardian fight.
 class RaidConfig {
-  final double hpMul;
-  final double dmgMul;
+  static const int maxLevel = 3;
+
+  final int level;
+  final int level3Clears;
+  final double? _hpMulOverride;
+  final double? _dmgMulOverride;
 
   /// Guardian HP fractions at which a wave of adds joins the fight.
-  final List<double> addPhaseThresholds;
+  final List<double>? _addPhaseThresholdsOverride;
 
   const RaidConfig({
-    // A raid squad is five Alchemons to a dungeon's three — roughly +67% DPS
-    // and +67% bodies to lose. HP rises with it (3.0 -> 5.0) so the fight
-    // still takes about as long as it used to, and damage rises further
-    // (1.5 -> 2.2) so the bigger roster does not just mean more slack.
-    this.hpMul = 5.0,
-    this.dmgMul = 2.2,
-    this.addPhaseThresholds = const [0.7, 0.35],
-  });
+    this.level = 1,
+    this.level3Clears = 0,
+    double? hpMul,
+    double? dmgMul,
+    List<double>? addPhaseThresholds,
+  }) : _hpMulOverride = hpMul,
+       _dmgMulOverride = dmgMul,
+       _addPhaseThresholdsOverride = addPhaseThresholds;
+
+  int get safeLevel => level.clamp(1, maxLevel);
+
+  /// Raid difficulty is fixed by tier and deliberately ignores campaign
+  /// guardian count. This lets every conquered planet host the same L1–L3
+  /// ladder without late planets silently multiplying it again.
+  double get hpMul =>
+      _hpMulOverride ??
+      switch (safeLevel) {
+        1 => 5.0,
+        2 => 10.0,
+        _ => 18.0,
+      };
+
+  double get dmgMul =>
+      _dmgMulOverride ??
+      switch (safeLevel) {
+        1 => 1.6,
+        2 => 2.3,
+        _ => 3.2,
+      };
+
+  List<double> get addPhaseThresholds =>
+      _addPhaseThresholdsOverride ??
+      switch (safeLevel) {
+        1 => const [0.50],
+        2 => const [0.70, 0.35],
+        _ => const [0.80, 0.55, 0.30],
+      };
+
+  double get guardianHitFraction => switch (safeLevel) {
+    1 => 0.08,
+    2 => 0.12,
+    _ => 0.16,
+  };
+
+  double get lullStrikeMultiplier => switch (safeLevel) {
+    1 => 6.0,
+    2 => 7.0,
+    _ => 8.0,
+  };
+
+  double get addHpMul => switch (safeLevel) {
+    1 => 8.0,
+    2 => 18.0,
+    _ => 35.0,
+  };
+
+  double get addDmgMul => switch (safeLevel) {
+    1 => 1.5,
+    2 => 2.25,
+    _ => 3.0,
+  };
 
   /// How many Alchemons a raid squad may field, against three in a dungeon.
   static const int squadSize = 5;

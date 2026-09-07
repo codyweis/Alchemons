@@ -124,6 +124,17 @@ class ConstellationCatalog {
     tier: 4,
   );
 
+  static const wildPotentialAnalyzer = ConstellationSkill(
+    id: 'breeder_wild_potential_analyzer',
+    name: 'Wild Potential Scanner',
+    description:
+        'Reveal all four Potential ratings before acting on a wild Alchemon',
+    tree: ConstellationTree.breeder,
+    pointsCost: 6,
+    prerequisites: ['breeder_potential_analyzer'],
+    tier: 5,
+  );
+
   // path 1 – Accelerated Gestation
   static const acceleratedGestation = ConstellationSkill(
     id: 'breeder_accelerated_gestation',
@@ -195,8 +206,8 @@ class ConstellationCatalog {
   // Strength
   static const atkBoost1 = ConstellationSkill(
     id: 'combat_atk_boost_1',
-    name: 'Strength Boost',
-    description: 'Increase specimen strength by .005 when enhancing',
+    name: 'Strength Infusion I',
+    description: 'Increase every Alchemon\'s Strength in combat by 1%',
     tree: ConstellationTree.combat,
     pointsCost: 2,
     prerequisites: [],
@@ -205,8 +216,8 @@ class ConstellationCatalog {
 
   static const atkBoost2 = ConstellationSkill(
     id: 'combat_atk_boost_2',
-    name: 'Strength Boost',
-    description: 'Increase specimen strength by another .005 when enhancing',
+    name: 'Strength Infusion II',
+    description: 'Increase every Alchemon\'s Strength in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 4,
     prerequisites: ['combat_atk_boost_1'],
@@ -215,8 +226,8 @@ class ConstellationCatalog {
 
   static const atkBoost3 = ConstellationSkill(
     id: 'combat_atk_boost_3',
-    name: 'Strength Boost',
-    description: 'Increase specimen strength by another .005 when enhancing',
+    name: 'Strength Infusion III',
+    description: 'Increase every Alchemon\'s Strength in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 8,
     prerequisites: ['combat_atk_boost_2'],
@@ -225,8 +236,8 @@ class ConstellationCatalog {
 
   static const atkBoost4 = ConstellationSkill(
     id: 'combat_atk_boost_4',
-    name: 'Strength Boost',
-    description: 'Increase specimen strength by another .005 when enhancing',
+    name: 'Strength Infusion IV',
+    description: 'Increase every Alchemon\'s Strength in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 16,
     prerequisites: ['combat_atk_boost_3'],
@@ -235,8 +246,8 @@ class ConstellationCatalog {
 
   static const atkBoost5 = ConstellationSkill(
     id: 'combat_atk_boost_5',
-    name: 'Strength Boost',
-    description: 'Increase specimen strength by another .005 when enhancing',
+    name: 'Strength Infusion V',
+    description: 'Reach a total +5% Strength bonus in combat',
     tree: ConstellationTree.combat,
     pointsCost: 25,
     prerequisites: ['combat_atk_boost_4'],
@@ -246,8 +257,8 @@ class ConstellationCatalog {
   // Intelligence
   static const intBoost1 = ConstellationSkill(
     id: 'combat_int_boost_1',
-    name: 'Intelligence Boost',
-    description: 'Increase specimen intelligence by .005 when enhancing',
+    name: 'Intelligence Infusion I',
+    description: 'Increase every Alchemon\'s Intelligence in combat by 1%',
     tree: ConstellationTree.combat,
     pointsCost: 2,
     prerequisites: [],
@@ -256,9 +267,9 @@ class ConstellationCatalog {
 
   static const intBoost2 = ConstellationSkill(
     id: 'combat_int_boost_2',
-    name: 'Intelligence Boost',
+    name: 'Intelligence Infusion II',
     description:
-        'Increase specimen intelligence by another .005 when enhancing',
+        'Increase every Alchemon\'s Intelligence in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 4,
     prerequisites: ['combat_int_boost_1'],
@@ -267,9 +278,9 @@ class ConstellationCatalog {
 
   static const intBoost3 = ConstellationSkill(
     id: 'combat_int_boost_3',
-    name: 'Intelligence Boost',
+    name: 'Intelligence Infusion III',
     description:
-        'Increase specimen intelligence by another .005 when enhancing',
+        'Increase every Alchemon\'s Intelligence in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 8,
     prerequisites: ['combat_int_boost_2'],
@@ -278,9 +289,9 @@ class ConstellationCatalog {
 
   static const intBoost4 = ConstellationSkill(
     id: 'combat_int_boost_4',
-    name: 'Intelligence Boost',
+    name: 'Intelligence Infusion IV',
     description:
-        'Increase specimen intelligence by another .005 when enhancing',
+        'Increase every Alchemon\'s Intelligence in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 16,
     prerequisites: ['combat_int_boost_3'],
@@ -289,9 +300,8 @@ class ConstellationCatalog {
 
   static const intBoost5 = ConstellationSkill(
     id: 'combat_int_boost_5',
-    name: 'Intelligence Boost',
-    description:
-        'Increase specimen intelligence by another .005 when enhancing',
+    name: 'Intelligence Infusion V',
+    description: 'Reach a total +5% Intelligence bonus in combat',
     tree: ConstellationTree.combat,
     pointsCost: 25,
     prerequisites: ['combat_int_boost_4'],
@@ -301,8 +311,8 @@ class ConstellationCatalog {
   // Beauty
   static const beautyBoost1 = ConstellationSkill(
     id: 'combat_beauty_boost_1',
-    name: 'Beauty Boost',
-    description: 'Increase specimen beauty by .005 when enhancing',
+    name: 'Beauty Infusion I',
+    description: 'Increase every Alchemon\'s Beauty in combat by 1%',
     tree: ConstellationTree.combat,
     pointsCost: 2,
     prerequisites: [],
@@ -311,8 +321,8 @@ class ConstellationCatalog {
 
   static const beautyBoost2 = ConstellationSkill(
     id: 'combat_beauty_boost_2',
-    name: 'Beauty Boost',
-    description: 'Increase specimen beauty by another .005 when enhancing',
+    name: 'Beauty Infusion II',
+    description: 'Increase every Alchemon\'s Beauty in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 4,
     prerequisites: ['combat_beauty_boost_1'],
@@ -321,8 +331,8 @@ class ConstellationCatalog {
 
   static const beautyBoost3 = ConstellationSkill(
     id: 'combat_beauty_boost_3',
-    name: 'Beauty Boost',
-    description: 'Increase specimen beauty by another .005 when enhancing',
+    name: 'Beauty Infusion III',
+    description: 'Increase every Alchemon\'s Beauty in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 8,
     prerequisites: ['combat_beauty_boost_2'],
@@ -331,8 +341,8 @@ class ConstellationCatalog {
 
   static const beautyBoost4 = ConstellationSkill(
     id: 'combat_beauty_boost_4',
-    name: 'Beauty Boost',
-    description: 'Increase specimen beauty by another .005 when enhancing',
+    name: 'Beauty Infusion IV',
+    description: 'Increase every Alchemon\'s Beauty in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 16,
     prerequisites: ['combat_beauty_boost_3'],
@@ -341,8 +351,8 @@ class ConstellationCatalog {
 
   static const beautyBoost5 = ConstellationSkill(
     id: 'combat_beauty_boost_5',
-    name: 'Beauty Boost',
-    description: 'Increase specimen beauty by another .005 when enhancing',
+    name: 'Beauty Infusion V',
+    description: 'Reach a total +5% Beauty bonus in combat',
     tree: ConstellationTree.combat,
     pointsCost: 25,
     prerequisites: ['combat_beauty_boost_4'],
@@ -352,8 +362,8 @@ class ConstellationCatalog {
   // Speed
   static const speedBoost1 = ConstellationSkill(
     id: 'combat_speed_boost_1',
-    name: 'Speed Boost',
-    description: 'Increase specimen speed by .005 when enhancing',
+    name: 'Speed Infusion I',
+    description: 'Increase every Alchemon\'s Speed in combat by 1%',
     tree: ConstellationTree.combat,
     pointsCost: 2,
     prerequisites: [],
@@ -362,8 +372,8 @@ class ConstellationCatalog {
 
   static const speedBoost2 = ConstellationSkill(
     id: 'combat_speed_boost_2',
-    name: 'Speed Boost',
-    description: 'Increase specimen speed by another .005 when enhancing',
+    name: 'Speed Infusion II',
+    description: 'Increase every Alchemon\'s Speed in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 4,
     prerequisites: ['combat_speed_boost_1'],
@@ -372,8 +382,8 @@ class ConstellationCatalog {
 
   static const speedBoost3 = ConstellationSkill(
     id: 'combat_speed_boost_3',
-    name: 'Speed Boost',
-    description: 'Increase specimen speed by another .005 when enhancing',
+    name: 'Speed Infusion III',
+    description: 'Increase every Alchemon\'s Speed in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 8,
     prerequisites: ['combat_speed_boost_2'],
@@ -382,8 +392,8 @@ class ConstellationCatalog {
 
   static const speedBoost4 = ConstellationSkill(
     id: 'combat_speed_boost_4',
-    name: 'Speed Boost',
-    description: 'Increase specimen speed by another .005 when enhancing',
+    name: 'Speed Infusion IV',
+    description: 'Increase every Alchemon\'s Speed in combat by another 1%',
     tree: ConstellationTree.combat,
     pointsCost: 16,
     prerequisites: ['combat_speed_boost_3'],
@@ -392,8 +402,8 @@ class ConstellationCatalog {
 
   static const speedBoost5 = ConstellationSkill(
     id: 'combat_speed_boost_5',
-    name: 'Speed Boost',
-    description: 'Increase specimen speed by another .005 when enhancing',
+    name: 'Speed Infusion V',
+    description: 'Reach a total +5% Speed bonus in combat',
     tree: ConstellationTree.combat,
     pointsCost: 25,
     prerequisites: ['combat_speed_boost_4'],
@@ -533,6 +543,7 @@ class ConstellationCatalog {
     lineageAnalyzer,
     geneAnalyzer,
     potentialAnalyzer,
+    wildPotentialAnalyzer,
     acceleratedGestation,
     acceleratedGestation2,
     acceleratedGestation3,

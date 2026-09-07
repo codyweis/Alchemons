@@ -1,4 +1,5 @@
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/parent_snapshot.dart'; // CreatureInstance
 
 int computeHarvestRatePerMinute(
@@ -14,13 +15,14 @@ int computeHarvestRatePerMinute(
   }
 
   // nature bonus
-  final nature = (inst.natureId ?? '').toLowerCase();
-  final natureBonusPct = switch (nature) {
-    'metabolic' => 20,
-    'sluggish' => -20,
-    _ => 0,
-  };
-  rate *= (1 + natureBonusPct / 100);
+  for (final id in [inst.natureId, inst.natureId2]) {
+    if (id == null || id.isEmpty) continue;
+    rate *=
+        NatureCatalog.byId(
+          id,
+        )?.effect.getDouble('harvest_rate_mult', fallback: 1) ??
+        1;
+  }
 
   // size multiplier
   final genetics = decodeGenetics(inst.geneticsJson);

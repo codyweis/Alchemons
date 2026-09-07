@@ -8,11 +8,13 @@ import 'package:flutter/material.dart';
 
 import 'package:alchemons/constants/competition_data.dart';
 import 'package:alchemons/models/competition.dart';
+import 'package:alchemons/models/stat_system.dart';
 
 // DB + sprite
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -117,8 +119,8 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
     final meta = await _playerSpriteFuture!;
     if (!mounted) return;
     setState(() {
-      playerInt = meta.intelligence.clamp(0, 10);
-      playerSpd = meta.speed.clamp(0, 10);
+      playerInt = math.max(0, meta.intelligence);
+      playerSpd = math.max(0, meta.speed);
     });
   }
 
@@ -185,10 +187,13 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
     // NPCs: use competition stat as INT; derive SPD close to INT with some jitter
     final rnd = _raceRng;
     npcs = compLevel!.npcs.map((n) {
-      final iq = n.statValue.clamp(0.0, 10.0);
+      final iq = n.statValue.clamp(
+        0.0,
+        AlchemonStatSystem.authoredStatReference,
+      );
       final spd =
           (iq + (rnd.nextDouble() * 2 - 1) * 1.0) // ±1 wiggle
-              .clamp(0.0, 10.0);
+              .clamp(0.0, AlchemonStatSystem.authoredStatReference);
       return _NPC.fromStats(n.name, iq, spd, _maze!.entry);
     }).toList();
 
@@ -472,7 +477,9 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
           color: Colors.black.withValues(alpha: .3),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withValues(alpha: .3)),
-          boxShadow: [BoxShadow(color: color.withValues(alpha: .15), blurRadius: 16)],
+          boxShadow: [
+            BoxShadow(color: color.withValues(alpha: .15), blurRadius: 16),
+          ],
         ),
         child: Row(
           children: [
@@ -482,9 +489,15 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [color.withValues(alpha: .5), color.withValues(alpha: .1)],
+                  colors: [
+                    color.withValues(alpha: .5),
+                    color.withValues(alpha: .1),
+                  ],
                 ),
-                border: Border.all(color: color.withValues(alpha: .6), width: 2),
+                border: Border.all(
+                  color: color.withValues(alpha: .6),
+                  width: 2,
+                ),
               ),
               child: Icon(AppIcons.psychology_rounded, color: color, size: 24),
             ),
@@ -501,7 +514,10 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1.0,
                       shadows: [
-                        Shadow(color: color.withValues(alpha: .5), blurRadius: 8),
+                        Shadow(
+                          color: color.withValues(alpha: .5),
+                          blurRadius: 8,
+                        ),
                       ],
                     ),
                   ),
@@ -717,8 +733,8 @@ class _ResultsDialog extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: (isVictory ? Colors.amber : color).withValues(alpha: 
-                          .4,
+                        color: (isVictory ? Colors.amber : color).withValues(
+                          alpha: .4,
                         ),
                         blurRadius: 16,
                         offset: const Offset(0, 4),
@@ -819,7 +835,10 @@ class _ModernPodium extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(12),
                 ),
-                border: Border.all(color: medalColor.withValues(alpha: .4), width: 2),
+                border: Border.all(
+                  color: medalColor.withValues(alpha: .4),
+                  width: 2,
+                ),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -938,7 +957,9 @@ class _ModernCountdown extends StatelessWidget {
           color: Colors.black.withValues(alpha: .7),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: color.withValues(alpha: .5), width: 2),
-          boxShadow: [BoxShadow(color: color.withValues(alpha: .3), blurRadius: 24)],
+          boxShadow: [
+            BoxShadow(color: color.withValues(alpha: .3), blurRadius: 24),
+          ],
         ),
         child: Text(
           text,
@@ -976,7 +997,9 @@ class _ModernOverlayPill extends StatelessWidget {
         color: Colors.black.withValues(alpha: .75),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: .4), width: 2),
-        boxShadow: [BoxShadow(color: color.withValues(alpha: .25), blurRadius: 20)],
+        boxShadow: [
+          BoxShadow(color: color.withValues(alpha: .25), blurRadius: 20),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1213,9 +1236,14 @@ class _SpeedButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [color, color.withValues(alpha: .8)]),
+          gradient: LinearGradient(
+            colors: [color, color.withValues(alpha: .8)],
+          ),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: .3), width: 1.5),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: .3),
+            width: 1.5,
+          ),
           boxShadow: [
             BoxShadow(
               color: color.withValues(alpha: .4),
@@ -1420,6 +1448,7 @@ class _SpriteMeta {
 Future<_SpriteMeta> _loadSpriteMeta(BuildContext ctx, String instanceId) async {
   final db = ctx.read<AlchemonsDatabase>();
   final repo = ctx.read<CreatureCatalog>();
+  final combatBonuses = ctx.read<ConstellationEffectsService>();
   final inst = await db.creatureDao.getInstance(instanceId);
   if (inst == null) throw Exception('Instance missing');
 
@@ -1446,10 +1475,13 @@ Future<_SpriteMeta> _loadSpriteMeta(BuildContext ctx, String instanceId) async {
 
   return _SpriteMeta(
     widget: sprite,
-    intelligence: inst.statIntelligence,
-    speed: inst.statSpeed,
-    strength: inst.statStrength,
-    beauty: inst.statBeauty,
+    intelligence: combatBonuses.applyCombatStatBonus(
+      'intelligence',
+      inst.statIntelligence,
+    ),
+    speed: combatBonuses.applyCombatStatBonus('speed', inst.statSpeed),
+    strength: combatBonuses.applyCombatStatBonus('strength', inst.statStrength),
+    beauty: combatBonuses.applyCombatStatBonus('beauty', inst.statBeauty),
     level: inst.level,
     name: inst.nickname ?? base.name,
   );

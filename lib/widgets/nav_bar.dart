@@ -373,7 +373,12 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       if (icon is IconData)
-                        Icon(icon, key: iconKey, color: iconColor, size: iconSize)
+                        Icon(
+                          icon,
+                          key: iconKey,
+                          color: iconColor,
+                          size: iconSize,
+                        )
                       else if (icon is String)
                         SizedBox(
                           key: iconKey,

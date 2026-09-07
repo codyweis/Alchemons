@@ -5,6 +5,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
+import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/shop_service.dart';
@@ -14,6 +15,8 @@ import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/static_effect_snapshot.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:alchemons/widgets/potential_soul_sphere.dart';
+import 'package:alchemons/widgets/wild_fusion_glyph.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -128,7 +131,9 @@ Future<bool> showItemDetailDialog({
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: theme.isDark ? 0.5 : 0.18),
+                  color: Colors.black.withValues(
+                    alpha: theme.isDark ? 0.5 : 0.18,
+                  ),
                   blurRadius: 28,
                   offset: const Offset(0, 12),
                 ),
@@ -322,9 +327,7 @@ class _DialogPrimaryButton extends StatelessWidget {
     final Color fg;
     if (!enabled) {
       bg = t.bg3.withValues(alpha: theme.isDark ? 0.6 : 0.6);
-      fg = isDestructive
-          ? t.danger.withValues(alpha: 0.7)
-          : t.textMuted;
+      fg = isDestructive ? t.danger.withValues(alpha: 0.7) : t.textMuted;
     } else if (theme.isDark) {
       bg = t.amber;
       fg = t.bg0;
@@ -496,13 +499,21 @@ class _ForgeCostRow extends StatelessWidget {
           const Color(0xFFF97316),
         );
       case 'res_oceanic':
-        return (AppIcons.water_drop_rounded, 'Oceanic', const Color(0xFF38BDF8));
+        return (
+          AppIcons.water_drop_rounded,
+          'Oceanic',
+          const Color(0xFF38BDF8),
+        );
       case 'res_verdant':
         return (AppIcons.eco_rounded, 'Verdant', const Color(0xFF4ADE80));
       case 'res_earthen':
         return (AppIcons.terrain_rounded, 'Earthen', const Color(0xFFA8996E));
       case 'res_arcane':
-        return (AppIcons.auto_awesome_rounded, 'Arcane', const Color(0xFFA78BFA));
+        return (
+          AppIcons.auto_awesome_rounded,
+          'Arcane',
+          const Color(0xFFA78BFA),
+        );
       default:
         return (AppIcons.circle, t, Colors.white);
     }
@@ -593,6 +604,22 @@ Widget _buildOfferPreview(
   required FactionTheme theme,
   bool animate = true,
 }) {
+  // Potential Souls use their real molecular orb everywhere, including this
+  // detail preview, rather than falling through to the placeholder icon.
+  if (offer.id == ShopService.potentialSoulOfferId ||
+      offer.inventoryKey == InvKeys.potentialSoul) {
+    return Center(
+      child: PotentialSoulSphere(size: size, animate: animate),
+    );
+  }
+
+  // Wild Fusion draws its own conjunction rather than the generic merge icon.
+  if (offer.inventoryKey == InvKeys.wildFusion) {
+    return Center(
+      child: WildFusionGlyph(size: size, animate: animate),
+    );
+  }
+
   // 0b. Alchemical powerup orb — render glowing sphere in stat color
   if (offer.id.startsWith('boost.powerup.')) {
     final type = AlchemicalPowerupType.values.firstWhere(
@@ -1064,7 +1091,10 @@ class CostChip extends StatelessWidget {
   (IconData, Color) _getCurrencyDisplay(String type, FactionTheme theme) {
     switch (type) {
       case 'gold':
-        return (AppIcons.hexagon_rounded, const Color.fromARGB(255, 184, 138, 1));
+        return (
+          AppIcons.hexagon_rounded,
+          const Color.fromARGB(255, 184, 138, 1),
+        );
       case 'silver':
         return (AppIcons.monetization_on_rounded, theme.text);
       case 'soft':
@@ -1497,7 +1527,9 @@ Future<bool> showBiomeUnlockConfirmationDialog({
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: theme.isDark ? 0.5 : 0.18),
+                  color: Colors.black.withValues(
+                    alpha: theme.isDark ? 0.5 : 0.18,
+                  ),
                   blurRadius: 28,
                   offset: const Offset(0, 12),
                 ),
@@ -1700,7 +1732,9 @@ Future<int?> showPurchaseConfirmationDialog({
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: theme.isDark ? 0.5 : 0.18),
+                  color: Colors.black.withValues(
+                    alpha: theme.isDark ? 0.5 : 0.18,
+                  ),
                   blurRadius: 28,
                   offset: const Offset(0, 12),
                 ),
@@ -1990,7 +2024,11 @@ class DialogResourceDisplay extends StatelessWidget {
       case 'gold':
         return (AppIcons.hexagon_rounded, 'Gold', const Color(0xFFB45309));
       case 'silver':
-        return (AppIcons.monetization_on_rounded, 'Silver', Colors.grey.shade300);
+        return (
+          AppIcons.monetization_on_rounded,
+          'Silver',
+          Colors.grey.shade300,
+        );
       case 'soft':
         return (AppIcons.diamond_rounded, 'Shards', const Color(0xFFB388FF));
       // Resources
@@ -2007,7 +2045,11 @@ class DialogResourceDisplay extends StatelessWidget {
       case 'res_earthen':
         return (AppIcons.terrain_rounded, 'Earthen', Colors.brown.shade400);
       case 'res_arcane':
-        return (AppIcons.auto_awesome_rounded, 'Arcane', Colors.purple.shade400);
+        return (
+          AppIcons.auto_awesome_rounded,
+          'Arcane',
+          Colors.purple.shade400,
+        );
       default:
         return (AppIcons.circle, type, const Color(0xFF475569));
     }

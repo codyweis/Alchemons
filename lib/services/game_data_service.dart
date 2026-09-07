@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:drift/drift.dart';
 import '../database/alchemons_db.dart';
 import '../models/creature.dart';
@@ -47,7 +48,81 @@ class GameDataService {
       }
     }
 
+    // Reconcile old saves and any instances created by legacy paths with the
+    // canonical Base × Level × Potential × Enhancement × Nature formula.
+    // This is idempotent and only writes rows whose cached combat values differ.
+    await _reconcileInstanceStats();
+
     _initialized = true;
+  }
+
+  Future<void> _reconcileInstanceStats() async {
+    final instances = await db.creatureDao.listAllInstances();
+    await db.transaction(() async {
+      for (final instance in instances) {
+        final species = catalog.getCreatureById(instance.baseId);
+        final base =
+            species?.baseStats ??
+            const SpeciesBaseStats(
+              speed: 60,
+              intelligence: 60,
+              strength: 60,
+              beauty: 60,
+            );
+
+        double derive(int speciesBase, num potential, int rank, String key) =>
+            AlchemonStatSystem.effectiveInternal(
+              speciesBase: speciesBase,
+              level: instance.level,
+              potential: potential,
+              enhancementRank: rank,
+              additionalMultiplier: AlchemonStatSystem.natureMultiplier(
+                instance.natureId,
+                key,
+                instance.natureId2,
+              ),
+            );
+
+        final speed = derive(
+          base.speed,
+          instance.statSpeedPotential,
+          instance.statSpeedEnhancement,
+          'speed',
+        );
+        final intelligence = derive(
+          base.intelligence,
+          instance.statIntelligencePotential,
+          instance.statIntelligenceEnhancement,
+          'intelligence',
+        );
+        final strength = derive(
+          base.strength,
+          instance.statStrengthPotential,
+          instance.statStrengthEnhancement,
+          'strength',
+        );
+        final beauty = derive(
+          base.beauty,
+          instance.statBeautyPotential,
+          instance.statBeautyEnhancement,
+          'beauty',
+        );
+
+        bool differs(double left, double right) => (left - right).abs() > 1e-9;
+        if (differs(instance.statSpeed, speed) ||
+            differs(instance.statIntelligence, intelligence) ||
+            differs(instance.statStrength, strength) ||
+            differs(instance.statBeauty, beauty)) {
+          await db.creatureDao.updateStats(
+            instanceId: instance.instanceId,
+            statSpeed: speed,
+            statIntelligence: intelligence,
+            statStrength: strength,
+            statBeauty: beauty,
+          );
+        }
+      }
+    });
   }
 
   // ----------------------------

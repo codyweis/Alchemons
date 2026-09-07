@@ -1,16 +1,15 @@
 // lib/games/planet_dungeon/raid_rewards.dart
 //
-// Raid victory loot: three rolls of the planet's elemental loot cache plus
-// scaled currency. Granted once per raid (the raid's cleared flag is
-// persisted by the caller right after the grant).
+// Raid victory loot escalates by level: one to three elemental cache rolls,
+// one to four power-up orbs, and increasing currency. Potential Souls are
+// exclusive to level 3. The caller advances the persisted raid afterward.
 
-import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'dart:math';
 
-import 'package:alchemons/data/mystic_altar_data.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/models/potential_soul.dart';
 import 'package:alchemons/screens/inventory_screen.dart'
     show InventoryImageHelper;
 import 'package:alchemons/widgets/coin_icon.dart';
@@ -26,16 +25,19 @@ class RaidRewardEntry {
 Future<List<RaidRewardEntry>> grantRaidRewards({
   required AlchemonsDatabase db,
   required String element,
+  required int raidLevel,
   Random? rng,
 }) async {
   final r = rng ?? Random();
   final entries = <RaidRewardEntry>[];
   final registry = buildInventoryRegistry(db);
 
-  // Three caches of the planet's elemental loot pool.
+  final level = raidLevel.clamp(1, 3);
+
+  // Cache volume rises one-for-one with raid level.
   final drops = LootBoxConfig.rollBossLootBoxDropsForQuantity(
     BossLootKeys.lootBoxKeyForElement(element),
-    3,
+    level,
     r,
   );
   for (final drop in drops) {
@@ -46,9 +48,7 @@ Future<List<RaidRewardEntry>> grantRaidRewards({
     );
   }
 
-  // Stat orbs. These drop nowhere else in the game, and are the reason a
-  // beacon is worth spending gold on rather than waiting out the rotation.
-  final orbs = LootBoxConfig.rollRaidPowerupDrops(r);
+  final orbs = LootBoxConfig.rollRaidPowerupDropsForLevel(level, r);
   for (final orb in orbs) {
     await db.inventoryDao.addItemQty(orb.key, orb.value);
     final name = registry[orb.key]?.name ?? orb.key;
@@ -57,9 +57,16 @@ Future<List<RaidRewardEntry>> grantRaidRewards({
     );
   }
 
-  // Currency scaled by the element's altar order (harder elements pay more).
-  final order = altarEntryForElement(element)?.order ?? 1;
-  final currency = LootBoxConfig.rollRaidVictoryCurrency(order, r);
+  // Potential-altering currency belongs exclusively to the final tier.
+  if (level == 3 && PotentialSoulRules.rollsFromRaid(r)) {
+    await db.inventoryDao.addItemQty(InvKeys.potentialSoul, 1);
+    final name = registry[InvKeys.potentialSoul]?.name ?? 'Potential Soul';
+    entries.add(
+      RaidRewardEntry(itemKey: InvKeys.potentialSoul, label: '+1 $name'),
+    );
+  }
+
+  final currency = LootBoxConfig.rollRaidVictoryCurrency(level, r);
   final silver = currency['silver'] ?? 0;
   final gold = currency['gold'] ?? 0;
   if (silver > 0) {
@@ -86,18 +93,22 @@ class _C {
   static const danger = Color(0xFFB8503F);
 }
 
-/// "RAID BROKEN" loot popup, in the dungeon popup chrome. Grants on mount
-/// (caller persists the cleared flag via [onGranted] immediately after).
+/// Raid-tier loot popup in the dungeon popup chrome. Grants on mount, then
+/// advances the persisted raid via [onGranted] immediately afterward.
 class RaidRewardPopup extends StatefulWidget {
   const RaidRewardPopup({
     super.key,
     required this.element,
+    required this.raidLevel,
+    required this.level3ClearsBeforeFight,
     required this.db,
     required this.onGranted,
     required this.onContinue,
   });
 
   final String element;
+  final int raidLevel;
+  final int level3ClearsBeforeFight;
   final AlchemonsDatabase db;
 
   /// Called right after the loot lands in the inventory, before the player
@@ -128,6 +139,7 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
     final entries = await grantRaidRewards(
       db: widget.db,
       element: widget.element,
+      raidLevel: widget.raidLevel,
     );
     await widget.onGranted();
     if (mounted) setState(() => _entries = entries);
@@ -164,6 +176,10 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
 
   Widget _panel() {
     final entries = _entries;
+    final firstLevel3Clear =
+        widget.raidLevel == 3 && widget.level3ClearsBeforeFight == 0;
+    final finalLevel3Clear =
+        widget.raidLevel == 3 && widget.level3ClearsBeforeFight > 0;
     return CustomPaint(
       painter: const DungeonBracketPainter(
         color: _C.amberBright,
@@ -186,7 +202,7 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
                 const Icon(Icons.whatshot_rounded, color: _C.danger, size: 16),
                 const SizedBox(width: 8),
                 Text(
-                  'RAID BROKEN, ${planetName(widget.element).toUpperCase()}',
+                  'RAID LEVEL ${widget.raidLevel} BROKEN',
                   style: const TextStyle(
                     color: _C.amberBright,
                     fontFamily: 'monospace',
@@ -198,9 +214,13 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
               ],
             ),
             const SizedBox(height: 4),
-            const Text(
-              'The guardian\'s madness lifts. Its hoard is yours.',
-              style: TextStyle(color: _C.muted, fontSize: 11.5),
+            Text(
+              firstLevel3Clear
+                  ? 'The guardian reforms in 12 hours. One final echo remains.'
+                  : widget.raidLevel < 3
+                  ? 'The raid deepens. Level ${widget.raidLevel + 1} is now available.'
+                  : 'The guardian\'s madness lifts. The raid is cleared.',
+              style: const TextStyle(color: _C.muted, fontSize: 11.5),
             ),
             const SizedBox(height: 12),
             if (entries == null)
@@ -249,9 +269,15 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
                       border: Border.all(color: _C.amberBright),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Text(
-                      'CONTINUE',
-                      style: TextStyle(
+                    child: Text(
+                      widget.raidLevel < 3
+                          ? 'RETURN FOR LEVEL ${widget.raidLevel + 1}'
+                          : firstLevel3Clear
+                          ? 'RETURN TO ORBIT'
+                          : finalLevel3Clear
+                          ? 'RAID CLEARED'
+                          : 'CONTINUE',
+                      style: const TextStyle(
                         color: _C.amberBright,
                         fontFamily: 'monospace',
                         fontSize: 12,

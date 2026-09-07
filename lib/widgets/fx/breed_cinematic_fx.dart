@@ -175,14 +175,15 @@ class _AlchemyFusionCinematicPageState<T>
     // joins the timeline part-way the controller has to be stretched to make
     // the remaining span take that long.
     final span = widget.drawSpecimens ? 1.0 : (1.0 - _Phase.coreStart);
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: Duration(
-        microseconds: (widget.minDuration.inMicroseconds / span).round(),
-      ),
-    )
-      ..addStatusListener(_maybeClose)
-      ..addListener(_pulseHaptics);
+    _ctrl =
+        AnimationController(
+            vsync: this,
+            duration: Duration(
+              microseconds: (widget.minDuration.inMicroseconds / span).round(),
+            ),
+          )
+          ..addStatusListener(_maybeClose)
+          ..addListener(_pulseHaptics);
 
     // PICK UP WHERE THE MERGE LEFT OFF.
     //
@@ -236,8 +237,9 @@ class _AlchemyFusionCinematicPageState<T>
     final remaining = (1.0 - _ctrl.value).clamp(0.0, 1.0);
     _ctrl.animateTo(
       1.0,
-      duration:
-          Duration(milliseconds: (650 * remaining).clamp(180, 650).toInt()),
+      duration: Duration(
+        milliseconds: (650 * remaining).clamp(180, 650).toInt(),
+      ),
       curve: Curves.easeOutCubic,
     );
     setState(() {});
@@ -258,7 +260,8 @@ class _AlchemyFusionCinematicPageState<T>
 
   @override
   Widget build(BuildContext context) {
-    final anchored = widget.coreRect != null ||
+    final anchored =
+        widget.coreRect != null ||
         widget.leftSlotRect != null ||
         widget.rightSlotRect != null;
 
@@ -269,11 +272,14 @@ class _AlchemyFusionCinematicPageState<T>
           final size = Size(c.maxWidth, c.maxHeight);
 
           // Resolve anchor centres in screen space (with sensible fallbacks).
-          final leftC = widget.leftSlotRect?.center ??
+          final leftC =
+              widget.leftSlotRect?.center ??
               Offset(size.width * 0.30, size.height * 0.46);
-          final rightC = widget.rightSlotRect?.center ??
+          final rightC =
+              widget.rightSlotRect?.center ??
               Offset(size.width * 0.70, size.height * 0.46);
-          final coreC = widget.coreRect?.center ??
+          final coreC =
+              widget.coreRect?.center ??
               Offset(size.width * 0.5, (leftC.dy + rightC.dy) / 2);
           final chR = (widget.leftSlotRect?.width != null)
               ? (widget.leftSlotRect!.width * 0.40).clamp(48.0, 120.0)
@@ -392,8 +398,9 @@ class _AlchemyFusionCinematicPageState<T>
                   Positioned.fill(
                     child: IgnorePointer(
                       child: FadeTransition(
-                        opacity:
-                            _flashCtrl.drive(CurveTween(curve: Curves.easeOut)),
+                        opacity: _flashCtrl.drive(
+                          CurveTween(curve: Curves.easeOut),
+                        ),
                         child: const DecoratedBox(
                           decoration: BoxDecoration(color: Colors.white),
                         ),
@@ -406,7 +413,9 @@ class _AlchemyFusionCinematicPageState<T>
                     bottom: 36,
                     left: 0,
                     right: 0,
-                    child: Center(child: _PhaseLabel(t: t, outcome: outcome)),
+                    child: Center(
+                      child: _PhaseLabel(t: t, outcome: outcome),
+                    ),
                   ),
 
                   // Skip control — bottom right, where the hatching
@@ -489,15 +498,15 @@ class _SpecimenAt extends StatelessWidget {
     // collapse once they are inside each other.
     final pop = Curves.easeOutBack.transform(intake);
     final scale =
-        (0.90 + 0.14 * pop) + 0.16 * hauled -
+        (0.90 + 0.14 * pop) +
+        0.16 * hauled -
         0.86 * Curves.easeInCubic.transform(dissolve);
     final opacity = (1.0 - dissolve).clamp(0.0, 1.0);
 
     // Agitation: a buzz while the charge builds, rising to a hard shudder as
     // they are dragged together.
     final buzz = _interval(t, _Phase.chargeStart, _Phase.streamStart);
-    final jitter =
-        math.sin(t * math.pi * 40) * (buzz * 2.2 + hauled * 3.6);
+    final jitter = math.sin(t * math.pi * 40) * (buzz * 2.2 + hauled * 3.6);
 
     // Bigger, because they are the subject. 120 in a full-screen stage is a
     // thumbnail.
@@ -681,8 +690,11 @@ class _ChamberPainter extends CustomPainter {
       canvas.drawPath(
         path,
         Paint()
-          ..color = Color.lerp(color, Colors.white, .4)!
-              .withValues(alpha: .85 * glow)
+          ..color = Color.lerp(
+            color,
+            Colors.white,
+            .4,
+          )!.withValues(alpha: .85 * glow)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0
           ..strokeCap = StrokeCap.round,
@@ -765,8 +777,11 @@ class _ChamberPainter extends CustomPainter {
         pos,
         rad,
         Paint()
-          ..color =
-              Color.lerp(color, Colors.white, .35)!.withValues(alpha: alpha),
+          ..color = Color.lerp(
+            color,
+            Colors.white,
+            .35,
+          )!.withValues(alpha: alpha),
       );
     }
   }
@@ -782,8 +797,11 @@ class _ChamberPainter extends CustomPainter {
     final rnd = math.Random((t * 24).floor() * 97 + from.dx.floor());
     final bolts = 1 + (intensity * 2).round();
     final p = Paint()
-      ..color = Color.lerp(color, Colors.white, .6)!
-          .withValues(alpha: (.55 * intensity).clamp(0.0, 1.0))
+      ..color = Color.lerp(
+        color,
+        Colors.white,
+        .6,
+      )!.withValues(alpha: (.55 * intensity).clamp(0.0, 1.0))
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4
       ..strokeCap = StrokeCap.round;
@@ -857,8 +875,11 @@ class _ChamberPainter extends CustomPainter {
           c,
           ir,
           Paint()
-            ..color = Color.lerp(mix, Colors.white, .2)!.withValues(
-                alpha: (.55 * intake * (1 - pull)).clamp(0.0, 1.0))
+            ..color = Color.lerp(
+              mix,
+              Colors.white,
+              .2,
+            )!.withValues(alpha: (.55 * intake * (1 - pull)).clamp(0.0, 1.0))
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.4,
         );
@@ -875,8 +896,9 @@ class _ChamberPainter extends CustomPainter {
       Paint()
         ..shader = RadialGradient(
           colors: [
-            Colors.white
-                .withValues(alpha: ((.7 * heat + burst) * fade).clamp(0.0, 1.0)),
+            Colors.white.withValues(
+              alpha: ((.7 * heat + burst) * fade).clamp(0.0, 1.0),
+            ),
             mix.withValues(alpha: (.6 * heat * fade).clamp(0.0, 1.0)),
             mix.withValues(alpha: 0),
           ],
@@ -973,7 +995,11 @@ class _ChamberPainter extends CustomPainter {
       Paint()
         ..shader = RadialGradient(
           colors: [
-            Color.lerp(accent, Colors.white, .4)!.withValues(alpha: .55 * reveal),
+            Color.lerp(
+              accent,
+              Colors.white,
+              .4,
+            )!.withValues(alpha: .55 * reveal),
             accent.withValues(alpha: .18 * reveal),
             Colors.black.withValues(alpha: .22 * reveal),
           ],
@@ -1041,7 +1067,9 @@ class _ChamberPainter extends CustomPainter {
     final swirl = (1 - settle) * (math.pi * 1.25);
     final lock = Curves.easeInOut.transform(_interval(reveal, 0.7, 1.0));
     final glyph = Paint()
-      ..color = Colors.white.withValues(alpha: ((.6 + .4 * lock) * reveal).clamp(0.0, 1.0))
+      ..color = Colors.white.withValues(
+        alpha: ((.6 + .4 * lock) * reveal).clamp(0.0, 1.0),
+      )
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6 + 1.0 * lock
       ..strokeJoin = StrokeJoin.round;
@@ -1050,14 +1078,30 @@ class _ChamberPainter extends CustomPainter {
         _interlockedTriangles(canvas, c, R * 0.78, swirl, glyph);
         break;
       case FusionRevealKind.pureElement:
-        _elementGlyph(canvas, c, R * 0.72, outcome?.element, swirl, settle, glyph);
+        _elementGlyph(
+          canvas,
+          c,
+          R * 0.72,
+          outcome?.element,
+          swirl,
+          settle,
+          glyph,
+        );
         break;
       case FusionRevealKind.pureSpecies:
         _interlockedTriangles(canvas, c, R * 0.82, swirl, glyph);
         break;
       case FusionRevealKind.pureBoth:
         _interlockedTriangles(canvas, c, R * 0.82, swirl, glyph);
-        _elementGlyph(canvas, c, R * 0.46, outcome?.element, swirl, settle, glyph);
+        _elementGlyph(
+          canvas,
+          c,
+          R * 0.46,
+          outcome?.element,
+          swirl,
+          settle,
+          glyph,
+        );
         break;
     }
 
@@ -1089,7 +1133,12 @@ class _ChamberPainter extends CustomPainter {
   // Two counter-rotating triangles that converge into an aligned six-pointed
   // star as [swirl] unwinds to 0.
   void _interlockedTriangles(
-      Canvas canvas, Offset c, double rad, double swirl, Paint p) {
+    Canvas canvas,
+    Offset c,
+    double rad,
+    double swirl,
+    Paint p,
+  ) {
     _triangle(canvas, c, rad, -math.pi / 2 + swirl, p);
     _triangle(canvas, c, rad, math.pi / 2 - swirl, p);
   }
@@ -1107,8 +1156,15 @@ class _ChamberPainter extends CustomPainter {
 
   // Classic alchemical element symbols for pure-element reveals. The triangle
   // spins in via [swirl]; the elemental bar fades in once it has settled.
-  void _elementGlyph(Canvas canvas, Offset c, double rad, String? element,
-      double swirl, double settle, Paint p) {
+  void _elementGlyph(
+    Canvas canvas,
+    Offset c,
+    double rad,
+    String? element,
+    double swirl,
+    double settle,
+    Paint p,
+  ) {
     final el = (element ?? '').toLowerCase();
     final pointsUp = el == 'fire' || el == 'air' || el == 'lava';
     final withBar = el == 'air' || el == 'earth';
@@ -1123,7 +1179,8 @@ class _ChamberPainter extends CustomPainter {
         Offset(c.dx + half, y),
         Paint()
           ..color = (p.color).withValues(
-              alpha: (p.color.a * barAlpha).clamp(0.0, 1.0))
+            alpha: (p.color.a * barAlpha).clamp(0.0, 1.0),
+          )
           ..style = PaintingStyle.stroke
           ..strokeWidth = p.strokeWidth
           ..strokeCap = StrokeCap.round,
@@ -1153,7 +1210,10 @@ class _PhaseLabel extends StatelessWidget {
     final (text, vis) = _labelFor(t);
     final isReveal = t >= _Phase.revealStart;
     // Pure-line reveals get the accent colour for their headline.
-    final color = (isReveal && outcome != null && outcome!.kind != FusionRevealKind.standard)
+    final color =
+        (isReveal &&
+            outcome != null &&
+            outcome!.kind != FusionRevealKind.standard)
         ? Color.lerp(outcome!.accent, Colors.white, .35)!
         : const Color(0xFFE8EAED);
     return Opacity(

@@ -5,7 +5,8 @@ import 'dart:math';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/creature_stats.dart';
-import 'package:alchemons/models/wilderness_stat_ranges.dart';
+import 'package:alchemons/models/nature.dart';
+import 'package:alchemons/models/stat_system.dart';
 
 class WildCreatureRandomizer {
   final Random _random;
@@ -18,22 +19,44 @@ class WildCreatureRandomizer {
     int? seed,
     bool arcaneBoostUnlocked = false,
   }) {
+    // Encounter screens prepare the wild specimen once so any unlocked
+    // scanner shows the exact Potential block used by capture or fusion.
+    // Never reroll an already-prepared specimen later in the pipeline.
+    if (wild.stats != null) return wild;
+
     final rng = seed != null ? Random(seed) : _random;
 
-    // Random nature
-    final nature = NatureCatalogWeighted.weightedRandom(rng);
+    // Preserve the identity already rolled by WildlifeGenerator. Catalog-only
+    // scripted encounters still receive fresh Nature slots here.
+    final hasPreparedNatures = wild.nature != null || wild.nature2 != null;
+    final rarityKey = wild.rarity.toLowerCase();
+    final natures = hasPreparedNatures
+        ? const <NatureDef>[]
+        : NatureCatalogWeighted.rollWildSlots(
+            rng,
+            elite: rarityKey == 'legendary' || rarityKey == 'mythic',
+          );
+    final nature = wild.nature ?? (natures.isEmpty ? null : natures.first);
+    final nature2 = wild.nature2 ?? (natures.length > 1 ? natures[1] : null);
 
     // Random genetics (use baseline with slight variation)
     final genetics = _randomizeGenetics(wild.genetics, rng);
 
     // Random stats (wild creatures have average stats)
     final stats = _generateWildStats(
-      wild.rarity,
+      wild,
+      nature?.id,
+      nature2?.id,
       rng,
       arcaneBoostUnlocked: arcaneBoostUnlocked,
     );
 
-    return wild.copyWith(nature: nature, genetics: genetics, stats: stats);
+    return wild.copyWith(
+      nature: nature,
+      nature2: nature2,
+      genetics: genetics,
+      stats: stats,
+    );
   }
 
   Genetics? _randomizeGenetics(Genetics? baseGenetics, Random rng) {
@@ -49,54 +72,75 @@ class WildCreatureRandomizer {
   }
 
   CreatureStats _generateWildStats(
-    String rarity,
+    Creature wild,
+    String? natureId,
+    String? natureId2,
     Random rng, {
     required bool arcaneBoostUnlocked,
   }) {
-    // Wild creatures have stats based on rarity
-    final baseRange = wildernessStatRangeForRarity(
-      rarity,
-      arcaneBoostUnlocked: arcaneBoostUnlocked,
+    final base =
+        wild.baseStats ??
+        const SpeciesBaseStats(
+          speed: 60,
+          intelligence: 60,
+          strength: 60,
+          beauty: 60,
+        );
+    final potentials = List<int>.generate(
+      4,
+      (_) => _rollPotential(rng, boosted: arcaneBoostUnlocked),
     );
-    final speedPair = _rollStatPair(rng, baseRange);
-    final intelligencePair = _rollStatPair(rng, baseRange);
-    final strengthPair = _rollStatPair(rng, baseRange);
-    final beautyPair = _rollStatPair(rng, baseRange);
 
     return CreatureStats(
-      speed: speedPair.stat,
-      intelligence: intelligencePair.stat,
-      strength: strengthPair.stat,
-      beauty: beautyPair.stat,
-      speedPotential: speedPair.potential,
-      intelligencePotential: intelligencePair.potential,
-      strengthPotential: strengthPair.potential,
-      beautyPotential: beautyPair.potential,
+      speed: _derive(base.speed, potentials[0], natureId, natureId2, 'speed'),
+      intelligence: _derive(
+        base.intelligence,
+        potentials[1],
+        natureId,
+        natureId2,
+        'intelligence',
+      ),
+      strength: _derive(
+        base.strength,
+        potentials[2],
+        natureId,
+        natureId2,
+        'strength',
+      ),
+      beauty: _derive(
+        base.beauty,
+        potentials[3],
+        natureId,
+        natureId2,
+        'beauty',
+      ),
+      speedPotential: potentials[0].toDouble(),
+      intelligencePotential: potentials[1].toDouble(),
+      strengthPotential: potentials[2].toDouble(),
+      beautyPotential: potentials[3].toDouble(),
     );
   }
 
-  ({double stat, double potential}) _rollStatPair(
-    Random rng,
-    WildernessStatRange range,
-  ) {
-    final potential = _rollPotential(rng, range);
-    final statMax = min(range.max, potential);
-    return (
-      stat: _rollStat(rng, range, maxOverride: statMax),
-      potential: potential,
-    );
-  }
+  double _derive(
+    int base,
+    int potential,
+    String? natureId,
+    String? natureId2,
+    String statKey,
+  ) => AlchemonStatSystem.effectiveInternal(
+    speciesBase: base,
+    level: 1,
+    potential: potential,
+    additionalMultiplier: AlchemonStatSystem.natureMultiplier(
+      natureId,
+      statKey,
+      natureId2,
+    ),
+  );
 
-  double _rollStat(
-    Random rng,
-    WildernessStatRange range, {
-    double? maxOverride,
-  }) {
-    final maxValue = maxOverride ?? range.max;
-    return range.min + (rng.nextDouble() * (maxValue - range.min));
-  }
-
-  double _rollPotential(Random rng, WildernessStatRange range) {
-    return range.potMin + (rng.nextDouble() * (range.potMax - range.potMin));
+  int _rollPotential(Random rng, {required bool boosted}) {
+    final first = AlchemonStatSystem.rollPotential(rng);
+    if (!boosted) return first;
+    return max(first, AlchemonStatSystem.rollPotential(rng));
   }
 }

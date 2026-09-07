@@ -4,6 +4,7 @@ import 'package:alchemons/database/daos/constellation_dao.dart';
 import 'package:drift/drift.dart';
 
 // Schema and Model Imports
+import 'package:alchemons/models/inventory.dart' show InvKeys;
 import 'package:alchemons/database/schema_tables.dart';
 
 // DAO Imports
@@ -66,7 +67,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 36;
+  int get schemaVersion => 38;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -235,6 +236,45 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
           "DELETE FROM inventory_items WHERE key IN ('item.cosmic_ship', 'item.elemental_creator')",
         );
       }
+      if (from < 37) {
+        await m.addColumn(
+          creatureInstances,
+          creatureInstances.statSpeedEnhancement,
+        );
+        await m.addColumn(
+          creatureInstances,
+          creatureInstances.statIntelligenceEnhancement,
+        );
+        await m.addColumn(
+          creatureInstances,
+          creatureInstances.statStrengthEnhancement,
+        );
+        await m.addColumn(
+          creatureInstances,
+          creatureInstances.statBeautyEnhancement,
+        );
+        // Legacy Potential used a 0-5 scale. Potential is now immutable
+        // genetic quality on a player-facing 1-100 scale.
+        await customUpdate('''
+          UPDATE creature_instances SET
+            stat_speed_potential = CASE WHEN stat_speed_potential <= 5 THEN MAX(1, MIN(100, ROUND(stat_speed_potential * 20))) ELSE stat_speed_potential END,
+            stat_intelligence_potential = CASE WHEN stat_intelligence_potential <= 5 THEN MAX(1, MIN(100, ROUND(stat_intelligence_potential * 20))) ELSE stat_intelligence_potential END,
+            stat_strength_potential = CASE WHEN stat_strength_potential <= 5 THEN MAX(1, MIN(100, ROUND(stat_strength_potential * 20))) ELSE stat_strength_potential END,
+            stat_beauty_potential = CASE WHEN stat_beauty_potential <= 5 THEN MAX(1, MIN(100, ROUND(stat_beauty_potential * 20))) ELSE stat_beauty_potential END
+        ''');
+      }
+      if (from < 38) {
+        await m.addColumn(creatureInstances, creatureInstances.natureId2);
+        await m.addColumn(playerCreatures, playerCreatures.natureId2);
+        // A Nullic Nature was the old representation of no modifier. Empty
+        // slots now express that directly.
+        await customUpdate(
+          "UPDATE creature_instances SET nature_id = NULL WHERE nature_id = 'Nullic'",
+        );
+        await customUpdate(
+          "UPDATE player_creatures SET nature_id = NULL WHERE nature_id = 'Nullic'",
+        );
+      }
     },
   );
 
@@ -301,6 +341,10 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
 
     await _setSetting('wallet_gold', '5');
     await _setSetting('wallet_silver', '1000');
+
+    // The wilderness tutorial teaches fusion, which consumes one of these per
+    // attempt. Starting empty leaves that lesson unplayable.
+    await inventoryDao.addItemQty(InvKeys.wildFusion, 10);
 
     // Seed settings
     await _setSetting('blob_slots_unlocked', '1');

@@ -99,8 +99,7 @@ class _CreatureDisplayViewState extends State<CreatureDisplayView> {
                   _BackgroundPicker(
                     options: creatureBgOptions,
                     selectedId: _selected.id,
-                    onSelect: (option) =>
-                        setState(() => _selected = option),
+                    onSelect: (option) => setState(() => _selected = option),
                   ),
                 ],
               ),
@@ -143,7 +142,7 @@ class _CreatureDisplayViewState extends State<CreatureDisplayView> {
       _savedOption = _selected;
       _flashSavedMessage('Saved for this one');
       if (!mounted) return;
-        Navigator.of(context).pop(_savedOption);
+      Navigator.of(context).pop(_savedOption);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -365,7 +364,11 @@ class _CloseButton extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
         ),
-        child: const Icon(AppIcons.close_rounded, color: Colors.white, size: 20),
+        child: const Icon(
+          AppIcons.close_rounded,
+          color: Colors.white,
+          size: 20,
+        ),
       ),
     );
   }

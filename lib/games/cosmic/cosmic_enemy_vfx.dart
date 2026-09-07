@@ -77,6 +77,8 @@ class EnemyVisual {
     this.eliteAffix,
     this.flightSteering,
     this.rootTimer = 0,
+    this.isPlagueCore = false,
+    this.visualColor,
   });
 
   final ui.Offset position;
@@ -109,6 +111,8 @@ class EnemyVisual {
   final EliteAffix? eliteAffix;
   final FlightSteeringState? flightSteering;
   final double rootTimer;
+  final bool isPlagueCore;
+  final Color? visualColor;
 
   factory EnemyVisual.fromSurvival(CosmicSurvivalEnemy e) => EnemyVisual(
     position: e.position,
@@ -125,19 +129,19 @@ class EnemyVisual {
     stretch: _stretchFor(e.conduct, e.trait, e.tier),
     hitFlash: e.hitFlash,
     actionPhase: e.action.isBusy ? e.action.phase : null,
-    actionProgress: e.action.progress(
-      switch (e.action.phase) {
-        EnemyActionPhase.windUp => kEnemyActions[e.tier]?.windUp ?? 0,
-        EnemyActionPhase.commit => kEnemyActions[e.tier]?.commit ?? 0,
-        EnemyActionPhase.recover => kEnemyActions[e.tier]?.recover ?? 0,
-        EnemyActionPhase.idle => 0,
-      },
-    ),
+    actionProgress: e.action.progress(switch (e.action.phase) {
+      EnemyActionPhase.windUp => kEnemyActions[e.tier]?.windUp ?? 0,
+      EnemyActionPhase.commit => kEnemyActions[e.tier]?.commit ?? 0,
+      EnemyActionPhase.recover => kEnemyActions[e.tier]?.recover ?? 0,
+      EnemyActionPhase.idle => 0,
+    }),
     actionAngle: e.action.aimAngle,
     isElite: e.isElite,
     eliteAffix: e.eliteAffix,
     flightSteering: e.flightSteering,
     rootTimer: e.hornPlantRootTimer,
+    isPlagueCore: e.isPlagueCore,
+    visualColor: e.visualColor,
   );
 
   factory EnemyVisual.fromOpenWorld(CosmicEnemy e) => EnemyVisual(
@@ -164,8 +168,7 @@ class EnemyVisual {
   );
 }
 
-bool _heavy(EnemyTier t) =>
-    t == EnemyTier.brute || t == EnemyTier.colossus;
+bool _heavy(EnemyTier t) => t == EnemyTier.brute || t == EnemyTier.colossus;
 
 double _squashFor(EnemyConduct c, EnemyTrait? t, EnemyTier tier) {
   if (t == EnemyTrait.breaker) return 1.12;
@@ -215,7 +218,7 @@ void drawEnemy({
   required double time,
   bool reduceLabels = false,
 }) {
-  final eColor = elementColor(enemy.element);
+  final eColor = enemy.visualColor ?? elementColor(enemy.element);
   // Dive telegraph: a tightening ring while the enemy rears back, so the
   // hover/dive swoop is readable and dodgeable (shared steering state).
   final steering = enemy.flightSteering;
@@ -474,6 +477,7 @@ void drawEnemy({
       }
 
     case EnemyTier.phantom:
+      drawEnemyTendrils(canvas, r, eColor, elapsed, seed: enemy.angle);
       // Hollow: you see space through it. The old phantom was a dimmed brute —
       // same silhouette, lower alpha — which made it both the least visible
       // enemy in the game and indistinguishable from the tier above it.
@@ -500,9 +504,11 @@ void drawEnemy({
         false,
         ringPaint
           ..strokeWidth = r * 0.16
-          ..color = Color.lerp(eColor, Colors.white, 0.5)!.withValues(
-            alpha: 0.55,
-          ),
+          ..color = Color.lerp(
+            eColor,
+            Colors.white,
+            0.5,
+          )!.withValues(alpha: 0.55),
       );
       // A single bright pip marks where the mass actually is.
       canvas.drawCircle(
@@ -513,46 +519,39 @@ void drawEnemy({
       );
 
     case EnemyTier.brute:
-      canvas.drawCircle(
-        Offset.zero,
-        r,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            Offset(-r * 0.2, -r * 0.2),
-            r * 1.3,
-            [
-              Color.lerp(flashColor, Colors.black, 0.3)!.withValues(alpha: 0.9),
-              Color.lerp(flashColor, Colors.black, 0.6)!.withValues(alpha: 0.8),
-              Colors.black.withValues(alpha: 0.7),
-            ],
-            [0.0, 0.5, 1.0],
-          ),
-      );
-      for (var crack = 0; crack < 5; crack++) {
-        final ca = crack * pi * 2 / 5 + elapsed * 0.2;
-        final crackPath = Path()
-          ..moveTo(0, 0)
-          ..lineTo(cos(ca) * r * 0.9, sin(ca) * r * 0.9);
-        canvas.drawPath(
-          crackPath,
-          Paint()
-            ..color = eColor.withValues(
-              alpha: 0.6 + 0.2 * sin(elapsed * 2 + crack),
-            )
-            ..strokeWidth = 2.0
-            ..style = PaintingStyle.stroke
-            ..maskFilter = null,
+      if (enemy.isPlagueCore) {
+        drawEnemyTendrils(
+          canvas,
+          r,
+          flashColor,
+          elapsed,
+          count: 8,
+          seed: enemy.angle,
         );
+        final beat = 1.0 + 0.08 * sin(elapsed * 3.2);
+        canvas.drawCircle(
+          Offset.zero,
+          r * 0.75 * beat,
+          Paint()..color = Color.lerp(flashColor, Colors.black, 0.48)!,
+        );
+        canvas.drawCircle(
+          Offset.zero,
+          r * 0.52 * beat,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = flashColor,
+        );
+        canvas.drawCircle(
+          Offset.zero,
+          r * 0.24 * beat,
+          Paint()..color = Color.lerp(flashColor, Colors.white, 0.65)!,
+        );
+      } else {
+        _drawHeavyBody(canvas, enemy, flashColor, elapsed, colossus: false);
       }
-      canvas.drawCircle(
-        Offset.zero,
-        r * 1.3,
-        Paint()
-          ..color = eColor.withValues(alpha: 0.08)
-          ..maskFilter = null,
-      );
       final bruteHpFrac = enemy.hpFraction;
-      if (bruteHpFrac < 1.0) {
+      if (bruteHpFrac < 1.0 || enemy.isPlagueCore) {
         final barW = r * 2.5;
         canvas.drawRRect(
           RRect.fromRectAndRadius(
@@ -571,69 +570,7 @@ void drawEnemy({
       }
 
     case EnemyTier.colossus:
-      final pulse = 0.95 + 0.05 * sin(elapsed * 1.2 + enemy.angle);
-      canvas.drawCircle(
-        Offset.zero,
-        r * pulse,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            Offset(-r * 0.3, -r * 0.3),
-            r * 1.5,
-            [
-              Color.lerp(
-                flashColor,
-                Colors.white,
-                0.15,
-              )!.withValues(alpha: 0.85),
-              Color.lerp(flashColor, Colors.black, 0.3)!.withValues(alpha: 0.8),
-              Colors.black.withValues(alpha: 0.7),
-            ],
-            [0.0, 0.4, 1.0],
-          ),
-      );
-      for (var t = 0; t < 6; t++) {
-        final baseAngle = t * pi / 3 + elapsed * 0.08;
-        final wave = sin(elapsed * 1.5 + t * 1.2) * 0.3;
-        final tentacle = Path()
-          ..moveTo(cos(baseAngle) * r * 0.8, sin(baseAngle) * r * 0.8);
-        final midDist = r * 1.6;
-        final tipDist = r * (2.2 + 0.3 * sin(elapsed * 0.8 + t));
-        final ctrlAngle = baseAngle + wave;
-        tentacle.quadraticBezierTo(
-          cos(ctrlAngle) * midDist,
-          sin(ctrlAngle) * midDist,
-          cos(baseAngle + wave * 0.5) * tipDist,
-          sin(baseAngle + wave * 0.5) * tipDist,
-        );
-        canvas.drawPath(
-          tentacle,
-          Paint()
-            ..color = eColor.withValues(alpha: 0.35 + 0.15 * sin(elapsed + t))
-            ..strokeWidth = 2.5 - t * 0.2
-            ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..maskFilter = null,
-        );
-      }
-      canvas.drawCircle(
-        Offset.zero,
-        r * 0.35,
-        Paint()
-          ..color = eColor.withValues(alpha: 0.4 + 0.2 * sin(elapsed * 2))
-          ..maskFilter = null,
-      );
-      canvas.drawCircle(
-        Offset.zero,
-        r * 0.15,
-        Paint()..color = Colors.white.withValues(alpha: 0.5),
-      );
-      canvas.drawCircle(
-        Offset.zero,
-        r * 1.5,
-        Paint()
-          ..color = eColor.withValues(alpha: 0.05)
-          ..maskFilter = null,
-      );
+      _drawHeavyBody(canvas, enemy, flashColor, elapsed, colossus: true);
       final colHpFrac = enemy.hpFraction;
       if (colHpFrac < 1.0) {
         final barW = r * 3.0;
@@ -681,6 +618,153 @@ void drawEnemy({
     tp.paint(canvas, Offset(-tp.width / 2, -r - 18));
   }
 
+  canvas.restore();
+}
+
+// One curved ribbon, transformed into a small, bounded set of living limbs.
+final Path _enemyTendril = Path()
+  ..moveTo(0.50, -0.10)
+  ..cubicTo(1.04, -0.46, 1.25, 0.64, 2.05, 0.16)
+  ..cubicTo(1.30, 1.00, 0.98, -0.10, 0.50, 0.12)
+  ..close();
+
+void drawEnemyTendrils(
+  Canvas canvas,
+  double radius,
+  Color color,
+  double time, {
+  int count = 5,
+  double seed = 0,
+}) {
+  final fill = Paint()..color = Color.lerp(color, Colors.black, 0.30)!;
+  final edge = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.035
+    ..color = Color.lerp(color, Colors.white, 0.25)!;
+  canvas.save();
+  canvas.scale(radius);
+  for (var i = 0; i < count; i++) {
+    final sway = sin(time * 1.7 + seed + i * 1.8);
+    canvas.save();
+    canvas.rotate(i * 2 * pi / count + sway * 0.16 + seed * 0.1);
+    canvas.scale(0.94 + sway * 0.10, i.isEven ? 1.0 : -1.0);
+    canvas.drawPath(_enemyTendril, fill);
+    canvas.drawPath(_enemyTendril, edge);
+    canvas.restore();
+  }
+  canvas.restore();
+}
+
+// Unit geometry is built once; animation only changes canvas transforms.
+final Path _bruteArmor = Path()
+  ..moveTo(-0.94, -0.24)
+  ..lineTo(-0.70, -0.73)
+  ..lineTo(0.18, -0.87)
+  ..lineTo(0.82, -0.49)
+  ..lineTo(0.60, -0.23)
+  ..lineTo(-0.25, -0.14)
+  ..close();
+final Path _colossusArmor = Path()
+  ..moveTo(0.47, -0.21)
+  ..lineTo(0.79, -0.43)
+  ..lineTo(1.14, -0.28)
+  ..lineTo(1.36, 0)
+  ..lineTo(1.14, 0.28)
+  ..lineTo(0.79, 0.43)
+  ..lineTo(0.47, 0.21)
+  ..close();
+
+/// Heavy enemies perform through their armor, with a bounded number of draws.
+/// Open-world bodies breathe; survival also drives the actual attack phases.
+void _drawHeavyBody(
+  Canvas canvas,
+  EnemyVisual enemy,
+  Color color,
+  double time, {
+  required bool colossus,
+}) {
+  final p = enemy.actionProgress.clamp(0.0, 1.0);
+  final charge = switch (enemy.actionPhase) {
+    EnemyActionPhase.windUp => p,
+    EnemyActionPhase.commit => 1.0,
+    EnemyActionPhase.recover => 1.0 - p,
+    _ => 0.0,
+  };
+  final recoil = enemy.actionPhase == EnemyActionPhase.commit ? 1 - p : 0.0;
+  final breath = sin(time * (colossus ? 1.3 : 2.0) + enemy.angle);
+  final fill = Paint()..color = Color.lerp(color, Colors.black, 0.48)!;
+  final edge = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeJoin = StrokeJoin.round
+    ..strokeWidth = 0.035
+    ..color = Color.lerp(color, Colors.white, 0.25)!;
+  final light = Paint()
+    ..color = Color.lerp(color, Colors.white, 0.30 + charge * 0.60)!;
+  canvas.save();
+  canvas.scale(enemy.radius);
+  if (!colossus) {
+    canvas.rotate(enemy.actionPhase == null ? enemy.angle : enemy.actionAngle);
+    canvas.translate(-recoil * 0.13, 0);
+    // Broad paired plates leave a visible central firing channel.
+    canvas.drawOval(const Rect.fromLTWH(-0.85, -0.38, 1.7, 0.76), fill);
+    for (final side in [-1.0, 1.0]) {
+      canvas.save();
+      canvas.scale(1.0, side);
+      canvas.translate(0.0, -0.18 * charge - 0.015 * breath);
+      canvas.drawPath(_bruteArmor, fill);
+      canvas.drawPath(_bruteArmor, edge);
+      canvas.drawLine(
+        const Offset(-0.60, -0.49),
+        const Offset(0.12, -0.62),
+        edge,
+      );
+      canvas.restore();
+    }
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: const Offset(0.12, 0),
+        width: 0.78,
+        height: 0.18 + charge * 0.18,
+      ),
+      light,
+    );
+    canvas.drawCircle(const Offset(0.72, 0), 0.13 + charge * 0.09, light);
+    // Rear exhaust slits give the body a direction even while idle.
+    canvas.drawLine(
+      const Offset(-0.89, -0.14),
+      const Offset(-1.06, -0.14),
+      edge,
+    );
+    canvas.drawLine(const Offset(-0.89, 0.14), const Offset(-1.06, 0.14), edge);
+  } else {
+    final contraction = enemy.actionPhase == EnemyActionPhase.windUp
+        ? -0.15 * charge
+        : 0.22 * recoil + 0.03 * breath;
+    canvas.rotate(enemy.angle * 0.12 + sin(time * 0.35) * 0.035);
+    canvas.drawCircle(Offset.zero, 0.65, fill);
+    // Six broad articulated segments replace the thin, low-contrast tendrils.
+    for (var segment = 0; segment < 6; segment++) {
+      canvas.save();
+      canvas.rotate(segment * pi / 3);
+      canvas.translate(contraction, 0);
+      canvas.drawPath(_colossusArmor, fill);
+      canvas.drawPath(_colossusArmor, edge);
+      canvas.drawLine(const Offset(0.66, 0), const Offset(1.12, 0), edge);
+      canvas.drawCircle(const Offset(0.87, 0), 0.065, light);
+      canvas.restore();
+    }
+    canvas.drawCircle(Offset.zero, 0.34 + 0.10 * charge, light);
+    canvas.drawCircle(
+      Offset.zero,
+      0.17 + 0.06 * charge,
+      fill..color = const Color(0xFFFFF3DB),
+    );
+    canvas.drawCircle(
+      Offset.zero,
+      0.49,
+      edge..color = color.withValues(alpha: 0.55 + 0.4 * charge),
+    );
+  }
   canvas.restore();
 }
 
@@ -896,6 +980,17 @@ void drawSurvivalBoss({
 
   canvas.save();
   canvas.translate(boss.position.dx, boss.position.dy);
+  if (boss.discipline == SurvivalBossDiscipline.riftcaller ||
+      boss.type == BossType.carrier) {
+    drawEnemyTendrils(
+      canvas,
+      r * 0.95,
+      bColor,
+      elapsed,
+      count: 8,
+      seed: boss.enraged ? elapsed * 0.35 : 0,
+    );
+  }
 
   final auraColor = boss.enraged
       ? Colors.red.withValues(alpha: 0.15 * pulse)
@@ -996,8 +1091,7 @@ void drawSurvivalBoss({
       canvas.drawCircle(
         Offset(cos(a), sin(a)) * r * 1.05,
         3.0,
-        Paint()
-          ..color = const Color(0xFFFFC078).withValues(alpha: 0.85 * vent),
+        Paint()..color = const Color(0xFFFFC078).withValues(alpha: 0.85 * vent),
       );
     }
   }
@@ -1035,11 +1129,8 @@ void drawOpenWorldEnemy({
   required Canvas canvas,
   required CosmicEnemy e,
   required double time,
-}) => drawEnemy(
-  canvas: canvas,
-  enemy: EnemyVisual.fromOpenWorld(e),
-  time: time,
-);
+}) =>
+    drawEnemy(canvas: canvas, enemy: EnemyVisual.fromOpenWorld(e), time: time);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Open-world boss
@@ -1080,6 +1171,17 @@ void drawOpenWorldBoss({
       ..color = auraColor.withValues(alpha: boss.enraged ? 0.15 : 0.08)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, boss.radius * 0.8),
   );
+
+  if (boss.type == BossType.carrier) {
+    drawEnemyTendrils(
+      canvas,
+      boss.radius * 0.95,
+      bColor,
+      time,
+      count: 8,
+      seed: boss.enraged ? time * 0.35 : 0,
+    );
+  }
 
   // ── Charger: directional wedge indicator + charge trail ──
   if (boss.type == BossType.charger) {
@@ -1373,7 +1475,6 @@ void drawBossLair({
 // full sigil, while enemies come in dozens and get a mark of a few strokes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-
 /// The wind-up tell, drawn in the enemy's local space.
 ///
 /// A charging ring that closes as the attack approaches, plus an aim line so
@@ -1400,9 +1501,11 @@ void _drawActionTelegraph(
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.6 + 2.4 * p
-          ..color = Color.lerp(eColor, Colors.white, 0.45)!.withValues(
-            alpha: 0.35 + 0.5 * p,
-          ),
+          ..color = Color.lerp(
+            eColor,
+            Colors.white,
+            0.45,
+          )!.withValues(alpha: 0.35 + 0.5 * p),
       );
       // The core charges — the circle building in the middle.
       canvas.drawCircle(
@@ -1410,16 +1513,19 @@ void _drawActionTelegraph(
         r * 0.55 * p,
         Paint()..color = Colors.white.withValues(alpha: 0.35 + 0.5 * p),
       );
-      // Aim line: where it is going to land.
-      final d = Offset(cos(enemy.actionAngle), sin(enemy.actionAngle));
-      canvas.drawLine(
-        d * r * 1.1,
-        d * (r * 1.1 + 46 * p),
-        Paint()
-          ..strokeWidth = 1.0 + 1.4 * p
-          ..strokeCap = StrokeCap.round
-          ..color = eColor.withValues(alpha: 0.25 + 0.55 * p),
-      );
+      // Shockwaves are radial; a directional tell would promise a safe side.
+      if (enemy.tier != EnemyTier.colossus) {
+        // Aim line: where it is going to land.
+        final d = Offset(cos(enemy.actionAngle), sin(enemy.actionAngle));
+        canvas.drawLine(
+          d * r * 1.1,
+          d * (r * 1.1 + 46 * p),
+          Paint()
+            ..strokeWidth = 1.0 + 1.4 * p
+            ..strokeCap = StrokeCap.round
+            ..color = eColor.withValues(alpha: 0.25 + 0.55 * p),
+        );
+      }
 
     case EnemyActionPhase.commit:
       canvas.drawCircle(

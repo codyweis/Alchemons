@@ -325,121 +325,131 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: t.bg3.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: accent.withValues(alpha: 0.5),
-                      width: 1,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              child: SizedBox(
+                width: 266,
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: t.bg3.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: accent.withValues(alpha: 0.5),
+                          width: 1,
+                        ),
+                      ),
+                      child: Icon(_getBannerIcon(), color: accent, size: 21),
                     ),
-                  ),
-                  child: Icon(_getBannerIcon(), color: accent, size: 21),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Flexible(
-                            child: Text(
-                              widget.notification.title.toUpperCase(),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  widget.notification.title.toUpperCase(),
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: t.textPrimary,
+                                    fontSize: AppType.body,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.1,
+                                    shadows: const [
+                                      Shadow(
+                                        color: Colors.black54,
+                                        blurRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (widget.notification.count > 1 &&
+                                  widget.notification.type !=
+                                      NotificationBannerType
+                                          .wildernessSpawn) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: accent.withValues(alpha: 0.25),
+                                    borderRadius: BorderRadius.circular(3),
+                                    border: Border.all(
+                                      color: accent.withValues(alpha: 0.65),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '${widget.notification.count}',
+                                    style: TextStyle(
+                                      color: accent,
+                                      fontSize: AppType.caption,
+                                      fontWeight: FontWeight.w900,
+                                      fontFamily: 'monospace',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          if (widget.notification.subtitle != null) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              widget.notification.subtitle!,
                               style: TextStyle(
                                 fontFamily: 'monospace',
-                                color: t.textPrimary,
-                                fontSize: AppType.body,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.1,
-                                shadows: const [
-                                  Shadow(color: Colors.black54, blurRadius: 2),
-                                ],
-                              ),
-                            ),
-                          ),
-                          if (widget.notification.count > 1 &&
-                              widget.notification.type !=
-                                  NotificationBannerType.wildernessSpawn) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: accent.withValues(alpha: 0.25),
-                                borderRadius: BorderRadius.circular(3),
-                                border: Border.all(
-                                  color: accent.withValues(alpha: 0.65),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Text(
-                                '${widget.notification.count}',
-                                style: TextStyle(
-                                  color: accent,
-                                  fontSize: AppType.caption,
-                                  fontWeight: FontWeight.w900,
-                                  fontFamily: 'monospace',
-                                ),
+                                color: t.textSecondary,
+                                fontSize: AppType.caption,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.7,
                               ),
                             ),
                           ],
                         ],
                       ),
-                      if (widget.notification.subtitle != null) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          widget.notification.subtitle!,
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: t.textSecondary,
-                            fontSize: AppType.caption,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.7,
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        widget.onDismiss();
+                      },
+                      child: SizedBox(
+                        width: AppTap.min,
+                        height: AppTap.min,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: t.bg3.withValues(alpha: 0.75),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: t.borderDim.withValues(alpha: 0.9),
+                                width: 1,
+                              ),
+                            ),
+                            child: Icon(
+                              AppIcons.close_rounded,
+                              color: t.textSecondary,
+                              size: 22,
+                            ),
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    widget.onDismiss();
-                  },
-                  child: SizedBox(
-                    width: AppTap.min,
-                    height: AppTap.min,
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: t.bg3.withValues(alpha: 0.75),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: t.borderDim.withValues(alpha: 0.9),
-                            width: 1,
-                          ),
-                        ),
-                        child: Icon(
-                          AppIcons.close_rounded,
-                          color: t.textSecondary,
-                          size: 22,
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ],

@@ -104,11 +104,7 @@ class WildernessControls extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
                       child: Row(
                         children: [
-                          Container(
-                            width: 3,
-                            height: 26,
-                            color: _wDanger,
-                          ),
+                          Container(width: 3, height: 26, color: _wDanger),
                           const SizedBox(width: AppSpace.md),
                           Expanded(
                             child: Text(
@@ -334,9 +330,7 @@ class _DialogButton extends StatelessWidget {
         child: Container(
           height: 42,
           alignment: Alignment.center,
-          color: filled
-              ? color
-              : color.withValues(alpha: 0.10),
+          color: filled ? color : color.withValues(alpha: 0.10),
           child: Text(
             label,
             style: bracketText(

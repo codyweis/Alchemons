@@ -16,7 +16,7 @@ import 'package:alchemons/widgets/app_icons.dart';
 // ------------------------------------
 // VIEW MODES
 // ------------------------------------
-enum InstanceDetailMode { info, stats, genetics }
+enum InstanceDetailMode { info, stats, genetics, enhancement }
 
 enum SelectionSheetView { species, allInstances }
 
@@ -307,7 +307,7 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                               ),
                               child: Icon(
                                 _showFavoritesOnly
-                                    ? AppIcons.star_rounded
+                                    ? AppIcons.star_filled
                                     : AppIcons.star_outline_rounded,
                                 size: 20,
                                 color: _showFavoritesOnly
@@ -656,7 +656,11 @@ class _DefaultHeader extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(AppIcons.sort_rounded, size: 14, color: theme.accent),
+                      Icon(
+                        AppIcons.sort_rounded,
+                        size: 14,
+                        color: theme.accent,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         selectedSort!,

@@ -18,6 +18,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/wilderness/encounter_sheet.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/creature_stats.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/screens/cosmic/widgets/encounter_entry_button.dart';
@@ -151,27 +152,50 @@ class _BattleRingScreenState extends State<BattleRingScreen>
       return;
     }
 
-    // Scale stats: base from 1.5 (level 0), max caps at 4.75 (level 9).
-    // Each stat gets a random value from base up to base+40% for variety.
-    const startBase = 1.5;
-    const maxCap = 4.75;
-    final endBase = maxCap / 1.4; // ~3.39
-    final statBase = startBase + (widget.level * (endBase - startBase) / 9.0);
+    // Arena opponents use the same species Base and 1-100 Potential formula
+    // as owned Alchemons. Higher ring levels raise level and genetic quality.
     final rng = Random();
-    double randStat() {
-      return statBase + rng.nextDouble() * (statBase * 0.4);
-    }
+    final creatureLevel = (widget.level + 1).clamp(1, 10);
+    final potentialFloor = 20 + widget.level * 7;
+    int rollPotential() => (potentialFloor + rng.nextInt(21)).clamp(1, 100);
+    final speedPotential = rollPotential();
+    final intelligencePotential = rollPotential();
+    final strengthPotential = rollPotential();
+    final beautyPotential = rollPotential();
+    final base =
+        hydrated.baseStats ??
+        const SpeciesBaseStats(
+          speed: 60,
+          intelligence: 60,
+          strength: 60,
+          beauty: 60,
+        );
+    double derive(int speciesBase, int potential, String key) =>
+        AlchemonStatSystem.effectiveInternal(
+          speciesBase: speciesBase,
+          level: creatureLevel,
+          potential: potential,
+          additionalMultiplier: AlchemonStatSystem.natureMultiplier(
+            hydrated!.nature?.id,
+            key,
+            hydrated.nature2?.id,
+          ),
+        );
 
     hydrated = hydrated.copyWith(
       stats: CreatureStats(
-        speed: randStat(),
-        intelligence: randStat(),
-        strength: randStat(),
-        beauty: randStat(),
-        speedPotential: maxCap,
-        intelligencePotential: maxCap,
-        strengthPotential: maxCap,
-        beautyPotential: maxCap,
+        speed: derive(base.speed, speedPotential, 'speed'),
+        intelligence: derive(
+          base.intelligence,
+          intelligencePotential,
+          'intelligence',
+        ),
+        strength: derive(base.strength, strengthPotential, 'strength'),
+        beauty: derive(base.beauty, beautyPotential, 'beauty'),
+        speedPotential: speedPotential.toDouble(),
+        intelligencePotential: intelligencePotential.toDouble(),
+        strengthPotential: strengthPotential.toDouble(),
+        beautyPotential: beautyPotential.toDouble(),
       ),
     );
 
@@ -204,10 +228,11 @@ class _BattleRingScreenState extends State<BattleRingScreen>
         intelligence: widget.playerCreature2!.statIntelligence,
         strength: widget.playerCreature2!.statStrength,
         beauty: widget.playerCreature2!.statBeauty,
-        speedPotential: widget.playerCreature2!.statSpeed,
-        intelligencePotential: widget.playerCreature2!.statIntelligence,
-        strengthPotential: widget.playerCreature2!.statStrength,
-        beautyPotential: widget.playerCreature2!.statBeauty,
+        speedPotential: widget.playerCreature2!.statSpeedPotential,
+        intelligencePotential:
+            widget.playerCreature2!.statIntelligencePotential,
+        strengthPotential: widget.playerCreature2!.statStrengthPotential,
+        beautyPotential: widget.playerCreature2!.statBeautyPotential,
       ),
     );
 

@@ -60,14 +60,23 @@ class RaidService {
     return state;
   }
 
-  /// The raid was beaten: persist the cleared flag and queue the next
+  /// Advance the active raid to its next tier. The first Level-3 clear starts
+  /// its echo cooldown; clearing the echo closes the raid and queues the next
   /// rotation from now.
-  Future<void> markCleared() async {
+  Future<void> markLevelCleared() async {
     final prefs = await SharedPreferences.getInstance();
     final state = RaidState.deserialise(prefs.getString(_stateKey));
     if (state == null) return;
     final now = DateTime.now().toUtc();
-    await _persist(prefs, state.withCleared(), now.add(kRaidRotationPeriod));
+    final next = state.advanceLevel(nowUtc: now);
+    final rotationMs = prefs.getInt(_rotationKey);
+    final currentRotation = rotationMs == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(rotationMs, isUtc: true);
+    final nextRotation = next.cleared
+        ? now.add(kRaidRotationPeriod)
+        : currentRotation ?? now.add(kRaidRotationPeriod);
+    await _persist(prefs, next, nextRotation);
   }
 
   Future<void> _persist(

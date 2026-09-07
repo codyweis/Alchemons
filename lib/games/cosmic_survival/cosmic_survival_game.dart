@@ -5,6 +5,10 @@
 // and boss AI as the main cosmic exploration game.
 
 import 'dart:math';
+
+import 'survival_outbreak.dart';
+import 'cosmic_survival_balance.dart';
+import 'survival_outbreak_vfx.dart';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
@@ -20,6 +24,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/games/shared/type_effectiveness.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:flame/components.dart' show Anchor;
@@ -761,6 +766,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final List<CosmicPartyMember> party;
   final VoidCallback onGameOver;
   final VoidCallback? onWaveIntermission;
+  final void Function(int clearedWave)? onWaveCleared;
   final void Function(SurvivalBoss boss)? onBossSpawn;
   final void Function(MysticSpecialCastEvent event)? onMysticSpecialCast;
   final SurvivalUpgradeState upgradeState;
@@ -809,6 +815,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // Wave system
   final CosmicSurvivalSpawner spawner = CosmicSurvivalSpawner();
   final List<CosmicSurvivalEnemy> enemies = [];
+  SurvivalOutbreak? outbreak;
+  SurvivalOutbreakKind? _previousOutbreak;
+
   SurvivalBoss? activeBoss;
 
   /// Floating damage numbers, shown on bosses only. Regular waves are crowd
@@ -1065,6 +1074,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     required this.party,
     required this.onGameOver,
     this.onWaveIntermission,
+    this.onWaveCleared,
     this.onBossSpawn,
     this.onMysticSpecialCast,
     this.shipSkin,
@@ -1125,8 +1135,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       projectile: projectile,
     );
   }
-
-
 
   @override
   Future<void> onLoad() async {
@@ -1252,6 +1260,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _projectileControlBuckets.reflectors,
     );
     _updateVfx(dt);
+    _updateOutbreak(dt);
     _updateAlchemicalMeterDisplay(dt);
     _timeDilationTimer = max(0, _timeDilationTimer - dt);
     if (_timeDilationTimer <= 0) _timeDilationSlowFactor = 1.0;
@@ -1288,7 +1297,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // for sanity. Ultimate / titanic waves stay solo for readability.
       extraBosses.clear();
       final isUltimateWave = wave % 25 == 0;
-      if (activeBoss != null && !isUltimateWave) {
+      if (activeBoss != null &&
+          !isUltimateWave &&
+          !SurvivalOutbreak.isOutbreakWave(wave)) {
         final bossLevel = (wave ~/ 5).clamp(1, 20);
         final extraCount = (bossLevel - 1).clamp(0, 5);
         for (var i = 0; i < extraCount; i++) {
@@ -1307,7 +1318,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Check wave completion
     final alive = enemies.length;
-    final bossAlive = anyBossAlive;
+    final bossAlive = anyBossAlive || (outbreak != null && !outbreak!.cleared);
     spawner.checkWaveComplete(alive, bossAlive: bossAlive);
 
     _maybeTriggerPowerUpSelection();
@@ -1315,6 +1326,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (spawner.intermission && !showingPowerUpSelection) {
       final clearedWave = spawner.currentWave;
       final bossWave = spawner.isBossWave;
+      onWaveCleared?.call(clearedWave);
       _cleanupBetweenWaves();
       _grantIntermissionReward(clearedWave, bossWave: bossWave);
       _maybeTriggerPowerUpSelection();
@@ -1376,13 +1388,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     var shipIsIdle = false;
+    final plagueMove = outbreak?.movementMultiplier(ship.position) ?? 1.0;
 
     if (_joystickInput.distance > 0.1) {
       ship.angle = atan2(_joystickInput.dy, _joystickInput.dx);
       final inputScale = _joystickInput.distance.clamp(0.0, 1.0);
       ship.position = Offset(
-        ship.position.dx + cos(ship.angle) * ship.speed * inputScale * dt,
-        ship.position.dy + sin(ship.angle) * ship.speed * inputScale * dt,
+        ship.position.dx +
+            cos(ship.angle) * ship.speed * inputScale * plagueMove * dt,
+        ship.position.dy +
+            sin(ship.angle) * ship.speed * inputScale * plagueMove * dt,
       );
       _dragTarget = null;
     } else if (_dragTarget != null) {
@@ -1391,7 +1406,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (dist > 5) {
         final nx = dir.dx / dist;
         final ny = dir.dy / dist;
-        final move = min(ship.speed * dt, dist);
+        final move = min(ship.speed * plagueMove * dt, dist);
         ship.position = Offset(
           ship.position.dx + nx * move,
           ship.position.dy + ny * move,
@@ -3473,7 +3488,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
     _companionTickers[slotIndex] = anim.createTicker();
     _companionVisuals[slotIndex] = member.spriteVisuals;
-    final desiredSize = 48.0;
+    final desiredSize = 62.4;
     final sx = desiredSize / sheet.frameSize.x;
     final sy = desiredSize / sheet.frameSize.y;
     final family = member.family.toLowerCase();
@@ -3560,7 +3575,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // Horn+Light barrier: bounce enemies away from the perimeter.
       // Per design "enemies bounce off of it" — anyone inside the
       // barrier zone gets pushed radially outward each frame.
-      if (lightBarrier != null) {
+      if (lightBarrier != null && !enemy.isPlagueCore) {
         final (bp, br) = lightBarrier;
         final dx = enemy.position.dx - bp.dx;
         final dy = enemy.position.dy - bp.dy;
@@ -3716,6 +3731,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (enemy.isDead) enemy.maskBloodDrainSlot = null;
       }
 
+      // Plague roots receive status damage above, but never chase or attack.
+      if (enemy.isPlagueCore) continue;
+
       // Smooth knockback integration keeps pulse/Detonation push readable.
       if (enemy.knockbackVelocity.distanceSquared > 0.01) {
         enemy.position = Offset(
@@ -3775,8 +3793,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               ? FlightSteeringProfile.survivalPouncer
               : FlightSteeringProfile.survivalMelee,
           toTarget: dir,
-          speed:
-              enemy.effectiveSpeed * moveSpeedMult * _timeDilationSlowFactor,
+          speed: enemy.effectiveSpeed * moveSpeedMult * _timeDilationSlowFactor,
           contactRange: enemy.radius + 14,
           dt: dt,
           rng: _rng,
@@ -3871,8 +3888,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             );
           }
         }
-        final isSiegeShooter =
-            enemy.conduct == EnemyConduct.standoff;
+        final isSiegeShooter = enemy.conduct == EnemyConduct.standoff;
         enemy.attackCooldown =
             (1.7 - min(enemy.tier.index * 0.12, 0.5)) *
             (isSiegeShooter ? 1.12 : 1.0) *
@@ -3934,8 +3950,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return cloaked ? CosmicEnemyTarget.ship : CosmicEnemyTarget.companion;
     }
     if (enemy.conduct == EnemyConduct.standoff) {
-      if (enemy.conduct == EnemyConduct.standoff &&
-          _rng.nextDouble() < 0.72) {
+      if (enemy.conduct == EnemyConduct.standoff && _rng.nextDouble() < 0.72) {
         return CosmicEnemyTarget.orb;
       }
       if (_rng.nextDouble() < 0.38) {
@@ -4245,6 +4260,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     int? sourceSlotIndex,
     bool fromPipSpecial = false,
   }) {
+    damage *= outbreak?.damageMultiplier(enemy) ?? 1.0;
     damage *= _companionOutgoingDamageMultiplier(
       sourceSlotIndex,
       vsBoss: false,
@@ -4871,8 +4887,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         size.y / _currentZoom,
       );
       for (final add in adds.take(3)) {
-        add.target =
-            (add.conduct == EnemyConduct.charge && add.hasHeavyBody)
+        add.target = (add.conduct == EnemyConduct.charge && add.hasHeavyBody)
             ? CosmicEnemyTarget.orb
             : CosmicEnemyTarget.companion;
       }
@@ -6338,7 +6353,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     double facingAngle,
     double beauty,
   ) {
-    final segCount = 7 + (beauty.clamp(1.0, 5.0) - 1.0).round();
+    final segCount =
+        7 + (AlchemonStatSystem.combatProgress(beauty) * 4).round();
     const arcSpanRad = 2.094; // ~120° front arc
     // Arc center is the orb's position; arc radius gives a stand-off
     // so enemies can't crowd the orb directly.
@@ -7921,12 +7937,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _spawnDarkLetKillMeteors(Projectile source, Offset center) {
-    // Stat-scaled count: 2 (no Intelligence) → 5 (high Intelligence).
-    // Genetic stat range is 0–5.0; in-game boosters (Chrono Surge,
-    // Spellbloom, cooldown stacks, etc.) can push effective Intelligence
-    // above 5.0 during a run. We scale across that real range so a
-    // baseline ~3.0 caster gets a healthy 3, max-genetics 5.0 reaches
-    // 5, and boosted late-game builds keep the cap at 5 cleanly.
+    // Stat-scaled count. The shared ability runtime handles the full canonical
+    // stat range, including Potential, Enhancement, and in-run boosts.
     final stat = source.letCasterIntelligence;
     final count = CosmicAbilityRuntime.darkLetFollowupCount(stat);
     final targets = <CosmicSurvivalEnemy>[];
@@ -8875,7 +8887,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     double min = 0.82,
     double max = 1.22,
   }) {
-    final clamped = stat.clamp(0.5, 8.0);
+    final clamped = stat > AlchemonStatSystem.legacyCombatCeiling
+        ? AlchemonStatSystem.legacyGameplayRating(stat)
+        : stat.clamp(0.5, AlchemonStatSystem.legacyCombatCeiling);
     return (1.0 + (clamped - 3.0) * perPoint).clamp(min, max).toDouble();
   }
 
@@ -11697,6 +11711,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _cleanupBetweenWaves() {
     enemies.removeWhere((enemy) => enemy.isDead);
+    outbreak = null;
     enemyProjectiles.clear();
     bossProjectiles.clear();
     extraBosses.removeWhere((boss) => boss.isDead);
@@ -12109,7 +12124,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
   }
 
-
   void _spawnHitSpark(Offset pos, Color color) {
     if (_vfx.length >= 150) return;
     for (var i = 0; i < 6; i++) {
@@ -12155,11 +12169,129 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _beamFx.removeWhere((beam) => beam.dead);
   }
 
+  void _updateOutbreak(double dt) {
+    final event = outbreak;
+    if (event == null || event.cleared || spawner.intermission) return;
+    event.anchorCores();
+    final pulse = event.advance(dt);
+    var shipDamage = 0.0;
+    for (final core in event.cores) {
+      if (core.isDead) continue;
+      switch (event.kind) {
+        case SurvivalOutbreakKind.verdigris:
+        case SurvivalOutbreakKind.calcified:
+          if (pulse && event.contains(core, ship.position)) {
+            // Overlapping fields cannot multiply the same pulse's damage.
+            shipDamage = max(shipDamage, ship.maxHp * 0.045);
+          }
+        case SurvivalOutbreakKind.sanguine:
+          if (pulse) {
+            for (final enemy in enemies) {
+              if (!enemy.isDead &&
+                  !enemy.isPlagueCore &&
+                  event.contains(core, enemy.position)) {
+                enemy.hp = min(enemy.maxHp, enemy.hp + enemy.maxHp * 0.06);
+              }
+            }
+          }
+        case SurvivalOutbreakKind.quicksilver:
+          if (event.surging &&
+              !ship.isDead &&
+              event.contains(core, ship.position)) {
+            final delta = core.position - ship.position;
+            if (delta.distance > core.radius + 24) {
+              ship.position +=
+                  delta /
+                  delta.distance *
+                  min(70 * dt, delta.distance - core.radius - 24);
+            }
+          }
+        case SurvivalOutbreakKind.nigredo:
+          if (pulse) _damageOrb(orb.maxHp * 0.015);
+        case SurvivalOutbreakKind.cinder:
+          event.brood.removeWhere((enemy) => enemy.isDead);
+          if (pulse && event.brood.length < 8) {
+            final hp =
+                tierBaseHp(EnemyTier.wisp) *
+                CosmicSurvivalBalance.enemyWaveHpScale(spawner.currentWave);
+            final child = CosmicSurvivalEnemy(
+              position: core.position + const Offset(38, 0),
+              hp: hp,
+              maxHp: hp,
+              speed: 90,
+              damage: 8 + spawner.currentWave * 0.3,
+              radius: 9,
+              tier: EnemyTier.wisp,
+              element: 'Fire',
+              conduct: EnemyConduct.charge,
+              target: CosmicEnemyTarget.ship,
+            );
+            event.brood.add(child);
+            enemies.add(child);
+          }
+        case SurvivalOutbreakKind.mirror:
+          if (pulse && !ship.isDead) {
+            final aim = atan2(
+              ship.position.dy - core.position.dy,
+              ship.position.dx - core.position.dx,
+            );
+            for (final spread in [-0.24, 0.0, 0.24]) {
+              enemyProjectiles.add(
+                SurvivalEnemyProjectile(
+                  position: core.position,
+                  angle: aim + spread,
+                  element: 'Light',
+                  damage: ship.maxHp * 0.025,
+                  target: CosmicEnemyTarget.ship,
+                  speed: 190,
+                  life: 3.0,
+                ),
+              );
+            }
+          }
+        case SurvivalOutbreakKind.voltaic:
+        case SurvivalOutbreakKind.crystal:
+        case SurvivalOutbreakKind.frost:
+          break;
+      }
+    }
+    if (pulse && event.kind == SurvivalOutbreakKind.voltaic) {
+      for (final (a, b) in event.links) {
+        if (SurvivalOutbreak.touchesLink(ship.position, a, b, 25)) {
+          shipDamage = ship.maxHp * 0.05;
+          break;
+        }
+      }
+    }
+    if (shipDamage > 0 && !ship.isDead) {
+      ship.currentHp = max(
+        0,
+        ship.currentHp - shipDamage * (powerUps.hasMirrorShield ? 0.75 : 1.0),
+      );
+      ship.hitFlash = 1;
+      if (ship.currentHp <= 0) {
+        ship.isDead = true;
+        _shipRespawnTimer = 0;
+      }
+    }
+  }
+
   void _applyWaveStartEffectsIfNeeded() {
     if (spawner.currentWave <= 0 || _timeDilationWave == spawner.currentWave) {
       return;
     }
     _timeDilationWave = spawner.currentWave;
+    outbreak = SurvivalOutbreak.forWave(
+      spawner.currentWave,
+      orb.position,
+      _arenaRadius,
+      random: _rng,
+      previous: _previousOutbreak,
+    );
+    if (outbreak case final event?) {
+      _previousOutbreak = event.kind;
+      enemies.addAll(event.cores);
+    }
     applyTimeDilation();
   }
 
@@ -12517,6 +12649,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _renderMysticEnvironmentOverlay(canvas);
     _renderArenaBoundary(canvas);
     _renderOrbGravityField(canvas);
+    if (outbreak case final event?) {
+      drawSurvivalOutbreak(
+        canvas,
+        event,
+        orb.position,
+        viewport: Rect.fromLTWH(cx, cy, viewW, viewH),
+      );
+    }
     _renderOrb(canvas);
 
     for (final enemy in enemies) {
@@ -13393,7 +13533,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// The enemy silhouette now lives in the shared cosmic enemy VFX layer so
   /// the preview harness can render the roster without playing the game.
 
-
   /// Hazards: beams and shockwaves. Each hits any given target at most once,
   /// tracked on the hazard itself, so a beam that lingers for half a second
   /// does not tick damage every frame.
@@ -13525,7 +13664,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _updateEnemyAction(CosmicSurvivalEnemy enemy, double dt) {
     final def = kEnemyActions[enemy.tier];
-    if (def == null) return; // wisps fight by contact
+    if (enemy.isPlagueCore || def == null) return; // wisps fight by contact
     final a = enemy.action;
 
     if (a.phase == EnemyActionPhase.idle) {

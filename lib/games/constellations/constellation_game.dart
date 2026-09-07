@@ -503,7 +503,10 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     if (tree == ConstellationTree.breeder) {
       final positions = <Vector2>[
-        Vector2(0.0, baseY - (5 * 180.0)),
+        // Tier 5 now contains the two established breeding branches plus the
+        // Wild Potential Scanner. Keep its story plaque beside that row so it
+        // cannot cover the center skill node.
+        Vector2(440.0, baseY - (5 * 180.0)),
         Vector2(0.0, baseY - (6 * 180.0)),
         Vector2(0.0, baseY - (7 * 180.0)),
       ];
@@ -663,7 +666,6 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     final unlockedCount = _combatUnlockedCount(unlockedSkills);
     return unlockedCount.clamp(0, kCombatStoryLines.length);
   }
-
 
   /// Frame [tree] so the whole of it is on screen, rather than dropping the
   /// camera into the middle of it at full zoom.
@@ -1429,7 +1431,8 @@ class SkillNode extends PositionComponent with TapCallbacks {
       _keystonePaint = Paint()
         ..color =
             (isUnlocked
-                    ? Color.lerp(primaryColor, Colors.white, 0.4) ?? primaryColor
+                    ? Color.lerp(primaryColor, Colors.white, 0.4) ??
+                          primaryColor
                     : ringColor)
                 .withValues(alpha: isUnlocked ? 0.9 : 0.55)
         ..style = PaintingStyle.stroke
@@ -1704,24 +1707,24 @@ class SkillNode extends PositionComponent with TapCallbacks {
   /// colour — at these sizes the two read as one soft mote either way.
   void _renderParticles(Canvas canvas, Vector2 center) {
     if (_particles.isEmpty) return;
-    final paths =
-        _particlePaths ??= List.generate(
-          _particleAlphaBuckets,
-          (_) => Path(),
-          growable: false,
-        );
-    final paints =
-        _particlePaints ??= List.generate(_particleAlphaBuckets, (i) {
-          // Bucket i represents the midpoint of its opacity band.
-          final band = (i + 0.5) / _particleAlphaBuckets;
-          return Paint()
-            ..color = Color.lerp(
-              primaryColor,
-              secondaryColor,
-              0.3,
-            )!.withValues(alpha: (band * 0.8).clamp(0.0, 1.0))
-            ..style = PaintingStyle.fill;
-        }, growable: false);
+    final paths = _particlePaths ??= List.generate(
+      _particleAlphaBuckets,
+      (_) => Path(),
+      growable: false,
+    );
+    final paints = _particlePaints ??= List.generate(_particleAlphaBuckets, (
+      i,
+    ) {
+      // Bucket i represents the midpoint of its opacity band.
+      final band = (i + 0.5) / _particleAlphaBuckets;
+      return Paint()
+        ..color = Color.lerp(
+          primaryColor,
+          secondaryColor,
+          0.3,
+        )!.withValues(alpha: (band * 0.8).clamp(0.0, 1.0))
+        ..style = PaintingStyle.fill;
+    }, growable: false);
 
     for (final path in paths) {
       path.reset();
@@ -2195,7 +2198,6 @@ class ConnectionLine extends Component {
     }
   }
 
-
   /// A blur-free soft line: a wide faint stroke under a narrower brighter one.
   /// Replaces a MaskFilter.blur stroke, which cost a GPU filter pass each.
   void _drawSoftLine(
@@ -2493,8 +2495,7 @@ class StarfieldBackground extends Component
     final sizeIndex = i ~/ _alphaBuckets;
     // Midpoint of each band, so quantisation error is symmetric. (Colour is
     // set per frame in render; only the dot diameter is fixed per bucket.)
-    final diameter =
-        ((sizeIndex + 0.5) / _sizeBuckets) * _maxStarSize * 2.0;
+    final diameter = ((sizeIndex + 0.5) / _sizeBuckets) * _maxStarSize * 2.0;
     return Paint()
       ..strokeWidth = diameter
       ..strokeCap = StrokeCap.round

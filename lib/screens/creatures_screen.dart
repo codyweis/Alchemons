@@ -187,16 +187,8 @@ class CreaturesScreenState extends State<CreaturesScreen>
       _revealCreatureId = id;
       _showCatalogView = true;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_catalogScrollCtl.hasClients) {
-        _catalogScrollCtl.animateTo(
-          0,
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    // Intentionally no scroll-to-top here: keep the user's current scroll
+    // position instead of jumping to reveal the newly unlocked species.
     _revealClearTimer?.cancel();
     _revealClearTimer = Timer(const Duration(milliseconds: 2600), () {
       if (!mounted) return;
@@ -624,9 +616,6 @@ class CreaturesScreenState extends State<CreaturesScreen>
     Map<String, int> instanceCounts,
   ) {
     final scoped = all.where((m) {
-      if (_revealCreatureId != null && m.creature.id == _revealCreatureId) {
-        return true;
-      }
       final isDiscovered = m.player.discovered == true;
       return switch (_scope) {
         'Catalogued' => isDiscovered,
@@ -670,13 +659,6 @@ class CreaturesScreenState extends State<CreaturesScreen>
         _ => 0,
       };
     });
-    if (_revealCreatureId != null) {
-      final idx = list.indexWhere((e) => e.creature.id == _revealCreatureId);
-      if (idx > 0) {
-        final item = list.removeAt(idx);
-        list.insert(0, item);
-      }
-    }
     return list;
   }
 
@@ -1312,13 +1294,17 @@ class _FilterBarSolid extends StatelessWidget {
           const SizedBox(width: 6),
           IconButtonSolid(
             theme: theme,
-            icon: showCounts ? AppIcons.numbers_rounded : AppIcons.numbers_outlined,
+            icon: showCounts
+                ? AppIcons.numbers_rounded
+                : AppIcons.numbers_outlined,
             onTap: onToggleCounts,
           ),
           const SizedBox(width: 6),
           IconButtonSolid(
             theme: theme,
-            icon: isGrid ? AppIcons.view_list_rounded : AppIcons.grid_view_rounded,
+            icon: isGrid
+                ? AppIcons.view_list_rounded
+                : AppIcons.grid_view_rounded,
             onTap: onToggleView,
           ),
           const SizedBox(width: 6),
@@ -1787,7 +1773,11 @@ class SearchFieldSolid extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.only(left: 12),
-              child: Icon(AppIcons.search_rounded, color: palette.muted, size: 16),
+              child: Icon(
+                AppIcons.search_rounded,
+                color: palette.muted,
+                size: 16,
+              ),
             ),
             Expanded(
               child: TextField(

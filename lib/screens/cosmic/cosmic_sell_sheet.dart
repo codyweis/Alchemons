@@ -8,8 +8,8 @@
 //   Common   →  5 gold
 //   Uncommon → 10 gold
 //   Rare     → 15 gold
-//   Mythic   → 20 gold
-//   Variant  → 15 gold
+//   Mystic   → 20 gold
+//   Variant  → 25 gold
 //   Prismatic bonus: +10 gold base
 //   Planet summon bonus: +50% base value
 //
@@ -23,6 +23,7 @@
 
 import 'dart:math';
 
+import 'package:alchemons/constants/black_market_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -56,10 +57,11 @@ int _baseGoldForRarity(String rarity) {
     case 'rare':
       return 15;
     case 'mythic':
+    case 'mystic':
     case 'legendary':
       return 20;
     case 'variant':
-      return 15;
+      return 25;
     default:
       return 5;
   }
@@ -173,7 +175,24 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       final baseGold = _baseGoldForRarity(base.rarity);
       final prismaticBonus = inst.isPrismaticSkin ? 10 : 0;
       final sourceMultiplier = inst.source == 'planet_summon' ? 1.5 : 1.0;
-      final raw = ((baseGold + prismaticBonus) * sourceMultiplier).round();
+      final natureMultiplier = BlackMarketConstants.natureValueMultiplier(
+        inst.natureId,
+        inst.natureId2,
+      );
+      final potentialMultiplier = BlackMarketConstants.potentialValueMultiplier(
+        BlackMarketConstants.averagePotential(
+          speed: inst.statSpeedPotential,
+          intelligence: inst.statIntelligencePotential,
+          strength: inst.statStrengthPotential,
+          beauty: inst.statBeautyPotential,
+        ),
+      );
+      final raw =
+          ((baseGold + prismaticBonus) *
+                  sourceMultiplier *
+                  natureMultiplier *
+                  potentialMultiplier)
+              .round();
 
       // Random ±20 % multiplier
       final multiplier = 0.8 + rng.nextDouble() * 0.4;
@@ -381,110 +400,139 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       maxChildSize: 0.95,
       expand: false,
       builder: (context, scrollController) => Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: _kBg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
         ),
-        child: Column(
-          children: [
-            // Handle
-            const SizedBox(height: 10),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+          child: Column(
+            children: [
+              Container(height: 2, color: _kCyan.withValues(alpha: 0.75)),
+              const SizedBox(height: 8),
+              Center(
+                child: Container(width: 34, height: 3, color: Colors.white24),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
-            // Title
-            const Text(
-              'COSMIC MARKET',
-              style: TextStyle(
-                color: _kCyan,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Sell cosmic & prismatic Alchemons',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Only prismatic and Alchemons acquired from planets can be sold here',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.3),
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Daily bonus banner
-            if (_dailyBonusBaseId != null) _buildDailyBonusBanner(),
-
-            // Filters row
-            _buildFilterRow(),
-
-            // Currency selector
-            _buildCurrencySelector(),
-
-            const SizedBox(height: 8),
-
-            // List
-            Expanded(
-              child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _kCyan),
-                    )
-                  : _allSellable.isEmpty
-                  ? Center(
+              // Left-aligned bar + monospace title with the exit on the right,
+              // matching the other market sheets instead of a centred stack.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: Row(
+                  children: [
+                    Container(width: 3, height: 22, color: _kCyan),
+                    const SizedBox(width: 10),
+                    Expanded(
                       child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            AppIcons.storefront,
-                            color: Colors.white.withValues(alpha: 0.2),
-                            size: 48,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            _filterPrismatic || _filterPlanet != null
-                                ? 'No matches for this filter'
-                                : 'No eligible alchemons to sell',
+                          const Text(
+                            'COSMIC MARKET',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.4),
+                              fontFamily: 'monospace',
+                              color: _kCyan,
                               fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 2,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 1),
                           Text(
-                            'Only planet-summoned or prismatic\ncreatures can be sold here.',
-                            textAlign: TextAlign.center,
+                            'Sell planet-caught and prismatic Alchemons',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.25),
-                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.45),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
                       ),
-                    )
-                  : ListView.builder(
-                      controller: scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      itemCount: _filtered.length,
-                      itemBuilder: (_, i) => _buildCard(_filtered[i]),
                     ),
-            ),
-          ],
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.of(context).pop();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: const Icon(
+                          AppIcons.close_rounded,
+                          size: 16,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Daily bonus banner
+              if (_dailyBonusBaseId != null) _buildDailyBonusBanner(),
+
+              // Filters row
+              _buildFilterRow(),
+
+              // Currency selector
+              _buildCurrencySelector(),
+
+              const SizedBox(height: 8),
+
+              // List
+              Expanded(
+                child: _loading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: _kCyan),
+                      )
+                    : _allSellable.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              AppIcons.storefront,
+                              color: Colors.white.withValues(alpha: 0.2),
+                              size: 48,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              _filterPrismatic || _filterPlanet != null
+                                  ? 'No matches for this filter'
+                                  : 'No eligible alchemons to sell',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.4),
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Only planet-summoned or prismatic\ncreatures can be sold here.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.25),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: _filtered.length,
+                        itemBuilder: (_, i) => _buildCard(_filtered[i]),
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -507,7 +555,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
             const Color(0xFF76FF03).withValues(alpha: 0.10),
           ],
         ),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(
           color: const Color(0xFF76FF03).withValues(alpha: 0.4),
         ),
@@ -1001,6 +1049,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       case 'rare':
         return const Color(0xFF42A5F5);
       case 'mythic':
+      case 'mystic':
       case 'legendary':
         return const Color(0xFFFFD740);
       case 'variant':

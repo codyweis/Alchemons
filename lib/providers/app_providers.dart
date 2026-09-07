@@ -93,13 +93,9 @@ class AppProviders extends StatelessWidget {
         // Database provider
         Provider<AlchemonsDatabase>.value(value: db),
 
-        Provider<DeviceIdentityService>(
-          create: (_) => DeviceIdentityService(),
-        ),
+        Provider<DeviceIdentityService>(create: (_) => DeviceIdentityService()),
 
-        ChangeNotifierProvider<AccountService>(
-          create: (_) => AccountService(),
-        ),
+        ChangeNotifierProvider<AccountService>(create: (_) => AccountService()),
 
         ChangeNotifierProvider<AccountSessionService>(
           create: (ctx) => AccountSessionService(

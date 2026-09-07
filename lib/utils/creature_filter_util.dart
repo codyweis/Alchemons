@@ -123,9 +123,12 @@ class CreatureFilterUtils {
       case 'rare':
         return 2;
       case 'mythic':
+      case 'mystic':
         return 3;
       case 'legendary':
         return 4;
+      case 'variant':
+        return 5;
       default:
         return 0;
     }
@@ -181,9 +184,12 @@ class CreatureFilterUtils {
       case 'rare':
         return Colors.blue.shade600;
       case 'mythic':
+      case 'mystic':
         return Colors.purple.shade600;
       case 'legendary':
         return Colors.orange.shade600;
+      case 'variant':
+        return Colors.deepOrange.shade500;
       default:
         return Colors.purple.shade600;
     }
@@ -258,7 +264,10 @@ class FilterDropdown extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.white.withValues(alpha: 0.9), themeColor.withValues(alpha: 0.9)],
+          colors: [
+            Colors.white.withValues(alpha: 0.9),
+            themeColor.withValues(alpha: 0.9),
+          ],
         ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: themeColor, width: 2),

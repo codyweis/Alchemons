@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
+import 'package:alchemons/models/stat_system.dart';
 
 typedef GuardianUpgradeValue = double Function(GuardianUpgrade upgrade);
 
@@ -121,7 +122,7 @@ CosmicSurvivalCompanionStats deriveCosmicSurvivalCompanionStats({
 
   var cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
   var critChance = ((0.05 + strPow * 0.32) * critMult).clamp(0.05, 0.55);
-  var baseRange = 100.0 + intel * 28.0;
+  var baseRange = 100.0 + AlchemonStatSystem.legacyGameplayRating(intel) * 28.0;
 
   double upgrade(GuardianUpgrade u) => guardianUpgradeValue?.call(u) ?? 0.0;
 

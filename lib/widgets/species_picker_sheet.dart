@@ -150,7 +150,11 @@ class _SpeciesPickerSheetState extends State<SpeciesPickerSheet> {
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
             child: Row(
               children: [
-                Icon(AppIcons.filter_list_rounded, size: 12, color: t.textMuted),
+                Icon(
+                  AppIcons.filter_list_rounded,
+                  size: 12,
+                  color: t.textMuted,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   '${filteredSpeciesData.length} result${filteredSpeciesData.length == 1 ? '' : 's'}',

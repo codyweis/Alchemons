@@ -551,14 +551,15 @@ class SceneGame extends FlameGame with ScaleDetector {
       return;
     }
 
-    final comp = _ShipBeaconComponent(
-      onTap: onTap,
-      flyIn: flyIn,
-      onCrashLanded: onCrashLanded,
-    )
-      ..anchor = Anchor.center
-      ..position = Vector2.zero()
-      ..priority = 200;
+    final comp =
+        _ShipBeaconComponent(
+            onTap: onTap,
+            flyIn: flyIn,
+            onCrashLanded: onCrashLanded,
+          )
+          ..anchor = Anchor.center
+          ..position = Vector2.zero()
+          ..priority = 200;
     anchor.add(comp);
     _shipBeacon = comp;
     _pendingShipSpawnId = null;
@@ -1608,9 +1609,7 @@ class _ShipBeaconComponent extends PositionComponent with TapCallbacks {
       );
     }
 
-    final enginePulse = descending
-        ? 1.0
-        : 0.85 + 0.15 * sin(_elapsed * 9);
+    final enginePulse = descending ? 1.0 : 0.85 + 0.15 * sin(_elapsed * 9);
 
     // Engine glow
     final glowPaint = Paint()

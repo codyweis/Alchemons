@@ -49,7 +49,8 @@ class EffectSnapshotCache {
   /// with small rasters.
   static const int maxEntries = 24;
 
-  final LinkedHashMap<String, ui.Image> _lru = LinkedHashMap<String, ui.Image>();
+  final LinkedHashMap<String, ui.Image> _lru =
+      LinkedHashMap<String, ui.Image>();
   int _bytes = 0;
 
   /// Bytes currently retained by baked rasters.
@@ -80,8 +81,7 @@ class EffectSnapshotCache {
     _lru[key] = image;
     _bytes += _sizeOf(image);
 
-    while (_lru.length > maxEntries ||
-        (_bytes > maxBytes && _lru.length > 1)) {
+    while (_lru.length > maxEntries || (_bytes > maxBytes && _lru.length > 1)) {
       final oldest = _lru.keys.first;
       final evicted = _lru.remove(oldest)!;
       _bytes -= _sizeOf(evicted);

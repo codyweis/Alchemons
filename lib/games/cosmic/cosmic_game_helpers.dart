@@ -743,6 +743,87 @@ void _drawIntelligenceHaloCanvas(
   }
 }
 
+void _drawWavebreakerCrownCanvas(
+  Canvas canvas,
+  double radius,
+  double elapsed,
+  double opacity,
+) {
+  final spin = elapsed * 2 * pi / 7.2;
+  final pulse = 0.94 + 0.07 * sin(spin * 2);
+  canvas.drawCircle(
+    Offset.zero,
+    radius * 1.18,
+    Paint()
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFF57E7F2).withValues(alpha: 0.13 * opacity),
+              const Color(0xFFE4C16A).withValues(alpha: 0.10 * opacity),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.63, 1.0],
+          ).createShader(
+            Rect.fromCircle(center: Offset.zero, radius: radius * 1.18),
+          ),
+  );
+
+  void ring(double rr, double rotation, double width, Color color) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.70 * opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = max(1.0, width)
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 10; i++) {
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset.zero, radius: rr),
+        rotation + i * 2 * pi / 10,
+        pi * 0.13,
+        false,
+        paint,
+      );
+    }
+  }
+
+  ring(
+    radius * 0.94 * pulse,
+    spin * 0.34,
+    radius * 0.065,
+    const Color(0xFFE4C16A),
+  );
+  ring(radius * 0.73, -spin * 0.22, radius * 0.035, const Color(0xFF57E7F2));
+
+  for (var i = 0; i < 5; i++) {
+    final a = -pi / 2 + spin * 0.48 + i * 2 * pi / 5;
+    final point = Offset(cos(a) * radius * 1.04, sin(a) * radius * 1.04);
+    canvas.drawCircle(
+      point,
+      max(1.2, radius * 0.07),
+      Paint()
+        ..color = (i.isEven ? const Color(0xFF57E7F2) : const Color(0xFFE4C16A))
+            .withValues(alpha: 0.88 * opacity)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.04),
+    );
+  }
+
+  final y = -radius * 0.78;
+  final crown = Path()
+    ..moveTo(-radius * 0.34, y + radius * 0.14)
+    ..lineTo(-radius * 0.20, y - radius * 0.09)
+    ..lineTo(0, y + radius * 0.05)
+    ..lineTo(radius * 0.20, y - radius * 0.09)
+    ..lineTo(radius * 0.34, y + radius * 0.14);
+  canvas.drawPath(
+    crown,
+    Paint()
+      ..color = const Color(0xFFFFE49A).withValues(alpha: 0.90 * opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = max(1.2, radius * 0.055)
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round,
+  );
+}
+
 void _drawAlchemyEffectCanvas({
   required Canvas canvas,
   required String effect,
@@ -804,6 +885,9 @@ void _drawAlchemyEffectCanvas({
       break;
     case 'blood_aura':
       _drawBloodAuraCanvas(canvas, effectRadius, elapsed, opacity);
+      break;
+    case 'wavebreaker_crown':
+      _drawWavebreakerCrownCanvas(canvas, effectRadius, elapsed, opacity);
       break;
     default:
       break;

@@ -1,6 +1,5 @@
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
@@ -331,7 +330,7 @@ class FeedingStageBuilders {
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Text(
-            'No available enhancement specimens.\nThey might be locked or already selected.',
+            'No available feeding specimens.\nThey might be locked or already selected.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: t.textSecondary,
@@ -356,19 +355,6 @@ class FeedingStageBuilders {
         final inst = candidates[i];
         final isSelected = selectedFodder.contains(inst.instanceId);
         final baseCreature = repo.getCreatureById(inst.baseId);
-        final transfer =
-            CreatureInstanceServiceFeeding.analyzeEnhancementMaterial(inst);
-        final statLabels = {
-          'speed': 'SPD',
-          'intelligence': 'INT',
-          'strength': 'STR',
-          'beauty': 'BEA',
-        };
-        final highestLabel =
-            statLabels[transfer.highestStatName] ?? transfer.highestStatName;
-        final lowestLabel =
-            statLabels[transfer.lowestStatName] ?? transfer.lowestStatName;
-
         return FastLongPressDetector(
           onTap: () => onFodderToggle(inst.instanceId),
           onLongPress: baseCreature == null
@@ -441,30 +427,14 @@ class FeedingStageBuilders {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          highestLabel,
-                          style: TextStyle(
-                            color: t.success,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          lowestLabel,
-                          style: TextStyle(
-                            color: t.danger,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      'XP FEED',
+                      style: TextStyle(
+                        color: t.success,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
+                      ),
                     ),
                   ],
                 ),

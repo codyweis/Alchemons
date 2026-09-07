@@ -231,8 +231,8 @@ class FireEmbersPainter extends CustomPainter {
         final flicker = 0.85 + math.sin(phase * 8 * math.pi) * 0.15;
         final opacity = fadeOpacity * 0.85 * flicker;
 
-        final color = (i % 2 == 0 ? primaryColor : secondaryColor).withValues(alpha: 
-          opacity,
+        final color = (i % 2 == 0 ? primaryColor : secondaryColor).withValues(
+          alpha: opacity,
         );
         emberPaint.color = color;
         canvas.drawCircle(Offset(x, y), emberSize, emberPaint);

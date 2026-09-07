@@ -7,14 +7,25 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/services/creature_repository.dart';
 
+/// One stat, read as two lines rather than a bar plus a cramped column.
+///
+/// The old right-hand block was 92px wide holding "BASE 70 • ENH 0/10", so it
+/// wrapped and left the separator dangling at the end of a line. Splitting the
+/// row gives every number its own column, and the track now shows Enhancement
+/// ranks — the one quantity the numbers cannot express as progress — instead
+/// of restating the Potential figure printed beside it.
 class StatPotentialBar extends StatelessWidget {
   // ignore: unused_field
   final FactionTheme? theme;
   final String statName;
   final double currentValue;
   final double potential;
+  final int baseStat;
+  final int enhancementRank;
+  final Color accent;
 
   const StatPotentialBar({
     super.key,
@@ -22,192 +33,131 @@ class StatPotentialBar extends StatelessWidget {
     required this.statName,
     required this.currentValue,
     required this.potential,
+    required this.baseStat,
+    required this.enhancementRank,
+    required this.accent,
   });
 
   @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
     final ft = FT(fc);
-    final isDark = context.read<FactionTheme>().isDark;
-    final currentPercent = (currentValue / 5.0).clamp(0.0, 1.0);
-    final potentialPercent = (potential / 5.0).clamp(0.0, 1.0);
-    final roomForGrowth = potential - currentValue;
-    final isNearMax = roomForGrowth < 0.3;
-    final isPerfectPotential = potential >= 4.8;
-    final trackColor = isDark ? fc.bg3 : fc.bg0.withValues(alpha: 0.06);
-    final trackBorderColor = isDark ? fc.borderDim : fc.borderMid;
-    final potentialZoneColor = isPerfectPotential
-        ? FC.purple.withValues(alpha: isDark ? 0.18 : 0.14)
-        : fc.amberBright.withValues(alpha: isDark ? 0.10 : 0.18);
-    final currentFill = [
-      fc.amberGlow,
-      isDark ? fc.amber.withValues(alpha: 0.72) : fc.amber,
-    ];
-    final markerColor = isPerfectPotential
-        ? FC.purple.withValues(alpha: isDark ? 0.85 : 0.70)
-        : fc.amberBright.withValues(alpha: isDark ? 0.90 : 0.75);
+    final currentRating = AlchemonStatSystem.displayRating(currentValue);
+    final potentialRating = AlchemonStatSystem.normalizePotential(potential);
+    final isPerfectPotential = potentialRating >= 95;
+    const maxRank = AlchemonStatSystem.maxEnhancementRank;
+    final enhanceMaxed = enhancementRank >= maxRank;
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Scale-to-fit rather than overflow: the longest label
-        // (INTELLIGENCE) was running straight into the bar, because this box
-        // was fixed at 112 with overflow left visible.
-        SizedBox(
-          width: 116,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                statName.toUpperCase(),
-                style: ft.label,
-                maxLines: 1,
-                softWrap: false,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    statName.toUpperCase(),
+                    style: ft.label,
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 8),
+            Text(
+              '$currentRating',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: accent,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            SizedBox(
+              width: 54,
+              child: Text(
+                'P$potentialRating',
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: isPerfectPotential ? FC.purple : fc.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final availableWidth = constraints.maxWidth;
-              // The track Container draws a 1px border, so its content box is
-              // 2px narrower. Sizing the fills off the full width overflowed
-              // by exactly that whenever a stat sat at full potential.
-              final fillWidth = (availableWidth - 2).clamp(
-                0.0,
-                double.infinity,
-              );
-              final markerLeft = (availableWidth * potentialPercent - 1).clamp(
-                0.0,
-                (availableWidth - 2).clamp(0.0, double.infinity),
-              );
-              return Stack(
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            SizedBox(
+              width: 62,
+              child: Text(
+                'BASE $baseStat',
+                maxLines: 1,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: fc.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Row(
                 children: [
-                  Container(
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: trackColor,
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: trackBorderColor),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(1),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: fillWidth * potentialPercent,
-                            color: potentialZoneColor,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Inset by the same 1px so the current fill lines up with
-                  // the potential zone behind it instead of sitting a pixel
-                  // proud of it on the left.
-                  Padding(
-                    padding: const EdgeInsets.all(1),
-                    child: SizedBox(
-                      height: 14,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(1),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: fillWidth * currentPercent,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(colors: currentFill),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (potentialPercent > 0 && potentialPercent < 1)
-                    Positioned(
-                      left: markerLeft,
-                      top: 0,
-                      bottom: 0,
+                  for (var i = 0; i < maxRank; i++) ...[
+                    if (i > 0) const SizedBox(width: 2),
+                    Expanded(
                       child: Container(
-                        width: 2,
+                        height: 6,
                         decoration: BoxDecoration(
-                          color: markerColor,
-                          borderRadius: BorderRadius.circular(1),
+                          color: i < enhancementRank
+                              ? (enhanceMaxed ? fc.amberBright : accent)
+                              : fc.bg3,
+                          borderRadius: BorderRadius.circular(1.5),
+                          border: Border.all(
+                            color: i < enhancementRank
+                                ? Colors.transparent
+                                : fc.borderDim,
+                            width: 0.5,
+                          ),
                         ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-        ),
-
-        const SizedBox(width: 8),
-
-        // Wide enough for the worst case ("10.0 / 10.0"). At 70 the potential
-        // was clipped clean off, so every row read "2.5 /" with no cap shown.
-        SizedBox(
-          width: 92,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  textBaseline: TextBaseline.alphabetic,
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  children: [
-                    Text(
-                      currentValue.toStringAsFixed(1),
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: fc.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      ' / ${potential.toStringAsFixed(1)}',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: fc.textMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 66,
+              child: Text(
+                enhanceMaxed ? 'ENH MAX' : 'ENH $enhancementRank/$maxRank',
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: enhanceMaxed
+                      ? fc.amberBright
+                      : enhancementRank > 0
+                      ? accent
+                      : fc.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              if (isNearMax)
-                Text(
-                  'Near Max',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: fc.amberBright,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-              else
-                Text(
-                  '+${roomForGrowth.toStringAsFixed(1)}',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: fc.textMuted,
-                    fontSize: 10,
-                  ),
-                ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
@@ -230,10 +180,10 @@ class _PotentialSummary extends StatelessWidget {
         instance.statBeautyPotential;
 
     final totalCurrent =
-        instance.statSpeed +
-        instance.statIntelligence +
-        instance.statStrength +
-        instance.statBeauty;
+        AlchemonStatSystem.displayRating(instance.statSpeed) +
+        AlchemonStatSystem.displayRating(instance.statIntelligence) +
+        AlchemonStatSystem.displayRating(instance.statStrength) +
+        AlchemonStatSystem.displayRating(instance.statBeauty);
 
     final potentials = {
       'Speed': instance.statSpeedPotential,
@@ -246,8 +196,8 @@ class _PotentialSummary extends StatelessWidget {
       (a, b) => a.value > b.value ? a : b,
     );
 
-    final isHighPotential = totalPotential >= 18.0;
-    final isLegendaryPotential = totalPotential >= 19.0;
+    final isHighPotential = totalPotential >= 340.0;
+    final isLegendaryPotential = totalPotential >= 380.0;
 
     final tierLabel = isLegendaryPotential
         ? 'LEGENDARY'
@@ -284,7 +234,7 @@ class _PotentialSummary extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('GROWTH POTENTIAL', style: ft.label),
+              Text('GENETIC POTENTIAL', style: ft.label),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
@@ -310,12 +260,12 @@ class _PotentialSummary extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Total: ${totalCurrent.toStringAsFixed(1)} / ${totalPotential.toStringAsFixed(1)}',
+            'Combined Power: $totalCurrent   •   Genetic Score: ${totalPotential.round()} / 400',
             style: ft.body.copyWith(fontSize: 12),
           ),
           const SizedBox(height: 4),
           Text(
-            'Best Gene: ${highestPotential.key} (${highestPotential.value.toStringAsFixed(1)})',
+            'Best Gene: ${highestPotential.key} (${highestPotential.value.round()} / 100)',
             style: TextStyle(
               fontFamily: 'monospace',
               color: fc.amberBright,
@@ -344,8 +294,6 @@ class StatPotentialBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final ft = FT(fc);
     if (instanceId == null) {
       return const SizedBox.shrink();
     }
@@ -358,62 +306,54 @@ class StatPotentialBlock extends StatelessWidget {
         }
 
         final instance = snap.data!;
+        final repo = context.read<CreatureCatalog>();
+        final species = repo.getCreatureById(instance.baseId);
+        final base =
+            species?.baseStats ??
+            const SpeciesBaseStats(
+              speed: 60,
+              intelligence: 60,
+              strength: 60,
+              beauty: 60,
+            );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Info note
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: fc.amberDim.withValues(alpha: .08),
-                borderRadius: BorderRadius.circular(2),
-                border: Border.all(color: fc.amber.withValues(alpha: .2)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(AppIcons.info_outline, size: 12, color: fc.amber),
-                      const SizedBox(width: 6),
-                      Text('UNDERSTANDING POTENTIAL', style: ft.sectionTitle),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Each creature has a genetic potential cap for every stat. Feeding can increase stats up to their potential, but never beyond. Breed creatures with high potential to create powerful offspring!',
-                    style: ft.body.copyWith(fontSize: 12, height: 1.4),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
             StatPotentialBar(
               statName: 'Speed',
+              accent: const Color(0xFF60A5FA),
               currentValue: instance.statSpeed,
               potential: instance.statSpeedPotential,
+              baseStat: base.speed,
+              enhancementRank: instance.statSpeedEnhancement,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 14),
             StatPotentialBar(
               statName: 'Intelligence',
+              accent: const Color(0xFFC084FC),
               currentValue: instance.statIntelligence,
               potential: instance.statIntelligencePotential,
+              baseStat: base.intelligence,
+              enhancementRank: instance.statIntelligenceEnhancement,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 14),
             StatPotentialBar(
               statName: 'Strength',
+              accent: const Color(0xFFF87171),
               currentValue: instance.statStrength,
               potential: instance.statStrengthPotential,
+              baseStat: base.strength,
+              enhancementRank: instance.statStrengthEnhancement,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 14),
             StatPotentialBar(
               statName: 'Beauty',
+              accent: const Color(0xFFF9A8D4),
               currentValue: instance.statBeauty,
               potential: instance.statBeautyPotential,
+              baseStat: base.beauty,
+              enhancementRank: instance.statBeautyEnhancement,
             ),
 
             const SizedBox(height: 12),

@@ -24,5 +24,23 @@ void main() {
         isTrue,
       );
     });
+
+    test('wild Potential scanner follows the owned Potential analyzer', () {
+      expect(ConstellationCatalog.wildPotentialAnalyzer.prerequisites, [
+        ConstellationCatalog.potentialAnalyzer.id,
+      ]);
+      expect(
+        ConstellationCatalog.wildPotentialAnalyzer.canUnlock({
+          ConstellationCatalog.geneAnalyzer.id,
+        }),
+        isFalse,
+      );
+      expect(
+        ConstellationCatalog.wildPotentialAnalyzer.canUnlock({
+          ConstellationCatalog.potentialAnalyzer.id,
+        }),
+        isTrue,
+      );
+    });
   });
 }

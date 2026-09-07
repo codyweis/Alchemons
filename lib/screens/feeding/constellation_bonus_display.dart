@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
-/// Displays active constellation bonuses in the feeding screen
+/// Displays active constellation bonuses around feeding and Enhancement.
 class ConstellationBonusDisplay extends StatelessWidget {
   final ConstellationEffectsService effects;
   final FactionTheme theme;
@@ -19,14 +19,14 @@ class ConstellationBonusDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final strengthBoost = effects.getStatBoostMultiplier('strength');
-    final intBoost = effects.getStatBoostMultiplier('intelligence');
-    final beautyBoost = effects.getStatBoostMultiplier('beauty');
-    final speedBoost = effects.getStatBoostMultiplier('speed');
+    final strengthBonus = effects.getCombatStatBonusPercent('strength');
+    final intBonus = effects.getCombatStatBonusPercent('intelligence');
+    final beautyBonus = effects.getCombatStatBonusPercent('beauty');
+    final speedBonus = effects.getCombatStatBonusPercent('speed');
     final xpBoost = effects.getXpBoostMultiplier();
 
     final hasAnyStatBoost =
-        strengthBoost > 0 || intBoost > 0 || beautyBoost > 0 || speedBoost > 0;
+        strengthBonus > 0 || intBonus > 0 || beautyBonus > 0 || speedBonus > 0;
     final hasXpBoost = xpBoost > 1.0;
     final hasAnyBoost = hasAnyStatBoost || hasXpBoost;
 
@@ -45,7 +45,10 @@ class ConstellationBonusDisplay extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.primary.withValues(alpha: 0.3), width: 1.5),
+        border: Border.all(
+          color: theme.primary.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: theme.primary.withValues(alpha: 0.1),
@@ -66,7 +69,11 @@ class ConstellationBonusDisplay extends StatelessWidget {
                   color: theme.primary.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(AppIcons.auto_awesome, color: theme.primary, size: 16),
+                child: Icon(
+                  AppIcons.auto_awesome,
+                  color: theme.primary,
+                  size: 16,
+                ),
               ),
               const SizedBox(width: 8),
               Text(
@@ -100,7 +107,7 @@ class ConstellationBonusDisplay extends StatelessWidget {
           if (hasAnyStatBoost) ...[
             const SizedBox(height: 10),
             Text(
-              'Stat Enhancement Bonuses',
+              'Combat Stat Bonuses',
               style: TextStyle(
                 color: theme.textMuted,
                 fontSize: 12,
@@ -112,29 +119,18 @@ class ConstellationBonusDisplay extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: [
-                if (strengthBoost > 0)
+                if (strengthBonus > 0)
                   _buildBonusPill(
                     'STR',
-                    strengthBoost,
-                    fodderCount,
+                    strengthBonus,
                     AppIcons.fitness_center,
                   ),
-                if (intBoost > 0)
-                  _buildBonusPill(
-                    'INT',
-                    intBoost,
-                    fodderCount,
-                    AppIcons.psychology,
-                  ),
-                if (beautyBoost > 0)
-                  _buildBonusPill(
-                    'BEA',
-                    beautyBoost,
-                    fodderCount,
-                    AppIcons.auto_awesome,
-                  ),
-                if (speedBoost > 0)
-                  _buildBonusPill('SPD', speedBoost, fodderCount, AppIcons.speed),
+                if (intBonus > 0)
+                  _buildBonusPill('INT', intBonus, AppIcons.psychology),
+                if (beautyBonus > 0)
+                  _buildBonusPill('BEA', beautyBonus, AppIcons.auto_awesome),
+                if (speedBonus > 0)
+                  _buildBonusPill('SPD', speedBonus, AppIcons.speed),
               ],
             ),
           ],
@@ -156,19 +152,16 @@ class ConstellationBonusDisplay extends StatelessWidget {
     );
   }
 
-  Widget _buildBonusPill(
-    String label,
-    double bonusPerFodder,
-    int count,
-    IconData icon,
-  ) {
-    final totalBonus = bonusPerFodder * count;
+  Widget _buildBonusPill(String label, int bonusPercent, IconData icon) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: theme.primary.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.primary.withValues(alpha: 0.3), width: 1),
+        border: Border.all(
+          color: theme.primary.withValues(alpha: 0.3),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -185,24 +178,13 @@ class ConstellationBonusDisplay extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            '+${totalBonus.toStringAsFixed(3)}',
+            '+$bonusPercent%',
             style: TextStyle(
               color: theme.primary,
               fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),
-          if (count > 1) ...[
-            const SizedBox(width: 3),
-            Text(
-              '×$count',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -215,7 +197,10 @@ class ConstellationBonusDisplay extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.primary.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.primary.withValues(alpha: 0.3), width: 1),
+        border: Border.all(
+          color: theme.primary.withValues(alpha: 0.3),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -261,8 +246,8 @@ class ConstellationBonusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (statName != null) {
-      final boost = effects.getStatBoostMultiplier(statName!);
-      if (boost <= 0) return const SizedBox.shrink();
+      final bonus = effects.getCombatStatBonusPercent(statName!);
+      if (bonus <= 0) return const SizedBox.shrink();
 
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -276,7 +261,7 @@ class ConstellationBonusBadge extends StatelessWidget {
             Icon(AppIcons.auto_awesome, size: 8, color: theme.primary),
             const SizedBox(width: 2),
             Text(
-              '+${(boost * 100).toStringAsFixed(1)}%',
+              '+$bonus%',
               style: TextStyle(
                 color: theme.primary,
                 fontSize: 12,
@@ -296,7 +281,10 @@ class ConstellationBonusBadge extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.primary.withValues(alpha: 0.2),
           shape: BoxShape.circle,
-          border: Border.all(color: theme.primary.withValues(alpha: 0.4), width: 1),
+          border: Border.all(
+            color: theme.primary.withValues(alpha: 0.4),
+            width: 1,
+          ),
         ),
       ),
     );

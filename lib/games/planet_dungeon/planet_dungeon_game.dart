@@ -41,6 +41,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_sky.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:flame/components.dart' show Anchor;
 import 'package:flame/game.dart';
 import 'package:flame/sprite.dart';
@@ -391,8 +392,8 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Fired once, with the instance id, when an Alchemon falls in a raid.
   ///
-  /// A raid down is permanent for the run; the host also burns the
-  /// Alchemon's stamina so the loss outlives the attempt.
+  /// A raid down is permanent for the current run. Breeding stamina is never
+  /// changed by combat.
   final void Function(String instanceId)? onRaidCreatureDown;
 
   /// A raid party wipe. Elsewhere a wipe resets the run to the entrance with
@@ -403,9 +404,9 @@ class PlanetDungeonGame extends FlameGame {
   int _raidPhaseIndex = 0;
 
   /// The campaign's difficulty clock: how many OTHER planets' guardians have
-  /// already fallen (0..16). Creature stats run 0–5.0, so the curve must
-  /// stretch from "first dungeon, mid-bred trio" to "seventeenth dungeon,
-  /// near-perfect team": enemies and ESPECIALLY guardians scale with it.
+  /// already fallen (0..16). The curve stretches from a first-dungeon,
+  /// mid-trained trio to a seventeenth-dungeon, high-Potential enhanced team:
+  /// enemies and especially guardians scale with it.
   final int clearedGuardianCount;
 
   /// Guardian/wisp HP swells with progress (final guardian ≈ 3.9×). Was
@@ -415,11 +416,11 @@ class PlanetDungeonGame extends FlameGame {
   /// past two minutes. Measured at ×0.18·n: a near-perfect trio spends ~70s
   /// on the seventeenth mystic, and a mid one cannot finish it — which is
   /// the campaign statement the curve was always making.
-  double get progressHpMul => 1.0 + 0.18 * clearedGuardianCount;
+  double get progressHpMul => isRaid ? 1.0 : 1.0 + 0.18 * clearedGuardianCount;
 
   /// Damage climbs more gently (final ≈ 2.9×) — lethality should come from
   /// the longer fight, not one-shots.
-  double get progressDmgMul => 1.0 + 0.12 * clearedGuardianCount;
+  double get progressDmgMul => isRaid ? 1.0 : 1.0 + 0.12 * clearedGuardianCount;
 
   /// Lull strikes needed to fell the guardian on a FRESH save.
   ///
@@ -4220,17 +4221,33 @@ class PlanetDungeonGame extends FlameGame {
           // damage numbers are sized for survival HP pools and round to
           // nothing against dungeon companions): a wisp dive takes ~9%,
           // the Roc ~17%. Horn shields soak it first.
-          final fraction = (0.045 + enemy.damage * 0.005)
-              .clamp(0.05, 0.2)
-              .toDouble();
-          var dmg = max(1, (comp.maxHp * fraction).round());
-          if (comp.shieldHp > 0) {
-            final absorbed = min(comp.shieldHp, dmg);
-            comp.shieldHp -= absorbed;
-            dmg -= absorbed;
+          final int dmg;
+          if (isRaid && isGuardian) {
+            // Tier damage must remain distinct and defensive investment must
+            // matter. The old percentage-only formula saturated its 20% cap
+            // even at Level 1, making every raid tier hit identically.
+            final cfg = raid!;
+            final pressure =
+                comp.maxHp * cfg.guardianHitFraction + enemy.damage;
+            final mitigated = pressure * 100 / (100 + comp.physDef);
+            dmg = max(1, mitigated.round());
+          } else {
+            final fraction = (0.045 + enemy.damage * 0.005)
+                .clamp(0.05, 0.2)
+                .toDouble();
+            dmg = max(1, (comp.maxHp * fraction).round());
           }
-          if (dmg > 0) {
-            comp.currentHp = (comp.currentHp - dmg).clamp(0, comp.maxHp);
+          var remainingDamage = dmg;
+          if (comp.shieldHp > 0) {
+            final absorbed = min(comp.shieldHp, remainingDamage);
+            comp.shieldHp -= absorbed;
+            remainingDamage -= absorbed;
+          }
+          if (remainingDamage > 0) {
+            comp.currentHp = (comp.currentHp - remainingDamage).clamp(
+              0,
+              comp.maxHp,
+            );
             // Lightning horn reactive guard: damage taken during the dash
             // or storm brew is absorbed into the coming chain discharge.
             if (comp.member.family.toLowerCase() == 'horn' &&
@@ -4238,7 +4255,7 @@ class PlanetDungeonGame extends FlameGame {
                 (comp.chargeTimer > 0 ||
                     comp.windUpTimer > 0 ||
                     comp.hornPostDashWindUpTimer > 0)) {
-              comp.hornLightningAbsorbed += dmg.toDouble();
+              comp.hornLightningAbsorbed += remainingDamage.toDouble();
             }
             // A landed dive on the echo-carrier tears the echo loose — it
             // drifts back to its resting place (carrying is a commitment).
@@ -4540,9 +4557,13 @@ class PlanetDungeonGame extends FlameGame {
             p.sourceSlotIndex != null) {
           final src = _combatCompanionForSlot(p.sourceSlotIndex!);
           if (src != null && src.member.family.toLowerCase() == 'pip') {
-            final splashScale =
-                (1.0 + (src.member.statBeauty.clamp(0.5, 8.0) - 3.0) * 0.10)
-                    .clamp(0.85, 1.35);
+            final effectiveBeauty = AlchemonStatSystem.legacyGameplayRating(
+              src.member.statBeauty,
+            );
+            final splashScale = (1.0 + (effectiveBeauty - 3.0) * 0.10).clamp(
+              0.85,
+              1.35,
+            );
             _damageEnemiesNear(
               enemy.position,
               160 * splashScale,
@@ -5380,12 +5401,9 @@ class PlanetDungeonGame extends FlameGame {
     final frac = g.maxHp <= 0 ? 0.0 : (g.hp / g.maxHp).clamp(0.0, 1.0);
     if (frac > cfg.addPhaseThresholds[_raidPhaseIndex]) return;
     _raidPhaseIndex++;
-    final hpScale =
-        CosmicSurvivalBalance.enemyWaveHpScale(7) *
-        (1.0 + 0.22 * clearedGuardianCount);
+    final hpScale = CosmicSurvivalBalance.enemyWaveHpScale(7) * cfg.addHpMul;
     final damageScale =
-        CosmicSurvivalBalance.enemyWaveDamageScale(7) *
-        (1.0 + 0.07 * clearedGuardianCount);
+        CosmicSurvivalBalance.enemyWaveDamageScale(7) * cfg.addDmgMul;
     final rng = Random(combatEnemies.length * 31 + _raidPhaseIndex);
     for (var i = 0; i < 4; i++) {
       final angle = (i / 4) * pi * 2 + rng.nextDouble() * 0.8;
@@ -6336,8 +6354,13 @@ class PlanetDungeonGame extends FlameGame {
         if (e.hp <= 0) e.isDead = true;
         // Horn+Plant: root survivors in place.
         if (element == 'Plant' && !e.isDead) {
-          final rootScale = (0.80 + (comp.member.statIntelligence - 1) * 0.20)
-              .clamp(0.80, 1.80);
+          final effectiveIntelligence = AlchemonStatSystem.legacyGameplayRating(
+            comp.member.statIntelligence,
+          );
+          final rootScale = (0.80 + (effectiveIntelligence - 1) * 0.20).clamp(
+            0.80,
+            1.80,
+          );
           final dur = 3.0 * rootScale;
           e.hornPlantRootTimer = max(e.hornPlantRootTimer, dur);
           e.slowTimer = max(e.slowTimer, dur);
@@ -6609,7 +6632,9 @@ class PlanetDungeonGame extends FlameGame {
     double min = 0.82,
     double max = 1.22,
   }) {
-    final clamped = stat.clamp(0.5, 8.0);
+    final clamped = stat > AlchemonStatSystem.legacyCombatCeiling
+        ? AlchemonStatSystem.legacyGameplayRating(stat)
+        : stat.clamp(0.5, AlchemonStatSystem.legacyCombatCeiling);
     return (1.0 + (clamped - 3.0) * perPoint).clamp(min, max).toDouble();
   }
 
@@ -7768,8 +7793,11 @@ class PlanetDungeonGame extends FlameGame {
           creature.position - (comp.pendingChargeOrigin ?? creature.position);
       // Absorb-to-blast conversion scales with Beauty (survival's brew
       // formula): 1.4 × statScale(0.85..1.40).
+      final effectiveBeauty = AlchemonStatSystem.legacyGameplayRating(
+        comp.member.statBeauty,
+      );
       final absorbMul =
-          1.4 * (1.0 + (comp.member.statBeauty - 3.0) * 0.10).clamp(0.85, 1.40);
+          1.4 * (1.0 + (effectiveBeauty - 3.0) * 0.10).clamp(0.85, 1.40);
       for (final p in pending) {
         p.position = p.position + originDelta;
         // Lightning discharge: absorbed damage pumps the chain zone.
@@ -8574,7 +8602,21 @@ class PlanetDungeonGame extends FlameGame {
     _guardianStrikeCooldown = 1.5;
     final e = _guardianEnemy;
     if (e != null && !e.isDead) {
-      e.hp -= e.maxHp / guardianStrikesNeeded;
+      if (isRaid) {
+        // Raid lull strikes are stat-scaled contributions, not fixed chunks
+        // of maximum HP. Fixed fractions let under-geared squads bypass even
+        // an 18x Level-3 health pool in little over a minute.
+        final index = creatures.indexOf(a);
+        final comp = index >= 0 && index < combatCompanions.length
+            ? combatCompanions[index]
+            : null;
+        final attackPower = comp == null
+            ? 1.0
+            : comp.physAtk + comp.elemAtk * 0.5;
+        e.hp -= attackPower * raid!.lullStrikeMultiplier;
+      } else {
+        e.hp -= e.maxHp / guardianStrikesNeeded;
+      }
       e.hitFlash = 0.3;
       if (e.hp <= 0) e.isDead = true; // _updateCombat banks the star
     } else {

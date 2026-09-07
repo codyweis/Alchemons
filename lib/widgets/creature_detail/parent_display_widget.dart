@@ -22,7 +22,8 @@ class ParentCard extends StatelessWidget {
   final bool isExpanded;
   final VoidCallback onToggle;
 
-  const ParentCard({super.key, 
+  const ParentCard({
+    super.key,
     this.theme,
     required this.snap,
     required this.parentKey,

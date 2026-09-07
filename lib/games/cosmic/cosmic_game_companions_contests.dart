@@ -7,6 +7,7 @@ double _familyDefMultiplier(String family) => family == 'horn' ? 1.20 : 1.0;
 extension CosmicGameCompanionsAndContests on CosmicGame {
   void summonCompanion(
     CosmicPartyMember member, {
+    required int slotIndex,
     double hpFraction = 1.0,
     double? initialSpecialCooldown,
   }) {
@@ -14,12 +15,16 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     // always check this (UI normally does), so enforce it here.
     if (battleRing.inBattle) return;
 
-    // If there's already a companion deployed, recall it first so the
-    // newly summoned companion replaces it (UI previously handled this,
-    // but other callers may not). We don't wait for the return animation
-    // — that mirrors the existing immediate-swap behavior.
-    if (activeCompanion != null) {
-      returnCompanion();
+    // Already active in this slot? Recall it instead of stacking.
+    if (activeCompanions.containsKey(slotIndex)) {
+      returnCompanion(slotIndex);
+      return;
+    }
+
+    // At capacity? Refuse — the UI is expected to prevent summoning past
+    // maxActiveCompanions (mirrors cosmic survival's behavior).
+    if (activeCompanions.length >= CosmicGame.maxActiveCompanions) {
+      return;
     }
 
     // Build compact companion stats for cosmic mode, where enemies have no DEF
@@ -96,7 +101,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       speciesScale: specScale,
     );
     companion.primeSpecialCooldown(savedCooldown: initialSpecialCooldown);
-    activeCompanion = companion;
+    activeCompanions[slotIndex] = companion;
 
     // Attach a demo effect instance based on loaded prototypes (one per companion).
     try {
@@ -105,24 +110,31 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
             _loadedEffectPrototypes[member.level %
                 _loadedEffectPrototypes.length];
         final inst = EffectRegistry.create(proto.toJson());
-        activeCompanion?.addEffect(inst);
+        activeCompanions[slotIndex]?.addEffect(inst);
       }
     } catch (_) {}
 
     // Load animated sprite for the companion
-    _loadCompanionSprite(member);
+    _loadCompanionSprite(member, slotIndex);
   }
 
-  Future<void> _loadCompanionSprite(CosmicPartyMember member) async {
+  Future<void> _loadCompanionSprite(
+    CosmicPartyMember member,
+    int slotIndex,
+  ) async {
     final sheet = member.spriteSheet;
     if (sheet == null) {
-      _companionTicker = null;
-      _companionVisuals = null;
+      _companionTickers.remove(slotIndex);
+      _companionVisualsBySlot.remove(slotIndex);
       return;
     }
 
     try {
       final image = await images.load(sheet.path);
+      final current = activeCompanions[slotIndex];
+      if (current == null || current.member.instanceId != member.instanceId) {
+        return;
+      }
       final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
       final anim = SpriteAnimation.fromFrameData(
         image,
@@ -134,29 +146,41 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
           loop: true,
         ),
       );
-      _companionTicker = anim.createTicker();
-      _companionVisuals = member.spriteVisuals;
+      _companionTickers[slotIndex] = anim.createTicker();
+      _companionVisualsBySlot[slotIndex] = member.spriteVisuals;
+      final visuals = _companionVisualsBySlot[slotIndex];
       debugPrint(
-        'Companion visuals loaded: alchemy=${_companionVisuals?.alchemyEffect} variant=${_companionVisuals?.variantFaction} tint=${_companionVisuals?.tint}',
+        'Companion visuals loaded: alchemy=${visuals?.alchemyEffect} variant=${visuals?.variantFaction} tint=${visuals?.tint}',
       );
-      // Fit sprite into ~48px box, then apply species + 30% scale
-      final desiredSize = 48.0;
+      // Fit sprite into ~48px box, then apply species + 30% scale (sized up
+      // another 30% again per design request).
+      final desiredSize = 62.4;
       final sx = desiredSize / sheet.frameSize.x;
       final sy = desiredSize / sheet.frameSize.y;
-      final specScale = activeCompanion?.speciesScale ?? 1.3;
-      _companionSpriteScale =
-          min(sx, sy) * (_companionVisuals?.scale ?? 1.0) * specScale;
+      final specScale = activeCompanions[slotIndex]?.speciesScale ?? 1.3;
+      _companionSpriteScales[slotIndex] =
+          min(sx, sy) * (visuals?.scale ?? 1.0) * specScale;
     } catch (e) {
       debugPrint('Failed to load companion sprite: ${sheet.path} - $e');
-      _companionTicker = null;
-      _companionVisuals = null;
+      _companionTickers.remove(slotIndex);
+      _companionVisualsBySlot.remove(slotIndex);
+      _companionSpriteScales.remove(slotIndex);
     }
   }
 
-  void returnCompanion() {
-    if (activeCompanion != null) {
-      activeCompanion!.returning = true;
-      activeCompanion!.returnTimer = 0.6; // fade out over 0.6s
+  void returnCompanion([int? slotIndex]) {
+    if (slotIndex != null) {
+      final comp = activeCompanions[slotIndex];
+      if (comp != null) {
+        comp.returning = true;
+        comp.returnTimer = 0.6; // fade out over 0.6s
+      }
+      return;
+    }
+    // No slot specified: recall every active companion (legacy behavior).
+    for (final comp in activeCompanions.values) {
+      comp.returning = true;
+      comp.returnTimer = 0.6;
     }
   }
 
@@ -294,7 +318,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         return;
       }
       _ringOpponentFallbackSprite = Sprite(image);
-      final desiredSize = 48.0;
+      final desiredSize = 62.4;
       final sx = desiredSize / image.width;
       final sy = desiredSize / image.height;
       final specScale = battleRingOpponent?.speciesScale ?? 1.3;
@@ -346,7 +370,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       debugPrint(
         'Ring opponent visuals loaded: alchemy=${_ringOpponentVisuals?.alchemyEffect} variant=${_ringOpponentVisuals?.variantFaction} tint=${_ringOpponentVisuals?.tint}',
       );
-      final desiredSize = 48.0;
+      final desiredSize = 62.4;
       final sx = desiredSize / sheet.frameSize.x;
       final sy = desiredSize / sheet.frameSize.y;
       final specScale = battleRingOpponent?.speciesScale ?? 1.3;
@@ -476,7 +500,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     if (activeCompanion != null &&
         activeCompanion!.isAlive &&
         !activeCompanion!.returning) {
-      returnCompanion();
+      returnCompanion(_primaryCompanionSlot);
     }
     onBattleRingCancelled?.call();
   }
@@ -890,7 +914,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       0.0,
       _ringOpponentSpriteRetryTimer - dt,
     );
-    _companionTicker?.update(dt);
+    final primarySlot = _primaryCompanionSlot;
+    if (primarySlot != null) _companionTickers[primarySlot]?.update(dt);
     _ringOpponentTicker?.update(dt);
 
     // Retry opponent sprite load in-case an async load raced or failed.
@@ -1632,7 +1657,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         debugPrint(
           'Garrison sprite visuals[$index]: alchemy=${g.visuals?.alchemyEffect} variant=${g.visuals?.variantFaction} tint=${g.visuals?.tint}',
         );
-        final desiredSize = 40.0;
+        final desiredSize = 52.0;
         final sx = desiredSize / sheet.frameSize.x;
         final sy = desiredSize / sheet.frameSize.y;
         g.spriteScale =

@@ -244,20 +244,6 @@ class _PartySlot extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                // Stamina indicator
-                if (inst.staminaBars < inst.staminaMax)
-                  Positioned(
-                    top: 2,
-                    left: 2,
-                    right: 2,
-                    child: LinearProgressIndicator(
-                      value: inst.staminaBars / inst.staminaMax,
-                      backgroundColor: Colors.red.withValues(alpha: 0.3),
-                      valueColor: const AlwaysStoppedAnimation(Colors.green),
-                      minHeight: 3,
-                    ),
-                  ),
               ],
             ),
           ),

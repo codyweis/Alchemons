@@ -29,7 +29,8 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
   static bool _isSpaceItem(String key) =>
       key.contains('harvest') ||
       key.contains('portal_key') ||
-      key == InvKeys.staminaPotion;
+      key == InvKeys.staminaPotion ||
+      key == InvKeys.wildFusion;
 
   static String _invDisplayName(String key) => switch (key) {
     InvKeys.portalKeyVolcanic => 'Volcanic Key',
@@ -44,6 +45,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
     InvKeys.harvesterStdArcane => 'Harvester – Arcane',
     InvKeys.harvesterGuaranteed => 'Stabilized Harvester',
     InvKeys.staminaPotion => 'Stamina Elixir',
+    InvKeys.wildFusion => 'Wild Fusion',
     _ => key.split('.').last,
   };
 
@@ -65,12 +67,15 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
     InvKeys.harvesterStdArcane => 'Standard device. Chance-based.',
     InvKeys.harvesterGuaranteed => 'Guaranteed capture device.',
     InvKeys.staminaPotion =>
-      'Fully restores an Alchemon\'s stamina. Use from your creature list.',
+      'Fully restores breeding stamina. Use from your creature list.',
+    InvKeys.wildFusion =>
+      'Single-use catalyst for a fusion attempt with a wild Alchemon.',
     _ => 'A mysterious item from the cosmos.',
   };
 
   static Color _invColor(String key) {
     if (key == InvKeys.staminaPotion) return const Color(0xFF00E676);
+    if (key == InvKeys.wildFusion) return const Color(0xFF60A5FA);
     if (key.contains('volcanic')) return const Color(0xFFFF5722);
     if (key.contains('oceanic')) return const Color(0xFF2196F3);
     if (key.contains('verdant')) return const Color(0xFF4CAF50);
@@ -84,6 +89,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
     if (key.contains('portal_key')) return AppIcons.vpn_key_rounded;
     if (key.contains('harvest')) return AppIcons.catching_pokemon_rounded;
     if (key == InvKeys.staminaPotion) return AppIcons.local_drink_rounded;
+    if (key == InvKeys.wildFusion) return AppIcons.merge_type_rounded;
     return AppIcons.category_rounded;
   }
 

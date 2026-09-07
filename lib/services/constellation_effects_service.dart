@@ -24,74 +24,7 @@ class ConstellationEffectsService extends ChangeNotifier {
 
   // ==================== BATTLE/COMBAT TREE EFFECTS ====================
 
-  /// Calculate total stat boost from unlocked combat skills
-  /// Returns the multiplier to apply when enhancing (feeding)
-  double getStatBoostMultiplier(String statName) {
-    double boost = 0.0;
-
-    switch (statName.toLowerCase()) {
-      case 'strength':
-      case 'atk':
-        // Each strength boost skill adds 0.005
-        if (_unlockedSkillIds.contains('combat_atk_boost_1')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_atk_boost_2')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_atk_boost_3')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_atk_boost_4')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_atk_boost_5')) boost += 0.005;
-        break;
-
-      case 'intelligence':
-      case 'int':
-        // Each intelligence boost skill adds 0.005
-        if (_unlockedSkillIds.contains('combat_int_boost_1')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_int_boost_2')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_int_boost_3')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_int_boost_4')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_int_boost_5')) boost += 0.005;
-        break;
-
-      case 'beauty':
-        // Each beauty boost skill adds 0.005
-        if (_unlockedSkillIds.contains('combat_beauty_boost_1')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_beauty_boost_2')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_beauty_boost_3')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_beauty_boost_4')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_beauty_boost_5')) boost += 0.005;
-        break;
-
-      case 'speed':
-        // Each speed boost skill adds 0.005
-        if (_unlockedSkillIds.contains('combat_speed_boost_1')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_speed_boost_2')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_speed_boost_3')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_speed_boost_4')) boost += 0.005;
-        if (_unlockedSkillIds.contains('combat_speed_boost_5')) boost += 0.005;
-        break;
-    }
-
-    return boost;
-  }
-
-  /// Apply constellation boosts to stat gains during enhancement
-  Map<String, double> applyStatBoosts(Map<String, double> baseGains) {
-    final boosted = <String, double>{};
-
-    baseGains.forEach((statName, baseValue) {
-      final boost = getStatBoostMultiplier(statName);
-      // Add the boost as a flat bonus to the gain
-      boosted[statName] = baseValue + boost;
-    });
-
-    return boosted;
-  }
-
-  /// Get total possible boost for a stat (for UI display)
-  double getMaxStatBoost(String statName) {
-    // Each stat has 5 levels, each adding 0.005
-    return 5 * 0.005; // = 0.025 max
-  }
-
-  /// Get current stat boost level (0-5)
+  /// Get the number of unlocked combat-infusion ranks for a stat (0-5).
   int getStatBoostLevel(String statName) {
     int level = 0;
 
@@ -134,6 +67,20 @@ class ConstellationEffectsService extends ChangeNotifier {
     return level;
   }
 
+  /// Each unlocked rank adds one percentage point to the matching combat stat.
+  int getCombatStatBonusPercent(String statName) =>
+      getStatBoostLevel(statName).clamp(0, 5);
+
+  double getCombatStatMultiplier(String statName) =>
+      1.0 + (getCombatStatBonusPercent(statName) / 100.0);
+
+  /// Apply the account-wide constellation bonus at the combat boundary.
+  ///
+  /// The value is intentionally not written back to the creature instance:
+  /// constellation bonuses are account progression, not inheritable genetics.
+  double applyCombatStatBonus(String statName, num value) =>
+      value.toDouble() * getCombatStatMultiplier(statName);
+
   // ==================== BREEDER TREE EFFECTS ====================
 
   /// Check if lineage analyzer is unlocked
@@ -154,6 +101,11 @@ class ConstellationEffectsService extends ChangeNotifier {
   /// Check if potential analyzer is unlocked
   bool hasPotentialAnalyzer() {
     return _unlockedSkillIds.contains('breeder_potential_analyzer');
+  }
+
+  /// Check if Potential ratings are visible during wild encounters.
+  bool hasWildPotentialAnalyzer() {
+    return _unlockedSkillIds.contains('breeder_wild_potential_analyzer');
   }
 
   /// Get total gestation time reduction (percentage)

@@ -100,7 +100,7 @@ class _FeedingScreenState extends State<FeedingScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Enhancement dismantles spare Alchemons of the same species into elemental essence, then channels that essence into another specimen to increase its XP and stat growth.',
+                'Training dismantles spare Alchemons of the same species into elemental essence, then channels that essence into another specimen to increase its XP and level-based Power.',
                 style: TextStyle(
                   color: t.textSecondary,
                   fontSize: 12,
@@ -129,7 +129,7 @@ class _FeedingScreenState extends State<FeedingScreen>
                 title: 'Step 3 – Select Elemental Enhancements',
                 body:
                     'Choose other specimens of the same species to convert into elemental material. '
-                    'They will be permanently lost in exchange for XP and stat growth.',
+                    'They will be permanently lost in exchange for XP. Level gains automatically recalculate the target\'s Power.',
               ),
               const SizedBox(height: 8),
               Text(
@@ -224,13 +224,16 @@ class _FeedingScreenState extends State<FeedingScreen>
                     theme: theme,
                     onFeedMons: () {
                       HapticFeedback.mediumImpact();
-                      setState(() => _entryMode = _EnhancementEntryMode.feedMons);
+                      setState(
+                        () => _entryMode = _EnhancementEntryMode.feedMons,
+                      );
                     },
                     onFeedPowerups: () async {
                       HapticFeedback.mediumImpact();
                       await Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => const AlchemicalPowerupFeedingScreen(),
+                          builder: (_) =>
+                              const AlchemicalPowerupFeedingScreen(),
                         ),
                       );
                     },
@@ -243,126 +246,125 @@ class _FeedingScreenState extends State<FeedingScreen>
       );
     }
 
-          return PopScope(
-            canPop: _canLeaveScreen,
-            onPopInvokedWithResult: (didPop, _) {
-              if (didPop || !mounted || _canLeaveScreen) return;
-              HapticFeedback.lightImpact();
-              _handleBack();
-            },
-            child: Scaffold(
-              floatingActionButtonLocation:
-                  FloatingActionButtonLocation.centerDocked,
-              floatingActionButton: _currentStage == 'species'
-                  ? FloatingCloseButton(
-                      size: 50,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.of(context).maybePop();
-                      },
+    return PopScope(
+      canPop: _canLeaveScreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || !mounted || _canLeaveScreen) return;
+        HapticFeedback.lightImpact();
+        _handleBack();
+      },
+      child: Scaffold(
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: _currentStage == 'species'
+            ? FloatingCloseButton(
+                size: 50,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.of(context).maybePop();
+                },
+                theme: theme,
+              )
+            : null,
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [t.bg1, t.bg0],
+                ),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    StageHeader(
                       theme: theme,
-                    )
-                  : null,
-              backgroundColor: Colors.transparent,
-              body: Stack(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [t.bg1, t.bg0],
-                      ),
+                      stage: _currentStage,
+                      selectedCount: _selectedFodder.length,
+                      onBack: _handleBack,
+                      onOpenAllInstances: () {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          _showAllInstances = true;
+                          _targetSpeciesId = null;
+                          _targetInstanceId = null;
+                          _searchController.clear();
+                          _searchQuery = '';
+                        });
+                      },
                     ),
-                    child: SafeArea(
-                      bottom: false,
-                      child: Column(
-                        children: [
-                          StageHeader(
+                    if (_isPickingFodder)
+                      StreamBuilder<CreatureInstance?>(
+                        stream: context
+                            .read<AlchemonsDatabase>()
+                            .creatureDao
+                            .watchInstanceById(_targetInstanceId!),
+                        builder: (context, snapshot) {
+                          final targetInstance = snapshot.data;
+                          final repo = context.read<CreatureCatalog>();
+                          final targetCreature = targetInstance == null
+                              ? null
+                              : repo.getCreatureById(targetInstance.baseId);
+
+                          return FeedTargetPanel(
                             theme: theme,
-                            stage: _currentStage,
-                            selectedCount: _selectedFodder.length,
-                            onBack: _handleBack,
-                            onOpenAllInstances: () {
-                              HapticFeedback.lightImpact();
-                              setState(() {
-                                _showAllInstances = true;
-                                _targetSpeciesId = null;
-                                _targetInstanceId = null;
-                                _searchController.clear();
-                                _searchQuery = '';
-                              });
-                            },
-                          ),
-                          if (_isPickingFodder)
-                            StreamBuilder<CreatureInstance?>(
-                              stream: context
-                                  .read<AlchemonsDatabase>()
-                                  .creatureDao
-                                  .watchInstanceById(_targetInstanceId!),
-                              builder: (context, snapshot) {
-                                final targetInstance = snapshot.data;
-                                final repo = context.read<CreatureCatalog>();
-                                final targetCreature = targetInstance == null
-                                    ? null
-                                    : repo.getCreatureById(targetInstance.baseId);
-
-                                return FeedTargetPanel(
-                                  theme: theme,
-                                  targetInstance: targetInstance,
-                                  targetCreature: targetCreature,
-                                  preview: _preview,
-                                  shouldAnimate: _shouldAnimateEnhancement,
-                                  preFeedLevel: _preFeedLevel,
-                                  preFeedXp: _preFeedXp,
-                                );
-                              },
-                            ),
-                          const SizedBox(height: 10),
-                          Expanded(
-                            child: StreamBuilder<List<CreatureInstance>>(
-                              stream: db.creatureDao.watchAllInstances(),
-                              builder: (context, snap) {
-                                final instances = snap.data ?? [];
-                                return _buildStageContent(theme, instances);
-                              },
-                            ),
-                          ),
-                          if (_isPickingFodder)
-                            StreamBuilder<CreatureInstance?>(
-                              stream: context
-                                  .read<AlchemonsDatabase>()
-                                  .creatureDao
-                                  .watchInstanceById(_targetInstanceId!),
-                              builder: (context, snapshot) {
-                                final targetInstance = snapshot.data;
-                                final repo = context.read<CreatureCatalog>();
-                                final targetCreature = targetInstance == null
-                                    ? null
-                                    : repo.getCreatureById(targetInstance.baseId);
-
-                                return FeedFooter(
-                                  theme: theme,
-                                  targetInstance: targetInstance,
-                                  targetCreature: targetCreature,
-                                  preview: _preview,
-                                  busy: _busy,
-                                  selectedCount: _selectedFodder.length,
-                                  onEnhance: _doFeed,
-                                  shouldAnimate: _shouldAnimateEnhancement,
-                                  preFeedLevel: _preFeedLevel,
-                                  preFeedXp: _preFeedXp,
-                                );
-                              },
-                            ),
-                        ],
+                            targetInstance: targetInstance,
+                            targetCreature: targetCreature,
+                            preview: _preview,
+                            shouldAnimate: _shouldAnimateEnhancement,
+                            preFeedLevel: _preFeedLevel,
+                            preFeedXp: _preFeedXp,
+                          );
+                        },
+                      ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: StreamBuilder<List<CreatureInstance>>(
+                        stream: db.creatureDao.watchAllInstances(),
+                        builder: (context, snap) {
+                          final instances = snap.data ?? [];
+                          return _buildStageContent(theme, instances);
+                        },
                       ),
                     ),
-                  ),
-                ],
+                    if (_isPickingFodder)
+                      StreamBuilder<CreatureInstance?>(
+                        stream: context
+                            .read<AlchemonsDatabase>()
+                            .creatureDao
+                            .watchInstanceById(_targetInstanceId!),
+                        builder: (context, snapshot) {
+                          final targetInstance = snapshot.data;
+                          final repo = context.read<CreatureCatalog>();
+                          final targetCreature = targetInstance == null
+                              ? null
+                              : repo.getCreatureById(targetInstance.baseId);
+
+                          return FeedFooter(
+                            theme: theme,
+                            targetInstance: targetInstance,
+                            targetCreature: targetCreature,
+                            preview: _preview,
+                            busy: _busy,
+                            selectedCount: _selectedFodder.length,
+                            onEnhance: _doFeed,
+                            shouldAnimate: _shouldAnimateEnhancement,
+                            preFeedLevel: _preFeedLevel,
+                            preFeedXp: _preFeedXp,
+                          );
+                        },
+                      ),
+                  ],
+                ),
               ),
             ),
-          );
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildStageContent(
@@ -622,9 +624,9 @@ class _EnhancementEntryView extends StatelessWidget {
                     child: _EntryCard(
                       theme: theme,
                       title: 'Sacrifice Alchemons',
-                      tagline: 'XP + Stat Growth',
+                      tagline: 'XP + Level Power',
                       subtitle:
-                          'Sacrifice spare specimens of the same species to increase levels and improve stat growth.',
+                          'Sacrifice spare specimens of the same species to gain levels and recalculate Power from Base and Potential.',
                       accent: const Color(0xFFFFB649),
                       onTap: onFeedMons,
                     ),
@@ -633,10 +635,10 @@ class _EnhancementEntryView extends StatelessWidget {
                   Expanded(
                     child: _EntryCard(
                       theme: theme,
-                      title: 'Alchemical Powerups',
-                      tagline: 'Precision Stat Tuning',
+                      title: 'Stat Infusion',
+                      tagline: 'Enhancement + Potential',
                       subtitle:
-                          'Use alchemical powerups to push individual stats closer to their full potential.',
+                          'Spend Power Orbs on +3% Enhancement ranks, or use rare Potential Souls to raise a selected inheritable Potential.',
                       accent: const Color(0xFF78B7FF),
                       onTap: onFeedPowerups,
                     ),

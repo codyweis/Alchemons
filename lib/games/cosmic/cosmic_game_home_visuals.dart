@@ -494,8 +494,7 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     final segments = 12;
 
     for (var i = 0; i < count; i++) {
-      final baseAngle =
-          i * pi * 2 / count + sin(t * 0.3 + i) * 0.06;
+      final baseAngle = i * pi * 2 / count + sin(t * 0.3 + i) * 0.06;
       final vineLen = vr * lenMul * (1.0 + 0.25 * sin(t * 0.5 + i * 1.7));
 
       final vinePath = Path();
@@ -560,7 +559,8 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
             leafAngles[li] +
             pi / 2 * (li.isEven ? 1 : -1) +
             sin(t * 2 + i + li) * 0.3;
-        final leafSize = _scaledEffectPx(vr, 6.0, min: 3.0, max: 13.0) *
+        final leafSize =
+            _scaledEffectPx(vr, 6.0, min: 3.0, max: 13.0) *
             (1.0 + 0.15 * sin(t * 1.2 + li * 1.5));
 
         canvas.save();
@@ -595,7 +595,14 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       // Glowing tip bud
       final tipGlow = 0.35 + 0.25 * sin(t * 2 + i * 1.5);
       final budR = _scaledEffectPx(vr, 2.8, min: 1.6, max: 6.0);
-      _drawGlow(canvas, prev, budR, const Color(0xFFA5D6A7), tipGlow, budR * 2.0);
+      _drawGlow(
+        canvas,
+        prev,
+        budR,
+        const Color(0xFFA5D6A7),
+        tipGlow,
+        budR * 2.0,
+      );
       canvas.drawCircle(
         prev,
         budR * 0.55,
@@ -665,7 +672,12 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       if (twinkle < 0.2) continue;
 
       final alpha = (twinkle - 0.2) * 0.6 * intensity;
-      final glintR = _scaledEffectPx(vr, 2.0 + twinkle * 1.5, min: 1.0, max: 5.0);
+      final glintR = _scaledEffectPx(
+        vr,
+        2.0 + twinkle * 1.5,
+        min: 1.0,
+        max: 5.0,
+      );
 
       // Star-cross glint
       final crossLen = glintR * 2.5;
@@ -787,8 +799,7 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       'Intense' => 0.25,
       _ => 0.15,
     };
-    final moonR = switch (customizationOptions['blood_moon.size'] ??
-        'Medium') {
+    final moonR = switch (customizationOptions['blood_moon.size'] ?? 'Medium') {
       'Small' => vr * 0.10,
       'Large' => vr * 0.22,
       _ => vr * 0.15,
@@ -844,7 +855,6 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
           [0.0, 0.5, 1.0],
         ),
     );
-
   }
 
   void _drawPoisonCloud(Canvas canvas, Offset pos, double vr, double t) {
@@ -919,8 +929,7 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
         final jetDist =
             _scaledEffectPx(vr, 5.0, min: 3.0, max: 12.0) +
             j * _scaledEffectPx(vr, 7.0, min: 4.0, max: 16.0) +
-            _scaledEffectPx(vr, 3.0, min: 1.5, max: 8.0) *
-                sin(t * 4 + i + j);
+            _scaledEffectPx(vr, 3.0, min: 1.5, max: 8.0) * sin(t * 4 + i + j);
         final jc = Offset(bx + cos(a) * jetDist, by + sin(a) * jetDist);
         final jr =
             _scaledEffectPx(vr, 3.5, min: 2.0, max: 8.0) +
@@ -1072,7 +1081,8 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
       'Fast' => 1.2,
       _ => 0.6,
     };
-    final distGap = switch (customizationOptions['orbiting_moon.distance'] ?? 'Mid') {
+    final distGap = switch (customizationOptions['orbiting_moon.distance'] ??
+        'Mid') {
       'Close' => 4.0,
       'Far' => vr * 2.5,
       _ => vr * 0.8,
@@ -1110,7 +1120,6 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
           [0.0, 0.5, 1.0],
         ),
     );
-
   }
 
   // ── Planetary Rings — tilted orbital disc with sparkles ────────────────────
@@ -1178,8 +1187,7 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
           canvas.drawCircle(
             Offset(sx, sy),
             _scaledEffectPx(vr, 1.2, min: 0.9, max: 2.6) +
-                _scaledEffectPx(vr, 0.4, min: 0.2, max: 0.8) *
-                    sin(t * 4 + i),
+                _scaledEffectPx(vr, 0.4, min: 0.2, max: 0.8) * sin(t * 4 + i),
             Paint()..color = sparkColor.withValues(alpha: sparkAlpha),
           );
         }

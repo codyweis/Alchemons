@@ -75,7 +75,8 @@ class CultivationDialogButton extends StatelessWidget {
         : (destructive
               ? palette.accentWash(baseColor)
               : palette.surfaceMutedFill());
-    final resolvedForegroundColor = foregroundColor ??
+    final resolvedForegroundColor =
+        foregroundColor ??
         (filled ? Colors.white : (destructive ? tokens.danger : palette.ink));
     final accentColorOnFill = filled ? Colors.white : baseColor;
 
