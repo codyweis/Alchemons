@@ -4,6 +4,8 @@ library;
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/games/shared/enemy_action.dart';
+
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
@@ -26,6 +28,7 @@ void main() {
   String? labelFont;
   setUpAll(() async {
     const candidates = [
+      'C:/Windows/Fonts/arial.ttf',
       '/System/Library/Fonts/Supplemental/Arial.ttf',
       '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
     ];
@@ -187,6 +190,45 @@ void main() {
     enemy.position = centre;
     drawSurvivalEnemy(canvas: canvas, enemy: enemy, time: t);
   };
+
+  testWidgets('heavy enemy attack phases', (tester) async {
+    await sheetOf(
+      tester,
+      'heavy_enemy_actions',
+      'HEAVY ENEMIES - attack performance',
+      [
+        for (final tier in [EnemyTier.brute, EnemyTier.colossus])
+          for (final phase in [
+            EnemyActionPhase.idle,
+            EnemyActionPhase.windUp,
+            EnemyActionPhase.commit,
+            EnemyActionPhase.recover,
+          ])
+            (
+              tier.name.toUpperCase(),
+              phase.name,
+              (Canvas canvas, Offset centre, double time) {
+                final enemy = make(
+                  tier: tier,
+                  element: 'Fire',
+                  radius: tier == EnemyTier.brute ? 22 : 30,
+                );
+                enemy.position = centre;
+                enemy.action.phase = phase;
+                final def = kEnemyActions[tier]!;
+                final duration = switch (phase) {
+                  EnemyActionPhase.windUp => def.windUp,
+                  EnemyActionPhase.commit => def.commit,
+                  EnemyActionPhase.recover => def.recover,
+                  _ => 0.0,
+                };
+                enemy.action.timer = duration * (1 - time / 1.6);
+                drawSurvivalEnemy(canvas: canvas, enemy: enemy, time: time);
+              },
+            ),
+      ],
+    );
+  }, skip: outDir == null);
 
   testWidgets('enemy tiers', (tester) async {
     await sheetOf(

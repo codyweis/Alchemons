@@ -54,6 +54,12 @@ class _DatabaseTypingAnimationState extends State<DatabaseTypingAnimation>
           ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOut)),
         )
         .toList();
+
+    // Page views build some children lazily. If the trigger is already true
+    // when a child is first created, begin its reveal immediately.
+    if (widget.startAnimation) {
+      _startTypingSequence();
+    }
   }
 
   @override

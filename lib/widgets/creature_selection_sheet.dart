@@ -307,7 +307,7 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                               ),
                               child: Icon(
                                 _showFavoritesOnly
-                                    ? AppIcons.star_rounded
+                                    ? AppIcons.star_filled
                                     : AppIcons.star_outline_rounded,
                                 size: 20,
                                 color: _showFavoritesOnly

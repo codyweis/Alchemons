@@ -61,13 +61,13 @@ class SideDockFloating extends StatelessWidget {
 
         const SizedBox(height: 10),
 
-        // BATTLE
+        // SURVIVAL
         lockWrap(
           locked: lockNonField,
           child: _FloatingSideButton(
             theme: theme,
             size: 80,
-            label: 'Battle',
+            label: 'Survival',
             assetPath: 'assets/images/ui/trialsicon.png',
             onTap: onBattle,
           ),

@@ -185,7 +185,7 @@ class CosmicGame extends FlameGame with PanDetector {
   final void Function(GalaxyWhirl whirl)? onWhirlComplete;
   final void Function(SpacePOI poi)? onPOIDiscovered;
   final void Function(SpacePOI? poi)? onNearMarket;
-  final VoidCallback? onCompanionAutoReturned;
+  final void Function(CosmicPartyMember member)? onCompanionAutoReturned;
   final void Function(CosmicPartyMember member)? onCompanionDied;
   final VoidCallback? onBattleRingCancelled;
   final void Function(CosmicContestArena? arena)? onNearContestArena;
@@ -421,16 +421,42 @@ class CosmicGame extends FlameGame with PanDetector {
   double _boostTrailVisual = 0.0;
   bool _boostTrailWasActive = false;
 
-  // Active companion (summoned party alchemon)
-  CosmicCompanion? activeCompanion;
+  // Active companions (summoned party alchemons), keyed by party slot index.
+  // Multiple can be summoned simultaneously, up to [maxActiveCompanions].
+  final Map<int, CosmicCompanion> activeCompanions = {};
+  static const int maxActiveCompanions = 3;
+
+  /// The "primary" active companion (first summoned), used by systems that
+  /// only make sense for a single target (boss set-pieces, ring duels, heal
+  /// beams). Kept for compatibility with those single-target systems.
+  CosmicCompanion? get activeCompanion =>
+      activeCompanions.isNotEmpty ? activeCompanions.values.first : null;
+  int? get _primaryCompanionSlot =>
+      activeCompanions.isEmpty ? null : activeCompanions.keys.first;
   final List<Projectile> companionProjectiles = [];
   final List<_BeamFx> _beamFx = [];
   final List<_ActiveWingBeam> _activeWingBeams = [];
   final List<_ActiveWingBeam> _pendingWingBeams = [];
   final Map<int, double> _wingFrostBuildup = {};
-  SpriteAnimationTicker? _companionTicker;
-  SpriteVisuals? _companionVisuals;
-  double _companionSpriteScale = 1.0;
+  final Map<int, SpriteAnimationTicker> _companionTickers = {};
+  final Map<int, SpriteVisuals?> _companionVisualsBySlot = {};
+  final Map<int, double> _companionSpriteScales = {};
+  Iterable<CosmicCompanion> get _livingActiveCompanions =>
+      activeCompanions.values.where((comp) => comp.isAlive && !comp.returning);
+
+  CosmicCompanion? _nearestActiveCompanion(Offset position) {
+    CosmicCompanion? nearest;
+    var nearestDistance = double.infinity;
+    for (final comp in _livingActiveCompanions) {
+      final distance = (comp.position - position).distanceSquared;
+      if (distance < nearestDistance) {
+        nearest = comp;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
+  }
+
   bool _companionTethered = true;
   static const double _companionTetherAnchorFollowSpeed = 5.5;
   static const double _companionTetherReturnSpeed = 260.0;
@@ -442,7 +468,11 @@ class CosmicGame extends FlameGame with PanDetector {
   set companionTethered(bool value) {
     if (_companionTethered == value) return;
     _companionTethered = value;
-    if (value) _enforceCompanionTether(immediate: true);
+    if (value) {
+      for (final comp in activeCompanions.values) {
+        _enforceCompanionTether(comp, immediate: true);
+      }
+    }
   }
 
   final Random _rng = Random();
@@ -537,6 +567,7 @@ class CosmicGame extends FlameGame with PanDetector {
   bool prismaticRewardClaimed = false;
   double _prismaticCelebTimer = -1; // ≥ 0 while celebration running
   Offset? _prismaticCelebCenter; // orbit centre during celebration
+  int? _prismaticCelebCompanionSlot;
   static const double _prismaticCelebDuration = 3.5; // seconds
   VoidCallback? onPrismaticRewardClaimed;
 
@@ -1200,10 +1231,13 @@ class CosmicGame extends FlameGame with PanDetector {
     comp.anchorPosition = pos;
   }
 
-  void _enforceCompanionTether({bool immediate = false, double dt = 0}) {
-    if (!companionTethered || activeCompanion == null) return;
+  void _enforceCompanionTether(
+    CosmicCompanion comp, {
+    bool immediate = false,
+    double dt = 0,
+  }) {
+    if (!companionTethered) return;
 
-    final comp = activeCompanion!;
     final shipPos = ship.pos;
     comp.anchorPosition = immediate
         ? shipPos
@@ -1428,10 +1462,10 @@ class CosmicGame extends FlameGame with PanDetector {
   }
 
   CosmicCompanion? _sourceCompanion(Projectile p) {
-    final comp = activeCompanion;
-    if (comp == null || !comp.isAlive) return null;
-    if (p.sourceSlotIndex == null) return null;
-    return comp.member.slotIndex == p.sourceSlotIndex ? comp : null;
+    final slot = p.sourceSlotIndex;
+    if (slot == null) return null;
+    final comp = activeCompanions[slot];
+    return comp != null && comp.isAlive ? comp : null;
   }
 
   _GarrisonCreature? _sourceGarrison(Projectile p) {
@@ -2189,10 +2223,10 @@ class CosmicGame extends FlameGame with PanDetector {
 
     if (d.healPerTick > 0) {
       shipHealth = min(shipMaxHealth, shipHealth + d.healPerTick);
-      if (activeCompanion != null && activeCompanion!.isAlive) {
-        activeCompanion!.currentHp = min(
-          activeCompanion!.maxHp,
-          activeCompanion!.currentHp + d.healPerTick.round(),
+      for (final comp in _livingActiveCompanions) {
+        comp.currentHp = min(
+          comp.maxHp,
+          comp.currentHp + d.healPerTick.round(),
         );
       }
     }
@@ -3281,21 +3315,24 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── update companion (summoned party alchemon) ──
-    if (activeCompanion != null) {
-      final comp = activeCompanion!;
+    final companionsToRemove = <int>[];
+    for (final entry in activeCompanions.entries.toList()) {
+      final slot = entry.key;
+      final comp = entry.value;
       comp.life += dt;
       comp.invincibleTimer = (comp.invincibleTimer - dt).clamp(0.0, 10.0);
 
       // Advance sprite animation
-      _companionTicker?.update(dt);
+      _companionTickers[slot]?.update(dt);
 
       // Returning fade-out
       if (comp.returning) {
         comp.returnTimer -= dt;
         if (comp.returnTimer <= 0) {
-          activeCompanion = null;
-          _companionTicker = null;
-          _companionVisuals = null;
+          companionsToRemove.add(slot);
+          _companionTickers.remove(slot);
+          _companionVisualsBySlot.remove(slot);
+          _companionSpriteScales.remove(slot);
         }
       } else if (comp.currentHp <= 0) {
         // Companion died — auto return
@@ -3306,9 +3343,10 @@ class CosmicGame extends FlameGame with PanDetector {
           false,
         );
         final diedMember = comp.member;
-        activeCompanion = null;
-        _companionTicker = null;
-        _companionVisuals = null;
+        companionsToRemove.add(slot);
+        _companionTickers.remove(slot);
+        _companionVisualsBySlot.remove(slot);
+        _companionSpriteScales.remove(slot);
         onCompanionDied?.call(diedMember);
       } else {
         // Auto-return if companion is far off screen (skip during ring battle)
@@ -3321,7 +3359,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 dy > size.y / (2 * cameraZoom) + margin)) {
           comp.returning = true;
           comp.returnTimer = 0.6;
-          onCompanionAutoReturned?.call();
+          onCompanionAutoReturned?.call(comp.member);
         } else {
           final ringDuelActive =
               battleRing.inBattle &&
@@ -3345,7 +3383,7 @@ class CosmicGame extends FlameGame with PanDetector {
           if (!ringDuelActive && !comp.isCharging) {
             // Magnet/tether mode is a command, not a suggestion: it keeps
             // the companion's home anchor pinned near the ship.
-            _enforceCompanionTether(dt: dt);
+            _enforceCompanionTether(comp, dt: dt);
 
             final fromAnchor = comp.position - comp.anchorPosition;
             final anchorDist = fromAnchor.distance;
@@ -3383,13 +3421,13 @@ class CosmicGame extends FlameGame with PanDetector {
                     (target.dy - comp.position.dy) * pullStrength,
               );
             }
-            _enforceCompanionTether(dt: dt);
+            _enforceCompanionTether(comp, dt: dt);
           }
 
           // Auto-attack nearest enemy
           comp.basicCooldown = (comp.basicCooldown - dt).clamp(0.0, 100.0);
           comp.specialCooldown = (comp.specialCooldown - dt).clamp(0.0, 100.0);
-          _enforceCompanionTether(dt: dt);
+          _enforceCompanionTether(comp, dt: dt);
 
           // ── Horn charge: rush toward target, AoE on arrival ──
           if (comp.isCharging) {
@@ -3442,7 +3480,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 comp.effectiveSpecialCooldown * 0.5,
               );
             }
-            _enforceCompanionTether(dt: dt);
+            _enforceCompanionTether(comp, dt: dt);
           }
 
           // ── Kin blessing: heal over time ──
@@ -3545,7 +3583,7 @@ class CosmicGame extends FlameGame with PanDetector {
               final step = chaseSpeed * dt;
               comp.position +=
                   (toTarget / distToTarget) * min(step, distToTarget);
-              _enforceCompanionTether(dt: dt);
+              _enforceCompanionTether(comp, dt: dt);
             }
             // Advance anchor with companion while chasing so the wander
             // soft-pull doesn't oppose combat movement.
@@ -3703,6 +3741,9 @@ class CosmicGame extends FlameGame with PanDetector {
           }
         }
       }
+    }
+    for (final slot in companionsToRemove) {
+      activeCompanions.remove(slot);
     }
 
     // ── update battle ring opponent ──
@@ -4235,10 +4276,10 @@ class CosmicGame extends FlameGame with PanDetector {
               fallbackDuration: 1.5,
             );
             final ampRadius = radius * 1.4;
-            final comp = activeCompanion;
-            if (comp != null &&
-                comp.isAlive &&
-                (comp.position - projectile.position).distance <= ampRadius) {
+            for (final comp in _livingActiveCompanions) {
+              if ((comp.position - projectile.position).distance > ampRadius) {
+                continue;
+              }
               comp.damageAmpTimer = max(comp.damageAmpTimer, ampDuration);
               comp.damageAmpMultiplier = max(comp.damageAmpMultiplier, 2.4);
             }
@@ -4376,11 +4417,11 @@ class CosmicGame extends FlameGame with PanDetector {
 
     void healCompanionOrShip(double amount) {
       if (amount <= 0) return;
-      if (activeCompanion != null && activeCompanion!.isAlive) {
-        activeCompanion!.currentHp = min(
-          activeCompanion!.maxHp,
-          activeCompanion!.currentHp + amount.round(),
-        );
+      final companions = _livingActiveCompanions.toList(growable: false);
+      if (companions.isNotEmpty) {
+        for (final comp in companions) {
+          comp.currentHp = min(comp.maxHp, comp.currentHp + amount.round());
+        }
       } else {
         shipHealth = min(shipMaxHealth, shipHealth + amount);
       }
@@ -4389,11 +4430,8 @@ class CosmicGame extends FlameGame with PanDetector {
     void healAllCompanionsAndShip(double amount) {
       if (amount <= 0) return;
       shipHealth = min(shipMaxHealth, shipHealth + amount);
-      if (activeCompanion != null && activeCompanion!.isAlive) {
-        activeCompanion!.currentHp = min(
-          activeCompanion!.maxHp,
-          activeCompanion!.currentHp + amount.round(),
-        );
+      for (final comp in _livingActiveCompanions) {
+        comp.currentHp = min(comp.maxHp, comp.currentHp + amount.round());
       }
     }
 
@@ -6048,10 +6086,8 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       // Boss collision → companion damage
-      if (activeCompanion != null &&
-          activeCompanion!.isAlive &&
-          activeCompanion!.invincibleTimer <= 0) {
-        final comp = activeCompanion!;
+      for (final comp in _livingActiveCompanions) {
+        if (comp.invincibleTimer > 0) continue;
         final cdx = comp.position.dx - boss.position.dx;
         final cdy = comp.position.dy - boss.position.dy;
         final compHitR = boss.radius + 15;
@@ -6411,7 +6447,9 @@ class CosmicGame extends FlameGame with PanDetector {
     // Check for prismatic celebration animation in progress
     if (_prismaticCelebTimer >= 0) {
       _prismaticCelebTimer += dt;
-      final comp = activeCompanion;
+      final comp = _prismaticCelebCompanionSlot == null
+          ? null
+          : activeCompanions[_prismaticCelebCompanionSlot];
       if (comp != null && _prismaticCelebCenter != null) {
         // Override companion movement: rapid orbit around the center
         final orbitProgress = (_prismaticCelebTimer / _prismaticCelebDuration)
@@ -6478,6 +6516,7 @@ class CosmicGame extends FlameGame with PanDetector {
         );
 
         _prismaticCelebCenter = null;
+        _prismaticCelebCompanionSlot = null;
         onPrismaticRewardClaimed?.call();
       }
     }
@@ -6485,15 +6524,23 @@ class CosmicGame extends FlameGame with PanDetector {
     // Trigger celebration if prismatic companion enters the central ring
     if (!prismaticRewardClaimed &&
         _prismaticCelebTimer < 0 &&
-        activeCompanion != null &&
-        _companionVisuals?.isPrismatic == true) {
-      final comp = activeCompanion!;
-      final dist = (comp.position - prismaticField.position).distance;
-      final ringR = prismaticField.radius * 0.12;
-      if (dist < ringR + 30) {
-        // Start celebration at the centre!
-        _prismaticCelebTimer = 0;
-        _prismaticCelebCenter = prismaticField.position;
+        activeCompanions.isNotEmpty) {
+      for (final entry in activeCompanions.entries) {
+        final comp = entry.value;
+        if (!comp.isAlive ||
+            comp.returning ||
+            _companionVisualsBySlot[entry.key]?.isPrismatic != true) {
+          continue;
+        }
+        final dist = (comp.position - prismaticField.position).distance;
+        final ringR = prismaticField.radius * 0.12;
+        if (dist < ringR + 30) {
+          // Start celebration at the centre!
+          _prismaticCelebTimer = 0;
+          _prismaticCelebCenter = prismaticField.position;
+          _prismaticCelebCompanionSlot = entry.key;
+          break;
+        }
       }
     }
 
@@ -10353,9 +10400,14 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    // ── companion ──
-    if (activeCompanion != null && activeCompanion!.isAlive) {
-      final comp = activeCompanion!;
+    // ── companions ──
+    for (final entry in activeCompanions.entries) {
+      final slotIndex = entry.key;
+      final comp = entry.value;
+      if (!comp.isAlive) continue;
+      final companionTicker = _companionTickers[slotIndex];
+      final companionVisuals = _companionVisualsBySlot[slotIndex];
+      final companionSpriteScale = _companionSpriteScales[slotIndex] ?? 1.0;
       final compPos = comp.position;
       final eColor = elementColor(comp.member.element);
 
@@ -10580,15 +10632,15 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       // Render sprite if loaded, otherwise fallback to circles
-      if (_companionTicker != null) {
-        final sprite = _companionTicker!.getSprite();
+      if (companionTicker != null) {
+        final sprite = companionTicker.getSprite();
         final paint = Paint()
           ..color = Colors.white.withValues(alpha: opacity)
           ..filterQuality = ui.FilterQuality.high;
 
         // Apply genetics color filter if visuals available
-        if (_companionVisuals != null) {
-          final v = _companionVisuals!;
+        if (companionVisuals != null) {
+          final v = companionVisuals;
           final isAlbino = v.brightness == 1.45 && !v.isPrismatic;
           if (isAlbino) {
             paint.colorFilter = _albinoColorFilter(v.brightness);
@@ -10598,14 +10650,14 @@ class CosmicGame extends FlameGame with PanDetector {
         }
 
         // Simple canvas-based effect overlays for companion (behind sprite)
-        if (_companionVisuals?.alchemyEffect != null) {
-          final companionScale = _companionSpriteScale * animScale;
+        if (companionVisuals?.alchemyEffect != null) {
+          final companionScale = companionSpriteScale * animScale;
           _drawAlchemyEffectCanvas(
             canvas: canvas,
-            effect: _companionVisuals!.alchemyEffect!,
+            effect: companionVisuals!.alchemyEffect!,
             spriteScale: companionScale,
             baseSpriteSize: 48.0,
-            variantFaction: _companionVisuals?.variantFaction,
+            variantFaction: companionVisuals.variantFaction,
             elapsed: _elapsed,
             opacity: opacity,
           );
@@ -10614,7 +10666,7 @@ class CosmicGame extends FlameGame with PanDetector {
         // Flip sprite horizontally to face shooting direction
         // Default sprites face left; flip when target is to the right
         final facingRight = cos(comp.angle) > 0;
-        final totalScale = _companionSpriteScale * animScale;
+        final totalScale = companionSpriteScale * animScale;
         canvas.save();
         if (facingRight) {
           canvas.scale(-totalScale, totalScale);

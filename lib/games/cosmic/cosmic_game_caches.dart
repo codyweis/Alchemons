@@ -81,7 +81,7 @@ extension CosmicGameElementalCaches on CosmicGame {
     final color = cache.color;
 
     // The companion circles the seal, feeding it.
-    final comp = activeCompanion;
+    final comp = _attuningCompanionForCache(cache);
     if (comp != null && comp.isAlive) {
       final orbitAngle = t * pi * 4;
       const orbitRadius = 110.0;
@@ -175,13 +175,24 @@ extension CosmicGameElementalCaches on CosmicGame {
   /// True when a companion of the cache's element is deployed close enough to
   /// break the seal — i.e. the "ATTUNE" button should be live.
   bool cacheAttunementReady(ElementalCache cache) {
-    final comp = activeCompanion;
-    if (comp == null || !comp.isAlive || comp.returning) return false;
-    if (comp.member.element.toLowerCase() != cache.element.toLowerCase()) {
-      return false;
+    return _attuningCompanionForCache(cache) != null;
+  }
+
+  CosmicCompanion? _attuningCompanionForCache(ElementalCache cache) {
+    CosmicCompanion? nearest;
+    var nearestDistance = double.infinity;
+    for (final comp in _livingActiveCompanions) {
+      if (comp.member.element.toLowerCase() != cache.element.toLowerCase()) {
+        continue;
+      }
+      final distance = _toroidalDistance(comp.position, cache.position);
+      if (distance < ElementalCache.attuneRadius &&
+          distance < nearestDistance) {
+        nearest = comp;
+        nearestDistance = distance;
+      }
     }
-    return _toroidalDistance(comp.position, cache.position) <
-        ElementalCache.attuneRadius;
+    return nearest;
   }
 
   /// Begin the unsealing ritual. Returns false if the seal will not take.

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "notes": "Alchemons playful lore with unique descriptions per creature. Full 8×17 set.",
+    "notes": "Alchemons playful lore with unique descriptions per creature. Full 8\u00d717 set.",
     "familyCodes": {
       "Let": "LET",
       "Horn": "HOR",
@@ -153,8 +153,8 @@
       "image": "creatures/rare/HOR01_firehorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 90
       },
@@ -177,8 +177,8 @@
       "image": "creatures/rare/HOR02_waterhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 110
       },
@@ -201,8 +201,8 @@
       "image": "creatures/rare/HOR03_earthhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 100
       },
@@ -225,8 +225,8 @@
       "image": "creatures/rare/HOR04_airhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 80
       },
@@ -249,8 +249,8 @@
       "image": "creatures/rare/HOR05_steamhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 95
       },
@@ -273,8 +273,8 @@
       "image": "creatures/rare/HOR06_lavahorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 110
       },
@@ -297,8 +297,8 @@
       "image": "creatures/rare/HOR07_lightninghorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 100
       },
@@ -321,8 +321,8 @@
       "image": "creatures/rare/HOR08_mudhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 105
       },
@@ -345,8 +345,8 @@
       "image": "creatures/rare/HOR09_icehorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -369,8 +369,8 @@
       "image": "creatures/rare/HOR10_dusthorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -393,8 +393,8 @@
       "image": "creatures/rare/HOR11_crystalhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -417,8 +417,8 @@
       "image": "creatures/rare/HOR12_planthorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -441,8 +441,8 @@
       "image": "creatures/rare/HOR13_poisonhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -465,8 +465,8 @@
       "image": "creatures/rare/HOR14_spirithorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -489,8 +489,8 @@
       "image": "creatures/rare/HOR15_darkhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -513,8 +513,8 @@
       "image": "creatures/rare/HOR16_lighthorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -537,8 +537,8 @@
       "image": "creatures/rare/HOR17_bloodhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -1811,8 +1811,8 @@
       "image": "creatures/uncommon/PIP01_firepip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -1835,8 +1835,8 @@
       "image": "creatures/uncommon/PIP02_waterpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -1859,8 +1859,8 @@
       "image": "creatures/uncommon/PIP03_earthpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -1883,8 +1883,8 @@
       "image": "creatures/uncommon/PIP04_airpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -1907,8 +1907,8 @@
       "image": "creatures/uncommon/PIP05_steampip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -1931,8 +1931,8 @@
       "image": "creatures/uncommon/PIP06_lavapip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -1955,8 +1955,8 @@
       "image": "creatures/uncommon/PIP07_lightningpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -1979,8 +1979,8 @@
       "image": "creatures/uncommon/PIP08_mudpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -2003,8 +2003,8 @@
       "image": "creatures/uncommon/PIP09_icepip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -2027,8 +2027,8 @@
       "image": "creatures/uncommon/PIP10_dustpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -2051,8 +2051,8 @@
       "image": "creatures/uncommon/PIP11_crystalpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -2075,8 +2075,8 @@
       "image": "creatures/uncommon/PIP12_plantpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -2099,8 +2099,8 @@
       "image": "creatures/uncommon/PIP13_poisonpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -2123,8 +2123,8 @@
       "image": "creatures/uncommon/PIP14_spiritpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -2147,8 +2147,8 @@
       "image": "creatures/rare/PIP15_darkpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -2171,8 +2171,8 @@
       "image": "creatures/rare/PIP16_lightpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -2195,8 +2195,8 @@
       "image": "creatures/rare/PIP17_bloodpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -2221,8 +2221,8 @@
       "image": "creatures/legendary/WNG01_firewing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "rows": 1,
         "frameDurationMs": 150
@@ -2246,8 +2246,8 @@
       "image": "creatures/legendary/WNG02_waterwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "rows": 1,
         "totalFrames": 4,
         "frameDurationMs": 150
@@ -2271,8 +2271,8 @@
       "image": "creatures/legendary/WNG03_earthwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 130,
         "rows": 1
@@ -2296,9 +2296,9 @@
       "image": "creatures/legendary/WNG04_airwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 250,
-        "frameHeight": 250,
-        "totalFrames": 6,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 4,
         "rows": 1,
         "frameDurationMs": 100
       },
@@ -2321,8 +2321,8 @@
       "image": "creatures/legendary/WNG05_steamwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "rows": 1,
         "frameDurationMs": 160
@@ -2346,8 +2346,8 @@
       "image": "creatures/legendary/WNG06_lavawing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 150
       },
@@ -2370,8 +2370,8 @@
       "image": "creatures/legendary/WNG07_lightningwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 140
       },
@@ -2394,8 +2394,8 @@
       "image": "creatures/legendary/WNG08_mudwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 170
       },
@@ -2418,8 +2418,8 @@
       "image": "creatures/legendary/WNG09_icewing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 160
       },
@@ -2442,8 +2442,8 @@
       "image": "creatures/legendary/WNG10_dustwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 150
       },
@@ -2466,8 +2466,8 @@
       "image": "creatures/legendary/WNG11_crystalwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 150
       },
@@ -2490,8 +2490,8 @@
       "image": "creatures/legendary/WNG12_plantwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 150
       },
@@ -2514,8 +2514,8 @@
       "image": "creatures/legendary/WNG13_poisonwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 180
       },
@@ -2538,8 +2538,8 @@
       "image": "creatures/legendary/WNG14_spiritwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 160
       },
@@ -2562,8 +2562,8 @@
       "image": "creatures/legendary/WNG15_darkwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
@@ -2586,8 +2586,8 @@
       "image": "creatures/legendary/WNG16_lightwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 140
       },
@@ -2610,8 +2610,8 @@
       "image": "creatures/legendary/WNG17_bloodwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
+        "frameWidth": 1200,
+        "frameHeight": 1200,
         "totalFrames": 4,
         "frameDurationMs": 150
       },
@@ -3443,9 +3443,9 @@
     "Let": "Tiny elemental sprites, each a playful embodiment of their element. Known for their curiosity and mischief, Lets flit about, leaving traces of their essence in their wake.",
     "Mane": "Sprout-like tricksters, said to spring from the soil where magic seeps. They embody growth and playfulness, taking on different forms depending on their elemental nature.",
     "Pip": "Pips are dragonlings of pure element, small in stature but fierce in spirit. They are curious, loyal, and mischievous, often following adventurers as companions. Each Pip reflects its elemental heart, with scales, tails, or frills shaped by fire, water, earth, and beyond.",
-    "Horn": "Horns are stocky guardians, born with elemental crests that grow into mighty symbols of strength. Fierce yet loyal, they’re known for their determination in battle and their instinct to protect their kin. Each Horn’s crest and hide reflect the element that fuels its spirit.",
-    "Mask": "Masks are enigmatic spirits bound to carved visages of elemental power. The mask they bear is more than decoration — it is their true face, etched with runes, cracks, and glowing veins that reveal the force within. Masks are rare and often seen as omens, appearing at the edges of mortal realms to watch, guide, or haunt.",
-    "Wing": "Wings are skyborn dragonkin revered as heralds of the horizon. Their flight stirs weather and wonder alike—embers, frost, and starlight are said to follow in their wake. Legends claim the first dawn rose from a Wing’s cry.",
-    "Kin": "Kins are cyclopean elementals shaped like lithe deer—emissaries of raw nature. They wander between realms as omens and guides, their forms shifting with the element they embody."
+    "Horn": "Horns are stocky guardians, born with elemental crests that grow into mighty symbols of strength. Fierce yet loyal, they\u2019re known for their determination in battle and their instinct to protect their kin. Each Horn\u2019s crest and hide reflect the element that fuels its spirit.",
+    "Mask": "Masks are enigmatic spirits bound to carved visages of elemental power. The mask they bear is more than decoration \u2014 it is their true face, etched with runes, cracks, and glowing veins that reveal the force within. Masks are rare and often seen as omens, appearing at the edges of mortal realms to watch, guide, or haunt.",
+    "Wing": "Wings are skyborn dragonkin revered as heralds of the horizon. Their flight stirs weather and wonder alike\u2014embers, frost, and starlight are said to follow in their wake. Legends claim the first dawn rose from a Wing\u2019s cry.",
+    "Kin": "Kins are cyclopean elementals shaped like lithe deer\u2014emissaries of raw nature. They wander between realms as omens and guides, their forms shifting with the element they embody."
   }
 }

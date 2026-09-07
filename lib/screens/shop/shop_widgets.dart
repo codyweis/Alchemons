@@ -16,6 +16,7 @@ import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/static_effect_snapshot.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
+import 'package:alchemons/widgets/wild_fusion_glyph.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -609,6 +610,13 @@ Widget _buildOfferPreview(
       offer.inventoryKey == InvKeys.potentialSoul) {
     return Center(
       child: PotentialSoulSphere(size: size, animate: animate),
+    );
+  }
+
+  // Wild Fusion draws its own conjunction rather than the generic merge icon.
+  if (offer.inventoryKey == InvKeys.wildFusion) {
+    return Center(
+      child: WildFusionGlyph(size: size, animate: animate),
     );
   }
 

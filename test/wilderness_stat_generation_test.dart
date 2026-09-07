@@ -4,6 +4,7 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/screens/cosmic/elemental_nexus_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -151,6 +152,65 @@ void main() {
       }
 
       expect(legendaryTotal, greaterThan(commonTotal * 1.45));
+    });
+  });
+
+  group('Elemental Nexus special Kin stats', () {
+    test(
+      'rolls every Potential independently in the inclusive 60-80 range',
+      () {
+        final rng = Random(7301);
+        final observed = <double>{};
+
+        for (var i = 0; i < 500; i++) {
+          final stats = rollNexusSpecialKinStats(rng);
+          expect(stats.speed, 3.0);
+          expect(stats.intelligence, 3.0);
+          expect(stats.strength, 3.0);
+          expect(stats.beauty, 3.0);
+          final potentials = [
+            stats.speedPotential,
+            stats.intelligencePotential,
+            stats.strengthPotential,
+            stats.beautyPotential,
+          ];
+          for (final potential in potentials) {
+            expect(potential, inInclusiveRange(60, 80));
+            expect(potential, potential.roundToDouble());
+            observed.add(potential);
+          }
+        }
+
+        expect(observed, containsAll(<double>[60, 80]));
+      },
+    );
+
+    test('capture payload preserves the Nexus stat and Potential block', () {
+      final stats = rollNexusSpecialKinStats(Random(42));
+      final nexusKin = legendaryCreature.copyWith(
+        stats: stats,
+        isPrismaticSkin: true,
+      );
+      final payload =
+          EggPayloadFactory(
+            CreatureCatalog.fromList(const []),
+            random: Random(999),
+          ).createWildCapturePayload(
+            nexusKin,
+            sourceOverride: 'elemental_nexus',
+            arcaneBoostUnlocked: true,
+          );
+
+      expect(payload.source, 'elemental_nexus');
+      expect(payload.isPrismaticSkin, isTrue);
+      expect(payload.stats.speed, stats.speed);
+      expect(payload.stats.intelligence, stats.intelligence);
+      expect(payload.stats.strength, stats.strength);
+      expect(payload.stats.beauty, stats.beauty);
+      expect(payload.potentials.speed, stats.speedPotential);
+      expect(payload.potentials.intelligence, stats.intelligencePotential);
+      expect(payload.potentials.strength, stats.strengthPotential);
+      expect(payload.potentials.beauty, stats.beautyPotential);
     });
   });
 }

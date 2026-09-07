@@ -4,6 +4,7 @@ import 'package:alchemons/database/daos/constellation_dao.dart';
 import 'package:drift/drift.dart';
 
 // Schema and Model Imports
+import 'package:alchemons/models/inventory.dart' show InvKeys;
 import 'package:alchemons/database/schema_tables.dart';
 
 // DAO Imports
@@ -340,6 +341,10 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
 
     await _setSetting('wallet_gold', '5');
     await _setSetting('wallet_silver', '1000');
+
+    // The wilderness tutorial teaches fusion, which consumes one of these per
+    // attempt. Starting empty leaves that lesson unplayable.
+    await inventoryDao.addItemQty(InvKeys.wildFusion, 10);
 
     // Seed settings
     await _setSetting('blob_slots_unlocked', '1');

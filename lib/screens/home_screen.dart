@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:alchemons/screens/extraction_hub_screen.dart';
 import 'package:alchemons/screens/pureblood_rite_screen.dart';
+import 'package:alchemons/screens/splash_screen.dart';
 import 'package:lottie/lottie.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/navigation/world_transition.dart';
@@ -79,6 +80,10 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   NavSection _currentSection = NavSection.home;
+  final Set<int> _warmedNavigationIndexes = {0};
+  bool _warmingNavigation = true;
+  String _warmupStatus = 'Preparing home';
+  double _warmupProgress = 0.76;
 
   final GlobalKey<CreaturesScreenState> _creaturesKey =
       GlobalKey<CreaturesScreenState>();
@@ -93,6 +98,40 @@ class _MainShellState extends State<MainShell> {
       if (!mounted) return;
       _goToSection(section, withHaptic: false);
     };
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _warmNavigationScreens();
+    });
+  }
+
+  Future<void> _warmNavigationScreens() async {
+    const screens = <(int, String, double)>[
+      (1, 'Organizing your Alchemons', 0.82),
+      (2, 'Stocking the markets', 0.88),
+      (3, 'Preparing the breeding lab', 0.94),
+      (4, 'Sorting your inventory', 0.98),
+    ];
+
+    // Render the message before mounting each expensive destination. This
+    // spreads the work across frames while keeping it behind the splash.
+    for (final (index, status, progress) in screens) {
+      if (!mounted) return;
+      setState(() {
+        _warmupStatus = status;
+        _warmupProgress = progress;
+      });
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      setState(() => _warmedNavigationIndexes.add(index));
+      await WidgetsBinding.instance.endOfFrame;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _warmupStatus = 'Ready';
+      _warmupProgress = 1;
+    });
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) setState(() => _warmingNavigation = false);
   }
 
   @override
@@ -141,6 +180,29 @@ class _MainShellState extends State<MainShell> {
         return 3;
       case NavSection.inventory:
         return 4;
+    }
+  }
+
+  Widget _buildNavigationScreen(int index) {
+    switch (index) {
+      case 0:
+        return HomeScreen(
+          isActive: _currentSection == NavSection.home,
+          onNavigateSection: _goToSection,
+        );
+      case 1:
+        return CreaturesScreen(key: _creaturesKey);
+      case 2:
+        return const ShopScreen();
+      case 3:
+        return BreedScreen(
+          onGoToSection: _goToSection,
+          isActive: _currentSection == NavSection.breed,
+        );
+      case 4:
+        return const InventoryScreen();
+      default:
+        return const SizedBox.shrink();
     }
   }
 
@@ -204,44 +266,36 @@ class _MainShellState extends State<MainShell> {
         if (didPop || !mounted) return;
         await _handleExitAttempt();
       },
-      child: Scaffold(
-        extendBody: true,
-        body: IndexedStack(
-          index: _navIndex,
-          children: [
-            TickerMode(
-              enabled: _currentSection == NavSection.home,
-              child: HomeScreen(
-                isActive: _currentSection == NavSection.home,
-                onNavigateSection: _goToSection,
+      child: Stack(
+        children: [
+          Scaffold(
+            extendBody: true,
+            body: IndexedStack(
+              index: _navIndex,
+              children: List.generate(5, (index) {
+                if (!_warmedNavigationIndexes.contains(index)) {
+                  return const SizedBox.shrink();
+                }
+                return TickerMode(
+                  enabled: index == _navIndex,
+                  child: _buildNavigationScreen(index),
+                );
+              }),
+            ),
+            bottomNavigationBar: BottomNav(
+              current: _currentSection,
+              onSelect: (s) => _goToSection(s, withHaptic: false),
+              theme: theme,
+            ),
+          ),
+          if (_warmingNavigation)
+            Positioned.fill(
+              child: AlchemonsSplash(
+                status: _warmupStatus,
+                progress: _warmupProgress,
               ),
             ),
-            TickerMode(
-              enabled: _currentSection == NavSection.creatures,
-              child: CreaturesScreen(key: _creaturesKey),
-            ),
-            TickerMode(
-              enabled: _currentSection == NavSection.shop,
-              child: const ShopScreen(),
-            ),
-            TickerMode(
-              enabled: _currentSection == NavSection.breed,
-              child: BreedScreen(
-                onGoToSection: _goToSection,
-                isActive: _currentSection == NavSection.breed,
-              ),
-            ),
-            TickerMode(
-              enabled: _currentSection == NavSection.inventory,
-              child: const InventoryScreen(),
-            ),
-          ],
-        ),
-        bottomNavigationBar: BottomNav(
-          current: _currentSection,
-          onSelect: (s) => _goToSection(s, withHaptic: false),
-          theme: theme,
-        ),
+        ],
       ),
     );
   }

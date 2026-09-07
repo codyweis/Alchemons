@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
+
 import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
@@ -368,24 +370,6 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                         SafeArea(
                           child: Column(
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  18,
-                                  4,
-                                  18,
-                                  4,
-                                ),
-                                child: Text(
-                                  'Harvest',
-                                  textAlign: TextAlign.center,
-                                  style: _display(
-                                    context,
-                                    22,
-                                    t.textPrimary,
-                                    weight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
                               Expanded(
                                 child: ListenableBuilder(
                                   listenable: _svc,
@@ -394,8 +378,28 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                     final completedCount = farms
                                         .where((f) => f.completed)
                                         .length;
+                                    // hasActive covers jobs still running;
+                                    // completed ones are counted separately.
+                                    final activeCount = farms
+                                        .where(
+                                          (f) => f.hasActive && !f.completed,
+                                        )
+                                        .length;
+                                    final lockedCount = farms
+                                        .where((f) => !f.unlocked)
+                                        .length;
                                     return Column(
                                       children: [
+                                        // The header lives inside the listenable
+                                        // so it can carry live counts, and it
+                                        // matches the bar + monospace treatment
+                                        // used across the rest of the app.
+                                        _HarvestHeader(
+                                          theme: theme,
+                                          chambers: farms.length - lockedCount,
+                                          ready: completedCount,
+                                          active: activeCount,
+                                        ),
                                         if (completedCount > 0)
                                           _CollectAllBanner(
                                             count: completedCount,
@@ -845,7 +849,10 @@ class _EmbeddedChamber extends StatefulWidget {
 class _EmbeddedChamberState extends State<_EmbeddedChamber>
     with TickerProviderStateMixin {
   late final Ticker _ticker;
-  double _tSeconds = 0.0;
+  // Ticking this through setState rebuilt the whole chamber every frame —
+  // sprite, panels and badges included — for a value only the painters
+  // read. A notifier keeps the repaint and drops the rebuild.
+  final ValueNotifier<double> _tNotifier = ValueNotifier<double>(0);
   DateTime? _lastTapBoostAt;
 
   late final AnimationController _tapFxCtrl;
@@ -879,7 +886,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
       value: 0,
     );
     _ticker = createTicker((elapsed) {
-      if (mounted) setState(() => _tSeconds = elapsed.inMicroseconds / 1e6);
+      _tNotifier.value = elapsed.inMicroseconds / 1e6;
     })..start();
     PushNotificationService().cancelHarvestSummaryNotification();
     _refreshCreatureCache();
@@ -896,6 +903,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
   @override
   void dispose() {
     _ticker.dispose();
+    _tNotifier.dispose();
     _jobCtrl.dispose();
     _collectCtrl.dispose();
     _tapFxCtrl.dispose();
@@ -1476,12 +1484,10 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
             }
 
             if (widget.featured) {
-              return Stack(
+              return Column(
                 children: [
-                  Positioned(
-                    top: 0,
-                    left: 6,
-                    right: 6,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
                     child: Row(
                       children: [
                         Container(
@@ -1532,16 +1538,13 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                       ],
                     ),
                   ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    top: 54,
-                    bottom: panelHeight + 30,
+                  const SizedBox(height: 10),
+                  Expanded(
                     child: Center(
                       child: AspectRatio(
                         aspectRatio: 1,
                         child: _ChamberView(
-                          tSeconds: _tSeconds,
+                          tListenable: _tNotifier,
                           progress: vm.progress,
                           collectCtrl: _collectCtrl,
                           tapFxCtrl: _tapFxCtrl,
@@ -1565,10 +1568,9 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                       ),
                     ),
                   ),
-                  Positioned(
-                    left: 2,
-                    right: 2,
-                    bottom: 0,
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
                     child: CustomPaint(
                       painter: _BracketFramePainter(
                         color: accent.withValues(alpha: 0.46),
@@ -1732,7 +1734,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                                     ? 1.14
                                     : 1.08,
                                 child: _ChamberView(
-                                  tSeconds: _tSeconds,
+                                  tListenable: _tNotifier,
                                   progress: vm.progress,
                                   collectCtrl: _collectCtrl,
                                   tapFxCtrl: _tapFxCtrl,
@@ -2115,7 +2117,7 @@ class _OutlineBtn extends StatelessWidget {
 
 class _ChamberView extends StatelessWidget {
   const _ChamberView({
-    required this.tSeconds,
+    required this.tListenable,
     required this.progress,
     required this.collectCtrl,
     required this.tapFxCtrl,
@@ -2129,7 +2131,7 @@ class _ChamberView extends StatelessWidget {
     this.statusOverlay,
   });
   final Widget? statusOverlay;
-  final double tSeconds;
+  final ValueListenable<double> tListenable;
   final double progress;
   final AnimationController collectCtrl;
   final AnimationController tapFxCtrl;
@@ -2189,7 +2191,7 @@ class _ChamberView extends StatelessWidget {
                 ),
                 CustomPaint(
                   painter: _ChamberBackgroundPainter(
-                    tSeconds: tSeconds,
+                    tListenable: tListenable,
                     tempo: _tempo(),
                     fill: effectiveFill,
                     color: accent,
@@ -2211,7 +2213,7 @@ class _ChamberView extends StatelessWidget {
                 ),
                 CustomPaint(
                   painter: _ChamberForegroundPainter(
-                    tSeconds: tSeconds,
+                    tListenable: tListenable,
                     tempo: _tempo(),
                     color: accent,
                     active: farm.hasActive,
@@ -2305,14 +2307,17 @@ class _ChamberGeometry {
 }
 
 class _ChamberBackgroundPainter extends CustomPainter {
+  /// Repaints straight off the frame clock. Passing the time in as a value
+  /// meant the only way to animate was to rebuild the widget tree every frame.
   _ChamberBackgroundPainter({
-    required this.tSeconds,
+    required this.tListenable,
     required this.tempo,
     required this.fill,
     required this.color,
     required this.active,
-  });
-  final double tSeconds;
+  }) : super(repaint: tListenable);
+  final ValueListenable<double> tListenable;
+  double get tSeconds => tListenable.value;
   final double tempo;
   final double fill;
   final Color color;
@@ -2445,7 +2450,6 @@ class _ChamberBackgroundPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ChamberBackgroundPainter old) =>
-      old.tSeconds != tSeconds ||
       old.tempo != tempo ||
       old.fill != fill ||
       old.color != color ||
@@ -2454,12 +2458,13 @@ class _ChamberBackgroundPainter extends CustomPainter {
 
 class _ChamberForegroundPainter extends CustomPainter {
   _ChamberForegroundPainter({
-    required this.tSeconds,
+    required this.tListenable,
     required this.tempo,
     required this.color,
     required this.active,
-  });
-  final double tSeconds;
+  }) : super(repaint: tListenable);
+  final ValueListenable<double> tListenable;
+  double get tSeconds => tListenable.value;
   final double tempo;
   final Color color;
   final bool active;
@@ -2543,11 +2548,10 @@ class _ChamberForegroundPainter extends CustomPainter {
   }
 
   @override
+  // Time is handled by `repaint:`; both delegates read the same notifier, so
+  // comparing tSeconds here would always be equal and never trigger anything.
   bool shouldRepaint(covariant _ChamberForegroundPainter old) =>
-      old.active != active ||
-      old.color != color ||
-      old.tempo != tempo ||
-      (active && old.tSeconds != tSeconds);
+      old.active != active || old.color != color || old.tempo != tempo;
 }
 
 class _AlchemyStatusBadge extends StatelessWidget {
@@ -2910,6 +2914,86 @@ class _UnlockDialog extends StatelessWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// Screen header: back on the left, bar + monospace title, and live counts so
+/// the state of the bays reads without scanning every chamber.
+class _HarvestHeader extends StatelessWidget {
+  const _HarvestHeader({
+    required this.theme,
+    required this.chambers,
+    required this.ready,
+    required this.active,
+  });
+
+  final FactionTheme theme;
+  final int chambers;
+  final int ready;
+  final int active;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    final parts = <String>[
+      '$chambers unlocked',
+      if (active > 0) '$active running',
+      if (ready > 0) '$ready ready',
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).maybePop();
+            },
+            child: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: t.bg2,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: t.borderDim),
+              ),
+              child: Icon(AppIcons.arrow_back, size: 18, color: t.textPrimary),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(width: 3, height: 24, color: t.amber),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'HARVEST',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.amberBright,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.2,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  parts.join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: ready > 0 ? t.amber : t.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

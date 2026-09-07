@@ -358,14 +358,16 @@ extension CosmicGameWorldSystems on CosmicGame {
     _respawnTimer = 0;
     _shipInvincible = 2.0;
     clearSandboxHostiles();
-    if (activeCompanion != null) {
-      activeCompanion!.currentHp = activeCompanion!.maxHp;
-      activeCompanion!.shieldHp = 0;
-      activeCompanion!.invincibleTimer = 1.2;
-      activeCompanion!.returning = false;
-      activeCompanion!.returnTimer = 0;
-      activeCompanion!.position = ship.pos + const Offset(72, 0);
-      activeCompanion!.anchorPosition = activeCompanion!.position;
+    var companionOffset = 0.0;
+    for (final comp in activeCompanions.values) {
+      comp.currentHp = comp.maxHp;
+      comp.shieldHp = 0;
+      comp.invincibleTimer = 1.2;
+      comp.returning = false;
+      comp.returnTimer = 0;
+      comp.position = ship.pos + Offset(72, companionOffset);
+      comp.anchorPosition = comp.position;
+      companionOffset += 36;
     }
     if (sandboxAreaCenter != null) {
       teleportTo(sandboxAreaCenter!);
@@ -1652,16 +1654,15 @@ extension CosmicGameWorldSystems on CosmicGame {
     // ~30% of the time, aim at the companion instead of the ship.
     // Chargers still always rush the ship (they're melee, not ranged).
     double toShip = toShipAngle;
-    if (boss.type != BossType.charger &&
-        activeCompanion != null &&
-        activeCompanion!.isAlive) {
+    final targetCompanion = _nearestActiveCompanion(boss.position);
+    if (boss.type != BossType.charger && targetCompanion != null) {
       // Use phaseTimer as a cheap deterministic toggle so it doesn't
       // flicker every frame — switches target roughly every ~2-3 seconds.
       final cycle = (boss.phaseTimer * 0.4).floor() % 10;
       if (cycle < 3) {
         // 3 out of 10 cycles → aim at companion
-        var cdx = activeCompanion!.position.dx - boss.position.dx;
-        var cdy = activeCompanion!.position.dy - boss.position.dy;
+        var cdx = targetCompanion.position.dx - boss.position.dx;
+        var cdy = targetCompanion.position.dy - boss.position.dy;
         if (cdx > ww / 2) cdx -= ww;
         if (cdx < -ww / 2) cdx += ww;
         if (cdy > wh / 2) cdy -= wh;
@@ -1705,16 +1706,16 @@ extension CosmicGameWorldSystems on CosmicGame {
           ship.pos = _wrap(
             Offset(ship.pos.dx - away.dx * pull, ship.pos.dy - away.dy * pull),
           );
-          if (activeCompanion != null && activeCompanion!.isAlive) {
-            final cdx = boss.position.dx - activeCompanion!.position.dx;
-            final cdy = boss.position.dy - activeCompanion!.position.dy;
+          for (final comp in _livingActiveCompanions) {
+            final cdx = boss.position.dx - comp.position.dx;
+            final cdy = boss.position.dy - comp.position.dy;
             final cd = sqrt(cdx * cdx + cdy * cdy);
             if (cd > 0.001) {
               final cpull = (22.0 + 30.0 * strength) * dt;
-              activeCompanion!.position = _wrap(
+              comp.position = _wrap(
                 Offset(
-                  activeCompanion!.position.dx + (cdx / cd) * cpull,
-                  activeCompanion!.position.dy + (cdy / cd) * cpull,
+                  comp.position.dx + (cdx / cd) * cpull,
+                  comp.position.dy + (cdy / cd) * cpull,
                 ),
               );
             }
@@ -1797,11 +1798,10 @@ extension CosmicGameWorldSystems on CosmicGame {
           if (dist <= pulseRadius + 20) {
             _damageShip(pulseDamage * 1.15);
           }
-          if (activeCompanion != null && activeCompanion!.isAlive) {
-            final compDist =
-                (activeCompanion!.position - boss.position).distance;
+          for (final comp in _livingActiveCompanions) {
+            final compDist = (comp.position - boss.position).distance;
             if (compDist <= pulseRadius + 14) {
-              activeCompanion!.takeDamage((pulseDamage * 1.1).round());
+              comp.takeDamage((pulseDamage * 1.1).round());
             }
           }
         }
@@ -2486,10 +2486,8 @@ extension CosmicGameWorldSystems on CosmicGame {
       }
 
       // Hit companion?
-      if (activeCompanion != null &&
-          activeCompanion!.isAlive &&
-          activeCompanion!.invincibleTimer <= 0) {
-        final comp = activeCompanion!;
+      for (final comp in _livingActiveCompanions) {
+        if (comp.invincibleTimer > 0) continue;
         final cdx = comp.position.dx - bp.position.dx;
         final cdy = comp.position.dy - bp.position.dy;
         final compHitR = bp.radius + 15;
@@ -2501,7 +2499,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           comp.takeDamage(dmg);
           _spawnHitSpark(comp.position, elementColor(bp.element));
           bossProjectiles.removeAt(i);
-          continue;
+          break;
         }
       }
     }

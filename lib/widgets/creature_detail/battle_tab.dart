@@ -115,14 +115,13 @@ class _BracketStatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = BracketPalette.of(context);
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: palette.line.withValues(alpha: 0.9),
-        bracketSize: 8,
-        strokeWidth: 1.05,
-      ),
-      child: Container(
+    return Container(
+      decoration: BoxDecoration(
         color: palette.surfaceFill(),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: palette.line.withValues(alpha: 0.55)),
+      ),
+      child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -330,22 +329,25 @@ class _BracketInfoCard extends StatelessWidget {
           )
         : null;
 
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: featured
-            ? activeAccent.withValues(alpha: 0.95)
-            : palette.line.withValues(alpha: 0.9),
-        bracketSize: featured ? 12 : 10,
-        strokeWidth: featured ? 1.35 : 1.05,
-      ),
-      child: Container(
+    // Bracket corners on a full-width card read as scaffolding rather than
+    // structure; a plain edge does the same job without the ornament.
+    return Container(
+      decoration: BoxDecoration(
         color: featured
             ? Color.alphaBlend(
-                activeAccent.withValues(alpha: palette.isDark ? 0.10 : 0.07),
+                activeAccent.withValues(alpha: palette.isDark ? 0.08 : 0.05),
                 palette.surfaceFill(),
               )
             : palette.surfaceFill(),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: featured
+              ? activeAccent.withValues(alpha: 0.5)
+              : palette.line.withValues(alpha: 0.55),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -361,6 +363,7 @@ class _BracketInfoCard extends StatelessWidget {
                       color: activeAccent.withValues(
                         alpha: palette.isDark ? 0.16 : 0.12,
                       ),
+                      borderRadius: BorderRadius.circular(3),
                       border: Border.all(
                         color: activeAccent.withValues(alpha: 0.55),
                       ),
@@ -444,11 +447,11 @@ class _AbilityDescriptionText extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                constraints: const BoxConstraints(minWidth: 58),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                constraints: const BoxConstraints(minWidth: 54),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.10),
-                  border: Border.all(color: accent.withValues(alpha: 0.34)),
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: accent.withValues(alpha: 0.5)),
                 ),
                 child: Text(
                   lines[i].label.toUpperCase(),
@@ -495,15 +498,14 @@ class _SurvivalBracketCard extends StatelessWidget {
     final notes = _cosmicSurvivalNotes(family, element);
     final accent = _survivalAccentColor(element);
 
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: accent.withValues(alpha: 0.6),
-        bracketSize: 10,
-        strokeWidth: 1.05,
-      ),
-      child: Container(
+    return Container(
+      decoration: BoxDecoration(
         color: palette.surfaceFill(),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

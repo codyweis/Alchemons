@@ -135,7 +135,9 @@ void main() {
     );
 
     expect(offer.inventoryKey, InvKeys.wildFusion);
-    expect(offer.cost, const {'silver': 1250});
+    // Dropped from 1250 so the wilderness fusion loop is affordable to teach;
+    // ShopService also hands out the first one free.
+    expect(offer.cost, const {'silver': 100});
     expect(offer.limit, PurchaseLimit.unlimited);
   });
 

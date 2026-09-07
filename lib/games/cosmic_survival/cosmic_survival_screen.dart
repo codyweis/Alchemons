@@ -29,6 +29,7 @@ import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -392,12 +393,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   late final PageController _familyPageController;
   double _familyPage = 0;
   final Set<String> _expandedFamilyCards = <String>{};
-  final Set<String> _expandedProtocols = <String>{};
   SurvivalHighScoreData? _highScore;
   bool _showPauseMenu = false;
   bool _showJoystick = true;
   bool _largeJoystick = true;
   SurvivalVisualQuality _visualQuality = SurvivalVisualQuality.performance;
+  final DebugSettingsService _debugSettings = DebugSettingsService();
+  bool _debugToolsEnabled = DebugSettingsService.toolsVisible;
 
   // Power-up selection state
   List<OfferedPowerUpChoice> _powerUpChoices = [];
@@ -485,6 +487,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     });
     unawaited(_loadControlPreferences());
     CinematicQualityService.qualityNotifier.addListener(_handleQualityChanged);
+    DebugSettingsService.enabledNotifier.addListener(_handleDebugToolsChanged);
+    unawaited(_loadDebugTools());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadVisualQuality());
       unawaited(_loadHighScore());
@@ -500,10 +504,26 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     CinematicQualityService.qualityNotifier.removeListener(
       _handleQualityChanged,
     );
+    DebugSettingsService.enabledNotifier.removeListener(
+      _handleDebugToolsChanged,
+    );
     _mysticOverlayController.dispose();
     _liveUiTick.dispose();
     _familyPageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadDebugTools() async {
+    final enabled = await _debugSettings.isEnabled();
+    if (!mounted) return;
+    setState(() => _debugToolsEnabled = enabled);
+  }
+
+  void _handleDebugToolsChanged() {
+    if (!mounted) return;
+    setState(
+      () => _debugToolsEnabled = DebugSettingsService.enabledNotifier.value,
+    );
   }
 
   // ── Intro ────────────────────────────────────────────────
@@ -654,7 +674,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     ),
                     const SizedBox(height: 14),
                     const Text(
-                      'This is your deepest recorded survival clear across the mode. Tap back in and see if the current Cosmic Survival balance lets your bred teams push it higher.',
+                      'This is your deepest recorded survival clear.',
                       style: TextStyle(
                         color: _C.textSecondary,
                         fontSize: 12,
@@ -1748,8 +1768,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   children: [
                     const SizedBox(height: 8),
                     _buildSpeciesRoster(),
-                    const SizedBox(height: 24),
-                    _buildTacticsGrid(),
                     const SizedBox(height: 28),
                     _ForgeButton(
                       label: 'Assign Team',
@@ -1773,21 +1791,25 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       },
                       secondary: true,
                     ),
-                    const SizedBox(height: 18),
-                    const _EtchedDivider(label: 'COMMAND'),
-                    const SizedBox(height: 12),
-                    for (var i = 0; i < _testTeamPresets.length; i++) ...[
-                      _ForgeButton(
-                        label: _testTeamPresets[i].label,
-                        icon: _testTeamPresets[i].icon,
-                        onTap: () => _startTestTeam(
-                          _buildFullElementTestTeam(_testTeamPresets[i].family),
-                          _testTeamPresets[i].key,
+                    if (_debugToolsEnabled) ...[
+                      const SizedBox(height: 18),
+                      const _EtchedDivider(label: 'COMMAND'),
+                      const SizedBox(height: 12),
+                      for (var i = 0; i < _testTeamPresets.length; i++) ...[
+                        _ForgeButton(
+                          label: _testTeamPresets[i].label,
+                          icon: _testTeamPresets[i].icon,
+                          onTap: () => _startTestTeam(
+                            _buildFullElementTestTeam(
+                              _testTeamPresets[i].family,
+                            ),
+                            _testTeamPresets[i].key,
+                          ),
+                          secondary: true,
                         ),
-                        secondary: true,
-                      ),
-                      if (i < _testTeamPresets.length - 1)
-                        const SizedBox(height: 10),
+                        if (i < _testTeamPresets.length - 1)
+                          const SizedBox(height: 10),
+                      ],
                     ],
                   ],
                 ),
@@ -2137,127 +2159,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     );
   }
 
-  Widget _buildTacticsGrid() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _EtchedDivider(label: 'FIELD PROTOCOLS'),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _buildTacticTile(
-                AppIcons.groups_rounded,
-                'FUSING',
-                'High-stat alchemons will spike earlier and convert upgrades harder.',
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildTacticTile(
-                AppIcons.auto_awesome_rounded,
-                'DRAFTING',
-                'Weighted offers amplify each family role instead of replacing it.',
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: _buildTacticTile(
-                AppIcons.waves_rounded,
-                'MUTATORS',
-                'Wave rules evolve through elites, mutators, and faster late-run tempo spikes.',
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildTacticTile(
-                AppIcons.shield_outlined,
-                'ORB DEFENSE',
-                'Protect the orb, absorb pressure, and stretch your build as far as it can go.',
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTacticTile(IconData icon, String title, String desc) {
-    final expanded = _expandedProtocols.contains(title);
-    return Container(
-      decoration: BoxDecoration(
-        color: _C.bg2,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(
-          color: expanded ? _C.amber.withValues(alpha: 0.7) : _C.borderDim,
-        ),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(3),
-        onTap: () {
-          setState(() {
-            if (expanded) {
-              _expandedProtocols.remove(title);
-            } else {
-              _expandedProtocols.add(title);
-            }
-          });
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(icon, color: _C.amber, size: 14),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        color: _C.textPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    expanded
-                        ? AppIcons.expand_less_rounded
-                        : AppIcons.expand_more_rounded,
-                    color: _C.textSecondary,
-                    size: 16,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              AnimatedCrossFade(
-                duration: const Duration(milliseconds: 140),
-                firstChild: Text(
-                  desc,
-                  style: _T.body.copyWith(fontSize: 12),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                secondChild: Text(desc, style: _T.body.copyWith(fontSize: 12)),
-                crossFadeState: expanded
-                    ? CrossFadeState.showSecond
-                    : CrossFadeState.showFirst,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   // ── Game Phase ─────────────────────────────────────────
 
   Widget _buildGameScreen() {
@@ -2456,6 +2357,53 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
         children: [
           _buildHud(game),
           _buildCompanionPanel(game),
+          if (game.outbreak != null &&
+              _bossAnnouncement == null &&
+              _waveAnnouncementTitle == null &&
+              !_showPauseMenu &&
+              _powerUpChoices.isEmpty &&
+              !game.isGameOver)
+            Positioned(
+              top: 100,
+              left: 44,
+              right: 44,
+              child: IgnorePointer(
+                child: SafeArea(
+                  child: _SurvivalPlate(
+                    accent: game.outbreak!.color,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          game.outbreak!.cleared
+                              ? 'OUTBREAK PURGED'
+                              : '${game.outbreak!.name} · ${game.outbreak!.remaining} SOURCES',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: game.outbreak!.color,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (!game.outbreak!.cleared)
+                          Text(
+                            game.outbreak!.instruction,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (game.detonationUnlocked &&
               _powerUpChoices.isEmpty &&
               !_showPauseMenu &&

@@ -251,7 +251,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   int _cosmicPartySlotsUnlocked = 0;
   List<CosmicPartyMember?> _partyMembers =
       []; // length = _cosmicPartySlotsUnlocked
-  int? _activeCompanionSlot; // which slot is currently summoned (-1=none)
+  final Set<int> _activeCompanionSlots = {}; // slots currently summoned
+  static const int _sandboxCompanionSlot = -1;
 
   /// Tracks HP fraction (0.0–1.0) for each party slot between summons.
   /// 1.0 = full health, 0.0 = dead. Reset to 1.0 when near home.
@@ -431,7 +432,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       const Duration(milliseconds: 250),
       (_) {
         if (!mounted) return;
-        if (_activeCompanionSlot != null && _game?.activeCompanion != null) {
+        if (_activeCompanionSlots.isNotEmpty) {
           setState(() {});
         }
       },
@@ -1058,8 +1059,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
     // If the slot being replaced has an active companion, return it first
-    if (_activeCompanionSlot == slotIndex) {
-      _handleReturnCompanion();
+    if (_activeCompanionSlots.contains(slotIndex)) {
+      _handleReturnCompanion(slotIndex);
     }
     final db = context.read<AlchemonsDatabase>();
     // Clear the old instance from the slot first, then assign the new one
@@ -1071,8 +1072,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   Future<void> _handleClearPartySlot(int slotIndex) async {
     if (!mounted) return;
     // If the summoned companion is from this slot, return it first
-    if (_activeCompanionSlot == slotIndex) {
-      _handleReturnCompanion();
+    if (_activeCompanionSlots.contains(slotIndex)) {
+      _handleReturnCompanion(slotIndex);
     }
     final db = context.read<AlchemonsDatabase>();
     await db.settingsDao.setCosmicPartySlotInstance(slotIndex, null);
@@ -1194,30 +1195,34 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showQuote('This Alchemon is exhausted! Return home to heal.');
       return;
     }
-    // Return any currently active companion (save its HP first)
-    if (_activeCompanionSlot != null) {
-      _saveCompanionHp();
-      _game!.returnCompanion();
+    // If this slot is already summoned, recall it first.
+    if (_activeCompanionSlots.contains(slotIndex)) {
+      _handleReturnCompanion(slotIndex);
+      return;
+    } else if (_activeCompanionSlots.length >= CosmicGame.maxActiveCompanions) {
+      _showQuote('All companion deployment slots are in use.');
+      return;
     }
     _game!.summonCompanion(
       member,
+      slotIndex: slotIndex,
       hpFraction: hpFrac,
       initialSpecialCooldown: _companionSpecialCooldown[slotIndex] ?? 0.0,
     );
-    setState(() => _activeCompanionSlot = slotIndex);
+    setState(() => _activeCompanionSlots.add(slotIndex));
     _onMemoryCompanionSummoned();
   }
 
-  void _handleReturnCompanion() {
-    if (_game == null || _activeCompanionSlot == null) return;
+  void _handleReturnCompanion(int slotIndex) {
+    if (_game == null || !_activeCompanionSlots.contains(slotIndex)) return;
     // Block recall during a battle ring fight
     if (_game!.battleRing.inBattle) {
       _showQuote('Cannot recall during a battle ring fight!');
       return;
     }
-    _saveCompanionHp();
-    _game!.returnCompanion();
-    setState(() => _activeCompanionSlot = null);
+    _saveCompanionHp(slotIndex);
+    _game!.returnCompanion(slotIndex);
+    setState(() => _activeCompanionSlots.remove(slotIndex));
   }
 
   Offset get _sandboxAreaCenter {
@@ -1365,11 +1370,15 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showQuote('Finish the battle ring fight before sandbox summoning.');
       return;
     }
-    if (_activeCompanionSlot != null) {
+    if (_activeCompanionSlots.isNotEmpty) {
       _saveCompanionHp();
+      _game!.returnCompanion();
     }
-    setState(() => _activeCompanionSlot = null);
-    game.summonCompanion(_sandboxMemberFromCreature(creature));
+    setState(() => _activeCompanionSlots.clear());
+    game.summonCompanion(
+      _sandboxMemberFromCreature(creature),
+      slotIndex: _sandboxCompanionSlot,
+    );
     HapticFeedback.mediumImpact();
     _showQuote(
       '${creature.name} summoned at Lv10 with all stats set to $_sandboxCompanionStatTier.',
@@ -1602,48 +1611,62 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
-  /// Persist the active companion's current HP fraction before returning it.
-  void _saveCompanionHp() {
-    final comp = _game?.activeCompanion;
-    if (comp != null && _activeCompanionSlot != null) {
-      _companionHpFraction[_activeCompanionSlot!] = comp.hpPercent;
-      _companionSpecialCooldown[_activeCompanionSlot!] = comp.specialCooldown
-          .clamp(0.0, 100.0);
+  /// Persist active companions' current HP fraction before returning them.
+  /// If [slotIndex] is given, only that slot is saved; otherwise all active
+  /// companions are saved.
+  void _saveCompanionHp([int? slotIndex]) {
+    final companions = _game?.activeCompanions;
+    if (companions == null) return;
+    if (slotIndex != null) {
+      final comp = companions[slotIndex];
+      if (comp != null) {
+        _companionHpFraction[slotIndex] = comp.hpPercent;
+        _companionSpecialCooldown[slotIndex] = comp.specialCooldown.clamp(
+          0.0,
+          100.0,
+        );
+      }
+      return;
+    }
+    for (final entry in companions.entries) {
+      _companionHpFraction[entry.key] = entry.value.hpPercent;
+      _companionSpecialCooldown[entry.key] = entry.value.specialCooldown.clamp(
+        0.0,
+        100.0,
+      );
     }
   }
 
-  void _onCompanionAutoReturned() {
+  void _onCompanionAutoReturned(CosmicPartyMember member) {
     if (!mounted) return;
     // During a ring battle the companion must stay deployed.
     if (_game?.battleRing.inBattle == true) return;
-    _saveCompanionHp();
+    final slot = member.slotIndex;
+    _saveCompanionHp(slot);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _activeCompanionSlot = null);
+      if (mounted) setState(() => _activeCompanionSlots.remove(slot));
     });
   }
 
   void _onCompanionDied(CosmicPartyMember member) {
     if (!mounted) return;
+    final slot = member.slotIndex;
     // If in a ring battle the loss callback handles everything – just clean up here.
     if (_game?.battleRing.inBattle == true) {
       // Mark slot dead and clear. Combat never changes breeding stamina.
-      if (_activeCompanionSlot != null) {
-        _companionHpFraction[_activeCompanionSlot!] = 0.0;
-        _companionSpecialCooldown[_activeCompanionSlot!] = 0.0;
-      }
+      _companionHpFraction[slot] = 0.0;
+      _companionSpecialCooldown[slot] = 0.0;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _activeCompanionSlot = null);
+        if (mounted) setState(() => _activeCompanionSlots.remove(slot));
       });
       return;
     }
     // Mark this slot as dead (0 HP)
-    if (_activeCompanionSlot != null) {
-      _companionHpFraction[_activeCompanionSlot!] = 0.0;
-      _companionSpecialCooldown[_activeCompanionSlot!] = 0.0;
-    }
+    _companionHpFraction[slot] = 0.0;
+    _companionSpecialCooldown[slot] = 0.0;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        setState(() => _activeCompanionSlot = null);
+        setState(() => _activeCompanionSlots.remove(slot));
         _initCosmicParty();
       }
     });
@@ -3180,11 +3203,11 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
     if (_game == null || _nearContestArena == null) return;
-    if (_activeCompanionSlot == null) {
+    if (_activeCompanionSlots.isEmpty) {
       _showQuote('Summon a companion first to enter a contest.');
       return;
     }
-    final activeSlot = _activeCompanionSlot!;
+    final activeSlot = _activeCompanionSlots.first;
     final member = _partyMembers[activeSlot];
     if (member == null) {
       _showQuote('Active companion missing.');
@@ -3317,7 +3340,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     if (br.isCompleted) {
       // Practice arena now spawns a random opponent (level 10 strength)
-      if (_activeCompanionSlot == null) {
+      if (_activeCompanionSlots.isEmpty) {
         _showQuote('Summon a companion first to enter the ring!');
         return;
       }
@@ -3403,7 +3426,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
 
     // Normal level — deploy active companion into the ring in-world
-    if (_activeCompanionSlot == null) {
+    if (_activeCompanionSlots.isEmpty) {
       _showQuote('Summon a companion first to enter the ring!');
       return;
     }
@@ -3671,9 +3694,9 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showQuote('Bring one Alchemon in your ship party.');
       return;
     }
-    final active = _activeCompanionSlot == null
+    final active = _activeCompanionSlots.isEmpty
         ? null
-        : _partyMembers[_activeCompanionSlot!];
+        : _partyMembers[_activeCompanionSlots.first];
     final mysticMember = active != null && _isMysticBloodCompanion(active)
         ? active
         : available.first;
@@ -4048,12 +4071,12 @@ class _CosmicScreenState extends State<CosmicScreen>
     // unlocked solely by entering the Blood planet — which in turn requires
     // felling every other planet's guardian. So this single check enforces the
     // whole endgame chain.
-    if (_activeCompanionSlot == null) {
+    if (_activeCompanionSlots.isEmpty) {
       _showQuote('Mystic Blood required.');
       return;
     }
 
-    final active = _partyMembers[_activeCompanionSlot!];
+    final active = _partyMembers[_activeCompanionSlots.first];
     if (active == null || !_isMysticBloodCompanion(active)) {
       _showQuote('Mystic Blood required.');
       return;
@@ -4061,7 +4084,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     final offerings = <CosmicPartyMember>[];
     for (var i = 0; i < _partyMembers.length; i++) {
-      if (i == _activeCompanionSlot) continue;
+      if (_activeCompanionSlots.contains(i)) continue;
       final m = _partyMembers[i];
       if (m != null) offerings.add(m);
     }
@@ -4166,10 +4189,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!mounted) return;
     HapticFeedback.heavyImpact();
 
-    // Return active companion
-    if (_activeCompanionSlot != null) {
+    // Return active companions
+    if (_activeCompanionSlots.isNotEmpty) {
       _game?.returnCompanion();
-      _activeCompanionSlot = null;
+      _activeCompanionSlots.clear();
     }
 
     // Mark all party members as dead HP
@@ -5018,14 +5041,14 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// Builds a single party-slot button for slot index [i].
   Widget _buildPartySlotButton(int i) {
     final member = i < _partyMembers.length ? _partyMembers[i] : null;
-    final isActive = _activeCompanionSlot == i;
+    final isActive = _activeCompanionSlots.contains(i);
     final specialCooldown = isActive
-        ? (_game?.activeCompanion?.specialCooldown ??
+        ? (_game?.activeCompanions[i]?.specialCooldown ??
               (_companionSpecialCooldown[i] ?? 0.0))
         : (_companionSpecialCooldown[i] ?? 0.0);
     final showCooldown = member != null && specialCooldown > 0.05;
     final hpFrac = isActive
-        ? (_game?.activeCompanion?.hpPercent ??
+        ? (_game?.activeCompanions[i]?.hpPercent ??
               (_companionHpFraction[i] ?? 1.0))
         : (_companionHpFraction[i] ?? 1.0);
     final isDead = member != null && hpFrac <= 0;
@@ -5043,7 +5066,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   )
                 : null)
           : isActive
-          ? _handleReturnCompanion
+          ? () => _handleReturnCompanion(i)
           : () => _handleSummonCompanion(i),
       onLongPress: () => _handlePartySlotLongPress(i),
       child: _buildPartyHudSlotFrame(
@@ -8150,11 +8173,17 @@ class _CosmicScreenState extends State<CosmicScreen>
                   child: CosmicPartyPickerOverlay(
                     slotsUnlocked: _cosmicPartySlotsUnlocked,
                     partyMembers: _partyMembers,
-                    activeSlot: _activeCompanionSlot,
+                    activeSlot: _activeCompanionSlots.isEmpty
+                        ? null
+                        : _activeCompanionSlots.first,
                     onAssign: _handleAssignPartySlot,
                     onClear: _handleClearPartySlot,
                     onSummon: _handleSummonCompanion,
-                    onReturn: _handleReturnCompanion,
+                    onReturn: () {
+                      if (_activeCompanionSlots.isNotEmpty) {
+                        _handleReturnCompanion(_activeCompanionSlots.first);
+                      }
+                    },
                     onClose: _dismissPanels,
                     onBack: _closeSubPanel,
                     excludeInstanceIds: _garrisonMembers
@@ -9035,7 +9064,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                         if ((showCosmicHud ||
                                 (isMemoryTutorial &&
                                     _memoryTetherLessonVisible)) &&
-                            _activeCompanionSlot != null) ...[
+                            _activeCompanionSlots.isNotEmpty) ...[
                           _buildCompanionTetherButton(),
                           const SizedBox(height: 10),
                         ],
@@ -9047,9 +9076,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                           // Small health bar above each companion slot
                           Builder(
                             builder: (_) {
-                              final isActive = _activeCompanionSlot == i;
+                              final isActive = _activeCompanionSlots.contains(
+                                i,
+                              );
                               final hpFrac = isActive
-                                  ? (_game?.activeCompanion?.hpPercent ??
+                                  ? (_game?.activeCompanions[i]?.hpPercent ??
                                         (_companionHpFraction[i] ?? 1.0))
                                   : (_companionHpFraction[i] ?? 1.0);
                               return SizedBox(

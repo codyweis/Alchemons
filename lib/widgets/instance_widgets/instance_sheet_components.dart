@@ -5,6 +5,7 @@
 // All logic, props, and public API preserved exactly.
 //
 
+import 'dart:math' as math;
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/constants/breed_constants.dart';
@@ -174,58 +175,73 @@ class InstanceCard extends StatelessWidget {
             children: [
               // ── Sprite area ──────────────────────────────────────
               Expanded(
-                child: Stack(
-                  children: [
-                    Center(
-                      child: RepaintBoundary(
-                        child: sd != null
-                            ? InstanceSprite(
-                                creature: species,
-                                instance: instance,
-                                size: 90,
-                              )
-                            : Image.asset(species.image, fit: BoxFit.contain),
-                      ),
-                    ),
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      child: _CardCornerPill(
-                        label: topLeftLabel,
-                        color: topLeftTextColor,
-                        frameColor: topLeftBorderColor,
-                        palette: palette,
-                        fontSize: showSortBadge ? 9 : 10,
-                      ),
-                    ),
-                    if (instance.isFavorite ||
-                        (isSelected && selectionNumber != null))
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            if (instance.isFavorite)
-                              _CardCornerIcon(
-                                icon: AppIcons.star_rounded,
-                                color: const Color(0xFFE91E63),
-                                palette: palette,
-                              ),
-                            if (instance.isFavorite &&
-                                isSelected &&
-                                selectionNumber != null)
-                              const SizedBox(height: 4),
-                            if (isSelected && selectionNumber != null)
-                              _CardSelectionBadge(
-                                number: selectionNumber!,
-                                color: selColor,
-                                palette: palette,
-                              ),
-                          ],
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // A hardcoded 90 left most of this box empty on wider
+                    // grids. Size to the box instead, keeping a margin so the
+                    // corner pills overlaid here still clear the artwork.
+                    final box = math.min(
+                      constraints.maxWidth,
+                      constraints.maxHeight,
+                    );
+                    final spriteSize = (box * 0.94).clamp(64.0, 168.0);
+                    return Stack(
+                      children: [
+                        Center(
+                          child: RepaintBoundary(
+                            child: sd != null
+                                ? InstanceSprite(
+                                    creature: species,
+                                    instance: instance,
+                                    size: spriteSize,
+                                  )
+                                : Image.asset(
+                                    species.image,
+                                    fit: BoxFit.contain,
+                                  ),
+                          ),
                         ),
-                      ),
-                  ],
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          child: _CardCornerPill(
+                            label: topLeftLabel,
+                            color: topLeftTextColor,
+                            frameColor: topLeftBorderColor,
+                            palette: palette,
+                            fontSize: showSortBadge ? 9 : 10,
+                          ),
+                        ),
+                        if (instance.isFavorite ||
+                            (isSelected && selectionNumber != null))
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                if (instance.isFavorite)
+                                  _CardCornerIcon(
+                                    icon: AppIcons.star_filled,
+                                    color: const Color(0xFFE91E63),
+                                    palette: palette,
+                                  ),
+                                if (instance.isFavorite &&
+                                    isSelected &&
+                                    selectionNumber != null)
+                                  const SizedBox(height: 4),
+                                if (isSelected && selectionNumber != null)
+                                  _CardSelectionBadge(
+                                    number: selectionNumber!,
+                                    color: selColor,
+                                    palette: palette,
+                                  ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
               ),
 

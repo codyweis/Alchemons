@@ -6,7 +6,7 @@
 //   1. Dark screen fades in, text: "Guarantee Harvester Found" (added to inventory)
 //   2. Four elemental portals appear with staggered animation (Fire, Water, Earth, Air)
 //   3. Tapping one starts an encounter with a Prismatic Kin of that element
-//      (stats: all 3.0 starting, 4.5 potential)
+//      (stats: all 3.0 starting, each Potential independently rolled 60-80)
 //   4. After catch/flee → pops back to cosmic screen
 
 import 'dart:math';
@@ -30,6 +30,21 @@ import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+
+/// Rolls the fixed level-one stats used by a special Kin encounter.
+///
+/// Kept separate from the encounter setup so the Potential contract can be
+/// tested deterministically without mounting the full Nexus screen.
+CreatureStats rollNexusSpecialKinStats(Random rng) => CreatureStats(
+  speed: 3.0,
+  intelligence: 3.0,
+  strength: 3.0,
+  beauty: 3.0,
+  speedPotential: (rng.nextInt(21) + 60).toDouble(),
+  intelligencePotential: (rng.nextInt(21) + 60).toDouble(),
+  strengthPotential: (rng.nextInt(21) + 60).toDouble(),
+  beautyPotential: (rng.nextInt(21) + 60).toDouble(),
+);
 
 // ─────────────────────────────────────────────────────────
 // RESULT passed back to cosmic_screen
@@ -189,7 +204,7 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
     final rng = Random();
     final picked = pool[rng.nextInt(pool.length)];
 
-    // Generate a prismatic version with exceptional fixed Potential.
+    // Generate a guaranteed prismatic version; its Potential is assigned below.
     final gen = WildlifeGenerator(
       repo,
       tuning: const WildlifeTuning(prismaticSkinChance: 1.0),
@@ -200,18 +215,9 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
       return;
     }
 
-    // Override stats to fixed values
+    // Override stats, with potentials randomized 60-80 inclusive.
     hydrated = hydrated.copyWith(
-      stats: const CreatureStats(
-        speed: 3.0,
-        intelligence: 3.0,
-        strength: 3.0,
-        beauty: 3.0,
-        speedPotential: 90,
-        intelligencePotential: 90,
-        strengthPotential: 90,
-        beautyPotential: 90,
-      ),
+      stats: rollNexusSpecialKinStats(rng),
       isPrismaticSkin: true,
     );
 

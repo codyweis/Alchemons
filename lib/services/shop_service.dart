@@ -70,6 +70,7 @@ class ShopService extends ChangeNotifier {
   static const bool _debugUnlockContestEffectsInShop = false;
 
   static const potentialSoulOfferId = 'boost.potential_soul';
+  static const wildFusionOfferId = 'boost.wild_fusion';
   static const beautyContestEffectOfferId = 'effects.beauty_radiance';
   static const speedContestEffectOfferId = 'effects.speed_flux';
   static const strengthContestEffectOfferId = 'effects.strength_forge';
@@ -427,7 +428,7 @@ class ShopService extends ChangeNotifier {
       description:
           'A single-use field catalyst required for one fusion attempt with a wild Alchemon.',
       icon: AppIcons.merge_type_rounded,
-      cost: const {'silver': 1250},
+      cost: const {'silver': 100},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -439,8 +440,7 @@ class ShopService extends ChangeNotifier {
       name: 'Raid Beacon',
       description:
           'Summons a raid on a conquered planet now, instead of waiting for '
-          'the 48h rotation. Clear all three levels, then return for one '
-          'Level 3 echo after its 12-hour respawn.',
+          'the 48h rotation.',
       icon: AppIcons.whatshot_rounded,
       cost: const {'gold': 25},
       reward: const {},
@@ -1209,7 +1209,20 @@ class ShopService extends ChangeNotifier {
   }
 
   /// Get the *effective* cost of an offer after constellation + faction discounts
+  /// The first Wild Fusion an account ever buys is free, so the wilderness
+  /// fusion flow can be taught without the player having to afford it. Keyed
+  /// off purchase history rather than a tutorial flag, so it holds whether or
+  /// not the player was walked through it.
+  bool isFirstWildFusionFree() =>
+      (_purchaseCounts[wildFusionOfferId] ?? 0) == 0;
+
   Map<String, int> getEffectiveCost(ShopOffer offer) {
+    if (offer.id == wildFusionOfferId && isFirstWildFusionFree()) {
+      // Explicit zero rather than an empty map: every cost renderer iterates
+      // the entries, so an empty map prints a blank COST section instead of
+      // saying the thing is free. addSilver(-0) is a no-op.
+      return const <String, int>{'silver': 0};
+    }
     final baseCost = offer.cost;
 
     // 🔮 Constellation discount

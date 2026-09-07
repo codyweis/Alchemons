@@ -44,6 +44,8 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
   Creature? _voidCreature;
   EncounterRarity _voidRarity = EncounterRarity.common;
   bool _spawned = false;
+  bool _spawnScheduled = false;
+  Animation<double>? _routeAnimation;
   final bool _encounterActive = true;
   Creature? _selectedPartyCreature;
 
@@ -76,54 +78,67 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_spawned) {
+    if (_spawned || _spawnScheduled) return;
+
+    final routeAnimation = ModalRoute.of(context)?.animation;
+    if (!identical(_routeAnimation, routeAnimation)) {
+      _routeAnimation?.removeStatusListener(_handleRouteAnimationStatus);
+      _routeAnimation = routeAnimation;
+      _routeAnimation?.addStatusListener(_handleRouteAnimationStatus);
+    }
+    if (routeAnimation == null ||
+        routeAnimation.status == AnimationStatus.completed) {
+      _scheduleSpawnAfterTransition();
+    }
+  }
+
+  void _handleRouteAnimationStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) _scheduleSpawnAfterTransition();
+  }
+
+  void _scheduleSpawnAfterTransition() {
+    if (_spawned || _spawnScheduled) return;
+    _spawnScheduled = true;
+    _routeAnimation?.removeStatusListener(_handleRouteAnimationStatus);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _spawned) return;
       _spawned = true;
       _spawnVoidCreature();
-    }
+    });
   }
 
   void _spawnVoidCreature() {
     final repo = context.read<CreatureCatalog>();
     final rng = Random();
 
-    // Filter catalog to species whose types overlap the faction.
-    // Exclude Mystic rarity — they are not part of the standard encounter pool.
+    // Select in one pass with weighted reservoir sampling. This avoids building
+    // both a filtered list and an expanded weighted list on the UI isolate.
+    // Mystic creatures remain excluded from the standard encounter pool.
     final matchTypes = widget.faction.matchingTypes;
-    final pool = repo.creatures
-        .where(
-          (c) =>
-              c.rarity.toLowerCase() != 'mystic' &&
-              c.types.any((t) => matchTypes.contains(t)),
-        )
-        .toList();
+    Creature? picked;
+    var totalWeight = 0;
+    for (final creature in repo.creatures) {
+      if (creature.rarity.toLowerCase() == 'mystic' ||
+          !creature.types.any(matchTypes.contains)) {
+        continue;
+      }
+      final known = EncounterRarity.values.firstWhere(
+        (rarity) => rarity.label == creature.rarity.toLowerCase(),
+        orElse: () => EncounterRarity.rare,
+      );
+      final weight = (known.baseWeight / 5).round().clamp(1, 20);
+      totalWeight += weight;
+      if (rng.nextInt(totalWeight) < weight) picked = creature;
+    }
 
-    if (pool.isEmpty) {
+    if (picked == null) {
       debugPrint('⚠️ No creatures match faction ${widget.faction.factionKey}');
       return;
     }
 
-    // Build a rarity-weighted list using each creature's own rarity weight.
-    // This gives the correct spawn probabilities:
-    //   Common ~62%  ·  Uncommon ~26%  ·  Rare ~10%  ·  Legendary ~2%
-    // Guard against non-standard rarity strings (e.g. "Mystic") by falling
-    // back to the rare weight so they can still appear but are uncommon.
-    final weighted = <Creature>[];
-    for (final c in pool) {
-      final known = EncounterRarity.values.firstWhere(
-        (e) => e.label == c.rarity.toLowerCase(),
-        orElse: () => EncounterRarity.rare,
-      );
-      final w = known.baseWeight;
-      for (int i = 0; i < (w / 5).round().clamp(1, 20); i++) {
-        weighted.add(c);
-      }
-    }
-
-    final picked = weighted[rng.nextInt(weighted.length)];
-
     // Derive encounter rarity from the creature's own rarity label.
     final rarity = EncounterRarity.values.firstWhere(
-      (e) => e.label == picked.rarity.toLowerCase(),
+      (e) => e.label == picked!.rarity.toLowerCase(),
       orElse: () => EncounterRarity.rare,
     );
 
@@ -144,6 +159,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
 
   @override
   void dispose() {
+    _routeAnimation?.removeStatusListener(_handleRouteAnimationStatus);
     // Restore all orientations when leaving the rift
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,

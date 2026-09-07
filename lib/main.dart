@@ -36,6 +36,7 @@ import 'firebase_options.dart';
 import 'services/game_data_service.dart';
 import 'providers/app_providers.dart';
 import 'screens/home_screen.dart';
+import 'screens/splash_screen.dart';
 import 'package:alchemons/systems/effects/default_effects.dart';
 
 // >>> add these imports for scenes & pools
@@ -158,6 +159,16 @@ class _AppGateState extends State<AppGate> {
   bool _assetsLoaded = false;
 
   bool _readyToShowShell = false;
+  String _loadingStatus = 'Preparing your alchemy lab';
+  double _loadingProgress = 0.08;
+
+  void _setLoadingState(String status, double progress) {
+    if (!mounted) return;
+    setState(() {
+      _loadingStatus = status;
+      _loadingProgress = progress;
+    });
+  }
 
   @override
   void initState() {
@@ -168,14 +179,17 @@ class _AppGateState extends State<AppGate> {
       if (!mounted) return;
 
       // 1) Precache assets
+      _setLoadingState('Warming artwork', 0.18);
       await _precacheAssets();
 
       // 2) Start spawns
+      _setLoadingState('Synchronizing the wilderness', 0.38);
       await _ensureSpawnsStarted();
 
       // debug helpers removed
 
       // 3) Run first-launch story BEFORE we ever show the shell
+      _setLoadingState('Restoring your journey', 0.54);
       await _runFirstLaunchFlow();
 
       // 4) Existing "must pick faction" watcher / bootstrap
@@ -183,6 +197,7 @@ class _AppGateState extends State<AppGate> {
       if (mustPick) _openPicker();
 
       if (!mounted) return;
+      _setLoadingState('Reading the constellations', 0.66);
       await context.read<ConstellationService>().calculateRetroactivePoints();
       setState(() {
         _readyToShowShell = true;
@@ -256,11 +271,12 @@ class _AppGateState extends State<AppGate> {
     debugPrint('🎨 Starting asset precaching...');
 
     try {
-      // Step 1: Precache UI assets (navbar, icons, etc.)
+      // Precache only the small, shared UI assets. Creature sprite sheets are
+      // 4800x1200 and decode to roughly 23 MB each; bulk-loading 25 of them
+      // here used hundreds of MB and immediately thrashed the image cache.
+      // Visible creature art is warmed later when each navigation screen is
+      // mounted behind the startup splash.
       await _precacheUIAssets();
-
-      // Step 2: Precache creature sprites (discovered/owned only)
-      await _precacheCreatureSprites();
 
       final duration = DateTime.now().difference(startTime);
       debugPrint('✅ Asset precaching complete in ${duration.inMilliseconds}ms');
@@ -315,63 +331,6 @@ class _AppGateState extends State<AppGate> {
     }
 
     debugPrint('🎨 Precached $cached UI assets');
-  }
-
-  Future<void> _precacheCreatureSprites() async {
-    if (!mounted) return;
-
-    try {
-      final catalog = context.read<CreatureCatalog>();
-      final db = context.read<AlchemonsDatabase>();
-
-      // Get user's creature instances (guaranteed to be viewed)
-      final instances = await db.creatureDao.listAllInstances();
-      final ownedIds = instances.map((i) => i.baseId).toSet();
-
-      // Get discovered creatures (likely to be viewed)
-      final playerCreatures = await db.creatureDao.getAllCreatures();
-      final discoveredIds = playerCreatures
-          .where((p) => p.discovered)
-          .map((p) => p.id)
-          .toSet();
-
-      // Combine: owned first (highest priority), then discovered
-      final priorityIds = <String>[
-        ...ownedIds,
-        ...discoveredIds.where((id) => !ownedIds.contains(id)),
-      ];
-
-      // Limit to first 20-30 creatures to keep loading reasonable
-      const maxPrecache = 25;
-      final toPrecache = priorityIds.take(maxPrecache);
-
-      int cached = 0;
-      await Future.wait(
-        toPrecache.map((id) async {
-          if (!mounted) return;
-
-          final creature = catalog.getCreatureById(id);
-          if (creature?.spriteData == null) return;
-
-          try {
-            final rawPath = creature!.spriteData!.spriteSheetPath;
-            final assetPath = rawPath.startsWith('assets/')
-                ? rawPath
-                : 'assets/images/$rawPath';
-            await precacheImage(AssetImage(assetPath), context);
-            cached++;
-          } catch (e) {
-            debugPrint('Failed to precache sprite for $id: $e');
-          }
-        }),
-      );
-
-      debugPrint(
-        '🐉 Precached $cached creature sprites (${ownedIds.length} owned, ${discoveredIds.length} discovered)',
-      );
-    } catch (e) {
-      debugPrint('Error precaching creature sprites: $e');
-    }
   }
 
   // >>> spawn bootstrap
@@ -462,9 +421,14 @@ class _AppGateState extends State<AppGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_readyToShowShell) {
-      // You can make this a nice splash / logo if you want.
-      return const Scaffold(backgroundColor: Colors.black);
+    final catalogs = context.watch<CatalogData?>();
+    final catalogsReady = catalogs?.isFullyLoaded ?? false;
+
+    if (!_readyToShowShell || !catalogsReady) {
+      return AlchemonsSplash(
+        status: _readyToShowShell ? 'Loading alchemy systems' : _loadingStatus,
+        progress: _readyToShowShell ? 0.72 : _loadingProgress,
+      );
     }
 
     return widget.child;

@@ -15,6 +15,7 @@ import 'package:alchemons/widgets/creature_detail/creature_background_pref.dart'
 import 'package:alchemons/widgets/creature_detail/creature_display_view.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flame/components.dart';
 
@@ -172,39 +173,100 @@ String _displayVariantFaction(String faction) {
 class _TagBadge extends StatelessWidget {
   final String label;
   final Color color;
-  const _TagBadge({required this.label, required this.color});
+
+  /// The bracket frame earns its place over artwork — the Prismatic badge sits
+  /// on the sprite and needs the edge to stay legible. The header tags sit on
+  /// a flat panel, where the frame was just noise around two short words.
+  final bool framed;
+
+  const _TagBadge({
+    required this.label,
+    required this.color,
+    this.framed = true,
+  });
+
   @override
   Widget build(BuildContext context) {
+    final body = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: framed ? 0.10 : 0.14),
+        borderRadius: framed ? null : BorderRadius.circular(3),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: bracketText(
+          context,
+          11,
+          color,
+          weight: FontWeight.w700,
+          letterSpacing: 1.0,
+        ),
+      ),
+    );
+    if (!framed) return body;
     return CustomPaint(
       painter: BracketFramePainter(
         color: color.withValues(alpha: 0.75),
         bracketSize: 5,
         strokeWidth: 1,
       ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        color: color.withValues(alpha: 0.10),
-        child: Text(
-          label.toUpperCase(),
-          style: bracketText(
-            context,
-            11,
-            color,
-            weight: FontWeight.w700,
-            letterSpacing: 1.0,
-          ),
-        ),
-      ),
+      child: body,
     );
   }
 }
 
 /// Label + value row in the bracket aesthetic.
+/// A single behaviour, boxed. Two natures rendered as one comma-joined string
+/// read as a single odd name; a box each makes the count obvious. Tier is
+/// carried by colour alone — spelling it out beside the name doubled the width
+/// of every chip to label the majority case "UTILITY".
+class _NatureChip extends StatelessWidget {
+  final NatureDef nature;
+
+  const _NatureChip({required this.nature});
+
+  static Color tierColor(String tier, _C c) => switch (tier.toLowerCase()) {
+    'legacy' => const Color(0xFFFFC107),
+    'rare' => const Color(0xFFC084FC),
+    'uncommon' => const Color(0xFF34D399),
+    'common' => const Color(0xFF60A5FA),
+    _ => c.textMuted,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _C.of(context);
+    final color = tierColor(nature.tier, c);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: color.withValues(alpha: 0.65)),
+      ),
+      child: Text(
+        nature.id,
+        style: bracketText(context, 12, color, weight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
 class _DataRow extends StatelessWidget {
   final String label;
   final String value;
   final Color? valueColor;
-  const _DataRow({required this.label, required this.value, this.valueColor});
+
+  /// Replaces the value text when a row needs richer content — the behaviour
+  /// row renders one bordered chip per nature.
+  final Widget? valueChild;
+
+  const _DataRow({
+    required this.label,
+    this.value = '',
+    this.valueColor,
+    this.valueChild,
+  });
   @override
   Widget build(BuildContext context) {
     final palette = _bp(context);
@@ -228,16 +290,18 @@ class _DataRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              value,
-              style: bracketText(
-                context,
-                12.5,
-                valueColor ?? palette.ink,
-                weight: FontWeight.w600,
-              ),
-              strutStyle: const StrutStyle(height: 1.35),
-            ),
+            child:
+                valueChild ??
+                Text(
+                  value,
+                  style: bracketText(
+                    context,
+                    12.5,
+                    valueColor ?? palette.ink,
+                    weight: FontWeight.w600,
+                  ),
+                  strutStyle: const StrutStyle(height: 1.35),
+                ),
           ),
         ],
       ),
@@ -448,6 +512,11 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     if (instance == null || instanceId == null || _favoriteBusy) return;
 
     final nextFavorite = !instance.isFavorite;
+    if (nextFavorite) {
+      HapticFeedback.mediumImpact();
+    } else {
+      HapticFeedback.selectionClick();
+    }
     setState(() {
       _favoriteBusy = true;
       _instance = instance.copyWith(
@@ -999,7 +1068,12 @@ class _HeaderBar extends StatelessWidget {
               Expanded(
                 child: instance != null
                     ? InkWell(
-                        onTap: nicknameBusy ? null : onEditName,
+                        onTap: nicknameBusy
+                            ? null
+                            : () {
+                                HapticFeedback.lightImpact();
+                                onEditName();
+                              },
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 2),
                           child: Row(
@@ -1056,8 +1130,10 @@ class _HeaderBar extends StatelessWidget {
               const SizedBox(width: 10),
               if (instance != null) ...[
                 _HeaderIconButton(
+                  // star_rounded and star_border_rounded are the same outline
+                  // glyph, so the "on" state never actually filled.
                   icon: isFavorite
-                      ? AppIcons.star_rounded
+                      ? AppIcons.star_filled
                       : AppIcons.star_border_rounded,
                   iconColor: isFavorite ? favoriteAccent : palette.muted,
                   frameColor: isFavorite ? favoriteAccent : palette.line,
@@ -1094,11 +1170,19 @@ class _HeaderBar extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: [
-              _TagBadge(label: creature.rarity, color: rarityColor),
+              _TagBadge(
+                label: creature.rarity,
+                color: rarityColor,
+                framed: false,
+              ),
               ...creature.types
                   .take(2)
                   .map(
-                    (t) => _TagBadge(label: t, color: _dialogAccent(context)),
+                    (t) => _TagBadge(
+                      label: t,
+                      color: _dialogAccent(context),
+                      framed: false,
+                    ),
                   ),
             ],
           ),
@@ -1127,7 +1211,12 @@ class _HeaderIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = _bp(context);
     return GestureDetector(
-      onTap: onTap,
+      onTap: onTap == null
+          ? null
+          : () {
+              HapticFeedback.lightImpact();
+              onTap!();
+            },
       child: CustomPaint(
         painter: BracketFramePainter(
           color: frameColor.withValues(alpha: 0.8),
@@ -1183,7 +1272,10 @@ class _TabSelector extends StatelessWidget {
                   right: index == _labels.length - 1 ? 0 : 8,
                 ),
                 child: GestureDetector(
-                  onTap: () => tabController.animateTo(index),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    tabController.animateTo(index);
+                  },
                   child: CustomPaint(
                     painter: BracketFramePainter(
                       color: selected
@@ -1345,6 +1437,43 @@ class _OverviewTab extends StatelessWidget {
           ],
           const SizedBox(height: 20),
 
+          // ── Physical attributes (instance only) ──────────────────────────────
+          if (instance != null) ...[
+            _ForgeSection(
+              title: 'Physical Attributes',
+              accentColor: c.amberBright,
+              child: Column(
+                children: [
+                  _StatBar(
+                    label: 'Speed',
+                    value: instance!.statSpeed,
+                    potential: instance!.statSpeedPotential,
+                    accent: const Color(0xFF60A5FA),
+                  ),
+                  _StatBar(
+                    label: 'Intelligence',
+                    value: instance!.statIntelligence,
+                    potential: instance!.statIntelligencePotential,
+                    accent: const Color(0xFFC084FC),
+                  ),
+                  _StatBar(
+                    label: 'Strength',
+                    value: instance!.statStrength,
+                    potential: instance!.statStrengthPotential,
+                    accent: const Color(0xFFF87171),
+                  ),
+                  _StatBar(
+                    label: 'Beauty',
+                    value: instance!.statBeauty,
+                    potential: instance!.statBeautyPotential,
+                    accent: const Color(0xFFF9A8D4),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+
           if (instance != null) ...[
             _ForgeSection(
               title: 'Genetic Profile',
@@ -1352,10 +1481,20 @@ class _OverviewTab extends StatelessWidget {
                 children: [
                   _DataRow(label: 'Size Variant', value: _sizeLabel()),
                   _DataRow(label: 'Pigmentation', value: _tintLabel()),
-                  if (creature.nature != null)
+                  if (creature.nature != null || creature.nature2 != null)
                     _DataRow(
                       label: 'Behavioral Pattern',
-                      value: creature.nature!.id,
+                      valueChild: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final n in [
+                            creature.nature,
+                            creature.nature2,
+                          ].whereType<NatureDef>())
+                            _NatureChip(nature: n),
+                        ],
+                      ),
                     ),
                   if (creature.isPrismaticSkin == true)
                     _DataRow(
@@ -1372,23 +1511,6 @@ class _OverviewTab extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 10),
-            _ForgeSection(
-              title: 'Source / Discovery',
-              child: Column(
-                children: [
-                  _DataRow(
-                    label: 'Source',
-                    value: _formatSource(instance!.source),
-                  ),
-                  _DataRow(
-                    label: 'Logged',
-                    value: _formatCreationDate(instance!.createdAtUtcMs),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
           ],
 
           // ── Classification ───────────────────────────────────────────────────
@@ -1408,20 +1530,19 @@ class _OverviewTab extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // ── Physical attributes (instance only) ──────────────────────────────
           if (instance != null) ...[
             _ForgeSection(
-              title: 'Physical Attributes',
-              accentColor: c.amberBright,
+              title: 'Source / Discovery',
               child: Column(
                 children: [
-                  _StatBar(label: 'Speed', value: instance!.statSpeed),
-                  _StatBar(
-                    label: 'Intelligence',
-                    value: instance!.statIntelligence,
+                  _DataRow(
+                    label: 'Source',
+                    value: _formatSource(instance!.source),
                   ),
-                  _StatBar(label: 'Strength', value: instance!.statStrength),
-                  _StatBar(label: 'Beauty', value: instance!.statBeauty),
+                  _DataRow(
+                    label: 'Logged',
+                    value: _formatCreationDate(instance!.createdAtUtcMs),
+                  ),
                 ],
               ),
             ),
@@ -1501,7 +1622,12 @@ class _OverviewTab extends StatelessWidget {
                       height: 175,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: onSpriteTap,
+                        onTap: onSpriteTap == null
+                            ? null
+                            : () {
+                                HapticFeedback.selectionClick();
+                                onSpriteTap!();
+                              },
                         child: Center(
                           child: instance == null
                               ? CreatureSprite(
@@ -1732,7 +1858,10 @@ class _StaminaRestoreButton extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(top: 8),
               child: GestureDetector(
-                onTap: () => _use(context, qty),
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  _use(context, qty);
+                },
                 child: CustomPaint(
                   painter: BracketFramePainter(
                     color: activeAccent.withValues(alpha: 0.88),
@@ -1864,31 +1993,39 @@ class _StaminaRestoreButton extends StatelessWidget {
 class _StatBar extends StatelessWidget {
   final String label;
   final double value;
+  final double? potential;
+  final Color accent;
 
-  const _StatBar({required this.label, required this.value});
-
-  Color _barColor(_C c) {
-    final ratio = AlchemonStatSystem.displayFraction(value);
-    if (ratio >= 0.7) return c.success;
-    if (ratio >= 0.4) return c.amberBright;
-    return c.danger;
-  }
+  const _StatBar({
+    required this.label,
+    required this.value,
+    required this.accent,
+    this.potential,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
     final palette = _bp(context);
-    final ratio = AlchemonStatSystem.displayFraction(value);
-    final color = _barColor(c);
+    final rating = AlchemonStatSystem.displayRating(value);
+    final p = potential == null
+        ? null
+        : AlchemonStatSystem.normalizePotential(potential!);
+    final perfect = p != null && p >= 95;
 
+    // No track: the old one was a red/amber/green threshold bar, so an
+    // ordinary Strength score rendered in the same red the app uses for
+    // failures. The number carries the value; the accent identifies the stat.
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
         children: [
-          SizedBox(
-            width: 110,
+          Expanded(
             child: Text(
               label.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: bracketText(
                 context,
                 11,
@@ -1899,24 +2036,22 @@ class _StatBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: Container(
-              height: 5,
-              color: palette.lineSoft,
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: ratio,
-                child: Container(color: color),
-              ),
-            ),
+          Text(
+            '$rating',
+            style: bracketText(context, 16, accent, weight: FontWeight.w800),
           ),
-          const SizedBox(width: 10),
           SizedBox(
-            width: 32,
+            width: 54,
             child: Text(
-              AlchemonStatSystem.displayRating(value).toString(),
-              style: bracketText(context, 12.5, color, weight: FontWeight.w700),
+              p == null ? '' : 'P$p',
               textAlign: TextAlign.right,
+              maxLines: 1,
+              style: bracketText(
+                context,
+                12,
+                perfect ? accent : palette.muted,
+                weight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -1988,28 +2123,6 @@ class _AnalysisTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Behavioral Analysis
-          _HighlightedAnalysisSection(
-            sectionKey: behaviorSectionKey,
-            enabled: highlightGene,
-            label: CreatureDetailsTutorialTarget.geneAnalyzer.highlightLabel,
-            child: _AnalysisSection(
-              title: 'Behavioral Analysis',
-              child: _BehaviorBlock(
-                creature: creature,
-                showNatureDetails: hasGeneAnalyzer,
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Genetic Analysis
-          _AnalysisSection(
-            title: 'Genetic Analysis',
-            child: _GeneticsBlock(creature: creature),
-          ),
-          const SizedBox(height: 18),
-
           // Stat Potentials
           if (isInstance && instanceId != null) ...[
             _HighlightedAnalysisSection(
@@ -2037,6 +2150,28 @@ class _AnalysisTab extends StatelessWidget {
             ),
             const SizedBox(height: 18),
           ],
+
+          // Behavioral Analysis
+          _HighlightedAnalysisSection(
+            sectionKey: behaviorSectionKey,
+            enabled: highlightGene,
+            label: CreatureDetailsTutorialTarget.geneAnalyzer.highlightLabel,
+            child: _AnalysisSection(
+              title: 'Behavioral Analysis',
+              child: _BehaviorBlock(
+                creature: creature,
+                showNatureDetails: hasGeneAnalyzer,
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Genetic Analysis
+          _AnalysisSection(
+            title: 'Genetic Analysis',
+            child: _GeneticsBlock(creature: creature),
+          ),
+          const SizedBox(height: 18),
 
           // Lineage
           if (isInstance && instance != null) ...[
@@ -2494,17 +2629,6 @@ class _PurityAnalysisCard extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '${purity.description} Lineage is descriptive; only Potential is inherited as stat power.',
-              style: bracketText(
-                context,
-                12,
-                palette.muted,
-                weight: FontWeight.w500,
-              ),
-              strutStyle: const StrutStyle(height: 1.4),
             ),
           ],
         ),

@@ -66,6 +66,8 @@ class CosmicSurvivalEnemy {
   final double damage;
   final double radius;
   final EnemyTier tier;
+  final bool isPlagueCore;
+  final Color? visualColor;
   final String element;
 
   /// Converged taxonomy (docs/enemy_taxonomy.md). Derived from role+variant
@@ -130,6 +132,8 @@ class CosmicSurvivalEnemy {
     required this.damage,
     required this.radius,
     required this.tier,
+    this.isPlagueCore = false,
+    this.visualColor,
     required this.element,
     required this.conduct,
     this.trait,
