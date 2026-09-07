@@ -67,7 +67,7 @@ class SideDockFloating extends StatelessWidget {
           child: _FloatingSideButton(
             theme: theme,
             size: 80,
-            label: 'Battle',
+            label: 'Survival',
             assetPath: 'assets/images/ui/trialsicon.png',
             onTap: onBattle,
           ),
