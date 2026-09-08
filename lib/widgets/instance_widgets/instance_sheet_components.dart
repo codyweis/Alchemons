@@ -731,10 +731,22 @@ class _GeneticsBlock extends StatelessWidget {
     required this.creatureName,
   });
 
-  String _sizeName() =>
-      sizeLabels[genetics?.get('size') ?? 'normal'] ?? 'Standard';
-  String _tintName() =>
-      tintLabels[genetics?.get('tinting') ?? 'normal'] ?? 'Standard';
+  /// Any of these rows can be absent, so the gaps are inserted between what
+  /// actually renders rather than pinned to individual rows.
+  static List<Widget> _spaced(List<Widget> rows) {
+    final out = <Widget>[];
+    for (var i = 0; i < rows.length; i++) {
+      if (i > 0) out.add(const SizedBox(height: 2));
+      out.add(rows[i]);
+    }
+    return out;
+  }
+
+  String _sizeKey() => genetics?.get('size') ?? 'normal';
+  String _tintKey() => genetics?.get('tinting') ?? 'normal';
+
+  String _sizeName() => sizeLabels[_sizeKey()] ?? 'Standard';
+  String _tintName() => tintLabels[_tintKey()] ?? 'Standard';
 
   @override
   Widget build(BuildContext context) {
@@ -752,30 +764,32 @@ class _GeneticsBlock extends StatelessWidget {
           const _PrismaticChip(),
           const SizedBox(height: 3),
         ],
-        if (variant.isNotEmpty) ...[
-          _MiniRow(
-            color: FactionColors.of(_displayVariantFaction(variant)),
-            label: _displayVariantFaction(variant).toUpperCase(),
-          ),
-          const SizedBox(height: 2),
-        ],
-        _MiniRow(color: t.amberBright, label: _sizeName().toUpperCase()),
-        const SizedBox(height: 2),
-        _MiniRow(color: t.amberBright, label: _tintName().toUpperCase()),
-        if (instance.natureId?.isNotEmpty == true) ...[
-          const SizedBox(height: 2),
-          _MiniRow(
-            color: t.textSecondary,
-            label: instance.natureId!.toUpperCase(),
-          ),
-        ],
-        if (instance.natureId2?.isNotEmpty == true) ...[
-          const SizedBox(height: 2),
-          _MiniRow(
-            color: t.textSecondary,
-            label: instance.natureId2!.toUpperCase(),
-          ),
-        ],
+        // Only deviations earn a line. Every other variant name says which
+        // track it belongs to on its own -- GIANT is obviously a size, ALBINO
+        // obviously a colour -- so a card printing NORMAL twice was spending
+        // two rows to say nothing, and reading as if it named two of the same
+        // thing.
+        ..._spaced([
+          if (variant.isNotEmpty)
+            _MiniRow(
+              color: FactionColors.of(_displayVariantFaction(variant)),
+              label: _displayVariantFaction(variant).toUpperCase(),
+            ),
+          if (_sizeKey() != 'normal')
+            _MiniRow(color: t.amberBright, label: _sizeName().toUpperCase()),
+          if (_tintKey() != 'normal')
+            _MiniRow(color: t.amberBright, label: _tintName().toUpperCase()),
+          if (instance.natureId?.isNotEmpty == true)
+            _MiniRow(
+              color: t.textSecondary,
+              label: instance.natureId!.toUpperCase(),
+            ),
+          if (instance.natureId2?.isNotEmpty == true)
+            _MiniRow(
+              color: t.textSecondary,
+              label: instance.natureId2!.toUpperCase(),
+            ),
+        ]),
       ],
     );
   }
@@ -855,7 +869,8 @@ class _HarvestBlock extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _MiniRow(color: t.textSecondary, label: sizeName.toUpperCase()),
+            if (sizeKey != 'normal')
+              _MiniRow(color: t.textSecondary, label: sizeName.toUpperCase()),
             if (instance.natureId?.isNotEmpty == true)
               _MiniRow(
                 color: t.textSecondary,

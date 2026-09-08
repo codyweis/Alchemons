@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
@@ -76,6 +77,115 @@ void main() {
     );
 
     waterlet = repository.getCreatureById('LET02')!;
+  });
+
+  group('Potential inheritance through the engine', () {
+    db.CreatureInstance instance(String id, String baseId, double potential) =>
+        db.CreatureInstance(
+          instanceId: id,
+          baseId: baseId,
+          level: 1,
+          xp: 0,
+          locked: false,
+          isPrismaticSkin: false,
+          source: 'test',
+          staminaMax: 3,
+          staminaBars: 3,
+          staminaLastUtcMs: 0,
+          createdAtUtcMs: 0,
+          statSpeed: 3,
+          statIntelligence: 3,
+          statStrength: 3,
+          statBeauty: 3,
+          statSpeedPotential: potential,
+          statIntelligencePotential: potential,
+          statStrengthPotential: potential,
+          statBeautyPotential: potential,
+          statSpeedEnhancement: 0,
+          statIntelligenceEnhancement: 0,
+          statStrengthEnhancement: 0,
+          statBeautyEnhancement: 0,
+          generationDepth: 0,
+          isPure: true,
+          isFavorite: false,
+        );
+
+    test('a miss cannot exceed the parents, a recipe hit can', () {
+      const parentPotential = 40.0;
+      final a = instance('a', 'LET02', parentPotential);
+      final b = instance('b', 'LET02', parentPotential);
+
+      var missBest = 0.0;
+      var hitExceeded = false;
+      var misses = 0;
+      var hits = 0;
+
+      for (var seed = 0; seed < 600; seed++) {
+        final engine = BreedingEngine(
+          repository,
+          elementRecipes: elementRecipes,
+          familyRecipes: familyRecipes,
+          tuning: const BreedingTuning(globalMutationChance: 0),
+          random: Random(seed),
+        );
+        final result = engine.breedInstances(a, b);
+        if (!result.success) continue;
+        final child = result.creature!;
+        final stats = child.stats;
+        if (stats == null) continue;
+
+        final best = [
+          stats.speedPotential,
+          stats.intelligencePotential,
+          stats.strengthPotential,
+          stats.beautyPotential,
+        ].reduce((x, y) => x > y ? x : y);
+
+        // Both parents are Lets. A child that stayed a Let is a miss; one that
+        // came out Mane or Pip took the recipe, and pays out.
+        final childFamily = child.mutationFamily;
+        if (childFamily == 'Let') {
+          misses++;
+          if (best > missBest) missBest = best;
+        } else {
+          hits++;
+          if (best > parentPotential) hitExceeded = true;
+        }
+      }
+
+      expect(misses, greaterThan(0), reason: 'let+let should stay Let often');
+      expect(hits, greaterThan(0), reason: 'let+let should also pop family');
+      expect(
+        missBest,
+        lessThanOrEqualTo(parentPotential),
+        reason: 'a miss must never hand back more than the better parent',
+      );
+      expect(
+        hitExceeded,
+        isTrue,
+        reason: 'a recipe hit is the only way a line climbs',
+      );
+    });
+
+    test('every bred child carries exactly two Dominants', () {
+      final a = instance('a', 'LET02', 60);
+      final b = instance('b', 'LET02', 60);
+
+      for (var seed = 0; seed < 100; seed++) {
+        final engine = BreedingEngine(
+          repository,
+          elementRecipes: elementRecipes,
+          familyRecipes: familyRecipes,
+          tuning: const BreedingTuning(globalMutationChance: 0),
+          random: Random(seed),
+        );
+        final result = engine.breedInstances(a, b);
+        if (!result.success) continue;
+        final dominants = result.creature!.stats?.dominants;
+        expect(dominants, isNotNull);
+        expect(dominants!.first, isNot(dominants.second));
+      }
+    });
   });
 
   group('Breeding engine', () {

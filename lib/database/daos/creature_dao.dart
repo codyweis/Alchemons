@@ -1,5 +1,6 @@
 // lib/database/daos/creature_dao.dart
 import 'dart:convert';
+import 'package:alchemons/models/potential_genetics.dart';
 import 'dart:math';
 import 'package:drift/drift.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -319,6 +320,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
       statIntelligencePotential: asDouble(pots['intelligence']),
       statStrengthPotential: asDouble(pots['strength']),
       statBeautyPotential: asDouble(pots['beauty']),
+      dominantStats: pots['dominants'] as String?,
       legacyPotentialScale: legacyPotentialScale,
 
       // Lineage
@@ -468,6 +470,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     double? statIntelligencePotential,
     double? statStrengthPotential,
     double? statBeautyPotential,
+    String? dominantStats,
     int statSpeedEnhancement = 0,
     int statIntelligenceEnhancement = 0,
     int statStrengthEnhancement = 0,
@@ -516,6 +519,18 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
       legacyScale: legacyPotentialScale,
     ).toDouble();
 
+    // An Alchemon with no supplied Dominants is Dominant in whatever it is
+    // best at. That covers wild spawns, vials and nexus encounters without
+    // every one of those call sites having to know about genetics.
+    final effectiveDominants =
+        DominantStats.decode(dominantStats) ??
+        DominantStats.fromPotentials(
+          speed: effectiveSpeedPotential,
+          intelligence: effectiveIntelligencePotential,
+          strength: effectiveStrengthPotential,
+          beauty: effectiveBeautyPotential,
+        );
+
     double canonicalStat(double? value, double fallback) =>
         max(0.0, value ?? fallback);
 
@@ -546,6 +561,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         statIntelligencePotential: Value(effectiveIntelligencePotential),
         statStrengthPotential: Value(effectiveStrengthPotential),
         statBeautyPotential: Value(effectiveBeautyPotential),
+        dominantStats: Value(effectiveDominants.encode()),
         statSpeedEnhancement: Value(statSpeedEnhancement),
         statIntelligenceEnhancement: Value(statIntelligenceEnhancement),
         statStrengthEnhancement: Value(statStrengthEnhancement),

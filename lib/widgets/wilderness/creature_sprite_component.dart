@@ -31,6 +31,14 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
   late final SpriteAnimationComponent _anim;
   double _prismaticHue = 0;
 
+  /// How solid the creature is drawn, so an effect can thin it out rather
+  /// than only shrinking it — a body scaled to nothing reads as being
+  /// switched off, where one that thins reads as coming apart.
+  double get spriteOpacity => _anim.isMounted ? _anim.opacity : 1.0;
+  set spriteOpacity(double value) {
+    if (_anim.isMounted) _anim.opacity = value.clamp(0.0, 1.0);
+  }
+
   bool get _isAlbino => visuals.brightness == 1.45;
 
   CreatureSpriteComponent({

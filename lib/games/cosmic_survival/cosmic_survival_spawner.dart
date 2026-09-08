@@ -726,7 +726,10 @@ class CosmicSurvivalSpawner {
 
     // Pause scheduled reinforcements while the arena is saturated. Boss adds
     // and plague sources count toward this limit too.
-    final activeLimit = CosmicSurvivalBalance.activeEnemyLimit(currentWave, bossWave: isBossWave);
+    final activeLimit = CosmicSurvivalBalance.activeEnemyLimit(
+      currentWave,
+      bossWave: isBossWave,
+    );
     if (aliveCount >= activeLimit) return const [];
     _spawnTimer += dt;
     final interval = _spawnInterval(currentWave);
@@ -738,15 +741,20 @@ class CosmicSurvivalSpawner {
       return const [];
     }
 
-    final batchLimit = isBossWave ? 2 : switch (currentPattern) {
-      SurvivalWavePattern.wispHorde => 8,
-      SurvivalWavePattern.hunterPack => 5,
-      SurvivalWavePattern.siegePush => 3,
-      SurvivalWavePattern.shooterScreen => 4,
-      SurvivalWavePattern.swarmRush => 6,
-      SurvivalWavePattern.mixed => 4,
-    };
-    final batchSize = min(min(batchLimit, activeLimit - aliveCount), _targetCountThisWave - _spawnedThisWave);
+    final batchLimit = isBossWave
+        ? 2
+        : switch (currentPattern) {
+            SurvivalWavePattern.wispHorde => 8,
+            SurvivalWavePattern.hunterPack => 5,
+            SurvivalWavePattern.siegePush => 3,
+            SurvivalWavePattern.shooterScreen => 4,
+            SurvivalWavePattern.swarmRush => 6,
+            SurvivalWavePattern.mixed => 4,
+          };
+    final batchSize = min(
+      min(batchLimit, activeLimit - aliveCount),
+      _targetCountThisWave - _spawnedThisWave,
+    );
     final spawned = <CosmicSurvivalEnemy>[];
     for (var i = 0; i < batchSize; i++) {
       spawned.add(_spawnEnemy(viewW, viewH, orbPos));
@@ -773,8 +781,13 @@ class CosmicSurvivalSpawner {
     // provide interceptable pressure rather than another heavy siege wave.
     final escortRoll = isBossWave ? _rng.nextDouble() : 0.0;
     final tier = isBossWave
-        ? (escortRoll < 0.45 ? EnemyTier.drone : escortRoll < 0.75 ? EnemyTier.sentinel :
-           escortRoll < 0.95 ? EnemyTier.phantom : EnemyTier.brute)
+        ? (escortRoll < 0.45
+              ? EnemyTier.drone
+              : escortRoll < 0.75
+              ? EnemyTier.sentinel
+              : escortRoll < 0.95
+              ? EnemyTier.phantom
+              : EnemyTier.brute)
         : _tierForWave(currentWave);
     final element = _kElements[_rng.nextInt(_kElements.length)];
     // CONDUCT — how it moves, straight from the wave's shape.

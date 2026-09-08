@@ -19,6 +19,7 @@ class StoryManager extends ChangeNotifier {
 
   final Set<StoryEvent> _seen = {};
   final List<StoryPage> _queue = [];
+  final Set<StoryEvent> _queuedEvents = {};
 
   /// Call once at app boot (e.g., from a provider init).
   Future<void> loadSeen() async {
@@ -35,10 +36,7 @@ class StoryManager extends ChangeNotifier {
   bool hasSeen(StoryEvent e) => _seen.contains(e);
 
   void trigger(StoryEvent e) {
-    if (_seen.contains(e)) return;
-
-    _seen.add(e);
-    _saveSeen(); // fire-and-forget is okay; no await needed here
+    if (_seen.contains(e) || !_queuedEvents.add(e)) return;
 
     switch (e) {
       case StoryEvent.firstBreeding:
@@ -47,6 +45,12 @@ class StoryManager extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  Future<void> acknowledge(StoryEvent event) async {
+    _seen.add(event);
+    await _saveSeen();
+    _queuedEvents.remove(event);
   }
 
   List<StoryPage> drainQueue() {

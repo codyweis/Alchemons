@@ -4095,7 +4095,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _damageOrb(
         CosmicSurvivalBalance.orbContactDamage(
           enemy.damage * damageMultiplier * _orbImpactDamageMultiplier(enemy),
-          orb.maxHp, heavy: enemy.hasHeavyBody, breaker: enemy.trait == EnemyTrait.breaker),
+          orb.maxHp,
+          heavy: enemy.hasHeavyBody,
+          breaker: enemy.trait == EnemyTrait.breaker,
+        ),
       );
       if (_enemyExplodesOnOrbImpact(enemy)) {
         _triggerEnemyOrbExplosion(enemy, damageMultiplier);

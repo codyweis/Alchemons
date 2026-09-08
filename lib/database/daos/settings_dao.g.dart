@@ -5,4 +5,12 @@ part of 'settings_dao.dart';
 // ignore_for_file: type=lint
 mixin _$SettingsDaoMixin on DatabaseAccessor<AlchemonsDatabase> {
   $SettingsTable get settings => attachedDatabase.settings;
+  SettingsDaoManager get managers => SettingsDaoManager(this);
+}
+
+class SettingsDaoManager {
+  final _$SettingsDaoMixin _db;
+  SettingsDaoManager(this._db);
+  $$SettingsTableTableManager get settings =>
+      $$SettingsTableTableManager(_db.attachedDatabase, _db.settings);
 }

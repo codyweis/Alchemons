@@ -57,6 +57,7 @@ import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/screens/feeding/feeding_screen.dart';
 import 'package:alchemons/screens/profile_screen.dart';
+import 'package:alchemons/widgets/campaign_rewards_button.dart';
 import 'package:alchemons/screens/shop/shop_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -2141,7 +2142,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     final db = context.read<AlchemonsDatabase>();
     final settings = db.settingsDao;
-    final storyPending = await CosmicMemoryTutorialService.consumeStoryPending(
+    final storyPending = await CosmicMemoryTutorialService.isStoryPending(
       settings,
     );
     if (!mounted || !widget.isActive) return;
@@ -2160,6 +2161,7 @@ class _HomeScreenState extends State<HomeScreen>
           primaryLabel: 'Continue',
           barrierDismissible: false,
         );
+        await CosmicMemoryTutorialService.acknowledgeStory(settings);
       } finally {
         _memoryStoryShowing = false;
       }
@@ -2356,6 +2358,10 @@ class _HomeScreenState extends State<HomeScreen>
                 },
               ),
 
+            CampaignRewardsButton(
+              color: theme.text,
+              enabled: !_isFieldTutorialActive,
+            ),
             const Spacer(),
             Padding(
               padding: const EdgeInsets.only(right: 12),

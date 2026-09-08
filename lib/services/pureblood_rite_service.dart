@@ -707,6 +707,15 @@ class PurebloodRiteService {
         _weeklyCompletedWeekKey,
         currentWeekKey(),
       );
+      final completed =
+          int.tryParse(
+            await _db.settingsDao.getSetting('campaign_weekly_rites_v1') ?? '',
+          ) ??
+          0;
+      await _db.settingsDao.setSetting(
+        'campaign_weekly_rites_v1',
+        (completed + 1).toString(),
+      );
     });
 
     return PurebloodSacrificeResult(
@@ -987,18 +996,26 @@ String _labelize(String value) {
   return trimmed[0].toUpperCase() + trimmed.substring(1).toLowerCase();
 }
 
+/// The display name for a tinting variant.
+///
+/// Reads the catalog instead of keeping a third hand-written copy of the
+/// mapping. The switch this replaces only knew 'warm' and 'cool', so 'pale'
+/// fell through to [_labelize] and printed as "Pale" rather than
+/// "Diminished". The other ids happen to match their names, which is why it
+/// went unnoticed.
 String _traitLabel(String value, String? customLabel) {
   if (customLabel != null && customLabel.trim().isNotEmpty) {
     return customLabel.trim();
   }
-  switch (value.trim().toLowerCase()) {
-    case 'warm':
-      return 'Thermal';
-    case 'cool':
-      return 'Cryogenic';
-    default:
-      return _labelize(value);
+  final id = value.trim().toLowerCase();
+  try {
+    for (final variant in GeneticsCatalog.track('tinting').variants) {
+      if (variant.id == id) return variant.name;
+    }
+  } catch (_) {
+    // Catalog not loaded yet; the capitalized id is a reasonable stand-in.
   }
+  return _labelize(value);
 }
 
 String _joinWithAnd(List<String> parts) {

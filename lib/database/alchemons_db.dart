@@ -1,5 +1,6 @@
 // lib/database/alchemons_db.dart
 import 'package:alchemons/constants/element_resources.dart';
+import 'package:alchemons/models/potential_genetics.dart';
 import 'package:alchemons/database/daos/constellation_dao.dart';
 import 'package:drift/drift.dart';
 
@@ -67,7 +68,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 38;
+  int get schemaVersion => 39;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -275,8 +276,37 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
           "UPDATE player_creatures SET nature_id = NULL WHERE nature_id = 'Nullic'",
         );
       }
+      if (from < 39) {
+        await m.addColumn(creatureInstances, creatureInstances.dominantStats);
+        // Existing Alchemons are Dominant in the two stats they are already
+        // best at. Deterministic rather than random, so a collection comes out
+        // sorted into the lines it already had.
+        await _backfillDominantStats();
+      }
     },
   );
+
+  /// Assigns Dominants to every instance that predates them, from its own two
+  /// highest Potentials. Cheap enough to do row by row at these table sizes.
+  Future<void> _backfillDominantStats() async {
+    final rows = await select(creatureInstances).get();
+    await batch((b) {
+      for (final row in rows) {
+        if ((row.dominantStats ?? '').isNotEmpty) continue;
+        final dominants = DominantStats.fromPotentials(
+          speed: row.statSpeedPotential,
+          intelligence: row.statIntelligencePotential,
+          strength: row.statStrengthPotential,
+          beauty: row.statBeautyPotential,
+        );
+        b.update(
+          creatureInstances,
+          CreatureInstancesCompanion(dominantStats: Value(dominants.encode())),
+          where: (t) => t.instanceId.equals(row.instanceId),
+        );
+      }
+    });
+  }
 
   // ── Survival Highscore helpers ────────────────────────────────────────────
 

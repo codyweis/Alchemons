@@ -337,7 +337,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     // Only eligible after first-time planet-entry story has happened.
     const planetStorySeenKey = 'cosmic_planet_pathway_intro_seen_v1';
     final prefs = await SharedPreferences.getInstance();
-    final planetStorySeen = prefs.getBool(planetStorySeenKey) ?? false;
+    final planetStorySeen =
+        (prefs.getBool(planetStorySeenKey) ?? false) ||
+        await _db.settingsDao.getSetting('campaign_revelation_seen_v1') == '1';
     if (!planetStorySeen || !mounted) return;
 
     final settings = _db.settingsDao;

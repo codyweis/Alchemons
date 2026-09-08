@@ -59,6 +59,10 @@ class _BreedingTabState extends State<BreedingTab>
   /// 0..1 as the specimens are hauled from their chambers into the orb.
   late Animation<double> _mergeTravelAnim;
 
+  /// 0..1 as each specimen comes apart in its own chamber, before anything
+  /// crosses the gap.
+  late Animation<double> _disintegrateAnim;
+
   /// How far each chamber has to travel to meet at the core, measured from
   /// the live slot and orb rects the moment the fusion starts.
   Offset _slot1Merge = Offset.zero;
@@ -185,14 +189,25 @@ class _BreedingTabState extends State<BreedingTab>
       vsync: this,
       duration: const Duration(milliseconds: 1300),
     );
-    // Late, and fast: they hold their shape all the way into each other.
-    _spriteFadeAnim = CurvedAnimation(
+    // TWO BEATS, IN THIS ORDER: come apart, then come together.
+    //
+    // These used to overlap the wrong way round -- travel ran 0.12..0.88 and
+    // the fade only started at 0.78 -- so the pair crossed the screen intact
+    // and winked out on arrival. That reads as a collision, not a fusion.
+    // Now each specimen breaks up where it stands, and only the remnant is
+    // carried to the orb.
+    _disintegrateAnim = CurvedAnimation(
       parent: _preCinematicFadeController,
-      curve: const Interval(0.78, 1.0, curve: Curves.easeIn),
+      curve: const Interval(0.04, 0.46, curve: Curves.easeOutCubic),
     );
     _mergeTravelAnim = CurvedAnimation(
       parent: _preCinematicFadeController,
-      curve: const Interval(0.12, 0.88, curve: Curves.easeInCubic),
+      curve: const Interval(0.46, 0.90, curve: Curves.easeInCubic),
+    );
+    // The remnant is spent by the time it reaches the orb.
+    _spriteFadeAnim = CurvedAnimation(
+      parent: _preCinematicFadeController,
+      curve: const Interval(0.74, 0.98, curve: Curves.easeIn),
     );
 
     _orbScaleAnim = Tween<double>(begin: 1.0, end: 2.0).animate(
@@ -499,15 +514,26 @@ class _BreedingTabState extends State<BreedingTab>
         // THE MERGE happens to this widget — the one with the live sprite in
         // it — not to a copy of it on a route laid over the top.
         final travel = _mergeTravelAnim.value;
+        final breakUp = _disintegrateAnim.value;
         final merge = slotIndex == 1 ? _slot1Merge : _slot2Merge;
-        final shudder = travel * (1 - _spriteFadeAnim.value);
-        final jitter = math.sin(travel * math.pi * 22) * 3.0 * shudder;
+
+        // The shake belongs to the break-up now, not the crossing: it is
+        // hardest as the specimen comes apart and eases off once there is
+        // only a remnant left to carry.
+        final shudder = breakUp * (1 - breakUp) * 4.0;
+        final jitter =
+            math.sin(_preCinematicFadeController.value * math.pi * 46) *
+            4.0 *
+            shudder;
 
         // The CARD only breathes; the merge belongs to the sprite alone.
         final scale = isEmpty ? 1.0 : 1.0 + (controller.value * 0.03);
 
-        // Fades only at the very end, once the two are inside each other.
-        final spriteOpacity = 1.0 - _spriteFadeAnim.value;
+        // Thins out hard as it comes apart, so what you are watching by the
+        // end of the break-up is the mote cloud rather than the sprite with
+        // some sparkle over it. The last of the ghost goes at the orb.
+        final spriteOpacity =
+            (1.0 - 0.78 * breakUp) * (1.0 - _spriteFadeAnim.value);
 
         return Transform.scale(
           scale: scale,
@@ -544,6 +570,7 @@ class _BreedingTabState extends State<BreedingTab>
                                 inst!,
                                 genetics,
                                 travel: travel,
+                                breakUp: breakUp,
                                 merge: merge,
                                 jitter: jitter,
                                 spriteOpacity: spriteOpacity.clamp(0, 1),
@@ -691,6 +718,7 @@ class _BreedingTabState extends State<BreedingTab>
     CreatureInstance inst,
     Genetics? genetics, {
     double travel = 0,
+    double breakUp = 0,
     Offset merge = Offset.zero,
     double jitter = 0,
     double spriteOpacity = 1,
@@ -716,7 +744,9 @@ class _BreedingTabState extends State<BreedingTab>
         alignment: Alignment.center,
         children: [
           Opacity(
-            opacity: (1.0 - travel).clamp(0.0, 1.0),
+            // The circle dims as the chamber empties, which now begins with
+            // the break-up rather than waiting for the crossing.
+            opacity: (1.0 - math.max(travel, breakUp * 0.85)).clamp(0.0, 1.0),
             child: SizedBox.expand(
               child: CustomPaint(
                 painter: _SummoningCirclePainter(
@@ -732,10 +762,33 @@ class _BreedingTabState extends State<BreedingTab>
           Transform.translate(
             offset: Offset(merge.dx * travel + jitter, merge.dy * travel),
             child: Transform.scale(
-              scale: 1.0 + 0.20 * travel,
-              child: Opacity(
-                opacity: spriteOpacity.clamp(0.0, 1.0),
-                child: SizedBox(width: 68, height: 68, child: sprite),
+              // Swells as it comes apart — a body losing its shape reads as
+              // expansion, where shrinking just reads as being switched off.
+              scale: 1.0 + 0.20 * travel + 0.34 * breakUp,
+              // The motes live inside the same transform as the sprite, so
+              // they are carried to the orb with it rather than being left
+              // behind in an empty chamber.
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  Opacity(
+                    opacity: spriteOpacity.clamp(0.0, 1.0),
+                    child: SizedBox(width: 68, height: 68, child: sprite),
+                  ),
+                  if (breakUp > 0)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _DisintegrationPainter(
+                            breakUp: breakUp,
+                            travel: travel,
+                            color: typeColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -1822,6 +1875,94 @@ class _ParticlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ParticlePainter oldDelegate) => true;
+}
+
+/// A specimen coming apart into motes.
+///
+/// Seeded off the mote index rather than a random source, so the cloud holds
+/// still frame to frame instead of boiling — the particles must look like
+/// pieces of one body, not static.
+class _DisintegrationPainter extends CustomPainter {
+  const _DisintegrationPainter({
+    required this.breakUp,
+    required this.travel,
+    required this.color,
+  });
+
+  /// 0..1 as the body comes apart.
+  final double breakUp;
+
+  /// 0..1 as the remnant is carried to the orb; the cloud tightens on the way.
+  final double travel;
+
+  final Color color;
+
+  static const _count = 46;
+  // Golden angle: spreads the motes without them landing on spokes.
+  static const _goldenAngle = 2.39996;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (breakUp <= 0) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final unit = math.min(size.width, size.height);
+
+    for (int i = 0; i < _count; i++) {
+      // Staggered release, so the body flakes apart progressively rather than
+      // detonating all at once on a single frame.
+      final stagger = (i % 9) / 9.0 * 0.42;
+      final p = ((breakUp - stagger) / (1.0 - stagger)).clamp(0.0, 1.0);
+      if (p <= 0) continue;
+
+      final ang = (i * _goldenAngle) % (math.pi * 2);
+      final dir = Offset(math.cos(ang), math.sin(ang));
+
+      // Start inside the silhouette, not all from a single point.
+      final inner = unit * (0.04 + ((i * 17) % 10) / 10.0 * 0.20);
+      // Thrown outward, easing out so the first frames carry the most motion.
+      final reach = unit * (0.14 + ((i * 29) % 10) / 10.0 * 0.34);
+      final out = Curves.easeOutCubic.transform(p);
+
+      // The cloud is gathered back in as it is carried, so it arrives at the
+      // orb as one thing instead of a scattering that never resolves.
+      final gather = 1.0 - 0.55 * Curves.easeInCubic.transform(travel);
+
+      var pos = center + dir * ((inner + reach * out) * gather);
+      // A slight lift, so it reads as matter coming off rather than debris.
+      pos += Offset(0, -unit * 0.14 * out);
+
+      // Fade in fast on release, then thin out as the mote spends itself.
+      final appear = (p / 0.18).clamp(0.0, 1.0);
+      final spend = 1.0 - 0.75 * p;
+      final alpha = (appear * spend).clamp(0.0, 1.0);
+      if (alpha <= 0.01) continue;
+
+      // A few larger fragments among the dust reads as a body, not a spray.
+      final chunk = (i % 11 == 0) ? 2.1 : 1.0;
+      final rad = (0.9 + 1.9 * (1.0 - out)) * chunk;
+
+      canvas.drawCircle(
+        pos,
+        rad * 2.0,
+        Paint()..color = color.withValues(alpha: alpha * 0.20),
+      );
+      canvas.drawCircle(
+        pos,
+        rad,
+        Paint()
+          ..color = Color.lerp(
+            color,
+            Colors.white,
+            0.45,
+          )!.withValues(alpha: alpha),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DisintegrationPainter old) =>
+      old.breakUp != breakUp || old.travel != travel || old.color != color;
 }
 
 class _SummoningCirclePainter extends CustomPainter {

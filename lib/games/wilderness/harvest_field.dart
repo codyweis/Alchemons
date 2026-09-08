@@ -20,6 +20,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:alchemons/games/wilderness/disintegration.dart';
+import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
@@ -46,6 +48,15 @@ class HarvestFieldEffect extends PositionComponent {
   static const _amber = Color(0xFFE4C16A);
   static const _ember = Color(0xFFD07A4A);
   static const _resolveSeconds = 0.9;
+
+  // Scratch drawing objects. render() runs every frame inside the game loop,
+  // where building eleven Paints and twenty-one Paths per frame is real
+  // garbage for something that never changes shape — only colour and width.
+  final Paint _fill = Paint();
+  final Paint _stroke = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  final Path _arc = Path();
 
   double _t = 0; // seconds since the field engaged
   double _r = 0; // seconds into the resolution
@@ -138,22 +149,50 @@ class HarvestFieldEffect extends PositionComponent {
     final flinch = math.sin(_lock * math.pi);
     var s = 1.0 - 0.09 * flinch + 0.07 * _push;
 
-    final c = Curves.easeIn.transform(_collapse);
+    // TAKEN. It used to squash to nothing, which reads as the sprite being
+    // switched off rather than as a specimen being taken apart. It now swells
+    // and thins while the motes carry it off, the same way the breeding
+    // chamber does it.
+    final c = Curves.easeOutCubic.transform(_collapse);
     final sh = Curves.easeOutCubic.transform(_shatter);
+    _setSpecimenOpacity(1.0 - 0.94 * c);
 
-    final sx = s * (1 - 0.94 * c) * (1 + 0.20 * sh);
-    final sy = s * (1 - 0.97 * c) * (1 + 0.08 * sh);
+    final sx = s * (1 + 0.26 * c) * (1 + 0.20 * sh);
+    final sy = s * (1 + 0.20 * c) * (1 + 0.08 * sh);
     target.scale = Vector2(
       _homeScale.x.sign * sx.abs() * _homeScale.x.abs(),
       _homeScale.y * sy,
     );
 
+    // The shake now peaks as it comes apart and eases off once there is
+    // little left to shake, instead of stopping the moment the field wins.
+    final breakShudder = _collapse * (1 - _collapse) * 4.0;
     final tremble =
-        (_lock + _pressure) * (1 - _collapse - _shatter).clamp(0, 1);
+        (_lock + _pressure) * (1 - _collapse - _shatter).clamp(0, 1) +
+        breakShudder;
     target.position = Vector2(
       _home.x + math.sin(_t * 26) * 3.2 * tremble,
-      _home.y + math.cos(_t * 21) * 1.8 * tremble + 26 * c,
+      _home.y + math.cos(_t * 21) * 1.8 * tremble - 10 * c,
     );
+  }
+
+  /// Thins the live sprite. The specimen is a wrapper whose sprite is a
+  /// child, so the sprite has to be found — but only once, not on every
+  /// frame of the collapse.
+  CreatureSpriteComponent? _spriteRef;
+  bool _spriteResolved = false;
+
+  void _setSpecimenOpacity(double value) {
+    if (!_spriteResolved) {
+      _spriteResolved = true;
+      for (final child in target.children) {
+        if (child is CreatureSpriteComponent) {
+          _spriteRef = child;
+          break;
+        }
+      }
+    }
+    _spriteRef?.spriteOpacity = value;
   }
 
   void _finish() {
@@ -170,6 +209,7 @@ class HarvestFieldEffect extends PositionComponent {
       target.removeFromParent();
     } else {
       // It broke out and is standing exactly where it was.
+      _setSpecimenOpacity(1.0);
       target
         ..position = _home.clone()
         ..scale = _homeScale.clone()
@@ -183,6 +223,7 @@ class HarvestFieldEffect extends PositionComponent {
   void onRemove() {
     // Never strand the caller, and never leave the creature mid-squash.
     if (!_finished && target.isMounted) {
+      _setSpecimenOpacity(1.0);
       target
         ..position = _home.clone()
         ..scale = _homeScale.clone()
@@ -210,7 +251,7 @@ class HarvestFieldEffect extends PositionComponent {
       canvas.drawCircle(
         c,
         cage * (0.5 + i * 0.32),
-        Paint()
+        _fill
           ..color = Color.lerp(
             accent,
             _amber,
@@ -234,9 +275,7 @@ class HarvestFieldEffect extends PositionComponent {
           (0.22 + 0.6 * closing) * (1 - collapse * 0.4) * (1 - shatter);
       if (alpha <= 0.01) continue;
 
-      final paint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
+      final paint = _stroke
         ..strokeWidth = (ring == 0 ? 2.6 : 1.5) + 1.4 * push
         ..color = Color.lerp(accent, _amber, 0.4)!.withValues(alpha: alpha);
 
@@ -247,7 +286,7 @@ class HarvestFieldEffect extends PositionComponent {
         final off = shatter == 0
             ? Offset.zero
             : Offset(math.cos(a0), math.sin(a0)) * fly;
-        final path = Path();
+        final path = _arc..reset();
         const steps = 10;
         for (var k = 0; k <= steps; k++) {
           final a = a0 + (a1 - a0) * k / steps;
@@ -266,10 +305,8 @@ class HarvestFieldEffect extends PositionComponent {
     );
     if (bite > 0.01 && collapse < 0.9 && shatter < 0.9) {
       final r = cage * (1.45 - 0.1 * bite) * (1 - 0.92 * collapse);
-      final p = Paint()
-        ..style = PaintingStyle.stroke
+      final p = _stroke
         ..strokeWidth = 2.2
-        ..strokeCap = StrokeCap.round
         ..color = _amber.withValues(
           alpha: 0.55 * bite * (1 - shatter) * (1 - collapse),
         );
@@ -286,19 +323,28 @@ class HarvestFieldEffect extends PositionComponent {
       }
     }
 
+    // SUCCESS — the specimen comes apart and the field takes what is left.
+    if (_collapse > 0.01) {
+      Disintegration.paint(
+        canvas,
+        centre: c,
+        unit: cage * 1.15,
+        breakUp: _collapse,
+        gather: collapse,
+        color: Color.lerp(accent, _amber, 0.35)!,
+      );
+    }
+
     // SUCCESS — the field falls in and takes what it held.
     if (collapse > 0.01) {
       canvas.drawCircle(
         c,
         cage * (1 - collapse) + 5,
-        Paint()
-          ..style = PaintingStyle.stroke
+        _stroke
           ..strokeWidth = 2 + 9 * collapse
           ..color = _amber.withValues(alpha: 0.8 * (1 - collapse)),
       );
-      final draw = Paint()
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 1.8;
+      final draw = _stroke..strokeWidth = 1.8;
       for (var i = 0; i < 14; i++) {
         final a = i * math.pi * 2 / 14 + collapse * 1.4;
         final u = Offset(math.cos(a), math.sin(a));
@@ -320,9 +366,7 @@ class HarvestFieldEffect extends PositionComponent {
 
     // FAILURE — the wall cracks outward and it is still standing.
     if (shatter > 0.01) {
-      final crack = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
+      final crack = _stroke
         ..strokeWidth = 2.4 * (1 - shatter)
         ..color = _ember.withValues(alpha: 0.75 * (1 - shatter));
       for (var i = 0; i < 9; i++) {
@@ -412,6 +456,13 @@ class FusionFieldEffect extends PositionComponent {
 
   static const _amber = Color(0xFFE4C16A);
 
+  // Same reason as the harvest field: this renders every frame, and the
+  // shapes never change — only their colour and width do.
+  final Paint _fill = Paint();
+  final Paint _stroke = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+
   double _t = 0;
   bool _over = false;
 
@@ -440,9 +491,16 @@ class FusionFieldEffect extends PositionComponent {
   late final Vector2 _metA = _localFor(a, _absMid);
   late final Vector2 _metB = _localFor(b, _absMid);
 
+  // TWO BEATS, IN THIS ORDER: come apart, then come together. Travel used to
+  // run 0.10..0.88 with the consume only starting at 0.82, so the pair crossed
+  // the gap intact and winked out on arrival — a collision, not a fusion. The
+  // windows now match the breeding chamber exactly, because this is the same
+  // event in a different renderer.
+  double get _breakUp =>
+      Curves.easeOutCubic.transform(_norm(_t, seconds * 0.04, seconds * 0.46));
   double get _travel =>
-      Curves.easeInCubic.transform(_norm(_t, 0.10, seconds * 0.88));
-  double get _consume => _norm(_t, seconds * 0.82, seconds);
+      Curves.easeInCubic.transform(_norm(_t, seconds * 0.46, seconds * 0.90));
+  double get _consume => _norm(_t, seconds * 0.74, seconds * 0.98);
 
   @override
   Future<void> onLoad() async {
@@ -458,16 +516,62 @@ class FusionFieldEffect extends PositionComponent {
     if (_over) return;
     _t += dt;
 
-    final shudder = _travel * (1 - _consume);
-    final jitter = math.sin(_t * 26) * 3.0 * shudder;
-    final grow = 1 + 0.20 * _travel - 0.92 * Curves.easeIn.transform(_consume);
+    // The shake belongs to the break-up, hardest as each comes apart.
+    final breakUp = _breakUp;
+    final shudder = breakUp * (1 - breakUp) * 4.0;
+    final jitter = math.sin(_t * 46) * 4.0 * shudder;
+
+    // Swells as it comes apart, and only the remnant is carried across.
+    final grow = 1 + 0.34 * breakUp - 0.92 * Curves.easeIn.transform(_consume);
 
     a.position = (_homeA + (_metA - _homeA) * _travel)..x += jitter;
     b.position = (_homeB + (_metB - _homeB) * _travel)..x -= jitter;
     a.scale = Vector2(_scaleA.x.sign * grow.abs(), _scaleA.y * grow);
     b.scale = Vector2(_scaleB.x.sign * grow.abs(), _scaleB.y * grow);
 
+    // Thin hard during the break-up, so what crosses the gap is the mote
+    // cloud rather than a sprite with sparkle over it.
+    final solidity = (1.0 - 0.78 * breakUp) * (1.0 - _consume);
+    _setOpacity(a, solidity);
+    _setOpacity(b, solidity);
+
     if (_t >= seconds) _finish();
+  }
+
+  /// A creature's live centre, in this component's own space.
+  Offset _localCentreOf(PositionComponent target) {
+    final abs = target.absoluteCenter;
+    final p = parent;
+    final local = p is PositionComponent ? p.absoluteToLocal(abs) : abs;
+    return (local - position + size / 2).toOffset();
+  }
+
+  /// Resolved once each, rather than walking two child lists every frame.
+  CreatureSpriteComponent? _spriteA;
+  CreatureSpriteComponent? _spriteB;
+  bool _spritesResolved = false;
+
+  void _resolveSprites() {
+    if (_spritesResolved) return;
+    _spritesResolved = true;
+    for (final child in a.children) {
+      if (child is CreatureSpriteComponent) {
+        _spriteA = child;
+        break;
+      }
+    }
+    for (final child in b.children) {
+      if (child is CreatureSpriteComponent) {
+        _spriteB = child;
+        break;
+      }
+    }
+  }
+
+  void _setOpacity(PositionComponent target, double value) {
+    _resolveSprites();
+    final sprite = identical(target, a) ? _spriteA : _spriteB;
+    sprite?.spriteOpacity = value;
   }
 
   void _finish() {
@@ -486,6 +590,8 @@ class FusionFieldEffect extends PositionComponent {
   void onRemove() {
     if (!_over) {
       // Torn down mid-fusion: hand both creatures back intact.
+      _setOpacity(a, 1.0);
+      _setOpacity(b, 1.0);
       a
         ..position = _homeA.clone()
         ..scale = _scaleA.clone()
@@ -507,12 +613,36 @@ class FusionFieldEffect extends PositionComponent {
         (1 - 0.7 * _travel);
     final mix = Color.lerp(accentA, accentB, 0.5)!;
 
+    // Each comes apart over its own body, wherever that body currently is —
+    // the cloud has to sit on the creature, not at the meeting point, or the
+    // two beats stop being connected.
+    final breakUp = _breakUp;
+    if (breakUp > 0.01) {
+      final unit = math.max(24.0, r * 0.42);
+      Disintegration.paint(
+        canvas,
+        centre: _localCentreOf(a),
+        unit: unit,
+        breakUp: breakUp,
+        gather: _travel,
+        color: accentA,
+      );
+      Disintegration.paint(
+        canvas,
+        centre: _localCentreOf(b),
+        unit: unit,
+        breakUp: breakUp,
+        gather: _travel,
+        color: accentB,
+      );
+    }
+
     // The seam between them, brightening as they close.
     for (var i = 4; i >= 1; i--) {
       canvas.drawCircle(
         c,
         r * (0.35 + i * 0.22) * (1 - 0.5 * _consume),
-        Paint()
+        _fill
           ..color = Color.lerp(
             mix,
             _amber,
@@ -525,15 +655,13 @@ class FusionFieldEffect extends PositionComponent {
     canvas.drawCircle(
       c,
       r,
-      Paint()
-        ..style = PaintingStyle.stroke
+      _stroke
         ..strokeWidth = 1.6 + 2.4 * _travel
         ..color = _amber.withValues(alpha: 0.22 + 0.6 * _travel),
     );
 
     // The strands that pull them in.
-    final strand = Paint()
-      ..strokeCap = StrokeCap.round
+    final strand = _stroke
       ..strokeWidth = 1.4
       ..color = _amber.withValues(alpha: 0.5 * _travel);
     for (var i = 0; i < 10; i++) {

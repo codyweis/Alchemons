@@ -1,5 +1,6 @@
 // lib/screens/black_market_screen.dart
 import 'package:alchemons/constants/element_resources.dart';
+import 'package:alchemons/widgets/element_resource_glyph.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/economy_balance.dart';
 import 'package:alchemons/models/extraction_vile.dart';
@@ -33,24 +34,10 @@ class BlackMarketScreen extends StatefulWidget {
 /// The market's own accent pair. Previously every surface reached for
 /// `Colors.orange.shade300` / `Colors.red.shade300` directly, so nothing could
 /// be retuned in one place.
-/// Draws a resource with its real artwork, falling back to the silhouette icon
-/// if the asset is missing or fails to decode. Everything showing a resource
-/// goes through here so the surfaces cannot drift apart again.
-Widget _resourceGlyph(ElementResource resource, double size) {
-  final art = resource.artwork;
-  if (art == null) {
-    return Icon(resource.icon, color: resource.color, size: size);
-  }
-  return Image(
-    image: art,
-    width: size,
-    height: size,
-    fit: BoxFit.contain,
-    filterQuality: FilterQuality.medium,
-    errorBuilder: (_, __, ___) =>
-        Icon(resource.icon, color: resource.color, size: size),
-  );
-}
+/// Draws a resource as its own small particle field. Everything showing a
+/// resource goes through here so the surfaces cannot drift apart again.
+Widget _resourceGlyph(ElementResource resource, double size) =>
+    ElementResourceGlyph(resource: resource, size: size);
 
 const Color _kMarketAccent = Color(0xFFFFB74D);
 const Color _kMarketDanger = Color(0xFFE57373);

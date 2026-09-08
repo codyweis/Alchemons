@@ -1,3 +1,4 @@
+import 'package:alchemons/services/campaign_journal_service.dart';
 // lib/games/cosmic_survival/cosmic_survival_screen.dart
 //
 // COSMIC SURVIVAL SCREEN
@@ -979,6 +980,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   }
 
   void _handleWaveCleared(int wave) {
+    final db = context.read<AlchemonsDatabase>();
+    unawaited(CampaignJournalService(db).recordSurvivalClear(wave));
     if (wave != 50 || _resolvingWave50Reward) return;
     unawaited(_grantWave50Milestone());
   }

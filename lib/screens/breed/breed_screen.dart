@@ -187,7 +187,17 @@ class _BreedScreenState extends State<BreedScreen> {
       final pages = story.drainQueue();
 
       if (pages.isNotEmpty) {
+        await SystemDialog.show(
+          context,
+          title: 'An older echo',
+          message:
+              'The first vial opens. Another presence speaks as though it remembers an earlier ritual.',
+          primaryLabel: 'CONTINUE',
+          barrierDismissible: false,
+        );
+        if (!mounted) return;
         await SystemDialog.playStory(context, pages);
+        await story.acknowledge(StoryEvent.firstBreeding);
       }
 
       await db.settingsDao.setSetting('first_extraction_done', '1');

@@ -5,6 +5,39 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Cosmic survival balance', () {
+    test('boss waves cannot award multiple full meters from boss deaths', () {
+      for (var wave = 5; wave <= 100; wave += 5) {
+        final reward =
+            CosmicSurvivalBalance.bossAlchemyReward(wave) *
+            CosmicSurvivalBalance.bossCountForWave(wave);
+        final capacity = CosmicSurvivalBalance.alchemicalMeterCapacity(wave);
+        expect(reward / capacity, inInclusiveRange(0.54, 0.71));
+      }
+    });
+
+    test(
+      'outbreaks and titans leave room for their environmental mechanics',
+      () {
+        for (final wave in [20, 25, 30, 40, 50]) {
+          expect(CosmicSurvivalBalance.bossCountForWave(wave), 1);
+        }
+        for (final wave in [15, 35, 45]) {
+          expect(CosmicSurvivalBalance.bossCountForWave(wave), 2);
+        }
+      },
+    );
+
+    test('meter retains early pacing and continues growing past wave 31', () {
+      expect(CosmicSurvivalBalance.alchemicalMeterCapacity(1), 100);
+      expect(CosmicSurvivalBalance.alchemicalMeterCapacity(11), 180);
+      for (var wave = 31; wave < 100; wave++) {
+        expect(
+          CosmicSurvivalBalance.alchemicalMeterCapacity(wave + 1),
+          greaterThan(CosmicSurvivalBalance.alchemicalMeterCapacity(wave)),
+        );
+      }
+    });
+
     test('legacy Power 20-100 keeps strong high-end separation', () {
       final average = CosmicSurvivalBalance.qualityScore(2.5);
       final elite = CosmicSurvivalBalance.qualityScore(4.3);

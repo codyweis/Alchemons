@@ -1,23 +1,9 @@
 import 'dart:math';
 
 import 'package:alchemons/models/creature_stats.dart';
+import 'package:alchemons/models/potential_genetics.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-class _FixedRandom implements Random {
-  final double doubleValue;
-
-  const _FixedRandom(this.doubleValue);
-
-  @override
-  bool nextBool() => doubleValue >= 0.5;
-
-  @override
-  double nextDouble() => doubleValue;
-
-  @override
-  int nextInt(int max) => 49.clamp(0, max - 1);
-}
 
 void main() {
   const parentA = CreatureStats(
@@ -55,31 +41,167 @@ void main() {
     }
   });
 
-  test('Potential inheritance uses exact 35/35/30 boundaries', () {
+  test('a recipe hit keeps the 35/35/30 shares, a miss drops to 20/20/60', () {
+    ({double a, double b}) shares({
+      required bool hit,
+      bool aDom = false,
+      bool bDom = false,
+    }) => PotentialGenetics.parentShares(
+      recipeHit: hit,
+      aDominant: aDom,
+      bDominant: bDom,
+    );
+
+    final hit = shares(hit: true);
+    expect(hit.a, closeTo(0.35, 1e-9));
+    expect(hit.b, closeTo(0.35, 1e-9));
+
+    final miss = shares(hit: false);
+    expect(miss.a, closeTo(0.20, 1e-9));
+    expect(miss.b, closeTo(0.20, 1e-9));
+  });
+
+  test('a Dominant stat leans on its parent and strangers less often', () {
+    final soloHit = PotentialGenetics.parentShares(
+      recipeHit: true,
+      aDominant: true,
+      bDominant: false,
+    );
+    expect(soloHit.a, closeTo(0.50, 1e-9));
+    expect(soloHit.b, closeTo(0.35, 1e-9));
+    expect(1 - soloHit.a - soloHit.b, closeTo(0.15, 1e-9));
+
+    final soloMiss = PotentialGenetics.parentShares(
+      recipeHit: false,
+      aDominant: true,
+      bDominant: false,
+    );
+    expect(soloMiss.a, closeTo(0.32, 1e-9));
+    expect(soloMiss.b, closeTo(0.20, 1e-9));
+
+    // Both Dominant splits a smaller bonus rather than doubling it.
+    final both = PotentialGenetics.parentShares(
+      recipeHit: true,
+      aDominant: true,
+      bDominant: true,
+    );
+    expect(both.a, closeTo(0.42, 1e-9));
+    expect(both.b, closeTo(0.42, 1e-9));
+  });
+
+  test('a miss can never hand back more Potential than the better parent', () {
+    final range = PotentialGenetics.strangerRange(
+      recipeHit: false,
+      parentA: 40,
+      parentB: 62,
+    );
+    expect(range.lo, 1);
+    expect(range.hi, 62);
+
+    // The whole point of the cap: hatching in volume off mediocre stock
+    // cannot fish up a high Potential.
+    final rng = Random(4);
+    var best = 0;
+    for (var i = 0; i < 5000; i++) {
+      final value = PotentialGenetics.inheritPotential(
+        rng,
+        parentA: 40,
+        parentB: 62,
+        stat: StatKind.strength,
+        recipeHit: false,
+      );
+      if (value > best) best = value;
+    }
+    expect(best, lessThanOrEqualTo(62));
+  });
+
+  test('a recipe hit is the only roll that can exceed both parents', () {
+    final range = PotentialGenetics.strangerRange(
+      recipeHit: true,
+      parentA: 40,
+      parentB: 90,
+    );
+    expect(range.lo, 54); // 90 * 0.60
+    expect(range.hi, AlchemonStatSystem.maxPotential);
+
+    final rng = Random(9);
+    var exceeded = false;
+    for (var i = 0; i < 5000 && !exceeded; i++) {
+      exceeded =
+          PotentialGenetics.inheritPotential(
+            rng,
+            parentA: 40,
+            parentB: 90,
+            stat: StatKind.strength,
+            recipeHit: true,
+          ) >
+          90;
+    }
+    expect(exceeded, isTrue);
+  });
+
+  test('complementary parents pass one Dominant each', () {
+    final a = DominantStats(StatKind.strength, StatKind.intelligence);
+    final b = DominantStats(StatKind.speed, StatKind.beauty);
+
+    for (var seed = 0; seed < 400; seed++) {
+      final child = PotentialGenetics.inheritDominants(Random(seed), a, b);
+      expect(child.first, isNot(child.second));
+      // Between them these parents cover every stat, so any pair is legal --
+      // what must hold is that the child always carries exactly two.
+      expect(child.all.length, 2);
+    }
+  });
+
+  test('a matched line breeds true, but can still drift', () {
+    // Both parents Dominant in the same two stats, so anything outside that
+    // pair can only have come from drift.
+    final pair = DominantStats(StatKind.strength, StatKind.intelligence);
+
+    var bredTrue = 0;
+    var drifted = 0;
+    for (var seed = 0; seed < 600; seed++) {
+      final child = PotentialGenetics.inheritDominants(
+        Random(seed),
+        pair,
+        pair,
+      );
+      expect(child.first, isNot(child.second));
+      if (child == pair) {
+        bredTrue++;
+      } else {
+        drifted++;
+      }
+    }
+
+    // The line holds most of the time...
+    expect(bredTrue / 600, greaterThan(0.80));
+    // ...but never ossifies completely.
+    expect(drifted, greaterThan(0));
+  });
+
+  test('an Alchemon with no stored Dominants is Dominant in its best two', () {
+    final derived = DominantStats.fromPotentials(
+      speed: 30,
+      intelligence: 91,
+      strength: 74,
+      beauty: 12,
+    );
+    expect(derived.contains(StatKind.intelligence), isTrue);
+    expect(derived.contains(StatKind.strength), isTrue);
+    expect(derived.contains(StatKind.speed), isFalse);
+
+    // Deterministic: the same creature never resolves two different ways.
     expect(
-      AlchemonStatSystem.inheritPotential(
-        const _FixedRandom(0.349999),
-        100,
-        10,
+      DominantStats.fromPotentials(
+        speed: 30,
+        intelligence: 91,
+        strength: 74,
+        beauty: 12,
       ),
-      100,
+      derived,
     );
-    expect(
-      AlchemonStatSystem.inheritPotential(const _FixedRandom(0.35), 100, 10),
-      10,
-    );
-    expect(
-      AlchemonStatSystem.inheritPotential(
-        const _FixedRandom(0.699999),
-        100,
-        10,
-      ),
-      10,
-    );
-    expect(
-      AlchemonStatSystem.inheritPotential(const _FixedRandom(0.70), 100, 10),
-      50,
-    );
+    expect(DominantStats.decode(derived.encode()), derived);
   });
 
   test('legacy Potential values normalize from 0-5 to 1-100', () {

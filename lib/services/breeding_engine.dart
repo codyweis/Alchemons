@@ -32,6 +32,7 @@ import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/creature_stats.dart';
+import 'package:alchemons/models/potential_genetics.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/models/genetics.dart';
 import 'package:alchemons/models/nature.dart';
@@ -356,11 +357,16 @@ class BreedingEngine {
   }) {
     var child = base;
 
+    // Did this pairing land on an authored family recipe that produced a
+    // family neither parent belonged to? Potential and Nature inheritance both
+    // key off this; visual genetics do not.
+    final recipeHit = _isRecipeGeneticHit(child: base, p1: p1, p2: p2);
+
     // Genetics
     child = _applyGenetics(child, p1, p2);
 
     // Nature
-    final childNatures = _chooseChildNatures(p1, p2);
+    final childNatures = _chooseChildNatures(p1, p2, recipeHit: recipeHit);
     child = child.copyWith(
       nature: childNatures.isEmpty ? null : childNatures.first,
       nature2: childNatures.length > 1 ? childNatures[1] : null,
@@ -390,6 +396,7 @@ class BreedingEngine {
       child.nature,
       child.nature2,
       child.genetics,
+      recipeHit: recipeHit,
     );
     child = child.copyWith(stats: childStats);
     // figure out factions/elements/families at this point
@@ -979,16 +986,26 @@ class BreedingEngine {
 
   // ── 2.6 Nature / Genetics / Stats helpers ────────────────────────────────
 
-  List<NatureDef> _chooseChildNatures(Creature p1, Creature p2) {
+  List<NatureDef> _chooseChildNatures(
+    Creature p1,
+    Creature p2, {
+    bool recipeHit = false,
+  }) {
     if (NatureCatalog.all.isEmpty) return const [];
     final fresh = NatureCatalogWeighted.rollWildSlots(_random);
     final parentA = [p1.nature, p1.nature2];
     final parentB = [p2.nature, p2.nature2];
     final chosen = <NatureDef>[];
 
-    // Hereditary Natures protect their parent's second slot before the normal
-    // 35/35/30 rolls. Both parents may protect a different Nature, filling the
-    // child's two available slots. A duplicate is stored only once.
+    // A recipe hit passes parent Natures harder, the same way it does for
+    // Potential; a miss keeps the long-standing 35/35/30 odds.
+    final parentShare = recipeHit
+        ? GeneticsTuning.hitNatureParentShare
+        : GeneticsTuning.missNatureParentShare;
+
+    // Hereditary Natures protect their parent's second slot before the shares
+    // above are rolled. Both parents may protect a different Nature, filling
+    // the child's two available slots. A duplicate is stored only once.
     for (final protected in [
       guaranteedSecondNature(p1),
       guaranteedSecondNature(p2),
@@ -1003,9 +1020,9 @@ class BreedingEngine {
       if (chosen.length == 2) break;
       final roll = _random.nextDouble();
       NatureDef? candidate;
-      if (roll < .35) {
+      if (roll < parentShare) {
         candidate = parentA[slot];
-      } else if (roll < .70) {
+      } else if (roll < parentShare * 2) {
         candidate = parentB[slot];
       } else if (slot < fresh.length) {
         candidate = fresh[slot];
@@ -1192,20 +1209,30 @@ class BreedingEngine {
     ParentSnapshot parentB,
     NatureDef? childNature,
     NatureDef? childNature2,
-    Genetics? childGenetics,
-  ) {
+    Genetics? childGenetics, {
+    bool recipeHit = false,
+  }) {
     final statsA = parentA.stats;
     final statsB = parentB.stats;
 
     CreatureStats childStats;
     if (statsA != null && statsB != null) {
-      childStats = CreatureStats.breed(statsA, statsB, _random);
-      _log('[Breeding] Potential inherited from both parents');
+      childStats = CreatureStats.breed(
+        statsA,
+        statsB,
+        _random,
+        recipeHit: recipeHit,
+      );
+      _log(
+        '[Breeding] Potential inherited from both parents '
+        '(${recipeHit ? 'recipe hit' : 'miss'})',
+      );
     } else if (statsA != null) {
       childStats = CreatureStats.breed(
         statsA,
         CreatureStats.generate(_random),
         _random,
+        recipeHit: recipeHit,
       );
       _log('[Breeding] Potential inherited from parent A and a fresh roll');
     } else if (statsB != null) {
@@ -1213,6 +1240,7 @@ class BreedingEngine {
         CreatureStats.generate(_random),
         statsB,
         _random,
+        recipeHit: recipeHit,
       );
       _log('[Breeding] Potential inherited from parent B and a fresh roll');
     } else {
@@ -1473,6 +1501,30 @@ class BreedingEngine {
         .where((e) => e.value > 0)
         .toList();
     return nonZero.length == 1 && nonZero.first.key == currentElement;
+  }
+
+  /// Whether Potential and Nature should inherit on the generous "hit" terms.
+  ///
+  /// Deliberately looser than [_isRecipeFamilyFounder]: that one also demands
+  /// both parents be family-pure, which stops firing once breeders have mixed
+  /// ancestry. Purity keeps its own founder reward; this only asks that an
+  /// authored recipe produced a family neither parent belonged to, which is
+  /// the trade being paid for -- you gave up your family line to get it.
+  bool _isRecipeGeneticHit({
+    required Creature child,
+    required Creature p1,
+    required Creature p2,
+  }) {
+    final childFamily = _familyOf(child);
+    final famA = _familyOf(p1);
+    final famB = _familyOf(p2);
+    if (childFamily == 'Unknown' || famA == 'Unknown' || famB == 'Unknown') {
+      return false;
+    }
+    if (childFamily == famA || childFamily == famB) return false;
+
+    final recipe = familyRecipes.recipes[FamilyRecipeConfig.keyOf(famA, famB)];
+    return recipe != null && recipe.containsKey(childFamily);
   }
 
   bool _isRecipeFamilyFounder({

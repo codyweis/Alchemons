@@ -3,6 +3,7 @@
 // ============================================================================
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/potential_genetics.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,9 @@ class StatPotentialBar extends StatelessWidget {
   final int enhancementRank;
   final Color accent;
 
+  /// One of the two stats this Alchemon passes down most reliably.
+  final bool isDominant;
+
   const StatPotentialBar({
     super.key,
     this.theme,
@@ -36,6 +40,7 @@ class StatPotentialBar extends StatelessWidget {
     required this.baseStat,
     required this.enhancementRank,
     required this.accent,
+    this.isDominant = false,
   });
 
   @override
@@ -63,7 +68,9 @@ class StatPotentialBar extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     statName.toUpperCase(),
-                    style: ft.label,
+                    style: isDominant
+                        ? ft.label.copyWith(color: fc.amberBright)
+                        : ft.label,
                     maxLines: 1,
                     softWrap: false,
                   ),
@@ -317,6 +324,17 @@ class StatPotentialBlock extends StatelessWidget {
               beauty: 60,
             );
 
+        // Falls back to the instance's own best two, which is what every
+        // pre-Dominants creature is.
+        final dominants =
+            DominantStats.decode(instance.dominantStats) ??
+            DominantStats.fromPotentials(
+              speed: instance.statSpeedPotential,
+              intelligence: instance.statIntelligencePotential,
+              strength: instance.statStrengthPotential,
+              beauty: instance.statBeautyPotential,
+            );
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -327,6 +345,7 @@ class StatPotentialBlock extends StatelessWidget {
               potential: instance.statSpeedPotential,
               baseStat: base.speed,
               enhancementRank: instance.statSpeedEnhancement,
+              isDominant: dominants.contains(StatKind.speed),
             ),
             const SizedBox(height: 14),
             StatPotentialBar(
@@ -336,6 +355,7 @@ class StatPotentialBlock extends StatelessWidget {
               potential: instance.statIntelligencePotential,
               baseStat: base.intelligence,
               enhancementRank: instance.statIntelligenceEnhancement,
+              isDominant: dominants.contains(StatKind.intelligence),
             ),
             const SizedBox(height: 14),
             StatPotentialBar(
@@ -345,6 +365,7 @@ class StatPotentialBlock extends StatelessWidget {
               potential: instance.statStrengthPotential,
               baseStat: base.strength,
               enhancementRank: instance.statStrengthEnhancement,
+              isDominant: dominants.contains(StatKind.strength),
             ),
             const SizedBox(height: 14),
             StatPotentialBar(
@@ -354,6 +375,7 @@ class StatPotentialBlock extends StatelessWidget {
               potential: instance.statBeautyPotential,
               baseStat: base.beauty,
               enhancementRank: instance.statBeautyEnhancement,
+              isDominant: dominants.contains(StatKind.beauty),
             ),
 
             const SizedBox(height: 12),

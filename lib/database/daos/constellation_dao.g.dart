@@ -12,4 +12,30 @@ mixin _$ConstellationDaoMixin on DatabaseAccessor<AlchemonsDatabase> {
       attachedDatabase.constellationPoints;
   $ConstellationTransactionsTable get constellationTransactions =>
       attachedDatabase.constellationTransactions;
+  ConstellationDaoManager get managers => ConstellationDaoManager(this);
+}
+
+class ConstellationDaoManager {
+  final _$ConstellationDaoMixin _db;
+  ConstellationDaoManager(this._db);
+  $$BreedingStatisticsTableTableManager get breedingStatistics =>
+      $$BreedingStatisticsTableTableManager(
+        _db.attachedDatabase,
+        _db.breedingStatistics,
+      );
+  $$ConstellationUnlocksTableTableManager get constellationUnlocks =>
+      $$ConstellationUnlocksTableTableManager(
+        _db.attachedDatabase,
+        _db.constellationUnlocks,
+      );
+  $$ConstellationPointsTableTableManager get constellationPoints =>
+      $$ConstellationPointsTableTableManager(
+        _db.attachedDatabase,
+        _db.constellationPoints,
+      );
+  $$ConstellationTransactionsTableTableManager get constellationTransactions =>
+      $$ConstellationTransactionsTableTableManager(
+        _db.attachedDatabase,
+        _db.constellationTransactions,
+      );
 }

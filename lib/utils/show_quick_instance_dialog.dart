@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:alchemons/models/potential_genetics.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
@@ -35,6 +36,16 @@ Future<void> showQuickInstanceDialog({
           final hasPotentialAnalyzer = ctx
               .watch<ConstellationEffectsService>()
               .hasPotentialAnalyzer();
+
+          // Pre-Dominants creatures fall back to whatever they are best at.
+          final quickDominants =
+              DominantStats.decode(currentInstance.dominantStats) ??
+              DominantStats.fromPotentials(
+                speed: currentInstance.statSpeedPotential,
+                intelligence: currentInstance.statIntelligencePotential,
+                strength: currentInstance.statStrengthPotential,
+                beauty: currentInstance.statBeautyPotential,
+              );
 
           final variant = (currentInstance.variantFaction ?? '').trim();
           final variantDisplay = variant.isEmpty
@@ -456,6 +467,7 @@ Future<void> showQuickInstanceDialog({
                             enhancement: currentInstance.statSpeedEnhancement,
                             color: const Color(0xFF60A5FA),
                             icon: AppIcons.speed_rounded,
+                            isDominant: quickDominants.contains(StatKind.speed),
                           ),
                           _QuickStatLine(
                             label: 'Intelligence',
@@ -467,6 +479,9 @@ Future<void> showQuickInstanceDialog({
                                 currentInstance.statIntelligenceEnhancement,
                             color: const Color(0xFFC084FC),
                             icon: AppIcons.psychology_rounded,
+                            isDominant: quickDominants.contains(
+                              StatKind.intelligence,
+                            ),
                           ),
                           _QuickStatLine(
                             label: 'Strength',
@@ -478,6 +493,9 @@ Future<void> showQuickInstanceDialog({
                                 currentInstance.statStrengthEnhancement,
                             color: const Color(0xFFF87171),
                             icon: AppIcons.fitness_center_rounded,
+                            isDominant: quickDominants.contains(
+                              StatKind.strength,
+                            ),
                           ),
                           _QuickStatLine(
                             label: 'Beauty',
@@ -488,6 +506,9 @@ Future<void> showQuickInstanceDialog({
                             enhancement: currentInstance.statBeautyEnhancement,
                             color: const Color(0xFFF9A8D4),
                             icon: AppIcons.favorite_rounded,
+                            isDominant: quickDominants.contains(
+                              StatKind.beauty,
+                            ),
                           ),
 
                           // ── Characteristics ───────────────────────────
@@ -584,6 +605,9 @@ class _QuickStatLine extends StatelessWidget {
   final Color color;
   final IconData icon;
 
+  /// One of the two stats this Alchemon passes down most reliably.
+  final bool isDominant;
+
   const _QuickStatLine({
     required this.label,
     required this.value,
@@ -591,6 +615,7 @@ class _QuickStatLine extends StatelessWidget {
     required this.enhancement,
     required this.color,
     required this.icon,
+    this.isDominant = false,
   });
 
   @override
@@ -619,7 +644,7 @@ class _QuickStatLine extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: t.textPrimary,
+                    color: isDominant ? t.amberBright : t.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),

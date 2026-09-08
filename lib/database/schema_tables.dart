@@ -128,6 +128,11 @@ class CreatureInstances extends Table {
   RealColumn get statBeautyPotential =>
       real().withDefault(const Constant(50.0))();
 
+  /// The two stats this Alchemon passes down cleanly, stored as
+  /// `"strength,speed"`. Fixed at creation and never changes — a Potential
+  /// Soul raises a stat, it does not make that stat Dominant.
+  TextColumn get dominantStats => text().nullable()();
+
   // Individual, non-heritable alchemical training. Each rank grants +3%.
   IntColumn get statSpeedEnhancement =>
       integer().withDefault(const Constant(0))();

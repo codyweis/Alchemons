@@ -7,6 +7,8 @@
 //
 
 import 'dart:convert';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
+import 'package:alchemons/models/potential_genetics.dart';
 import 'dart:async';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/constants/creature_details_tutorials.dart';
@@ -1449,24 +1451,31 @@ class _OverviewTab extends StatelessWidget {
                     value: instance!.statSpeed,
                     potential: instance!.statSpeedPotential,
                     accent: const Color(0xFF60A5FA),
+                    isDominant: _dominants()?.contains(StatKind.speed) ?? false,
                   ),
                   _StatBar(
                     label: 'Intelligence',
                     value: instance!.statIntelligence,
                     potential: instance!.statIntelligencePotential,
                     accent: const Color(0xFFC084FC),
+                    isDominant:
+                        _dominants()?.contains(StatKind.intelligence) ?? false,
                   ),
                   _StatBar(
                     label: 'Strength',
                     value: instance!.statStrength,
                     potential: instance!.statStrengthPotential,
                     accent: const Color(0xFFF87171),
+                    isDominant:
+                        _dominants()?.contains(StatKind.strength) ?? false,
                   ),
                   _StatBar(
                     label: 'Beauty',
                     value: instance!.statBeauty,
                     potential: instance!.statBeautyPotential,
                     accent: const Color(0xFFF9A8D4),
+                    isDominant:
+                        _dominants()?.contains(StatKind.beauty) ?? false,
                   ),
                 ],
               ),
@@ -1479,6 +1488,11 @@ class _OverviewTab extends StatelessWidget {
               title: 'Genetic Profile',
               child: Column(
                 children: [
+                  _DataRow(
+                    label: 'Dominant Stats',
+                    value: _dominantStatsLabel(),
+                    valueColor: c.amberBright,
+                  ),
                   _DataRow(label: 'Size Variant', value: _sizeLabel()),
                   _DataRow(label: 'Pigmentation', value: _tintLabel()),
                   if (creature.nature != null || creature.nature2 != null)
@@ -1735,6 +1749,26 @@ class _OverviewTab extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  /// The two stats this Alchemon passes down most reliably. Pre-Dominants
+  /// creatures fall back to whatever they are already best at.
+  DominantStats? _dominants() {
+    final inst = instance;
+    if (inst == null) return null;
+    return DominantStats.decode(inst.dominantStats) ??
+        DominantStats.fromPotentials(
+          speed: inst.statSpeedPotential,
+          intelligence: inst.statIntelligencePotential,
+          strength: inst.statStrengthPotential,
+          beauty: inst.statBeautyPotential,
+        );
+  }
+
+  String _dominantStatsLabel() {
+    final dominants = _dominants();
+    if (dominants == null) return 'Unknown';
+    return dominants.all.map((k) => k.label).join(' · ');
   }
 
   String _sizeLabel() {
@@ -1996,11 +2030,15 @@ class _StatBar extends StatelessWidget {
   final double? potential;
   final Color accent;
 
+  /// One of the two stats this Alchemon passes down most reliably.
+  final bool isDominant;
+
   const _StatBar({
     required this.label,
     required this.value,
     required this.accent,
     this.potential,
+    this.isDominant = false,
   });
 
   @override
@@ -2029,7 +2067,7 @@ class _StatBar extends StatelessWidget {
               style: bracketText(
                 context,
                 11,
-                palette.muted,
+                isDominant ? FC.of(context).amberBright : palette.muted,
                 weight: FontWeight.w700,
                 letterSpacing: 0.9,
               ),

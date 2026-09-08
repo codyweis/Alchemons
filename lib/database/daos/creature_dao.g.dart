@@ -8,4 +8,22 @@ mixin _$CreatureDaoMixin on DatabaseAccessor<AlchemonsDatabase> {
   $CreatureInstancesTable get creatureInstances =>
       attachedDatabase.creatureInstances;
   $FeedEventsTable get feedEvents => attachedDatabase.feedEvents;
+  CreatureDaoManager get managers => CreatureDaoManager(this);
+}
+
+class CreatureDaoManager {
+  final _$CreatureDaoMixin _db;
+  CreatureDaoManager(this._db);
+  $$PlayerCreaturesTableTableManager get playerCreatures =>
+      $$PlayerCreaturesTableTableManager(
+        _db.attachedDatabase,
+        _db.playerCreatures,
+      );
+  $$CreatureInstancesTableTableManager get creatureInstances =>
+      $$CreatureInstancesTableTableManager(
+        _db.attachedDatabase,
+        _db.creatureInstances,
+      );
+  $$FeedEventsTableTableManager get feedEvents =>
+      $$FeedEventsTableTableManager(_db.attachedDatabase, _db.feedEvents);
 }

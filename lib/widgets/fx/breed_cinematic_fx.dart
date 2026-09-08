@@ -94,7 +94,8 @@ Future<T?> showAlchemyFusionCinematic<T>({
 // ---------------------------------------------------------------------------
 //   intake : 0.00 .. 0.13  chambers wake on the live screen, parents settle
 //   charge : 0.11 .. 0.29  chambers energise, conduits light, arcs crackle
-//   stream : 0.27 .. 0.72  specimens dissolve, essence flows to the core
+//   scatter: 0.24 .. 0.44  specimens come apart where they stand
+//   stream : 0.44 .. 0.72  only then does the essence cross to the core
 //   core   : 0.49 .. 0.77  intake rings pull inward, screen shake builds
 //   burst  : 0.75 .. 0.85  eruption + shockwave ring (heavy haptic)
 //   reveal : 0.75 .. 1.00  cultivation blooms straight out of the eruption
@@ -103,21 +104,28 @@ Future<T?> showAlchemyFusionCinematic<T>({
 class _Phase {
   static const intakeStart = 0.00, intakeEnd = 0.13;
   static const chargeStart = 0.11, chargeEnd = 0.29;
-  static const streamStart = 0.27, streamEnd = 0.72;
+  static const streamStart = 0.44, streamEnd = 0.72;
   static const coreStart = 0.49, coreEnd = 0.77;
   static const burstStart = 0.75, burstEnd = 0.85;
   // Reveal starts with the burst so the cultivation grows continuously out of
   // the eruption — the specimens are never gone with nothing on screen.
   static const revealStart = 0.75, revealEnd = 1.00;
 
-  // THE MERGE. The two creatures used to fade out at 0.44 — a third of the way
-  // in — and everything after that was apparatus: streams, a core, a burst.
-  // You watched a machine work while the animals stood off to one side and
-  // vanished. They now hold their ground through the charge, are hauled into
-  // each other while the streams run, and only give up their shape at the very
-  // last moment, INSIDE the core, where the burst takes them.
-  static const hauledStart = 0.30, hauledEnd = 0.70;
-  static const dissolveStart = 0.66, dissolveEnd = 0.79;
+  // THE MERGE, in two beats rather than one. The specimens used to hold their
+  // shape all the way into the core and only come apart once they were on top
+  // of each other, so the merge read as two animals colliding. Now they come
+  // apart FIRST, where they stand, and it is the matter that travels: each
+  // one scatters in its own chamber, and the essence stream carries it to the
+  // core to be put back together as something else.
+  //
+  // The two beats must not overlap, or the first thing you see is the pair
+  // sliding together while still solid — which is the old collision read with
+  // extra steps. So: they come apart WHERE THEY STAND and are completely gone
+  // before anything crosses the gap. The specimens do not travel at all; the
+  // essence stream is the entire crossing, and it does not start until the
+  // scatter has finished.
+  static const disintegrateStart = 0.24, disintegrateEnd = 0.44;
+  static const dissolveStart = 0.24, dissolveEnd = 0.42;
 }
 
 class _AlchemyFusionCinematicPage<T> extends StatefulWidget {
@@ -485,28 +493,34 @@ class _SpecimenAt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final intake = _interval(t, _Phase.intakeStart, _Phase.intakeEnd);
-    final hauled = _interval(t, _Phase.hauledStart, _Phase.hauledEnd);
     final dissolve = _interval(t, _Phase.dissolveStart, _Phase.dissolveEnd);
 
-    // HAULED IN. All the way to the core, not a 28% drift toward it: the two
-    // creatures have to actually meet, and overlap, for the fusion to be
-    // something they do rather than something done off-screen.
-    final travel = Curves.easeInCubic.transform(hauled);
-    final pos = Offset.lerp(from, core, travel)!;
+    // They do not travel. Standing still is the whole point: the pair coming
+    // together before they are gone reads as a collision, so the crossing is
+    // left entirely to the essence stream, which starts once they are.
+    final pos = from;
 
-    // They pop into their chambers, swell as they resist the pull, and only
-    // collapse once they are inside each other.
+    // COMING APART. They pop into their chambers, then break outward rather
+    // than shrinking away — a body giving up its shape reads as expansion and
+    // thinning, where a collapse to a point just reads as the sprite being
+    // switched off. Both curves are ease-OUT so the break is visible from its
+    // first frames; an ease-in spends the early window looking untouched.
     final pop = Curves.easeOutBack.transform(intake);
-    final scale =
-        (0.90 + 0.14 * pop) +
-        0.16 * hauled -
-        0.86 * Curves.easeInCubic.transform(dissolve);
-    final opacity = (1.0 - dissolve).clamp(0.0, 1.0);
+    final comeApart = Curves.easeOutCubic.transform(dissolve);
+    final swell = _interval(t, _Phase.chargeStart, _Phase.dissolveStart);
+    final scale = (0.90 + 0.14 * pop) + 0.10 * swell + 0.34 * comeApart;
+    final opacity = (1.0 - Curves.easeOutQuad.transform(dissolve)).clamp(
+      0.0,
+      1.0,
+    );
 
     // Agitation: a buzz while the charge builds, rising to a hard shudder as
     // they are dragged together.
-    final buzz = _interval(t, _Phase.chargeStart, _Phase.streamStart);
-    final jitter = math.sin(t * math.pi * 40) * (buzz * 2.2 + hauled * 3.6);
+    // Agitation peaks as they break up. It shakes hardest at the start of the
+    // dissolve and eases off as there is less left to shake.
+    final buzz = _interval(t, _Phase.chargeStart, _Phase.dissolveStart);
+    final shudder = comeApart * (1.0 - dissolve);
+    final jitter = math.sin(t * math.pi * 40) * (buzz * 2.2 + shudder * 7.0);
 
     // Bigger, because they are the subject. 120 in a full-screen stage is a
     // thumbnail.
@@ -519,7 +533,7 @@ class _SpecimenAt extends StatelessWidget {
       child: Opacity(
         opacity: opacity.clamp(0.0, 1.0),
         child: Transform.scale(
-          scale: scale.clamp(0.1, 1.2),
+          scale: scale.clamp(0.1, 1.6),
           child: _Glow(
             color: color,
             intensity: .5 + buzz * .6 + dissolve * .8,
@@ -606,6 +620,11 @@ class _ChamberPainter extends CustomPainter {
 
     final charge = _interval(t, _Phase.chargeStart, _Phase.chargeEnd);
     final stream = _interval(t, _Phase.streamStart, _Phase.streamEnd);
+    final scatter = _interval(
+      t,
+      _Phase.disintegrateStart,
+      _Phase.disintegrateEnd,
+    );
     final coreP = _interval(t, _Phase.coreStart, _Phase.coreEnd);
     final burst = _interval(t, _Phase.burstStart, _Phase.burstEnd);
     final reveal = _interval(t, _Phase.revealStart, _Phase.revealEnd);
@@ -616,6 +635,12 @@ class _ChamberPainter extends CustomPainter {
 
       _drawChamber(canvas, leftCh, chR, a, charge, stream);
       _drawChamber(canvas, rightCh, chR, b, charge, stream);
+
+      // The specimens come apart here, before anything crosses: motes break
+      // off each chamber and are drawn back toward the conduit mouth, so the
+      // essence flowing to the core is visibly what was standing there.
+      _drawDisintegration(canvas, leftCh, core, chR, a, scatter);
+      _drawDisintegration(canvas, rightCh, core, chR, b, scatter);
 
       _drawEssence(canvas, leftCh, core, a, stream);
       _drawEssence(canvas, rightCh, core, b, stream);
@@ -749,6 +774,61 @@ class _ChamberPainter extends CustomPainter {
         ..strokeWidth = 3
         ..strokeCap = StrokeCap.round,
     );
+  }
+
+  /// A specimen giving up its shape: motes burst outward off the chamber, hang
+  /// at the edge, then are pulled back in toward the conduit mouth. Seeded off
+  /// the index so the scatter is stable frame to frame rather than boiling.
+  void _drawDisintegration(
+    Canvas canvas,
+    Offset ch,
+    Offset core,
+    double chR,
+    Color color,
+    double scatter,
+  ) {
+    if (scatter <= 0 || scatter >= 1) return;
+
+    const count = 26;
+    // Out fast, then reeled back: peaks early and returns to the mouth.
+    final out = Curves.easeOutCubic.transform(math.min(1.0, scatter * 2.2));
+    final pull = Curves.easeInCubic.transform(
+      math.max(0.0, (scatter - 0.45) / 0.55),
+    );
+    final toward = (core - ch);
+    final towardLen = toward.distance;
+    final dir = towardLen == 0 ? Offset.zero : toward / towardLen;
+
+    for (int i = 0; i < count; i++) {
+      // Deterministic pseudo-scatter: no RNG per frame, so motes hold still.
+      final ang = (i * 2.39996) % (math.pi * 2);
+      final spread = 0.55 + ((i * 37) % 100) / 100.0 * 0.85;
+      final reach = chR * (0.35 + spread * 1.15) * out;
+
+      final burstAt = ch + Offset(math.cos(ang), math.sin(ang)) * reach;
+      // Reeled toward the conduit mouth rather than straight home, so the
+      // motion hands off to the stream instead of stopping dead.
+      final mouth = ch + dir * (chR * 0.9);
+      final pos = Offset.lerp(burstAt, mouth, pull)!;
+
+      final fade = (1.0 - scatter * 0.65).clamp(0.0, 1.0);
+      final rad = (0.9 + 2.0 * (1 - out)) * (0.6 + scatter);
+      canvas.drawCircle(
+        pos,
+        rad * 1.8,
+        Paint()..color = color.withValues(alpha: fade * 0.22),
+      );
+      canvas.drawCircle(
+        pos,
+        rad,
+        Paint()
+          ..color = Color.lerp(
+            color,
+            Colors.white,
+            0.4,
+          )!.withValues(alpha: fade * 0.9),
+      );
+    }
   }
 
   void _drawEssence(

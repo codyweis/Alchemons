@@ -149,10 +149,12 @@ class _BloodRingStoryScenePageState extends State<BloodRingStoryScenePage>
   void initState() {
     super.initState();
     _pages = [
-      'Whether you accept reality for the beauty it is, or forge deceptions of beauty to shield yourself from chaos.',
+      'Whether you accept reality for the beauty it is, or forge deceptions of beauty to shield yourself from chaos, the ritual continues.',
       'Reality bends to the witness and the wound at once. What you call truth is only a story that survived long enough to be believed.',
       '${widget.offeringName} stands at the seam of worlds, where every certainty dissolves into choice.',
       'If all things are constructs, then this construct is yours now. Walk forward.',
+      'You made the valley because you wanted to become someone who could stop. For a while, you forgot what your hands could do.',
+      'Now you remember. You call this sacrifice. You call it rebirth. You keep what you wanted, and prepare to begin again.',
     ];
     _fade = AnimationController(
       vsync: this,

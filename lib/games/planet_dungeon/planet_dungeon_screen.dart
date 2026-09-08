@@ -19,6 +19,8 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_reward_popup.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
+import 'package:alchemons/services/campaign_journal_service.dart';
+import 'package:alchemons/screens/story/beauty_mask_reveal.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/screens/cosmic/widgets/virtual_joystick.dart';
 import 'package:flame/game.dart';
@@ -213,10 +215,12 @@ class PlanetDungeonScreen extends StatefulWidget {
     required this.party,
     this.raid,
     this.onRaidCleared,
+    this.revealBeautyMask = false,
   });
 
   final String element;
   final List<CosmicPartyMember> party;
+  final bool revealBeautyMask;
 
   /// Non-null → this descent is a raid: one open arena, an empowered
   /// guardian, raid loot. Stars/clouds are neither read nor written.
@@ -285,6 +289,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   final ValueNotifier<double> _introTime = ValueNotifier<double>(0);
   double? _introFadeStart;
   bool _showIntro = true;
+  bool _showBeautyMask = false;
 
   /// The descent's element is reparented (not rebuilt) when `_ready` flips and
   /// the screen swaps from "loading shell" to "live dungeon + overlay". Without
@@ -312,6 +317,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   @override
   void initState() {
     super.initState();
+    _showBeautyMask = widget.revealBeautyMask;
     _flyCtrl = AnimationController(vsync: this, duration: _kStarFlightDuration)
       ..addStatusListener((s) {
         if (s == AnimationStatus.completed && mounted) {
@@ -446,6 +452,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// Hand the frame budget back: the dungeon runs, and its HUD resumes
   /// ticking, from the instant the descent begins to fade.
   void _thawDungeon() {
+    if (_showBeautyMask) return;
     if (!_dungeonFrozen) return;
     _dungeonFrozen = false;
     // The descent overlay ignores pointers, so END RUN is reachable (blind)
@@ -1316,6 +1323,24 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             if (_showIntro)
               Positioned.fill(child: IgnorePointer(child: _descentIntro())),
 
+            if (_showBeautyMask && !_showIntro)
+              Positioned.fill(
+                child: BeautyMaskReveal(
+                  onComplete: () async {
+                    final db = context.read<AlchemonsDatabase>();
+                    await db.transaction(() async {
+                      await db.settingsDao.setSetting(
+                        CampaignJournalService.revelationKey,
+                        '1',
+                      );
+                      await CampaignJournalService(db).record('revelation');
+                    });
+                    if (!mounted) return;
+                    setState(() => _showBeautyMask = false);
+                    _thawDungeon();
+                  },
+                ),
+              ),
             // End-run reward popup.
             if (_rewardStars != null)
               DungeonRewardPopup(

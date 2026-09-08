@@ -81,16 +81,6 @@ abstract final class AlchemonStatSystem {
     return 50000;
   }
 
-  /// Independent four-stat inheritance: 35% parent A, 35% parent B, and 30%
-  /// a fresh genetic roll. The extra parental weight offsets the difficulty of
-  /// assembling four excellent Potentials while preserving genetic surprises.
-  static int inheritPotential(Random rng, num parentA, num parentB) {
-    final roll = rng.nextDouble();
-    if (roll < 0.35) return normalizePotential(parentA);
-    if (roll < 0.70) return normalizePotential(parentB);
-    return rollPotential(rng);
-  }
-
   static double levelMultiplier(int level) {
     final safeLevel = level.clamp(1, maxLevel);
     return 0.55 + ((safeLevel - 1) * 0.05);

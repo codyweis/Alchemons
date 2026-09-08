@@ -38,16 +38,21 @@ class CosmicSurvivalBalance {
     return waveBudget / count;
   }
 
-  static int bossEscortCount(int wave) => (8 + wave * 0.36).round().clamp(8, 30);
-  static double bossEscortInterval(int wave) => (1.25 - wave * 0.008).clamp(0.75, 1.25);
+  static int bossEscortCount(int wave) =>
+      (8 + wave * 0.36).round().clamp(8, 30);
+  static double bossEscortInterval(int wave) =>
+      (1.25 - wave * 0.008).clamp(0.75, 1.25);
   static int activeEnemyLimit(int wave, {required bool bossWave}) =>
       bossWave ? 24 : (24 + wave * 0.65).round().clamp(24, 56);
 
   /// Layered elite/body/trait multipliers must not turn one leaked enemy into
   /// an instant loss. Several missed intercepts remain dangerous.
-  static double orbContactDamage(double raw, double maxHp,
-      {required bool heavy, required bool breaker}) =>
-      min(raw, maxHp * (heavy ? 0.22 : 0.10) * (breaker ? 1.2 : 1.0));
+  static double orbContactDamage(
+    double raw,
+    double maxHp, {
+    required bool heavy,
+    required bool breaker,
+  }) => min(raw, maxHp * (heavy ? 0.22 : 0.10) * (breaker ? 1.2 : 1.0));
 
   static double survivalStatPower(double stat) {
     final legacy = CosmicBalance.legacyStat(stat);

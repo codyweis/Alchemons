@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:alchemons/models/potential_genetics.dart';
 import 'dart:math';
 import 'package:alchemons/models/stat_system.dart';
 
@@ -137,11 +138,17 @@ class CreatureStatPotentials {
   final double strength;
   final double beauty;
 
+  /// The two stats the hatched Alchemon will pass down cleanly. Null lets the
+  /// insert derive them from the potentials above, which is what wild spawns
+  /// and vial hatches want; breeding supplies them explicitly.
+  final DominantStats? dominants;
+
   const CreatureStatPotentials({
     required this.speed,
     required this.intelligence,
     required this.strength,
     required this.beauty,
+    this.dominants,
   });
 
   Map<String, dynamic> toJson() => {
@@ -150,6 +157,7 @@ class CreatureStatPotentials {
     'intelligence': intelligence,
     'strength': strength,
     'beauty': beauty,
+    if (dominants != null) 'dominants': dominants!.encode(),
   };
 
   factory CreatureStatPotentials.fromJson(Map<String, dynamic> json) {
@@ -179,6 +187,7 @@ class CreatureStatPotentials {
         values[3],
         legacyScale: legacyScale,
       ).toDouble(),
+      dominants: DominantStats.decode(json['dominants'] as String?),
     );
   }
 }
@@ -346,6 +355,7 @@ class EggPayloadFactory {
         intelligence: offspring.stats?.intelligencePotential ?? 50.0,
         strength: offspring.stats?.strengthPotential ?? 50.0,
         beauty: offspring.stats?.beautyPotential ?? 50.0,
+        dominants: offspring.stats?.dominants,
       ),
       lineage: _extractLineageData(offspring),
       parentage: offspring.parentage != null
@@ -455,6 +465,7 @@ class EggPayloadFactory {
         intelligence: offspring.stats?.intelligencePotential ?? 50.0,
         strength: offspring.stats?.strengthPotential ?? 50.0,
         beauty: offspring.stats?.beautyPotential ?? 50.0,
+        dominants: offspring.stats?.dominants,
       ),
       lineage: _extractLineageData(offspring),
       parentage: parentageData,

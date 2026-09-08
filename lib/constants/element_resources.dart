@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:alchemons/models/element_resource.dart'
-    show ElementId, ElementIdX;
 import 'package:alchemons/widgets/app_icons.dart';
 
 class ElementResource {
   final String biomeId; // 'volcanic'
   final String biomeLabel; // 'Volcanic'
   final String settingsKey; // 'res_volcanic' (used in Settings table)
-  final IconData icon; // biome icon
+  /// Kept for the places too small for a particle field to read — a 12px
+  /// affordability chip, where the glyph would be mush and the colour has to
+  /// carry a can-afford / cannot-afford state.
+  final IconData icon;
   final Color color; // biome primary color
 
   const ElementResource({
@@ -17,18 +18,6 @@ class ElementResource {
     required this.icon,
     required this.color,
   });
-
-  /// The painted resource artwork. [icon] is only a silhouette fallback — the
-  /// real assets already exist and are what the rest of the app draws, so
-  /// anything showing a resource should reach for this first.
-  ///
-  /// biomeId and ElementId share names, which is what makes the lookup safe.
-  ImageProvider? get artwork {
-    for (final id in ElementId.values) {
-      if (id.name == biomeId) return id.imageProvider;
-    }
-    return null;
-  }
 }
 
 class ElementResources {

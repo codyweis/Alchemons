@@ -12,6 +12,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/screens/debug/dungeon_debug_screen.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
+import 'package:alchemons/widgets/campaign_rewards_button.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
 import 'package:alchemons/services/account_session_service.dart';
@@ -1641,6 +1642,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: 14),
 
+                  _ForgePanel(
+                    accentBar: t.teal,
+                    child: const CampaignRewardsButton(expanded: true),
+                  ),
+                  const SizedBox(height: 14),
                   // ── Replay intro ──────────────────────────────────────────
                   _ForgePanel(
                     accentBar: t.teal,

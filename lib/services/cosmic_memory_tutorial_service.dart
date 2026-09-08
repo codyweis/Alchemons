@@ -61,7 +61,14 @@ class CosmicMemoryTutorialService {
     final completed = await settings.getSetting(completedKey) == '1';
     final pending = await settings.getSetting(homePortalPendingKey) == '1';
     final launched = await settings.getSetting(homePortalLaunchedKey) == '1';
-    if (!harvestCompleted || completed || pending || launched) return;
+    if (!harvestCompleted || completed || pending) return;
+    if (launched) {
+      // The home caller is guarded while the route is active. A remaining
+      // launch marker here belongs to an interrupted, unfinished memory.
+      await settings.setSetting(homePortalPendingKey, '1');
+      await settings.deleteSetting(homePortalLaunchedKey);
+      return;
+    }
 
     final raw = await settings.getSetting(extractionCountKey);
     final savedCount = int.tryParse(raw ?? '');
@@ -93,13 +100,11 @@ class CosmicMemoryTutorialService {
     await settings.setSetting(storyPendingKey, '1');
   }
 
-  static Future<bool> consumeStoryPending(SettingsDao settings) async {
-    final pending = await settings.getSetting(storyPendingKey) == '1';
-    if (pending) {
-      await settings.deleteSetting(storyPendingKey);
-    }
-    return pending;
-  }
+  static Future<bool> isStoryPending(SettingsDao settings) async =>
+      await settings.getSetting(storyPendingKey) == '1';
+
+  static Future<void> acknowledgeStory(SettingsDao settings) =>
+      settings.deleteSetting(storyPendingKey);
 
   static Future<void> debugQueueTutorial(SettingsDao settings) async {
     await settings.setSetting(harvestCompletedKey, '1');

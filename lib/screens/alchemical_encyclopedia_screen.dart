@@ -1533,6 +1533,30 @@ class _RecipeTabListState extends State<_RecipeTabList>
     return true;
   }
 
+  /// Gap between cards, from the SliverList.separated above.
+  static const double _rowSeparator = 10.0;
+
+  /// Fallback only. Anything better is measured off a real row.
+  static const double _fallbackRowExtent = 120.0;
+
+  /// The height of any row currently built, plus its separator.
+  ///
+  /// A hardcoded estimate was the whole bug: it overshot, the clamp pinned the
+  /// scroll to the bottom of the list, the target was then far off-screen and
+  /// never built, and the precise landing below was skipped — leaving you at
+  /// the end of the list looking at undiscovered rows.
+  double? _measuredRowExtent() {
+    for (final key in _rowKeys.values) {
+      final ctx = key.currentContext;
+      if (ctx == null || !ctx.mounted) continue;
+      final box = ctx.findRenderObject();
+      if (box is RenderBox && box.hasSize && box.size.height > 0) {
+        return box.size.height + _rowSeparator;
+      }
+    }
+    return null;
+  }
+
   Future<void> _scrollToIndex(int index, String pairKey) async {
     // Inside a NestedScrollView the active tab's list attaches to the
     // coordinated PrimaryScrollController; use it to get near the target so the
@@ -1542,18 +1566,42 @@ class _RecipeTabListState extends State<_RecipeTabList>
       if (!controller.hasClients) {
         await Future<void>.delayed(const Duration(milliseconds: 16));
       }
-      if (controller.hasClients) {
-        const estimatedItemExtent = 120.0;
-        final estimatedOffset = (index * estimatedItemExtent).toDouble().clamp(
-          0.0,
-          controller.position.maxScrollExtent,
-        );
+
+      // Close in, rather than trusting one guess. Each pass re-measures the
+      // real row height from whatever is currently built, so an estimate that
+      // was wrong the first time corrects itself instead of stranding the
+      // scroll at the clamp.
+      var extent = _measuredRowExtent() ?? _fallbackRowExtent;
+      for (var attempt = 0; attempt < 4; attempt++) {
+        final ctx = _rowKeys[pairKey]?.currentContext;
+        if (ctx != null && ctx.mounted) break; // built — land precisely below
+
+        // While a tab is animating, both tabs' inner scrollables can be
+        // attached to the coordinated controller, and `position` asserts
+        // unless there is exactly one. Wait it out rather than throwing.
+        if (controller.positions.length != 1) {
+          await Future<void>.delayed(const Duration(milliseconds: 32));
+          if (!mounted || _activePairKey != pairKey) return;
+          continue;
+        }
+
+        final position = controller.position;
+        final target = (index * extent).clamp(0.0, position.maxScrollExtent);
+        if ((position.pixels - target).abs() < 1.0 && attempt > 0) {
+          // Already sitting where the estimate wants us and the row still is
+          // not built; another identical jump would not help.
+          break;
+        }
+
         await controller.animateTo(
-          estimatedOffset,
-          duration: const Duration(milliseconds: 620),
+          target,
+          duration: Duration(milliseconds: attempt == 0 ? 620 : 220),
           curve: Curves.easeInOutCubic,
         );
         await Future<void>.delayed(const Duration(milliseconds: 32));
+        if (!mounted || _activePairKey != pairKey) return;
+
+        extent = _measuredRowExtent() ?? extent;
       }
     }
 

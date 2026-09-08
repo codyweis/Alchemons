@@ -31,13 +31,13 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_debug_party.dart';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/models/egg/egg_payload.dart';
-import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
+import 'package:alchemons/services/campaign_journal_service.dart';
+import 'package:alchemons/services/blood_rebirth_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
@@ -3624,7 +3624,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   const Padding(
                     padding: EdgeInsets.only(bottom: 10),
                     child: Text(
-                      'Select one more companion from your ship party.',
+                      'Sacrifice and rebirth: choose a reserve companion to transform into its Bloodborn form. You keep the same companion, level, training, and nickname. All four Potentials become 95. This transformation is permanent.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white70, fontSize: 13),
                     ),
@@ -3745,6 +3745,13 @@ class _CosmicScreenState extends State<CosmicScreen>
         duration: const Duration(milliseconds: 280),
       );
       shouldReturnHome = true;
+    } catch (e) {
+      debugPrint('Blood rebirth interrupted: $e');
+      if (mounted) {
+        _showQuote(
+          'The ritual has not finished. Your companion remains. Return to the ring to continue.',
+        );
+      }
     } finally {
       await SystemChrome.setPreferredOrientations(const [
         DeviceOrientation.portraitUp,
@@ -3796,33 +3803,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     _bloodRitualCtrl.value = 0;
   }
 
-  Map<String, int> _decodeLineageJson(String? raw) {
-    if (raw == null || raw.isEmpty) return {};
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) return {};
-      return decoded.map(
-        (key, value) => MapEntry(
-          key.toString(),
-          value is num ? value.toInt() : int.tryParse(value.toString()) ?? 0,
-        ),
-      );
-    } catch (_) {
-      return {};
-    }
-  }
-
-  Map<String, String> _decodeGeneticsJson(String? raw) {
-    if (raw == null || raw.isEmpty) return const {};
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) return const {};
-      return decoded.map((key, value) => MapEntry(key.toString(), '$value'));
-    } catch (_) {
-      return const {};
-    }
-  }
-
   void _rememberBloodRingOffering({
     required String offeringName,
     String? offeringInstanceId,
@@ -3854,126 +3834,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       if (member.instanceId == savedId) return member;
     }
     return null;
-  }
-
-  Future<bool> _grantBloodbornRewardEgg(String sacrificedInstanceId) async {
-    if (!mounted) return false;
-    final db = context.read<AlchemonsDatabase>();
-    final repo = context.read<CreatureCatalog>();
-    final sacrificed = await db.creatureDao.getInstance(sacrificedInstanceId);
-    if (sacrificed == null) return false;
-    final base = repo.getCreatureById(sacrificed.baseId);
-    if (base == null) return false;
-
-    final nativeFaction = elementalGroupNameOf(base);
-    final factionLineage = _decodeLineageJson(sacrificed.factionLineageJson);
-    final elementLineage = _decodeLineageJson(sacrificed.elementLineageJson);
-    final familyLineage = _decodeLineageJson(sacrificed.familyLineageJson);
-    final payload = EggPayload(
-      baseId: sacrificed.baseId,
-      rarity: base.rarity,
-      source: 'bloodborn',
-      vialName: 'Bloodborn Vial',
-      natureId: sacrificed.natureId,
-      natureId2: sacrificed.natureId2,
-      isPrismaticSkin: sacrificed.isPrismaticSkin,
-      genetics: _decodeGeneticsJson(sacrificed.geneticsJson),
-      stats: CreatureStats(
-        speed: sacrificed.statSpeed,
-        intelligence: sacrificed.statIntelligence,
-        strength: sacrificed.statStrength,
-        beauty: sacrificed.statBeauty,
-      ),
-      potentials: const CreatureStatPotentials(
-        speed: 5.0,
-        intelligence: 5.0,
-        strength: 5.0,
-        beauty: 5.0,
-      ),
-      lineage: LineageData(
-        generationDepth: sacrificed.generationDepth,
-        nativeFaction: nativeFaction,
-        variantFaction: 'bloodborn',
-        factionLineage: factionLineage.isEmpty
-            ? {nativeFaction: 1}
-            : factionLineage,
-        elementLineage: elementLineage.isEmpty && base.types.isNotEmpty
-            ? {base.types.first: 1}
-            : elementLineage,
-        familyLineage:
-            familyLineage.isEmpty &&
-                base.mutationFamily != null &&
-                base.mutationFamily!.trim().isNotEmpty
-            ? {base.mutationFamily!.trim(): 1}
-            : familyLineage,
-        isPure: sacrificed.isPure,
-      ),
-      likelihoodAnalysisJson: sacrificed.likelihoodAnalysisJson,
-    );
-    final eggId = db.creatureDao.makeInstanceId('BLOOD');
-    final rarityKey = base.rarity.toLowerCase();
-    final hatchDelay =
-        BreedConstants.rarityHatchTimes[rarityKey] ?? const Duration(hours: 8);
-    final payloadJson = payload.toJsonString();
-    final free = await db.incubatorDao.firstFreeSlot();
-    if (free != null) {
-      await db.incubatorDao.placeEgg(
-        slotId: free.id,
-        eggId: eggId,
-        resultCreatureId: base.id,
-        rarity: base.rarity,
-        hatchAtUtc: DateTime.now().toUtc().add(hatchDelay),
-        payloadJson: payloadJson,
-      );
-    } else {
-      await db.incubatorDao.enqueueEgg(
-        eggId: eggId,
-        resultCreatureId: base.id,
-        rarity: base.rarity,
-        remaining: hatchDelay,
-        payloadJson: payloadJson,
-      );
-    }
-    await db.inventoryDao.addItemQty(InvKeys.alchemyBloodAura, 1);
-    final freeText = free == null
-        ? 'Bloodborn specimen transferred to cold storage'
-        : 'Bloodborn specimen placed in incubation chamber ${free.id + 1}';
-    if (!mounted) return false;
-    final fc = FC.of(context);
-    final ft = FT(fc);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        duration: const Duration(seconds: 2),
-        content: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: fc.bg2,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: fc.success.withValues(alpha: 0.55)),
-          ),
-          child: Row(
-            children: [
-              Icon(AppIcons.check_circle_rounded, size: 16, color: fc.success),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  freeText,
-                  style: ft.body.copyWith(
-                    color: fc.textPrimary,
-                    fontSize: 13,
-                    height: 1.25,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    return true;
   }
 
   Future<void> _runBloodRingEnding({
@@ -4028,9 +3888,17 @@ class _CosmicScreenState extends State<CosmicScreen>
         duration: const Duration(milliseconds: 360),
       );
 
-      if (sacrificedInstanceId != null && mounted) {
-        await _grantBloodbornRewardEgg(sacrificedInstanceId);
+      if (!mounted || sacrificedInstanceId == null) return;
+      final db = context.read<AlchemonsDatabase>();
+      final instance = await db.creatureDao.getInstance(sacrificedInstanceId);
+      if (!mounted) return;
+      final species = instance == null
+          ? null
+          : context.read<CreatureCatalog>().getCreatureById(instance.baseId);
+      if (species == null) {
+        throw StateError('The chosen companion is no longer available.');
       }
+      await BloodRebirthService(db).transform(sacrificedInstanceId, species);
 
       game.bloodRing.ritualCompleted = true;
       await _saveBloodRingState();
@@ -4062,6 +3930,15 @@ class _CosmicScreenState extends State<CosmicScreen>
     HapticFeedback.heavyImpact();
 
     final ring = _game!.bloodRing;
+    final rebornId = await context
+        .read<AlchemonsDatabase>()
+        .settingsDao
+        .getSetting(CampaignJournalService.endingKey);
+    if (!mounted) return;
+    if (rebornId != null && rebornId.isNotEmpty) {
+      ring.ritualCompleted = true;
+      await _saveBloodRingState();
+    }
     if (ring.ritualCompleted) {
       await _openBloodPortalCredits();
       return;
@@ -4076,8 +3953,12 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
 
-    final active = _partyMembers[_activeCompanionSlots.first];
-    if (active == null || !_isMysticBloodCompanion(active)) {
+    final active = _activeCompanionSlots
+        .map((i) => _partyMembers[i])
+        .whereType<CosmicPartyMember>()
+        .where(_isMysticBloodCompanion)
+        .firstOrNull;
+    if (active == null) {
       _showQuote('Mystic Blood required.');
       return;
     }
@@ -6099,11 +5980,21 @@ class _CosmicScreenState extends State<CosmicScreen>
         .toList();
     if (roster.isEmpty) return;
 
+    final revealBeautyMask =
+        await context.read<AlchemonsDatabase>().settingsDao.getSetting(
+          CampaignJournalService.revelationKey,
+        ) !=
+        '1';
+    if (!mounted) return;
+
     _game?.pauseEngine();
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            PlanetDungeonScreen(element: planet.element, party: roster),
+        builder: (_) => PlanetDungeonScreen(
+          element: planet.element,
+          party: roster,
+          revealBeautyMask: revealBeautyMask,
+        ),
       ),
     );
     if (!mounted) return;
@@ -6120,6 +6011,27 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     if (!mounted) return;
     setState(() => _planetStarState = refreshed);
+    final db = context.read<AlchemonsDatabase>();
+    if (refreshed.guardiansDefeated() > 0 &&
+        await db.settingsDao.getSetting('campaign_guardian_presence_seen_v1') !=
+            '1' &&
+        mounted) {
+      final entry = campaignEntries.firstWhere((e) => e.id == 'guardian');
+      await LandscapeDialog.show(
+        context,
+        title: entry.title,
+        typewriter: true,
+        message:
+            '${entry.text}\n\nBring the relic to the Mystic Altar. Each elemental ritual requires one of every non-Mystic species of that element.',
+        barrierDismissible: false,
+      );
+      await db.settingsDao.setSetting(
+        'campaign_guardian_presence_seen_v1',
+        '1',
+      );
+      await CampaignJournalService(db).record('guardian');
+    }
+    if (!mounted) return;
     if (!_anyOverlayOpen && !_showMiniMap) _game?.resumeEngine();
   }
 
@@ -7128,7 +7040,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           kNonBloodPlanetCount -
           _planetStarState.guardiansDefeated(excluding: kBloodPlanetElement);
       _showQuote(
-        '${planetName(targetElement)} will not answer yet'
+        '${planetName(targetElement)} will not answer yet. '
         '$left guardian${left == 1 ? '' : 's'} still stand. '
         'Fell every other planet first.',
       );

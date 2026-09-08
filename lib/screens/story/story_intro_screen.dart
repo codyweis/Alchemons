@@ -24,7 +24,6 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
   bool _isSkipping = false;
   bool _isTransitioning = false;
   Timer? _skipTimer;
-  Timer? _autoAdvanceTimer;
 
   final List<StoryPage> _storyPages = AlchemonsStory.allPages;
 
@@ -36,37 +35,17 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
       vsync: this,
       value: 1.0, // Start fully visible
     );
-
-    // Start auto-advance timer
-    _startAutoAdvanceTimer();
   }
 
   @override
   void dispose() {
     _pageTransitionController.dispose();
     _skipTimer?.cancel();
-    _autoAdvanceTimer?.cancel();
     super.dispose();
-  }
-
-  void _startAutoAdvanceTimer() {
-    _autoAdvanceTimer?.cancel();
-    _autoAdvanceTimer = Timer(const Duration(seconds: 7), () {
-      if (mounted && !_isTransitioning) {
-        _nextPage();
-      }
-    });
-  }
-
-  void _cancelAutoAdvanceTimer() {
-    _autoAdvanceTimer?.cancel();
   }
 
   void _nextPage() {
     if (_isTransitioning) return; // Prevent double-taps during transition
-
-    // Cancel current timer since user manually advanced or auto-advance triggered
-    _cancelAutoAdvanceTimer();
 
     if (_currentPage < _storyPages.length - 1) {
       HapticFeedback.lightImpact();
@@ -81,12 +60,6 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
           // Fade in new page
           _pageTransitionController.forward().then((_) {
             _isTransitioning = false;
-
-            // Don't auto-advance on loading screen
-            final currentPage = _storyPages[_currentPage];
-            if (currentPage.type != StoryPageType.loading) {
-              _startAutoAdvanceTimer();
-            }
           });
         }
       });
@@ -113,7 +86,6 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
 
   void _skipToLoading() {
     // Cancel timers
-    _cancelAutoAdvanceTimer();
     _skipTimer?.cancel();
 
     setState(() => _isSkipping = false);

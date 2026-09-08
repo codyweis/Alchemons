@@ -206,38 +206,44 @@ class _InventoryOverlayShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.of(context).pop(),
-      behavior: HitTestBehavior.opaque,
-      child: Stack(
-        children: [
-          Container(color: Colors.black.withValues(alpha: 0.1)),
-          GestureDetector(
-            onTap: () {},
-            child: SafeArea(
-              child: Center(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 32,
-                  ),
-                  constraints: const BoxConstraints(maxWidth: 450),
-                  child: CustomPaint(
-                    painter: BracketFramePainter(
-                      color: _wAmber.withValues(alpha: 0.8),
-                      bracketSize: 12,
-                      strokeWidth: 1.3,
+    // A PageRouteBuilder page is not wrapped in Material, so every Text below
+    // inherited the debug fallback style and drew yellow underlines.
+    // Transparency adds the ancestor without painting anything.
+    return Material(
+      type: MaterialType.transparency,
+      child: GestureDetector(
+        onTap: () => Navigator.of(context).pop(),
+        behavior: HitTestBehavior.opaque,
+        child: Stack(
+          children: [
+            Container(color: Colors.black.withValues(alpha: 0.1)),
+            GestureDetector(
+              onTap: () {},
+              child: SafeArea(
+                child: Center(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 32,
                     ),
-                    child: ColoredBox(
-                      color: _wPalette.surfaceFill(),
-                      child: const GameInventoryOverlay(),
+                    constraints: const BoxConstraints(maxWidth: 450),
+                    child: CustomPaint(
+                      painter: BracketFramePainter(
+                        color: _wAmber.withValues(alpha: 0.8),
+                        bracketSize: 12,
+                        strokeWidth: 1.3,
+                      ),
+                      child: ColoredBox(
+                        color: _wPalette.surfaceFill(),
+                        child: const GameInventoryOverlay(),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

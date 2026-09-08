@@ -446,6 +446,15 @@ class SceneGame extends FlameGame with ScaleDetector {
       return task();
     }
 
+    // A deployed party Alchemon makes the camera frame two creatures, which
+    // leaves the wild one -- the one the harvest actually plays on -- small
+    // and off to the side. Send it away and re-frame on the wild alone before
+    // leaning in.
+    if (_partyCreature != null && id != null) {
+      dismissPartyCreature();
+      _frameOnWild(id);
+    }
+
     // The camera leans in while the sheet is getting out of the way, so the
     // two reads as one move rather than a cut to a different shot.
     pushInForHarvest();
@@ -676,14 +685,18 @@ class SceneGame extends FlameGame with ScaleDetector {
     _mode = SceneMode.encounter;
     _currentEncounterSpawnId = spawnId;
 
-    final sp = scene.spawnPoints.firstWhere((s) => s.id == spawnId);
-
     final toHide = _wildBySpawnId.keys.where((id) => id != spawnId).toList();
     for (final id in toHide) {
       _wildBySpawnId[id]?.removeFromParent();
       _wildBySpawnId.remove(id);
     }
 
+    _frameOnWild(spawnId);
+  }
+
+  /// Point the camera at the wild Alchemon alone, at encounter zoom.
+  void _frameOnWild(String spawnId) {
+    final sp = scene.spawnPoints.firstWhere((s) => s.id == spawnId);
     final wildAnchor = _spawnPointComps[spawnId];
     if (wildAnchor == null) {
       debugPrint('⚠️ No anchor found for $spawnId');
@@ -732,6 +745,15 @@ class SceneGame extends FlameGame with ScaleDetector {
     debugPrint(
       '   Expected screen pos: (${screenX.toStringAsFixed(0)}, ${screenY.toStringAsFixed(0)}) vs center: ($halfW, $halfH)',
     );
+  }
+
+  /// Send the deployed party Alchemon home, clearing the debounce with it so
+  /// the same species can be redeployed immediately afterwards.
+  void dismissPartyCreature() {
+    _partyCreature?.removeFromParent();
+    _partyCreature = null;
+    _lastPartySpeciesId = null;
+    _lastPartySpawnMs = 0;
   }
 
   void spawnPartyCreature(Creature creature) {
@@ -952,11 +974,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     _targetCameraX = _cameraX;
     _targetCameraY = 0;
 
-    // Remove party creature
-    _partyCreature?.removeFromParent();
-    _partyCreature = null;
-    _lastPartySpeciesId = null;
-    _lastPartySpawnMs = 0;
+    dismissPartyCreature();
 
     // Re-sync exploration spawns after encounter cleanup.
     syncWildFromEncounters();

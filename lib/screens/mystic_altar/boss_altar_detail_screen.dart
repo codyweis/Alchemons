@@ -15,6 +15,8 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/mystic_ritual_service.dart';
+import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
@@ -141,7 +143,6 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
   Creature? _mystic;
   List<_WitnessRequirement> _bloodWitnesses = const [];
   bool _hasKey = false;
-  bool _relicPlaced = false;
   bool _loading = true;
   bool _summoning = false;
   bool _showRitualAnimation = false;
@@ -230,7 +231,6 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     if (mounted) {
       setState(() {
         _hasKey = relicPlaced || qty > 0;
-        _relicPlaced = relicPlaced;
         _mystic = mystic;
         _species = species;
         _bloodWitnesses = bloodWitnesses;
@@ -461,13 +461,22 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       'beautyPotential': picked.statBeautyPotential,
     });
 
-    await db.altarDao.placeAlchemon(
-      bossId: widget.boss.id,
-      speciesId: sp.id,
-      instanceId: picked.instanceId,
-      snapshotJson: snapshot,
-    );
-    await db.creatureDao.deleteInstances([picked.instanceId]);
+    try {
+      await MysticRitualService(db).commit(
+        bossId: widget.boss.id,
+        speciesId: sp.id,
+        instanceId: picked.instanceId,
+        snapshotJson: snapshot,
+      );
+    } catch (_) {
+      if (mounted) {
+        _snack(
+          'The commitment could not be completed. Reopen the altar to check your specimen.',
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
 
     HapticFeedback.mediumImpact();
     setState(() => _placed[sp.id] = picked.instanceId);
@@ -482,7 +491,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
           iconColor: _C.gold,
           title: 'COMMIT ALCHEMON?',
           body:
-              'Placing ${inst.nickname ?? sp.name} is permanent, it will be consumed by the ritual.',
+              'Committing ${inst.nickname ?? sp.name} removes this specimen from your collection immediately and permanently. Its pattern remains at the altar for the ritual.',
           cancelLabel: 'CANCEL',
           confirmLabel: 'COMMIT',
           onCancel: () => Navigator.pop(ctx, false),
@@ -497,71 +506,39 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     if (!_canSummon) return;
     final ok = await _confirmSummon();
     if (!ok || !mounted) return;
-
     setState(() => _summoning = true);
-    HapticFeedback.heavyImpact();
-
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
     final boss = widget.boss;
-
+    final target = catalog.mysticByElement(boss.element);
+    var rewardSecured = false;
     try {
-      // Read placements FIRST (we need their snapshots), then clear them.
-      final placements = await db.altarDao.getPlacementsForBoss(boss.id);
-      final sacrificePayload = _deriveFromSacrifices(placements);
-
-      await db.altarDao.clearPlacementsForBoss(boss.id);
-      if (!_relicPlaced) {
-        await db.altarDao.setRelicPlaced(boss.id);
-      }
-
-      final mystic = catalog.mysticByElement(boss.element);
-      final fallback = catalog.byType(boss.element).firstOrNull;
-      final target = mystic ?? fallback;
       if (target == null) {
-        _snack('Error: no species for ${boss.element}.');
-        setState(() => _summoning = false);
-        return;
+        throw StateError('No Mystic is registered for this element.');
       }
-
-      var slot = await db.incubatorDao.firstFreeSlot();
-      if (slot == null) {
-        final newId = await db.incubatorDao.purchaseFusionSlot();
-        slot = await (db.select(
-          db.incubatorSlots,
-        )..where((t) => t.id.equals(newId))).getSingleOrNull();
-      }
-      if (slot == null || !mounted) {
-        _snack('No open Alchemy Chamber slots.');
-        setState(() => _summoning = false);
-        return;
-      }
-
-      final hatchAt = DateTime.now().toUtc().add(const Duration(hours: 1));
-      final eggId =
-          'boss_summon_${boss.id}_${DateTime.now().millisecondsSinceEpoch}';
-      await db.incubatorDao.placeEgg(
-        slotId: slot.id,
-        eggId: eggId,
-        resultCreatureId: target.id,
-        rarity: 'Mythic',
-        hatchAtUtc: hatchAt,
-        payloadJson: jsonEncode(_payload(target, boss, sacrificePayload)),
+      await MysticRitualService(db).summon(
+        bossId: boss.id,
+        element: boss.element,
+        targetSpeciesId: target.id,
+        requiredSpecies: _species.map((s) => s.id).toSet(),
+        payload: (placements) =>
+            _payload(target, boss, _deriveFromSacrifices(placements)),
       );
-
-      await db.settingsDao.setSetting(
-        'altar_summoned_${boss.id}',
-        DateTime.now().toUtc().toIso8601String(),
-      );
-
+      rewardSecured = true;
       if (!mounted) return;
       await _playRitualAnimation();
       if (!mounted) return;
-      setState(() => _summoning = false);
       await _showSuccess(target, boss);
+      await _loadState();
     } catch (e) {
       debugPrint('Summon error: $e');
-      if (mounted) _snack('Summoning failed. Try again.');
+      if (mounted) {
+        _snack(
+          rewardSecured
+              ? 'Your Mystic Vial is secured. Check your Chamber or Cold Storage.'
+              : 'Summoning could not complete. Your commitments remain safe; reopen the altar and retry.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _summoning = false);
     }
@@ -694,7 +671,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
           iconColor: widget.boss.elementColor,
           title: 'PERFORM RITUAL?',
           body:
-              'Summoning ${widget.boss.name} will consume the committed Alchemons. The ${_traitName()} remains bound to the altar. A Mystic Vial will be placed in your Chamber.',
+              'Summoning ${_mystic?.name ?? widget.boss.name} uses the patterns you have already committed. The ${_traitName()} remains bound to the altar. Your Mystic Vial goes to a free Chamber or Cold Storage.',
           cancelLabel: 'CANCEL',
           confirmLabel: 'SUMMON',
           onCancel: () => Navigator.pop(ctx, false),
@@ -704,6 +681,21 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       false;
 
   Future<void> _showSuccess(Creature sp, AltarEntry boss) async {
+    final db = context.read<AlchemonsDatabase>();
+    if (await db.settingsDao.getSetting('campaign_mystic_presence_seen_v1') !=
+            '1' &&
+        mounted) {
+      final entry = campaignEntries.firstWhere((e) => e.id == 'mystic');
+      await LandscapeDialog.show(
+        context,
+        title: entry.title,
+        message: entry.text,
+        typewriter: true,
+        barrierDismissible: false,
+      );
+      await db.settingsDao.setSetting('campaign_mystic_presence_seen_v1', '1');
+    }
+    if (!mounted) return;
     if (boss.element.toLowerCase() == 'blood') {
       final db = context.read<AlchemonsDatabase>();
       final seen =
@@ -2904,7 +2896,7 @@ class _SuccessDialogState extends State<_SuccessDialog>
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '${widget.species.name} waits in the chamber',
+                              '${widget.species.name} awaits extraction',
                               style: _body(
                                 context,
                                 12,
@@ -2940,7 +2932,7 @@ class _SuccessDialogState extends State<_SuccessDialog>
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'A Mystic Vial awaits in your Alchemy Chamber. Cultivation: 1 hour.',
+                            'A Mystic Vial awaits in your Chamber, or Cold Storage if the Chamber was full. Cultivation: 1 hour.',
                             style: _body(
                               context,
                               12,
@@ -3035,7 +3027,3 @@ String _sentenceCase(String value) {
 // ─────────────────────────────────────────────────────────────────────────────
 // EXTENSIONS
 // ─────────────────────────────────────────────────────────────────────────────
-
-extension _ListX<T> on List<T> {
-  T? get firstOrNull => isEmpty ? null : first;
-}

@@ -4,6 +4,7 @@ import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/creature_stats.dart';
+import 'package:alchemons/models/potential_genetics.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -119,6 +120,7 @@ class ParentSnapshot {
         intelligencePotential: inst.statIntelligencePotential,
         speedPotential: inst.statSpeedPotential,
         strengthPotential: inst.statStrengthPotential,
+        dominants: DominantStats.decode(inst.dominantStats),
       ),
 
       // NEW pulls from DB (these cols must exist in CreatureInstances table)

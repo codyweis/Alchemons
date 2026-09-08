@@ -2,6 +2,7 @@
 
 import 'dart:math';
 
+import 'package:alchemons/models/potential_genetics.dart';
 import 'package:alchemons/models/stat_system.dart';
 
 class CreatureStats {
@@ -16,6 +17,11 @@ class CreatureStats {
   final double strengthPotential;
   final double beautyPotential;
 
+  /// The two stats this Alchemon passes down cleanly. Null on records built
+  /// before Dominants existed, and on catalog creatures that have never been
+  /// an instance; [effectiveDominants] resolves those.
+  final DominantStats? dominants;
+
   const CreatureStats({
     required this.speed,
     required this.intelligence,
@@ -25,7 +31,19 @@ class CreatureStats {
     required this.intelligencePotential,
     required this.strengthPotential,
     required this.beautyPotential,
+    this.dominants,
   });
+
+  /// An Alchemon with no stored Dominants is Dominant in whatever it is
+  /// already best at. Deterministic, so it never resolves two ways.
+  DominantStats get effectiveDominants =>
+      dominants ??
+      DominantStats.fromPotentials(
+        speed: speedPotential,
+        intelligence: intelligencePotential,
+        strength: strengthPotential,
+        beauty: beautyPotential,
+      );
 
   factory CreatureStats.generate(Random rng) {
     final potentials = List<int>.generate(
@@ -43,41 +61,64 @@ class CreatureStats {
       intelligencePotential: potentials[1].toDouble(),
       strengthPotential: potentials[2].toDouble(),
       beautyPotential: potentials[3].toDouble(),
+      dominants: PotentialGenetics.inheritDominants(rng, null, null),
     );
   }
 
   /// Only genetic Potential is inherited. Species base stats, level, Nature,
   /// and Enhancement belong to the child and are never copied from a parent.
+  ///
+  /// [recipeHit] means the pairing produced a family from an authored recipe
+  /// that neither parent belonged to. A hit leans on the parents and lets its
+  /// stranger roll reach 100; a miss leans on them far less and caps the
+  /// stranger at the better parent, so it can shuffle a bloodline but never
+  /// improve on it. Visual genetics are unaffected either way.
   factory CreatureStats.breed(
     CreatureStats parent1,
     CreatureStats parent2,
-    Random rng,
-  ) {
+    Random rng, {
+    bool recipeHit = false,
+  }) {
+    final domA = parent1.effectiveDominants;
+    final domB = parent2.effectiveDominants;
+
+    double inherit(StatKind stat, double a, double b) =>
+        PotentialGenetics.inheritPotential(
+          rng,
+          parentA: a,
+          parentB: b,
+          stat: stat,
+          recipeHit: recipeHit,
+          dominantsA: domA,
+          dominantsB: domB,
+        ).toDouble();
+
     return CreatureStats(
       speed: 1.0,
       intelligence: 1.0,
       strength: 1.0,
       beauty: 1.0,
-      speedPotential: AlchemonStatSystem.inheritPotential(
-        rng,
+      speedPotential: inherit(
+        StatKind.speed,
         parent1.speedPotential,
         parent2.speedPotential,
-      ).toDouble(),
-      intelligencePotential: AlchemonStatSystem.inheritPotential(
-        rng,
+      ),
+      intelligencePotential: inherit(
+        StatKind.intelligence,
         parent1.intelligencePotential,
         parent2.intelligencePotential,
-      ).toDouble(),
-      strengthPotential: AlchemonStatSystem.inheritPotential(
-        rng,
+      ),
+      strengthPotential: inherit(
+        StatKind.strength,
         parent1.strengthPotential,
         parent2.strengthPotential,
-      ).toDouble(),
-      beautyPotential: AlchemonStatSystem.inheritPotential(
-        rng,
+      ),
+      beautyPotential: inherit(
+        StatKind.beauty,
         parent1.beautyPotential,
         parent2.beautyPotential,
-      ).toDouble(),
+      ),
+      dominants: PotentialGenetics.inheritDominants(rng, domA, domB),
     );
   }
 
@@ -111,6 +152,7 @@ class CreatureStats {
     double? intelligencePotential,
     double? strengthPotential,
     double? beautyPotential,
+    DominantStats? dominants,
   }) {
     return CreatureStats(
       speed: speed ?? this.speed,
@@ -122,6 +164,7 @@ class CreatureStats {
           intelligencePotential ?? this.intelligencePotential,
       strengthPotential: strengthPotential ?? this.strengthPotential,
       beautyPotential: beautyPotential ?? this.beautyPotential,
+      dominants: dominants ?? this.dominants,
     );
   }
 
@@ -135,6 +178,7 @@ class CreatureStats {
     'intelligencePotential': intelligencePotential,
     'strengthPotential': strengthPotential,
     'beautyPotential': beautyPotential,
+    if (dominants != null) 'dominants': dominants!.encode(),
   };
 
   factory CreatureStats.fromJson(Map<String, dynamic> json) {
@@ -169,6 +213,7 @@ class CreatureStats {
         potentialValues[3],
         legacyScale: legacyScale,
       ).toDouble(),
+      dominants: DominantStats.decode(json['dominants'] as String?),
     );
   }
 }

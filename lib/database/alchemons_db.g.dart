@@ -1794,6 +1794,17 @@ class $CreatureInstancesTable extends CreatureInstances
         requiredDuringInsert: false,
         defaultValue: const Constant(50.0),
       );
+  static const VerificationMeta _dominantStatsMeta = const VerificationMeta(
+    'dominantStats',
+  );
+  @override
+  late final GeneratedColumn<String> dominantStats = GeneratedColumn<String>(
+    'dominant_stats',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _statSpeedEnhancementMeta =
       const VerificationMeta('statSpeedEnhancement');
   @override
@@ -1953,6 +1964,7 @@ class $CreatureInstancesTable extends CreatureInstances
     statIntelligencePotential,
     statStrengthPotential,
     statBeautyPotential,
+    dominantStats,
     statSpeedEnhancement,
     statIntelligenceEnhancement,
     statStrengthEnhancement,
@@ -2176,6 +2188,15 @@ class $CreatureInstancesTable extends CreatureInstances
         ),
       );
     }
+    if (data.containsKey('dominant_stats')) {
+      context.handle(
+        _dominantStatsMeta,
+        dominantStats.isAcceptableOrUnknown(
+          data['dominant_stats']!,
+          _dominantStatsMeta,
+        ),
+      );
+    }
     if (data.containsKey('stat_speed_enhancement')) {
       context.handle(
         _statSpeedEnhancementMeta,
@@ -2382,6 +2403,10 @@ class $CreatureInstancesTable extends CreatureInstances
         DriftSqlType.double,
         data['${effectivePrefix}stat_beauty_potential'],
       )!,
+      dominantStats: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dominant_stats'],
+      ),
       statSpeedEnhancement: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}stat_speed_enhancement'],
@@ -2463,6 +2488,11 @@ class CreatureInstance extends DataClass
   final double statIntelligencePotential;
   final double statStrengthPotential;
   final double statBeautyPotential;
+
+  /// The two stats this Alchemon passes down cleanly, stored as
+  /// `"strength,speed"`. Fixed at creation and never changes — a Potential
+  /// Soul raises a stat, it does not make that stat Dominant.
+  final String? dominantStats;
   final int statSpeedEnhancement;
   final int statIntelligenceEnhancement;
   final int statStrengthEnhancement;
@@ -2501,6 +2531,7 @@ class CreatureInstance extends DataClass
     required this.statIntelligencePotential,
     required this.statStrengthPotential,
     required this.statBeautyPotential,
+    this.dominantStats,
     required this.statSpeedEnhancement,
     required this.statIntelligenceEnhancement,
     required this.statStrengthEnhancement,
@@ -2560,6 +2591,9 @@ class CreatureInstance extends DataClass
     );
     map['stat_strength_potential'] = Variable<double>(statStrengthPotential);
     map['stat_beauty_potential'] = Variable<double>(statBeautyPotential);
+    if (!nullToAbsent || dominantStats != null) {
+      map['dominant_stats'] = Variable<String>(dominantStats);
+    }
     map['stat_speed_enhancement'] = Variable<int>(statSpeedEnhancement);
     map['stat_intelligence_enhancement'] = Variable<int>(
       statIntelligenceEnhancement,
@@ -2626,6 +2660,9 @@ class CreatureInstance extends DataClass
       statIntelligencePotential: Value(statIntelligencePotential),
       statStrengthPotential: Value(statStrengthPotential),
       statBeautyPotential: Value(statBeautyPotential),
+      dominantStats: dominantStats == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dominantStats),
       statSpeedEnhancement: Value(statSpeedEnhancement),
       statIntelligenceEnhancement: Value(statIntelligenceEnhancement),
       statStrengthEnhancement: Value(statStrengthEnhancement),
@@ -2690,6 +2727,7 @@ class CreatureInstance extends DataClass
       statBeautyPotential: serializer.fromJson<double>(
         json['statBeautyPotential'],
       ),
+      dominantStats: serializer.fromJson<String?>(json['dominantStats']),
       statSpeedEnhancement: serializer.fromJson<int>(
         json['statSpeedEnhancement'],
       ),
@@ -2751,6 +2789,7 @@ class CreatureInstance extends DataClass
       ),
       'statStrengthPotential': serializer.toJson<double>(statStrengthPotential),
       'statBeautyPotential': serializer.toJson<double>(statBeautyPotential),
+      'dominantStats': serializer.toJson<String?>(dominantStats),
       'statSpeedEnhancement': serializer.toJson<int>(statSpeedEnhancement),
       'statIntelligenceEnhancement': serializer.toJson<int>(
         statIntelligenceEnhancement,
@@ -2796,6 +2835,7 @@ class CreatureInstance extends DataClass
     double? statIntelligencePotential,
     double? statStrengthPotential,
     double? statBeautyPotential,
+    Value<String?> dominantStats = const Value.absent(),
     int? statSpeedEnhancement,
     int? statIntelligenceEnhancement,
     int? statStrengthEnhancement,
@@ -2841,6 +2881,9 @@ class CreatureInstance extends DataClass
         statIntelligencePotential ?? this.statIntelligencePotential,
     statStrengthPotential: statStrengthPotential ?? this.statStrengthPotential,
     statBeautyPotential: statBeautyPotential ?? this.statBeautyPotential,
+    dominantStats: dominantStats.present
+        ? dominantStats.value
+        : this.dominantStats,
     statSpeedEnhancement: statSpeedEnhancement ?? this.statSpeedEnhancement,
     statIntelligenceEnhancement:
         statIntelligenceEnhancement ?? this.statIntelligenceEnhancement,
@@ -2925,6 +2968,9 @@ class CreatureInstance extends DataClass
       statBeautyPotential: data.statBeautyPotential.present
           ? data.statBeautyPotential.value
           : this.statBeautyPotential,
+      dominantStats: data.dominantStats.present
+          ? data.dominantStats.value
+          : this.dominantStats,
       statSpeedEnhancement: data.statSpeedEnhancement.present
           ? data.statSpeedEnhancement.value
           : this.statSpeedEnhancement,
@@ -2988,6 +3034,7 @@ class CreatureInstance extends DataClass
           ..write('statIntelligencePotential: $statIntelligencePotential, ')
           ..write('statStrengthPotential: $statStrengthPotential, ')
           ..write('statBeautyPotential: $statBeautyPotential, ')
+          ..write('dominantStats: $dominantStats, ')
           ..write('statSpeedEnhancement: $statSpeedEnhancement, ')
           ..write('statIntelligenceEnhancement: $statIntelligenceEnhancement, ')
           ..write('statStrengthEnhancement: $statStrengthEnhancement, ')
@@ -3031,6 +3078,7 @@ class CreatureInstance extends DataClass
     statIntelligencePotential,
     statStrengthPotential,
     statBeautyPotential,
+    dominantStats,
     statSpeedEnhancement,
     statIntelligenceEnhancement,
     statStrengthEnhancement,
@@ -3073,6 +3121,7 @@ class CreatureInstance extends DataClass
           other.statIntelligencePotential == this.statIntelligencePotential &&
           other.statStrengthPotential == this.statStrengthPotential &&
           other.statBeautyPotential == this.statBeautyPotential &&
+          other.dominantStats == this.dominantStats &&
           other.statSpeedEnhancement == this.statSpeedEnhancement &&
           other.statIntelligenceEnhancement ==
               this.statIntelligenceEnhancement &&
@@ -3114,6 +3163,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
   final Value<double> statIntelligencePotential;
   final Value<double> statStrengthPotential;
   final Value<double> statBeautyPotential;
+  final Value<String?> dominantStats;
   final Value<int> statSpeedEnhancement;
   final Value<int> statIntelligenceEnhancement;
   final Value<int> statStrengthEnhancement;
@@ -3153,6 +3203,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.statIntelligencePotential = const Value.absent(),
     this.statStrengthPotential = const Value.absent(),
     this.statBeautyPotential = const Value.absent(),
+    this.dominantStats = const Value.absent(),
     this.statSpeedEnhancement = const Value.absent(),
     this.statIntelligenceEnhancement = const Value.absent(),
     this.statStrengthEnhancement = const Value.absent(),
@@ -3193,6 +3244,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.statIntelligencePotential = const Value.absent(),
     this.statStrengthPotential = const Value.absent(),
     this.statBeautyPotential = const Value.absent(),
+    this.dominantStats = const Value.absent(),
     this.statSpeedEnhancement = const Value.absent(),
     this.statIntelligenceEnhancement = const Value.absent(),
     this.statStrengthEnhancement = const Value.absent(),
@@ -3234,6 +3286,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Expression<double>? statIntelligencePotential,
     Expression<double>? statStrengthPotential,
     Expression<double>? statBeautyPotential,
+    Expression<String>? dominantStats,
     Expression<int>? statSpeedEnhancement,
     Expression<int>? statIntelligenceEnhancement,
     Expression<int>? statStrengthEnhancement,
@@ -3279,6 +3332,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
         'stat_strength_potential': statStrengthPotential,
       if (statBeautyPotential != null)
         'stat_beauty_potential': statBeautyPotential,
+      if (dominantStats != null) 'dominant_stats': dominantStats,
       if (statSpeedEnhancement != null)
         'stat_speed_enhancement': statSpeedEnhancement,
       if (statIntelligenceEnhancement != null)
@@ -3327,6 +3381,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Value<double>? statIntelligencePotential,
     Value<double>? statStrengthPotential,
     Value<double>? statBeautyPotential,
+    Value<String?>? dominantStats,
     Value<int>? statSpeedEnhancement,
     Value<int>? statIntelligenceEnhancement,
     Value<int>? statStrengthEnhancement,
@@ -3370,6 +3425,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       statStrengthPotential:
           statStrengthPotential ?? this.statStrengthPotential,
       statBeautyPotential: statBeautyPotential ?? this.statBeautyPotential,
+      dominantStats: dominantStats ?? this.dominantStats,
       statSpeedEnhancement: statSpeedEnhancement ?? this.statSpeedEnhancement,
       statIntelligenceEnhancement:
           statIntelligenceEnhancement ?? this.statIntelligenceEnhancement,
@@ -3477,6 +3533,9 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
         statBeautyPotential.value,
       );
     }
+    if (dominantStats.present) {
+      map['dominant_stats'] = Variable<String>(dominantStats.value);
+    }
     if (statSpeedEnhancement.present) {
       map['stat_speed_enhancement'] = Variable<int>(statSpeedEnhancement.value);
     }
@@ -3551,6 +3610,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
           ..write('statIntelligencePotential: $statIntelligencePotential, ')
           ..write('statStrengthPotential: $statStrengthPotential, ')
           ..write('statBeautyPotential: $statBeautyPotential, ')
+          ..write('dominantStats: $dominantStats, ')
           ..write('statSpeedEnhancement: $statSpeedEnhancement, ')
           ..write('statIntelligenceEnhancement: $statIntelligenceEnhancement, ')
           ..write('statStrengthEnhancement: $statStrengthEnhancement, ')
@@ -9899,6 +9959,7 @@ typedef $$CreatureInstancesTableCreateCompanionBuilder =
       Value<double> statIntelligencePotential,
       Value<double> statStrengthPotential,
       Value<double> statBeautyPotential,
+      Value<String?> dominantStats,
       Value<int> statSpeedEnhancement,
       Value<int> statIntelligenceEnhancement,
       Value<int> statStrengthEnhancement,
@@ -9940,6 +10001,7 @@ typedef $$CreatureInstancesTableUpdateCompanionBuilder =
       Value<double> statIntelligencePotential,
       Value<double> statStrengthPotential,
       Value<double> statBeautyPotential,
+      Value<String?> dominantStats,
       Value<int> statSpeedEnhancement,
       Value<int> statIntelligenceEnhancement,
       Value<int> statStrengthEnhancement,
@@ -10090,6 +10152,11 @@ class $$CreatureInstancesTableFilterComposer
 
   ColumnFilters<double> get statBeautyPotential => $composableBuilder(
     column: $table.statBeautyPotential,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dominantStats => $composableBuilder(
+    column: $table.dominantStats,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10288,6 +10355,11 @@ class $$CreatureInstancesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get dominantStats => $composableBuilder(
+    column: $table.dominantStats,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get statSpeedEnhancement => $composableBuilder(
     column: $table.statSpeedEnhancement,
     builder: (column) => ColumnOrderings(column),
@@ -10465,6 +10537,11 @@ class $$CreatureInstancesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get dominantStats => $composableBuilder(
+    column: $table.dominantStats,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get statSpeedEnhancement => $composableBuilder(
     column: $table.statSpeedEnhancement,
     builder: (column) => column,
@@ -10585,6 +10662,7 @@ class $$CreatureInstancesTableTableManager
                 Value<double> statIntelligencePotential = const Value.absent(),
                 Value<double> statStrengthPotential = const Value.absent(),
                 Value<double> statBeautyPotential = const Value.absent(),
+                Value<String?> dominantStats = const Value.absent(),
                 Value<int> statSpeedEnhancement = const Value.absent(),
                 Value<int> statIntelligenceEnhancement = const Value.absent(),
                 Value<int> statStrengthEnhancement = const Value.absent(),
@@ -10624,6 +10702,7 @@ class $$CreatureInstancesTableTableManager
                 statIntelligencePotential: statIntelligencePotential,
                 statStrengthPotential: statStrengthPotential,
                 statBeautyPotential: statBeautyPotential,
+                dominantStats: dominantStats,
                 statSpeedEnhancement: statSpeedEnhancement,
                 statIntelligenceEnhancement: statIntelligenceEnhancement,
                 statStrengthEnhancement: statStrengthEnhancement,
@@ -10665,6 +10744,7 @@ class $$CreatureInstancesTableTableManager
                 Value<double> statIntelligencePotential = const Value.absent(),
                 Value<double> statStrengthPotential = const Value.absent(),
                 Value<double> statBeautyPotential = const Value.absent(),
+                Value<String?> dominantStats = const Value.absent(),
                 Value<int> statSpeedEnhancement = const Value.absent(),
                 Value<int> statIntelligenceEnhancement = const Value.absent(),
                 Value<int> statStrengthEnhancement = const Value.absent(),
@@ -10704,6 +10784,7 @@ class $$CreatureInstancesTableTableManager
                 statIntelligencePotential: statIntelligencePotential,
                 statStrengthPotential: statStrengthPotential,
                 statBeautyPotential: statBeautyPotential,
+                dominantStats: dominantStats,
                 statSpeedEnhancement: statSpeedEnhancement,
                 statIntelligenceEnhancement: statIntelligenceEnhancement,
                 statStrengthEnhancement: statStrengthEnhancement,

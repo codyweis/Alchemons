@@ -8,6 +8,7 @@
 //   Minimum 5 gold per transaction. Increments of 5.
 
 import 'package:alchemons/constants/element_resources.dart';
+import 'package:alchemons/widgets/element_resource_glyph.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/utils/app_font_family.dart';
@@ -372,7 +373,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
             ],
             Row(
               children: [
-                Icon(resource.icon, size: 18, color: resource.color),
+                ElementResourceGlyph(resource: resource, size: 18),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(

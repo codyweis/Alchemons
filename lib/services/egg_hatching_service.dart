@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:alchemons/models/potential_genetics.dart';
 import 'dart:math';
 import 'dart:ui';
 import 'package:alchemons/constants/breed_constants.dart';
@@ -1047,6 +1048,21 @@ class EggHatching {
                                 ),
                               );
 
+                              // The two stats this Alchemon passes down most
+                              // reliably; pre-Dominants creatures fall back to
+                              // whatever they are already best at.
+                              final hatchDominants =
+                                  DominantStats.decode(
+                                    instance.dominantStats,
+                                  ) ??
+                                  DominantStats.fromPotentials(
+                                    speed: instance.statSpeedPotential,
+                                    intelligence:
+                                        instance.statIntelligencePotential,
+                                    strength: instance.statStrengthPotential,
+                                    beauty: instance.statBeautyPotential,
+                                  );
+
                               final statPane = Container(
                                 decoration: BoxDecoration(
                                   color: fc.bg1,
@@ -1102,6 +1118,9 @@ class EggHatching {
                                       scanComplete,
                                       fc,
                                       const Color(0xFF0EA5E9),
+                                      isDominant: hatchDominants.contains(
+                                        StatKind.speed,
+                                      ),
                                     ),
                                     _buildCompactStatRow(
                                       'INTELLIGENCE',
@@ -1110,6 +1129,9 @@ class EggHatching {
                                       scanComplete,
                                       fc,
                                       const Color(0xFFA855F7),
+                                      isDominant: hatchDominants.contains(
+                                        StatKind.intelligence,
+                                      ),
                                     ),
                                     _buildCompactStatRow(
                                       'STRENGTH',
@@ -1118,6 +1140,9 @@ class EggHatching {
                                       scanComplete,
                                       fc,
                                       const Color(0xFFC0392B),
+                                      isDominant: hatchDominants.contains(
+                                        StatKind.strength,
+                                      ),
                                     ),
                                     _buildCompactStatRow(
                                       'BEAUTY',
@@ -1126,6 +1151,9 @@ class EggHatching {
                                       scanComplete,
                                       fc,
                                       const Color(0xFFF59E0B),
+                                      isDominant: hatchDominants.contains(
+                                        StatKind.beauty,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -1285,6 +1313,18 @@ class EggHatching {
                                                         'GENETIC PROFILE',
                                                         primaryColor,
                                                         [
+                                                          _buildTypingAnalysisRow(
+                                                            'DOMINANT',
+                                                            hatchDominants.all
+                                                                .map(
+                                                                  (k) => k.label
+                                                                      .toUpperCase(),
+                                                                )
+                                                                .join(' · '),
+                                                            scanComplete,
+                                                            primaryColor,
+                                                            fc: fc,
+                                                          ),
                                                           _buildTypingAnalysisRow(
                                                             'SIZE VARIANT',
                                                             _getSizeName(
@@ -1971,8 +2011,9 @@ class EggHatching {
     double potential,
     bool visible,
     FC fc,
-    Color statColor,
-  ) {
+    Color statColor, {
+    bool isDominant = false,
+  }) {
     final potentialRating = AlchemonStatSystem.normalizePotential(potential);
 
     return Padding(
@@ -1986,7 +2027,7 @@ class EggHatching {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'monospace',
-                color: fc.textSecondary,
+                color: isDominant ? fc.amberBright : fc.textSecondary,
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.2,

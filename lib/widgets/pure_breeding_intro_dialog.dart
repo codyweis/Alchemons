@@ -85,7 +85,7 @@ Future<void> maybeShowFirstPureExtractionDialog(
               ),
               const SizedBox(height: 12),
               Text(
-                'Pure specimens get small base bonuses to Beauty, Strength, and Intelligence when they are extracted.',
+                'Purity describes ancestry. Current stats depend on species, level, Potential, nature, and Enhancement. Contest bonuses depend on the trial.',
                 style: TextStyle(color: theme.text.withValues(alpha: 0.86)),
               ),
             ],
