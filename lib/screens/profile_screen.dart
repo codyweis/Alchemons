@@ -1644,7 +1644,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   _ForgePanel(
                     accentBar: t.teal,
-                    child: const CampaignRewardsButton(expanded: true),
+                    child: const CampaignRewardsButton(
+                      style: CampaignRewardsStyle.tile,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   // ── Replay intro ──────────────────────────────────────────

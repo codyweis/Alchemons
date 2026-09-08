@@ -131,6 +131,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Purchase entitlements are written only by the redeemPurchase Cloud
+    // Function via the Admin SDK, which bypasses these rules. Clients read
+    // their own entitlement to reconcile purchased gold; they never write it.
+    match /entitlements/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
+    // The purchase ledger is server-only in both directions. Nothing the client
+    // could learn from it is worth the risk of it learning another account's
+    // transaction ids.
+    match /purchases/{purchaseId} {
+      allow read, write: if false;
+    }
+
     match /account_cloud_saves/{userId} {
       allow read: if isOwner(userId);
       allow create, update: if isValidCloudSaveWrite(userId);

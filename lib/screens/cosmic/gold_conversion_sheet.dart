@@ -7,6 +7,7 @@
 //   • 5 gold → 50 astral shards
 //   Minimum 5 gold per transaction. Increments of 5.
 
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/widgets/element_resource_glyph.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -200,6 +201,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
 
     HapticFeedback.heavyImpact();
     if (!mounted) return;
+    context.sound(SoundCue.currencyGain, owner: this);
     _showConversionToast(
       'Converted $_goldCost gold into $_outputAmount $_outputLabel.',
       success: true,
@@ -373,7 +375,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
             ],
             Row(
               children: [
-                ElementResourceGlyph(resource: resource, size: 18),
+                ElementResourceGlyph.of(resource, size: 18),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(

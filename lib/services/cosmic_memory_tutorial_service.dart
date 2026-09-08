@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:alchemons/database/daos/settings_dao.dart';
 
 class CosmicMemoryTutorialService {
@@ -82,6 +83,27 @@ class CosmicMemoryTutorialService {
     }
   }
 
+  /// Set when a launched memory tutorial came back unfinished.
+  ///
+  /// Process-scoped on purpose. An abandoned tutorial stays queued so it is not
+  /// lost, but it must not relaunch the moment the player lands back on home —
+  /// that leaves them unable to get out. It greets them again next app launch.
+  static bool _deferredThisSession = false;
+
+  static bool get isDeferredThisSession => _deferredThisSession;
+
+  static void deferForThisSession() {
+    _deferredThisSession = true;
+  }
+
+  @visibleForTesting
+  static void resetSessionDeferral() {
+    _deferredThisSession = false;
+  }
+
+  static Future<bool> isCompleted(SettingsDao settings) async =>
+      await settings.getSetting(completedKey) == '1';
+
   static Future<bool> isHomePortalPending(SettingsDao settings) async {
     final completed = await settings.getSetting(completedKey) == '1';
     if (completed) return false;
@@ -107,6 +129,7 @@ class CosmicMemoryTutorialService {
       settings.deleteSetting(storyPendingKey);
 
   static Future<void> debugQueueTutorial(SettingsDao settings) async {
+    _deferredThisSession = false;
     await settings.setSetting(harvestCompletedKey, '1');
     await settings.setSetting(extractionCountKey, extractionTarget.toString());
     await settings.setSetting(homePortalPendingKey, '1');

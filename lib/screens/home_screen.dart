@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // (imports unchanged except where noted)
 import 'dart:async' as async;
 import 'dart:math';
@@ -149,6 +150,7 @@ class _MainShellState extends State<MainShell> {
     bool withHaptic = true,
   }) {
     if (section == _currentSection) return;
+    if (withHaptic) context.sound(SoundCue.uiSelect);
 
     // Unfocus the creatures search field when leaving that tab
     if (_currentSection == NavSection.creatures) {
@@ -528,7 +530,7 @@ class _AnimatedPurebloodRiteIconState extends State<_AnimatedPurebloodRiteIcon>
         return Transform.scale(
           scale: _scale.value,
           child: GestureDetector(
-            onTap: widget.onTap,
+            onTap: context.soundAction(widget.onTap),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -629,7 +631,7 @@ class _HomeScreenState extends State<HomeScreen>
       false; // prevents double-fire from didUpdateWidget + didPopNext
   bool _arcanePortalUnlocked = false;
   bool _isAppInForeground = true;
-  bool _memoryTutorialLaunching = false;
+  bool _memoryHomeEventBusy = false;
   bool _memoryStoryShowing = false;
 
   bool _isInitialized = false;
@@ -1835,6 +1837,34 @@ class _HomeScreenState extends State<HomeScreen>
                           ],
                         ),
                       ),
+
+                      // Docked above the bottom navigation rather than up in
+                      // the toolbar: on a tablet the row stretched it across
+                      // the whole width, which read as an empty trough. Down
+                      // here it is a fixed-width slab that sits with the other
+                      // navigation, and it stays out of the hero's way.
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 8,
+                        child: SafeArea(
+                          top: false,
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 460),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: CampaignRewardsButton(
+                                  style: CampaignRewardsStyle.bar,
+                                  enabled: !_isFieldTutorialActive,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                       Positioned(
                         top: MediaQuery.of(context).padding.top + 140 * hs,
                         left: 0,
@@ -2135,11 +2165,25 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted ||
         !widget.isActive ||
         _isFieldTutorialActive ||
-        _memoryTutorialLaunching ||
+        _memoryHomeEventBusy ||
         _memoryStoryShowing) {
       return;
     }
 
+    // Claim the guard before the first await. This runs from initState,
+    // didUpdateWidget and didPopNext, and the portal below returns straight
+    // into another didPopNext. If the flag were only set further down, two of
+    // those could sail past the check during the awaits and each push their own
+    // memory screen — which is how the "Is this a memory?" dialogs stacked.
+    _memoryHomeEventBusy = true;
+    try {
+      await _runCosmicMemoryHomeEvent();
+    } finally {
+      _memoryHomeEventBusy = false;
+    }
+  }
+
+  Future<void> _runCosmicMemoryHomeEvent() async {
     final db = context.read<AlchemonsDatabase>();
     final settings = db.settingsDao;
     final storyPending = await CosmicMemoryTutorialService.isStoryPending(
@@ -2154,7 +2198,9 @@ class _HomeScreenState extends State<HomeScreen>
           context,
           title: '',
           message:
-              'Am I beginning to remember? But what is remembrance without truth, if not illusion.',
+              'Cosmic combat basics covered: summon an Alchemon to a slot, use '
+              'the magnet to make it follow or hold position, and let its '
+              'abilities come off cooldown.',
           typewriter: true,
           kind: LandscapeDialogKind.info,
           icon: AppIcons.auto_awesome,
@@ -2168,6 +2214,10 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
+    // An unfinished memory from earlier in this session stays queued for next
+    // launch, but must not relaunch the moment we land back on home.
+    if (CosmicMemoryTutorialService.isDeferredThisSession) return;
+
     final ownedInstanceCount = (await db.creatureDao.listAllInstances()).length;
     await CosmicMemoryTutorialService.recoverPendingForExistingProfile(
       settings,
@@ -2180,24 +2230,31 @@ class _HomeScreenState extends State<HomeScreen>
     );
     if (!mounted || !widget.isActive || !pending) return;
 
-    _memoryTutorialLaunching = true;
-    try {
-      await _playHomeShakeFor(const Duration(seconds: 3));
-      if (!mounted || !widget.isActive) return;
+    await _playHomeShakeFor(const Duration(seconds: 3));
+    if (!mounted || !widget.isActive) return;
 
-      await CosmicMemoryTutorialService.markHomePortalLaunched(settings);
-      if (!mounted || !widget.isActive) return;
-      await VoidPortal.push<void>(
-        context,
-        page: const CosmicScreen(memoryTutorial: true),
-        config: VoidPortalConfig.cinematic,
-      );
-    } finally {
-      _memoryTutorialLaunching = false;
+    await CosmicMemoryTutorialService.markHomePortalLaunched(settings);
+    if (!mounted || !widget.isActive) return;
+    await VoidPortal.push<void>(
+      context,
+      page: const CosmicScreen(memoryTutorial: true),
+      config: VoidPortalConfig.cinematic,
+    );
+
+    if (!await CosmicMemoryTutorialService.isCompleted(settings)) {
+      // The player left the memory early. `recoverPendingForExistingProfile`
+      // will re-queue it from the leftover launch marker, so holding off for
+      // the rest of this session is what keeps that from becoming a relaunch
+      // loop they cannot escape.
+      CosmicMemoryTutorialService.deferForThisSession();
+      return;
     }
 
+    // Completing it queued the closing line. Show it now rather than waiting
+    // for home to become active again — didPopNext is already blocked by the
+    // busy guard we are still holding.
     if (mounted && widget.isActive) {
-      async.unawaited(_maybeRunCosmicMemoryHomeEvent());
+      await _runCosmicMemoryHomeEvent();
     }
   }
 
@@ -2358,10 +2415,6 @@ class _HomeScreenState extends State<HomeScreen>
                 },
               ),
 
-            CampaignRewardsButton(
-              color: theme.text,
-              enabled: !_isFieldTutorialActive,
-            ),
             const Spacer(),
             Padding(
               padding: const EdgeInsets.only(right: 12),

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/games/cosmic_survival/cosmic_survival_base_command_screen.dart
 //
 // Base Command — persistent cosmic survival upgrade screen.
@@ -848,7 +849,7 @@ class _ForgeButton extends StatelessWidget {
     final btnColor = color ?? _C.amber;
     final isDisabled = onTap == null || loading;
     return GestureDetector(
-      onTap: isDisabled ? null : onTap,
+      onTap: isDisabled ? null : context.soundAction(onTap, SoundCue.uiConfirm),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         height: 44,

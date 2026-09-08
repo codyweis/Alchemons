@@ -37,7 +37,7 @@ class BlackMarketScreen extends StatefulWidget {
 /// Draws a resource as its own small particle field. Everything showing a
 /// resource goes through here so the surfaces cannot drift apart again.
 Widget _resourceGlyph(ElementResource resource, double size) =>
-    ElementResourceGlyph(resource: resource, size: size);
+    ElementResourceGlyph.of(resource, size: size);
 
 const Color _kMarketAccent = Color(0xFFFFB74D);
 const Color _kMarketDanger = Color(0xFFE57373);

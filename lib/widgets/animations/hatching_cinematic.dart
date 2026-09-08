@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:alchemons/services/cinematic_quality_service.dart';
@@ -113,6 +115,8 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
   late final _geoCache = _GeoCache();
   double _fxScale = 1.0;
   bool _reducedEffects = false;
+  AudioController? _audio;
+  bool _reactionStarted = false;
 
   // Element tint for the purity treatment (null = not an elementally pure
   // lineage). Resolved once from the shared element configs so it matches
@@ -215,7 +219,14 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     // Trigger flash + explosion at BURST (0.55)
     _timeline.addListener(() {
       final t = _timeline.value;
+      final chargeAt = (0.55 - 1600 / widget.totalDuration.inMilliseconds)
+          .clamp(0.0, 0.55);
+      if (!_reactionStarted && t >= chargeAt) {
+        _reactionStarted = true;
+        context.sound(SoundCue.extractionReactionStart, owner: this);
+      }
       if (t >= 0.55 && !_flashCtrl.isAnimating && _flashCtrl.value == 0) {
+        context.sound(SoundCue.extractionReactionBurst, owner: this);
         _flashCtrl.forward(from: 0);
         _explosionCtrl.forward(from: 0);
       }
@@ -237,6 +248,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _audio = context.audio;
     final media = MediaQuery.of(context);
     final shortestSide = media.size.shortestSide;
 
@@ -338,6 +350,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
 
   @override
   void dispose() {
+    _audio?.stopSoundOwner(this);
     _timeline.dispose();
     _flashCtrl.dispose();
     _explosionCtrl.dispose();

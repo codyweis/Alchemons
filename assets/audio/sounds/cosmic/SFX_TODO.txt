@@ -1,7 +1,14 @@
-Add one file for each cue below (any of: .wav, .mp3, .flac, .m4a, .ogg):
+WAV prototypes are now present for each mapped cue below:
 
 - sfx_cosmic_portal_open
 - sfx_cosmic_orb_pickup
 - sfx_cosmic_orb_deposit
 - sfx_cosmic_anomaly_burst
 - sfx_cosmic_starforge_activate
+
+The portal uses the approved darker revision. Orb pickup also has three variants.
+Full preview: build/audio_review/index.html
+Full catalog: assets/audio/sounds/sound_manifest.json
+The cosmic subfolder is now registered in pubspec.yaml and mapped to runtime cues.
+First integration coverage: docs/audio_integration.md
+Remaining validation: audible gameplay playback, latency, overlap, and device mixing.

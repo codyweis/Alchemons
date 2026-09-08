@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
@@ -358,6 +359,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     if (!mounted) return;
 
     HapticFeedback.lightImpact();
+    context.sound(SoundCue.harvestCollect, owner: this);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         duration: const Duration(seconds: 2),

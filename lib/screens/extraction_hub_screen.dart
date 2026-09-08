@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/widgets/achievements/reward_collect_burst.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show ValueListenable;
@@ -18,7 +20,6 @@ import 'package:alchemons/utils/harvest_rate.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
-import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
@@ -109,6 +110,16 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
   late HarvestService _svc;
   bool _tutorialChecked = false;
   String? _selectedBiomeId;
+
+  /// One per biome, kept on the state so a chip's yield label keeps the same
+  /// key across rebuilds — the collect animation reads its rect to know where
+  /// the resources are going.
+  final Map<String, GlobalKey> _yieldKeys = {};
+
+  GlobalKey _yieldKeyFor(String biomeId) => _yieldKeys.putIfAbsent(
+    biomeId,
+    () => GlobalKey(debugLabel: 'yield_$biomeId'),
+  );
 
   @override
   void initState() {
@@ -301,6 +312,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
     }
     if (!mounted) return;
     HapticFeedback.lightImpact();
+    context.sound(SoundCue.extractionComplete, owner: this);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -410,6 +422,12 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                         Expanded(
                                           child: _ExtractionBay(
                                             farms: farms,
+                                            yieldKeys: {
+                                              for (final f in farms)
+                                                f.biome.id: _yieldKeyFor(
+                                                  f.biome.id,
+                                                ),
+                                            },
                                             theme: theme,
                                             service: _svc,
                                             discoveredCreatures: discovered,
@@ -433,22 +451,6 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 40,
-                          left: 0,
-                          right: 0,
-                          child: Center(
-                            child: FloatingCloseButton(
-                              theme: theme,
-                              onTap: () {
-                                HapticFeedback.lightImpact();
-                                Navigator.of(context).maybePop();
-                              },
-                              accentColor: t.textPrimary,
-                              iconColor: t.textPrimary,
-                            ),
                           ),
                         ),
                       ],
@@ -476,6 +478,7 @@ class _ExtractionBay extends StatelessWidget {
     required this.defaultDuration,
     required this.onSelect,
     required this.onUnlock,
+    required this.yieldKeys,
   });
 
   final List<BiomeFarmState> farms;
@@ -486,6 +489,10 @@ class _ExtractionBay extends StatelessWidget {
   final Duration defaultDuration;
   final ValueChanged<BiomeFarmState> onSelect;
   final ValueChanged<BiomeFarmState> onUnlock;
+
+  /// One key per biome, anchoring that chip's yield label so a collect can fly
+  /// to the number it is filling.
+  final Map<String, GlobalKey> yieldKeys;
 
   BiomeFarmState _selectedFarm() {
     if (farms.isEmpty) {
@@ -508,13 +515,17 @@ class _ExtractionBay extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 700;
-        final bottomPad = wide ? 26.0 : 104.0;
+        // The floating close button used to sit in this gap; with it gone the
+        // action buttons dock to the bottom instead of floating above dead
+        // space.
+        final bottomPad = wide ? 26.0 : 14.0;
         final rail = _BiomeSelectorRail(
           farms: farms,
           selectedBiomeId: selected.biome.id,
           theme: theme,
           vertical: wide,
           onSelect: onSelect,
+          yieldKeys: yieldKeys,
         );
         final chamber = _EmbeddedChamber(
           key: ValueKey('bay-${selected.biome.id}'),
@@ -525,6 +536,7 @@ class _ExtractionBay extends StatelessWidget {
           defaultDuration: defaultDuration,
           featured: true,
           onUnlock: () => onUnlock(selected),
+          collectTargetKey: yieldKeys[selected.biome.id],
         );
 
         return Padding(
@@ -554,6 +566,7 @@ class _BiomeSelectorRail extends StatelessWidget {
   const _BiomeSelectorRail({
     required this.farms,
     required this.selectedBiomeId,
+    required this.yieldKeys,
     required this.theme,
     required this.vertical,
     required this.onSelect,
@@ -561,6 +574,7 @@ class _BiomeSelectorRail extends StatelessWidget {
 
   final List<BiomeFarmState> farms;
   final String selectedBiomeId;
+  final Map<String, GlobalKey> yieldKeys;
   final FactionTheme theme;
   final bool vertical;
   final ValueChanged<BiomeFarmState> onSelect;
@@ -580,6 +594,7 @@ class _BiomeSelectorRail extends StatelessWidget {
             selected: farm.biome.id == selectedBiomeId,
             vertical: true,
             onTap: () => onSelect(farm),
+            yieldKey: yieldKeys[farm.biome.id],
           );
         },
       );
@@ -600,6 +615,7 @@ class _BiomeSelectorRail extends StatelessWidget {
             selected: farm.biome.id == selectedBiomeId,
             vertical: false,
             onTap: () => onSelect(farm),
+            yieldKey: yieldKeys[farm.biome.id],
           ),
         );
       },
@@ -614,6 +630,7 @@ class _BiomeSelectorChip extends StatelessWidget {
     required this.selected,
     required this.vertical,
     required this.onTap,
+    this.yieldKey,
   });
 
   final BiomeFarmState farm;
@@ -621,6 +638,9 @@ class _BiomeSelectorChip extends StatelessWidget {
   final bool selected;
   final bool vertical;
   final VoidCallback onTap;
+
+  /// Anchors the collect animation: the coins fly to this chip's yield label.
+  final GlobalKey? yieldKey;
 
   double get _progress {
     final job = farm.activeJob;
@@ -636,6 +656,13 @@ class _BiomeSelectorChip extends StatelessWidget {
     if (farm.completed) return 'Ready';
     if (farm.hasActive) return '${(_progress * 100).clamp(0, 99).floor()}%';
     return 'Open';
+  }
+
+  /// What the run will hand over when it finishes.
+  int get _yield {
+    final job = farm.activeJob;
+    if (job == null) return 0;
+    return job.ratePerMinute * Duration(milliseconds: job.durationMs).inMinutes;
   }
 
   @override
@@ -710,15 +737,20 @@ class _BiomeSelectorChip extends StatelessWidget {
                     color: t.textMuted,
                     size: 15,
                   )
+                // A running job used to draw its own little ring here.
+                // Progress reads around the chamber now, so this slot shows
+                // what the run is actually worth — the number the collect
+                // animation flies to.
                 else if (farm.hasActive)
-                  SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      value: _progress,
-                      strokeWidth: 2,
-                      color: accent,
-                      backgroundColor: t.borderDim,
+                  Text(
+                    '+$_yield',
+                    key: yieldKey,
+                    maxLines: 1,
+                    style: _display(
+                      context,
+                      12,
+                      accent,
+                      weight: FontWeight.w800,
                     ),
                   ),
               ],
@@ -832,6 +864,7 @@ class _EmbeddedChamber extends StatefulWidget {
     required this.defaultDuration,
     required this.onUnlock,
     this.featured = false,
+    this.collectTargetKey,
   });
 
   final BiomeFarmState farm;
@@ -841,6 +874,9 @@ class _EmbeddedChamber extends StatefulWidget {
   final Duration defaultDuration;
   final VoidCallback onUnlock;
   final bool featured;
+
+  /// The chip label the collected resources fly to.
+  final GlobalKey? collectTargetKey;
 
   @override
   State<_EmbeddedChamber> createState() => _EmbeddedChamberState();
@@ -1102,21 +1138,51 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 
   // ── Collect ───────────────────────────────────────────────────────────────
 
+  /// The chamber's rect and the chip it pays into, in screen space.
+  ({Rect from, Offset to})? _collectFlight() {
+    // This state's own box, rather than a key on the chamber: the two chamber
+    // layouts (featured and compact) would need one GlobalKey between them,
+    // and a GlobalKey attached twice throws.
+    final toCtx = widget.collectTargetKey?.currentContext;
+    if (toCtx == null || !mounted) return null;
+    final fromBox = context.findRenderObject();
+    final toBox = toCtx.findRenderObject();
+    if (fromBox is! RenderBox || toBox is! RenderBox) return null;
+    if (!fromBox.hasSize || !toBox.hasSize) return null;
+    return (
+      from: fromBox.localToGlobal(Offset.zero) & fromBox.size,
+      to: toBox.localToGlobal(toBox.size.center(Offset.zero)),
+    );
+  }
+
   Future<void> _handleCollect(BiomeFarmState farm) async {
     final previousJob = farm.activeJob;
     HapticFeedback.mediumImpact();
+
+    // Read the geometry before the collect, because the job clears and the
+    // chip's yield label goes away with it.
+    final flight = _collectFlight();
+
     await _collectCtrl.forward(from: 0);
     final got = await widget.service.collect(widget.farm.biome);
     if (!mounted) return;
     HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Collected $got ${widget.farm.biome.resourceLabel}'),
-        behavior: SnackBarBehavior.floating,
-        showCloseIcon: true,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+
+    // The resources visibly leave the chamber and land on the number that was
+    // counting up for them, in the biome's own colour.
+    if (flight != null && got > 0) {
+      unawaited(
+        playRewardCollect(
+          context,
+          from: flight.from,
+          to: flight.to,
+          gold: got,
+          silver: 0,
+          tint: widget.farm.currentColor,
+        ),
+      );
+    }
+
     await _refreshCreatureCache();
     if (previousJob == null || !mounted) return;
     final constellations = context.read<ConstellationEffectsService>();
@@ -2217,6 +2283,7 @@ class _ChamberView extends StatelessWidget {
                     tempo: _tempo(),
                     color: accent,
                     active: farm.hasActive,
+                    progress: progress,
                   ),
                   size: size,
                 ),
@@ -2462,12 +2529,17 @@ class _ChamberForegroundPainter extends CustomPainter {
     required this.tempo,
     required this.color,
     required this.active,
+    required this.progress,
   }) : super(repaint: tListenable);
   final ValueListenable<double> tListenable;
   double get tSeconds => tListenable.value;
   final double tempo;
   final Color color;
   final bool active;
+
+  /// 0..1 job completion, filled around the rim the chamber already has
+  /// rather than drawn as a second ring outside it.
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2487,6 +2559,26 @@ class _ChamberForegroundPainter extends CustomPainter {
         ],
       ).createShader(outer.outerRect);
     canvas.drawRRect(outer, rim);
+
+    // THE RIM IS THE PROGRESS BAR. The white ring is already the strongest
+    // shape on the chamber, so filling it in the biome's colour needs no new
+    // geometry — and the job reads from the machine instead of from a chip in
+    // a tab strip you are not looking at.
+    if (active && progress > 0) {
+      final rimWidth = (outer.width * 0.06).clamp(6.0, 18.0);
+      canvas.drawArc(
+        outer.outerRect.deflate(rimWidth / 2),
+        -math.pi / 2,
+        math.pi * 2 * progress.clamp(0.0, 1.0),
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = rimWidth
+          ..strokeCap = StrokeCap.round
+          ..color = color.withValues(alpha: 0.92),
+      );
+    }
+
     canvas.save();
     canvas.translate(.6, .6);
     canvas.drawRRect(
@@ -2551,7 +2643,10 @@ class _ChamberForegroundPainter extends CustomPainter {
   // Time is handled by `repaint:`; both delegates read the same notifier, so
   // comparing tSeconds here would always be equal and never trigger anything.
   bool shouldRepaint(covariant _ChamberForegroundPainter old) =>
-      old.active != active || old.color != color || old.tempo != tempo;
+      old.active != active ||
+      old.color != color ||
+      old.tempo != tempo ||
+      old.progress != progress;
 }
 
 class _AlchemyStatusBadge extends StatelessWidget {

@@ -10,6 +10,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:alchemons/audio/audio.dart';
 import 'package:graphx/graphx.dart';
 
 import 'package:alchemons/models/alchemical_powerup.dart';
@@ -159,6 +160,8 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
 
     await db.settingsDao.setBlobSlotsUnlocked(target);
     await _refreshAll();
+    if (!mounted) return;
+    context.sound(SoundCue.purchaseSuccess, owner: this);
     _toast(
       'Bubble slot $target unlocked!',
       icon: AppIcons.bubble_chart_rounded,
@@ -302,11 +305,15 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
             child: Row(
               children: [
                 Flexible(
-                  child: CurrencyDisplayWidget(accentColor: t.borderAccent),
+                  child: CurrencyDisplayWidget(
+                    accentColor: t.borderAccent,
+                    initiallyExpanded: true,
+                  ),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
                   child: ResourceCollectionWidget(
+                    initiallyExpanded: true,
                     theme: theme,
                     horizontalPadding: 0,
                     alignToEnd: true,
@@ -1124,6 +1131,8 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
 
     await db.settingsDao.setCosmicPartySlotsUnlocked(target);
     await _refreshAll();
+    if (!mounted) return;
+    context.sound(SoundCue.purchaseSuccess, owner: this);
     _toast(
       'Patrol slot $target unlocked!',
       icon: AppIcons.groups_rounded,
@@ -2435,7 +2444,15 @@ class _GoldVaultDeckState extends State<_GoldVaultDeck>
     final selected = widget.packs[_selectedIndex];
     final product = widget.store.productFor(selected.productId);
     final pending = widget.store.isPurchasePending(selected.productId);
-    final canBuy = product != null && widget.store.storeAvailable && !pending;
+    // Gold packs need an account: the receipt is verified server-side and
+    // credited to a uid, so there is nowhere to put it without one.
+    final needsAccount = widget.store.requiresSignIn;
+    final awaitingVerification = widget.store.pendingRedeemCount;
+    final canBuy =
+        product != null &&
+        widget.store.storeAvailable &&
+        !pending &&
+        !needsAccount;
     final price =
         product?.price ?? (widget.store.isLoading ? '...' : 'Unavailable');
 
@@ -2492,6 +2509,38 @@ class _GoldVaultDeckState extends State<_GoldVaultDeck>
             ],
           ),
         ),
+
+        if (needsAccount)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Sign in from your profile to buy gold. Purchases are tied to '
+              'your account so they follow you to a new device.',
+              style: TextStyle(
+                color: t.amberBright,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+
+        if (awaitingVerification > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              awaitingVerification == 1
+                  ? 'A purchase is waiting to be confirmed. It will be added '
+                        'as soon as you are back online.'
+                  : '$awaitingVerification purchases are waiting to be '
+                        'confirmed. They will be added as soon as you are '
+                        'back online.',
+              style: TextStyle(
+                color: t.amberBright,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
 
         if (widget.store.lastError != null)
           Padding(

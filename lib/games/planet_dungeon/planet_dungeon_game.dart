@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/sound_cue.dart';
 // lib/games/planet_dungeon/planet_dungeon_game.dart
 //
 // PLANET DUNGEON — Flame scene (chassis).
@@ -308,6 +309,7 @@ class PlanetDungeonGame extends FlameGame {
     required this.initialStarMask,
     Set<String> initialDiscoveredCloudIds = const {},
     required this.onStarEarned,
+    this.onSound,
     this.onCloudDiscovered,
     this.onGuardianIntro,
     required this.onPlayerDown,
@@ -371,6 +373,7 @@ class PlanetDungeonGame extends FlameGame {
   final String element;
   final List<CosmicPartyMember> party;
   final int initialStarMask;
+  final void Function(SoundCue cue)? onSound;
   final void Function(int starIndex) onStarEarned;
   final void Function(String cloudId)? onCloudDiscovered;
 
@@ -2317,6 +2320,7 @@ class PlanetDungeonGame extends FlameGame {
   void _queueDoorReveal(String roomId, String targetRoomId) {
     final room = layout.rooms[roomId];
     if (room == null) return;
+    if (roomId == currentRoomId) onSound?.call(SoundCue.dungeonGateOpen);
     for (final d in room.doors) {
       if (d.targetRoomId == targetRoomId) {
         _doorRevealFx.add(
@@ -5653,15 +5657,19 @@ class PlanetDungeonGame extends FlameGame {
     // permanently-passive button; a cooling one as its ring plus a refusal
     // pulse. Neither evicts the room's line.
     if (isPassiveOnlyCosmicAbility(comp.member.family, comp.member.element)) {
+      onSound?.call(SoundCue.uiDenied);
       abilityDeniedFlash = _deniedFlashSeconds;
       onChanged();
       return false;
     }
     if (comp.specialCooldown > 0) {
+      onSound?.call(SoundCue.uiDenied);
       abilityDeniedFlash = _deniedFlashSeconds;
       onChanged();
       return false;
     }
+    final elementSound = SoundCue.forElement(comp.member.element);
+    if (elementSound != null) onSound?.call(elementSound);
     // Specials auto-target the nearest enemy anywhere in the room; the
     // fallback aim point is only for genuinely empty rooms.
     final target = _nearestCombatEnemy(
@@ -6846,6 +6854,7 @@ class PlanetDungeonGame extends FlameGame {
     bool fromPipSpecial = false,
   }) {
     if (enemy.isDead || amount <= 0) return;
+    onSound?.call(SoundCue.combatHitLight);
     final dealt = amount * _enemyDamageTakenScale(enemy);
     enemy.hp -= dealt;
     enemy.hitFlash = max(enemy.hitFlash, 0.14);
@@ -6893,6 +6902,7 @@ class PlanetDungeonGame extends FlameGame {
     int? sourceSlot, {
     bool fromPipSpecial = false,
   }) {
+    onSound?.call(SoundCue.combatEnemyDefeat);
     if (sourceSlot == null) return;
     final idx = combatCompanions.indexWhere((c) => c.slotIndex == sourceSlot);
     final companion = idx >= 0 ? combatCompanions[idx] : null;
@@ -7919,6 +7929,7 @@ class PlanetDungeonGame extends FlameGame {
   void activateAbility() {
     final a = active;
     if (a == null) return;
+    onSound?.call(SoundCue.dungeonInteract);
     _spawnUtilitySignature(a);
     // Object-driven interactions first, so any creature near a conduit can
     // attempt it — the object itself decides whether it answers.

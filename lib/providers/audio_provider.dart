@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'package:alchemons/audio/sound_cue.dart';
+import 'package:alchemons/audio/sound_effects_player.dart';
+export 'package:alchemons/audio/sound_cue.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:flutter/foundation.dart';
@@ -20,19 +23,9 @@ enum MusicCue {
   cosmicExploration,
 }
 
-enum SoundCue {
-  cosmicPortalOpen,
-  cosmicOrbPickup,
-  cosmicOrbDeposit,
-  cosmicAnomalyBurst,
-  cosmicStarforgeActivate,
-}
-
 class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   static const double _defaultMusicVolume = 0.20;
   static const double _homeMusicVolume = 0.15;
-  static const double _defaultSoundVolume = 0.70;
-  static const int _maxConcurrentSounds = 6;
 
   static const String _kMasterEnabled = 'audio.master_enabled';
   static const String _kMusicEnabled = 'audio.music_enabled';
@@ -88,47 +81,10 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     ],
   };
 
-  static const Map<SoundCue, List<String>> _soundAssetsByCue = {
-    SoundCue.cosmicPortalOpen: [
-      'assets/audio/sounds/cosmic/sfx_cosmic_portal_open.ogg',
-      'assets/audio/sounds/cosmic/sfx_cosmic_portal_open.wav',
-      'assets/audio/sounds/cosmic/sfx_cosmic_portal_open.mp3',
-      'assets/audio/sounds/cosmic/sfx_cosmic_portal_open.flac',
-      'assets/audio/sounds/cosmic/sfx_cosmic_portal_open.m4a',
-    ],
-    SoundCue.cosmicOrbPickup: [
-      'assets/audio/sounds/cosmic/sfx_cosmic_orb_pickup.ogg',
-      'assets/audio/sounds/cosmic/sfx_cosmic_orb_pickup.wav',
-      'assets/audio/sounds/cosmic/sfx_cosmic_orb_pickup.mp3',
-      'assets/audio/sounds/cosmic/sfx_cosmic_orb_pickup.flac',
-      'assets/audio/sounds/cosmic/sfx_cosmic_orb_pickup.m4a',
-    ],
-    SoundCue.cosmicOrbDeposit: [
-      'assets/audio/sounds/cosmic/sfx_cosmic_orb_deposit.ogg',
-      'assets/audio/sounds/cosmic/sfx_cosmic_orb_deposit.wav',
-      'assets/audio/sounds/cosmic/sfx_cosmic_orb_deposit.mp3',
-      'assets/audio/sounds/cosmic/sfx_cosmic_orb_deposit.flac',
-      'assets/audio/sounds/cosmic/sfx_cosmic_orb_deposit.m4a',
-    ],
-    SoundCue.cosmicAnomalyBurst: [
-      'assets/audio/sounds/cosmic/sfx_cosmic_anomaly_burst.ogg',
-      'assets/audio/sounds/cosmic/sfx_cosmic_anomaly_burst.wav',
-      'assets/audio/sounds/cosmic/sfx_cosmic_anomaly_burst.mp3',
-      'assets/audio/sounds/cosmic/sfx_cosmic_anomaly_burst.flac',
-      'assets/audio/sounds/cosmic/sfx_cosmic_anomaly_burst.m4a',
-    ],
-    SoundCue.cosmicStarforgeActivate: [
-      'assets/audio/sounds/cosmic/sfx_cosmic_starforge_activate.ogg',
-      'assets/audio/sounds/cosmic/sfx_cosmic_starforge_activate.wav',
-      'assets/audio/sounds/cosmic/sfx_cosmic_starforge_activate.mp3',
-      'assets/audio/sounds/cosmic/sfx_cosmic_starforge_activate.flac',
-      'assets/audio/sounds/cosmic/sfx_cosmic_starforge_activate.m4a',
-    ],
-  };
-
   final AlchemonsDatabase _db;
   final AudioPlayer _musicPlayer = AudioPlayer();
-  final List<AudioPlayer> _activeSoundPlayers = <AudioPlayer>[];
+  final SoundEffectsPlayer _sounds = SoundEffectsPlayer();
+  bool _disposed = false;
   late final Future<void> _bootstrapFuture;
 
   StreamSubscription<String?>? _masterSub;
@@ -170,6 +126,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     final isForeground = state == AppLifecycleState.resumed;
     if (_appIsForeground == isForeground) return;
     _appIsForeground = isForeground;
+    _syncSounds();
     unawaited(_applyMusicState());
   }
 
@@ -188,13 +145,16 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
       defaultValue: 0,
     );
 
+    if (_disposed) return;
     _isLoaded = true;
+    _syncSounds();
     notifyListeners();
 
     _masterSub = _db.settingsDao.watchSetting(_kMasterEnabled).listen((raw) {
       final next = _parseBool(raw, fallback: true);
       if (next == _masterEnabled) return;
       _masterEnabled = next;
+      _syncSounds();
       notifyListeners();
       unawaited(_applyMusicState());
     });
@@ -211,6 +171,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
       final next = _parseBool(raw, fallback: true);
       if (next == _soundsEnabled) return;
       _soundsEnabled = next;
+      _syncSounds();
       notifyListeners();
     });
 
@@ -228,6 +189,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     await _bootstrapFuture;
     if (_masterEnabled == enabled) return;
     _masterEnabled = enabled;
+    _syncSounds();
     notifyListeners();
     await _db.settingsDao.setSetting(_kMasterEnabled, enabled ? '1' : '0');
     await _applyMusicState();
@@ -246,6 +208,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     await _bootstrapFuture;
     if (_soundsEnabled == enabled) return;
     _soundsEnabled = enabled;
+    _syncSounds();
     notifyListeners();
     await _db.settingsDao.setSetting(_kSoundsEnabled, enabled ? '1' : '0');
   }
@@ -322,53 +285,26 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     return playMusic(cue);
   }
 
-  Future<void> playSound(SoundCue cue) async {
-    await _bootstrapFuture;
-    if (!effectiveSoundsEnabled) return;
-
-    final candidates = _prioritizeCodecCandidates(
-      _soundAssetsByCue[cue] ?? const <String>[],
-    );
-    if (candidates.isEmpty) return;
-
-    final player = AudioPlayer();
-    _activeSoundPlayers.add(player);
-    if (_activeSoundPlayers.length > _maxConcurrentSounds) {
-      final oldest = _activeSoundPlayers.removeAt(0);
-      unawaited(oldest.dispose());
-    }
-
-    var loaded = false;
-    for (final asset in candidates) {
-      try {
-        await player.setAsset(asset);
-        loaded = true;
-        break;
-      } catch (e) {
-        debugPrint('AudioController failed to load SFX "$asset": $e');
-      }
-    }
-
-    if (!loaded) {
-      _activeSoundPlayers.remove(player);
-      await player.dispose();
+  Future<void> playSound(
+    SoundCue cue, {
+    Object? owner,
+    double speed = 1,
+  }) async {
+    // Drop events before settings load rather than replaying stale clicks later.
+    if (_disposed ||
+        !_isLoaded ||
+        !effectiveSoundsEnabled ||
+        !_appIsForeground) {
       return;
     }
-
-    await player.setVolume(_defaultSoundVolume);
-    unawaited(_playAndDisposeSound(player));
+    await _sounds.play(cue, owner: owner, speed: speed);
   }
 
-  Future<void> _playAndDisposeSound(AudioPlayer player) async {
-    try {
-      await player.play();
-    } catch (e) {
-      debugPrint('AudioController failed to play SFX: $e');
-    } finally {
-      _activeSoundPlayers.remove(player);
-      await player.dispose();
-    }
-  }
+  void stopSoundOwner(Object owner) => _sounds.stopOwner(owner);
+  void stopSounds() => _sounds.stopAll();
+  void _syncSounds() => _sounds.setEnabled(
+    !_disposed && effectiveSoundsEnabled && _appIsForeground,
+  );
 
   Future<void> playMusic(MusicCue cue) async {
     await _bootstrapFuture;
@@ -584,10 +520,8 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     _musicSub?.cancel();
     _soundsSub?.cancel();
     _playerStateSub?.cancel();
-    for (final player in _activeSoundPlayers) {
-      unawaited(player.dispose());
-    }
-    _activeSoundPlayers.clear();
+    _disposed = true;
+    _sounds.dispose();
     unawaited(_musicPlayer.dispose());
     super.dispose();
   }

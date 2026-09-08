@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/sound_cue.dart';
 // lib/games/cosmic_survival/cosmic_survival_game.dart
 //
 // COSMIC SURVIVAL FLAME GAME — REDESIGNED
@@ -764,6 +765,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   static const double _orbShipOrbitRadius = 270.0;
 
   final List<CosmicPartyMember> party;
+  final void Function(SoundCue cue)? onSound;
   final VoidCallback onGameOver;
   final VoidCallback? onWaveIntermission;
   final void Function(int clearedWave)? onWaveCleared;
@@ -1070,6 +1072,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     required this.party,
     required this.onGameOver,
     Random? random,
+    this.onSound,
     this.onWaveIntermission,
     this.onWaveCleared,
     this.onBossSpawn,
@@ -1216,6 +1219,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void update(double dt) {
     super.update(dt);
     if (!_started || isGameOver || gamePaused) return;
+    final soundHpBefore = ship.currentHp + orb.currentHp;
 
     _rebuildEnemySpatialGrid();
 
@@ -1328,6 +1332,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       spawner.resumeAfterIntermission();
     }
 
+    if (ship.currentHp + orb.currentHp < soundHpBefore) {
+      onSound?.call(SoundCue.combatPlayerHurt);
+    }
     _trimProjectilePools();
 
     // Game over
@@ -1484,6 +1491,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final dist = dir.distance;
     if (dist < 1) return;
     final norm = Offset(dir.dx / dist, dir.dy / dist);
+    onSound?.call(SoundCue.combatProjectile);
     final kineticLevel = powerUps.kineticOverdriveLevel;
     final kineticScale = 1.0 + kineticLevel * 0.10;
     final baseDamage = 10.0 * powerUps.shipDamageMultiplier * kineticScale;
@@ -4272,6 +4280,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       damage *= 0.88;
     }
     final hpBefore = enemy.hp;
+    if (damage > 0 && !enemy.isDead) onSound?.call(SoundCue.combatHitLight);
     enemy.hp -= damage;
     enemy.hitFlash = 1.0;
 
@@ -4300,6 +4309,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     bool fromPipSpecial = false,
   }) {
     if (enemy.isDead) return;
+    onSound?.call(SoundCue.combatEnemyDefeat);
     enemy.isDead = true;
     stats.kills++;
     if (sourceSlotIndex != null) _runStatsFor(sourceSlotIndex).kills++;
@@ -11416,6 +11426,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (companionProjectiles.length >= _maxCompanionProjectiles) {
       return false;
     }
+    onSound?.call(SoundCue.combatProjectile);
     companionProjectiles.add(projectile);
     return true;
   }
@@ -11428,6 +11439,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         : projectiles.toList(growable: false);
     final takeCount = min(available, list.length);
     if (takeCount <= 0) return;
+    onSound?.call(SoundCue.combatProjectile);
     companionProjectiles.addAll(list.take(takeCount));
   }
 
@@ -12039,6 +12051,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // == VFX =================================================================
 
   void _spawnProjectileHitSpark(Projectile projectile) {
+    onSound?.call(SoundCue.combatHitLight);
     final color = elementColor(projectile.element ?? 'Fire');
     if (projectile.visualStyle != ProjectileVisualStyle.mysticOrbital) {
       _spawnHitSpark(projectile.position, color);
@@ -12276,6 +12289,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       previous: _previousOutbreak,
     );
     if (outbreak case final event?) {
+      onSound?.call(SoundCue.survivalOutbreak);
       _previousOutbreak = event.kind;
       enemies.addAll(event.cores);
     }

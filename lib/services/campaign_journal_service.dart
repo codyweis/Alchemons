@@ -301,7 +301,7 @@ final campaignMissions = [
 const campaignMissionInstructions = {
   'first_extraction': 'Open your Chamber and extract the starter vial.',
   'ship':
-      'Finish the wilderness fusion and harvest tutorials. Visit Valley, Sky, Swamp, and Volcano, then return to Valley to recover the ship.',
+      'Finish the wilderness fusion and harvest. Visit Valley, Sky, Swamp, and Volcano, then return to Valley to recover the ship.',
   'revelation':
       'In cosmic space, complete a planet’s elemental gate offering. Assemble its required descent party and enter.',
   'guardian_1':

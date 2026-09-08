@@ -9,6 +9,7 @@ class CreatureScanAnimation extends StatefulWidget {
   /// Called when the scan chain completes. Only fired if [autoComplete] is true
   /// *and* no external action has been taken.
   final VoidCallback? onScanComplete;
+  final VoidCallback? onScanStarted;
 
   /// Total scan duration.
   final Duration scanDuration;
@@ -28,6 +29,7 @@ class CreatureScanAnimation extends StatefulWidget {
     required this.child,
     this.isNewDiscovery = false,
     this.onScanComplete,
+    this.onScanStarted,
     this.scanDuration = const Duration(milliseconds: 1000),
     this.blockTouchesWhileAnimating = false,
     this.onReadyChanged,
@@ -182,6 +184,7 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
 
   void _startScanning() {
     if (!mounted) return; // defensive: don't drive controllers after dispose
+    widget.onScanStarted?.call();
     _flashDelay?.cancel();
     _completionQueued = false;
     _externalHandled = false;

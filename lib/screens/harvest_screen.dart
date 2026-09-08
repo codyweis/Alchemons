@@ -1,4 +1,5 @@
 import 'dart:math' show sin;
+import 'package:alchemons/widgets/element_resource_glyph.dart';
 
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
@@ -493,7 +494,11 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _BiomeIconCircleSmall(color: accent, icon: biome.icon),
+                      _BiomeIconCircleSmall(
+                        color: accent,
+                        biomeId: biome.id,
+                        animate: unlocked,
+                      ),
                       const SizedBox(width: 10),
                       // text stack
                       Expanded(
@@ -638,9 +643,16 @@ class _EtaText extends StatelessWidget {
 // ------------------------------------------------------------
 
 class _BiomeIconCircleSmall extends StatelessWidget {
-  const _BiomeIconCircleSmall({required this.color, required this.icon});
+  const _BiomeIconCircleSmall({
+    required this.color,
+    required this.biomeId,
+    this.animate = true,
+  });
   final Color color;
-  final IconData icon;
+  final String biomeId;
+
+  /// A locked biome sits still — nothing is running in it.
+  final bool animate;
 
   @override
   Widget build(BuildContext context) {
@@ -652,7 +664,14 @@ class _BiomeIconCircleSmall extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(color: color.withValues(alpha: .5), width: 1.2),
       ),
-      child: Icon(icon, color: color, size: 18),
+      // The biome is what it produces, so it is drawn as its own element
+      // rather than as a generic icon standing in for it.
+      child: ElementResourceGlyph(
+        biomeId: biomeId,
+        color: color,
+        size: 32,
+        animate: animate,
+      ),
     );
   }
 }

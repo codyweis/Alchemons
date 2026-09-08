@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/services/mobile_store_service.dart';
 import 'package:archive/archive.dart';
 import 'package:drift/drift.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,9 +20,15 @@ class SaveTransferService {
   static const String _legacyPrefix = 'ALCHEMONS_SAVE_V1:';
   static const int _maxCloudSaveBytes = 900 * 1024;
   static const int _potentialScaleSchemaVersion = 37;
+  /// Preferences that belong to the device rather than to the save.
+  ///
+  /// They are left out of an export and preserved across an import, so a
+  /// restore cannot carry another device's identity or drop a purchase that is
+  /// still waiting on server verification.
   static const Set<String> _protectedPreferenceKeys = {
     'account.device_id.v1',
     'account.pending_transfer_code',
+    MobileStoreService.pendingRedeemsKey,
   };
 
   final AlchemonsDatabase db;

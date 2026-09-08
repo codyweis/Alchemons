@@ -359,7 +359,7 @@ class _MapScreenState extends State<MapScreen>
               Icon(AppIcons.lock_outline, color: theme.accent, size: 28),
               const SizedBox(height: 12),
               Text(
-                'Tutorial In Progress',
+                'Locked',
                 style: TextStyle(
                   color: theme.text,
                   fontSize: 16,

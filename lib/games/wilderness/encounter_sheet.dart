@@ -15,6 +15,7 @@
 
 import 'dart:async';
 import 'dart:math';
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
@@ -451,9 +452,28 @@ class _EncounterOverlayState extends State<EncounterOverlay>
             final slide = Curves.easeOutCubic.transform(_slideController.value);
             final size = MediaQuery.sizeOf(context);
             final isLandscape = size.width > size.height;
-            // Inset so the FIELD STATUS card clears the side HUDs
-            // (party strip + scene controls) in landscape.
-            final sideInset = isLandscape ? 210.0 : 16.0;
+            // Inset so the FIELD STATUS card clears the side HUDs (party
+            // strip + scene controls) in landscape.
+            //
+            // This used to be a flat 210, which a full party overran: four
+            // 56px cards with 6px gaps, 8px of strip padding each side and
+            // 16px off the edge come to 274, so STABILITY ended up underneath
+            // the strip. Measured from the party instead of guessed, and kept
+            // symmetric so the creature name stays centred.
+            const partyCardWidth = 56.0;
+            const partyCardGap = 6.0;
+            const partyStripPadding = 16.0;
+            const hudEdgeInset = 16.0;
+            const breathingRoom = 12.0;
+            final partyCount = widget.party.length;
+            final partyStripWidth = partyCount == 0
+                ? 0.0
+                : partyCount * partyCardWidth +
+                      (partyCount - 1) * partyCardGap +
+                      partyStripPadding;
+            final sideInset = isLandscape
+                ? max(210.0, hudEdgeInset + partyStripWidth + breathingRoom)
+                : 16.0;
             return Positioned(
               top: 16,
               left: sideInset,
@@ -804,6 +824,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       final targetColor = colorOf(wildCreature, Colors.green);
 
       if (!ctx.mounted) return;
+      ctx.sound(SoundCue.captureThrow, owner: this);
       setState(
         () => _status = '${selectedDevice.label} engaged — the field holds.',
       );
@@ -827,6 +848,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       // The shake lands as the field arrives, not before the stage is clear.
       widget.onPreRollShake?.call();
+      // The tense beat while the field holds, between the throw and the result.
+      if (ctx.mounted) ctx.sound(SoundCue.captureAttempt, owner: this);
 
       Future<bool> roll() async {
         final catchService = ctx.read<CatchService>();
@@ -871,6 +894,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       if (success) {
         HapticFeedback.heavyImpact();
+        if (ctx.mounted) ctx.sound(SoundCue.captureSuccess, owner: this);
         const done = 'Extraction complete. Specimen sent to Cultivations.';
         setState(() => _status = done);
 
@@ -888,6 +912,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         _hide(true);
       } else {
         HapticFeedback.lightImpact();
+        if (ctx.mounted) ctx.sound(SoundCue.captureEscape, owner: this);
         setState(() => _status = 'Harvester failed to secure the specimen.');
         // The panel slides back for a failure, so the status line is visible
         // again — but only after the slide, which is exactly when the player

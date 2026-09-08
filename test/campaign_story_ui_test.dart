@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/screens/story/beauty_mask_reveal.dart';
 import 'package:alchemons/screens/story/campaign_journal_screen.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -138,8 +140,18 @@ void main() {
       });
       final key = GlobalKey();
       await tester.pumpWidget(
-        Provider.value(
-          value: db,
+        MultiProvider(
+          providers: [
+            Provider<AlchemonsDatabase>.value(value: db),
+            // The journal is forge-themed now and reads FactionTheme the same
+            // way every other themed screen does; the app provides it globally.
+            Provider<FactionTheme>.value(
+              value: factionThemeFor(
+                FactionId.volcanic,
+                brightness: Brightness.dark,
+              ),
+            ),
+          ],
           child: RepaintBoundary(
             key: key,
             child: const MaterialApp(
@@ -153,25 +165,22 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 80));
       });
       await tester.pumpAndSettle();
-      expect(find.text('Achievements'), findsOneWidget);
+      expect(find.text('ACHIEVEMENTS'), findsOneWidget);
       expect(find.text('What remained'), findsOneWidget);
-      expect(find.text('4 rewards ready'), findsOneWidget);
+      expect(find.text('4 REWARDS READY'), findsOneWidget);
       await capture(tester, key, 'achievements_home');
-      await tester.tap(find.text('Story progress'));
+      await tester.tap(find.text('STORY PROGRESS'));
       await tester.pumpAndSettle();
-      expect(find.text('Your main story'), findsOneWidget);
+      expect(find.text('YOUR MAIN STORY'), findsOneWidget);
       await capture(tester, key, 'achievements_story');
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Memories'));
+      await tester.tap(find.text('MEMORIES').last);
       await tester.pumpAndSettle();
       await capture(tester, key, 'achievements_memories');
       await tester.pageBack();
       await tester.pumpAndSettle();
-      final collectAll = find.widgetWithText(
-        FilledButton,
-        'Collect all · 8 Gold + 850 Silver',
-      );
+      final collectAll = find.text('COLLECT ALL');
       await tester.ensureVisible(collectAll);
       await tester.runAsync(() async {
         await tester.tap(collectAll);
@@ -185,7 +194,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.drag(find.byType(ListView).first, const Offset(0, 1200));
       await tester.pumpAndSettle();
-      expect(find.text('All rewards collected'), findsOneWidget);
+      expect(find.text('ALL REWARDS COLLECTED'), findsOneWidget);
       await capture(tester, key, 'achievements_after_collect');
       expect(
         saved.claimed,

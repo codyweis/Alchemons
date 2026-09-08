@@ -5,6 +5,7 @@
 // - Same public API: ResourceCollectionWidget(accentColor: ...)
 
 import 'dart:ui';
+import 'package:alchemons/widgets/element_resource_glyph.dart';
 import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
@@ -19,11 +20,17 @@ class ResourceCollectionWidget extends StatefulWidget {
   final double horizontalPadding;
   final bool alignToEnd;
 
+  /// Opens already expanded. The shop wants the amounts readable on arrival —
+  /// you are there to spend them — where a header you tap past is fine
+  /// elsewhere.
+  final bool initiallyExpanded;
+
   const ResourceCollectionWidget({
     super.key,
     required this.theme,
     this.horizontalPadding = 12,
     this.alignToEnd = false,
+    this.initiallyExpanded = false,
   });
 
   @override
@@ -33,7 +40,7 @@ class ResourceCollectionWidget extends StatefulWidget {
 
 class _ResourceCollectionWidgetState extends State<ResourceCollectionWidget>
     with SingleTickerProviderStateMixin {
-  bool _isExpanded = false;
+  late bool _isExpanded = widget.initiallyExpanded;
   late final AnimationController _controller;
   late final Animation<double> _t; // 0 (compact) -> 1 (expanded)
 
@@ -43,6 +50,9 @@ class _ResourceCollectionWidgetState extends State<ResourceCollectionWidget>
     _controller = AnimationController(
       duration: const Duration(milliseconds: 520),
       vsync: this,
+      // Starts settled at whichever end it opens on, so an expanded default
+      // is not an animation the player watches play on arrival.
+      value: widget.initiallyExpanded ? 1.0 : 0.0,
     );
     _t = CurvedAnimation(
       parent: _controller,
@@ -207,7 +217,12 @@ class _ResourcePill extends StatelessWidget {
             alignment: Alignment.bottomCenter,
             clipBehavior: Clip.none,
             children: [
-              _GlowyIcon(image: r.icon, size: iconSize, color: r.color, t: t),
+              _GlowyIcon(
+                biomeId: r.id.name,
+                size: iconSize,
+                color: r.color,
+                t: t,
+              ),
               if (overlayOpacity > 0)
                 Positioned(
                   bottom: -6,
@@ -295,12 +310,12 @@ class _ResourcePill extends StatelessWidget {
 }
 
 class _GlowyIcon extends StatelessWidget {
-  final ImageProvider image;
+  final String biomeId;
   final double size; // icon size
   final Color color; // glow color
   final double t; // 0..1 from parent anim
   const _GlowyIcon({
-    required this.image,
+    required this.biomeId,
     required this.size,
     required this.color,
     required this.t,
@@ -308,45 +323,16 @@ class _GlowyIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Animate intensity as we expand
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          // Actual image on top
-          Stack(
-            children: [
-              Container(
-                width: size,
-                height: size,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(
-                        alpha: lerpDouble(0.15, 0.35, t)!,
-                      ),
-                      blurRadius: lerpDouble(10, 22, t)!,
-                      spreadRadius: lerpDouble(2, 6, t)!,
-                    ),
-                  ],
-                ),
-              ),
-              Image(
-                image: image,
-                width: size,
-                height: size,
-                colorBlendMode: BlendMode.srcIn,
-                filterQuality: FilterQuality.high,
-              ),
-            ],
-          ),
-        ],
-      ),
+    // The flat asset is gone, and so are the two nested Stacks and the
+    // BoxShadow that used to sit behind it: a blurred shadow spilled past this
+    // box and the resource strip's SingleChildScrollView sliced it into a hard
+    // rectangle. The halo is painted inside the glyph now, so it cannot be
+    // clipped and costs no blur.
+    return ElementResourceGlyph(
+      biomeId: biomeId,
+      color: color,
+      size: size,
+      glow: lerpDouble(0.55, 1.0, t)!,
     );
   }
 }

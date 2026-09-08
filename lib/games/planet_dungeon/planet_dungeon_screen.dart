@@ -1,3 +1,5 @@
+import 'package:alchemons/providers/audio_provider.dart' show AudioController;
+import 'package:alchemons/audio/audio.dart';
 // lib/games/planet_dungeon/planet_dungeon_screen.dart
 //
 // Flutter wrapper around PlanetDungeonGame: joystick movement, a swap-control
@@ -314,9 +316,12 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// costs (notably the sky shader's runtime compile) while it is still hidden.
   bool _dungeonWarmed = false;
 
+  AudioController? _soundController;
+
   @override
   void initState() {
     super.initState();
+    _soundController = context.audio;
     _showBeautyMask = widget.revealBeautyMask;
     _flyCtrl = AnimationController(vsync: this, duration: _kStarFlightDuration)
       ..addStatusListener((s) {
@@ -381,6 +386,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             element: widget.element,
             party: widget.party,
             initialStarMask: 0,
+            onSound: (cue) {
+              if (mounted) context.sound(cue, owner: this);
+            },
             onStarEarned: (_) {},
             onGuardianIntro: _onGuardianIntro,
             onPlayerDown: _onPlayerDown,
@@ -399,6 +407,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             initialDiscoveredCloudIds: stars.discoveredCloudsFor(
               widget.element,
             ),
+            onSound: (cue) {
+              if (mounted) context.sound(cue, owner: this);
+            },
             onStarEarned: _onStarEarned,
             onCloudDiscovered: _onCloudDiscovered,
             onGuardianIntro: _onGuardianIntro,
@@ -503,6 +514,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   }
 
   Future<void> _onStarEarned(int index) async {
+    if (mounted) context.sound(SoundCue.dungeonStarCollect, owner: this);
     // Bank instantly: persist immediately so death/quit can't undo it.
     final prefs = await SharedPreferences.getInstance();
     final stars = PlanetStarState.deserialise(
@@ -573,6 +585,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   }
 
   Future<void> _onCloudDiscovered(String cloudId) async {
+    if (mounted && !cloudId.startsWith('gate:')) {
+      context.sound(SoundCue.dungeonSecretReveal, owner: this);
+    }
     final prefs = await SharedPreferences.getInstance();
     final state = PlanetStarState.deserialise(
       prefs.getString(_starPrefsKey) ?? '',
@@ -598,6 +613,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
   void _onPlayerDown() {
     if (!mounted) return;
+    context.sound(SoundCue.combatDefeat, owner: this);
     setState(() => _showDeath = true);
     _deathTimer?.cancel();
     _deathTimer = Timer(const Duration(milliseconds: 1400), () {
@@ -623,6 +639,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// combat is starting, so it ignores pointers and dismisses itself.
   void _onGuardianIntro(String mysticName, String line) {
     if (!mounted) return;
+    context.sound(SoundCue.survivalBossArrive, owner: this);
     setState(() {
       _guardianIntroName = mysticName;
       _guardianIntroLine = line;
@@ -707,6 +724,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   }
 
   void _onRaidCleared() {
+    if (mounted) context.sound(SoundCue.combatVictory, owner: this);
     if (!mounted || _showRaidReward) return;
     _game?.pauseEngine();
     setState(() => _showRaidReward = true);
@@ -781,6 +799,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
   @override
   void dispose() {
+    _soundController?.stopSoundOwner(this);
     // Belt and braces: _prepareExit drops it on the normal pop, but a screen
     // torn down another way must not leave a listener on the static notifier.
     DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);

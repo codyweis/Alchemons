@@ -1,4 +1,6 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:convert';
+import 'package:alchemons/widgets/animations/hatch_reveal_stage.dart';
 import 'package:alchemons/models/potential_genetics.dart';
 import 'dart:math';
 import 'dart:ui';
@@ -57,6 +59,11 @@ String? _natureLabel(Creature creature) {
 }
 
 /// Result of a hatching operation
+/// The largest scale the size gene applies to a sprite (`giant`, from
+/// alchemons_genetics.json). Anything fitting a sprite into a fixed box has to
+/// leave room for it, or large specimens overflow that box.
+const double _maxSizeGeneScale = 1.3;
+
 class HatchingResult {
   final bool success;
   final String? message;
@@ -844,7 +851,13 @@ class EggHatching {
     final factionColors = getFactionColors(currentFaction);
     final primaryColor = factionColors.$1;
 
+    final soundOwner = Object();
+    final audio = context.audio;
     bool scanComplete = false;
+    // The specimen is revealed centre-card and only afterwards put away into
+    // its dock; until it lands the dock holds an empty box of the same size so
+    // nothing shifts when it arrives.
+    bool revealLanded = false;
     bool ctaVisible = false;
     bool ctaTouchable = false;
     bool closing = false;
@@ -855,6 +868,8 @@ class EggHatching {
     // GlobalKey on the card's RepaintBoundary so we can snapshot it for the
     // "filing-away" animation on new discoveries.
     final cardBoundaryKey = GlobalKey(debugLabel: 'extraction-card-boundary');
+    // Where the specimen flies to once the scan finishes.
+    final dockSlotKey = GlobalKey(debugLabel: 'extraction-dock-slot');
 
     // Safe setState wrapper that only calls if dialog is still mounted
     void safeSetDialogState(StateSetter setDialogState, void Function() fn) {
@@ -874,6 +889,10 @@ class EggHatching {
 
     final media = MediaQuery.of(context);
     final shortestSide = media.size.shortestSide;
+    // Big enough to be the point of the screen, small enough to clear the
+    // card's own edges on a short phone.
+    final heroSize =
+        min(media.size.width * 0.95, media.size.height * 0.82) * 0.62;
     final lowFxDevice = media.disableAnimations || shortestSide < 430;
     final dialogBlurSigma = switch (cinematicQuality) {
       CinematicQuality.cinematic => lowFxDevice ? 0.0 : 8.0,
@@ -906,647 +925,743 @@ class EggHatching {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: dialogShell(
-                  Container(
-                    width: MediaQuery.of(context).size.width * 0.95,
-                    height: MediaQuery.of(context).size.height * 0.82,
-                    decoration: BoxDecoration(
-                      color: fc.bg1,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: fc.borderAccent, width: 1.2),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildExtractionHeader(offspring, primaryColor, fc),
+                  Stack(
+                    children: [
+                      Container(
+                        width: MediaQuery.of(context).size.width * 0.95,
+                        height: MediaQuery.of(context).size.height * 0.82,
+                        decoration: BoxDecoration(
+                          color: fc.bg1,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: fc.borderAccent,
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildExtractionHeader(offspring, primaryColor, fc),
 
-                        // Keep the specimen and its stats together in the top
-                        // section. The longer analysis remains independently
-                        // scrollable below it.
-                        Expanded(
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final compact = constraints.maxWidth < 420;
-                              final spriteDockWidth = compact ? 158.0 : 176.0;
-                              // 4 for the dock padding, 12 for the bracket
-                              // card's inset — derived so the sprite always
-                              // fits the dock instead of guessing at it.
-                              final spriteBox = spriteDockWidth - 4;
-                              final spriteSize = spriteBox - 12;
-                              final spriteDock = Container(
-                                width: spriteDockWidth,
-                                padding: const EdgeInsets.all(2),
-                                decoration: BoxDecoration(
-                                  color: fc.bg2,
-                                  border: Border(
-                                    right: BorderSide(color: fc.borderDim),
-                                    bottom: BorderSide(color: fc.borderDim),
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      SizedBox(
-                                        height: spriteBox,
-                                        width: spriteBox,
-                                        child: BracketCard(
-                                          padding: const EdgeInsets.all(6),
-                                          bracketSize: 12,
-                                          strokeWidth: 1.4,
-                                          alpha: 0.85,
-                                          child: CreatureScanAnimation(
-                                            key: scanAnimationKey,
-                                            isNewDiscovery: isNewDiscovery,
-                                            scanDuration:
-                                                switch (cinematicQuality) {
-                                                  CinematicQuality.cinematic =>
-                                                    const Duration(
-                                                      milliseconds: 1800,
-                                                    ),
-                                                  CinematicQuality
-                                                      .performance =>
-                                                    const Duration(
-                                                      milliseconds: 1000,
-                                                    ),
-                                                },
-                                            onReadyChanged: (ready) {
-                                              if (!ready) return;
-                                              safeSetDialogState(
-                                                setDialogState,
-                                                () {
-                                                  scanComplete = true;
-                                                  ctaVisible = true;
-                                                },
-                                              );
-                                            },
-                                            child: InstanceSprite(
-                                              creature: offspring,
-                                              instance: instance,
-                                              size: spriteSize,
-                                            ),
-                                          ),
-                                        ),
+                            // Keep the specimen and its stats together in the top
+                            // section. The longer analysis remains independently
+                            // scrollable below it.
+                            Expanded(
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final compact = constraints.maxWidth < 420;
+                                  final spriteDockWidth = compact
+                                      ? 158.0
+                                      : 176.0;
+                                  // 4 for the dock padding, 12 for the bracket
+                                  // card's inset — derived so the sprite always
+                                  // fits the dock instead of guessing at it.
+                                  final spriteBox = spriteDockWidth - 4;
+                                  // Same headroom the hero needs: the size
+                                  // gene scales a sprite up to 1.3x, so
+                                  // fitting it to the bracket card's inner box
+                                  // alone overflowed for large specimens.
+                                  final spriteSize =
+                                      (spriteBox - 12) / _maxSizeGeneScale;
+                                  final spriteDock = Container(
+                                    width: spriteDockWidth,
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      color: fc.bg2,
+                                      border: Border(
+                                        right: BorderSide(color: fc.borderDim),
+                                        bottom: BorderSide(color: fc.borderDim),
                                       ),
-                                      if (isNewDiscovery)
-                                        Positioned(
-                                          top: 8,
-                                          right: 8,
-                                          child: AnimatedOpacity(
-                                            opacity: scanComplete ? 1 : 0,
-                                            duration: const Duration(
-                                              milliseconds: 300,
-                                            ),
-                                            child: _buildBadge(
-                                              'NEW DISCOVERY',
-                                              fc.teal,
-                                            ),
+                                    ),
+                                    child: Center(
+                                      child: Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          SizedBox(
+                                            key: dockSlotKey,
+                                            height: spriteBox,
+                                            width: spriteBox,
+                                            // Empty while the specimen is centre
+                                            // stage. The box still reserves its
+                                            // space so the panel does not jump
+                                            // when it arrives.
+                                            child: revealLanded
+                                                ? BracketCard(
+                                                    padding:
+                                                        const EdgeInsets.all(6),
+                                                    bracketSize: 12,
+                                                    strokeWidth: 1.4,
+                                                    alpha: 0.85,
+                                                    child: InstanceSprite(
+                                                      creature: offspring,
+                                                      instance: instance,
+                                                      size: spriteSize,
+                                                    ),
+                                                  )
+                                                : const SizedBox.shrink(),
                                           ),
-                                        ),
-                                      if (instance.variantFaction != null)
-                                        Positioned(
-                                          top: 8,
-                                          left: 8,
-                                          child: AnimatedOpacity(
-                                            opacity: scanComplete ? 1 : 0,
-                                            duration: const Duration(
-                                              milliseconds: 300,
+                                          if (isNewDiscovery)
+                                            Positioned(
+                                              top: 8,
+                                              right: 8,
+                                              child: AnimatedOpacity(
+                                                opacity: scanComplete ? 1 : 0,
+                                                duration: const Duration(
+                                                  milliseconds: 300,
+                                                ),
+                                                child: _buildBadge(
+                                                  'NEW DISCOVERY',
+                                                  fc.teal,
+                                                ),
+                                              ),
                                             ),
-                                            child: _buildBadge(
-                                              'VARIANT DISCOVERY',
-                                              FC.purple,
+                                          if (instance.variantFaction != null)
+                                            Positioned(
+                                              top: 8,
+                                              left: 8,
+                                              child: AnimatedOpacity(
+                                                opacity: scanComplete ? 1 : 0,
+                                                duration: const Duration(
+                                                  milliseconds: 300,
+                                                ),
+                                                child: _buildBadge(
+                                                  'VARIANT DISCOVERY',
+                                                  FC.purple,
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                        ),
-                                      if (instance.isPrismaticSkin == true)
-                                        Positioned(
-                                          bottom: 8,
-                                          left: 8,
-                                          child: AnimatedOpacity(
-                                            opacity: scanComplete ? 1 : 0,
-                                            duration: const Duration(
-                                              milliseconds: 300,
+                                          if (instance.isPrismaticSkin == true)
+                                            Positioned(
+                                              bottom: 8,
+                                              left: 8,
+                                              child: AnimatedOpacity(
+                                                opacity: scanComplete ? 1 : 0,
+                                                duration: const Duration(
+                                                  milliseconds: 300,
+                                                ),
+                                                child: _buildPrismaticBadge(),
+                                              ),
                                             ),
-                                            child: _buildPrismaticBadge(),
-                                          ),
-                                        ),
-                                      if (hasNotablePurity)
-                                        Positioned(
-                                          bottom: 8,
-                                          right: 8,
-                                          child: AnimatedOpacity(
-                                            opacity: scanComplete ? 1 : 0,
-                                            duration: const Duration(
-                                              milliseconds: 300,
+                                          if (hasNotablePurity)
+                                            Positioned(
+                                              bottom: 8,
+                                              right: 8,
+                                              child: AnimatedOpacity(
+                                                opacity: scanComplete ? 1 : 0,
+                                                duration: const Duration(
+                                                  milliseconds: 300,
+                                                ),
+                                                child: _buildBadge(
+                                                  purity.label.toUpperCase(),
+                                                  _purityColor(purity),
+                                                ),
+                                              ),
                                             ),
-                                            child: _buildBadge(
-                                              purity.label.toUpperCase(),
-                                              _purityColor(purity),
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              );
-
-                              // The two stats this Alchemon passes down most
-                              // reliably; pre-Dominants creatures fall back to
-                              // whatever they are already best at.
-                              final hatchDominants =
-                                  DominantStats.decode(
-                                    instance.dominantStats,
-                                  ) ??
-                                  DominantStats.fromPotentials(
-                                    speed: instance.statSpeedPotential,
-                                    intelligence:
-                                        instance.statIntelligencePotential,
-                                    strength: instance.statStrengthPotential,
-                                    beauty: instance.statBeautyPotential,
+                                        ],
+                                      ),
+                                    ),
                                   );
 
-                              final statPane = Container(
-                                decoration: BoxDecoration(
-                                  color: fc.bg1,
-                                  border: Border(
-                                    bottom: BorderSide(color: fc.borderDim),
-                                  ),
-                                ),
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: compact ? 8 : 12,
-                                  vertical: 3,
-                                ),
-                                child: DatabaseTypingAnimation(
-                                  startAnimation: scanComplete,
-                                  delayBetweenItems: const Duration(
-                                    milliseconds: 100,
-                                  ),
-                                  onComplete: () {},
-                                  children: [
-                                    Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
+                                  // The two stats this Alchemon passes down most
+                                  // reliably; pre-Dominants creatures fall back to
+                                  // whatever they are already best at.
+                                  final hatchDominants =
+                                      DominantStats.decode(
+                                        instance.dominantStats,
+                                      ) ??
+                                      DominantStats.fromPotentials(
+                                        speed: instance.statSpeedPotential,
+                                        intelligence:
+                                            instance.statIntelligencePotential,
+                                        strength:
+                                            instance.statStrengthPotential,
+                                        beauty: instance.statBeautyPotential,
+                                      );
+
+                                  final statPane = Container(
+                                    decoration: BoxDecoration(
+                                      color: fc.bg1,
+                                      border: Border(
+                                        bottom: BorderSide(color: fc.borderDim),
+                                      ),
+                                    ),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: compact ? 8 : 12,
+                                      vertical: 3,
+                                    ),
+                                    child: DatabaseTypingAnimation(
+                                      startAnimation: scanComplete,
+                                      delayBetweenItems: const Duration(
+                                        milliseconds: 100,
+                                      ),
+                                      onComplete: () {},
                                       children: [
-                                        Row(
+                                        Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
                                           children: [
-                                            Container(
-                                              width: 3,
-                                              height: 10,
-                                              color: fc.amber,
+                                            Row(
+                                              children: [
+                                                Container(
+                                                  width: 3,
+                                                  height: 10,
+                                                  color: fc.amber,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  'STAT PROFILE',
+                                                  style: TextStyle(
+                                                    fontFamily: 'monospace',
+                                                    color: fc.amberBright,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w800,
+                                                    letterSpacing: 1.6,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'STAT PROFILE',
-                                              style: TextStyle(
-                                                fontFamily: 'monospace',
-                                                color: fc.amberBright,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w800,
-                                                letterSpacing: 1.6,
+                                            const SizedBox(height: 4),
+                                            Divider(
+                                              height: 1,
+                                              color: fc.borderDim,
+                                            ),
+                                            const SizedBox(height: 3),
+                                          ],
+                                        ),
+                                        _buildCompactStatRow(
+                                          'SPEED',
+                                          instance.statSpeed,
+                                          instance.statSpeedPotential,
+                                          scanComplete,
+                                          fc,
+                                          const Color(0xFF0EA5E9),
+                                          isDominant: hatchDominants.contains(
+                                            StatKind.speed,
+                                          ),
+                                        ),
+                                        _buildCompactStatRow(
+                                          'INTELLIGENCE',
+                                          instance.statIntelligence,
+                                          instance.statIntelligencePotential,
+                                          scanComplete,
+                                          fc,
+                                          const Color(0xFFA855F7),
+                                          isDominant: hatchDominants.contains(
+                                            StatKind.intelligence,
+                                          ),
+                                        ),
+                                        _buildCompactStatRow(
+                                          'STRENGTH',
+                                          instance.statStrength,
+                                          instance.statStrengthPotential,
+                                          scanComplete,
+                                          fc,
+                                          const Color(0xFFC0392B),
+                                          isDominant: hatchDominants.contains(
+                                            StatKind.strength,
+                                          ),
+                                        ),
+                                        _buildCompactStatRow(
+                                          'BEAUTY',
+                                          instance.statBeauty,
+                                          instance.statBeautyPotential,
+                                          scanComplete,
+                                          fc,
+                                          const Color(0xFFF59E0B),
+                                          isDominant: hatchDominants.contains(
+                                            StatKind.beauty,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  final analysisPane = TickerMode(
+                                    enabled: !closing,
+                                    child: DefaultTabController(
+                                      length: 2,
+                                      child: Builder(
+                                        builder: (tabContext) => Column(
+                                          children: [
+                                            // The tabs sat flush against the stat
+                                            // pane's bottom edge. Both panels below
+                                            // are already SingleChildScrollViews,
+                                            // so the space costs no content.
+                                            const SizedBox(height: 10),
+                                            SizedBox(
+                                              height: 32,
+                                              child: TabBar(
+                                                indicatorColor: fc.amberBright,
+                                                indicatorWeight: 2,
+                                                dividerColor:
+                                                    Colors.transparent,
+                                                labelColor: fc.amberBright,
+                                                unselectedLabelColor:
+                                                    fc.textMuted,
+                                                labelPadding: EdgeInsets.zero,
+                                                labelStyle: const TextStyle(
+                                                  fontFamily: 'monospace',
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.w800,
+                                                  letterSpacing: 1,
+                                                ),
+                                                tabs: const [
+                                                  Tab(text: 'SPECIMEN'),
+                                                  Tab(text: 'GENETICS'),
+                                                ],
+                                              ),
+                                            ),
+                                            Expanded(
+                                              child: Listener(
+                                                behavior:
+                                                    HitTestBehavior.translucent,
+                                                onPointerDown: (_) {
+                                                  analysisDragDx = 0;
+                                                },
+                                                onPointerMove: (event) {
+                                                  analysisDragDx +=
+                                                      event.delta.dx;
+                                                },
+                                                onPointerCancel: (_) {
+                                                  analysisDragDx = 0;
+                                                },
+                                                onPointerUp: (_) {
+                                                  if (analysisDragDx.abs() <
+                                                      32) {
+                                                    analysisDragDx = 0;
+                                                    return;
+                                                  }
+                                                  final controller =
+                                                      DefaultTabController.of(
+                                                        tabContext,
+                                                      );
+                                                  final direction =
+                                                      analysisDragDx < 0
+                                                      ? 1
+                                                      : -1;
+                                                  final target =
+                                                      (controller.index +
+                                                              direction)
+                                                          .clamp(
+                                                            0,
+                                                            controller.length -
+                                                                1,
+                                                          );
+                                                  if (target !=
+                                                      controller.index) {
+                                                    controller.animateTo(
+                                                      target,
+                                                    );
+                                                  }
+                                                  analysisDragDx = 0;
+                                                },
+                                                child: TabBarView(
+                                                  physics:
+                                                      const NeverScrollableScrollPhysics(),
+                                                  children: [
+                                                    SingleChildScrollView(
+                                                      padding:
+                                                          const EdgeInsets.fromLTRB(
+                                                            16,
+                                                            14,
+                                                            16,
+                                                            8,
+                                                          ),
+                                                      child: DatabaseTypingAnimation(
+                                                        startAnimation:
+                                                            scanComplete,
+                                                        delayBetweenItems:
+                                                            const Duration(
+                                                              milliseconds: 100,
+                                                            ),
+                                                        onComplete: () {},
+                                                        children: [
+                                                          _buildAnalysisSection(
+                                                            'SPECIMEN ANALYSIS',
+                                                            primaryColor,
+                                                            [
+                                                              _buildTypingAnalysisRow(
+                                                                'CLASSIFICATION',
+                                                                offspring
+                                                                    .rarity,
+                                                                scanComplete,
+                                                                primaryColor,
+                                                                fc: fc,
+                                                              ),
+                                                              _buildTypingAnalysisRow(
+                                                                'TYPE',
+                                                                offspring.types
+                                                                    .join(', '),
+                                                                scanComplete,
+                                                                primaryColor,
+                                                                fc: fc,
+                                                              ),
+                                                              if (hasNotablePurity)
+                                                                _buildTypingAnalysisRow(
+                                                                  'PURITY',
+                                                                  purity.label,
+                                                                  scanComplete,
+                                                                  primaryColor,
+                                                                  fc: fc,
+                                                                ),
+                                                              if (offspring
+                                                                  .description
+                                                                  .isNotEmpty)
+                                                                _buildTypingAnalysisRow(
+                                                                  'NOTES',
+                                                                  offspring
+                                                                      .description,
+                                                                  scanComplete,
+                                                                  primaryColor,
+                                                                  fc: fc,
+                                                                ),
+                                                            ],
+                                                            fc,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    SingleChildScrollView(
+                                                      padding:
+                                                          const EdgeInsets.fromLTRB(
+                                                            16,
+                                                            14,
+                                                            16,
+                                                            8,
+                                                          ),
+                                                      child: DatabaseTypingAnimation(
+                                                        startAnimation:
+                                                            scanComplete,
+                                                        delayBetweenItems:
+                                                            const Duration(
+                                                              milliseconds: 100,
+                                                            ),
+                                                        onComplete: () {},
+                                                        children: [
+                                                          _buildAnalysisSection(
+                                                            'GENETIC PROFILE',
+                                                            primaryColor,
+                                                            [
+                                                              _buildTypingAnalysisRow(
+                                                                'DOMINANT',
+                                                                hatchDominants
+                                                                    .all
+                                                                    .map(
+                                                                      (k) => k
+                                                                          .label
+                                                                          .toUpperCase(),
+                                                                    )
+                                                                    .join(
+                                                                      ' · ',
+                                                                    ),
+                                                                scanComplete,
+                                                                primaryColor,
+                                                                fc: fc,
+                                                              ),
+                                                              _buildTypingAnalysisRow(
+                                                                'SIZE VARIANT',
+                                                                _getSizeName(
+                                                                  offspring,
+                                                                ),
+                                                                scanComplete,
+                                                                primaryColor,
+                                                                fc: fc,
+                                                              ),
+                                                              _buildTypingAnalysisRow(
+                                                                'PIGMENTATION',
+                                                                _getTintName(
+                                                                  offspring,
+                                                                ),
+                                                                scanComplete,
+                                                                primaryColor,
+                                                                fc: fc,
+                                                              ),
+                                                              // An Alchemon can
+                                                              // carry two natures;
+                                                              // this row only ever
+                                                              // printed the first.
+                                                              if (_natureLabel(
+                                                                    offspring,
+                                                                  ) !=
+                                                                  null)
+                                                                _buildTypingAnalysisRow(
+                                                                  'BEHAVIOR',
+                                                                  _natureLabel(
+                                                                    offspring,
+                                                                  )!,
+                                                                  scanComplete,
+                                                                  primaryColor,
+                                                                  fc: fc,
+                                                                ),
+                                                              _buildVariantTypingRow(
+                                                                instance,
+                                                                scanComplete,
+                                                                primaryColor,
+                                                                fc,
+                                                              ),
+                                                            ],
+                                                            fc,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ),
                                           ],
                                         ),
-                                        const SizedBox(height: 4),
-                                        Divider(height: 1, color: fc.borderDim),
-                                        const SizedBox(height: 3),
-                                      ],
-                                    ),
-                                    _buildCompactStatRow(
-                                      'SPEED',
-                                      instance.statSpeed,
-                                      instance.statSpeedPotential,
-                                      scanComplete,
-                                      fc,
-                                      const Color(0xFF0EA5E9),
-                                      isDominant: hatchDominants.contains(
-                                        StatKind.speed,
                                       ),
                                     ),
-                                    _buildCompactStatRow(
-                                      'INTELLIGENCE',
-                                      instance.statIntelligence,
-                                      instance.statIntelligencePotential,
-                                      scanComplete,
-                                      fc,
-                                      const Color(0xFFA855F7),
-                                      isDominant: hatchDominants.contains(
-                                        StatKind.intelligence,
-                                      ),
-                                    ),
-                                    _buildCompactStatRow(
-                                      'STRENGTH',
-                                      instance.statStrength,
-                                      instance.statStrengthPotential,
-                                      scanComplete,
-                                      fc,
-                                      const Color(0xFFC0392B),
-                                      isDominant: hatchDominants.contains(
-                                        StatKind.strength,
-                                      ),
-                                    ),
-                                    _buildCompactStatRow(
-                                      'BEAUTY',
-                                      instance.statBeauty,
-                                      instance.statBeautyPotential,
-                                      scanComplete,
-                                      fc,
-                                      const Color(0xFFF59E0B),
-                                      isDominant: hatchDominants.contains(
-                                        StatKind.beauty,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
+                                  );
 
-                              final analysisPane = TickerMode(
-                                enabled: !closing,
-                                child: DefaultTabController(
-                                  length: 2,
-                                  child: Builder(
-                                    builder: (tabContext) => Column(
-                                      children: [
-                                        // The tabs sat flush against the stat
-                                        // pane's bottom edge. Both panels below
-                                        // are already SingleChildScrollViews,
-                                        // so the space costs no content.
-                                        const SizedBox(height: 10),
-                                        SizedBox(
-                                          height: 32,
-                                          child: TabBar(
-                                            indicatorColor: fc.amberBright,
-                                            indicatorWeight: 2,
-                                            dividerColor: Colors.transparent,
-                                            labelColor: fc.amberBright,
-                                            unselectedLabelColor: fc.textMuted,
-                                            labelPadding: EdgeInsets.zero,
-                                            labelStyle: const TextStyle(
-                                              fontFamily: 'monospace',
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: 1,
-                                            ),
-                                            tabs: const [
-                                              Tab(text: 'SPECIMEN'),
-                                              Tab(text: 'GENETICS'),
-                                            ],
-                                          ),
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      SizedBox(
+                                        height: 158,
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            spriteDock,
+                                            Expanded(child: statPane),
+                                          ],
                                         ),
-                                        Expanded(
-                                          child: Listener(
-                                            behavior:
-                                                HitTestBehavior.translucent,
-                                            onPointerDown: (_) {
-                                              analysisDragDx = 0;
-                                            },
-                                            onPointerMove: (event) {
-                                              analysisDragDx += event.delta.dx;
-                                            },
-                                            onPointerCancel: (_) {
-                                              analysisDragDx = 0;
-                                            },
-                                            onPointerUp: (_) {
-                                              if (analysisDragDx.abs() < 32) {
-                                                analysisDragDx = 0;
-                                                return;
-                                              }
-                                              final controller =
-                                                  DefaultTabController.of(
-                                                    tabContext,
+                                      ),
+                                      Expanded(child: analysisPane),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+
+                            // Docked CTA
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: fc.bg2,
+                                border: Border(
+                                  top: BorderSide(color: fc.borderDim),
+                                ),
+                              ),
+                              child: AnimatedOpacity(
+                                opacity: ctaVisible ? 1 : 0,
+                                duration: const Duration(milliseconds: 300),
+                                onEnd: () {
+                                  if (ctaVisible && !closing) {
+                                    safeSetDialogState(
+                                      setDialogState,
+                                      () => ctaTouchable = true,
+                                    );
+                                  }
+                                },
+                                child: IgnorePointer(
+                                  ignoring: !ctaTouchable || closing,
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: GestureDetector(
+                                          onTap: () async {
+                                            if (closing) return;
+
+                                            // Signal animation to stop any pending callbacks
+                                            scanAnimationKey.currentState
+                                                ?.takeAction();
+
+                                            try {
+                                              final db = context
+                                                  .read<AlchemonsDatabase>();
+                                              db.settingsDao.setSetting(
+                                                'nav_locked_until_extraction_ack',
+                                                '0',
+                                              );
+                                            } catch (_) {}
+
+                                            // Update state to stop all tickers/animations
+                                            setDialogState(() {
+                                              closing = true;
+                                              ctaTouchable = false;
+                                            });
+
+                                            if (isNewDiscovery) {
+                                              await NewDiscoveryReveal.instance
+                                                  .playFilingAway(
+                                                    context: context,
+                                                    cardBoundaryKey:
+                                                        cardBoundaryKey,
+                                                    creatureId: offspring.id,
                                                   );
-                                              final direction =
-                                                  analysisDragDx < 0 ? 1 : -1;
-                                              final target =
-                                                  (controller.index + direction)
-                                                      .clamp(
-                                                        0,
-                                                        controller.length - 1,
-                                                      );
-                                              if (target != controller.index) {
-                                                controller.animateTo(target);
-                                              }
-                                              analysisDragDx = 0;
-                                            },
-                                            child: TabBarView(
-                                              physics:
-                                                  const NeverScrollableScrollPhysics(),
+                                            }
+
+                                            WidgetsBinding.instance
+                                                .addPostFrameCallback((_) {
+                                                  if (Navigator.of(
+                                                    context,
+                                                  ).canPop()) {
+                                                    Navigator.of(context).pop();
+                                                  }
+                                                });
+                                          },
+
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 22,
+                                              vertical: 13,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(3),
+                                              border: Border.all(
+                                                color: fc.amber,
+                                                width: 1.2,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
                                               children: [
-                                                SingleChildScrollView(
-                                                  padding:
-                                                      const EdgeInsets.fromLTRB(
-                                                        16,
-                                                        14,
-                                                        16,
-                                                        8,
-                                                      ),
-                                                  child: DatabaseTypingAnimation(
-                                                    startAnimation:
-                                                        scanComplete,
-                                                    delayBetweenItems:
-                                                        const Duration(
-                                                          milliseconds: 100,
-                                                        ),
-                                                    onComplete: () {},
-                                                    children: [
-                                                      _buildAnalysisSection(
-                                                        'SPECIMEN ANALYSIS',
-                                                        primaryColor,
-                                                        [
-                                                          _buildTypingAnalysisRow(
-                                                            'CLASSIFICATION',
-                                                            offspring.rarity,
-                                                            scanComplete,
-                                                            primaryColor,
-                                                            fc: fc,
-                                                          ),
-                                                          _buildTypingAnalysisRow(
-                                                            'TYPE',
-                                                            offspring.types
-                                                                .join(', '),
-                                                            scanComplete,
-                                                            primaryColor,
-                                                            fc: fc,
-                                                          ),
-                                                          if (hasNotablePurity)
-                                                            _buildTypingAnalysisRow(
-                                                              'PURITY',
-                                                              purity.label,
-                                                              scanComplete,
-                                                              primaryColor,
-                                                              fc: fc,
-                                                            ),
-                                                          if (offspring
-                                                              .description
-                                                              .isNotEmpty)
-                                                            _buildTypingAnalysisRow(
-                                                              'NOTES',
-                                                              offspring
-                                                                  .description,
-                                                              scanComplete,
-                                                              primaryColor,
-                                                              fc: fc,
-                                                            ),
-                                                        ],
-                                                        fc,
-                                                      ),
-                                                    ],
-                                                  ),
+                                                Container(
+                                                  width: 3,
+                                                  height: 14,
+                                                  color: fc.amberBright,
                                                 ),
-                                                SingleChildScrollView(
-                                                  padding:
-                                                      const EdgeInsets.fromLTRB(
-                                                        16,
-                                                        14,
-                                                        16,
-                                                        8,
-                                                      ),
-                                                  child: DatabaseTypingAnimation(
-                                                    startAnimation:
-                                                        scanComplete,
-                                                    delayBetweenItems:
-                                                        const Duration(
-                                                          milliseconds: 100,
-                                                        ),
-                                                    onComplete: () {},
-                                                    children: [
-                                                      _buildAnalysisSection(
-                                                        'GENETIC PROFILE',
-                                                        primaryColor,
-                                                        [
-                                                          _buildTypingAnalysisRow(
-                                                            'DOMINANT',
-                                                            hatchDominants.all
-                                                                .map(
-                                                                  (k) => k.label
-                                                                      .toUpperCase(),
-                                                                )
-                                                                .join(' · '),
-                                                            scanComplete,
-                                                            primaryColor,
-                                                            fc: fc,
-                                                          ),
-                                                          _buildTypingAnalysisRow(
-                                                            'SIZE VARIANT',
-                                                            _getSizeName(
-                                                              offspring,
-                                                            ),
-                                                            scanComplete,
-                                                            primaryColor,
-                                                            fc: fc,
-                                                          ),
-                                                          _buildTypingAnalysisRow(
-                                                            'PIGMENTATION',
-                                                            _getTintName(
-                                                              offspring,
-                                                            ),
-                                                            scanComplete,
-                                                            primaryColor,
-                                                            fc: fc,
-                                                          ),
-                                                          // An Alchemon can
-                                                          // carry two natures;
-                                                          // this row only ever
-                                                          // printed the first.
-                                                          if (_natureLabel(
-                                                                offspring,
-                                                              ) !=
-                                                              null)
-                                                            _buildTypingAnalysisRow(
-                                                              'BEHAVIOR',
-                                                              _natureLabel(
-                                                                offspring,
-                                                              )!,
-                                                              scanComplete,
-                                                              primaryColor,
-                                                              fc: fc,
-                                                            ),
-                                                          _buildVariantTypingRow(
-                                                            instance,
-                                                            scanComplete,
-                                                            primaryColor,
-                                                            fc,
-                                                          ),
-                                                        ],
-                                                        fc,
-                                                      ),
-                                                    ],
+                                                const SizedBox(width: 10),
+                                                Text(
+                                                  'EXTRACTION CONFIRMED',
+                                                  style: TextStyle(
+                                                    fontFamily: 'monospace',
+                                                    color: fc.amberBright,
+                                                    fontWeight: FontWeight.w900,
+                                                    fontSize: 12,
+                                                    letterSpacing: 2.0,
                                                   ),
                                                 ),
                                               ],
                                             ),
                                           ),
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      GestureDetector(
+                                        onTap: () {
+                                          if (closing) return;
+
+                                          CreatureDetailsDialog.show(
+                                            context,
+                                            offspring,
+                                            true,
+                                            instanceId: instanceId,
+                                          );
+                                        },
+                                        child: Container(
+                                          width: 50,
+                                          height: 50,
+                                          decoration: BoxDecoration(
+                                            color: fc.bg3,
+                                            borderRadius: BorderRadius.circular(
+                                              3,
+                                            ),
+                                            border: Border.all(
+                                              color: fc.borderDim,
+                                              width: 1.2,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            AppIcons.info_outline_rounded,
+                                            color: fc.textSecondary,
+                                            size: 20,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              );
-
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  SizedBox(
-                                    height: 158,
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        spriteDock,
-                                        Expanded(child: statPane),
-                                      ],
-                                    ),
-                                  ),
-                                  Expanded(child: analysisPane),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-
-                        // Docked CTA
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: fc.bg2,
-                            border: Border(
-                              top: BorderSide(color: fc.borderDim),
+                              ),
                             ),
-                          ),
-                          child: AnimatedOpacity(
-                            opacity: ctaVisible ? 1 : 0,
-                            duration: const Duration(milliseconds: 300),
-                            onEnd: () {
-                              if (ctaVisible && !closing) {
-                                safeSetDialogState(
-                                  setDialogState,
-                                  () => ctaTouchable = true,
-                                );
-                              }
-                            },
-                            child: IgnorePointer(
-                              ignoring: !ctaTouchable || closing,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () async {
-                                        if (closing) return;
-
-                                        // Signal animation to stop any pending callbacks
-                                        scanAnimationKey.currentState
-                                            ?.takeAction();
-
-                                        try {
-                                          final db = context
-                                              .read<AlchemonsDatabase>();
-                                          db.settingsDao.setSetting(
-                                            'nav_locked_until_extraction_ack',
-                                            '0',
-                                          );
-                                        } catch (_) {}
-
-                                        // Update state to stop all tickers/animations
-                                        setDialogState(() {
-                                          closing = true;
-                                          ctaTouchable = false;
-                                        });
-
-                                        if (isNewDiscovery) {
-                                          await NewDiscoveryReveal.instance
-                                              .playFilingAway(
-                                                context: context,
-                                                cardBoundaryKey:
-                                                    cardBoundaryKey,
-                                                creatureId: offspring.id,
-                                              );
-                                        }
-
-                                        WidgetsBinding.instance
-                                            .addPostFrameCallback((_) {
-                                              if (Navigator.of(
-                                                context,
-                                              ).canPop()) {
-                                                Navigator.of(context).pop();
-                                              }
-                                            });
-                                      },
-
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 22,
-                                          vertical: 13,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            3,
-                                          ),
-                                          border: Border.all(
-                                            color: fc.amber,
-                                            width: 1.2,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Container(
-                                              width: 3,
-                                              height: 14,
-                                              color: fc.amberBright,
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Text(
-                                              'EXTRACTION CONFIRMED',
-                                              style: TextStyle(
-                                                fontFamily: 'monospace',
-                                                color: fc.amberBright,
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 12,
-                                                letterSpacing: 2.0,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
+                          ],
+                        ),
+                      ),
+                      // THE REVEAL. The specimen is scanned large in the
+                      // middle of the card, then carried into its dock — the
+                      // scan used to play at thumbnail size in the corner,
+                      // which is where it lives, not where it should be shown.
+                      if (!revealLanded)
+                        Positioned.fill(
+                          child: HatchRevealStage(
+                            dockKey: dockSlotKey,
+                            heroSize: heroSize,
+                            dockSize: heroSize,
+                            scanComplete: scanComplete,
+                            onLanded: () => safeSetDialogState(
+                              setDialogState,
+                              () => revealLanded = true,
+                            ),
+                            child: BracketCard(
+                              padding: const EdgeInsets.all(6),
+                              bracketSize: 12,
+                              strokeWidth: 1.4,
+                              alpha: 0.85,
+                              child: CreatureScanAnimation(
+                                key: scanAnimationKey,
+                                onScanStarted: () {
+                                  audio?.stopSoundOwner(soundOwner);
+                                  final rare =
+                                      isNewDiscovery ||
+                                      offspring.isPrismaticSkin == true ||
+                                      offspring.rarity.toLowerCase() ==
+                                          'legendary' ||
+                                      offspring.rarity.toLowerCase() ==
+                                          'mystic';
+                                  final scanMs =
+                                      cinematicQuality ==
+                                          CinematicQuality.cinematic
+                                      ? 1800
+                                      : 1000;
+                                  // Match the identification tone to the scan chain's ready event.
+                                  final readyMs =
+                                      scanMs * .75 +
+                                      (isNewDiscovery ? 1000 : 0);
+                                  final lockMs = rare ? 1770 : 1080;
+                                  context.sound(
+                                    rare
+                                        ? SoundCue.extractionRareReveal
+                                        : SoundCue.extractionCreatureReveal,
+                                    owner: soundOwner,
+                                    speed: lockMs / readyMs,
+                                  );
+                                },
+                                isNewDiscovery: isNewDiscovery,
+                                scanDuration: switch (cinematicQuality) {
+                                  CinematicQuality.cinematic => const Duration(
+                                    milliseconds: 1800,
                                   ),
-                                  const SizedBox(width: 10),
-                                  GestureDetector(
-                                    onTap: () {
-                                      if (closing) return;
-
-                                      CreatureDetailsDialog.show(
-                                        context,
-                                        offspring,
-                                        true,
-                                        instanceId: instanceId,
-                                      );
-                                    },
-                                    child: Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        color: fc.bg3,
-                                        borderRadius: BorderRadius.circular(3),
-                                        border: Border.all(
-                                          color: fc.borderDim,
-                                          width: 1.2,
-                                        ),
-                                      ),
-                                      child: Icon(
-                                        AppIcons.info_outline_rounded,
-                                        color: fc.textSecondary,
-                                        size: 20,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                  CinematicQuality.performance =>
+                                    const Duration(milliseconds: 1000),
+                                },
+                                onReadyChanged: (ready) {
+                                  if (!ready) return;
+                                  safeSetDialogState(setDialogState, () {
+                                    scanComplete = true;
+                                    ctaVisible = true;
+                                  });
+                                },
+                                // InstanceSprite scales itself by the size
+                                // gene, and `giant` is 1.3x — so a sprite
+                                // sized to the box overflowed it for large
+                                // specimens. Sized from that maximum rather
+                                // than trimmed by eye.
+                                child: InstanceSprite(
+                                  creature: offspring,
+                                  instance: instance,
+                                  size: (heroSize - 12) / _maxSizeGeneScale,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
               ),
@@ -1555,6 +1670,7 @@ class EggHatching {
         },
       ),
     );
+    audio?.stopSoundOwner(soundOwner);
   }
 
   // ============================================================================

@@ -11,11 +11,16 @@ class CurrencyDisplayWidget extends StatefulWidget {
   final bool compact;
   final VoidCallback? onTap;
 
+  /// Opens showing the amounts rather than condensed. The shop wants them
+  /// readable on arrival — you are there to spend them.
+  final bool initiallyExpanded;
+
   const CurrencyDisplayWidget({
     super.key,
     this.accentColor,
     this.compact = false,
     this.onTap,
+    this.initiallyExpanded = false,
   });
 
   @override
@@ -24,7 +29,7 @@ class CurrencyDisplayWidget extends StatefulWidget {
 
 class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
     with SingleTickerProviderStateMixin {
-  bool _condensed = true;
+  late bool _condensed = !widget.initiallyExpanded;
 
   late final AnimationController _ctrl;
   late final Animation<double> _progress;
@@ -35,7 +40,9 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 320),
-      value: 1.0,
+      // 1.0 is condensed, 0.0 is expanded. Starting settled at the right end
+      // means an expanded default is not an animation you watch play.
+      value: _condensed ? 1.0 : 0.0,
     );
     _progress = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
   }

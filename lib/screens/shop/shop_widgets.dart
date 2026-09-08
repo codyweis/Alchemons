@@ -1,5 +1,6 @@
 // lib/widgets/shop_widgets.dart
 import 'package:alchemons/constants/element_resources.dart';
+import 'package:alchemons/widgets/element_resource_glyph.dart';
 import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
@@ -463,22 +464,8 @@ class _ForgeCostRow extends StatelessWidget {
     required this.theme,
   });
 
-  String? _assetForType() {
-    switch (type) {
-      case 'res_volcanic':
-        return 'assets/images/ui/volcanic.png';
-      case 'res_oceanic':
-        return 'assets/images/ui/oceanic.png';
-      case 'res_verdant':
-        return 'assets/images/ui/verdant.png';
-      case 'res_earthen':
-        return 'assets/images/ui/earthen.png';
-      case 'res_arcane':
-        return 'assets/images/ui/arcane.png';
-      default:
-        return null;
-    }
-  }
+  /// The biome a resource cost refers to, or null when the cost is a currency.
+  String? _biomeForType() => type.startsWith('res_') ? type.substring(4) : null;
 
   (IconData, String, Color) _info(String t) {
     switch (t) {
@@ -523,17 +510,20 @@ class _ForgeCostRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
     final (icon, label, color) = _info(type);
-    final assetPath = _assetForType();
+    final biome = _biomeForType();
     final hasEnough = current >= amount;
     final coin = CoinKind.tryFromToken(type);
 
     Widget leading;
-    if (assetPath != null) {
-      leading = Image.asset(
-        assetPath,
-        fit: BoxFit.contain,
-        color: hasEnough ? null : const Color(0xFFEF4444),
-        colorBlendMode: hasEnough ? null : BlendMode.modulate,
+    if (biome != null) {
+      // The particle field carries the element through its motion, so the
+      // colour is free to carry the can-afford state instead.
+      leading = ElementResourceGlyph(
+        biomeId: biome,
+        color: hasEnough
+            ? (ElementResources.byBiomeId[biome]?.color ?? color)
+            : const Color(0xFFEF4444),
+        size: 16,
       );
     } else if (coin != null && hasEnough) {
       leading = CoinIcon(kind: coin, size: 15);
@@ -970,7 +960,11 @@ class MiniCostChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(resource.icon, size: 12, color: textColor),
+        ElementResourceGlyph(
+          biomeId: resource.biomeId,
+          color: textColor,
+          size: 14,
+        ),
         const SizedBox(width: 4),
         Text(
           '$required',

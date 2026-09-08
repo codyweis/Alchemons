@@ -42,19 +42,46 @@ class _GlyphClock {
 /// behaviour is the identity, so these stay readable at 12px where a detailed
 /// painting just turns to mush.
 class ElementResourceGlyph extends StatefulWidget {
+  /// Takes the biome id and colour rather than a resource object, because the
+  /// codebase has two unrelated `ElementResource` types — one in `constants/`
+  /// carrying an IconData, one in `models/` carrying an ImageProvider — and
+  /// every surface that draws a resource holds one or the other.
   const ElementResourceGlyph({
     super.key,
-    required this.resource,
+    required this.biomeId,
+    required this.color,
     required this.size,
     this.animate = true,
+    this.glow = 0,
   });
 
-  final ElementResource resource;
+  /// Convenience for the `constants/` resource, which most shop and market
+  /// surfaces hold.
+  ElementResourceGlyph.of(
+    ElementResource resource, {
+    super.key,
+    required this.size,
+    this.animate = true,
+    this.glow = 0,
+  }) : biomeId = resource.biomeId,
+       color = resource.color;
+
+  final String biomeId;
+  final Color color;
   final double size;
 
   /// Off for a still frame — a picker cell that is scrolling past does not
   /// need to be alive.
   final bool animate;
+
+  /// 0..1 halo drawn behind the particles, inside this widget's own bounds.
+  ///
+  /// Deliberately painted rather than a BoxShadow: a shadow spills outside the
+  /// box and gets sliced by the first ancestor that clips (the resource strip
+  /// is a SingleChildScrollView, so the glow came out as a hard rectangle),
+  /// and an animating blur is the most expensive thing on the frame. Layered
+  /// discs cost nothing and cannot be clipped, because they stay inside.
+  final double glow;
 
   @override
   State<ElementResourceGlyph> createState() => _ElementResourceGlyphState();
@@ -97,9 +124,14 @@ class _ElementResourceGlyphState extends State<ElementResourceGlyph> {
       width: widget.size,
       height: widget.size,
       child: CustomPaint(
+        // The painter animates every frame, so there is nothing to gain from
+        // the engine trying to cache it as a picture.
+        willChange: widget.animate,
+        isComplex: false,
         painter: _ElementParticlePainter(
-          biomeId: widget.resource.biomeId,
-          color: widget.resource.color,
+          biomeId: widget.biomeId,
+          color: widget.color,
+          glow: widget.glow,
           clock: widget.animate ? _GlyphClock.instance.seconds : null,
         ),
       ),
@@ -111,11 +143,13 @@ class _ElementParticlePainter extends CustomPainter {
   _ElementParticlePainter({
     required this.biomeId,
     required this.color,
+    required this.glow,
     required this.clock,
   }) : super(repaint: clock);
 
   final String biomeId;
   final Color color;
+  final double glow;
   final ValueListenable<double>? clock;
 
   // Reused across every frame and every glyph on screen.
@@ -133,6 +167,8 @@ class _ElementParticlePainter extends CustomPainter {
     if (s <= 0) return;
     final bright = Color.lerp(color, Colors.white, 0.5)!;
 
+    if (glow > 0) _halo(canvas, size, s);
+
     switch (biomeId) {
       case 'volcanic':
         _embers(canvas, s, bright);
@@ -146,6 +182,22 @@ class _ElementParticlePainter extends CustomPainter {
         _orbits(canvas, s, bright);
       default:
         _spores(canvas, s, bright);
+    }
+  }
+
+  /// The pool of light the field stands in. Four flat discs, largest first —
+  /// no blur, so it costs one draw call each and stays inside the box.
+  void _halo(Canvas canvas, Size size, double s) {
+    final c = Offset(size.width / 2, size.height / 2);
+    // Largest disc stops just inside the box. Anything wider would be sliced
+    // by the first ancestor that clips, which is the whole reason the old
+    // BoxShadow showed up as a rectangle.
+    for (var i = 4; i >= 1; i--) {
+      canvas.drawCircle(
+        c,
+        s * 0.12 * i,
+        _p..color = color.withValues(alpha: (0.15 * glow) / i),
+      );
     }
   }
 
@@ -291,5 +343,8 @@ class _ElementParticlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ElementParticlePainter old) =>
-      old.biomeId != biomeId || old.color != color || old.clock != clock;
+      old.biomeId != biomeId ||
+      old.color != color ||
+      old.glow != glow ||
+      old.clock != clock;
 }

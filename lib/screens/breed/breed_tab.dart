@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:math';
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_service.dart';
@@ -1241,6 +1242,7 @@ class _BreedingTabState extends State<BreedingTab>
       }
 
       // The specimens are hauled together and merge — on the real widgets.
+      if (mounted) context.sound(SoundCue.breedingStart, owner: this);
       await _preCinematicFadeController.forward();
 
       // let that max-charged orb hang briefly

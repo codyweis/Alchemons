@@ -102,6 +102,39 @@ class CurrencyDao extends DatabaseAccessor<AlchemonsDatabase>
     return true;
   }
 
+  // ---- Purchased gold ----------------------------------------------------
+  //
+  // Gold that arrived from a verified in-app purchase and has not been spent
+  // yet. It is tracked apart from the balance so a restored save can be
+  // reconciled against the account's server entitlement: a backup handed to
+  // somebody else arrives with no matching entitlement of their own, and the
+  // purchased portion does not survive the restore.
+
+  static const String purchasedGoldOutstandingKey =
+      'wallet_gold_purchased_outstanding';
+
+  Future<int> getPurchasedGoldOutstanding() async =>
+      int.tryParse(await _getSetting(purchasedGoldOutstandingKey) ?? '0') ?? 0;
+
+  Future<void> setPurchasedGoldOutstanding(int value) async {
+    await _setSetting(
+      purchasedGoldOutstandingKey,
+      (value < 0 ? 0 : value).toString(),
+    );
+  }
+
+  /// Credits gold from a purchase the server has already verified.
+  ///
+  /// Only [MobileStoreService] should call this, and only after `redeemPurchase`
+  /// has returned. Gameplay rewards use [addGold].
+  Future<void> creditPurchasedGold(int amount) async {
+    if (amount <= 0) return;
+    await addGold(amount);
+    await setPurchasedGoldOutstanding(
+      await getPurchasedGoldOutstanding() + amount,
+    );
+  }
+
   Stream<int> watchGoldBalance() {
     final q = select(settings)..where((t) => t.key.equals('wallet_gold'));
     return q.watch().map((rows) {

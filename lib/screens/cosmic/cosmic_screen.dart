@@ -384,6 +384,9 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // The memory tutorial does not get the exploration track. Home music
+      // carries through it, and dispose() restores it on the way out.
+      if (widget.memoryTutorial) return;
       unawaited(context.read<AudioController>().playCosmicExplorationMusic());
     });
 
@@ -1209,6 +1212,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       hpFraction: hpFrac,
       initialSpecialCooldown: _companionSpecialCooldown[slotIndex] ?? 0.0,
     );
+    _playCosmicSfx(SoundCue.creatureSummon);
     setState(() => _activeCompanionSlots.add(slotIndex));
     _onMemoryCompanionSummoned();
   }
@@ -1570,8 +1574,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       if (!_memoryBossSpawned && game.enemies.isEmpty) {
         _memoryBossSpawned = true;
         setState(() {
-          _memoryTutorialPrompt =
-              'A larger shadow is forming. Break it, then the memory will release you.';
+          _memoryTutorialPrompt = 'A large enemy is coming.';
         });
         game.spawnSandboxBoss(
           template: const BossTemplate(
@@ -1598,8 +1601,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {
       _memoryTutorialPrompt = null;
     });
-
-    _showQuote('The memory folds inward.');
 
     final db = context.read<AlchemonsDatabase>();
     await CosmicMemoryTutorialService.markCompleted(db.settingsDao);
@@ -2312,7 +2313,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     unawaited(_grantCacheReward(reward));
     unawaited(_saveCacheState());
     HapticFeedback.heavyImpact();
-    _playCosmicSfx(SoundCue.cosmicAnomalyBurst);
+    _playCosmicSfx(SoundCue.cosmicCacheOpen);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       // Hold the world still while the player reads the payout.

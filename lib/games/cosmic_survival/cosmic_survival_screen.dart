@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 // lib/games/cosmic_survival/cosmic_survival_screen.dart
 //
@@ -275,7 +276,12 @@ class _ForgeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDisabled = onTap == null || loading;
     return GestureDetector(
-      onTap: isDisabled ? null : onTap,
+      onTap: isDisabled
+          ? null
+          : context.soundAction(
+              onTap,
+              secondary ? SoundCue.uiBack : SoundCue.uiConfirm,
+            ),
       child: CustomPaint(
         painter: _BracketFramePainter(
           color: secondary
@@ -480,9 +486,12 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     ),
   ];
 
+  AudioController? _soundController;
+
   @override
   void initState() {
     super.initState();
+    _soundController = context.audio;
     _familyPageController = PageController(viewportFraction: 0.82);
     _familyPageController.addListener(() {
       if (!mounted) return;
@@ -501,6 +510,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   @override
   void dispose() {
+    _soundController?.stopSoundOwner(this);
     _hudTimer?.cancel();
     _bossAnnouncementTimer?.cancel();
     _waveAnnouncementTimer?.cancel();
@@ -906,6 +916,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
     final game = CosmicSurvivalGame(
       party: party,
+      onSound: (cue) {
+        if (mounted) context.sound(cue, owner: this);
+      },
       onGameOver: _handleGameOver,
       onWaveIntermission: _handleWaveIntermission,
       onWaveCleared: _handleWaveCleared,
@@ -980,6 +993,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   }
 
   void _handleWaveCleared(int wave) {
+    context.sound(
+      wave == 50 ? SoundCue.survivalMilestone : SoundCue.survivalWaveClear,
+      owner: this,
+    );
     final db = context.read<AlchemonsDatabase>();
     unawaited(CampaignJournalService(db).recordSurvivalClear(wave));
     if (wave != 50 || _resolvingWave50Reward) return;
@@ -1049,12 +1066,14 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   }
 
   void _selectPowerUp(PowerUpDef def, {int? targetSlot, String? targetName}) {
+    context.sound(SoundCue.survivalPowerupChoose, owner: this);
     _game?.applyPowerUp(def, targetSlot: targetSlot, targetName: targetName);
     setState(() => _powerUpChoices = []);
   }
 
   void _handleBossSpawn(SurvivalBoss boss) {
     if (!mounted) return;
+    context.sound(SoundCue.survivalBossArrive, owner: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() {
@@ -1077,6 +1096,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   void _showWaveAnnouncementForWave(int wave) {
     if (!mounted || wave <= 0) return;
+    if (!CosmicSurvivalSpawner.isBossWaveNumber(wave)) {
+      context.sound(SoundCue.survivalWaveStart, owner: this);
+    }
     final announcement = _WaveAnnouncementData(
       title: CosmicSurvivalSpawner.isBossWaveNumber(wave)
           ? 'BOSS WAVE $wave'
@@ -1120,6 +1142,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
   void _handleGameOver() {
     if (!mounted || _resolvingGameOver) return;
+    context.audio?.stopSoundOwner(this);
+    context.sound(SoundCue.combatDefeat, owner: this);
     _hudTimer?.cancel();
     _game?.gamePaused = true;
 
@@ -1343,6 +1367,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     setState(() {
       _showPauseMenu = !_showPauseMenu;
       game.gamePaused = _showPauseMenu;
+      if (_showPauseMenu) _soundController?.stopSoundOwner(this);
     });
   }
 

@@ -979,45 +979,63 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _QuantityButton(
-                                    icon: AppIcons.remove_rounded,
-                                    enabled: canRemove,
-                                    onTap: () {
-                                      if (!canRemove) return;
-                                      setModalState(() {
-                                        selectedQty[vial.key] = qty - 1;
-                                      });
-                                      HapticFeedback.selectionClick();
-                                    },
-                                  ),
-                                  Container(
-                                    width: 36,
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      '$qty',
-                                      style: TextStyle(
-                                        color: t.textPrimary,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w900,
+                              // A stepper over a stack you only own one of is
+                              // three controls to express a yes/no. Vials off
+                              // storage eggs are always singular; inventory
+                              // vials genuinely stack, so those keep the
+                              // counter.
+                              if (vial.availableQty <= 1)
+                                _SelectToggle(
+                                  selected: qty > 0,
+                                  accent: vial.group.color,
+                                  theme: t,
+                                  onTap: () {
+                                    setModalState(() {
+                                      selectedQty[vial.key] = qty > 0 ? 0 : 1;
+                                    });
+                                    HapticFeedback.selectionClick();
+                                  },
+                                )
+                              else
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _QuantityButton(
+                                      icon: AppIcons.remove_rounded,
+                                      enabled: canRemove,
+                                      onTap: () {
+                                        if (!canRemove) return;
+                                        setModalState(() {
+                                          selectedQty[vial.key] = qty - 1;
+                                        });
+                                        HapticFeedback.selectionClick();
+                                      },
+                                    ),
+                                    Container(
+                                      width: 36,
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        '$qty',
+                                        style: TextStyle(
+                                          color: t.textPrimary,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w900,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  _QuantityButton(
-                                    icon: AppIcons.add_rounded,
-                                    enabled: canAdd,
-                                    onTap: () {
-                                      if (!canAdd) return;
-                                      setModalState(() {
-                                        selectedQty[vial.key] = qty + 1;
-                                      });
-                                      HapticFeedback.selectionClick();
-                                    },
-                                  ),
-                                ],
-                              ),
+                                    _QuantityButton(
+                                      icon: AppIcons.add_rounded,
+                                      enabled: canAdd,
+                                      onTap: () {
+                                        if (!canAdd) return;
+                                        setModalState(() {
+                                          selectedQty[vial.key] = qty + 1;
+                                        });
+                                        HapticFeedback.selectionClick();
+                                      },
+                                    ),
+                                  ],
+                                ),
                             ],
                           ),
                         );
@@ -1505,15 +1523,19 @@ class _ExchangeVialRow extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'x${vial.selectedQty}',
-                          style: TextStyle(
-                            color: t.textMuted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                        // "x1" on a single vial is noise; only a real stack
+                        // needs a count.
+                        if (vial.selectedQty > 1) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            'x${vial.selectedQty}',
+                            style: TextStyle(
+                              color: t.textMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ],
@@ -1683,6 +1705,45 @@ class _SaleConfirmationDialog extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A single vial is a yes/no, so it gets a checkbox rather than a counter.
+class _SelectToggle extends StatelessWidget {
+  const _SelectToggle({
+    required this.selected,
+    required this.accent,
+    required this.theme,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final Color accent;
+  final ForgeTokens theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: selected ? accent.withValues(alpha: 0.20) : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: selected ? accent : theme.borderDim,
+            width: selected ? 1.6 : 1.1,
+          ),
+        ),
+        child: selected
+            ? Icon(AppIcons.check_rounded, size: 17, color: accent)
+            : null,
       ),
     );
   }

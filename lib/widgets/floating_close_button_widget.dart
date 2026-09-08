@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -21,7 +22,7 @@ class FloatingCloseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap, SoundCue.uiBack),
       child: Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,

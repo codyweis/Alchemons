@@ -19,6 +19,7 @@
 
 import 'dart:math' as math;
 
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:flutter/material.dart';
@@ -690,6 +691,8 @@ class _ActionsState extends State<_Actions> {
                 : () async {
                     setState(() => _busy = true);
                     await widget.onUnlock?.call();
+                    if (!context.mounted) return;
+                    context.sound(SoundCue.upgradeComplete, owner: this);
                     if (mounted) setState(() => _busy = false);
                   },
           ),

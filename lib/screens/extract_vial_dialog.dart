@@ -19,6 +19,7 @@ import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/audio/audio.dart';
 
 /// Shows the confirmation. Returns true if the player chose to extract.
 Future<bool> showExtractVialDialog({
@@ -333,7 +334,7 @@ class _Button extends StatelessWidget {
       button: true,
       label: label,
       child: GestureDetector(
-        onTap: onTap,
+        onTap: context.soundAction(onTap, SoundCue.uiConfirm),
         child: Container(
           width: double.infinity,
           height: 44,

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/widgets/animations/floating_particle.dart';
 import 'package:flutter/material.dart';
 
@@ -66,7 +67,7 @@ class AnimatedBlackMarketButtonState extends State<AnimatedBlackMarketButton>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: context.soundAction(widget.onTap),
       child: AnimatedBuilder(
         animation: _pulseAnimation,
         builder: (context, child) {

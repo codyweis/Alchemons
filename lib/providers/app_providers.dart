@@ -19,6 +19,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
+import 'package:alchemons/services/purchase_verification_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
@@ -108,6 +109,10 @@ class AppProviders extends StatelessWidget {
           create: (_) => AccountCloudSaveService(),
         ),
 
+        Provider<PurchaseVerificationService>(
+          create: (_) => PurchaseVerificationService(),
+        ),
+
         ChangeNotifierProvider<AudioController>(
           create: (ctx) => AudioController(ctx.read<AlchemonsDatabase>()),
         ),
@@ -144,7 +149,11 @@ class AppProviders extends StatelessWidget {
         ),
 
         ChangeNotifierProvider(
-          create: (ctx) => MobileStoreService(ctx.read<AlchemonsDatabase>()),
+          create: (ctx) => MobileStoreService(
+            ctx.read<AlchemonsDatabase>(),
+            ctx.read<AccountService>(),
+            ctx.read<PurchaseVerificationService>(),
+          ),
         ),
 
         ChangeNotifierProvider<StoryManager>(
