@@ -30,6 +30,31 @@ class BlackMarketScreen extends StatefulWidget {
   State<BlackMarketScreen> createState() => _BlackMarketScreenState();
 }
 
+/// The market's own accent pair. Previously every surface reached for
+/// `Colors.orange.shade300` / `Colors.red.shade300` directly, so nothing could
+/// be retuned in one place.
+/// Draws a resource with its real artwork, falling back to the silhouette icon
+/// if the asset is missing or fails to decode. Everything showing a resource
+/// goes through here so the surfaces cannot drift apart again.
+Widget _resourceGlyph(ElementResource resource, double size) {
+  final art = resource.artwork;
+  if (art == null) {
+    return Icon(resource.icon, color: resource.color, size: size);
+  }
+  return Image(
+    image: art,
+    width: size,
+    height: size,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.medium,
+    errorBuilder: (_, __, ___) =>
+        Icon(resource.icon, color: resource.color, size: size),
+  );
+}
+
+const Color _kMarketAccent = Color(0xFFFFB74D);
+const Color _kMarketDanger = Color(0xFFE57373);
+
 class _BlackMarketScreenState extends State<BlackMarketScreen>
     with SingleTickerProviderStateMixin {
   final List<CreatureInstance> _selectedForSale = [];
@@ -62,6 +87,28 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
+            ),
+          ),
+
+          // Vignette: the backdrop was evenly lit edge to edge, which reads as
+          // a shopfront. Darkening the corners leaves one pool of lamplight
+          // over the table and pushes the room into shadow.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(0, -0.15),
+                    radius: 1.05,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.35),
+                      Colors.black.withValues(alpha: 0.78),
+                    ],
+                    stops: const [0.0, 0.62, 1.0],
+                  ),
+                ),
+              ),
             ),
           ),
 
@@ -104,7 +151,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             ),
             const SizedBox(height: 20),
             Text(
-              'Resource selling is locked',
+              'Not taking resources today.',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.4),
                 fontSize: 16,
@@ -321,11 +368,14 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             height: 320,
             child: GridView.builder(
               scrollDirection: Axis.vertical,
+              // Two square columns made each vial enormous. Three slightly
+              // tall cells put the day's stock on one screen instead of one
+              // card filling half of it.
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 1,
-                mainAxisSpacing: 10,
-                childAspectRatio: 1,
+                crossAxisCount: 3,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 0.88,
               ),
               itemCount: marketService.dailyVials.length,
               itemBuilder: (context, index) {
@@ -334,68 +384,65 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   vial.id,
                 ); // Check purchased status
 
+                // The grid decides the cell width; the old SizedBox(width: 180)
+                // inside it was inert.
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: SizedBox(
-                    width: 180,
-                    child: Stack(
-                      children: [
-                        ExtractionVialCard(
-                          vial: vial,
-                          compact: true,
-                          onTap: () => _showVialDetails(vial),
-                          onAddToInventory: isPurchased
-                              ? null
-                              : () => _buyVial(vial, marketService),
-                        ),
-                        if (isPurchased)
-                          Positioned.fill(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.6),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Stack(
+                    children: [
+                      ExtractionVialCard(
+                        vial: vial,
+                        compact: true,
+                        onTap: () => _showVialDetails(vial),
+                        onAddToInventory: isPurchased
+                            ? null
+                            : () => _buyVial(vial, marketService),
+                      ),
+                      if (isPurchased)
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.green.withValues(alpha: 0.6),
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withValues(alpha: 0.3),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: Colors.green.withValues(
-                                        alpha: 0.6,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(
+                                      AppIcons.check_circle_rounded,
+                                      size: 16,
+                                      color: Colors.greenAccent,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'PURCHASED',
+                                      style: TextStyle(
+                                        color: Colors.greenAccent,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.3,
                                       ),
                                     ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: const [
-                                      Icon(
-                                        AppIcons.check_circle_rounded,
-                                        size: 16,
-                                        color: Colors.greenAccent,
-                                      ),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        'PURCHASED',
-                                        style: TextStyle(
-                                          color: Colors.greenAccent,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 0.3,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
                 );
               },
@@ -832,7 +879,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             ),
             const SizedBox(height: 20),
             Text(
-              'Select specimens to sell',
+              'Nothing on the table',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.4),
                 fontSize: 16,
@@ -841,7 +888,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Tap the button below to browse',
+              "Bring me something worth my time.",
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.3),
                 fontSize: 13,
@@ -868,7 +915,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             ),
             const SizedBox(height: 20),
             Text(
-              'Select resources to sell',
+              'Nothing on the table',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.4),
                 fontSize: 16,
@@ -877,7 +924,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Tap the button below to choose',
+              "Let's see what you're holding.",
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.3),
                 fontSize: 13,
@@ -903,56 +950,64 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
           children: [
-            // Header
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.orange.withValues(alpha: 0.4),
-                    width: 1.5,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      AppIcons.shopping_cart_rounded,
-                      size: 18,
-                      color: Colors.orange.shade300,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'SELECTED RESOURCES',
+            // Header. The ClipRRect wrapped a Container that already had the
+            // same radius, so it only cost a layer.
+            Container(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+              ),
+              child: Row(
+                children: [
+                  Container(width: 3, height: 14, color: _kMarketAccent),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'ON THE TABLE',
                       style: TextStyle(
-                        color: Colors.orange.shade300,
+                        fontFamily: 'monospace',
+                        color: _kMarketAccent,
                         fontSize: 12,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
+                        letterSpacing: 1.4,
                       ),
                     ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedResources.clear();
-                          _recalculateResourceTotal();
-                        });
-                        HapticFeedback.lightImpact();
-                      },
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedResources.clear();
+                        _recalculateResourceTotal();
+                      });
+                      HapticFeedback.lightImpact();
+                    },
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(
+                          color: _kMarketDanger.withValues(alpha: 0.55),
+                        ),
+                      ),
                       child: Text(
-                        'Clear',
+                        'CLEAR',
                         style: TextStyle(
-                          color: Colors.red.shade300,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                          fontFamily: 'monospace',
+                          color: _kMarketDanger,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.0,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
 
@@ -1018,7 +1073,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'TOTAL VALUE',
+                      'YOUR CUT',
                       style: TextStyle(
                         color: Color(0xFFE8EAED),
                         fontSize: 13,
@@ -1320,7 +1375,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                       ),
                       SizedBox(width: 10),
                       Text(
-                        'COMPLETE SALE',
+                        'MAKE THE TRADE',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 14,
@@ -1507,7 +1562,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                                     color: resource.color.withValues(
                                       alpha: 0.2,
                                     ),
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.circular(3),
                                     border: Border.all(
                                       color: resource.color.withValues(
                                         alpha: 0.5,
@@ -1515,11 +1570,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                                     ),
                                   ),
                                   child: Center(
-                                    child: Icon(
-                                      resource.icon,
-                                      color: resource.color,
-                                      size: 20,
-                                    ),
+                                    child: _resourceGlyph(resource, 24),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -1729,7 +1780,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               onWillSelectInstance: (inst) async {
                 if (inst.locked) {
                   _showToast(
-                    'Locked specimens cannot be sold.',
+                    "Favourites stay with you. I don't take those.",
                     icon: AppIcons.lock_rounded,
                     color: Colors.orange,
                   );
@@ -1932,106 +1983,103 @@ class _CompactCreatureRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-        ),
-        child: Row(
-          children: [
-            // Icon
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.purple.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.purple.withValues(alpha: 0.4)),
-              ),
-              child: Center(
-                child: Text(
-                  species?.name.substring(0, 1).toUpperCase() ?? '?',
-                  style: const TextStyle(
-                    color: Color(0xFFD8BFD8),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                  ),
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          // Icon
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.purple.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.purple.withValues(alpha: 0.4)),
+            ),
+            child: Center(
+              child: Text(
+                species?.name.substring(0, 1).toUpperCase() ?? '?',
+                style: const TextStyle(
+                  color: Color(0xFFD8BFD8),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+          ),
+          const SizedBox(width: 10),
 
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    species?.name ?? 'Unknown',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    'Lv ${instance.level}',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.5),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Price
-            Row(
+          // Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                CoinIcon(
-                  kind: usesGold ? CoinKind.gold : CoinKind.silver,
-                  size: 16,
-                ),
-                const SizedBox(width: 4),
                 Text(
-                  '$price',
+                  species?.name ?? 'Unknown',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  'Lv ${instance.level}',
                   style: TextStyle(
-                    color: usesGold
-                        ? const Color(0xFFFFD700)
-                        : Colors.grey.shade300,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
+          ),
 
-            const SizedBox(width: 8),
-
-            // Remove button
-            GestureDetector(
-              onTap: onRemove,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
-                ),
-                child: const Icon(AppIcons.close, size: 14, color: Colors.red),
+          // Price
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CoinIcon(
+                kind: usesGold ? CoinKind.gold : CoinKind.silver,
+                size: 16,
               ),
+              const SizedBox(width: 4),
+              Text(
+                '$price',
+                style: TextStyle(
+                  color: usesGold
+                      ? const Color(0xFFFFD700)
+                      : Colors.grey.shade300,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(width: 8),
+
+          // Remove button
+          GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
+              ),
+              child: const Icon(AppIcons.close, size: 14, color: Colors.red),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -2056,133 +2104,128 @@ class _CompactResourceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                // Resource icon
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: resource.color.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: resource.color.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Center(
-                    child: Icon(resource.icon, color: resource.color, size: 16),
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // Resource icon
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: resource.color.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(
+                    color: resource.color.withValues(alpha: 0.45),
                   ),
                 ),
-                const SizedBox(width: 10),
+                child: Center(child: _resourceGlyph(resource, 22)),
+              ),
+              const SizedBox(width: 10),
 
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        resource.biomeLabel,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        'Available: $available',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.5),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Price
-                Row(
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const CoinIcon(kind: CoinKind.silver, size: 16),
-                    const SizedBox(width: 4),
                     Text(
-                      '$price',
+                      resource.biomeLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      'Available: $available',
                       style: TextStyle(
-                        color: Colors.grey.shade300,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
+                        color: Colors.white.withValues(alpha: 0.5),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
+              ),
 
-                const SizedBox(width: 8),
-
-                // Remove button
-                GestureDetector(
-                  onTap: onRemove,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: Colors.red.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    child: const Icon(
-                      AppIcons.close,
-                      size: 14,
-                      color: Colors.red,
+              // Price
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CoinIcon(kind: CoinKind.silver, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$price',
+                    style: TextStyle(
+                      color: Colors.grey.shade300,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
 
-            const SizedBox(height: 8),
+              const SizedBox(width: 8),
 
-            // Quantity slider
-            Row(
-              children: [
-                Text(
-                  'Qty: $quantity',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+              // Remove button
+              GestureDetector(
+                onTap: onRemove,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: Colors.red.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: const Icon(
+                    AppIcons.close,
+                    size: 14,
+                    color: Colors.red,
                   ),
                 ),
-                Expanded(
-                  child: Slider(
-                    value: quantity.toDouble(),
-                    min: 1,
-                    max: available.toDouble(),
-                    divisions: available > 1 ? available - 1 : 1,
-                    activeColor: resource.color,
-                    inactiveColor: resource.color.withValues(alpha: 0.3),
-                    onChanged: (value) => onQuantityChanged(value.toInt()),
-                  ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // Quantity slider
+          Row(
+            children: [
+              Text(
+                'Qty: $quantity',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              Expanded(
+                child: Slider(
+                  value: quantity.toDouble(),
+                  min: 1,
+                  max: available.toDouble(),
+                  divisions: available > 1 ? available - 1 : 1,
+                  activeColor: resource.color,
+                  inactiveColor: resource.color.withValues(alpha: 0.3),
+                  onChanged: (value) => onQuantityChanged(value.toInt()),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -2217,7 +2260,7 @@ class _SaleConfirmationDialog extends StatelessWidget {
             Icon(AppIcons.warning_rounded, color: Colors.orange, size: 48),
             const SizedBox(height: 16),
             const Text(
-              'CONFIRM SALE',
+              'NO QUESTIONS ASKED',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -2241,7 +2284,7 @@ class _SaleConfirmationDialog extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'This action cannot be undone.',
+              "Once it changes hands, it's gone. No receipts.",
               style: TextStyle(
                 color: Colors.red.shade300,
                 fontSize: 12,

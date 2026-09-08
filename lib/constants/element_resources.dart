@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:alchemons/models/element_resource.dart'
+    show ElementId, ElementIdX;
 import 'package:alchemons/widgets/app_icons.dart';
 
 class ElementResource {
@@ -15,6 +17,18 @@ class ElementResource {
     required this.icon,
     required this.color,
   });
+
+  /// The painted resource artwork. [icon] is only a silhouette fallback — the
+  /// real assets already exist and are what the rest of the app draws, so
+  /// anything showing a resource should reach for this first.
+  ///
+  /// biomeId and ElementId share names, which is what makes the lookup safe.
+  ImageProvider? get artwork {
+    for (final id in ElementId.values) {
+      if (id.name == biomeId) return id.imageProvider;
+    }
+    return null;
+  }
 }
 
 class ElementResources {

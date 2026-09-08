@@ -44,6 +44,17 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
+/// Both natures on one line. Two separate BEHAVIOR rows would read as a
+/// duplicate rather than as a pair.
+String? _natureLabel(Creature creature) {
+  final parts = <String>[
+    if (creature.nature != null) creature.nature!.id,
+    if (creature.nature2 != null) creature.nature2!.id,
+  ];
+  if (parts.isEmpty) return null;
+  return parts.join(' · ');
+}
+
 /// Result of a hatching operation
 class HatchingResult {
   final bool success;
@@ -913,7 +924,12 @@ class EggHatching {
                           child: LayoutBuilder(
                             builder: (context, constraints) {
                               final compact = constraints.maxWidth < 420;
-                              final spriteDockWidth = compact ? 154.0 : 166.0;
+                              final spriteDockWidth = compact ? 158.0 : 176.0;
+                              // 4 for the dock padding, 12 for the bracket
+                              // card's inset — derived so the sprite always
+                              // fits the dock instead of guessing at it.
+                              final spriteBox = spriteDockWidth - 4;
+                              final spriteSize = spriteBox - 12;
                               final spriteDock = Container(
                                 width: spriteDockWidth,
                                 padding: const EdgeInsets.all(2),
@@ -929,8 +945,8 @@ class EggHatching {
                                     clipBehavior: Clip.none,
                                     children: [
                                       SizedBox(
-                                        height: 150,
-                                        width: 150,
+                                        height: spriteBox,
+                                        width: spriteBox,
                                         child: BracketCard(
                                           padding: const EdgeInsets.all(6),
                                           bracketSize: 12,
@@ -964,7 +980,7 @@ class EggHatching {
                                             child: InstanceSprite(
                                               creature: offspring,
                                               instance: instance,
-                                              size: 110,
+                                              size: spriteSize,
                                             ),
                                           ),
                                         ),
@@ -1122,6 +1138,11 @@ class EggHatching {
                                   child: Builder(
                                     builder: (tabContext) => Column(
                                       children: [
+                                        // The tabs sat flush against the stat
+                                        // pane's bottom edge. Both panels below
+                                        // are already SingleChildScrollViews,
+                                        // so the space costs no content.
+                                        const SizedBox(height: 10),
                                         SizedBox(
                                           height: 32,
                                           child: TabBar(
@@ -1282,14 +1303,19 @@ class EggHatching {
                                                             primaryColor,
                                                             fc: fc,
                                                           ),
-                                                          if (offspring
-                                                                  .nature !=
+                                                          // An Alchemon can
+                                                          // carry two natures;
+                                                          // this row only ever
+                                                          // printed the first.
+                                                          if (_natureLabel(
+                                                                offspring,
+                                                              ) !=
                                                               null)
                                                             _buildTypingAnalysisRow(
                                                               'BEHAVIOR',
-                                                              offspring
-                                                                  .nature!
-                                                                  .id,
+                                                              _natureLabel(
+                                                                offspring,
+                                                              )!,
                                                               scanComplete,
                                                               primaryColor,
                                                               fc: fc,
@@ -1901,10 +1927,14 @@ class EggHatching {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 'CLASSIFICATION' at 11px with 1.4 letter-spacing fills 120 exactly,
+          // so it touched its value with no gap at all.
           SizedBox(
-            width: 120,
+            width: 128,
             child: Text(
               label.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: fc.textSecondary,
@@ -1914,6 +1944,7 @@ class EggHatching {
               ),
             ),
           ),
+          const SizedBox(width: 8),
           Expanded(
             child: startTyping
                 ? DelayedTypingText(
@@ -1956,7 +1987,7 @@ class EggHatching {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: fc.textSecondary,
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.2,
               ),
@@ -1968,7 +1999,7 @@ class EggHatching {
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: statColor,
-                fontSize: 17,
+                fontSize: 18,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -1978,7 +2009,7 @@ class EggHatching {
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: fc.textMuted,
-                  fontSize: 8,
+                  fontSize: 9,
                   fontWeight: FontWeight.w700,
                 ),
                 children: [
@@ -1987,7 +2018,7 @@ class EggHatching {
                     text: potentialRating.toString(),
                     style: TextStyle(
                       color: _potentialTierColor(potentialRating),
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
