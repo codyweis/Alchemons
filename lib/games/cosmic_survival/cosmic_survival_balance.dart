@@ -4,6 +4,51 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/models/stat_system.dart';
 
 class CosmicSurvivalBalance {
+  /// Encounter budgets belong to the wave, not to each independently rolled boss.
+  static int bossCountForWave(int wave) {
+    if (wave <= 0 || wave % 5 != 0) return 0;
+    if (wave % 25 == 0 || const [20, 30, 40, 50].contains(wave)) return 1;
+    if (wave < 15) return 1;
+    return wave <= 50 ? 2 : 3;
+  }
+
+  static double bossHealthForWave(int wave, {required bool titanic}) {
+    final base = 42.0 * 16 * 1.55 * enemyWaveHpScale(wave);
+    // The old titanic multiplier was almost seven ordinary bosses' health.
+    // Three bodies' worth leaves time to manage the outbreak and escorts.
+    return base *
+        (titanic
+            ? 3.2
+            : wave == 5
+            ? 1.2
+            : 1.0);
+  }
+
+  static double alchemicalMeterCapacity(int wave) {
+    final steps = max(0, wave - 1);
+    // Keep the early curve, then continue gently beyond the old wave-31 cap.
+    return 100 * (1 + min(steps, 30) * 0.08 + max(0, steps - 30) * 0.025);
+  }
+
+  static double bossAlchemyReward(int wave) {
+    final count = bossCountForWave(wave);
+    if (count == 0) return 0;
+    final waveBudget =
+        alchemicalMeterCapacity(wave) * (wave % 25 == 0 ? 0.70 : 0.55);
+    return waveBudget / count;
+  }
+
+  static int bossEscortCount(int wave) => (8 + wave * 0.36).round().clamp(8, 30);
+  static double bossEscortInterval(int wave) => (1.25 - wave * 0.008).clamp(0.75, 1.25);
+  static int activeEnemyLimit(int wave, {required bool bossWave}) =>
+      bossWave ? 24 : (24 + wave * 0.65).round().clamp(24, 56);
+
+  /// Layered elite/body/trait multipliers must not turn one leaked enemy into
+  /// an instant loss. Several missed intercepts remain dangerous.
+  static double orbContactDamage(double raw, double maxHp,
+      {required bool heavy, required bool breaker}) =>
+      min(raw, maxHp * (heavy ? 0.22 : 0.10) * (breaker ? 1.2 : 1.0));
+
   static double survivalStatPower(double stat) {
     final legacy = CosmicBalance.legacyStat(stat);
     final normalized = ((legacy - 1.0) / 4.0).clamp(0.0, 1.0);

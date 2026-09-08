@@ -813,7 +813,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   int get maxActiveCompanions => powerUps.maxActiveCompanions;
 
   // Wave system
-  final CosmicSurvivalSpawner spawner = CosmicSurvivalSpawner();
+  final CosmicSurvivalSpawner spawner;
   final List<CosmicSurvivalEnemy> enemies = [];
   SurvivalOutbreak? outbreak;
   SurvivalOutbreakKind? _previousOutbreak;
@@ -893,7 +893,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   double _alchemicalMeterDisplayFrac = 0;
   double _alchemicalProgressPoints = 0;
   int _lastIntermissionRewardWave = 0;
-  static const double _baseAlchemicalMeterMax = 100;
 
   // Pacing is primarily kill-progress based (weighted by enemy tier), with a
   // very gentle wave clamp as a stability guard.
@@ -920,11 +919,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     return enemy.isElite ? points * 1.25 : points;
   }
 
-  double get alchemicalMeterMax {
-    final wave = max(1, spawner.currentWave);
-    final scaling = 1.0 + ((wave - 1) * 0.08).clamp(0.0, 2.4);
-    return _baseAlchemicalMeterMax * scaling;
-  }
+  double get alchemicalMeterMax =>
+      CosmicSurvivalBalance.alchemicalMeterCapacity(spawner.currentWave);
 
   double _intermissionAlchemyGrantForWave(int wave, {required bool bossWave}) {
     if (wave <= 0) return 0;
@@ -1068,11 +1064,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   double get camX => ship.position.dx - size.x / (2 * _currentZoom);
   double get camY => ship.position.dy - size.y / (2 * _currentZoom);
 
-  final Random _rng = Random();
+  final Random _rng;
 
   CosmicSurvivalGame({
     required this.party,
     required this.onGameOver,
+    Random? random,
     this.onWaveIntermission,
     this.onWaveCleared,
     this.onBossSpawn,
@@ -1080,7 +1077,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     this.shipSkin,
     this.visualQuality = SurvivalVisualQuality.performance,
     SurvivalUpgradeState? upgradeState,
-  }) : upgradeState = upgradeState ?? SurvivalUpgradeState();
+  }) : upgradeState = upgradeState ?? SurvivalUpgradeState(),
+       _rng = random ?? Random(),
+       spawner = CosmicSurvivalSpawner(random: random);
 
   Offset worldToScreen(Offset world) => Offset(
     (world.dx - camX) * _currentZoom,
@@ -1293,15 +1292,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         _beginBossEntrance(activeBoss!, bossAngle);
         onBossSpawn?.call(activeBoss!);
       }
-      // Multi-boss waves: boss-level N spawns N bosses simultaneously, capped
-      // for sanity. Ultimate / titanic waves stay solo for readability.
+      // One shared encounter budget keeps later waves from suddenly adding
+      // six independent boss health bars, projectile patterns, and rewards.
       extraBosses.clear();
-      final isUltimateWave = wave % 25 == 0;
-      if (activeBoss != null &&
-          !isUltimateWave &&
-          !SurvivalOutbreak.isOutbreakWave(wave)) {
-        final bossLevel = (wave ~/ 5).clamp(1, 20);
-        final extraCount = (bossLevel - 1).clamp(0, 5);
+      if (activeBoss != null) {
+        final extraCount = CosmicSurvivalBalance.bossCountForWave(wave) - 1;
         for (var i = 0; i < extraCount; i++) {
           final extraAngle = bossAngle + (i + 1) * (2 * pi / (extraCount + 1));
           final extraPos = Offset(
@@ -4098,7 +4093,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         enemy.target == CosmicEnemyTarget.orb) {
       final damageMultiplier = powerUps.hasMirrorShield ? 0.75 : 1.0;
       _damageOrb(
-        enemy.damage * damageMultiplier * _orbImpactDamageMultiplier(enemy),
+        CosmicSurvivalBalance.orbContactDamage(
+          enemy.damage * damageMultiplier * _orbImpactDamageMultiplier(enemy),
+          orb.maxHp, heavy: enemy.hasHeavyBody, breaker: enemy.trait == EnemyTrait.breaker),
       );
       if (_enemyExplodesOnOrbImpact(enemy)) {
         _triggerEnemyOrbExplosion(enemy, damageMultiplier);
@@ -4592,12 +4589,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
 
-    // Splash damage to the orb falls off with distance from impact center.
-    final orbDist = (enemy.position - orb.position).distance;
-    if (orbDist <= radius) {
-      final falloff = (1.0 - orbDist / radius).clamp(0.4, 1.0);
-      _damageOrb(damage * falloff);
-    }
+    // The orb already took the contact hit. Charging the same explosion
+    // again made heavy breakers capable of deleting a healthy orb in one hit.
 
     // Splash damage to the ship and companions if they got too close.
     if (!ship.isDead && _withinRange(enemy.position, ship.position, radius)) {
@@ -5791,20 +5784,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _spawnBossAlchemyReward(SurvivalBoss boss) {
     if (ship.isDead) return;
-    final baseValue = max(
-      26.0,
-      34.0 + boss.level * 8.0 + boss.radius * 0.45 + spawner.currentWave * 1.6,
-    );
-    final disciplineBonus = switch (boss.discipline) {
-      SurvivalBossDiscipline.standard => 1.0,
-      SurvivalBossDiscipline.artillery => 1.08,
-      SurvivalBossDiscipline.trickster => 1.06,
-      SurvivalBossDiscipline.duelist => 1.08,
-      SurvivalBossDiscipline.conductor => 1.12,
-      SurvivalBossDiscipline.siegebreaker => 1.14,
-      SurvivalBossDiscipline.riftcaller => 1.16,
-    };
-    _grantAlchemy(baseValue * disciplineBonus * _alchemyMeterGainMultiplier);
+    _grantAlchemy(CosmicSurvivalBalance.bossAlchemyReward(spawner.currentWave));
     _spawnAlchemyPickupBurst(boss.position, boss.color, count: 10);
   }
 
@@ -5838,6 +5818,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         }
       }
 
+      if (proj.life <= 0) continue;
+
       // Hit companions
       for (final comp in activeCompanions.values) {
         if (comp.isDead) continue;
@@ -5849,6 +5831,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           break;
         }
       }
+
+      if (proj.life <= 0) continue;
 
       // Hit orb
       if (_withinRange(proj.position, orb.position, proj.radius + 25)) {
@@ -13563,7 +13547,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
       if (!h.hit.contains(orb) && reaches(orb.position, 26)) {
         h.hit.add(orb);
-        _damageOrb(h.damage);
+        // The orb cannot sidestep a beam or shockwave. Keep their full
+        // damage against mobile targets, but bound stationary-core damage.
+        _damageOrb(min(h.damage * 0.35, orb.maxHp * 0.08));
       }
       if (!h.hit.contains(ship) && reaches(ship.position, 16)) {
         h.hit.add(ship);

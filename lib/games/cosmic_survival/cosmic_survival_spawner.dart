@@ -500,7 +500,9 @@ const _kElements = [
 class CosmicSurvivalSpawner {
   static const double earlyAdvanceKillThreshold = 0.90;
 
-  final Random _rng = Random();
+  CosmicSurvivalSpawner({Random? random}) : _rng = random ?? Random();
+
+  final Random _rng;
   final List<String> _recentBossNames = <String>[];
   final List<String> _recentBossElements = <String>[];
 
@@ -549,6 +551,7 @@ class CosmicSurvivalSpawner {
   static bool isBossWaveNumber(int wave) => wave > 0 && wave % 5 == 0;
 
   int _enemyCountForWave(int wave) {
+    if (isBossWave) return CosmicSurvivalBalance.bossEscortCount(wave);
     final base = (4 + wave * 1.55 + pow(wave, 1.05) * 0.40).round();
     final earlyPressureBonus = switch (wave) {
       <= 2 => 2,
@@ -579,6 +582,7 @@ class CosmicSurvivalSpawner {
   }
 
   double _spawnInterval(int wave) {
+    if (isBossWave) return CosmicSurvivalBalance.bossEscortInterval(wave);
     final base = (0.98 - wave * 0.017).clamp(0.20, 0.98);
     final patternInterval = switch (currentPattern) {
       SurvivalWavePattern.wispHorde => max(0.12, base * 0.45),
@@ -720,6 +724,10 @@ class CosmicSurvivalSpawner {
   ) {
     if (!_waveActive || _waitingForClear) return const [];
 
+    // Pause scheduled reinforcements while the arena is saturated. Boss adds
+    // and plague sources count toward this limit too.
+    final activeLimit = CosmicSurvivalBalance.activeEnemyLimit(currentWave, bossWave: isBossWave);
+    if (aliveCount >= activeLimit) return const [];
     _spawnTimer += dt;
     final interval = _spawnInterval(currentWave);
     if (_spawnTimer < interval) return const [];
@@ -730,7 +738,7 @@ class CosmicSurvivalSpawner {
       return const [];
     }
 
-    final batchLimit = switch (currentPattern) {
+    final batchLimit = isBossWave ? 2 : switch (currentPattern) {
       SurvivalWavePattern.wispHorde => 8,
       SurvivalWavePattern.hunterPack => 5,
       SurvivalWavePattern.siegePush => 3,
@@ -738,7 +746,7 @@ class CosmicSurvivalSpawner {
       SurvivalWavePattern.swarmRush => 6,
       SurvivalWavePattern.mixed => 4,
     };
-    final batchSize = min(batchLimit, _targetCountThisWave - _spawnedThisWave);
+    final batchSize = min(min(batchLimit, activeLimit - aliveCount), _targetCountThisWave - _spawnedThisWave);
     final spawned = <CosmicSurvivalEnemy>[];
     for (var i = 0; i < batchSize; i++) {
       spawned.add(_spawnEnemy(viewW, viewH, orbPos));
@@ -761,7 +769,13 @@ class CosmicSurvivalSpawner {
   }
 
   CosmicSurvivalEnemy _spawnEnemy(double viewW, double viewH, Offset orbPos) {
-    final tier = _tierForWave(currentWave);
+    // Bosses and outbreaks already supply the major mechanics. Escorts
+    // provide interceptable pressure rather than another heavy siege wave.
+    final escortRoll = isBossWave ? _rng.nextDouble() : 0.0;
+    final tier = isBossWave
+        ? (escortRoll < 0.45 ? EnemyTier.drone : escortRoll < 0.75 ? EnemyTier.sentinel :
+           escortRoll < 0.95 ? EnemyTier.phantom : EnemyTier.brute)
+        : _tierForWave(currentWave);
     final element = _kElements[_rng.nextInt(_kElements.length)];
     // CONDUCT — how it moves, straight from the wave's shape.
     var conduct = _conductForWave(currentWave, tier);
@@ -782,7 +796,9 @@ class CosmicSurvivalSpawner {
     // brute/colossus, breaker only on a heavy striker. So most of the nominal
     // combination space was unreachable by construction. Any body can now
     // carry any trait — a summoner wisp is a thing that can happen.
-    final trait = _traitForWave(currentWave);
+    final trait = isBossWave
+        ? (_rng.nextDouble() < 0.12 ? EnemyTrait.breaker : null)
+        : _traitForWave(currentWave);
 
     // Spawn outside view
     final margin = max(viewW, viewH) * 0.55;
@@ -1229,23 +1245,10 @@ class CosmicSurvivalSpawner {
       _ => SurvivalBossDiscipline.standard,
     };
     final template = _pickBossTemplateForWave(wave, discipline);
-    // Boss HP is normalized off a fixed base rather than template.health
-    // (which ranged 28–65 purely as element flavor), so same-wave bosses
-    // are consistently tuned. It scales on the same wave curve as trash
-    // enemies so a boss never falls behind the elites escorting it, and
-    // because the curve is wave-based it keeps scaling past wave 100.
-    final normalizedHealth = template.isTitanic ? 150.0 : 42.0;
-    final bossHpMultiplier = template.isTitanic ? 3.0 : 1.55;
-    // Wave 5 is the first boss the player meets; the old tuning made it a
-    // pushover compared to wave 10+. Give it a meaningful bite without
-    // disrupting later waves.
-    final earlyBossBuff = wave == 5 ? 1.85 : 1.0;
-    final hp =
-        normalizedHealth *
-        16 *
-        CosmicSurvivalBalance.enemyWaveHpScale(wave) *
-        bossHpMultiplier *
-        earlyBossBuff;
+    final hp = CosmicSurvivalBalance.bossHealthForWave(
+      wave,
+      titanic: template.isTitanic,
+    );
     final speedScale =
         (1.0 + (bossLevel - 1) * 0.04) *
         (template.isTitanic ? 0.84 : 1.0) *

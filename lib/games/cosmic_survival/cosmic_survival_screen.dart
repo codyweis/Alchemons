@@ -7,6 +7,8 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'components/survival_party_slot.dart';
+
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/components/mystic_graphx_overlay.dart';
@@ -2366,7 +2368,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             Positioned(
               top: 100,
               left: 44,
-              right: 44,
+              right: 104,
               child: IgnorePointer(
                 child: SafeArea(
                   child: _SurvivalPlate(
@@ -3119,7 +3121,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     if (party == null || party.isEmpty) return const SizedBox.shrink();
 
     final tethered = game.companionTethered;
-    final slotsMaxHeight = min(MediaQuery.sizeOf(context).height * 0.5, 430.0);
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final availableHeight = max(
+      120.0,
+      screenHeight - MediaQuery.paddingOf(context).vertical - 120.0,
+    );
+    final slotsMaxHeight = min(
+      min(screenHeight * 0.5, 430.0),
+      max(48.0, availableHeight - 100),
+    );
     return Positioned(
       right: 12,
       top: 100,
@@ -3130,10 +3140,19 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           background: _C.bg1.withValues(alpha: 0.82),
           bracketSize: 8,
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: slotsMaxHeight + 56),
+            constraints: BoxConstraints(maxHeight: slotsMaxHeight + 82),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Text(
+                  '${game.activeCompanions.values.where((comp) => !comp.isDead).length}/${game.maxActiveCompanions} ACTIVE',
+                  style: const TextStyle(
+                    color: _C.textPrimary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
                 // Tether / Follow toggle
                 GestureDetector(
                   onTap: () {
@@ -3146,7 +3165,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     setState(() {});
                   },
                   child: Container(
-                    width: 44,
+                    width: 72,
                     padding: const EdgeInsets.symmetric(vertical: 5),
                     decoration: BoxDecoration(
                       color: tethered
@@ -3219,29 +3238,22 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     CosmicPartyMember member,
     int slotIndex,
   ) {
-    final isActive = game.activeCompanions.containsKey(slotIndex);
-    final comp = game.activeCompanions[slotIndex];
-    final isTethered = game.tetheredCompanionSlot == slotIndex && isActive;
-    final hp =
-        game.companionHpFraction[slotIndex] ??
-        (isActive ? (comp?.hpPercent ?? 1.0) : 1.0);
-    final isDead = isActive && (comp?.isDead ?? false);
-    final atMax = game.activeCompanions.length >= game.maxActiveCompanions;
-
-    // Get special cooldown: live value if active, else cached
-    final specialCooldown = isActive
-        ? (comp?.specialCooldown ?? 0.0)
-        : (game.companionSpecialCooldown[slotIndex] ?? 0.0);
-    final showCooldown = specialCooldown > 0.05;
-
-    return GestureDetector(
+    return SurvivalPartySlot(
+      member: member,
+      state: SurvivalPartySlotState.fromGame(game, slotIndex),
+      feedCount:
+          member.family.toLowerCase() == 'mask' && member.element == 'Plant'
+          ? game.maskPlantFeedCount(slotIndex)
+          : null,
       onTap: () {
+        // Recheck at tap time: the companion can fall between UI refreshes.
+        final state = SurvivalPartySlotState.fromGame(game, slotIndex);
+        if (state.dead) return;
         HapticFeedback.lightImpact();
-        if (isActive) {
+        if (state.active) {
           game.returnCompanion(slotIndex);
-        } else if (!isDead) {
-          if (atMax) {
-            // Auto-recall the first non-tethered active companion to make room
+        } else {
+          if (game.activeCompanions.length >= game.maxActiveCompanions) {
             final recall = game.activeCompanions.keys.firstWhere(
               (s) => s != game.tetheredCompanionSlot,
               orElse: () => game.activeCompanions.keys.first,
@@ -3252,218 +3264,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
         }
         setState(() {});
       },
-      child: CustomPaint(
-        painter: _BracketFramePainter(
-          color:
-              (isDead
-                      ? _C.danger
-                      : isTethered
-                      ? _C.teal
-                      : isActive
-                      ? _C.amberBright
-                      : _C.borderAccent)
-                  .withValues(alpha: isActive || isTethered ? 0.76 : 0.42),
-          bracketSize: 5,
-          strokeWidth: isActive || isTethered ? 1.15 : 0.9,
-        ),
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: isDead
-                ? _C.danger.withValues(alpha: 0.1)
-                : isTethered
-                ? _C.teal.withValues(alpha: 0.16)
-                : isActive
-                ? _C.accent.withValues(alpha: 0.15)
-                : _C.bg2.withValues(alpha: 0.86),
-            border: Border.all(color: _C.borderDim.withValues(alpha: 0.82)),
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // Creature image or placeholder
-              Center(
-                child: member.imagePath != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: Image.asset(
-                          member.imagePath!,
-                          width: 32,
-                          height: 32,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Text(
-                            member.displayName[0],
-                            style: const TextStyle(
-                              color: _C.textPrimary,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      )
-                    : Text(
-                        member.displayName[0],
-                        style: const TextStyle(
-                          color: _C.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-              ),
-              // HP bar at bottom
-              if (isActive || hp < 1.0)
-                Positioned(
-                  bottom: 2,
-                  left: 4,
-                  right: 4,
-                  child: Container(
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.black45,
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.14),
-                        width: 0.6,
-                      ),
-                    ),
-                    alignment: Alignment.centerLeft,
-                    child: FractionallySizedBox(
-                      widthFactor: hp.clamp(0.0, 1.0),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: hp > 0.5
-                              ? _C.success
-                              : hp > 0.25
-                              ? Colors.orange
-                              : _C.danger,
-                          borderRadius: BorderRadius.circular(2),
-                          boxShadow: [
-                            BoxShadow(
-                              color:
-                                  (hp > 0.5
-                                          ? _C.success
-                                          : hp > 0.25
-                                          ? Colors.orange
-                                          : _C.danger)
-                                      .withValues(alpha: 0.45),
-                              blurRadius: 4,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              // Special cooldown timer (bottom-left)
-              if (showCooldown)
-                Positioned(
-                  bottom: -2,
-                  left: -2,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.82),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: isActive
-                            ? const Color(0xFFE53935).withValues(alpha: 0.8)
-                            : _C.teal.withValues(alpha: 0.75),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      specialCooldown.ceil().toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                ),
-              // Mask+Plant vine feed badge (top-left). Shows current
-              // feeds/100 + active tendril count so the player can
-              // track vine growth without leaving the run.
-              if (isActive &&
-                  member.family.toLowerCase() == 'mask' &&
-                  member.element == 'Plant')
-                Positioned(
-                  top: -2,
-                  left: -2,
-                  child: Builder(
-                    builder: (_) {
-                      final feeds = game.maskPlantFeedCount(slotIndex);
-                      final tendrils = (1 + (feeds ~/ 10)).clamp(1, 10);
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 1,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.82),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: const Color(
-                              0xFF6FCB6F,
-                            ).withValues(alpha: 0.85),
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          '$feeds·${tendrils}t',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            height: 1,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              if (isTethered)
-                Positioned(
-                  top: -3,
-                  right: -3,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: _C.teal,
-                      borderRadius: BorderRadius.circular(99),
-                      border: Border.all(
-                        color: const Color(0xFF10151B),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: const Icon(
-                      AppIcons.link_rounded,
-                      size: 8,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              // Dead overlay
-              if (isDead)
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: const Center(
-                    child: Icon(AppIcons.close, color: _C.danger, size: 20),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
