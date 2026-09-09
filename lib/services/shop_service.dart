@@ -347,6 +347,7 @@ class ShopService extends ChangeNotifier {
   static const double kFeePct = 0.05; // informational
 
   bool allowsQuantity(ShopOffer o) {
+    if (o.id == wildFusionOfferId && isFirstWildFusionFree()) return false;
     return o.limit == PurchaseLimit.unlimited;
   }
 
@@ -1234,11 +1235,26 @@ class ShopService extends ChangeNotifier {
   }
 
   /// Purchase with optional quantity for unlimited items
+  bool _purchaseInProgress = false;
+
   Future<bool> purchase(String offerId, {int qty = 1}) async {
+    if (_purchaseInProgress) return false;
+    _purchaseInProgress = true;
+    try {
+      // Consult persisted history before granting a first-purchase reward.
+      await _loadPurchaseHistory();
+      return await _purchase(offerId, qty: qty);
+    } finally {
+      _purchaseInProgress = false;
+    }
+  }
+
+  Future<bool> _purchase(String offerId, {required int qty}) async {
     if (!canPurchase(offerId)) return false;
     qty = qty.clamp(1, 999);
     final offer = _resolveOfferById(offerId);
     if (offer == null) return false;
+    if (!allowsQuantity(offer) && qty != 1) return false;
 
     // Compute total cost (per-unit * qty), using discounted constellation price
     final perUnitCost = getEffectiveCost(offer);
@@ -1319,6 +1335,12 @@ class ShopService extends ChangeNotifier {
   }
 
   Future<bool> _applyBoost(String offerId, int qty) async {
+    for (final powerup in AlchemicalPowerupType.values) {
+      if (offerId == powerup.shopOfferId) {
+        await _db.inventoryDao.addItemQty(powerup.inventoryKey, qty);
+        return true;
+      }
+    }
     if (offerId.startsWith('vial.daily.common.')) {
       try {
         final groupName = offerId.split('.').last;
