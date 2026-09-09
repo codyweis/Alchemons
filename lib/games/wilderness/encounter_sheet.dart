@@ -711,11 +711,24 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       widget.onPreRollShake?.call();
       HapticFeedback.mediumImpact();
+      // Fusion had no voice at all — only the harvest did, so half the
+      // encounter played silent. The same three beats the harvest uses: the
+      // device engaging, the hold while it decides, and the result. The
+      // opening cue is the one the lab fusion opens on, so a wild fusion and
+      // a chamber fusion sound like the same act.
+      if (ctx.mounted) ctx.sound(SoundCue.breedingStart, owner: this);
       setState(() => _status = 'Calibrating the alchemical matrix...');
+      // The tense beat between the catalyst and the verdict.
+      if (ctx.mounted) {
+        ctx.sound(SoundCue.extractionReactionStart, owner: this);
+      }
       await Future.delayed(const Duration(milliseconds: 650));
 
       final success = wilderness.rollSuccess(p);
       if (success) {
+        if (ctx.mounted) {
+          ctx.sound(SoundCue.extractionReactionBurst, owner: this);
+        }
         // The achievement is for fusions that landed, not charges spent.
         await CampaignJournalService.bump(
           wilderness.db.settingsDao,
@@ -810,6 +823,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         }
         _hide(true);
       } else {
+        HapticFeedback.lightImpact();
+        // Same failure tone as a specimen breaking out of a harvester.
+        if (ctx.mounted) ctx.sound(SoundCue.captureEscape, owner: this);
         if (widget.isTutorial) {
           await db.inventoryDao.addItemQty(InvKeys.wildFusion, 1);
           if (mounted) setState(() => _wildFusionQty++);

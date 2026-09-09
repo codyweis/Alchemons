@@ -170,6 +170,15 @@ class _AlchemyFusionCinematicPageState<T>
     with TickerProviderStateMixin {
   late final AnimationController _ctrl; // master timeline 0..1
   late final AnimationController _flashCtrl; // final settle flash
+
+  /// Keeps the last frame alive while the database catches up.
+  ///
+  /// The route pops when the timeline AND the task have both finished, and
+  /// the timeline usually wins — so the reveal landed and then held one
+  /// completely still frame until the write came back. A held frame at the
+  /// end of a motion does not read as a pause, it reads as a hang. This
+  /// breathes underneath it so the moment stays alive.
+  late final AnimationController _settleCtrl;
   T? _result;
   Object? _err;
   bool _taskDone = false;
@@ -208,6 +217,10 @@ class _AlchemyFusionCinematicPageState<T>
       vsync: this,
       duration: const Duration(milliseconds: 260),
     );
+    _settleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1150),
+    );
 
     HapticFeedback.mediumImpact();
     _ctrl.forward(from: _ctrl.value);
@@ -229,6 +242,7 @@ class _AlchemyFusionCinematicPageState<T>
   void dispose() {
     _ctrl.dispose();
     _flashCtrl.dispose();
+    _settleCtrl.dispose();
     super.dispose();
   }
 
@@ -255,7 +269,13 @@ class _AlchemyFusionCinematicPageState<T>
   }
 
   void _maybeClose(AnimationStatus s) async {
-    if (s != AnimationStatus.completed || !_taskDone) return;
+    if (s != AnimationStatus.completed) return;
+    if (!_taskDone) {
+      // Landed early. Breathe until the result arrives rather than freezing.
+      if (!_settleCtrl.isAnimating) _settleCtrl.repeat(reverse: true);
+      return;
+    }
+    _settleCtrl.stop();
 
     try {
       await _flashCtrl.forward(from: 0);
@@ -302,15 +322,19 @@ class _AlchemyFusionCinematicPageState<T>
             anchored: anchored,
           );
 
-          final driver = widget.outcome == null
-              ? _ctrl
-              : Listenable.merge([_ctrl, widget.outcome!]);
+          final driver = Listenable.merge([
+            _ctrl,
+            _settleCtrl,
+            if (widget.outcome != null) widget.outcome!,
+          ]);
 
           return AnimatedBuilder(
             animation: driver,
             builder: (_, __) {
               final t = _ctrl.value;
               final outcome = widget.outcome?.value;
+              // Only ever non-zero in the wait after the timeline lands.
+              final settle = _settleCtrl.value;
 
               // Background darkens once the reaction takes focus; when
               // anchored we hold the live screen visible during intake.
@@ -327,120 +351,131 @@ class _AlchemyFusionCinematicPageState<T>
               final dx = math.sin(t * math.pi * 30) * amp;
               final dy = math.cos(t * math.pi * 24) * amp * .6;
 
-              return Stack(
-                children: [
-                  // Dimmer + vignette that fade in over the live screen.
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            center: Alignment(
-                              (coreC.dx / size.width) * 2 - 1,
-                              (coreC.dy / size.height) * 2 - 1,
+              // A slow swell around the landed reveal, anchored on the core
+              // so nothing appears to drift. Zero for the whole timeline;
+              // it only exists during the wait at the end.
+              return Transform.scale(
+                scale: 1 + 0.016 * settle,
+                origin: Offset.zero,
+                alignment: Alignment.topLeft,
+                child: Transform.translate(
+                  offset: coreC * (-0.016 * settle),
+                  child: Stack(
+                    children: [
+                      // Dimmer + vignette that fade in over the live screen.
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                center: Alignment(
+                                  (coreC.dx / size.width) * 2 - 1,
+                                  (coreC.dy / size.height) * 2 - 1,
+                                ),
+                                radius: 1.2,
+                                colors: [
+                                  // Lighter than it was (.45/.72/.90): the scrim
+                                  // is here to isolate the pair, and it was
+                                  // hiding them.
+                                  Colors.black.withValues(alpha: .30 * bg),
+                                  Colors.black.withValues(alpha: .58 * bg),
+                                  Colors.black.withValues(alpha: .82 * bg),
+                                ],
+                                stops: const [0.25, 0.65, 1.0],
+                              ),
                             ),
-                            radius: 1.2,
-                            colors: [
-                              // Lighter than it was (.45/.72/.90): the scrim
-                              // is here to isolate the pair, and it was
-                              // hiding them.
-                              Colors.black.withValues(alpha: .30 * bg),
-                              Colors.black.withValues(alpha: .58 * bg),
-                              Colors.black.withValues(alpha: .82 * bg),
+                          ),
+                        ),
+                      ),
+
+                      Transform.translate(
+                        offset: Offset(dx, dy),
+                        child: Stack(
+                          children: [
+                            // Chamber apparatus, conduits, arcs, vortex, vial.
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: _ChamberPainter(
+                                  t: t,
+                                  a: widget.leftColor,
+                                  b: widget.rightColor,
+                                  layout: layout,
+                                  outcome: outcome,
+                                  drawChambers: widget.drawSpecimens,
+                                ),
+                              ),
+                            ),
+
+                            // THE SPECIMENS ARE ONLY DRAWN HERE IF NOBODY ELSE
+                            // HAS THEM.
+                            //
+                            // The breed chamber now performs the merge on its own
+                            // live slot widgets and hands over once the pair have
+                            // gone into the core — so drawing them again here
+                            // would be the duplicate this whole change exists to
+                            // remove. Hosts with no chamber to animate (and the
+                            // wilderness encounter, which has no slots at all)
+                            // still pass them and still get them drawn.
+                            if (widget.drawSpecimens) ...[
+                              _SpecimenAt(
+                                t: t,
+                                sprite: widget.leftSprite,
+                                color: widget.leftColor,
+                                from: leftC,
+                                core: coreC,
+                              ),
+                              _SpecimenAt(
+                                t: t,
+                                sprite: widget.rightSprite,
+                                color: widget.rightColor,
+                                from: rightC,
+                                core: coreC,
+                              ),
                             ],
-                            stops: const [0.25, 0.65, 1.0],
-                          ),
+                          ],
                         ),
                       ),
-                    ),
-                  ),
 
-                  Transform.translate(
-                    offset: Offset(dx, dy),
-                    child: Stack(
-                      children: [
-                        // Chamber apparatus, conduits, arcs, vortex, vial.
-                        Positioned.fill(
-                          child: CustomPaint(
-                            painter: _ChamberPainter(
-                              t: t,
-                              a: widget.leftColor,
-                              b: widget.rightColor,
-                              layout: layout,
-                              outcome: outcome,
-                              drawChambers: widget.drawSpecimens,
+                      // Final settle flash.
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: FadeTransition(
+                            opacity: _flashCtrl.drive(
+                              CurveTween(curve: Curves.easeOut),
+                            ),
+                            child: const DecoratedBox(
+                              decoration: BoxDecoration(color: Colors.white),
                             ),
                           ),
                         ),
+                      ),
 
-                        // THE SPECIMENS ARE ONLY DRAWN HERE IF NOBODY ELSE
-                        // HAS THEM.
-                        //
-                        // The breed chamber now performs the merge on its own
-                        // live slot widgets and hands over once the pair have
-                        // gone into the core — so drawing them again here
-                        // would be the duplicate this whole change exists to
-                        // remove. Hosts with no chamber to animate (and the
-                        // wilderness encounter, which has no slots at all)
-                        // still pass them and still get them drawn.
-                        if (widget.drawSpecimens) ...[
-                          _SpecimenAt(
-                            t: t,
-                            sprite: widget.leftSprite,
-                            color: widget.leftColor,
-                            from: leftC,
-                            core: coreC,
-                          ),
-                          _SpecimenAt(
-                            t: t,
-                            sprite: widget.rightSprite,
-                            color: widget.rightColor,
-                            from: rightC,
-                            core: coreC,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  // Final settle flash.
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: FadeTransition(
-                        opacity: _flashCtrl.drive(
-                          CurveTween(curve: Curves.easeOut),
-                        ),
-                        child: const DecoratedBox(
-                          decoration: BoxDecoration(color: Colors.white),
+                      // Phase label.
+                      Positioned(
+                        bottom: 36,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: _PhaseLabel(t: t, outcome: outcome),
                         ),
                       ),
-                    ),
-                  ),
 
-                  // Phase label.
-                  Positioned(
-                    bottom: 36,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: _PhaseLabel(t: t, outcome: outcome),
-                    ),
+                      // Skip control — bottom right, where the hatching
+                      // cinematic puts its own. Two ceremonies a minute apart
+                      // should not hide the same control in two places.
+                      if (widget.allowSkip)
+                        Positioned(
+                          bottom: 24,
+                          right: 24,
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 200),
+                            opacity: _skipped ? 0.0 : 1.0,
+                            child: _SkipButton(onTap: _skip),
+                          ),
+                        ),
+                    ],
                   ),
-
-                  // Skip control — bottom right, where the hatching
-                  // cinematic puts its own. Two ceremonies a minute apart
-                  // should not hide the same control in two places.
-                  if (widget.allowSkip)
-                    Positioned(
-                      bottom: 24,
-                      right: 24,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 200),
-                        opacity: _skipped ? 0.0 : 1.0,
-                        child: _SkipButton(onTap: _skip),
-                      ),
-                    ),
-                ],
+                ),
               );
             },
           );
