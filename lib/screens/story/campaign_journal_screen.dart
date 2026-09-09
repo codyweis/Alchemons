@@ -347,6 +347,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
 
   Widget achievement(CampaignSnapshot s, CampaignAchievement a) {
     final fc = FC.of(context);
+    final spoiler = s.isSpoiler(a);
     final collected = s.claimed.contains(a.id) || _collecting.contains(a.id);
     final ready = s.earned(a) && !collected;
     final accent = collected
@@ -380,7 +381,9 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        a.title,
+                        // Still shows the reward and the row, so the player
+                        // knows something is there — just not what it is.
+                        spoiler ? 'Undiscovered' : a.title,
                         style: TextStyle(
                           color: collected ? fc.textMuted : fc.textPrimary,
                           fontSize: 15,
@@ -389,7 +392,9 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        a.description,
+                        spoiler
+                            ? 'Continue the main story to reveal this.'
+                            : a.description,
                         style: TextStyle(
                           color: fc.textMuted,
                           fontSize: 12,

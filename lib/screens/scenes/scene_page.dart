@@ -25,6 +25,7 @@ import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/widgets/wilderness/wilderness_controls.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flame/game.dart';
@@ -439,16 +440,16 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     );
   }
 
-  Future<void> _showSuccessDialog() async {
-    await LandscapeDialog.show(
+  /// The full-screen dialog is the game's story voice — it is how the
+  /// wilderness says "trees and valleys are absent in this universe". Using it
+  /// to confirm a fusion put an outcome in the same register as a revelation,
+  /// and handed the player a modal describing what they had just watched
+  /// happen, immediately before taking them to the chamber to look at it.
+  void _announceFusion() {
+    showGameSnack(
       context,
-      title: 'Fusion Successful!',
-      message: 'Your new Alchemon is cultivating in the chamber.',
-      typewriter: false,
-      kind: LandscapeDialogKind.success,
+      'Your new Alchemon is cultivating in the chamber',
       icon: AppIcons.check_circle_rounded,
-      primaryLabel: 'Return to Lab',
-      barrierDismissible: false,
     );
   }
 
@@ -466,17 +467,15 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     );
   }
 
-  Future<void> _showPureWildDialog() async {
-    await LandscapeDialog.show(
+  /// A rule of the game, not a story beat — so it is told the way every other
+  /// rule is, and it no longer holds the end of the capture tutorial behind an
+  /// acknowledgement.
+  void _announcePureWild() {
+    showGameSnack(
       context,
-      title: 'Pure Wild Specimen',
-      message:
-          'Wild Alchemons are pure by default. Harvest them for pure replicas, or fuse with them for different results.',
-      typewriter: false,
-      kind: LandscapeDialogKind.success,
+      'Wild Alchemons are pure — harvest for a pure replica, or fuse for something new',
       icon: AppIcons.auto_awesome_rounded,
-      primaryLabel: 'Return to Cultivations',
-      barrierDismissible: false,
+      duration: const Duration(seconds: 5),
     );
   }
 
@@ -1402,7 +1401,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                         _syncSpawnsFromService();
 
                         if (_isCaptureTutorialScene && mounted) {
-                          await _showPureWildDialog();
+                          _announcePureWild();
                           if (!mounted) return;
                           await OpeningWildernessService.completeCaptureTutorial(
                             _db.settingsDao,
@@ -1434,7 +1433,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                         // Handle the first wilderness fusion tutorial after everything
                         if (!widget.isTutorial || !mounted) return;
 
-                        await _showSuccessDialog();
+                        _announceFusion();
                         if (!mounted) return;
 
                         final settingsDao = _db.settingsDao;

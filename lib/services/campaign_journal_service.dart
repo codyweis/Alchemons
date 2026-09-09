@@ -300,8 +300,11 @@ final campaignMissions = [
 
 const campaignMissionInstructions = {
   'first_extraction': 'Open your Chamber and extract the starter vial.',
+  // Deliberately does not name what is waiting. This is the first objective a
+  // new player reads, and it used to give away the discovery it is sending
+  // them to make.
   'ship':
-      'Finish the wilderness fusion and harvest. Visit Valley, Sky, Swamp, and Volcano, then return to Valley to recover the ship.',
+      'Finish the wilderness fusion and harvest. Visit Valley, Sky, Swamp and Volcano, then return to Valley — something there did not survive the crossing intact.',
   'revelation':
       'In cosmic space, complete a planet’s elemental gate offering. Assemble its required descent party and enter.',
   'guardian_1':
@@ -336,6 +339,21 @@ class CampaignSnapshot {
     }
     return null;
   }
+
+  /// A story beat that has not happened yet.
+  ///
+  /// The achievements list was printing every unearned mission in full, so the
+  /// cosmic ship and the names of both final rituals were readable from a
+  /// brand new save. The two lists have different jobs and this is the line
+  /// between them: the chapter list tells you what to do next, so it reveals
+  /// the current objective; the achievements list is a record of what you have
+  /// done, so it names nothing you have not done.
+  ///
+  /// Only main-story missions are protected. Collecting fifty species or
+  /// clearing wave 20 is a goal, not a secret, and hiding those would make the
+  /// list useless.
+  bool isSpoiler(CampaignAchievement a) =>
+      !earned(a) && campaignMissionIds.contains(a.id);
 
   String get objective => currentMission == null
       ? 'The ritual is complete. The collection remains. Survival, contests, rites, constellations, and exploration are yours to continue.'
