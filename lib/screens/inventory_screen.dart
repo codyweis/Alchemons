@@ -157,24 +157,35 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: Colors.transparent,
         body: SafeArea(
           bottom: false,
-          child: Column(
-            children: [
-              _buildHeader(theme),
-              AnimatedBuilder(
-                animation: _tabController,
-                builder: (context, _) => _buildTabSelector(theme),
-              ),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildVialsTab(theme),
-                    _buildItemsTab(theme),
-                    _buildKeyItemsTab(theme),
-                  ],
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverToBoxAdapter(child: _buildHeader(theme)),
+              SliverOverlapAbsorber(
+                handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
+                  context,
+                ),
+                sliver: SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _InventoryTabsHeaderDelegate(
+                    child: ColoredBox(
+                      color: _InventoryPalette.fromTheme(theme).bg0,
+                      child: AnimatedBuilder(
+                        animation: _tabController,
+                        builder: (context, _) => _buildTabSelector(theme),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildVialsTab(theme),
+                _buildItemsTab(theme),
+                _buildKeyItemsTab(theme),
+              ],
+            ),
           ),
         ),
       ),
@@ -366,7 +377,8 @@ class _InventoryScreenState extends State<InventoryScreen>
           );
         }
 
-        return GridView.builder(
+        return _buildInventoryGrid(
+          storageKey: 'inventory-items',
           padding: const EdgeInsets.all(12),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
@@ -418,7 +430,8 @@ class _InventoryScreenState extends State<InventoryScreen>
           );
         }
 
-        return GridView.builder(
+        return _buildInventoryGrid(
+          storageKey: 'inventory-special',
           padding: const EdgeInsets.all(12),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
@@ -505,7 +518,8 @@ class _InventoryScreenState extends State<InventoryScreen>
             .whereType<ExtractionVial>()
             .toList();
 
-        return GridView.builder(
+        return _buildInventoryGrid(
+          storageKey: 'inventory-vials',
           padding: const EdgeInsets.all(12),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
@@ -526,38 +540,86 @@ class _InventoryScreenState extends State<InventoryScreen>
     );
   }
 
+  Widget _buildInventoryScroll({
+    required String storageKey,
+    required Widget sliver,
+  }) {
+    return Builder(
+      builder: (context) => CustomScrollView(
+        key: PageStorageKey<String>(storageKey),
+        primary: true,
+        slivers: [
+          SliverOverlapInjector(
+            handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+          ),
+          sliver,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInventoryGrid({
+    required String storageKey,
+    required EdgeInsets padding,
+    required SliverGridDelegate gridDelegate,
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  }) => _buildInventoryScroll(
+    storageKey: storageKey,
+    sliver: SliverPadding(
+      padding: padding,
+      sliver: SliverGrid(
+        gridDelegate: gridDelegate,
+        delegate: SliverChildBuilderDelegate(
+          itemBuilder,
+          childCount: itemCount,
+        ),
+      ),
+    ),
+  );
+
   Widget _buildEmptyState(
     FactionTheme theme, {
     required IconData icon,
     required String message,
     required String subtitle,
   }) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 80, color: theme.textMuted.withValues(alpha: 0.3)),
-            const SizedBox(height: 20),
-            Text(
-              message,
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
+    return _buildInventoryScroll(
+      storageKey: 'inventory-empty-$message',
+      sliver: SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 80,
+                  color: theme.textMuted.withValues(alpha: 0.3),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: theme.textMuted.withValues(alpha: 0.7),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: TextStyle(
-                color: theme.textMuted.withValues(alpha: 0.7),
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1246,6 +1308,30 @@ class _InventoryScreenState extends State<InventoryScreen>
       ),
     );
   }
+}
+
+class _InventoryTabsHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const _InventoryTabsHeaderDelegate({required this.child});
+
+  final Widget child;
+
+  // The 44px tabs plus their 6px top and 10px bottom padding.
+  @override
+  double get minExtent => 60;
+
+  @override
+  double get maxExtent => 60;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => child;
+
+  @override
+  bool shouldRebuild(covariant _InventoryTabsHeaderDelegate oldDelegate) =>
+      oldDelegate.child != child;
 }
 
 // ===== CLEAN ITEM CARD (like shop cards) =====
