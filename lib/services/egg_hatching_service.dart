@@ -649,10 +649,8 @@ class EggHatching {
     // Counted here because this is the one place that knows the finished
     // specimen, its family, its purity and whether it was a first discovery.
     final family = offspring.mutationFamily?.toLowerCase();
-    if (family == 'let') {
-      await CampaignJournalService.bump(db.settingsDao, 'fuseLet');
-    } else if (family == 'pip') {
-      await CampaignJournalService.bump(db.settingsDao, 'fusePip');
+    if (family != null && kFusionFamilies.contains(family)) {
+      await CampaignJournalService.bump(db.settingsDao, fusionMetric(family));
     }
     // "Breeds true": a first sighting whose lineage is a single element, out
     // of two parents that were not the same species. Two of a kind producing

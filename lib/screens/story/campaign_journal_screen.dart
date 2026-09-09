@@ -166,7 +166,13 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     const collection = {'collection', 'fuse_', 'pure_'};
     if (collection.any(a.id.startsWith)) return 'Collection';
     if (a.id.startsWith('survival')) return 'Survival';
-    const exploration = {'planets', 'raid', 'portal', 'maxim'};
+    const exploration = {
+      'planets',
+      'raid',
+      'portal',
+      'maxim',
+      'constellation',
+    };
     if (exploration.any(a.id.startsWith)) return 'Exploration';
     return 'Challenges';
   }

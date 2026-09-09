@@ -1,3 +1,4 @@
+import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'dart:convert';
@@ -72,10 +73,24 @@ const campaignEntries = [
 /// place the thing happens. Kept in one map so the metric name, the storage
 /// key and the read all come from a single line — a counter that is written
 /// under one key and read under another fails silently forever.
-const kCampaignCounters = <String, String>{
+/// The mutation families with a "cultivate five" achievement.
+///
+/// Generated rather than hand-written: six near-identical entries invite the
+/// copy-paste slip where one keeps the previous family's metric and silently
+/// never completes. Adding the seventh family is one word here.
+const kFusionFamilies = <String>['let', 'pip', 'horn', 'mask', 'wing', 'kin'];
+
+/// The metric name for a family's cultivation counter.
+String fusionMetric(String family) =>
+    'fuse${family[0].toUpperCase()}${family.substring(1)}';
+
+/// Every skill on every constellation tree.
+final kConstellationSkillCount = ConstellationCatalog.allSkills.length;
+
+final kCampaignCounters = <String, String>{
+  for (final f in kFusionFamilies)
+    fusionMetric(f): 'campaign_fuse_family_${f}_v1',
   'raids': 'campaign_raids_won_v1',
-  'fuseLet': 'campaign_fuse_family_let_v1',
-  'fusePip': 'campaign_fuse_family_pip_v1',
   'wildFusions': 'campaign_wild_fusions_v1',
   'wildHarvests': 'campaign_wild_harvests_v1',
   'biomeHarvest': 'campaign_biome_harvest_v1',
@@ -118,7 +133,7 @@ class CampaignAchievement {
   final Map<String, int> resources;
 }
 
-const campaignAchievements = [
+final campaignAchievements = <CampaignAchievement>[
   CampaignAchievement(
     'blood_guardian',
     'The last guardian',
@@ -257,26 +272,18 @@ const campaignAchievements = [
     1000,
   ),
   // ── Practice: the systems, taught by paying you in them ───────────────────
-  CampaignAchievement(
-    'fuse_let_5',
-    'A lineage of lets',
-    'Cultivate 5 Alchemons of the Let family.',
-    'fuseLet',
-    5,
-    0,
-    250,
-    items: {InvKeys.instantHatch: 1},
-  ),
-  CampaignAchievement(
-    'fuse_pip_5',
-    'A lineage of pips',
-    'Cultivate 5 Alchemons of the Pip family.',
-    'fusePip',
-    5,
-    0,
-    250,
-    items: {InvKeys.instantHatch: 1},
-  ),
+  for (final f in kFusionFamilies)
+    CampaignAchievement(
+      'fuse_${f}_5',
+      'A lineage of ${f}s',
+      'Cultivate 5 Alchemons of the '
+          '${f[0].toUpperCase()}${f.substring(1)} family.',
+      fusionMetric(f),
+      5,
+      0,
+      250,
+      items: {InvKeys.instantHatch: 1},
+    ),
   CampaignAchievement(
     'pure_new_species',
     'Something that breeds true',
@@ -430,6 +437,24 @@ const campaignAchievements = [
     5,
     1500,
     items: {InvKeys.potentialSoul: 5},
+  ),
+  CampaignAchievement(
+    'constellation_1',
+    'The first star',
+    'Unlock a constellation skill.',
+    'constellations',
+    1,
+    1,
+    200,
+  ),
+  CampaignAchievement(
+    'constellation_all',
+    'The sky remembered',
+    'Unlock every constellation skill.',
+    'constellations',
+    kConstellationSkillCount,
+    100,
+    5000,
   ),
   CampaignAchievement(
     'raid_1',
@@ -614,6 +639,7 @@ class CampaignJournalService {
     final settings = {
       for (final r in await db.select(db.settings).get()) r.key: r.value,
     };
+    final unlockedSkills = await db.constellationDao.getUnlockedSkillIds();
     final prefs = await SharedPreferences.getInstance();
     final stars = PlanetStarState.deserialise(
       prefs.getString('cosmic_planet_stars') ?? '',
@@ -677,6 +703,7 @@ class CampaignJournalService {
       ).discoveredIndices.length,
       // Maxims are already persisted as 'egg:'-prefixed discovered clouds, so
       // this needs no counter of its own.
+      'constellations': unlockedSkills.length,
       'maxims': kCosmicPlanetEntry.keys
           .expand(stars.discoveredCloudsFor)
           .where((id) => id.startsWith('egg:'))
