@@ -10,6 +10,9 @@ import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
+import 'package:alchemons/constants/element_resources.dart';
+import 'package:alchemons/widgets/element_resource_glyph.dart';
+import 'package:alchemons/widgets/inventory_item_artwork.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
@@ -156,6 +159,9 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     if (campaignMissionIds.contains(a.id)) return 'Story';
     if (a.id.startsWith('collection')) return 'Collection';
     if (a.id.startsWith('survival')) return 'Survival';
+    if (a.id.startsWith('planets') || a.id.startsWith('raid')) {
+      return 'Exploration';
+    }
     return 'Challenges';
   }
 
@@ -163,6 +169,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     'Story' => AppIcons.menu_book_rounded,
     'Collection' => AppIcons.grid_view_rounded,
     'Survival' => AppIcons.shield_outlined,
+    'Exploration' => AppIcons.travel_explore_rounded,
     _ => AppIcons.emoji_events_outlined,
   };
 
@@ -189,14 +196,36 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
       ],
     );
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // Items and resources are drawn with their own artwork, because a reward
+    // the player cannot picture is not much of a reward — and the glyphs
+    // already exist everywhere else these items appear.
+    return Wrap(
+      spacing: 12,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         if (a.gold > 0)
           coin(CoinIcon.gold(size: size + 2), a.gold, fc.rewardGold),
-        if (a.gold > 0 && a.silver > 0) const SizedBox(width: 12),
         if (a.silver > 0)
           coin(CoinIcon.silver(size: size + 2), a.silver, fc.rewardSilver),
+        for (final entry in a.items.entries)
+          coin(
+            InventoryItemArtwork(inventoryKey: entry.key, size: size + 5),
+            entry.value,
+            fc.textSecondary,
+          ),
+        for (final entry in a.resources.entries)
+          if (ElementResources.byKey[entry.key] != null)
+            coin(
+              ElementResourceGlyph(
+                biomeId: ElementResources.byKey[entry.key]!.biomeId,
+                color: ElementResources.byKey[entry.key]!.color,
+                size: size + 5,
+                animate: false,
+              ),
+              entry.value,
+              ElementResources.byKey[entry.key]!.color,
+            ),
       ],
     );
   }
@@ -1022,6 +1051,7 @@ class _FilterRow extends StatelessWidget {
     'All',
     'Collection',
     'Story',
+    'Exploration',
     'Survival',
     'Challenges',
   ];

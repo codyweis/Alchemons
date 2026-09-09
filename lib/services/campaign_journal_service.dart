@@ -1,3 +1,4 @@
+import 'package:alchemons/models/inventory.dart';
 import 'dart:convert';
 import 'dart:math';
 
@@ -72,10 +73,20 @@ class CampaignAchievement {
     this.metric,
     this.target,
     this.gold,
-    this.silver,
-  );
+    this.silver, {
+    this.items = const {},
+    this.resources = const {},
+  });
   final String id, title, description, metric;
   final int target, gold, silver;
+
+  /// Inventory keys to grant, by quantity. Coins alone cannot express "an
+  /// extractor for finishing five fusions" — the reward for learning a system
+  /// should be the thing that system uses.
+  final Map<String, int> items;
+
+  /// Element resource keys ('res_volcanic' and friends), by quantity.
+  final Map<String, int> resources;
 }
 
 const campaignAchievements = [
@@ -85,8 +96,8 @@ const campaignAchievements = [
     'Overcome Sanguorath on Hemavorn.',
     'bloodGuardian',
     1,
-    4,
-    500,
+    1,
+    700,
   ),
   CampaignAchievement(
     'witnesses_16',
@@ -94,8 +105,8 @@ const campaignAchievements = [
     'Complete all 16 non-Blood Mystic rituals.',
     'witnesses',
     16,
-    8,
-    1000,
+    1,
+    800,
   ),
   CampaignAchievement(
     'blood_mystic',
@@ -103,8 +114,8 @@ const campaignAchievements = [
     'Complete the Blood Mystic ritual.',
     'bloodMystic',
     1,
-    5,
-    750,
+    1,
+    900,
   ),
   CampaignAchievement(
     'collection_10',
@@ -114,6 +125,7 @@ const campaignAchievements = [
     10,
     1,
     100,
+    items: {InvKeys.staminaPotion: 1},
   ),
   CampaignAchievement(
     'collection_25',
@@ -148,8 +160,9 @@ const campaignAchievements = [
     'Discover every catalog species.',
     'collectionPercent',
     100,
-    10,
-    1500,
+    // The longest task in the game paid less than a single portal key.
+    100,
+    5000,
   ),
   CampaignAchievement(
     'first_extraction',
@@ -166,7 +179,7 @@ const campaignAchievements = [
     'Recover the cosmic ship.',
     'ship',
     1,
-    2,
+    1,
     200,
   ),
   CampaignAchievement(
@@ -175,8 +188,8 @@ const campaignAchievements = [
     'Witness the first planetary revelation.',
     'revelation',
     1,
-    2,
-    250,
+    1,
+    300,
   ),
   CampaignAchievement(
     'guardian_1',
@@ -184,8 +197,8 @@ const campaignAchievements = [
     'Overcome a planetary guardian.',
     'guardians',
     1,
-    2,
-    250,
+    1,
+    400,
   ),
   CampaignAchievement(
     'guardian_16',
@@ -193,8 +206,8 @@ const campaignAchievements = [
     'Overcome all 16 non-Blood guardians.',
     'guardians',
     16,
-    8,
-    1000,
+    1,
+    600,
   ),
   CampaignAchievement(
     'mystic_1',
@@ -202,8 +215,8 @@ const campaignAchievements = [
     'Complete a Mystic summoning ritual.',
     'mystics',
     1,
-    2,
-    250,
+    1,
+    500,
   ),
   CampaignAchievement(
     'ending',
@@ -211,9 +224,48 @@ const campaignAchievements = [
     'Complete the Blood Ring ritual.',
     'ending',
     1,
-    10,
-    1500,
+    1,
+    1000,
   ),
+  // ── Exploration ───────────────────────────────────────────────────────────
+  CampaignAchievement(
+    'planets_1',
+    'First landfall',
+    'Discover a planet in cosmic space.',
+    'planets',
+    1,
+    1,
+    200,
+  ),
+  CampaignAchievement(
+    'planets_10',
+    'Ten worlds charted',
+    'Discover 10 planets.',
+    'planets',
+    10,
+    2,
+    500,
+  ),
+  CampaignAchievement(
+    'planets_all',
+    'The whole sky',
+    'Discover every planet.',
+    'planets',
+    17,
+    3,
+    1000,
+  ),
+  CampaignAchievement(
+    'raid_1',
+    'Answered the beacon',
+    'Win a planetary raid.',
+    'raids',
+    1,
+    2,
+    300,
+    items: {InvKeys.raidBeacon: 1},
+  ),
+
   CampaignAchievement(
     'survival_20',
     'Through the plague',
@@ -442,6 +494,13 @@ class CampaignJournalService {
         max(0, reached - 1),
         int.tryParse(settings['campaign_survival_cleared_v1'] ?? '') ?? 0,
       ),
+      // Read straight off the saved fog state, which is where cosmic space
+      // already records what the player has found.
+      'planets': CosmicFogState.deserialise(
+        prefs.getString('cosmic_fog_state_v2') ?? '',
+      ).discoveredIndices.length,
+      'raids':
+          int.tryParse(settings['campaign_raids_won_v1'] ?? '') ?? 0,
       'rites':
           (int.tryParse(settings['pureblood_rite_stage_index_v2'] ?? '') ?? 0) +
           (int.tryParse(settings['campaign_weekly_rites_v1'] ?? '') ?? 0),
@@ -486,8 +545,14 @@ class CampaignJournalService {
     final snapshot = await load();
     if (!snapshot.earned(a) || snapshot.claimed.contains(id)) return false;
     await db.settingsDao.setSetting('campaign_claim_$id', '1');
-    await db.currencyDao.addGold(a.gold);
-    await db.currencyDao.addSilver(a.silver);
+    if (a.gold > 0) await db.currencyDao.addGold(a.gold);
+    if (a.silver > 0) await db.currencyDao.addSilver(a.silver);
+    for (final entry in a.items.entries) {
+      await db.inventoryDao.addItemQty(entry.key, entry.value);
+    }
+    for (final entry in a.resources.entries) {
+      await db.currencyDao.addResource(entry.key, entry.value);
+    }
     return true;
   });
 }
