@@ -15,6 +15,10 @@ import 'package:alchemons/screens/debug/dungeon_debug_screen.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/widgets/campaign_rewards_button.dart';
 import 'package:alchemons/services/account_service.dart';
+import 'package:alchemons/services/progress_reset_service.dart';
+import 'package:alchemons/widgets/reset_progress_dialog.dart';
+import 'package:alchemons/services/mobile_store_service.dart';
+import 'package:alchemons/services/device_identity_service.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
 import 'package:alchemons/services/account_session_service.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -447,6 +451,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (error) {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       _showTransferSnack('Account creation failed: $error', isError: true);
+    }
+  }
+
+  bool _resetBusy = false;
+
+  Future<void> _resetProgress() async {
+    if (_resetBusy) return;
+    setState(() => _resetBusy = true);
+    final account = context.read<AccountService>();
+    final store = context.read<MobileStoreService>();
+    final reset = ProgressResetService(context.read<AlchemonsDatabase>());
+    final uid = account.user?.uid;
+    try {
+      if (!account.initialized) {
+        throw StateError('Please wait for your account to finish loading.');
+      }
+      final deviceId = await context
+          .read<DeviceIdentityService>()
+          .getDeviceId();
+      await store.pauseForReset();
+      final preview = uid == null ? null : await reset.preview(deviceId);
+      if (!mounted) return;
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (context) => ResetProgressDialog(
+          purchasedGold: (preview?['goldAmount'] as num?)?.toInt(),
+        ),
+      );
+      if (!mounted) return;
+      if (choice == 'sign-in') {
+        store.cancelResetPause();
+        await _signInAccount();
+      } else if (choice == 'reset') {
+        if (account.user?.uid != uid) {
+          throw StateError('Your account changed. Review the reset again.');
+        }
+        await store.pauseForReset();
+        await reset.request(uid: uid, deviceId: deviceId, preview: preview);
+      }
+    } catch (error) {
+      if (mounted) {
+        _showTransferSnack('Reset could not start: $error', isError: true);
+      }
+    } finally {
+      store.cancelResetPause();
+      if (mounted) setState(() => _resetBusy = false);
     }
   }
 
@@ -1707,6 +1757,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 24),
+                  const _EtchedDivider(label: 'RESET PROGRESS'),
+                  const SizedBox(height: 14),
+                  _ForgePanel(
+                    accentBar: t.amber,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Start a fresh game. Your account and verified gold purchases are kept.',
+                          style: _body(t),
+                        ),
+                        const SizedBox(height: 12),
+                        _ForgeButton(
+                          label: _resetBusy ? 'CHECKING…' : 'RESET PROGRESS',
+                          icon: Icons.restart_alt,
+                          onTap: _resetBusy
+                              ? null
+                              : context.soundAction(_resetProgress),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   const _EtchedDivider(label: 'DEVELOPER'),
                   const SizedBox(height: 14),

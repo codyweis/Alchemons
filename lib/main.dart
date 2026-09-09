@@ -2,6 +2,9 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/audio/scene_ambience.dart';
 import 'package:alchemons/audio/navigation_sounds.dart';
 import 'dart:async';
+import 'package:alchemons/widgets/progress_reset_host.dart';
+import 'package:alchemons/services/progress_reset_service.dart';
+import 'package:alchemons/services/mobile_store_service.dart';
 import 'dart:ui';
 
 import 'package:alchemons/models/encounters/encounter_pool.dart';
@@ -32,7 +35,6 @@ import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'database/alchemons_db.dart';
 import 'database/db_helper.dart';
 import 'firebase_options.dart';
@@ -80,15 +82,21 @@ void main() async {
   final catalog = CreatureCatalog();
   await catalog.load();
 
-  final gameData = GameDataService(db: db, catalog: catalog);
-  await gameData.init();
-
   // Register built-in effect factories so the registry is available globally.
   registerDefaultEffects();
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
-  runApp(AlchemonsApp(db: db, gameDataService: gameData));
+  runApp(
+    ProgressResetHost(
+      db: db,
+      buildGame: () async {
+        final gameData = GameDataService(db: db, catalog: catalog);
+        await gameData.init();
+        return AlchemonsApp(db: db, gameDataService: gameData);
+      },
+    ),
+  );
 }
 
 class AlchemonsApp extends StatelessWidget {
@@ -233,7 +241,14 @@ class _AppGateState extends State<AppGate> {
     // 0) Ask returning players if they want to sign in and restore a cloud
     // backup. If they do, the restored save brings its own faction/progress,
     // so we skip the story intro and faction picker entirely.
-    final restored = await runFirstLaunchAccountRestore(context);
+    final db = context.read<AlchemonsDatabase>();
+    final resetOnboarding =
+        await db.settingsDao.getSetting(ProgressResetService.onboardingKey) ==
+        '1';
+    if (!mounted) return;
+    final restored = resetOnboarding
+        ? false
+        : await runFirstLaunchAccountRestore(context);
     if (!mounted) return;
     if (restored) {
       await factionSvc.loadId();
@@ -550,38 +565,17 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
     if (confirmed != true || !mounted) return;
 
     final db = context.read<AlchemonsDatabase>();
-    final account = context.read<AccountService>();
-    final factionSvc = context.read<FactionService>();
-    final navigator = Navigator.of(context);
-
+    final store = context.read<MobileStoreService>();
+    final deviceId = context.read<AccountSessionService>().deviceId ?? 'local';
     setState(() => _busy = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
-      await db.resetToNewGame();
-      await account.signOut();
-
-      final completed = await navigator.push<bool>(
-        CupertinoPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => const StoryIntroScreen(),
-        ),
-      );
-      if (!mounted || completed != true) return;
-
-      final selected = await showDialog<FactionId>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const FactionPickerDialog(),
-      );
-      if (!mounted || selected == null) return;
-
-      await factionSvc.setId(selected);
-      showAppSnack('New local game started.');
+      await store.pauseForReset();
+      await ProgressResetService(db).request(deviceId: deviceId, signOut: true);
     } catch (error) {
       if (!mounted) return;
       showAppSnack(error.toString(), isError: true);
     } finally {
+      store.cancelResetPause();
       if (mounted) setState(() => _busy = false);
     }
   }

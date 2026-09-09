@@ -150,6 +150,20 @@ class MobileStoreService extends ChangeNotifier {
 
   /// Purchases that are paid for but not yet confirmed by the server.
   int get pendingRedeemCount => _pendingRedeemCount;
+  bool get hasUnsettledPurchases =>
+      _draining || _pendingProductIds.isNotEmpty || _pendingRedeemCount > 0;
+  bool _resetPaused = false;
+  Future<void> pauseForReset() async {
+    _resetPaused = true;
+    if (hasUnsettledPurchases || (await _readQueue()).isNotEmpty) {
+      _resetPaused = false;
+      throw StateError(
+        'Please wait for your pending purchase to finish before resetting.',
+      );
+    }
+  }
+
+  void cancelResetPause() => _resetPaused = false;
 
   /// Gold packs are tied to an account so the purchase can be verified and
   /// restored later. Without one there is nothing to credit the receipt to.
@@ -224,6 +238,7 @@ class MobileStoreService extends ChangeNotifier {
   }
 
   Future<bool> purchaseGoldPack(String productId) async {
+    if (_resetPaused) return false;
     if (requiresSignIn) {
       _lastError =
           'Sign in to your Alchemons account before buying gold, so the '
@@ -331,6 +346,11 @@ class MobileStoreService extends ChangeNotifier {
   /// Safe to call whenever: on launch, after a purchase, and whenever the
   /// signed-in account changes.
   Future<void> drainPendingRedeems() async {
+    if (_resetPaused) return;
+    final resetPrefs = await SharedPreferences.getInstance();
+    if (_resetPaused || resetPrefs.containsKey('account.reset_pending.v1')) {
+      return;
+    }
     if (_draining) {
       // A purchase landed while we were working. Make sure the drain in flight
       // takes another pass rather than leaving it queued until the next launch.
@@ -376,10 +396,11 @@ class MobileStoreService extends ChangeNotifier {
           // server says it had seen this transaction before. That case means
           // an earlier attempt landed but its reply was lost, and the player is
           // still owed the gold.
-          if (await _db.settingsDao.getSetting(entry.localKey) != '1') {
-            await _db.currencyDao.creditPurchasedGold(outcome.goldAmount);
-            await _db.settingsDao.setSetting(entry.localKey, '1');
-          }
+          await _db.currencyDao.settleVerifiedPurchase(
+            localKey: entry.localKey,
+            amount: outcome.goldAmount,
+            includedInReset: outcome.includedInReset,
+          );
           settled.add(entry.localKey);
           break;
 

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:alchemons/services/save_generation_service.dart';
 
 class AccountCloudSaveException implements Exception {
   final String message;
@@ -47,6 +48,8 @@ class AccountCloudSaveService {
     required String saveCode,
   }) async {
     try {
+      final generation = SaveGenerationService.codeGeneration(saveCode);
+      await SaveGenerationService.validate(uid, generation);
       return await _firestore.runTransaction((transaction) async {
         final ref = _doc(uid);
         final snapshot = await transaction.get(ref);
@@ -55,6 +58,7 @@ class AccountCloudSaveService {
 
         transaction.set(ref, {
           'uid': uid,
+          'generation': generation,
           'sourceDeviceId': sourceDeviceId,
           'saveCode': saveCode,
           'revision': nextRevision,
@@ -73,7 +77,9 @@ class AccountCloudSaveService {
 
   Future<String> downloadSaveCode(String uid) async {
     try {
-      final snapshot = await _doc(uid).get();
+      final snapshot = await _doc(
+        uid,
+      ).get(const GetOptions(source: Source.server));
       final data = snapshot.data();
       if (data == null) {
         throw const AccountCloudSaveException(
@@ -88,6 +94,10 @@ class AccountCloudSaveService {
           'The stored account backup is incomplete.',
         );
       }
+      await SaveGenerationService.validate(
+        uid,
+        SaveGenerationService.codeGeneration(saveCode),
+      );
       return saveCode;
     } on FirebaseException catch (error) {
       throw AccountCloudSaveException(_friendlyFirestoreError(error));

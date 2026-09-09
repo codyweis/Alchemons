@@ -62,6 +62,7 @@ void main() {
       addTearDown(restored.close);
       await SaveTransferService(
         restored,
+        validateGeneration: (_, _) async {},
       ).importSaveCode(saveCode, ownerAccountId: 'buyer');
 
       expect(await restored.currencyDao.getGoldBalance(), start + 200);
@@ -106,6 +107,7 @@ void main() {
       addTearDown(restored.close);
       await SaveTransferService(
         restored,
+        validateGeneration: (_, _) async {},
       ).importSaveCode(saveCode, ownerAccountId: 'buyer');
 
       final prefs = await SharedPreferences.getInstance();

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/services/save_generation_service.dart';
 
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/device_identity_service.dart';
@@ -65,7 +67,11 @@ class AccountSessionState {
 }
 
 class AccountSessionService extends ChangeNotifier {
-  AccountSessionService(this._accountService, this._deviceIdentityService) {
+  AccountSessionService(
+    this._accountService,
+    this._deviceIdentityService,
+    this._db,
+  ) {
     _accountListener = _handleAccountChanged;
     _accountService.addListener(_accountListener!);
     unawaited(_handleAccountChanged());
@@ -73,6 +79,7 @@ class AccountSessionService extends ChangeNotifier {
 
   final AccountService _accountService;
   final DeviceIdentityService _deviceIdentityService;
+  final AlchemonsDatabase _db;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   VoidCallback? _accountListener;
@@ -81,6 +88,8 @@ class AccountSessionService extends ChangeNotifier {
   AccountSessionState _state = const AccountSessionState.idle();
   String? _deviceId;
   String? _currentUid;
+  bool _disposed = false;
+  int _snapshotRevision = 0;
 
   AccountSessionState get state => _state;
   String? get deviceId => _deviceId;
@@ -117,7 +126,7 @@ class AccountSessionService extends ChangeNotifier {
 
     try {
       final doc = await _doc(uid).get();
-      _applySnapshot(doc);
+      await _applySnapshot(doc);
     } on FirebaseException catch (error) {
       throw AccountSessionException(_friendlyFirestoreError(error));
     }
@@ -133,6 +142,8 @@ class AccountSessionService extends ChangeNotifier {
     final uid = user.uid;
 
     try {
+      final generation = await SaveGenerationService.local(_db);
+      await SaveGenerationService.validate(uid, generation);
       await _firestore.runTransaction((transaction) async {
         final ref = _doc(uid);
         final snapshot = await transaction.get(ref);
@@ -151,6 +162,7 @@ class AccountSessionService extends ChangeNotifier {
         transaction.set(
           ref,
           _sessionDocData(
+            generation: generation,
             activeDeviceId: _deviceId!,
             activeEmail: user.email,
             activeDisplayName: user.displayName,
@@ -182,7 +194,14 @@ class AccountSessionService extends ChangeNotifier {
     await refresh();
   }
 
-  void _applySnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
+  Future<void> _applySnapshot(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) async {
+    final revision = ++_snapshotRevision;
+    final localGeneration = await SaveGenerationService.local(_db);
+    if (_disposed || doc.id != _currentUid || revision != _snapshotRevision) {
+      return;
+    }
     final data = doc.data();
     if (data == null) {
       _state = const AccountSessionState.inactive();
@@ -194,7 +213,8 @@ class AccountSessionService extends ChangeNotifier {
     final status = (data['status'] as String?) ?? 'active';
     final pendingTransferId = data['pendingTransferId'] as String?;
     final updatedAt = (data['updatedAt'] as Timestamp?)?.toDate();
-    if (activeDeviceId == _deviceId) {
+    if (activeDeviceId == _deviceId &&
+        ((data['generation'] as num?)?.toInt() ?? 0) == localGeneration) {
       _state = AccountSessionState.active(
         activeDeviceId: activeDeviceId,
         status: status,
@@ -213,6 +233,7 @@ class AccountSessionService extends ChangeNotifier {
   }
 
   Map<String, Object?> _sessionDocData({
+    required int generation,
     required String activeDeviceId,
     required String? activeEmail,
     required String? activeDisplayName,
@@ -220,6 +241,7 @@ class AccountSessionService extends ChangeNotifier {
     String? pendingTransferId,
   }) {
     return <String, Object?>{
+      'generation': generation,
       'activeDeviceId': activeDeviceId,
       'activeEmail': activeEmail,
       'activeDisplayName': activeDisplayName,
@@ -250,6 +272,7 @@ class AccountSessionService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     final listener = _accountListener;
     if (listener != null) {
       _accountService.removeListener(listener);

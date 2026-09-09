@@ -102,6 +102,7 @@ class AppProviders extends StatelessWidget {
           create: (ctx) => AccountSessionService(
             ctx.read<AccountService>(),
             ctx.read<DeviceIdentityService>(),
+            ctx.read<AlchemonsDatabase>(),
           ),
         ),
 

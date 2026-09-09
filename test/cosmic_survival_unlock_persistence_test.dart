@@ -75,6 +75,7 @@ void main() {
 
       await SaveTransferService(
         restoredDb,
+        validateGeneration: (_, _) async {},
       ).importSaveCode(saveCode, ownerAccountId: 'account-a');
 
       expect(

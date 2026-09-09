@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:alchemons/services/save_generation_service.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,6 +39,8 @@ class AccountTransferService {
   }) async {
     final transferRef = _firestore.collection('account_transfers').doc();
     try {
+      final generation = SaveGenerationService.codeGeneration(saveCode);
+      await SaveGenerationService.validate(uid, generation);
       await _firestore.runTransaction((transaction) async {
         final sessionRef = _sessionDoc(uid);
         final sessionSnap = await transaction.get(sessionRef);
@@ -63,13 +66,18 @@ class AccountTransferService {
 
         transaction.set(transferRef, {
           'uid': uid,
+          'generation': generation,
           'sourceDeviceId': sourceDeviceId,
           'status': 'open',
           'createdAt': FieldValue.serverTimestamp(),
+          'targetDeviceId': null,
+          'consumedAt': null,
+          'cancelledAt': null,
         });
         transaction.set(
           sessionRef,
           _sessionDocData(
+            generation: generation,
             activeDeviceId: sourceDeviceId,
             activeEmail: activeEmail,
             activeDisplayName: activeDisplayName,
@@ -129,6 +137,8 @@ class AccountTransferService {
     required String transferCode,
   }) async {
     final parsed = parseTransferCode(transferCode);
+    final generation = SaveGenerationService.codeGeneration(parsed.saveCode);
+    await SaveGenerationService.validate(uid, generation);
 
     try {
       await _firestore.runTransaction((transaction) async {
@@ -141,6 +151,11 @@ class AccountTransferService {
 
         final ownerUid = transfer['uid'] as String?;
         final status = transfer['status'] as String?;
+        if (((transfer['generation'] as num?)?.toInt() ?? 0) != generation) {
+          throw const AccountTransferException(
+            'This transfer belongs to an older save.',
+          );
+        }
         if (ownerUid != uid) {
           throw const AccountTransferException(
             'This transfer belongs to a different account.',
@@ -164,6 +179,7 @@ class AccountTransferService {
         transaction.set(
           sessionRef,
           _sessionDocData(
+            generation: generation,
             activeDeviceId: targetDeviceId,
             activeEmail: session?['activeEmail'] as String?,
             activeDisplayName: session?['activeDisplayName'] as String?,
@@ -213,6 +229,7 @@ class AccountTransferService {
         transaction.set(
           sessionRef,
           _sessionDocData(
+            generation: (session?['generation'] as num?)?.toInt() ?? 0,
             activeDeviceId: sourceDeviceId,
             activeEmail: activeEmail,
             activeDisplayName: activeDisplayName,
@@ -234,6 +251,7 @@ class AccountTransferService {
   }
 
   Map<String, Object?> _sessionDocData({
+    required int generation,
     required String activeDeviceId,
     required String? activeEmail,
     required String? activeDisplayName,
@@ -241,6 +259,7 @@ class AccountTransferService {
     String? pendingTransferId,
   }) {
     return <String, Object?>{
+      'generation': generation,
       'activeDeviceId': activeDeviceId,
       'activeEmail': activeEmail,
       'activeDisplayName': activeDisplayName,

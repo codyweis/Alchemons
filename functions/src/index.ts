@@ -11,6 +11,8 @@ import {VerificationFailure, VerifiedPurchase} from "./types";
 
 initializeApp();
 
+export {previewProgressReset, beginProgressReset, finishProgressReset} from "./resetProgress";
+
 const appStoreSharedSecret = defineSecret("APP_STORE_SHARED_SECRET");
 
 interface RedeemRequest {
@@ -111,8 +113,13 @@ export const redeemPurchase = onCall(
     const purchaseRef = db.collection("purchases").doc(ledgerId);
     const entitlementRef = db.collection("entitlements").doc(uid);
 
-    const firstRedeem = await db.runTransaction(async (transaction) => {
+    const redemption = await db.runTransaction(async (transaction) => {
       const existing = await transaction.get(purchaseRef);
+      const progress = await transaction.get(db.doc(`account_progress/${uid}`));
+      const generation = progress.get("generation") ?? 0;
+      if (progress.get("resetPending")) {
+        throw new HttpsError("unavailable", "Finish the account reset before delivering purchases.");
+      }
 
       if (existing.exists) {
         const ownerUid = existing.get("uid");
@@ -129,11 +136,12 @@ export const redeemPurchase = onCall(
         }
         // Same account retrying, most likely because our response to the first
         // attempt never made it back. The entitlement is already recorded.
-        return false;
+        return {firstRedeem: false, includedInReset: (existing.get("generation") ?? 0) < generation};
       }
 
       transaction.create(purchaseRef, {
         uid,
+        generation,
         platform: verified.platform,
         productId: verified.productId,
         transactionId: verified.transactionId,
@@ -154,16 +162,16 @@ export const redeemPurchase = onCall(
         {merge: true}
       );
 
-      return true;
+      return {firstRedeem: true, includedInReset: false};
     });
 
-    logger.info("Redeemed purchase", {uid, ledgerId, firstRedeem});
+    logger.info("Redeemed purchase", {uid, ledgerId, ...redemption});
 
     return {
       goldAmount: pack.goldAmount,
       transactionId: verified.transactionId,
       ledgerId,
-      firstRedeem,
+      ...redemption,
     };
   }
 );

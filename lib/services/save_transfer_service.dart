@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:alchemons/services/save_generation_service.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
@@ -30,11 +31,16 @@ class SaveTransferService {
     'account.device_id.v1',
     'account.pending_transfer_code',
     MobileStoreService.pendingRedeemsKey,
+    'account.reset_pending.v1',
   };
 
   final AlchemonsDatabase db;
+  final Future<void> Function(String, int) validateGeneration;
 
-  const SaveTransferService(this.db);
+  const SaveTransferService(
+    this.db, {
+    this.validateGeneration = SaveGenerationService.validate,
+  });
 
   Future<String> exportSaveCode({required String ownerAccountId}) async {
     await db.settingsDao.reconcileCosmicSurvivalPortalDiscovery();
@@ -90,6 +96,7 @@ class SaveTransferService {
 
     final payload = <String, dynamic>{
       'ownerAccountId': ownerAccountId,
+      'generation': await SaveGenerationService.local(db),
       'schemaVersion': db.schemaVersion,
       'exportedAtUtc': DateTime.now().toUtc().toIso8601String(),
       'tables': tables,
@@ -144,6 +151,9 @@ class SaveTransferService {
         'This save belongs to a different account.',
       );
     }
+
+    final generation = (payload['generation'] as num?)?.toInt() ?? 0;
+    await validateGeneration(ownerAccountId, generation);
 
     final tableByName = <String, TableInfo<Table, Object?>>{
       for (final table in db.allTables) table.actualTableName: table,
@@ -240,6 +250,14 @@ class SaveTransferService {
             updates: {db.playerCreatures},
           );
         }
+        await db.settingsDao.setSetting(
+          SaveGenerationService.settingKey,
+          '$generation',
+        );
+        await db.settingsDao.setSetting(
+          SaveGenerationService.ownerKey,
+          ownerAccountId,
+        );
       } finally {
         await db.customStatement('PRAGMA foreign_keys = ON');
       }

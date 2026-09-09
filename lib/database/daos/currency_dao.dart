@@ -135,6 +135,18 @@ class CurrencyDao extends DatabaseAccessor<AlchemonsDatabase>
     );
   }
 
+  Future<void> settleVerifiedPurchase({
+    required String localKey,
+    required int amount,
+    required bool includedInReset,
+  }) async {
+    await db.transaction(() async {
+      if (await _getSetting(localKey) == '1') return;
+      if (!includedInReset) await creditPurchasedGold(amount);
+      await _setSetting(localKey, '1');
+    });
+  }
+
   Stream<int> watchGoldBalance() {
     final q = select(settings)..where((t) => t.key.equals('wallet_gold'));
     return q.watch().map((rows) {

@@ -17,9 +17,21 @@ service cloud.firestore {
       return value == null || value is string;
     }
 
+    function currentGeneration(uid) {
+      return exists(/databases/$(database)/documents/account_progress/$(uid))
+        ? get(/databases/$(database)/documents/account_progress/$(uid)).data.generation : 0;
+    }
+
+    function validGeneration(uid, data) {
+      return data.get('generation', 0) == currentGeneration(uid) &&
+        (!exists(/databases/$(database)/documents/account_progress/$(uid)) ||
+          !get(/databases/$(database)/documents/account_progress/$(uid)).data.resetPending);
+    }
+
     function isSessionShape(data) {
       return data.keys().hasOnly([
             'activeDeviceId',
+            'generation',
             'activeEmail',
             'activeDisplayName',
             'status',
@@ -37,6 +49,7 @@ service cloud.firestore {
     function isTransferShape(data) {
       return data.keys().hasOnly([
             'uid',
+            'generation',
             'sourceDeviceId',
             'status',
             'createdAt',
@@ -55,6 +68,7 @@ service cloud.firestore {
 
     function isValidSessionWrite(userId) {
       return isOwner(userId) &&
+          validGeneration(userId, request.resource.data) &&
           isSessionShape(request.resource.data) &&
           (
             !exists(/databases/$(database)/documents/account_sessions/$(userId)) ||
@@ -68,6 +82,7 @@ service cloud.firestore {
             'uid',
             'sourceDeviceId',
             'saveCode',
+            'generation',
             'revision',
             'updatedAt',
           ]) &&
@@ -82,12 +97,16 @@ service cloud.firestore {
     function isValidCloudSaveWrite(userId) {
       return isOwner(userId) &&
           request.resource.data.uid == userId &&
+          validGeneration(userId, request.resource.data) &&
+          request.resource.data.sourceDeviceId == get(/databases/$(database)/documents/account_sessions/$(userId)).data.activeDeviceId &&
           isCloudSaveShape(request.resource.data);
     }
 
     function isValidTransferCreate() {
       return isSignedIn() &&
           isTransferShape(request.resource.data) &&
+          validGeneration(request.auth.uid, request.resource.data) &&
+          request.resource.data.sourceDeviceId == get(/databases/$(database)/documents/account_sessions/$(request.auth.uid)).data.activeDeviceId &&
           request.resource.data.uid == request.auth.uid &&
           request.resource.data.status == 'open' &&
           request.resource.data.targetDeviceId == null &&
@@ -98,6 +117,8 @@ service cloud.firestore {
     function isValidTransferUpdate() {
       return isSignedIn() &&
           resource.data.uid == request.auth.uid &&
+          validGeneration(request.auth.uid, resource.data) &&
+          request.resource.data.get('generation', 0) == resource.data.get('generation', 0) &&
           request.resource.data.uid == request.auth.uid &&
           isTransferShape(request.resource.data) &&
           (
@@ -122,6 +143,14 @@ service cloud.firestore {
       allow read: if isOwner(userId);
       allow create, update: if isValidSessionWrite(userId);
       allow delete: if false;
+    }
+
+    match /account_progress/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+      match /resets/{operationId} {
+        allow read, write: if false;
+      }
     }
 
     match /account_transfers/{transferId} {

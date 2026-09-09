@@ -26,6 +26,7 @@ void main() {
     final restored = AlchemonsDatabase(NativeDatabase.memory());
     await SaveTransferService(
       restored,
+      validateGeneration: (_, _) async {},
     ).importSaveCode(saveCode, ownerAccountId: accountId);
     return restored;
   }

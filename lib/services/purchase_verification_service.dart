@@ -23,11 +23,13 @@ class RedeemGranted extends RedeemOutcome {
   /// False when this account had already redeemed the same transaction, which
   /// happens when our first attempt reached the server but its reply did not.
   final bool firstRedeem;
+  final bool includedInReset;
 
   const RedeemGranted({
     required this.goldAmount,
     required this.ledgerId,
     required this.firstRedeem,
+    this.includedInReset = false,
   });
 }
 
@@ -82,6 +84,7 @@ class PurchaseVerificationService {
         goldAmount: goldAmount,
         ledgerId: ledgerId,
         firstRedeem: data['firstRedeem'] as bool? ?? true,
+        includedInReset: data['includedInReset'] == true,
       );
     } on FirebaseFunctionsException catch (error) {
       final message = error.message?.trim().isNotEmpty == true
