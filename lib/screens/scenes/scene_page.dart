@@ -24,6 +24,7 @@ import 'package:alchemons/widgets/background/daynight_filter.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/widgets/wilderness/wilderness_controls.dart';
 import 'package:drift/drift.dart' hide Column;
+import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
@@ -502,6 +503,17 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     _biomeAmbienceCtrl.dispose();
     _spawnService.markSceneInactive(widget.sceneId);
     _spawnService.removeListener(_onSpawnServiceChanged);
+
+    // Leaving one of the core biomes is what paces the cosmic memory. Counted
+    // on teardown rather than on a particular exit button, because a scene can
+    // be left several ways and all of them mean the same thing.
+    if (OpeningWildernessService.coreScenes.contains(widget.sceneId)) {
+      unawaited(
+        CosmicMemoryTutorialService.recordBiomeExitIfEligible(
+          _db.settingsDao,
+        ),
+      );
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {

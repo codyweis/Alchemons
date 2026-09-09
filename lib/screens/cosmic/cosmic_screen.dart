@@ -1606,7 +1606,25 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     final db = context.read<AlchemonsDatabase>();
     await CosmicMemoryTutorialService.markCompleted(db.settingsDao);
-    await Future.delayed(const Duration(seconds: 5));
+    if (!mounted) return;
+
+    // The engine is paused and the prompt is gone, so this used to be five
+    // seconds of a frozen, silent field with nothing to look at and no way to
+    // tell whether the game had hung. The memory ending is a story beat, so it
+    // gets the story voice — and the player leaves when they are ready rather
+    // than waiting out a timer.
+    await LandscapeDialog.show(
+      context,
+      title: 'The memory drifts',
+      message:
+          'The field thins. Whatever this was, it is already behind you — and '
+          'you are only remembering it.',
+      typewriter: true,
+      kind: LandscapeDialogKind.info,
+      icon: AppIcons.auto_awesome,
+      primaryLabel: 'Return',
+      barrierDismissible: false,
+    );
 
     if (!mounted) return;
     if (Navigator.of(context).canPop()) {

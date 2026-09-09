@@ -5,12 +5,18 @@ class CosmicMemoryTutorialService {
   CosmicMemoryTutorialService._();
 
   static const harvestCompletedKey = 'tutorial_harvest_completed_v1';
-  static const extractionCountKey = 'cosmic_memory_extraction_count_v1';
+  static const biomeExitCountKey = 'cosmic_memory_biome_exit_count_v1';
   static const homePortalPendingKey = 'cosmic_memory_home_portal_pending_v1';
   static const homePortalLaunchedKey = 'cosmic_memory_home_portal_launched_v1';
   static const completedKey = 'cosmic_memory_tutorial_completed_v1';
   static const storyPendingKey = 'cosmic_memory_story_pending_v1';
-  static const extractionTarget = 3;
+  /// Biome visits before the memory finds them.
+  ///
+  /// Counted as exits from the core wilderness scenes. The first two are spent
+  /// on the tutorials — the fusion in one biome, the harvest in the next — so
+  /// the third is the first time the player leaves a biome having simply
+  /// played it, which is the moment worth interrupting.
+  static const biomeExitTarget = 3;
 
   static Future<void> markHarvestTutorialCompleted(SettingsDao settings) async {
     await settings.setSetting(harvestCompletedKey, '1');
@@ -38,20 +44,27 @@ class CosmicMemoryTutorialService {
     return harvestCompleted;
   }
 
-  static Future<void> recordExtractionIfEligible(SettingsDao settings) async {
-    final harvestCompleted = await _ensureHarvestEligibility(settings);
+  /// Count a departure from one of the core wilderness biomes.
+  ///
+  /// Every exit counts, including the two the tutorials occupy. Gating the
+  /// count on the harvest tutorial being finished would throw both of those
+  /// away and start from zero afterwards, which would push the memory two
+  /// biomes later than intended — so the harvest check guards only the
+  /// *firing*, not the counting.
+  static Future<void> recordBiomeExitIfEligible(SettingsDao settings) async {
     final completed = await settings.getSetting(completedKey) == '1';
     final pending = await settings.getSetting(homePortalPendingKey) == '1';
     final launched = await settings.getSetting(homePortalLaunchedKey) == '1';
-    if (!harvestCompleted || completed || pending || launched) return;
+    if (completed || pending || launched) return;
 
-    final raw = await settings.getSetting(extractionCountKey);
+    final raw = await settings.getSetting(biomeExitCountKey);
     final nextCount = (int.tryParse(raw ?? '0') ?? 0) + 1;
-    await settings.setSetting(extractionCountKey, nextCount.toString());
+    await settings.setSetting(biomeExitCountKey, nextCount.toString());
+    if (nextCount < biomeExitTarget) return;
 
-    if (nextCount >= extractionTarget) {
-      await settings.setSetting(homePortalPendingKey, '1');
-    }
+    // Never before the harvest tutorial is behind them, however they got here.
+    if (!await _ensureHarvestEligibility(settings)) return;
+    await settings.setSetting(homePortalPendingKey, '1');
   }
 
   static Future<void> recoverPendingForExistingProfile(
@@ -71,14 +84,18 @@ class CosmicMemoryTutorialService {
       return;
     }
 
-    final raw = await settings.getSetting(extractionCountKey);
+    // A save from before the biome counter existed has no exits recorded, and
+    // making an established player walk three more biomes to see a memory they
+    // are long past would be worse than showing it now. Owning specimens with
+    // the harvest tutorial behind them is enough.
+    final raw = await settings.getSetting(biomeExitCountKey);
     final savedCount = int.tryParse(raw ?? '');
-    final effectiveCount = savedCount ?? ownedInstanceCount;
+    final effectiveCount = savedCount ?? (ownedInstanceCount > 0 ? biomeExitTarget : 0);
     if (savedCount == null && ownedInstanceCount > 0) {
-      await settings.setSetting(extractionCountKey, effectiveCount.toString());
+      await settings.setSetting(biomeExitCountKey, effectiveCount.toString());
     }
 
-    if (effectiveCount >= extractionTarget) {
+    if (effectiveCount >= biomeExitTarget) {
       await settings.setSetting(homePortalPendingKey, '1');
     }
   }
@@ -131,7 +148,7 @@ class CosmicMemoryTutorialService {
   static Future<void> debugQueueTutorial(SettingsDao settings) async {
     _deferredThisSession = false;
     await settings.setSetting(harvestCompletedKey, '1');
-    await settings.setSetting(extractionCountKey, extractionTarget.toString());
+    await settings.setSetting(biomeExitCountKey, biomeExitTarget.toString());
     await settings.setSetting(homePortalPendingKey, '1');
     await settings.deleteSetting(homePortalLaunchedKey);
     await settings.deleteSetting(completedKey);
