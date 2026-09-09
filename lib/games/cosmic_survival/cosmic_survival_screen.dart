@@ -34,6 +34,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
+import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -264,12 +265,16 @@ class _ForgeButton extends StatelessWidget {
   final bool loading;
   final bool secondary;
 
+  /// Sits at the right-hand end, for a button that has something to report.
+  final Widget? trailing;
+
   const _ForgeButton({
     required this.label,
     required this.icon,
     this.onTap,
     this.loading = false,
     this.secondary = false,
+    this.trailing,
   });
 
   @override
@@ -333,8 +338,47 @@ class _ForgeButton extends StatelessWidget {
                   ),
                 ),
               ),
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                trailing!,
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "3 READY" on Base Command — the count of upgrades the player can afford
+/// right now.
+///
+/// Base Command is where every permanent upgrade lives, and the button gave
+/// no sign there was ever anything to do in there. Silver accumulates from
+/// runs whether or not you visit, so a player could bank enough for four
+/// upgrades and never know. This is the nag.
+class _ReadyBadge extends StatelessWidget {
+  const _ReadyBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: _C.amber.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: _C.amberBright.withValues(alpha: 0.55)),
+      ),
+      child: Text(
+        '$count READY',
+        style: _display(
+          context,
+          10,
+          _C.amberBright,
+          weight: FontWeight.w900,
+          letterSpacing: 0.8,
         ),
       ),
     );
@@ -398,6 +442,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   double _familyPage = 0;
   final Set<String> _expandedFamilyCards = <String>{};
   SurvivalHighScoreData? _highScore;
+  int _silver = 0;
   bool _showPauseMenu = false;
   bool _showJoystick = true;
   bool _largeJoystick = true;
@@ -601,6 +646,39 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     final db = context.read<AlchemonsDatabase>();
     final hs = await db.getSurvivalHighScore();
     if (mounted) setState(() => _highScore = hs);
+    await _loadSilver();
+  }
+
+  /// Silver is what Base Command spends, so the lobby shows it and uses it to
+  /// work out whether there is anything worth going in for.
+  Future<void> _loadSilver() async {
+    if (!mounted) return;
+    final db = context.read<AlchemonsDatabase>();
+    final currencies = await db.currencyDao.getAllCurrencies();
+    if (!mounted) return;
+    setState(() => _silver = currencies['silver'] ?? 0);
+  }
+
+  /// How many guardian upgrades the current silver would buy — counted one at
+  /// a time against a running balance, because buying the cheapest does not
+  /// leave you able to buy the rest.
+  ///
+  /// Abilities are deliberately not counted: this route opens Base Command
+  /// with hideAbilities, so promising an upgrade the player cannot see would
+  /// send them hunting for a tab that is not there.
+  int _affordableUpgrades(SurvivalUpgradeService svc) {
+    final costs = <int>[
+      for (final u in GuardianUpgrade.values)
+        if (svc.nextGuardianCost(u) != null) svc.nextGuardianCost(u)!,
+    ]..sort();
+    var purse = _silver;
+    var n = 0;
+    for (final c in costs) {
+      if (purse < c) break;
+      purse -= c;
+      n++;
+    }
+    return n;
   }
 
   String _formatHighScoreNumber(int n) {
@@ -1807,20 +1885,38 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       onTap: context.soundAction(_pickTeam),
                     ),
                     const SizedBox(height: 10),
-                    _ForgeButton(
-                      label: 'Base Command',
-                      icon: AppIcons.settings_rounded,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const CosmicSurvivalBaseCommandScreen(
-                                  hideAbilities: true,
-                                ),
-                          ),
+                    // Watched, not read: buying an upgrade in there changes
+                    // the count, and the button has to be right when the
+                    // player comes back out.
+                    Builder(
+                      builder: (context) {
+                        final ready = _affordableUpgrades(
+                          context.watch<SurvivalUpgradeService>(),
+                        );
+                        return _ForgeButton(
+                          label: 'Base Command',
+                          // A gear said "settings". This is where permanent
+                          // upgrades live.
+                          icon: AppIcons.military_tech_rounded,
+                          trailing: ready > 0
+                              ? _ReadyBadge(count: ready)
+                              : null,
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const CosmicSurvivalBaseCommandScreen(
+                                      hideAbilities: true,
+                                    ),
+                              ),
+                            );
+                            // Spent silver in there; the badge and the header
+                            // would otherwise still show the old balance.
+                            await _loadSilver();
+                          },
+                          secondary: true,
                         );
                       },
-                      secondary: true,
                     ),
                     if (_debugToolsEnabled) ...[
                       const SizedBox(height: 18),
@@ -1907,6 +2003,28 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     13,
                     _C.textSecondary,
                     fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // What Base Command spends. Shown here because the decision to go
+          // in there is made on this screen, and it was previously invisible
+          // until you were already inside.
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CoinIcon(kind: CoinKind.silver, size: 14),
+                const SizedBox(width: 5),
+                Text(
+                  _formatHighScoreNumber(_silver),
+                  style: _display(
+                    context,
+                    12,
+                    _C.textSecondary,
+                    weight: FontWeight.w700,
                   ),
                 ),
               ],

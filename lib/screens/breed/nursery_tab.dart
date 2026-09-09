@@ -13,6 +13,8 @@ import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/nursery/brewing_card_widget.dart';
 import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:alchemons/widgets/nursery/egg_extraction_dialog.dart';
+import 'package:alchemons/widgets/cold_storage_glyph.dart';
+import 'package:alchemons/widgets/instant_extractor_glyph.dart';
 import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
 import 'package:alchemons/widgets/nursery/non_ready_hatch_widget.dart';
 import 'package:alchemons/widgets/nursery/storage_section_widget.dart';
@@ -146,7 +148,7 @@ class _NurseryTabState extends State<NurseryTab> {
     final qty = await db.inventoryDao.getItemQty(InvKeys.instantHatch);
     if (qty <= 0) {
       _showToast(
-        'No Instant Fuse items',
+        'No Instant Fusion Extractors',
         icon: AppIcons.flash_off_rounded,
         color: Colors.red.shade600,
       );
@@ -155,8 +157,11 @@ class _NurseryTabState extends State<NurseryTab> {
 
     // (Optional) confirm use
     final confirm = await _showConfirmDialog(
-      'Use Instant Fuse',
-      'Consume 1 Instant Fuse to complete this specimen immediately?',
+      'INSTANT FUSION EXTRACTOR',
+      'Consume one to finish this cultivation now. The specimen will be ready '
+          'to extract immediately.',
+      confirmLabel: 'USE',
+      artwork: const InstantExtractorGlyph(size: 68),
     );
     if (!mounted || !confirm) return;
 
@@ -167,7 +172,7 @@ class _NurseryTabState extends State<NurseryTab> {
     );
     if (!consumed) {
       _showToast(
-        'Instant Fuse unavailable',
+        'Instant Fusion Extractor unavailable',
         icon: AppIcons.error_outline_rounded,
         color: Colors.red.shade600,
       );
@@ -201,7 +206,7 @@ class _NurseryTabState extends State<NurseryTab> {
 
     if (!mounted) return;
     _showToast(
-      'Instant fuse complete!',
+      'Cultivation complete',
       icon: AppIcons.flash_on_rounded,
       color: Colors.green.shade600,
     );
@@ -1064,8 +1069,12 @@ class _NurseryTabState extends State<NurseryTab> {
     if (slot.eggId == null || slot.hatchAtUtcMs == null) return;
 
     final confirmed = await _showConfirmDialog(
-      'Cold Storage',
-      'Transfer this specimen to cold storage? Cultivation will continue there at a 5x slower pace.',
+      'MOVE TO COLD STORAGE',
+      'Cultivation continues in storage, but at a fifth of the pace. The '
+          'chamber is freed for something else.',
+      confirmLabel: 'TRANSFER',
+      accent: const Color(0xFF5CC4F2),
+      artwork: const ColdStorageGlyph(size: 68),
     );
 
     if (!mounted || !confirmed) return;
@@ -1158,32 +1167,106 @@ class _NurseryTabState extends State<NurseryTab> {
     );
   }
 
-  Future<bool> _showConfirmDialog(String title, String message) async {
+  /// The nursery's confirm dialog.
+  ///
+  /// This was a stock AlertDialog — Material surface, default TextButtons,
+  /// "Cancel / Confirm" — sitting two methods away from a fully dressed
+  /// discard dialog in the same file. It now wears the same clothes as that
+  /// one, and it takes the artwork of whatever is being spent so the player
+  /// can see the item rather than read its name.
+  Future<bool> _showConfirmDialog(
+    String title,
+    String message, {
+    String confirmLabel = 'CONFIRM',
+    Color? accent,
+    Widget? artwork,
+  }) async {
     final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    final tint = accent ?? t.amber;
+    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
+
     return await _showDialogWithPausedBackground<bool>(
-          builder: (context) => AlertDialog(
-            title: Text(title, style: TextStyle(color: theme.text)),
-            content: Text(
-              message,
-              style: TextStyle(color: theme.text.withValues(alpha: 0.8)),
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            actions: [
-              TextButton(
-                onPressed: context.soundAction(
-                  () => Navigator.of(context).pop(false),
+          barrierColor: Colors.black87,
+          builder: (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: dialogSurface,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: tint.withValues(alpha: .45)),
                 ),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: context.soundAction(
-                  () => Navigator.of(context).pop(true),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 3,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: tint,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              color: tint,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    if (artwork != null) ...[
+                      Center(child: artwork),
+                      const SizedBox(height: 14),
+                    ],
+                    Text(
+                      message,
+                      style: TextStyle(
+                        color: theme.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _DiscardButton(
+                            label: 'CANCEL',
+                            color: theme.textMuted,
+                            filled: false,
+                            onTap: () => Navigator.of(context).pop(false),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _DiscardButton(
+                            label: confirmLabel,
+                            color: tint,
+                            filled: true,
+                            onTap: () => Navigator.of(context).pop(true),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                child: const Text('Confirm'),
               ),
-            ],
+            ),
           ),
         ) ??
         false;
