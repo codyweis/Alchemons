@@ -13,6 +13,7 @@ import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -756,27 +757,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
 
   void _showToast(String msg, {IconData? icon, Color? color}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        showCloseIcon: true,
-        content: Row(
-          children: [
-            if (icon != null) Icon(icon, color: Colors.white, size: 18),
-            if (icon != null) const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                msg,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: color ?? Colors.teal,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    showGameSnack(context, msg, icon: icon, accent: color);
   }
 
   Widget _buildTopBar() {

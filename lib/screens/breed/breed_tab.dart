@@ -12,6 +12,7 @@ import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:provider/provider.dart';
 
 import '../../database/alchemons_db.dart';
@@ -1665,6 +1666,9 @@ class _BreedingTabState extends State<BreedingTab>
     bool fromTop = false,
   }) {
     if (!mounted) return;
+    // The one thing worth keeping from this screen's own toast: breeding can
+    // fire the same complaint several times in a second, and repeating it is
+    // just noise.
     final now = DateTime.now();
     if (_lastToastMessage == message &&
         _lastToastAt != null &&
@@ -1673,112 +1677,13 @@ class _BreedingTabState extends State<BreedingTab>
     }
     _lastToastMessage = message;
     _lastToastAt = now;
-    final theme = context.read<FactionTheme>();
-    final accent = color ?? theme.accent;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.removeCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Container(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                theme.surface.withValues(alpha: .985),
-                theme.surfaceAlt.withValues(alpha: .965),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: accent.withValues(alpha: .82),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: .18),
-                blurRadius: 14,
-                spreadRadius: 0,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: theme.surfaceAlt.withValues(alpha: .9),
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(
-                    color: accent.withValues(alpha: .55),
-                    width: 1,
-                  ),
-                ),
-                child: Icon(icon, color: accent, size: 16),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'BREEDING STATUS',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: accent,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      message,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: theme.text,
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 4,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: .9),
-                  borderRadius: BorderRadius.circular(99),
-                  boxShadow: [
-                    BoxShadow(
-                      color: accent.withValues(alpha: .3),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-        padding: EdgeInsets.zero,
-        margin: fromTop
-            ? const EdgeInsets.only(top: 24, left: 16, right: 16)
-            : const EdgeInsets.fromLTRB(16, 0, 16, 18),
-      ),
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+    showGameSnack(
+      context,
+      message,
+      icon: icon,
+      accent: color,
+      duration: const Duration(seconds: 2),
     );
   }
 }

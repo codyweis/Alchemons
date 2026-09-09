@@ -265,16 +265,12 @@ class _ForgeButton extends StatelessWidget {
   final bool loading;
   final bool secondary;
 
-  /// Sits at the right-hand end, for a button that has something to report.
-  final Widget? trailing;
-
   const _ForgeButton({
     required this.label,
     required this.icon,
     this.onTap,
     this.loading = false,
     this.secondary = false,
-    this.trailing,
   });
 
   @override
@@ -338,10 +334,6 @@ class _ForgeButton extends StatelessWidget {
                   ),
                 ),
               ),
-              if (trailing != null) ...[
-                const SizedBox(width: 8),
-                trailing!,
-              ],
             ],
           ),
         ),
@@ -1959,39 +1951,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       onTap: context.soundAction(_pickTeam),
                     ),
                     const SizedBox(height: 10),
-                    // Watched, not read: buying an upgrade in there changes
-                    // the count, and the button has to be right when the
-                    // player comes back out.
-                    Builder(
-                      builder: (context) {
-                        final ready = _affordableUpgrades(
-                          context.watch<SurvivalUpgradeService>(),
-                        );
-                        return _ForgeButton(
-                          label: 'Base Command',
-                          // A gear said "settings". This is where permanent
-                          // upgrades live.
-                          icon: AppIcons.military_tech_rounded,
-                          trailing: ready > 0
-                              ? _ReadyBadge(count: ready)
-                              : null,
-                          onTap: () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    const CosmicSurvivalBaseCommandScreen(
-                                      hideAbilities: true,
-                                    ),
-                              ),
-                            );
-                            // Spent silver in there; the badge and the header
-                            // would otherwise still show the old balance.
-                            await _loadSilver();
-                          },
-                          secondary: true,
-                        );
-                      },
-                    ),
                     if (_debugToolsEnabled) ...[
                       const SizedBox(height: 18),
                       const _EtchedDivider(label: 'COMMAND'),
@@ -2237,6 +2196,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     return Consumer<SurvivalUpgradeService>(
       builder: (context, svc, _) {
         final orb = getOrbBaseDef(svc.state.equippedSkin);
+        final ready = _affordableUpgrades(svc);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2287,6 +2247,14 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                     ),
                                   ),
                                 ),
+                                // The nag the Base Command button used to
+                                // carry. The button is gone — this panel is
+                                // the way in now — but the count is the whole
+                                // reason a player would think to go.
+                                if (ready > 0) ...[
+                                  _ReadyBadge(count: ready),
+                                  const SizedBox(width: 6),
+                                ],
                                 Icon(
                                   AppIcons.chevron_right_rounded,
                                   size: 16,

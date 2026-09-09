@@ -9,6 +9,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -1318,26 +1319,7 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   void _showToast(String msg, {IconData? icon, Color? color}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            if (icon != null) Icon(icon, color: Colors.white, size: 18),
-            if (icon != null) const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                msg,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: color ?? Colors.teal,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    showGameSnack(context, msg, icon: icon, accent: color);
   }
 }
 

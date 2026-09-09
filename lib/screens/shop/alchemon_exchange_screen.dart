@@ -17,6 +17,7 @@ import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -1255,13 +1256,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
 
   void _showToast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: t.success,
-        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w700)),
-      ),
-    );
+    showGameSnack(context, msg, accent: t.success);
   }
 }
 

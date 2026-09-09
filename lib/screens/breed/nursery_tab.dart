@@ -19,6 +19,7 @@ import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
 import 'package:alchemons/widgets/nursery/non_ready_hatch_widget.dart';
 import 'package:alchemons/widgets/nursery/storage_section_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
@@ -1149,21 +1150,12 @@ class _NurseryTabState extends State<NurseryTab> {
     Color? color,
   }) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        showCloseIcon: true,
-        content: Row(
-          children: [
-            Icon(icon, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: color ?? Colors.indigo.shade600,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
+    showGameSnack(
+      context,
+      message,
+      icon: icon,
+      accent: color,
+      duration: const Duration(seconds: 2),
     );
   }
 

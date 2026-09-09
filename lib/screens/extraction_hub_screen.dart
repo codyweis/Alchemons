@@ -26,6 +26,7 @@ import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -1454,22 +1455,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     Color? color,
   }) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(icon, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text(msg)),
-          ],
-        ),
-        backgroundColor: color ?? Colors.indigo.shade400,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        showCloseIcon: true,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+    showGameSnack(context, msg, icon: icon, accent: color);
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────

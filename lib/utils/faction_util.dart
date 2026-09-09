@@ -498,6 +498,30 @@ extension FactionMaterialTheme on FactionTheme {
       dividerColor: border,
       iconTheme: IconThemeData(color: text),
       dialogTheme: DialogThemeData(backgroundColor: surface),
+      // Every notification in the app, including the ones that never got
+      // styled by hand. `showGameSnack` is the preferred route and sets these
+      // itself; this catches the rest so nothing renders as a bare Material
+      // slab, and — the reason it exists — so they all dismiss the same way.
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        // Sideways. A downward swipe is the gesture for putting the keyboard
+        // or a sheet away, and it kept fighting the scroll underneath.
+        dismissDirection: DismissDirection.horizontal,
+        backgroundColor: surfaceAlt,
+        elevation: 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+          side: BorderSide(color: border),
+        ),
+        contentTextStyle: TextStyle(
+          fontFamily: 'monospace',
+          color: text,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+        ),
+        actionTextColor: accent,
+      ),
     );
   }
 }

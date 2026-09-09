@@ -7,6 +7,7 @@ import 'package:alchemons/screens/story/campaign_journal_screen.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:provider/provider.dart';
 
 /// Event-driven notifications: database changes, route return, and app resume.
@@ -102,13 +103,13 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
             .toList();
         _announced.addAll(next.ready.map((a) => a.id));
         if (previous != null && fresh.isNotEmpty) {
-          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-            SnackBar(
-              content: Text(
-                '${next.ready.length} achievement ${next.ready.length == 1 ? 'reward' : 'rewards'} ready to collect',
-              ),
-              action: SnackBarAction(label: 'View', onPressed: open),
-            ),
+          final count = next.ready.length;
+          showGameSnack(
+            context,
+            '$count achievement ${count == 1 ? 'reward' : 'rewards'} ready',
+            icon: AppIcons.emoji_events_outlined,
+            accent: FC.of(context).rewardGold,
+            action: SnackBarAction(label: 'VIEW', onPressed: open),
           );
         }
       }
