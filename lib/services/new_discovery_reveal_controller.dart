@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:alchemons/widgets/nav_bar.dart';
@@ -11,6 +12,12 @@ import 'package:flutter/rendering.dart';
 class NewDiscoveryReveal {
   NewDiscoveryReveal._();
   static final NewDiscoveryReveal instance = NewDiscoveryReveal._();
+
+  /// GlobalKey on the revealed species' own tile in the catalog, set by the
+  /// creatures grid while a reveal is pending. The filing-away card retargets
+  /// onto this once the grid has laid it out, so it lands on the entry rather
+  /// than on the tab button that merely leads to it.
+  GlobalKey? revealTileKey;
 
   /// GlobalKey on the CREATURES nav button; set by [BottomNav].
   GlobalKey? databaseNavKey;
@@ -66,8 +73,12 @@ class NewDiscoveryReveal {
 
     ui.Image? snapshot;
     try {
-      final pixelRatio = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 2.0;
-      snapshot = await boundary.toImage(pixelRatio: pixelRatio);
+      // Capped rather than the device ratio. This card is full-width and the
+      // flight immediately shrinks it to a grid tile, so rasterising at 2.6x
+      // on a large screen was a big texture allocated for pixels nothing ever
+      // sees — and it landed right as the catalog was building.
+      final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 2.0;
+      snapshot = await boundary.toImage(pixelRatio: math.min(dpr, 1.75));
     } catch (_) {
       // toImage can fail mid-frame; fall back to a graceful reveal.
     }
@@ -78,19 +89,38 @@ class NewDiscoveryReveal {
     }
 
     final capturedImage = snapshot;
+
+    // Reveal BEFORE the flight, not partway through it.
+    //
+    // The section switch and the reveal used to fire at 55% of a 720ms
+    // flight, which left the catalog building and scrolling while the card
+    // was already most of the way to where the tile was going to be. The card
+    // chased a moving target and landed as the scroll finished. Now the
+    // catalog settles first and the card flies at something that is standing
+    // still.
+    onSwitchSection?.call(NavSection.creatures);
+    pendingRevealCreatureId.value = creatureId;
+    await WidgetsBinding.instance.endOfFrame;
+    await Future<void>.delayed(kRevealScrollSettle);
+    if (!context.mounted) {
+      capturedImage.dispose();
+      return;
+    }
+
     late OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => _FilingAwayOverlay(
         image: capturedImage,
         startRect: srcRect,
-        endRect: navRect,
-        onMidFlight: () {
-          onSwitchSection?.call(NavSection.creatures);
-        },
+        endRect: _rectOf(revealTileKey) ?? navRect,
+        // Resolved once now that the catalog has settled, and still re-read
+        // each frame so a late layout is picked up. Falls back to the nav
+        // button when the tile never resolves.
+        endRectResolver: () => _rectOf(revealTileKey),
         onComplete: () {
           entry.remove();
           capturedImage.dispose();
-          pendingRevealCreatureId.value = creatureId;
+          revealTileKey = null;
         },
       ),
     );
@@ -98,18 +128,25 @@ class NewDiscoveryReveal {
   }
 }
 
+/// How long the catalog is given to build and ease the revealed tile into
+/// view before the card starts flying at it. Matches the scroll in
+/// CreaturesScreen, plus a frame of slack.
+const Duration kRevealScrollSettle = Duration(milliseconds: 340);
+
 class _FilingAwayOverlay extends StatefulWidget {
   final ui.Image image;
   final Rect startRect;
   final Rect endRect;
-  final VoidCallback onMidFlight;
+
+  /// Optional live destination, preferred over [endRect] whenever it resolves.
+  final Rect? Function()? endRectResolver;
   final VoidCallback onComplete;
 
   const _FilingAwayOverlay({
     required this.image,
     required this.startRect,
     required this.endRect,
-    required this.onMidFlight,
+    this.endRectResolver,
     required this.onComplete,
   });
 
@@ -120,7 +157,6 @@ class _FilingAwayOverlay extends StatefulWidget {
 class _FilingAwayOverlayState extends State<_FilingAwayOverlay>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctl;
-  bool _midFired = false;
 
   @override
   void initState() {
@@ -129,12 +165,6 @@ class _FilingAwayOverlayState extends State<_FilingAwayOverlay>
       vsync: this,
       duration: const Duration(milliseconds: 720),
     );
-    _ctl.addListener(() {
-      if (!_midFired && _ctl.value >= 0.55) {
-        _midFired = true;
-        widget.onMidFlight();
-      }
-    });
     _ctl.addStatusListener((s) {
       if (s == AnimationStatus.completed) widget.onComplete();
     });
@@ -158,7 +188,7 @@ class _FilingAwayOverlayState extends State<_FilingAwayOverlay>
         final scaleT = Curves.easeInQuart.transform(t);
 
         final start = widget.startRect;
-        final end = widget.endRect;
+        final end = widget.endRectResolver?.call() ?? widget.endRect;
 
         final w = ui.lerpDouble(start.width, end.width, scaleT)!;
         final h = ui.lerpDouble(start.height, end.height, scaleT)!;

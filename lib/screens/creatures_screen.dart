@@ -26,6 +26,7 @@ import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/silhouette_widget.dart';
 import 'package:flame/image_composition.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -96,6 +97,15 @@ class CreaturesScreenState extends State<CreaturesScreen>
   String? _revealCreatureId;
   Timer? _revealClearTimer;
   final ScrollController _catalogScrollCtl = ScrollController();
+
+  /// On the catalog grid sliver, so a reveal can ask the grid where an entry
+  /// *will* be rather than where it currently is on screen.
+  final GlobalKey _catalogGridKey = GlobalKey(debugLabel: 'catalog_grid');
+
+  /// The entries the catalog last laid out, in the order it laid them out.
+  /// A reveal needs the revealed species' row, and only build knows the
+  /// filtered order.
+  List<CreatureEntry> _lastFiltered = const [];
 
   String _scope = 'Catalogued';
   String _sort = 'Acquisition Order';
@@ -188,14 +198,78 @@ class CreaturesScreenState extends State<CreaturesScreen>
       _revealCreatureId = id;
       _showCatalogView = true;
     });
-    // Intentionally no scroll-to-top here: keep the user's current scroll
-    // position instead of jumping to reveal the newly unlocked species.
+    // Still no scroll-to-TOP — the user's place is worth keeping — but the
+    // revealed entry itself is brought into view. The card flies to that cell,
+    // and it cannot land on something scrolled off the screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollRevealIntoView(id);
+    });
     _revealClearTimer?.cancel();
     _revealClearTimer = Timer(const Duration(milliseconds: 2600), () {
       if (!mounted) return;
       NewDiscoveryReveal.instance.pendingRevealCreatureId.value = null;
+      NewDiscoveryReveal.instance.revealTileKey = null;
       setState(() => _revealCreatureId = null);
     });
+  }
+
+  /// Bring the revealed species into view before the filing-away card flies
+  /// at it.
+  ///
+  /// Scrollable.ensureVisible cannot do this on its own: a SliverGrid builds
+  /// lazily, so a species that is off screen has no tile, no context, and
+  /// nothing to make visible — the scroll silently did nothing and the card
+  /// fell back to the nav button. The grid delegate, though, knows where every
+  /// index lands whether or not it has been built, so ask it and scroll to the
+  /// offset directly. The tile then builds on the way and the flight retargets
+  /// onto it.
+  void _scrollRevealIntoView(String creatureId) {
+    if (!_catalogScrollCtl.hasClients) return;
+    final position = _catalogScrollCtl.position;
+    final index = _lastFiltered.indexWhere((e) => e.creature.id == creatureId);
+
+    double? target;
+    if (index >= 0) {
+      final sliver = _catalogGridKey.currentContext?.findRenderObject();
+      if (sliver is RenderSliverGrid && sliver.geometry != null) {
+        final constraints = sliver.constraints;
+        final tile = sliver.gridDelegate
+            .getLayout(constraints)
+            .getGeometryForChildIndex(index);
+        // Centre the row, the same framing ensureVisible(alignment: 0.5) gave
+        // when the tile happened to already exist.
+        target =
+            constraints.precedingScrollExtent +
+            tile.scrollOffset -
+            (position.viewportDimension - tile.mainAxisExtent) / 2;
+      }
+    }
+
+    if (target == null) {
+      // List mode, or an entry the current filter hides. Fall back to moving
+      // whatever tile does exist, which is what this used to do.
+      final ctx = NewDiscoveryReveal.instance.revealTileKey?.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+        alignment: 0.5,
+      );
+      return;
+    }
+
+    final clamped = target.clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if ((clamped - position.pixels).abs() < 1) return;
+    _catalogScrollCtl.animateTo(
+      clamped,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _bindInstanceCounts() {
@@ -377,6 +451,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
             );
 
             final filtered = _filterAndSort(entries, _instanceCounts);
+            _lastFiltered = filtered;
 
             if (!_showCatalogView) {
               return AllSpecimensPage(
@@ -455,6 +530,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                           padding: const EdgeInsets.fromLTRB(1, 0, 1, 16),
                           sliver: _isGrid
                               ? _CreatureGrid(
+                                  key: _catalogGridKey,
                                   theme: theme,
                                   creatures: filtered,
                                   showCounts: _showCounts,
@@ -1334,6 +1410,7 @@ class _CreatureGrid extends StatelessWidget {
   final void Function(Creature, bool) onTap;
   final String? revealCreatureId;
   const _CreatureGrid({
+    super.key,
     required this.theme,
     required this.creatures,
     required this.showCounts,
@@ -1356,6 +1433,13 @@ class _CreatureGrid extends StatelessWidget {
         final c = data.creature;
         final isDiscovered = data.player.discovered == true;
         final isRevealing = revealCreatureId == c.id;
+        // Keyed so the filing-away card can find this exact cell and land on
+        // it, instead of stopping at the tab button.
+        if (isRevealing) {
+          NewDiscoveryReveal.instance.revealTileKey ??= GlobalKey(
+            debugLabel: 'reveal-tile-${c.id}',
+          );
+        }
         final card = _CreatureCard(
           key: ValueKey<String>('species:${c.id}'),
           theme: theme,
@@ -1366,7 +1450,11 @@ class _CreatureGrid extends StatelessWidget {
           onTap: context.soundTap(() => onTap(c, isDiscovered)),
         );
         if (!isRevealing) return card;
-        return _RevealPulse(theme: theme, child: card);
+        return _RevealPulse(
+          key: NewDiscoveryReveal.instance.revealTileKey,
+          theme: theme,
+          child: card,
+        );
       }, childCount: creatures.length),
     );
   }
@@ -2228,7 +2316,7 @@ class _EmptyState extends StatelessWidget {
 class _RevealPulse extends StatefulWidget {
   final Widget child;
   final FactionTheme theme;
-  const _RevealPulse({required this.child, required this.theme});
+  const _RevealPulse({super.key, required this.child, required this.theme});
 
   @override
   State<_RevealPulse> createState() => _RevealPulseState();
