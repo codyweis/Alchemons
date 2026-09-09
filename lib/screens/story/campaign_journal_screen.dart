@@ -636,14 +636,18 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
             }
             final s = state.data!;
             final current = s.currentMission;
-            final ready = s.ready;
+            // The filter applies to all three sections, not just the middle
+            // one. Ready and collected used to ignore it, so picking a
+            // category still left every earned achievement from every other
+            // category on screen — which looks exactly like a filter that
+            // does nothing.
+            bool inFilter(CampaignAchievement a) =>
+                _filter == 'All' || category(a) == _filter;
+
+            final ready = s.ready.where(inFilter).toList();
             final available =
                 campaignAchievements
-                    .where(
-                      (a) =>
-                          !s.earned(a) &&
-                          (_filter == 'All' || category(a) == _filter),
-                    )
+                    .where((a) => !s.earned(a) && inFilter(a))
                     .toList()
                   ..sort(
                     (a, b) => (s.progress(b) / b.target).compareTo(
@@ -651,7 +655,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                     ),
                   );
             final collected = campaignAchievements
-                .where((a) => s.claimed.contains(a.id))
+                .where((a) => s.claimed.contains(a.id) && inFilter(a))
                 .toList();
 
             return RefreshIndicator(
@@ -753,7 +757,8 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                         iconColor: fc.textMuted,
                         collapsedIconColor: fc.textMuted,
                         title: Text(
-                          'COLLECTED · ${collected.length} / ${campaignAchievements.length}',
+                          'COLLECTED · ${collected.length} / '
+                          '${campaignAchievements.where(inFilter).length}',
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: fc.textMuted,
