@@ -481,7 +481,7 @@ class ShopService extends ChangeNotifier {
     // --- NEW: Devices (standard per element) ---
     ShopOffer(
       id: 'device.harvest.std.volcanic',
-      name: 'Wild Harvester – Volcanic',
+      name: 'Volcanic Harvester',
       description:
           'Capture wild Volcanic-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: AppIcons.local_fire_department_rounded,
@@ -493,7 +493,7 @@ class ShopService extends ChangeNotifier {
     ),
     ShopOffer(
       id: 'device.harvest.std.oceanic',
-      name: 'Wild Harvester – Oceanic',
+      name: 'Oceanic Harvester',
       description:
           'Capture wild Oceanic-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: AppIcons.water_rounded,
@@ -505,7 +505,7 @@ class ShopService extends ChangeNotifier {
     ),
     ShopOffer(
       id: 'device.harvest.std.verdant',
-      name: 'Wild Harvester – Verdant',
+      name: 'Verdant Harvester',
       description:
           'Capture wild Verdant-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: AppIcons.eco_rounded,
@@ -517,7 +517,7 @@ class ShopService extends ChangeNotifier {
     ),
     ShopOffer(
       id: 'device.harvest.std.earthen',
-      name: 'Wild Harvester – Earthen',
+      name: 'Earthen Harvester',
       description:
           'Capture wild Earthen-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: AppIcons.terrain_rounded,
@@ -529,7 +529,7 @@ class ShopService extends ChangeNotifier {
     ),
     ShopOffer(
       id: 'device.harvest.std.arcane',
-      name: 'Wild Harvester – Arcane',
+      name: 'Arcane Harvester',
       description:
           'Capture wild Arcane-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: AppIcons.auto_awesome_rounded,

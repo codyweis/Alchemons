@@ -55,7 +55,7 @@ class _MarketItem {
 const _harvesterItems = <_MarketItem>[
   _MarketItem(
     id: 'market.harvest.volcanic',
-    name: 'Wild Harvester – Volcanic',
+    name: 'Volcanic Harvester',
     description: 'Standard capture device for volcanic creatures.',
     icon: AppIcons.local_fire_department_rounded,
     iconColor: Color(0xFFFF5722),
@@ -65,7 +65,7 @@ const _harvesterItems = <_MarketItem>[
   ),
   _MarketItem(
     id: 'market.harvest.oceanic',
-    name: 'Wild Harvester – Oceanic',
+    name: 'Oceanic Harvester',
     description: 'Standard capture device for oceanic creatures.',
     icon: AppIcons.water_rounded,
     iconColor: Color(0xFF64B5F6),
@@ -75,7 +75,7 @@ const _harvesterItems = <_MarketItem>[
   ),
   _MarketItem(
     id: 'market.harvest.verdant',
-    name: 'Wild Harvester – Verdant',
+    name: 'Verdant Harvester',
     description: 'Standard capture device for verdant creatures.',
     icon: AppIcons.eco_rounded,
     iconColor: Color(0xFF66BB6A),
@@ -85,7 +85,7 @@ const _harvesterItems = <_MarketItem>[
   ),
   _MarketItem(
     id: 'market.harvest.earthen',
-    name: 'Wild Harvester – Earthen',
+    name: 'Earthen Harvester',
     description: 'Standard capture device for earthen creatures.',
     icon: AppIcons.terrain_rounded,
     iconColor: Color(0xFF8D6E63),
@@ -95,7 +95,7 @@ const _harvesterItems = <_MarketItem>[
   ),
   _MarketItem(
     id: 'market.harvest.arcane',
-    name: 'Wild Harvester – Arcane',
+    name: 'Arcane Harvester',
     description: 'Standard capture device for arcane creatures.',
     icon: AppIcons.auto_awesome_rounded,
     iconColor: Color(0xFFCE93D8),
