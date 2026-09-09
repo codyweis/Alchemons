@@ -16,6 +16,8 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:alchemons/widgets/fx/glyph_clock.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -340,7 +342,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
 
   /// Plays the full arcane-portal discovery animation sequence:
   /// 1. Wheel spins faster
-  /// 2. Centre swirl grows, speeds up, then "explodes"
+  /// 2. Centre well grows, spins up into a vortex, then "explodes"
   /// 3. Screen flashes white
   /// 4. Popup: "ARCANE PORTAL DISCOVERED"
   /// 5. Persists unlock flag
@@ -645,17 +647,17 @@ class _SpinningWheel extends StatelessWidget {
             for (final i in sorted) _buildNode(i, cx, cy, rx, ry),
             // Centre eye — grows & spins faster during portal discovery
             Positioned(
-              left: cx - 34,
-              top: cy - 34,
+              left: cx - 46,
+              top: cy - 46,
+              // Only portalCtrl now: the eye runs its own clock, so this
+              // subtree no longer rebuilds on every background frame.
               child: AnimatedBuilder(
-                animation: Listenable.merge([bgCtrl, portalCtrl]),
+                animation: portalCtrl,
                 builder: (_, __) {
                   // Baseline is level 1; every completed ritual wakes the
                   // altar a little more. Portal discovery still surges on top.
                   final p = portalCtrl.value;
                   final growScale = 1.0 + p * 2.5; // 1× → 3.5×
-                  final speedMul = baseSpiralSpeed * (1.0 + p * 7.0);
-                  final effectiveT = bgCtrl.value * speedMul;
                   // Fade-out near the end of the portal anim (explosion)
                   final opacity = p > 0.85
                       ? (1.0 - ((p - 0.85) / 0.15)).clamp(0.0, 1.0)
@@ -664,7 +666,10 @@ class _SpinningWheel extends StatelessWidget {
                     scale: growScale,
                     child: Opacity(
                       opacity: opacity,
-                      child: _AltarEye(t: effectiveT),
+                      child: _AltarEye(
+                        rate: baseSpiralSpeed * (1.0 + p * 7.0),
+                        surge: p,
+                      ),
                     ),
                   );
                 },
@@ -1703,100 +1708,219 @@ class _WheelTrackPainter extends CustomPainter {
 // ALTAR EYE (centre ornament)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _AltarEye extends StatelessWidget {
-  final double t;
-  const _AltarEye({required this.t});
+/// The altar's core: a void well that beats, and pulls the dark in toward it.
+///
+/// This was a three-armed spiral, which read as clipart at any size and
+/// carried two MaskFilter.blur calls per frame — animating constantly, behind
+/// a turning wheel, a starfield and fourteen nodes. A pulse says the same
+/// thing about the altar being awake without drawing a galaxy, and the glow
+/// is layered flat discs.
+class _AltarEye extends StatefulWidget {
+  const _AltarEye({
+    required this.rate,
+    required this.surge,
+    this.size = 92,
+  });
+
+  /// How fast the altar is running: it wakes a little with every completed
+  /// ritual, and surges hard while a portal is being discovered.
+  final double rate;
+
+  /// 0..1 portal discovery, which brightens and swells the core.
+  final double surge;
+
+  final double size;
+
+  @override
+  State<_AltarEye> createState() => _AltarEyeState();
+}
+
+class _AltarEyeState extends State<_AltarEye> with GlyphClockLease {
+  /// Phase is integrated rather than derived from a controller's value.
+  ///
+  /// The old eye took `bgCtrl.value * speedMul`, which sawtooths — it snapped
+  /// back every time the controller looped, and jumps by however much
+  /// speedMul is not a whole number. A rotating spiral could absorb that; a
+  /// field of motes cannot, they would teleport. Integrating a rate against a
+  /// monotonic clock has no seam, and it also lets the portal surge ramp the
+  /// speed up without the phase lurching.
+  final ValueNotifier<double> _phase = ValueNotifier<double>(0);
+  double? _lastSeconds;
+
+  @override
+  bool get wantsClock => true;
+
+  @override
+  void initState() {
+    super.initState();
+    syncGlyphClock();
+    GlyphClock.instance.seconds.addListener(_tick);
+  }
+
+  void _tick() {
+    final now = GlyphClock.instance.seconds.value;
+    // Clamped so a dropped frame or a backgrounded app cannot jump the field.
+    final dt = _lastSeconds == null
+        ? 0.0
+        : (now - _lastSeconds!).clamp(0.0, 0.1);
+    _lastSeconds = now;
+    _phase.value += dt * widget.rate;
+  }
+
+  @override
+  void dispose() {
+    GlyphClock.instance.seconds.removeListener(_tick);
+    releaseGlyphClock();
+    _phase.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final p = (math.sin(t * math.pi * 2) + 1) / 2;
     return SizedBox(
-      width: 68,
-      height: 68,
+      width: widget.size,
+      height: widget.size,
       child: CustomPaint(
-        painter: _SwirlPainter(t: t, pulse: p),
+        willChange: true,
+        isComplex: false,
+        painter: _VoidPulsePainter(phase: _phase, surge: widget.surge),
       ),
     );
   }
 }
 
-class _SwirlPainter extends CustomPainter {
-  final double t;
-  final double pulse;
-  const _SwirlPainter({required this.t, required this.pulse});
+class _VoidPulsePainter extends CustomPainter {
+  _VoidPulsePainter({required this.phase, required this.surge})
+    : super(repaint: phase);
 
-  static const _arms = 3;
-  static const _steps = 22;
-  static const _sweepRad = math.pi * (260 / 180);
+  final ValueListenable<double> phase;
+  final double surge;
+
+  /// Reused across every frame. No MaskFilter anywhere in here.
+  static final Paint _p = Paint();
+
+  /// Seconds per heartbeat at rate 1.
+  static const double _beat = 2.4;
+
+  /// Everything here is dots. An earlier pass drew the pulse as stroked rings
+  /// and put radial filaments round the core, and the whole thing read as
+  /// linework — the one thing the altar core should not look like.
+  static const int _motes = 26;
+  static const int _waveDots = 20;
+
+  double get _t => phase.value;
+
+  /// Golden-ratio spacing. A plain `i * k % 1` hash put every third mote at
+  /// almost the same angle and almost the same phase, so they travelled in
+  /// visible little clumps of three.
+  static double _h(int i, int salt) =>
+      (i * 0.6180339887 + salt * 0.3178) % 1.0;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final center = Offset(cx, cy);
-    final baseAngle = t * math.pi * 2;
-    final innerR = size.width * 0.06;
-    final outerSpan = size.width * 0.42;
-    final softPulse = 0.5 + pulse * 0.5;
+    final s = size.shortestSide;
+    if (s <= 0) return;
+    final c = Offset(size.width / 2, size.height / 2);
 
-    // Soft core bloom — single gentle layer
-    canvas.drawCircle(
-      center,
-      size.width * 0.15 + pulse * 2.0,
-      Paint()
-        ..color = _C.voidBright.withValues(alpha: 0.10 + pulse * 0.08)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-    );
+    final beat = (_t / _beat) % 1.0;
+    final breathe = 0.5 + 0.5 * math.sin(_t / _beat * math.pi * 2);
 
-    // Spiral arms — one mutable Paint, eased taper for a refined ribbon
-    final armPaint = Paint()
-      ..strokeCap = StrokeCap.round
-      ..isAntiAlias = true;
-
-    for (int arm = 0; arm < _arms; arm++) {
-      final armOffset = (arm / _arms) * math.pi * 2;
-      double prevR = innerR;
-      double prevA = baseAngle + armOffset;
-      Offset prev = Offset(
-        cx + prevR * math.cos(prevA),
-        cy + prevR * math.sin(prevA),
-      );
-
-      for (int s = 1; s <= _steps; s++) {
-        final frac = s / _steps;
-        final r = innerR + frac * outerSpan;
-        final angle = baseAngle + armOffset + frac * _sweepRad;
-        final next = Offset(cx + r * math.cos(angle), cy + r * math.sin(angle));
-
-        // Eased taper (frac²): faint, fine at the core; broader, brighter outward
-        final taper = frac * frac;
-        armPaint
-          ..color = _C.voidGlow.withValues(
-            alpha: (0.08 + taper * 0.50) * softPulse,
-          )
-          ..strokeWidth = 0.6 + taper * 2.0;
-        canvas.drawLine(prev, next, armPaint);
-        prev = next;
-      }
+    // Turning the canvas rather than every offset: at rest this is a slow
+    // drift, at full surge the whole well is spinning.
+    if (surge > 0.001) {
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(_t * surge * 1.6);
+      canvas.translate(-c.dx, -c.dy);
     }
 
-    // Hot centre dot
+    _waves(canvas, c, s, beat);
+    _intake(canvas, c, s);
+
+    if (surge > 0.001) canvas.restore();
+
+    // The core stays put — a spinning point is just a point, and it is the
+    // one thing that should look steady while everything round it tears up.
+    _core(canvas, c, s, breathe);
+  }
+
+  /// The beat going out, thrown as a ring of motes rather than drawn as a
+  /// circle. Two waves a half-beat apart so the altar never looks stopped,
+  /// and both radius and dot size are jittered per mote — a perfectly even
+  /// ring reads as a graphic no matter how many dots are in it.
+  void _waves(Canvas canvas, Offset c, double s, double beat) {
+    for (var w = 0; w < 2; w++) {
+      final p = (beat + w * 0.5) % 1.0;
+      final e = Curves.easeOutCubic.transform(p);
+      final fade = (1 - p) * (0.62 + 0.30 * surge);
+      if (fade <= 0.02) continue;
+      final r = s * (0.11 + 0.37 * e);
+      for (var i = 0; i < _waveDots; i++) {
+        final a =
+            i * math.pi * 2 / _waveDots +
+            w * 0.16 +
+            // Barely turns at rest; the portal surge whips it round.
+            _t * (0.07 + surge * 1.1) +
+            (_h(i, w + 3) - 0.5) * 0.11;
+        final rr = r * (1 + (_h(i, w) - 0.5) * 0.18);
+        canvas.drawCircle(
+          c + Offset(math.cos(a) * rr, math.sin(a) * rr),
+          s * (0.019 - 0.010 * e) * (0.65 + 0.7 * _h(i, w + 11)),
+          _p..color = _C.voidGlow.withValues(alpha: fade),
+        );
+      }
+    }
+  }
+
+  /// The dark being drawn in. Each mote accelerates as it falls and is
+  /// swallowed at the well — a slight curl, but well short of a full turn, so
+  /// it reads as an eddy rather than a pinwheel.
+  void _intake(Canvas canvas, Offset c, double s) {
+    final bright = Color.lerp(_C.voidGlow, Colors.white, 0.35)!;
+    for (var i = 0; i < _motes; i++) {
+      final p = (_t * 0.26 + _h(i, 1)) % 1.0;
+      final pull = Curves.easeInCubic.transform(p);
+      final dist = s * (0.47 - 0.39 * pull);
+      // The curl is what makes the surge read as a spin rather than just a
+      // faster heartbeat. At rest it is an eddy — well under a half turn on
+      // the way in. At full surge each mote wraps more than a full turn
+      // before the well takes it, and with the phase already running eight
+      // times faster the field becomes a vortex.
+      final a = _h(i, 2) * math.pi * 2 + p * (1.5 + surge * 7.0);
+      final fade =
+          (p < 0.14 ? p / 0.14 : 1.0) * (p > 0.88 ? (1 - p) / 0.12 : 1.0);
+      if (fade <= 0.02) continue;
+      canvas.drawCircle(
+        c + Offset(math.cos(a) * dist, math.sin(a) * dist),
+        s * (0.011 + 0.012 * (1 - pull)) * (0.7 + 0.6 * _h(i, 5)),
+        _p..color = bright.withValues(alpha: (0.55 + 0.35 * surge) * fade),
+      );
+    }
+  }
+
+  void _core(Canvas canvas, Offset c, double s, double breathe) {
+    final r = s * (0.082 + 0.018 * breathe) * (1 + 0.35 * surge);
+    for (var i = 3; i >= 1; i--) {
+      canvas.drawCircle(
+        c,
+        r * (1 + 0.62 * i),
+        _p
+          ..color = _C.voidBright.withValues(
+            alpha: ((0.16 + 0.10 * surge) * (0.7 + 0.3 * breathe)) / i,
+          ),
+      );
+    }
+    canvas.drawCircle(c, r, _p..color = _C.voidGlow.withValues(alpha: 0.92));
     canvas.drawCircle(
-      center,
-      2.4 + pulse * 0.6,
-      Paint()
-        ..color = _C.voidGlow.withValues(alpha: 0.55 + pulse * 0.15)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
-    );
-    canvas.drawCircle(
-      center,
-      1.1,
-      Paint()..color = Colors.white.withValues(alpha: 0.82),
+      c,
+      r * 0.44,
+      _p..color = Colors.white.withValues(alpha: 0.85 + 0.15 * breathe),
     );
   }
 
   @override
-  bool shouldRepaint(_SwirlPainter old) => old.t != t || old.pulse != pulse;
+  bool shouldRepaint(covariant _VoidPulsePainter old) =>
+      old.phase != phase || old.surge != surge;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1897,16 +2021,9 @@ class _ArcanePortalPopupState extends State<_ArcanePortalPopup>
                       children: [
                         Row(
                           children: [
-                            SizedBox(
-                              width: 66,
-                              height: 66,
-                              child: CustomPaint(
-                                painter: _SwirlPainter(
-                                  t: _ctrl.value * 2,
-                                  pulse: 0.8,
-                                ),
-                              ),
-                            ),
+                            // The same core the altar shows, so the popup
+                            // is plainly about that thing.
+                            const _AltarEye(rate: 1.6, surge: 0.5, size: 66),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(
