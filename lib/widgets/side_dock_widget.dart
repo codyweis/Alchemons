@@ -14,6 +14,9 @@ class SideDockFloating extends StatelessWidget {
   final bool showHarvestDot; // NEW
   final bool lockNonField;
   final bool lockEnhance;
+
+  /// Survival stays off the dock entirely until the cosmic portal is found.
+  final bool hideSurvival;
   final Animation<double>? enhanceRevealAnimation;
   final bool highlightEnhance;
   //battle
@@ -31,6 +34,7 @@ class SideDockFloating extends StatelessWidget {
     this.showHarvestDot = false,
     this.lockNonField = false,
     this.lockEnhance = false,
+    this.hideSurvival = false,
     this.enhanceRevealAnimation,
     this.highlightEnhance = false,
     required this.onBattle,
@@ -63,19 +67,20 @@ class SideDockFloating extends StatelessWidget {
 
         const SizedBox(height: 10),
 
-        // SURVIVAL
-        lockWrap(
-          locked: lockNonField,
-          child: _FloatingSideButton(
-            theme: theme,
-            size: 80,
-            label: 'Survival',
-            assetPath: 'assets/images/ui/trialsicon.png',
-            onTap: context.soundTap(onBattle),
+        // SURVIVAL: hidden until the cosmic portal is discovered.
+        if (!hideSurvival) ...[
+          lockWrap(
+            locked: lockNonField,
+            child: _FloatingSideButton(
+              theme: theme,
+              size: 80,
+              label: 'Survival',
+              assetPath: 'assets/images/ui/trialsicon.png',
+              onTap: context.soundTap(onBattle),
+            ),
           ),
-        ),
-
-        const SizedBox(height: 10),
+          const SizedBox(height: 10),
+        ],
 
         if (!lockEnhance) ...[
           // ENHANCE: hidden until unlocked, but still lockable during tutorials

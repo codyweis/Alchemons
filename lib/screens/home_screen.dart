@@ -642,6 +642,12 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool _isFieldTutorialActive = false;
   bool _hasAnyRelic = false;
+
+  /// Survival is hidden, not disabled, until the cosmic portal is found. The
+  /// button used to sit there permanently and answer a tap with "discover the
+  /// cosmic portal to unlock Survival" — advertising a mode and naming the
+  /// thing that gates it, which is both a spoiler and a dead control.
+  bool _survivalUnlocked = false;
   bool _tutorialCheckInProgress =
       false; // prevents double-fire from didUpdateWidget + didPopNext
   bool _arcanePortalUnlocked = false;
@@ -1021,6 +1027,7 @@ class _HomeScreenState extends State<HomeScreen>
       await _grantStarterIfNeeded(faction, spawnService);
       await _migrateLegacyBossRelics();
       await _refreshHasAnyRelic();
+      await _refreshSurvivalUnlocked();
 
       // Load featured hero
       final featuredInstance = await _loadFeaturedInstanceOrAuto();
@@ -1925,6 +1932,7 @@ class _HomeScreenState extends State<HomeScreen>
                             theme: theme,
                             lockNonField: _isFieldTutorialActive,
                             lockEnhance: !enhanceUnlocked,
+                            hideSurvival: !_survivalUnlocked,
                             enhanceRevealAnimation: _enhanceRevealController,
                             highlightEnhance: _enhanceHighlightActive,
                             showHarvestDot:
@@ -2322,6 +2330,14 @@ class _HomeScreenState extends State<HomeScreen>
     }
     if (mounted && found != _hasAnyRelic) {
       setState(() => _hasAnyRelic = found);
+    }
+  }
+
+  Future<void> _refreshSurvivalUnlocked() async {
+    final db = context.read<AlchemonsDatabase>();
+    final unlocked = await db.settingsDao.isCosmicSurvivalPortalDiscovered();
+    if (mounted && unlocked != _survivalUnlocked) {
+      setState(() => _survivalUnlocked = unlocked);
     }
   }
 

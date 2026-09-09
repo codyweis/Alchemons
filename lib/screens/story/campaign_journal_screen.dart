@@ -155,9 +155,16 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
   }
 
 
+  /// Which tab an achievement lives under.
+  ///
+  /// Cultivating specific families and breeding a species true are collection
+  /// goals — they are about what ends up in the catalog, not about a system
+  /// being exercised — so they sit with the discovery counts rather than in
+  /// the Challenges bucket everything unmatched falls into.
   String category(CampaignAchievement a) {
     if (campaignMissionIds.contains(a.id)) return 'Story';
-    if (a.id.startsWith('collection')) return 'Collection';
+    const collection = {'collection', 'fuse_', 'pure_'};
+    if (collection.any(a.id.startsWith)) return 'Collection';
     if (a.id.startsWith('survival')) return 'Survival';
     const exploration = {'planets', 'raid', 'portal', 'maxim'};
     if (exploration.any(a.id.startsWith)) return 'Exploration';

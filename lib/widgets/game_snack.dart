@@ -14,7 +14,11 @@ import 'package:flutter/material.dart';
 /// down the left, caps monospace — so a notification reads as this game's
 /// notification, and the colour carries the severity instead of the whole
 /// rectangle.
-const double _barHeight = 96;
+/// Roughly what one of these occupies, used to lift it by the right amount.
+const double _barHeight = 88;
+
+/// Breathing room under the status bar.
+const double _topGap = 10;
 
 void showGameSnack(
   BuildContext context,
@@ -35,12 +39,18 @@ void showGameSnack(
   // Top of the screen, not the bottom.
   //
   // A SnackBar has no anchor of its own; a floating one is positioned by its
-  // margin off the bottom, so the whole viewport height minus the bar is what
-  // puts it under the status bar. Clamped because a short viewport (a landscape
-  // phone, a split screen) would otherwise ask for a negative margin.
+  // margin off the bottom, so lifting it by the viewport height less its own
+  // height puts it up there.
+  //
+  // viewPadding, not padding: padding is what is *left* after an ancestor
+  // Scaffold or SafeArea has consumed the inset, and it is routinely zero by
+  // the time a screen calls this — which parked the bar under the status bar
+  // and the notch. viewPadding reports the physical inset whoever is asking.
+  // Clamped because a short viewport (landscape, split screen) would otherwise
+  // ask for a negative margin.
   final media = MediaQuery.of(context);
-  final topInset = media.padding.top;
-  final liftBy = (media.size.height - topInset - _barHeight).clamp(
+  final safeTop = media.viewPadding.top + _topGap;
+  final liftBy = (media.size.height - safeTop - _barHeight).clamp(
     0.0,
     double.infinity,
   );
