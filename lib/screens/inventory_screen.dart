@@ -1,16 +1,12 @@
+import 'package:alchemons/widgets/inventory_item_artwork.dart';
+import 'package:alchemons/widgets/animations/loot_open_popup.dart';
+import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/inventory_screen.dart - REDESIGNED
-import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
-import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
-import 'package:alchemons/widgets/instant_extractor_glyph.dart';
-import 'package:alchemons/widgets/portal_key_glyph.dart';
-import 'package:alchemons/widgets/raid_beacon_glyph.dart';
-import 'package:alchemons/widgets/potential_soul_sphere.dart';
-import 'package:alchemons/widgets/stamina_elixir_glyph.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -78,55 +74,21 @@ class InventoryImageHelper {
     IconData? icon,
     required double size,
   }) {
-    final powerupType = alchemicalPowerupTypeFromInventoryKey(key);
-    if (powerupType != null) {
-      return AlchemicalPowerupOrbSphere(type: powerupType, size: size);
-    }
-    if (key == InvKeys.potentialSoul) {
-      return PotentialSoulSphere(size: size);
-    }
-    if (key == InvKeys.staminaPotion) {
-      return StaminaElixirGlyph(size: size);
-    }
-    if (key == InvKeys.instantHatch) {
-      return InstantExtractorGlyph(size: size);
-    }
-    if (key == InvKeys.raidBeacon) {
-      return RaidBeaconGlyph(size: size);
-    }
-    final riftKey = PortalKeyGlyph.biomeForInventoryKey(key);
-    if (riftKey != null) {
-      return PortalKeyGlyph(biomeId: riftKey, size: size);
-    }
-
     final harvester = harvesterBiomeForKey(key);
     if (harvester != null) {
       return HarvesterGlyph(biomeId: harvester, size: size);
     }
-
-    // 1. Check if it's an alchemy effect using the key prefix
-    if (key.startsWith('alchemy.')) {
-      final preview = ShopService.getAlchemyEffectPreview(key, size: size);
-      if (preview != null) {
-        // Return the animated widget, constrained to the size
-        return SizedBox.square(dimension: size, child: preview);
-      }
+    // Preserve relic and caller-supplied artwork for items without shop offers.
+    if (assetName != null && InventoryItemArtwork.offerFor(key) == null) {
+      return SizedBox.square(
+        dimension: size,
+        child: Image.asset(assetName, fit: BoxFit.contain),
+      );
     }
-
-    // 2. Fallback to static image asset
-    if (assetName != null) {
-      return Image.asset(assetName, fit: BoxFit.contain);
-    }
-
-    // 3. Final fallback to icon
-    if (icon != null) {
-      return Icon(icon, size: size * 0.75);
-    }
-
-    // Default fallback (placeholder)
-    return SizedBox.square(
-      dimension: size,
-      child: Container(color: Colors.grey.withValues(alpha: 0.1)),
+    return InventoryItemArtwork(
+      inventoryKey: key,
+      size: size,
+      fallbackIcon: icon,
     );
   }
 }
@@ -829,7 +791,9 @@ class _InventoryScreenState extends State<InventoryScreen>
                         if (canUse)
                           Expanded(
                             child: _DialogActionButton(
-                              label: 'Use item',
+                              label: item.key.startsWith('lootbox.boss.')
+                                  ? 'Open box'
+                                  : 'Use item',
                               icon: AppIcons.play_arrow_rounded,
                               color: bracketReadableAccent(theme),
                               onTap: () {
@@ -995,6 +959,44 @@ class _InventoryScreenState extends State<InventoryScreen>
         'This is a key item and cannot be used right now',
         icon: AppIcons.vpn_key_rounded,
         color: Colors.indigo,
+      );
+      return;
+    }
+
+    if (item.key.startsWith('lootbox.boss.')) {
+      final service = InventoryService(context.read<AlchemonsDatabase>());
+      final rewards = await service.openLootBox(item.key);
+      service.dispose();
+      if (!mounted) return;
+      if (rewards.isEmpty) {
+        _showToast(
+          'No boxes remaining',
+          icon: AppIcons.info_rounded,
+          color: Colors.orange,
+        );
+        return;
+      }
+      final registry = buildInventoryRegistry(
+        context.read<AlchemonsDatabase>(),
+      );
+      await showLootOpeningDialog(
+        context: context,
+        title: def.name,
+        entries: rewards.map((reward) {
+          final rewardDef = registry[reward.key];
+          return LootOpeningEntry(
+            icon: rewardDef?.icon ?? AppIcons.inventory_2_rounded,
+            name: rewardDef?.name ?? reward.key,
+            label: 'x${reward.value}',
+            color: context.read<FactionTheme>().accent,
+            visualBuilder: (size) => InventoryImageHelper.getVisualWidget(
+              key: reward.key,
+              assetName: InventoryImageHelper.getImage(reward.key),
+              icon: rewardDef?.icon,
+              size: size,
+            ),
+          );
+        }).toList(),
       );
       return;
     }

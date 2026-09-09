@@ -861,11 +861,11 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name:
           '${element[0].toUpperCase()}${element.substring(1)} Mystic Loot Box',
       description:
-          'Late-game reward chest from a powered-up ${element.toUpperCase()} Mystic rematch. '
+          'An elemental reward cache from Survival or a Mystic rematch. Open it to claim its contents. '
           'Contains survival items like Harvesters, breeding Stamina Elixirs, Wild Fusion catalysts, Alchemy effects, and rare Stabilized Harvesters.',
       icon: meta.lootboxIcon,
       stackable: true,
-      canUse: false,
+      canUse: true,
     );
   }
 
