@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/scenes/scene_page.dart
 import 'dart:async';
 import 'dart:math';
@@ -2277,7 +2278,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
               ),
               const SizedBox(height: 14),
               GestureDetector(
-                onTap: _handleEnterTap,
+                onTap: context.soundAction(_handleEnterTap),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 22,
@@ -2337,7 +2338,9 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   GestureDetector(
-                    onTap: () => setState(() => _confirming = false),
+                    onTap: context.soundAction(
+                      () => setState(() => _confirming = false),
+                    ),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -2362,7 +2365,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                   ),
                   const SizedBox(width: 12),
                   GestureDetector(
-                    onTap: _handleConfirmEnter,
+                    onTap: context.soundAction(_handleConfirmEnter),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -2430,7 +2433,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
               ),
             const SizedBox(height: 10),
             GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
+              onTap: context.soundAction(() => Navigator.of(context).pop()),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(

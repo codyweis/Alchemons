@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/wilderness/encounter_action_dialog.dart
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/wilderness.dart';
@@ -230,7 +231,9 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
 
   Widget _buildBreedOption(FactionTheme theme) {
     return GestureDetector(
-      onTap: () => Navigator.pop(context, EncounterAction.breed),
+      onTap: context.soundAction(
+        () => Navigator.pop(context, EncounterAction.breed),
+      ),
       child: Container(
         padding: const EdgeInsets.all(5),
         child: Column(
@@ -353,7 +356,9 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
     }
 
     return GestureDetector(
-      onTap: () => Navigator.pop(context, EncounterAction.capture),
+      onTap: context.soundAction(
+        () => Navigator.pop(context, EncounterAction.capture),
+      ),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -448,7 +453,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
 
   Widget _buildFleeButton(FactionTheme theme) {
     return GestureDetector(
-      onTap: () => Navigator.pop(context),
+      onTap: context.soundAction(() => Navigator.pop(context)),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 12),

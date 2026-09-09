@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // brewing_card_widget.dart (NurseryBrewingCard)
 import 'dart:math' as math;
 
@@ -177,7 +178,7 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
 
     return RepaintBoundary(
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTap: context.soundAction(widget.onTap),
         child: CustomPaint(
           painter: BracketFramePainter(
             color: frameColor,

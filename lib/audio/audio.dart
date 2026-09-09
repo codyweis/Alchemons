@@ -20,8 +20,12 @@ extension SoundContext on BuildContext {
   ]) {
     if (action == null) return null;
     return () {
-      sound(cue);
+      final controller = audio;
+      final serial = controller?.soundEventSerial;
       action();
+      if (controller != null && controller.soundEventSerial == serial) {
+        unawaited(controller.playSound(cue));
+      }
     };
   }
 }

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // widgets/wilderness/encounter_scaffold.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -277,7 +278,7 @@ class _EncounterButton extends StatelessWidget {
     final height = large ? 50.0 : 44.0;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: CustomPaint(
         painter: BracketFramePainter(
@@ -341,7 +342,7 @@ class _PartyMemberTile extends StatelessWidget {
             : _palette.line.withValues(alpha: 0.7);
 
         return GestureDetector(
-          onTap: onTap,
+          onTap: context.soundAction(onTap),
           child: CustomPaint(
             painter: BracketFramePainter(
               color: frameColor,

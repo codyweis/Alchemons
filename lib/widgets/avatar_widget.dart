@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // ============================================================================
 // HELPER WIDGETS (unchanged from previous version)
 // ============================================================================
@@ -47,7 +48,7 @@ class _AvatarButtonState extends State<AvatarButton>
         return Transform.translate(
           offset: Offset(0, _animation.value),
           child: GestureDetector(
-            onTap: widget.onTap,
+            onTap: context.soundAction(widget.onTap),
             child: Container(
               width: 60,
               height: 60,

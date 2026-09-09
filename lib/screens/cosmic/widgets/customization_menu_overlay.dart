@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -236,7 +237,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: GestureDetector(
-                    onTap: widget.onPreview,
+                    onTap: context.soundAction(widget.onPreview),
                     behavior: HitTestBehavior.opaque,
                     child: Container(
                       width: double.infinity,
@@ -294,7 +295,9 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: GestureDetector(
-                  onTap: () => _showResourcesPopup(context, bankBalance),
+                  onTap: context.soundAction(
+                    () => _showResourcesPopup(context, bankBalance),
+                  ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -396,7 +399,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
         top: false,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: widget.onBack ?? widget.onClose,
+          onTap: context.soundAction(widget.onBack ?? widget.onClose),
           child: Container(
             width: double.infinity,
             height: 40,
@@ -684,14 +687,14 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     final active = _activeTab == index;
     return Expanded(
       child: GestureDetector(
-        onTap: () {
+        onTap: context.soundAction(() {
           setState(() => _setTab(index));
           _pageController.animateToPage(
             index,
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOutCubic,
           );
-        },
+        }),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 7),
           decoration: BoxDecoration(
@@ -901,9 +904,9 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                         return SizedBox(
                           width: tileWidth,
                           child: GestureDetector(
-                            onTap: unlocked
-                                ? () => widget.onSelectSize(i)
-                                : null,
+                            onTap: context.soundAction(
+                              unlocked ? () => widget.onSelectSize(i) : null,
+                            ),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 10,
@@ -979,7 +982,9 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 const SizedBox(height: 12),
                 if (nextCost != null)
                   GestureDetector(
-                    onTap: canAffordUpgrade ? widget.onUpgradeSize : null,
+                    onTap: context.soundAction(
+                      canAffordUpgrade ? widget.onUpgradeSize : null,
+                    ),
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
@@ -1048,7 +1053,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
         // Chambers
         _sectionHeader('ORBITAL CHAMBERS', accent: CosmicScreenStyles.teal),
         GestureDetector(
-          onTap: widget.onChambers,
+          onTap: context.soundAction(widget.onChambers),
           child: Container(
             width: double.infinity,
             height: 42,
@@ -1183,7 +1188,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           const SizedBox(height: 12),
           // Default gray
           GestureDetector(
-            onTap: () => widget.onSelectColor(null),
+            onTap: context.soundAction(() => widget.onSelectColor(null)),
             child: Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1257,11 +1262,13 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   return SizedBox(
                     width: tileWidth,
                     child: GestureDetector(
-                      onTap: isUnlocked
-                          ? () => widget.onSelectColor(e.key)
-                          : canAfford
-                          ? () => widget.onUnlockColor(e.key)
-                          : null,
+                      onTap: context.soundAction(
+                        isUnlocked
+                            ? () => widget.onSelectColor(e.key)
+                            : canAfford
+                            ? () => widget.onUnlockColor(e.key)
+                            : null,
+                      ),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 9),
                         decoration: BoxDecoration(
@@ -1430,7 +1437,9 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             ),
             const SizedBox(height: 8),
             GestureDetector(
-              onTap: widget.isNearHome ? widget.onUpgradeCargo : null,
+              onTap: context.soundAction(
+                widget.isNearHome ? widget.onUpgradeCargo : null,
+              ),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 7),
@@ -1621,7 +1630,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             Align(
               alignment: Alignment.centerRight,
               child: GestureDetector(
-                onTap: canAfford ? onUpgrade : null,
+                onTap: context.soundAction(canAfford ? onUpgrade : null),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -1764,7 +1773,9 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             Align(
               alignment: Alignment.centerRight,
               child: GestureDetector(
-                onTap: canAfford ? () => widget.onUpgradePowerUp('fuel') : null,
+                onTap: context.soundAction(
+                  canAfford ? () => widget.onUpgradePowerUp('fuel') : null,
+                ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -1855,7 +1866,9 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               ),
               if (unlocked && hasParams)
                 GestureDetector(
-                  onTap: () => setState(() => _detailRecipeId = recipe.id),
+                  onTap: context.soundAction(
+                    () => setState(() => _detailRecipeId = recipe.id),
+                  ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -1878,7 +1891,9 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 ),
               if (unlocked)
                 GestureDetector(
-                  onTap: () => widget.onToggleRecipe(recipe.id),
+                  onTap: context.soundAction(
+                    () => widget.onToggleRecipe(recipe.id),
+                  ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -1974,7 +1989,9 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             ),
             const SizedBox(height: 6),
             GestureDetector(
-              onTap: canAfford ? () => widget.onTryRecipe(recipe.id) : null,
+              onTap: context.soundAction(
+                canAfford ? () => widget.onTryRecipe(recipe.id) : null,
+              ),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 7),
@@ -2031,18 +2048,20 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 child: Row(
                   children: [
                     GestureDetector(
-                      onTap: () => setState(() {
-                        _detailRecipeId = null;
-                        // The PageView unmounts while the detail view is up. A
-                        // reattached PageController restores to its
-                        // initialPage, which fires onPageChanged(0) and throws
-                        // the player back to the SHIP tab. Rebuild it pointing
-                        // at the tab they were actually on.
-                        _pageController.dispose();
-                        _pageController = PageController(
-                          initialPage: _activeTab,
-                        );
-                      }),
+                      onTap: context.soundAction(
+                        () => setState(() {
+                          _detailRecipeId = null;
+                          // The PageView unmounts while the detail view is up. A
+                          // reattached PageController restores to its
+                          // initialPage, which fires onPageChanged(0) and throws
+                          // the player back to the SHIP tab. Rebuild it pointing
+                          // at the tab they were actually on.
+                          _pageController.dispose();
+                          _pageController = PageController(
+                            initialPage: _activeTab,
+                          );
+                        }),
+                      ),
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
@@ -2164,14 +2183,14 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                               children: param.options.map((opt) {
                                 final selected = current == opt;
                                 return GestureDetector(
-                                  onTap: () {
+                                  onTap: context.soundAction(() {
                                     widget.onOptionChanged(
                                       recipeId,
                                       param.key,
                                       opt,
                                     );
                                     setState(() {});
-                                  },
+                                  }),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
@@ -2240,7 +2259,7 @@ class _OverlayHeaderButton extends StatelessWidget {
     final size = compact ? 34.0 : 44.0;
     final iconSize = compact ? 18.0 : 22.0;
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         width: size,
         height: size,

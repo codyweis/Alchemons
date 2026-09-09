@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/material.dart';
 
@@ -27,7 +28,7 @@ class CosmicOverlayBackdrop extends StatelessWidget {
     );
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: content,
     );
   }
@@ -214,7 +215,7 @@ class CosmicIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         width: 38,
         height: 38,
@@ -288,7 +289,7 @@ class CosmicCloseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      onPressed: onTap,
+      onPressed: context.soundAction(onTap),
       icon: const Icon(AppIcons.close_rounded),
       color: CosmicScreenStyles.textSecondary,
       splashRadius: 20,

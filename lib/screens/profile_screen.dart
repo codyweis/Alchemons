@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/profile_screen.dart
 //
 // REDESIGNED PROFILE / SETTINGS SCREEN
@@ -150,7 +151,7 @@ class _ForgeButton extends StatelessWidget {
     final t = ForgeTokens(context.read<FactionTheme>());
     final isDisabled = onTap == null;
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -508,14 +509,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: context.soundAction(() => Navigator.pop(context)),
               child: Text(
                 'CANCEL',
                 style: _label(t).copyWith(color: t.textMuted),
               ),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              onPressed: context.soundAction(
+                () => Navigator.pop(context, controller.text.trim()),
+              ),
               child: Text(
                 'SAVE',
                 style: _label(t).copyWith(color: t.amberBright),
@@ -590,14 +593,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: context.soundAction(
+                () => Navigator.pop(context, false),
+              ),
               child: Text(
                 'CANCEL',
                 style: _label(t).copyWith(color: t.textMuted),
               ),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: context.soundAction(
+                () => Navigator.pop(context, true),
+              ),
               child: Text(
                 'DELETE',
                 style: _label(t).copyWith(color: Colors.red.shade300),
@@ -715,14 +722,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: context.soundAction(
+                () => Navigator.pop(context, false),
+              ),
               child: Text(
                 'CANCEL',
                 style: _label(t).copyWith(color: t.textMuted),
               ),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: context.soundAction(
+                () => Navigator.pop(context, true),
+              ),
               child: Text(
                 'RESTORE',
                 style: _label(t).copyWith(color: t.amberBright),
@@ -790,14 +801,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: context.soundAction(
+                () => Navigator.pop(context, false),
+              ),
               child: Text(
                 'CANCEL',
                 style: _label(t).copyWith(color: t.textMuted),
               ),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: context.soundAction(
+                () => Navigator.pop(context, true),
+              ),
               child: Text(
                 'TAKE OVER',
                 style: _label(t).copyWith(color: t.amberBright),
@@ -917,11 +932,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         t,
                         'Password',
                         suffix: IconButton(
-                          onPressed: () {
+                          onPressed: context.soundAction(() {
                             setDialogState(() {
                               obscure = !obscure;
                             });
-                          },
+                          }),
                           icon: Icon(
                             obscure
                                 ? AppIcons.visibility_rounded
@@ -936,14 +951,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: context.soundAction(() => Navigator.pop(context)),
                   child: Text(
                     'CANCEL',
                     style: _label(t).copyWith(color: t.textMuted),
                   ),
                 ),
                 TextButton(
-                  onPressed: () {
+                  onPressed: context.soundAction(() {
                     Navigator.pop(
                       context,
                       _CredentialDialogResult(
@@ -952,7 +967,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         displayName: nameController.text.trim(),
                       ),
                     );
-                  },
+                  }),
                   child: Text(
                     submitLabel,
                     style: _label(t).copyWith(color: t.amberBright),
@@ -1003,11 +1018,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         t,
                         'Current password',
                         suffix: IconButton(
-                          onPressed: () {
+                          onPressed: context.soundAction(() {
                             setDialogState(() {
                               obscureCurrent = !obscureCurrent;
                             });
-                          },
+                          }),
                           icon: Icon(
                             obscureCurrent
                                 ? AppIcons.visibility_rounded
@@ -1028,11 +1043,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           t,
                           'New password',
                           suffix: IconButton(
-                            onPressed: () {
+                            onPressed: context.soundAction(() {
                               setDialogState(() {
                                 obscureNew = !obscureNew;
                               });
-                            },
+                            }),
                             icon: Icon(
                               obscureNew
                                   ? AppIcons.visibility_rounded
@@ -1048,14 +1063,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: context.soundAction(() => Navigator.pop(context)),
                   child: Text(
                     'CANCEL',
                     style: _label(t).copyWith(color: t.textMuted),
                   ),
                 ),
                 TextButton(
-                  onPressed: () {
+                  onPressed: context.soundAction(() {
                     Navigator.pop(
                       context,
                       _PasswordDialogResult(
@@ -1063,7 +1078,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         newPassword: nextController.text,
                       ),
                     );
-                  },
+                  }),
                   child: Text(
                     submitLabel,
                     style: _label(t).copyWith(color: t.amberBright),
@@ -1167,7 +1182,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Text('PROFILE', style: _heading(t)),
                       const Spacer(),
                       GestureDetector(
-                        onTap: _openEncyclopedia,
+                        onTap: context.soundAction(_openEncyclopedia),
                         child: Container(
                           width: 58,
                           height: 58,

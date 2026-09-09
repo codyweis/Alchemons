@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/wilderness_peek_dialog.dart
 //
 // "Wilderness Peek" — long-press a biome to see what is waiting in it.
@@ -308,7 +309,7 @@ class _Btn extends StatelessWidget {
       button: true,
       label: label,
       child: GestureDetector(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         child: Container(
           height: 44,
           alignment: Alignment.center,

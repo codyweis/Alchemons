@@ -578,9 +578,11 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                     bottom: 24,
                     right: 24,
                     child: GestureDetector(
-                      onTap: () => _timeline.animateTo(
-                        1.0,
-                        duration: const Duration(milliseconds: 150),
+                      onTap: context.soundAction(
+                        () => _timeline.animateTo(
+                          1.0,
+                          duration: const Duration(milliseconds: 150),
+                        ),
                       ),
                       child: Container(
                         padding: const EdgeInsets.symmetric(

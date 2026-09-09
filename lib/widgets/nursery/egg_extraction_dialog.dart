@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:convert';
 
 import 'package:alchemons/constants/breed_constants.dart';
@@ -257,7 +258,7 @@ class _DialogIconButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         behavior: HitTestBehavior.opaque,
         child: CustomPaint(
           painter: BracketFramePainter(
@@ -294,7 +295,7 @@ class _DialogTextLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

@@ -1,3 +1,4 @@
+import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 // lib/widgets/wilderness/encounter_overlay.dart
 //
 // Modern split-HUD layout for wild encounters
@@ -134,9 +135,12 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     duration: const Duration(milliseconds: 300),
   );
 
+  AudioController? _soundController;
+
   @override
   void initState() {
     super.initState();
+    _soundController = context.audio;
     _wildCreature = widget.hydratedWildCreature;
     _status = widget.isCaptureTutorial
         ? 'Harvester calibrated. Secure the specimen.'
@@ -281,7 +285,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     ),
                     const SizedBox(height: AppSpace.lg),
                     GestureDetector(
-                      onTap: () => Navigator.of(ctx).pop(),
+                      onTap: context.soundAction(() => Navigator.of(ctx).pop()),
                       behavior: HitTestBehavior.opaque,
                       child: CustomPaint(
                         painter: BracketFramePainter(
@@ -432,6 +436,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
   @override
   void dispose() {
+    _soundController?.stopSoundOwner(this);
     _slideController.dispose();
     _fadeController.dispose();
     super.dispose();
@@ -894,7 +899,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       if (success) {
         HapticFeedback.heavyImpact();
-        if (ctx.mounted) ctx.sound(SoundCue.captureSuccess, owner: this);
         const done = 'Extraction complete. Specimen sent to Cultivations.';
         setState(() => _status = done);
 
@@ -906,6 +910,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         if (messenger != null) _showResultNotification(messenger, done);
 
         await _placeWildEgg(ctx, wildCreature);
+        // Result tone can finish as the encounter closes; the attempt cannot.
+        if (ctx.mounted) ctx.sound(SoundCue.captureSuccess);
 
         await Future.delayed(const Duration(milliseconds: 800));
         if (!mounted) return;
@@ -1548,7 +1554,7 @@ class _PartyMemberCard extends StatelessWidget {
         final base = inst == null ? null : repo.getCreatureById(inst.baseId);
 
         return GestureDetector(
-          onTap: onTap,
+          onTap: context.soundAction(onTap),
           child: CustomPaint(
             painter: BracketFramePainter(
               color: selected
@@ -1688,7 +1694,7 @@ class _ActionButton extends StatelessWidget {
     return Opacity(
       opacity: isDisabled ? 0.55 : 1,
       child: GestureDetector(
-        onTap: isDisabled ? null : onPressed,
+        onTap: context.soundAction(isDisabled ? null : onPressed),
         behavior: HitTestBehavior.opaque,
         child: Container(
           height: 46,
@@ -1739,7 +1745,7 @@ class _DialogChoice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: CustomPaint(
         painter: BracketFramePainter(

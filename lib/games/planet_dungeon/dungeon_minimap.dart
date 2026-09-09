@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/games/planet_dungeon/dungeon_minimap.dart
 //
 // Room-scale dungeon minimap. Shows the current chamber, walls, doorways, star
@@ -696,7 +697,7 @@ class _DungeonFullMapState extends State<DungeonFullMap> {
                 ),
               ),
               GestureDetector(
-                onTap: widget.onClose,
+                onTap: context.soundAction(widget.onClose),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,

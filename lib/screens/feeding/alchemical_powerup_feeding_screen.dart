@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async' show unawaited;
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
@@ -202,10 +203,10 @@ class _AlchemicalPowerupFeedingScreenState
           ),
           actions: [
             TextButton(
-              onPressed: () {
+              onPressed: context.soundAction(() {
                 HapticFeedback.lightImpact();
                 Navigator.of(context).pop();
-              },
+              }),
               child: Text(
                 'Got it',
                 style: TextStyle(color: t.amber, fontWeight: FontWeight.w700),
@@ -1224,22 +1225,24 @@ class _AlchemicalPowerupFeedingScreenState
     final potential = _potentialFor(instance, type);
     final maxed = potential >= AlchemonStatSystem.maxPotential;
     return GestureDetector(
-      onTap: _busy
-          ? null
-          : () {
-              HapticFeedback.selectionClick();
-              if (_soulStat != type) _soulSwapController.forward(from: 0);
-              setState(() {
-                // Re-tapping the armed stat disarms rather than doing nothing,
-                // so there is always a way back out of a committed soul.
-                if (_soulStat == type && _soulArmed) {
-                  _soulArmed = false;
-                } else {
-                  _soulStat = type;
-                  _soulArmed = false;
-                }
-              });
-            },
+      onTap: context.soundAction(
+        _busy
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                if (_soulStat != type) _soulSwapController.forward(from: 0);
+                setState(() {
+                  // Re-tapping the armed stat disarms rather than doing nothing,
+                  // so there is always a way back out of a committed soul.
+                  if (_soulStat == type && _soulArmed) {
+                    _soulArmed = false;
+                  } else {
+                    _soulStat = type;
+                    _soulArmed = false;
+                  }
+                });
+              },
+      ),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
@@ -1336,14 +1339,14 @@ class _AlchemicalPowerupFeedingScreenState
         if (ready) ...[
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: () {
+            onTap: context.soundAction(() {
               if (_soulArmed) {
                 HapticFeedback.selectionClick();
               } else {
                 HapticFeedback.mediumImpact();
               }
               setState(() => _soulArmed = !_soulArmed);
-            },
+            }),
             behavior: HitTestBehavior.opaque,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1885,7 +1888,7 @@ class _PowerupHeader extends StatelessWidget {
             ),
             if (onChooseDifferent != null)
               GestureDetector(
-                onTap: onChooseDifferent,
+                onTap: context.soundAction(onChooseDifferent),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,

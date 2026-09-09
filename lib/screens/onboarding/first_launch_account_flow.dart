@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/onboarding/first_launch_account_flow.dart
 //
 // First-launch "do you already have an account?" flow.
@@ -64,14 +65,18 @@ Future<_WelcomeChoice?> _showWelcomeDialog(BuildContext context) {
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, _WelcomeChoice.newPlayer),
+            onPressed: context.soundAction(
+              () => Navigator.pop(context, _WelcomeChoice.newPlayer),
+            ),
             child: Text(
               "I'M NEW",
               style: _label(t).copyWith(color: t.textMuted),
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, _WelcomeChoice.returning),
+            onPressed: context.soundAction(
+              () => Navigator.pop(context, _WelcomeChoice.returning),
+            ),
             child: Text(
               'I HAVE AN ACCOUNT',
               style: _label(t).copyWith(color: t.amberBright),
@@ -180,8 +185,9 @@ Future<_Credentials?> _showCredentialDialog(BuildContext context) {
                       t,
                       'Password',
                       suffix: IconButton(
-                        onPressed: () =>
-                            setDialogState(() => obscure = !obscure),
+                        onPressed: context.soundAction(
+                          () => setDialogState(() => obscure = !obscure),
+                        ),
                         icon: Icon(
                           obscure
                               ? AppIcons.visibility_rounded
@@ -196,18 +202,20 @@ Future<_Credentials?> _showCredentialDialog(BuildContext context) {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: context.soundAction(() => Navigator.pop(context)),
                 child: Text(
                   'CANCEL',
                   style: _label(t).copyWith(color: t.textMuted),
                 ),
               ),
               TextButton(
-                onPressed: () => Navigator.pop(
-                  context,
-                  _Credentials(
-                    email: emailController.text.trim(),
-                    password: passwordController.text,
+                onPressed: context.soundAction(
+                  () => Navigator.pop(
+                    context,
+                    _Credentials(
+                      email: emailController.text.trim(),
+                      password: passwordController.text,
+                    ),
                   ),
                 ),
                 child: Text(

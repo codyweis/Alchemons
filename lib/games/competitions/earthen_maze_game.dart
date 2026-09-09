@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/earthen_maze_game.dart
 import 'dart:async';
 import 'dart:math' as math;
@@ -712,7 +713,7 @@ class _ResultsDialog extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
               child: GestureDetector(
-                onTap: () {
+                onTap: context.soundAction(() {
                   Navigator.of(context).pop();
                   Navigator.of(context).pop({
                     'winner': ranked.first.name,
@@ -720,7 +721,7 @@ class _ResultsDialog extends StatelessWidget {
                     'reward': compLevel.rewardResource,
                     'amount': isVictory ? compLevel.rewardAmount : 0,
                   });
-                },
+                }),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1232,7 +1233,7 @@ class _SpeedButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(

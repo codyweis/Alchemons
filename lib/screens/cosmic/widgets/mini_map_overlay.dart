@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
@@ -1054,10 +1055,10 @@ class _ChartToolRow extends StatelessWidget {
                 const SizedBox(width: 6),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () {
+                  onTap: context.soundAction(() {
                     HapticFeedback.mediumImpact();
                     onClearAll();
-                  },
+                  }),
                   // Small and quiet: it wipes every marker, so it should not
                   // be the most inviting control in the row.
                   child: Container(
@@ -1094,7 +1095,7 @@ class _ChartToolRow extends StatelessWidget {
               const SizedBox(width: 8),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: onToggle,
+                onTap: context.soundAction(onToggle),
                 child: Container(
                   height: 28,
                   padding: const EdgeInsets.symmetric(horizontal: 9),
@@ -1151,10 +1152,10 @@ class _IconBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () {
+      onTap: context.soundAction(() {
         HapticFeedback.lightImpact();
         onTap();
-      },
+      }),
       child: CustomPaint(
         foregroundPainter: DungeonBracketPainter(
           color: accent.withValues(alpha: 0.9),
@@ -1254,10 +1255,10 @@ class _ModeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () {
+      onTap: context.soundAction(() {
         HapticFeedback.selectionClick();
         onTap();
-      },
+      }),
       child: Container(
         width: 38,
         height: 38,
@@ -1302,7 +1303,7 @@ class _MarkerSwatch extends StatelessWidget {
     final color = MapMarker.colors[index];
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         decoration: BoxDecoration(
           color: color.withValues(alpha: selected ? 0.24 : 0.08),
@@ -1490,10 +1491,10 @@ class _PlanetCard extends StatelessWidget {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () {
+      onTap: context.soundAction(() {
         HapticFeedback.selectionClick();
         onTap();
-      },
+      }),
       child: SizedBox(
         width: 112,
         child: Column(
@@ -1593,10 +1594,10 @@ class _NavigateButton extends StatelessWidget {
     return Center(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () {
+        onTap: context.soundAction(() {
           HapticFeedback.lightImpact();
           onTap();
-        },
+        }),
         child: CustomPaint(
           foregroundPainter: DungeonBracketPainter(
             color: col.withValues(alpha: 0.9),
@@ -1723,10 +1724,10 @@ class _TravelPromptCard extends StatelessWidget {
           const SizedBox(width: 10),
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () {
+            onTap: context.soundAction(() {
               HapticFeedback.selectionClick();
               onDismiss();
-            },
+            }),
             child: Container(
               width: 34,
               height: 34,
@@ -1742,10 +1743,10 @@ class _TravelPromptCard extends StatelessWidget {
             const SizedBox(width: 4),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () {
+              onTap: context.soundAction(() {
                 HapticFeedback.mediumImpact();
                 onConfirm();
-              },
+              }),
               child: Container(
                 height: 38,
                 padding: const EdgeInsets.symmetric(horizontal: 14),

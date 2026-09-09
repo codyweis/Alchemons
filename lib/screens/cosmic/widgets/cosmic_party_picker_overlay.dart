@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -288,7 +289,9 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                           AppIcons.arrow_back,
                           color: CosmicScreenStyles.textSecondary,
                         ),
-                        onPressed: () => setState(() => _assigningSlot = -1),
+                        onPressed: context.soundAction(
+                          () => setState(() => _assigningSlot = -1),
+                        ),
                       ),
                       Text(
                         'ASSIGN TO SLOT ${_assigningSlot + 1}',
@@ -343,10 +346,10 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                         ),
                         if (_searchController.text.isNotEmpty)
                           GestureDetector(
-                            onTap: () {
+                            onTap: context.soundAction(() {
                               _searchController.clear();
                               setState(() => _applyFilters());
-                            },
+                            }),
                             child: Padding(
                               padding: EdgeInsets.symmetric(horizontal: 6),
                               child: Icon(
@@ -463,9 +466,11 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
         top: false,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: assigning
-              ? () => setState(() => _assigningSlot = -1)
-              : (widget.onBack ?? widget.onClose),
+          onTap: context.soundAction(
+            assigning
+                ? () => setState(() => _assigningSlot = -1)
+                : (widget.onBack ?? widget.onClose),
+          ),
           child: Container(
             width: double.infinity,
             height: 40,
@@ -545,7 +550,9 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
 
     if (member == null) {
       return GestureDetector(
-        onTap: () => setState(() => _assigningSlot = slotIndex),
+        onTap: context.soundAction(
+          () => setState(() => _assigningSlot = slotIndex),
+        ),
         child: Container(
           height: _slotCardHeight,
           decoration: BoxDecoration(
@@ -592,7 +599,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     // Filled slot
     final eColor = elementColor(member.element);
     return GestureDetector(
-      onTap: () => _showSlotOptions(slotIndex, member),
+      onTap: context.soundAction(() => _showSlotOptions(slotIndex, member)),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         height: _slotCardHeight,
@@ -1085,7 +1092,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     required VoidCallback onTap,
   }) {
     return InkWell(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       splashColor: color.withValues(alpha: 0.08),
       highlightColor: color.withValues(alpha: 0.05),
       child: Padding(
@@ -1276,10 +1283,12 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
   Widget _sortChip(String label, SortBy sort) {
     final active = _sortBy == sort;
     return GestureDetector(
-      onTap: () => setState(() {
-        _sortBy = sort;
-        _applyFilters();
-      }),
+      onTap: context.soundAction(
+        () => setState(() {
+          _sortBy = sort;
+          _applyFilters();
+        }),
+      ),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
@@ -1313,7 +1322,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     VoidCallback onTap,
   ) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         width: 30,
         height: 26,

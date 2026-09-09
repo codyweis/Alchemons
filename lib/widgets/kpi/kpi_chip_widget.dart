@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -38,7 +39,7 @@ class KpiChip extends StatelessWidget {
       offset: Offset(0, floatY),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => _openPopup(context),
+        onTap: context.soundAction(() => _openPopup(context)),
         onLongPress: onOpen,
         child: Hero(
           tag: heroTag,
@@ -199,8 +200,12 @@ class _KpiPopup extends StatelessWidget {
                           ),
                         ),
                         IconButton(
-                          onPressed: () =>
-                              Navigator.of(context, rootNavigator: true).pop(),
+                          onPressed: context.soundAction(
+                            () => Navigator.of(
+                              context,
+                              rootNavigator: true,
+                            ).pop(),
+                          ),
                           icon: const Icon(
                             AppIcons.close_rounded,
                             size: 22,
@@ -591,7 +596,7 @@ class _GlassButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(

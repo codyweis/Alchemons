@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -884,7 +885,7 @@ class _NurseryTabState extends State<NurseryTab> {
       borderRadius: radius,
       child: InkWell(
         borderRadius: radius,
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         splashColor: accentColor.withValues(alpha: .15),
         highlightColor: accentColor.withValues(alpha: .07),
         child: Ink(
@@ -1136,11 +1137,15 @@ class _NurseryTabState extends State<NurseryTab> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
+                onPressed: context.soundAction(
+                  () => Navigator.of(context).pop(false),
+                ),
                 child: const Text('Cancel'),
               ),
               TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
+                onPressed: context.soundAction(
+                  () => Navigator.of(context).pop(true),
+                ),
                 child: const Text('Confirm'),
               ),
             ],
@@ -1334,7 +1339,7 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
   Widget build(BuildContext context) {
     final palette = BracketPalette.of(context);
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: context.soundAction(widget.onTap),
       child: AnimatedBuilder(
         animation: _pulseAnim,
         builder: (context, _) {
@@ -1506,7 +1511,7 @@ class _DiscardButton extends StatelessWidget {
       borderRadius: radius,
       child: InkWell(
         borderRadius: radius,
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         splashColor: color.withValues(alpha: .18),
         highlightColor: color.withValues(alpha: .08),
         child: Ink(

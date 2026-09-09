@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // Separate stateful widget to handle dragging
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -129,7 +130,9 @@ class _DraggableSheetState extends State<DraggableSheet> {
                                   ),
                                 ),
                                 GestureDetector(
-                                  onTap: () => Navigator.pop(context),
+                                  onTap: context.soundAction(
+                                    () => Navigator.pop(context),
+                                  ),
                                   child: Container(
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(

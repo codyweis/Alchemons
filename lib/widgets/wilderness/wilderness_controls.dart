@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/wilderness/wilderness_controls.dart
 import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
@@ -212,7 +213,7 @@ class _InventoryOverlayShell extends StatelessWidget {
     return Material(
       type: MaterialType.transparency,
       child: GestureDetector(
-        onTap: () => Navigator.of(context).pop(),
+        onTap: context.soundAction(() => Navigator.of(context).pop()),
         behavior: HitTestBehavior.opaque,
         child: Stack(
           children: [
@@ -269,7 +270,7 @@ class _ControlButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
-        onTap: onPressed,
+        onTap: context.soundAction(onPressed),
         behavior: HitTestBehavior.opaque,
         child: CustomPaint(
           painter: BracketFramePainter(
@@ -325,7 +326,7 @@ class _DialogButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: CustomPaint(
         painter: BracketFramePainter(

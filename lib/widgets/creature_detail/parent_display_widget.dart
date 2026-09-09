@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // ============================================================================
 // PARENT CARD
 // ============================================================================
@@ -51,7 +52,7 @@ class ParentCard extends StatelessWidget {
         children: [
           InkWell(
             borderRadius: BorderRadius.circular(3),
-            onTap: onToggle,
+            onTap: context.soundAction(onToggle),
             child: Padding(
               padding: const EdgeInsets.all(10),
               child: Row(

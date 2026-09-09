@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/background/starfield_background.dart';
 import 'package:flutter/material.dart';
@@ -167,7 +168,7 @@ class CreatureBgSwatch extends StatelessWidget {
         ? Colors.white
         : Colors.white.withValues(alpha: 0.25);
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         width: size,

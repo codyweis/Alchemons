@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/scenes/rift_portal_screen.dart
 import 'dart:math';
 import 'package:alchemons/games/wilderness/encounter_sheet.dart';
@@ -204,14 +205,18 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
+            onPressed: context.soundAction(
+              () => Navigator.of(dialogContext).pop(false),
+            ),
             child: const Text(
               'Stay',
               style: TextStyle(color: Color(0xFF8A7B6A)),
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
+            onPressed: context.soundAction(
+              () => Navigator.of(dialogContext).pop(true),
+            ),
             child: Text(
               'Leave',
               style: TextStyle(
@@ -736,7 +741,7 @@ class _ExitPortalButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onExit,
+      onTap: context.soundAction(onExit),
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.all(8),

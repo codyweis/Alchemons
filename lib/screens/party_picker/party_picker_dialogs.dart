@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -87,10 +88,10 @@ class DeployConfirmDialog extends StatelessWidget {
                       // Cancel
                       Expanded(
                         child: GestureDetector(
-                          onTap: () {
+                          onTap: context.soundAction(() {
                             HapticFeedback.lightImpact();
                             Navigator.pop(context, false);
-                          },
+                          }),
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
@@ -116,10 +117,10 @@ class DeployConfirmDialog extends StatelessWidget {
                       // Deploy
                       Expanded(
                         child: GestureDetector(
-                          onTap: () {
+                          onTap: context.soundAction(() {
                             HapticFeedback.mediumImpact();
                             Navigator.pop(context, true);
-                          },
+                          }),
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(

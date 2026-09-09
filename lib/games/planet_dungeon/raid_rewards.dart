@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/games/planet_dungeon/raid_rewards.dart
 //
 // Raid victory loot escalates by level: one to three elemental cache rolls,
@@ -256,7 +257,9 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
             Align(
               alignment: Alignment.centerRight,
               child: GestureDetector(
-                onTap: entries == null ? null : widget.onContinue,
+                onTap: context.soundAction(
+                  entries == null ? null : widget.onContinue,
+                ),
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 250),
                   opacity: entries == null ? 0.4 : 1.0,

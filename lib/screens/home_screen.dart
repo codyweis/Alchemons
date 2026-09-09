@@ -236,14 +236,18 @@ class _MainShellState extends State<MainShell> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: context.soundAction(
+                () => Navigator.of(context).pop(false),
+              ),
               child: Text(
                 'Stay',
                 style: GoogleFonts.cinzel(color: theme.textMuted),
               ),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
+              onPressed: context.soundAction(
+                () => Navigator.of(context).pop(true),
+              ),
               child: Text(
                 'Exit',
                 style: GoogleFonts.cinzel(color: theme.accent),
@@ -2028,13 +2032,13 @@ class _HomeScreenState extends State<HomeScreen>
                                     if (_hasAnyRelic) ...[
                                       const SizedBox(height: 4),
                                       GestureDetector(
-                                        onTap: () {
+                                        onTap: context.soundAction(() {
                                           HapticFeedback.heavyImpact();
                                           VoidPortal.push(
                                             context,
                                             page: const MysticAltarScreen(),
                                           );
-                                        },
+                                        }),
                                         child: Column(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
@@ -2644,7 +2648,7 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
   Widget build(BuildContext context) {
     if (_isClaimed) return const SizedBox.shrink();
     return GestureDetector(
-      onTap: _onTap,
+      onTap: context.soundAction(_onTap),
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -2897,10 +2901,10 @@ class _TreasureLootDialogState extends State<_TreasureLootDialog>
               FadeTransition(
                 opacity: _btnFade,
                 child: GestureDetector(
-                  onTap: () {
+                  onTap: context.soundAction(() {
                     HapticFeedback.lightImpact();
                     Navigator.pop(context);
-                  },
+                  }),
                   child: Container(
                     width: double.infinity,
                     height: 50,

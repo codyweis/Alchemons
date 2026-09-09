@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -117,7 +118,7 @@ class TopHudState extends State<TopHud> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(0, 8, 12, 0),
           child: GestureDetector(
-            onTap: () => _setCollapsed(false),
+            onTap: context.soundAction(() => _setCollapsed(false)),
             child: CustomPaint(
               painter: BracketFramePainter(
                 color: _palette.line.withValues(alpha: 0.7),
@@ -275,7 +276,7 @@ class TopHudState extends State<TopHud> {
               if (widget.showMeter) ...[
                 const SizedBox(height: 8),
                 GestureDetector(
-                  onTap: widget.onMeterTap,
+                  onTap: context.soundAction(widget.onMeterTap),
                   child: AnimatedBuilder(
                     animation: widget.meterPulse,
                     builder: (context, child) {
@@ -429,7 +430,7 @@ class _HudIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: BracketFramePainter(
           color: _palette.line.withValues(alpha: 0.7),

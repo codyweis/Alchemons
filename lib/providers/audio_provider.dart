@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/ambience_player.dart';
 import 'dart:async';
 import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/audio/sound_effects_player.dart';
@@ -84,6 +85,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   final AlchemonsDatabase _db;
   final AudioPlayer _musicPlayer = AudioPlayer();
   final SoundEffectsPlayer _sounds = SoundEffectsPlayer();
+  final AmbiencePlayer _ambience = AmbiencePlayer();
   bool _disposed = false;
   late final Future<void> _bootstrapFuture;
 
@@ -285,12 +287,15 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     return playMusic(cue);
   }
 
+  int soundEventSerial = 0;
+
   Future<void> playSound(
     SoundCue cue, {
     Object? owner,
     double speed = 1,
   }) async {
     // Drop events before settings load rather than replaying stale clicks later.
+    soundEventSerial++;
     if (_disposed ||
         !_isLoaded ||
         !effectiveSoundsEnabled ||
@@ -302,9 +307,15 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
 
   void stopSoundOwner(Object owner) => _sounds.stopOwner(owner);
   void stopSounds() => _sounds.stopAll();
-  void _syncSounds() => _sounds.setEnabled(
-    !_disposed && effectiveSoundsEnabled && _appIsForeground,
-  );
+  void setAmbience(Object owner, AmbienceCue cue) =>
+      _ambience.setScene(owner, cue);
+  void stopAmbienceOwner(Object owner) => _ambience.stopOwner(owner);
+  void _syncSounds() {
+    final enabled =
+        !_disposed && _isLoaded && effectiveSoundsEnabled && _appIsForeground;
+    _sounds.setEnabled(enabled);
+    _ambience.setEnabled(enabled);
+  }
 
   Future<void> playMusic(MusicCue cue) async {
     await _bootstrapFuture;
@@ -522,6 +533,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     _playerStateSub?.cancel();
     _disposed = true;
     _sounds.dispose();
+    _ambience.dispose();
     unawaited(_musicPlayer.dispose());
     super.dispose();
   }

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
@@ -93,7 +94,9 @@ Future<void> maybeShowFirstPureExtractionDialog(
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
+            onPressed: context.soundAction(
+              () => Navigator.of(dialogContext).pop(),
+            ),
             child: Text('Understood', style: TextStyle(color: theme.accent)),
           ),
         ],

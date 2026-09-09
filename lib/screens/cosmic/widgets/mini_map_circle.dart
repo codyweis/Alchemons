@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -52,7 +53,7 @@ class _CosmicMiniMapCircleState extends State<CosmicMiniMapCircle> {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: widget.onTap,
+      onTap: context.soundAction(widget.onTap),
       onLongPress: widget.onLongPress,
       child: SizedBox(
         width: 84,

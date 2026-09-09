@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:convert';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:flutter/material.dart';
@@ -76,7 +77,7 @@ class PartyHUD extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16),
               child: ElevatedButton.icon(
-                onPressed: onBreed,
+                onPressed: context.soundAction(onBreed),
                 icon: const Icon(AppIcons.favorite, size: 24),
                 label: const Text(
                   'BREED',
@@ -190,7 +191,7 @@ class _PartySlot extends StatelessWidget {
             );
 
         return GestureDetector(
-          onTap: () => onTap(member.instanceId, creature),
+          onTap: context.soundAction(() => onTap(member.instanceId, creature)),
           child: Container(
             width: 56,
             height: 56,

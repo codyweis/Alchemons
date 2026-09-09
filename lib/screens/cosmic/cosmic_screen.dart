@@ -1,3 +1,5 @@
+import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/audio/scene_ambience.dart';
 // Organized refactor of cosmic_screen.dart
 
 import 'package:alchemons/screens/party_picker/party_picker.dart';
@@ -3678,7 +3680,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: context.soundAction(() => Navigator.of(context).pop()),
               child: Text('Cancel'),
             ),
           ],
@@ -4105,6 +4107,9 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _onPOIDiscovered(SpacePOI poi) {
+    if (poi.type != POIType.warpAnomaly) {
+      _playCosmicSfx(SoundCue.cosmicDiscovery);
+    }
     if (poi.type == POIType.warpAnomaly) {
       _playCosmicSfx(SoundCue.cosmicAnomalyBurst);
     }
@@ -4176,6 +4181,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       HapticFeedback.heavyImpact();
       return;
     }
+    _playCosmicSfx(SoundCue.cosmicScan);
     _showQuote(
       'Scanner locked. Follow the radar beeper to the target star dust.',
     );
@@ -4210,6 +4216,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       HapticFeedback.heavyImpact();
       return;
     }
+    _playCosmicSfx(SoundCue.cosmicScan);
     _showQuote(
       'Planet scanner locked. Follow the beacon to the nearest undiscovered planet.',
     );
@@ -4748,7 +4755,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     final shipAction = Tooltip(
       message: 'Ship',
       child: GestureDetector(
-        onTap: () {
+        onTap: context.soundAction(() {
           setState(() {
             _showShipMenu = true;
             if (_awaitingShipMenuTap) {
@@ -4756,7 +4763,7 @@ class _CosmicScreenState extends State<CosmicScreen>
               _awaitingBuildHomeTap = _homePlanet == null;
             }
           });
-        },
+        }),
         child: _CosmicSquareHudButton(
           accent: const Color(0xFF00E5FF),
           active: _awaitingShipMenuTap,
@@ -4778,7 +4785,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         Tooltip(
           message: canDeposit ? 'Deposit' : 'Nothing to deposit',
           child: GestureDetector(
-            onTap: _handleDepositAll,
+            onTap: context.soundAction(_handleDepositAll),
             child: _CosmicSquareHudButton(
               accent: CosmicScreenStyles.amber,
               active: canDeposit,
@@ -4796,10 +4803,10 @@ class _CosmicScreenState extends State<CosmicScreen>
         Tooltip(
           message: 'Home base',
           child: GestureDetector(
-            onTap: () {
+            onTap: context.soundAction(() {
               setState(() => _showHomeMenu = true);
               unawaited(_refreshWalletCurrencies());
-            },
+            }),
             child: _CosmicSquareHudButton(
               accent: CosmicScreenStyles.amber,
               active: true,
@@ -4847,7 +4854,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     required VoidCallback? onTap,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: _CosmicSquareHudButton(
         accent: accent,
         active: active,
@@ -4939,17 +4946,19 @@ class _CosmicScreenState extends State<CosmicScreen>
     final isDisabled = member == null || isDead;
 
     return GestureDetector(
-      onTap: isDisabled
-          ? (isDead && _isNearHome
-                ? _openPartyPickerFromSlotButton
-                : isDead
-                ? () => _showQuote(
-                    'This Alchemon is exhausted! Return home to heal.',
-                  )
-                : null)
-          : isActive
-          ? () => _handleReturnCompanion(i)
-          : () => _handleSummonCompanion(i),
+      onTap: context.soundAction(
+        isDisabled
+            ? (isDead && _isNearHome
+                  ? _openPartyPickerFromSlotButton
+                  : isDead
+                  ? () => _showQuote(
+                      'This Alchemon is exhausted! Return home to heal.',
+                    )
+                  : null)
+            : isActive
+            ? () => _handleReturnCompanion(i)
+            : () => _handleSummonCompanion(i),
+      ),
       onLongPress: () => _handlePartySlotLongPress(i),
       child: _buildPartyHudSlotFrame(
         active: isActive,
@@ -5121,6 +5130,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   void _startBoosting() {
     if (widget.memoryTutorial) return;
     if (!_customizationState.hasBooster) return;
+    if (_isBoosting || _game == null) return;
+    _playCosmicSfx(SoundCue.cosmicDash);
     _isBoosting = true;
     _game?.boosting = true;
     HapticFeedback.selectionClick();
@@ -5308,7 +5319,9 @@ class _CosmicScreenState extends State<CosmicScreen>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
+              onPressed: context.soundAction(
+                () => Navigator.of(ctx).pop(false),
+              ),
               child: Text(
                 'Stay',
                 style: ft.label.copyWith(color: fc.textMuted),
@@ -5326,7 +5339,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   vertical: 10,
                 ),
               ),
-              onPressed: () => Navigator.of(ctx).pop(true),
+              onPressed: context.soundAction(() => Navigator.of(ctx).pop(true)),
               child: Text(
                 'Leave',
                 style: ft.mono.copyWith(color: fc.textPrimary),
@@ -5369,7 +5382,9 @@ class _CosmicScreenState extends State<CosmicScreen>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
+              onPressed: context.soundAction(
+                () => Navigator.of(ctx).pop(false),
+              ),
               child: Text(
                 'Cancel',
                 style: ft.label.copyWith(color: fc.textMuted),
@@ -5387,7 +5402,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   vertical: 10,
                 ),
               ),
-              onPressed: () => Navigator.of(ctx).pop(true),
+              onPressed: context.soundAction(() => Navigator.of(ctx).pop(true)),
               child: Text(
                 'Confirm',
                 style: ft.mono.copyWith(color: fc.textPrimary),
@@ -6373,7 +6388,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     // Square, hard-edged alchemical plate with bracketed corners — matches the
     // dungeon/raid popup chrome instead of the old rounded lozenge.
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         foregroundPainter: DungeonBracketPainter(
           color: accent.withValues(alpha: 0.9),
@@ -6686,7 +6701,9 @@ class _CosmicScreenState extends State<CosmicScreen>
     // Minimized: a soft glowing pill (name + stars) that taps back open.
     if (_descentPlacardMinimized) {
       return GestureDetector(
-        onTap: () => setState(() => _descentPlacardMinimized = false),
+        onTap: context.soundAction(
+          () => setState(() => _descentPlacardMinimized = false),
+        ),
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 8, 13, 8),
           decoration: BoxDecoration(
@@ -6831,7 +6848,9 @@ class _CosmicScreenState extends State<CosmicScreen>
               ),
               const SizedBox(width: 7),
               GestureDetector(
-                onTap: () => setState(() => _descentPlacardMinimized = true),
+                onTap: context.soundAction(
+                  () => setState(() => _descentPlacardMinimized = true),
+                ),
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
                   padding: const EdgeInsets.all(3),
@@ -7274,7 +7293,12 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => SceneAmbience(
+    cue: widget.memoryTutorial ? null : AmbienceCue.cosmicSpace,
+    child: _buildScene(context),
+  );
+
+  Widget _buildScene(BuildContext context) {
     final theme = context.watch<FactionTheme>();
 
     // Show loading while game initialises
@@ -7476,7 +7500,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   left: 12,
                   child: SafeArea(
                     child: GestureDetector(
-                      onTap: _toggleMiniMap,
+                      onTap: context.soundAction(_toggleMiniMap),
                       onLongPress: _togglePinnedMiniMap,
                       child: AnimatedBuilder(
                         animation: _miniMapCtrl,
@@ -7593,7 +7617,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                       right: 0,
                       child: Center(
                         child: GestureDetector(
-                          onTap: _openMarketShop,
+                          onTap: context.soundAction(_openMarketShop),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 24,
@@ -7740,9 +7764,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                   child: SafeArea(
                     child: Center(
                       child: GestureDetector(
-                        onTap: kPlanetDungeonLayouts.containsKey(nearEl)
-                            ? () => unawaited(_debugDescend(_nearPlanet!))
-                            : null,
+                        onTap: context.soundAction(
+                          kPlanetDungeonLayouts.containsKey(nearEl)
+                              ? () => unawaited(_debugDescend(_nearPlanet!))
+                              : null,
+                        ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -7798,7 +7824,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                   child: SafeArea(
                     child: Center(
                       child: GestureDetector(
-                        onTap: () => unawaited(_unsealPlanetGate(nearEl)),
+                        onTap: context.soundAction(
+                          () => unawaited(_unsealPlanetGate(nearEl)),
+                        ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -8209,7 +8237,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                       right: 0,
                       child: Center(
                         child: GestureDetector(
-                          onTap: _handleRiftTap,
+                          onTap: context.soundAction(_handleRiftTap),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 24,
@@ -8261,7 +8289,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   right: 0,
                   child: Center(
                     child: GestureDetector(
-                      onTap: _handleBloodRingTap,
+                      onTap: context.soundAction(_handleBloodRingTap),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 24,
@@ -8356,7 +8384,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                       right: 0,
                       child: Center(
                         child: GestureDetector(
-                          onTap: _handleContestArenaTap,
+                          onTap: context.soundAction(_handleContestArenaTap),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 24,
@@ -8435,7 +8463,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   right: 0,
                   child: Center(
                     child: GestureDetector(
-                      onTap: _handleBattleRingTap,
+                      onTap: context.soundAction(_handleBattleRingTap),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 24,
@@ -8553,7 +8581,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   right: 0,
                   child: Center(
                     child: GestureDetector(
-                      onTap: _handleNexusTap,
+                      onTap: context.soundAction(_handleNexusTap),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 24,
@@ -8635,7 +8663,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                       right: 0,
                       child: Center(
                         child: GestureDetector(
-                          onTap: _handlePocketPortalTap,
+                          onTap: context.soundAction(_handlePocketPortalTap),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 24,
@@ -8687,7 +8715,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: GestureDetector(
-                        onTap: () {
+                        onTap: context.soundAction(() {
                           if (_game == null) return;
                           HapticFeedback.mediumImpact();
                           _game!.exitNexusPocket();
@@ -8695,7 +8723,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                           setState(() {
                             _nearPocketPortalElement = null;
                           });
-                        },
+                        }),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,
@@ -8788,7 +8816,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                               onTapCancel: _boostToggleMode
                                   ? null
                                   : _stopBoosting,
-                              onTap: _boostToggleMode ? _toggleBoosting : null,
+                              onTap: context.soundAction(
+                                _boostToggleMode ? _toggleBoosting : null,
+                              ),
                               child: _buildWeaponHudButton(
                                 accent: const Color(0xFFFF6F00),
                                 active: _isBoosting,
@@ -9250,7 +9280,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   child: SafeArea(
                     child: Center(
                       child: GestureDetector(
-                        onTap: _endHomePreview,
+                        onTap: context.soundAction(_endHomePreview),
                         behavior: HitTestBehavior.opaque,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -9466,7 +9496,7 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
                             ),
                           ),
                           IconButton(
-                            onPressed: widget.onClose,
+                            onPressed: context.soundAction(widget.onClose),
                             icon: const Icon(
                               AppIcons.close,
                               color: Colors.white70,
@@ -9480,11 +9510,15 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
                         runSpacing: 8,
                         children: [
                           TextButton(
-                            onPressed: widget.onClearHostiles,
+                            onPressed: context.soundAction(
+                              widget.onClearHostiles,
+                            ),
                             child: const Text('Clear Hostiles'),
                           ),
                           TextButton(
-                            onPressed: widget.onLeaveSandbox,
+                            onPressed: context.soundAction(
+                              widget.onLeaveSandbox,
+                            ),
                             child: const Text('Leave Sandbox'),
                           ),
                         ],
@@ -9686,7 +9720,9 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
                         ),
                       ),
                       trailing: FilledButton(
-                        onPressed: () => widget.onSummonCreature(creature),
+                        onPressed: context.soundAction(
+                          () => widget.onSummonCreature(creature),
+                        ),
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF1C6F52),
                         ),
@@ -9926,12 +9962,12 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
                 runSpacing: 8,
                 children: [
                   FilledButton.icon(
-                    onPressed: widget.onSpawnEnemy,
+                    onPressed: context.soundAction(widget.onSpawnEnemy),
                     icon: const Icon(AppIcons.flash_on),
                     label: const Text('Spawn Enemies'),
                   ),
                   FilledButton.icon(
-                    onPressed: widget.onSpawnDummy,
+                    onPressed: context.soundAction(widget.onSpawnDummy),
                     icon: const Icon(AppIcons.sports_martial_arts),
                     label: const Text('Spawn Dummies'),
                     style: FilledButton.styleFrom(
@@ -10025,7 +10061,7 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
               ),
               const Spacer(),
               FilledButton.icon(
-                onPressed: widget.onSpawnBoss,
+                onPressed: context.soundAction(widget.onSpawnBoss),
                 icon: const Icon(AppIcons.whatshot),
                 label: const Text('Spawn Boss'),
               ),
@@ -10413,7 +10449,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
       color: CosmicScreenStyles.bg0.withValues(alpha: 0.82),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: onClose,
+        onTap: context.soundAction(onClose),
         child: Center(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -10507,7 +10543,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        onPressed: onClose,
+                        onPressed: context.soundAction(onClose),
                         icon: const Icon(AppIcons.close_rounded),
                         color: CosmicScreenStyles.textSecondary,
                         splashRadius: 18,
@@ -10582,7 +10618,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: GestureDetector(
-                        onTap: onReplayPrologue,
+                        onTap: context.soundAction(onReplayPrologue),
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
@@ -10626,7 +10662,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: GestureDetector(
-                      onTap: onLeaveSpace,
+                      onTap: context.soundAction(onLeaveSpace),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         decoration: BoxDecoration(

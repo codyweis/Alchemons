@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/cosmic/widgets/planet_recipe_strip.dart
 //
 // The planet recipe, as a single band under the top HUD.
@@ -71,7 +72,7 @@ class PlanetRecipeStrip extends StatelessWidget {
     return SizedBox(
       height: height,
       child: GestureDetector(
-        onTap: onDetail,
+        onTap: context.soundAction(onDetail),
         behavior: HitTestBehavior.opaque,
         child: CustomPaint(
           foregroundPainter: BracketFramePainter(
@@ -126,7 +127,7 @@ class PlanetRecipeStrip extends StatelessWidget {
                   ),
                 const SizedBox(width: 8),
                 InkResponse(
-                  onTap: onTogglePin,
+                  onTap: context.soundAction(onTogglePin),
                   radius: 14,
                   child: Icon(
                     isPinned ? AppIcons.push_pin : AppIcons.push_pin_outlined,
@@ -138,7 +139,7 @@ class PlanetRecipeStrip extends StatelessWidget {
                 // The action only exists once it can be taken.
                 if (ready)
                   GestureDetector(
-                    onTap: onSummon,
+                    onTap: context.soundAction(onSummon),
                     child: Container(
                       height: height,
                       padding: const EdgeInsets.symmetric(horizontal: 12),

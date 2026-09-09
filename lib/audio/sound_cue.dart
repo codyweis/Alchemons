@@ -135,6 +135,8 @@ enum SoundCue {
   int get cooldownMs => switch (this) {
     SoundCue.combatPlayerHurt => 650,
     SoundCue.combatDanger => 900,
+    SoundCue.combatHeal => 1000,
+    SoundCue.combatShieldHit => 200,
     SoundCue.combatProjectile => 160,
     SoundCue.combatHitLight ||
     SoundCue.combatHitHeavy ||

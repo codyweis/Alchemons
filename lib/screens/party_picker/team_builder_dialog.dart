@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:convert';
 
 import 'package:alchemons/database/alchemons_db.dart';
@@ -165,7 +166,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
   }) {
     final accent = labelColor ?? t.success;
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.all(8),
@@ -400,7 +401,9 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                       children: [
                         Expanded(
                           child: GestureDetector(
-                            onTap: () => Navigator.pop(ctx, false),
+                            onTap: context.soundAction(
+                              () => Navigator.pop(ctx, false),
+                            ),
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               decoration: BoxDecoration(
@@ -422,7 +425,9 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: GestureDetector(
-                            onTap: () => Navigator.pop(ctx, true),
+                            onTap: context.soundAction(
+                              () => Navigator.pop(ctx, true),
+                            ),
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               decoration: BoxDecoration(
@@ -536,7 +541,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                             label: 'CURRENT SELECTED TEAM',
                             labelColor: t.success,
                             trailing: IconButton(
-                              onPressed: _saveCurrentAs,
+                              onPressed: context.soundAction(_saveCurrentAs),
                               icon: Icon(AppIcons.save_rounded, color: t.amber),
                               tooltip: 'Save team',
                             ),
@@ -567,7 +572,9 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                               label: isActive ? 'DEPLOYED' : null,
                               labelColor: t.success,
                               trailing: IconButton(
-                                onPressed: () => _deleteTeam(i),
+                                onPressed: context.soundAction(
+                                  () => _deleteTeam(i),
+                                ),
                                 icon: Icon(
                                   AppIcons.delete_outline,
                                   color: t.danger,
@@ -593,7 +600,9 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                         children: [
                           Expanded(
                             child: GestureDetector(
-                              onTap: () => Navigator.pop(context),
+                              onTap: context.soundAction(
+                                () => Navigator.pop(context),
+                              ),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 10,

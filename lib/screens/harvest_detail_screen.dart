@@ -1,3 +1,5 @@
+import 'package:alchemons/providers/audio_provider.dart' show AudioController;
+import 'package:alchemons/audio/scene_ambience.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -60,9 +62,12 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
   Widget? _creatureWidget;
   String? _cachedInstanceIdForCreature; // so we know if job changed
   late final AnimationController _statusCtrl;
+  AudioController? _soundController;
+
   @override
   void initState() {
     super.initState();
+    _soundController = context.audio;
 
     _collectCtrl = AnimationController(
       vsync: this,
@@ -114,6 +119,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
   @override
   void dispose() {
+    _soundController?.stopSoundOwner(this);
     _ticker.dispose();
     _jobCtrl.dispose();
     _glowController.dispose();
@@ -335,6 +341,10 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     );
 
     if (!mounted) return;
+    context.sound(
+      ok ? SoundCue.extractionReactionStart : SoundCue.uiDenied,
+      owner: this,
+    );
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -359,7 +369,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     if (!mounted) return;
 
     HapticFeedback.lightImpact();
-    context.sound(SoundCue.harvestCollect, owner: this);
+    if (got > 0) context.sound(SoundCue.harvestCollect, owner: this);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         duration: const Duration(seconds: 2),
@@ -455,7 +465,9 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                   children: [
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => Navigator.pop(ctx, false),
+                        onTap: context.soundAction(
+                          () => Navigator.pop(ctx, false),
+                        ),
                         child: Container(
                           height: 42,
                           alignment: Alignment.center,
@@ -480,7 +492,9 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                     const SizedBox(width: 10),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => Navigator.pop(ctx, true),
+                        onTap: context.soundAction(
+                          () => Navigator.pop(ctx, true),
+                        ),
                         child: Container(
                           height: 42,
                           alignment: Alignment.center,
@@ -551,6 +565,10 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
     if (!mounted) return;
 
+    context.sound(
+      ok ? SoundCue.extractionReactionStart : SoundCue.uiDenied,
+      owner: this,
+    );
     if (!ok) {
       _showToast(
         'Could not reload extraction.',
@@ -583,11 +601,11 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, false)),
             child: const Text('Keep Extracting'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, true)),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Cancel Extraction'),
           ),
@@ -655,7 +673,10 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      SceneAmbience(cue: AmbienceCue.lab, child: _buildScene(context));
+
+  Widget _buildScene(BuildContext context) {
     final theme = context.watch<FactionTheme>();
 
     return Scaffold(
@@ -1233,7 +1254,7 @@ class _PrimaryBtn extends StatelessWidget {
     return Opacity(
       opacity: disabled ? .6 : 1,
       child: GestureDetector(
-        onTap: disabled ? null : onTap,
+        onTap: context.soundAction(disabled ? null : onTap),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
@@ -1272,7 +1293,7 @@ class _OutlineBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(

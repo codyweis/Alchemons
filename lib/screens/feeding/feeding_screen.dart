@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/screens/feeding/alchemical_powerup_feeding_screen.dart';
 import 'package:alchemons/screens/feeding/feeding_stages.dart';
 import 'package:alchemons/screens/feeding/feeding_widgets.dart';
@@ -153,10 +154,10 @@ class _FeedingScreenState extends State<FeedingScreen>
           ),
           actions: [
             TextButton(
-              onPressed: () {
+              onPressed: context.soundAction(() {
                 HapticFeedback.lightImpact();
                 Navigator.of(context).pop();
-              },
+              }),
               child: Text(
                 'Got it',
                 style: TextStyle(color: t.amber, fontWeight: FontWeight.w700),
@@ -676,7 +677,7 @@ class _EntryCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         child: Ink(
           width: double.infinity,
           padding: const EdgeInsets.all(20),

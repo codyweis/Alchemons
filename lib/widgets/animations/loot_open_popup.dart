@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
@@ -208,7 +209,9 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                         child: Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: () => _showRewardDetail(context, e),
+                            onTap: context.soundAction(
+                              () => _showRewardDetail(context, e),
+                            ),
                             borderRadius: BorderRadius.circular(4),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
@@ -315,7 +318,7 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                 FadeTransition(
                   opacity: _btnFade,
                   child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
+                    onTap: context.soundAction(() => Navigator.pop(context)),
                     child: Container(
                       width: double.infinity,
                       height: 50,
@@ -435,7 +438,7 @@ void _showRewardDetail(BuildContext ctx, LootOpeningEntry entry) {
             ),
             const SizedBox(height: 22),
             GestureDetector(
-              onTap: () => Navigator.pop(dialogCtx),
+              onTap: ctx.soundAction(() => Navigator.pop(dialogCtx)),
               child: Container(
                 width: double.infinity,
                 height: 42,
@@ -855,7 +858,7 @@ class _KeyItemRevealDialogState extends State<_KeyItemRevealDialog>
               FadeTransition(
                 opacity: _btnOpacity,
                 child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
+                  onTap: context.soundAction(() => Navigator.pop(context)),
                   child: Container(
                     width: double.infinity,
                     height: 52,

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -693,7 +694,7 @@ class _ForgeTopBar extends StatelessWidget {
       child: Row(
         children: [
           GestureDetector(
-            onTap: onBack,
+            onTap: context.soundAction(onBack),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
@@ -1292,7 +1293,7 @@ class _SearchField extends StatelessWidget {
                       ),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    onPressed: onClearSearch,
+                    onPressed: context.soundAction(onClearSearch),
                     child: Text(
                       'CLEAR',
                       style: _T
@@ -2843,7 +2844,7 @@ class _ToggleChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
+    onTap: context.soundAction(onTap),
     child: AnimatedContainer(
       duration: const Duration(milliseconds: 130),
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
@@ -2987,7 +2988,7 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
+    onTap: context.soundAction(onTap),
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(

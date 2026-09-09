@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
@@ -81,7 +82,7 @@ class FilterChipSolid extends StatelessWidget {
     );
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: selected || showUnselectedBracket
           ? CustomPaint(

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/cosmic/space_market_sheet.dart
 //
 // Bottom-sheet shop for the two space markets:
@@ -358,12 +359,16 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: context.soundAction(
+                () => Navigator.of(context).pop(false),
+              ),
               child: Text('Cancel'),
             ),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: _accent),
-              onPressed: () => Navigator.of(context).pop(true),
+              onPressed: context.soundAction(
+                () => Navigator.of(context).pop(true),
+              ),
               child: Text('Buy'),
             ),
           ],
@@ -545,10 +550,10 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: () {
+                    onTap: context.soundAction(() {
                       HapticFeedback.lightImpact();
                       Navigator.of(context).pop();
-                    },
+                    }),
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
@@ -648,7 +653,9 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
               ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(4),
-                onTap: canAfford ? () => _purchase(item) : null,
+                onTap: context.soundAction(
+                  canAfford ? () => _purchase(item) : null,
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Row(

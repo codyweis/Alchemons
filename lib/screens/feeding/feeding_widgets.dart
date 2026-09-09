@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
@@ -70,7 +71,7 @@ class StageHeader extends StatelessWidget {
               children: [
                 if (canGoBack)
                   GestureDetector(
-                    onTap: onBack,
+                    onTap: context.soundAction(onBack),
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       margin: const EdgeInsets.only(right: 12),
@@ -114,7 +115,7 @@ class StageHeader extends StatelessWidget {
                 ),
                 if (stage == 'species' && onOpenAllInstances != null)
                   GestureDetector(
-                    onTap: onOpenAllInstances,
+                    onTap: context.soundAction(onOpenAllInstances),
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
@@ -1103,7 +1104,7 @@ class _ConstellationInfoButton extends StatelessWidget {
                     ),
                     InkWell(
                       customBorder: const CircleBorder(),
-                      onTap: () => Navigator.of(ctx).pop(),
+                      onTap: context.soundAction(() => Navigator.of(ctx).pop()),
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Icon(
@@ -1138,7 +1139,7 @@ class _ConstellationInfoButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         customBorder: const CircleBorder(),
-        onTap: () => _showDialog(context),
+        onTap: context.soundAction(() => _showDialog(context)),
         child: Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
@@ -1320,7 +1321,7 @@ class _EnhanceButtonState extends State<EnhanceButton>
           onTapDown: canTap ? (_) => _pressCtrl.forward() : null,
           onTapUp: canTap ? (_) => _pressCtrl.reverse() : null,
           onTapCancel: canTap ? () => _pressCtrl.reverse() : null,
-          onTap: canTap ? widget.onTap : null,
+          onTap: context.soundAction(canTap ? widget.onTap : null),
           child: Transform.scale(
             scale: 1.0 - (_pressCtrl.value * 0.05),
             child: Container(
@@ -1472,7 +1473,7 @@ class SpeciesRow extends StatelessWidget {
     final fc = FC.of(context);
     final t = ForgeTokens(theme);
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: Container(
         height: 72,

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/constellation_progress_overview_screen.dart
 //
 // REDESIGNED CONSTELLATION PROGRESS OVERVIEW
@@ -208,7 +209,7 @@ class _ConstellationProgressOverviewScreenState
                       color: t.textSecondary,
                       size: 18,
                     ),
-                    onPressed: () {
+                    onPressed: context.soundAction(() {
                       _searchCtrl.clear();
                       setState(() {
                         _searchQuery = '';
@@ -217,7 +218,7 @@ class _ConstellationProgressOverviewScreenState
                       if (_pageController.hasClients) {
                         _pageController.jumpToPage(0);
                       }
-                    },
+                    }),
                   ),
           ),
         ),
@@ -256,7 +257,7 @@ class _ConstellationProgressOverviewScreenState
           color: t.textSecondary,
           size: 22,
         ),
-        onPressed: () => Navigator.pop(context),
+        onPressed: context.soundAction(() => Navigator.pop(context)),
       ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,7 +307,9 @@ class _ConstellationProgressOverviewScreenState
             color: t.textSecondary,
             size: 22,
           ),
-          onPressed: () => setState(() => _isCardView = !_isCardView),
+          onPressed: context.soundAction(
+            () => setState(() => _isCardView = !_isCardView),
+          ),
         ),
         const SizedBox(width: 4),
       ],
@@ -391,10 +394,12 @@ class _ConstellationProgressOverviewScreenState
           children: List.generate(
             count,
             (index) => GestureDetector(
-              onTap: () => _pageController.animateToPage(
-                index,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOutCubic,
+              onTap: context.soundAction(
+                () => _pageController.animateToPage(
+                  index,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                ),
               ),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -604,7 +609,7 @@ class _SpeciesCard extends StatelessWidget {
             nextMilestone?.getPointsForRarity(creature.rarity) ?? 0;
 
         return GestureDetector(
-          onTap: () {
+          onTap: context.soundAction(() {
             HapticFeedback.lightImpact();
             Navigator.push(
               context,
@@ -612,7 +617,7 @@ class _SpeciesCard extends StatelessWidget {
                 builder: (_) => BreedingMilestoneScreen(speciesId: creature.id),
               ),
             );
-          },
+          }),
           child: IntrinsicHeight(
             child: Container(
               decoration: BoxDecoration(
@@ -838,7 +843,7 @@ class _ListItem extends StatelessWidget {
             nextMilestone?.getPointsForRarity(creature.rarity) ?? 0;
 
         return GestureDetector(
-          onTap: () {
+          onTap: context.soundAction(() {
             HapticFeedback.lightImpact();
             Navigator.push(
               context,
@@ -846,7 +851,7 @@ class _ListItem extends StatelessWidget {
                 builder: (_) => BreedingMilestoneScreen(speciesId: creature.id),
               ),
             );
-          },
+          }),
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(

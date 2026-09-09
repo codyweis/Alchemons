@@ -1371,6 +1371,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         }
       }
       sealedCorners.add(seal.id);
+      onSound?.call(SoundCue.elementSteam);
       _recomputeCaps(room);
       final left = room.crucibleSeals.length - sealedCorners.length;
       _setHint(

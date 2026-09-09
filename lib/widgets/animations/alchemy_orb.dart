@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
 import 'package:flutter/material.dart';
 
@@ -41,7 +42,7 @@ class _FloatingAlchemyOrbState extends State<FloatingAlchemyOrb>
         return Transform.translate(
           offset: Offset(0, floatOffset),
           child: GestureDetector(
-            onTap: widget.onTap,
+            onTap: context.soundAction(widget.onTap),
             child: CustomPaint(
               size: Size.square(widget.size),
               painter: _AlchemyOrbPainter(rotation: t * 2 * pi),

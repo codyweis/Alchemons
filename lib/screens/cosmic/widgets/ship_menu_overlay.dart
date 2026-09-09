@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:provider/provider.dart';
@@ -763,7 +764,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
           if (!widget.tutorialBuildHomeMode) ...[
             const SizedBox(height: 10),
             GestureDetector(
-              onTap: widget.onClose,
+              onTap: context.soundAction(widget.onClose),
               behavior: HitTestBehavior.opaque,
               child: Container(
                 width: double.infinity,
@@ -803,7 +804,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
         children: [
           if (!widget.hasHomePlanet)
             GestureDetector(
-              onTap: widget.onBuildHome,
+              onTap: context.soundAction(widget.onBuildHome),
               child: Container(
                 width: 34,
                 height: 34,
@@ -837,7 +838,9 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
           ),
           const SizedBox(width: 10),
           GestureDetector(
-            onTap: widget.tutorialBuildHomeMode ? null : widget.onClose,
+            onTap: context.soundAction(
+              widget.tutorialBuildHomeMode ? null : widget.onClose,
+            ),
             child: Container(
               width: 34,
               height: 34,
@@ -867,7 +870,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
   }) {
     final effectiveColor = enabled ? color : CosmicScreenStyles.textMuted;
     return GestureDetector(
-      onTap: enabled ? onTap : null,
+      onTap: context.soundAction(enabled ? onTap : null),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -933,7 +936,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
     }
 
     return GestureDetector(
-      onTap: isDisabled ? null : onTap,
+      onTap: context.soundAction(isDisabled ? null : onTap),
       child: Container(
         width: double.infinity,
         height: primary ? 46 : 40,

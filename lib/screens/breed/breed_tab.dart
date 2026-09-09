@@ -111,7 +111,7 @@ class _BreedingTabState extends State<BreedingTab>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
+              onPressed: context.soundAction(() => Navigator.of(ctx).pop()),
               child: const Text('OK'),
             ),
           ],
@@ -143,7 +143,7 @@ class _BreedingTabState extends State<BreedingTab>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
+              onPressed: context.soundAction(() => Navigator.of(ctx).pop()),
               child: const Text('OK'),
             ),
           ],
@@ -539,7 +539,9 @@ class _BreedingTabState extends State<BreedingTab>
         return Transform.scale(
           scale: scale,
           child: GestureDetector(
-            onTap: () => _showBreedingPicker(targetSlot: slotIndex),
+            onTap: context.soundAction(
+              () => _showBreedingPicker(targetSlot: slotIndex),
+            ),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOut,
@@ -624,7 +626,7 @@ class _BreedingTabState extends State<BreedingTab>
                       top: -18,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () {
+                        onTap: context.soundAction(() {
                           setState(() {
                             if (slotIndex == 1) {
                               selectedParent1 = null;
@@ -633,7 +635,7 @@ class _BreedingTabState extends State<BreedingTab>
                             }
                             _updateAnimations();
                           });
-                        },
+                        }),
                         child: SizedBox(
                           width: 44,
                           height: 44,
@@ -1003,7 +1005,7 @@ class _BreedingTabState extends State<BreedingTab>
         return Transform.scale(
           scale: pulseValue,
           child: GestureDetector(
-            onTap: canBreed ? _onBreedTap : null,
+            onTap: context.soundAction(canBreed ? _onBreedTap : null),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 18),
@@ -1073,7 +1075,7 @@ class _BreedingTabState extends State<BreedingTab>
   // ================== REPEAT BREED BUTTON ==================
   Widget _buildRepeatBreedButton(FactionTheme theme) {
     return GestureDetector(
-      onTap: _onRepeatBreed,
+      onTap: context.soundAction(_onRepeatBreed),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1136,7 +1138,7 @@ class _BreedingTabState extends State<BreedingTab>
   // ================== QUICK SELECT BOTH BUTTON ==================
   Widget _buildQuickSelectButton(FactionTheme theme) {
     return GestureDetector(
-      onTap: () => _showBreedingPicker(),
+      onTap: context.soundAction(() => _showBreedingPicker()),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14),

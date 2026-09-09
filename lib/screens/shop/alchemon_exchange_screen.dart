@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/constants/black_market_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
@@ -85,7 +86,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
+                onTap: context.soundAction(() => Navigator.of(context).pop()),
                 child: Container(
                   width: 40,
                   height: 40,
@@ -192,7 +193,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: _showInstanceBrowser,
+                  onTap: context.soundAction(_showInstanceBrowser),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       vertical: 24,
@@ -246,7 +247,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
               const SizedBox(width: 14),
               Expanded(
                 child: GestureDetector(
-                  onTap: _showVialBrowser,
+                  onTap: context.soundAction(_showVialBrowser),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       vertical: 24,
@@ -384,7 +385,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
               ),
               const Spacer(),
               GestureDetector(
-                onTap: () {
+                onTap: context.soundAction(() {
                   setState(() {
                     _selectedForSale.clear();
                     _selectedVialsForSale.clear();
@@ -392,7 +393,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                     _totalGoldValue = 0;
                   });
                   HapticFeedback.lightImpact();
-                },
+                }),
                 child: Text(
                   'CLEAR ALL',
                   style: TextStyle(
@@ -600,7 +601,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
               children: [
                 Expanded(
                   child: GestureDetector(
-                    onTap: _showInstanceBrowser,
+                    onTap: context.soundAction(_showInstanceBrowser),
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
@@ -635,7 +636,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: GestureDetector(
-                    onTap: _showVialBrowser,
+                    onTap: context.soundAction(_showVialBrowser),
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
@@ -674,7 +675,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
             if (_hasSelections) ...[
               const SizedBox(height: 10),
               GestureDetector(
-                onTap: _confirmSale,
+                onTap: context.soundAction(_confirmSale),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1045,7 +1046,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                     child: GestureDetector(
-                      onTap: () {
+                      onTap: context.soundAction(() {
                         final nextSelection = <String, _SelectedVialSale>{};
                         for (final entry in vials) {
                           final qty = selectedQty[entry.key] ?? 0;
@@ -1072,7 +1073,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                         });
                         Navigator.pop(context);
                         HapticFeedback.mediumImpact();
-                      },
+                      }),
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1418,7 +1419,7 @@ class _ExchangeCreatureRow extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     GestureDetector(
-                      onTap: onRemove,
+                      onTap: context.soundAction(onRemove),
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
@@ -1577,7 +1578,7 @@ class _ExchangeVialRow extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
-                    onTap: onRemove,
+                    onTap: context.soundAction(onRemove),
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
@@ -1670,7 +1671,9 @@ class _SaleConfirmationDialog extends StatelessWidget {
               children: [
                 Expanded(
                   child: TextButton(
-                    onPressed: () => Navigator.pop(context, false),
+                    onPressed: context.soundAction(
+                      () => Navigator.pop(context, false),
+                    ),
                     style: TextButton.styleFrom(
                       backgroundColor: Colors.white.withValues(alpha: 0.1),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1687,7 +1690,9 @@ class _SaleConfirmationDialog extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextButton(
-                    onPressed: () => Navigator.pop(context, true),
+                    onPressed: context.soundAction(
+                      () => Navigator.pop(context, true),
+                    ),
                     style: TextButton.styleFrom(
                       backgroundColor: Colors.green.shade700,
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1727,7 +1732,7 @@ class _SelectToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
@@ -1765,7 +1770,7 @@ class _QuantityButton extends StatelessWidget {
     final theme = context.read<FactionTheme>();
 
     return GestureDetector(
-      onTap: enabled ? onTap : null,
+      onTap: context.soundAction(enabled ? onTap : null),
       child: Container(
         width: 30,
         height: 30,

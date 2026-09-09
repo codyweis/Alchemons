@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/constellation_screen.dart
 import 'package:alchemons/games/constellations/constellation_game.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
@@ -259,10 +260,10 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () async {
+              onPressed: context.soundAction(() async {
                 await settings.setConstellationTutorialSeen();
                 if (context.mounted) Navigator.of(context).pop();
-              },
+              }),
               child: Text(
                 'Got it',
                 style: TextStyle(
@@ -814,7 +815,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
           ),
           const SizedBox(height: 10),
           GestureDetector(
-            onTap: () => _showEarnPointsDialog(theme),
+            onTap: context.soundAction(() => _showEarnPointsDialog(theme)),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -1334,7 +1335,7 @@ class _ConstellationIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: SizedBox(
         width: 40,
         height: 40,
@@ -1363,7 +1364,7 @@ class _ConstellationPointsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: SizedBox(
         width: 74,
         height: 40,
@@ -1509,7 +1510,7 @@ class _ConstellationTreeButton extends StatelessWidget {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
@@ -1563,7 +1564,7 @@ class _ConstellationDialogButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final buttonColor = theme.primary;
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 11),

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/blob_party/bubble_widget.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -87,7 +88,9 @@ class BubbleWidgetState extends State<BubbleWidget>
         onTapDown: (_) => _boopCtrl.forward(from: 0),
         onTapUp: (_) => _boopCtrl.reverse(),
         onTapCancel: () => _boopCtrl.reverse(),
-        onTap: widget.onTap, // <- THIS is the important part
+        onTap: context.soundAction(
+          widget.onTap,
+        ), // <- THIS is the important part
         // ✅ DRAG PATH (only fires once finger exceeds system slop)
         onPanStart: (_) {
           widget.onDragStart?.call();

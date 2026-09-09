@@ -1,3 +1,6 @@
+import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/audio/scene_ambience.dart';
+import 'package:alchemons/audio/navigation_sounds.dart';
 import 'dart:async';
 import 'dart:ui';
 
@@ -132,7 +135,11 @@ class AlchemonsApp extends StatelessWidget {
             themeMode: themeNotifier.themeMode,
             theme: lightThemeData,
             darkTheme: darkThemeData,
-            navigatorObservers: [routeObserver],
+            navigatorObservers: [
+              routeObserver,
+              ambienceRouteObserver,
+              navigationSoundObserver,
+            ],
             // >>> wrap HomeScreen so we can bootstrap spawns once
             home: const AppGate(child: MainShell()),
           );
@@ -456,11 +463,15 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: context.soundAction(
+                () => Navigator.pop(context, false),
+              ),
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: context.soundAction(
+                () => Navigator.pop(context, true),
+              ),
               child: const Text('Restore'),
             ),
           ],
@@ -521,11 +532,15 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: context.soundAction(
+                () => Navigator.pop(context, false),
+              ),
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: context.soundAction(
+                () => Navigator.pop(context, true),
+              ),
               child: const Text('Start New Game'),
             ),
           ],
@@ -639,17 +654,23 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
                     runSpacing: 12,
                     children: [
                       FilledButton(
-                        onPressed: _busy ? null : _restoreAccountHere,
+                        onPressed: context.soundAction(
+                          _busy ? null : _restoreAccountHere,
+                        ),
                         child: Text(
                           _busy ? 'Working...' : 'Restore Account Here',
                         ),
                       ),
                       OutlinedButton(
-                        onPressed: _busy ? null : _reactivateHere,
+                        onPressed: context.soundAction(
+                          _busy ? null : _reactivateHere,
+                        ),
                         child: const Text('Reactivate Here'),
                       ),
                       TextButton(
-                        onPressed: _busy ? null : _startNewGame,
+                        onPressed: context.soundAction(
+                          _busy ? null : _startNewGame,
+                        ),
                         child: const Text('Start New Game'),
                       ),
                     ],

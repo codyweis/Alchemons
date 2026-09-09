@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/wilderness/landscape_dialog.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -152,10 +153,10 @@ class LandscapeDialog extends StatelessWidget {
                   Expanded(
                     flex: 1,
                     child: OutlinedButton(
-                      onPressed: () {
+                      onPressed: context.soundAction(() {
                         Navigator.of(context).pop(false);
                         onSecondary?.call();
-                      },
+                      }),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white70,
                         side: BorderSide(
@@ -182,10 +183,10 @@ class LandscapeDialog extends StatelessWidget {
                 Expanded(
                   flex: secondaryLabel != null ? 1 : 2,
                   child: OutlinedButton(
-                    onPressed: () {
+                    onPressed: context.soundAction(() {
                       Navigator.of(context).pop(true);
                       onPrimary?.call();
-                    },
+                    }),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
                       side: BorderSide(color: frame, width: 1.5),

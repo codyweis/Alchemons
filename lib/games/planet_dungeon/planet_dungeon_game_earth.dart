@@ -463,6 +463,7 @@ extension BuriedGiant on PlanetDungeonGame {
       _setHint('Fallen stone bars the way, it answers earthen strength');
       return true;
     }
+    onSound?.call(SoundCue.dungeonGateOpen);
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist
     final doorCenter = room.doors.isNotEmpty
@@ -554,6 +555,7 @@ extension BuriedGiant on PlanetDungeonGame {
           dur: _kRibSlideClean,
         );
       }
+      if (moved > 0) onSound?.call(SoundCue.dungeonBlockMove);
       _spawnAlchemyBurst(
         _ribRect(rib).center,
         producedElement: 'Earth',
@@ -807,6 +809,7 @@ extension BuriedGiant on PlanetDungeonGame {
     // Open: the pillars come up out of the floor, watched.
     if (cryptRise < 1) cryptRise = min(1.0, cryptRise + dt * 0.9);
     if (pillarBared.length < room.fossilPillars.length) {
+      onSound?.call(SoundCue.dungeonBlockMove);
       for (final p in room.fossilPillars) {
         pillarBared.add(p.id);
       }
@@ -925,6 +928,7 @@ extension BuriedGiant on PlanetDungeonGame {
           return true;
         }
         pillarSealed.add(id);
+        onSound?.call(SoundCue.elementCrystal);
         pillarLife.remove(id);
         _crystalGrow[id] = 0.0001;
         _spawnAlchemyBurst(

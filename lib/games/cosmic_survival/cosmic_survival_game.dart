@@ -4280,7 +4280,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       damage *= 0.88;
     }
     final hpBefore = enemy.hp;
-    if (damage > 0 && !enemy.isDead) onSound?.call(SoundCue.combatHitLight);
+    if (damage > 0 && !enemy.isDead) {
+      onSound?.call(
+        damage >= 100 ? SoundCue.combatHitHeavy : SoundCue.combatHitLight,
+      );
+    }
     enemy.hp -= damage;
     enemy.hitFlash = 1.0;
 
@@ -12416,6 +12420,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // Wait for the visual meter to catch up to the underlying value so the
     // surge popup never appears before the bar finishes filling.
     if (_alchemicalMeterDisplayFrac < 0.995) return;
+    onSound?.call(SoundCue.survivalPowerupCollect);
     showingPowerUpSelection = true;
     gamePaused = true;
     onWaveIntermission?.call();
@@ -12478,6 +12483,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// target: 0 = companions, 1 = ship, 2 = orb.
   void _recordHeal(double healed, {required int target, int? sourceSlot}) {
     if (healed <= 0) return;
+    onSound?.call(SoundCue.combatHeal);
     switch (target) {
       case 0:
         healingStats.toMons += healed;
@@ -12504,9 +12510,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final absorbed = min(remaining, orb.shieldHp.toDouble());
       orb.shieldHp -= absorbed.round();
       remaining -= absorbed;
+      onSound?.call(
+        orb.shieldHp <= 0
+            ? SoundCue.combatShieldBreak
+            : SoundCue.combatShieldHit,
+      );
     }
     if (remaining > 0) {
+      final wasSafe = orb.hpPercent >= 0.25;
       orb.currentHp = max(0, orb.currentHp - remaining);
+      if (wasSafe && orb.hpPercent < 0.25 && orb.currentHp > 0) {
+        onSound?.call(SoundCue.combatDanger);
+      }
     }
   }
 

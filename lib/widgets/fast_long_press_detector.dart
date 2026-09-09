@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
@@ -20,7 +21,11 @@ class FastLongPressDetector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (onLongPress == null) {
-      return GestureDetector(behavior: behavior, onTap: onTap, child: child);
+      return GestureDetector(
+        behavior: behavior,
+        onTap: context.soundAction(onTap),
+        child: child,
+      );
     }
 
     final gestures = <Type, GestureRecognizerFactory>{
@@ -31,7 +36,7 @@ class FastLongPressDetector extends StatelessWidget {
               debugOwner: this,
             ),
             (instance) {
-              instance.onLongPress = onLongPress;
+              instance.onLongPress = context.soundAction(onLongPress);
             },
           ),
     };
@@ -41,7 +46,7 @@ class FastLongPressDetector extends StatelessWidget {
           GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
             () => TapGestureRecognizer(debugOwner: this),
             (instance) {
-              instance.onTap = onTap;
+              instance.onTap = context.soundAction(onTap);
             },
           );
     }

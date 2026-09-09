@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/creature_detail/creature_dialog.dart
 //
 // REDESIGNED CREATURE DETAILS DIALOG
@@ -605,15 +606,18 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
+                onPressed: context.soundAction(
+                  () => Navigator.of(dialogContext).pop(),
+                ),
                 child: Text(
                   'CANCEL',
                   style: t.label.copyWith(color: c.textMuted),
                 ),
               ),
               TextButton(
-                onPressed: () =>
-                    Navigator.of(dialogContext).pop(controller.text.trim()),
+                onPressed: context.soundAction(
+                  () => Navigator.of(dialogContext).pop(controller.text.trim()),
+                ),
                 child: Text(
                   'SAVE',
                   style: t.label.copyWith(color: c.amberBright),
@@ -830,7 +834,9 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
+              onPressed: context.soundAction(
+                () => Navigator.of(dialogContext).pop(),
+              ),
               child: Text(
                 'Show me',
                 style: TextStyle(
@@ -1070,12 +1076,14 @@ class _HeaderBar extends StatelessWidget {
               Expanded(
                 child: instance != null
                     ? InkWell(
-                        onTap: nicknameBusy
-                            ? null
-                            : () {
-                                HapticFeedback.lightImpact();
-                                onEditName();
-                              },
+                        onTap: context.soundAction(
+                          nicknameBusy
+                              ? null
+                              : () {
+                                  HapticFeedback.lightImpact();
+                                  onEditName();
+                                },
+                        ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 2),
                           child: Row(
@@ -1213,12 +1221,14 @@ class _HeaderIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = _bp(context);
     return GestureDetector(
-      onTap: onTap == null
-          ? null
-          : () {
-              HapticFeedback.lightImpact();
-              onTap!();
-            },
+      onTap: context.soundAction(
+        onTap == null
+            ? null
+            : () {
+                HapticFeedback.lightImpact();
+                onTap!();
+              },
+      ),
       child: CustomPaint(
         painter: BracketFramePainter(
           color: frameColor.withValues(alpha: 0.8),
@@ -1274,10 +1284,10 @@ class _TabSelector extends StatelessWidget {
                   right: index == _labels.length - 1 ? 0 : 8,
                 ),
                 child: GestureDetector(
-                  onTap: () {
+                  onTap: context.soundAction(() {
                     HapticFeedback.selectionClick();
                     tabController.animateTo(index);
-                  },
+                  }),
                   child: CustomPaint(
                     painter: BracketFramePainter(
                       color: selected
@@ -1636,12 +1646,14 @@ class _OverviewTab extends StatelessWidget {
                       height: 175,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: onSpriteTap == null
-                            ? null
-                            : () {
-                                HapticFeedback.selectionClick();
-                                onSpriteTap!();
-                              },
+                        onTap: context.soundAction(
+                          onSpriteTap == null
+                              ? null
+                              : () {
+                                  HapticFeedback.selectionClick();
+                                  onSpriteTap!();
+                                },
+                        ),
                         child: Center(
                           child: instance == null
                               ? CreatureSprite(
@@ -1892,10 +1904,10 @@ class _StaminaRestoreButton extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(top: 8),
               child: GestureDetector(
-                onTap: () {
+                onTap: context.soundAction(() {
                   HapticFeedback.mediumImpact();
                   _use(context, qty);
-                },
+                }),
                 child: CustomPaint(
                   painter: BracketFramePainter(
                     color: activeAccent.withValues(alpha: 0.88),
@@ -1977,11 +1989,11 @@ class _StaminaRestoreButton extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(dCtx).pop(false),
+            onPressed: context.soundAction(() => Navigator.of(dCtx).pop(false)),
             child: Text('Cancel', style: TextStyle(color: c.textMuted)),
           ),
           TextButton(
-            onPressed: () => Navigator.of(dCtx).pop(true),
+            onPressed: context.soundAction(() => Navigator.of(dCtx).pop(true)),
             child: Text(
               'Restore',
               style: TextStyle(

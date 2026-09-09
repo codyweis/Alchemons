@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/cosmic/cosmic_sell_sheet.dart
 //
 // Bottom-sheet "Cosmic Market" — lets players sell alchemons
@@ -337,7 +338,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, false)),
             child: Text(
               'CANCEL',
               style: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
@@ -353,7 +354,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, true)),
             child: const Text(
               'SELL',
               style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.6),
@@ -451,10 +452,10 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                       ),
                     ),
                     GestureDetector(
-                      onTap: () {
+                      onTap: context.soundAction(() {
                         HapticFeedback.lightImpact();
                         Navigator.of(context).pop();
-                      },
+                      }),
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
@@ -661,7 +662,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
     required VoidCallback onTap,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
@@ -771,7 +772,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       _SaleCurrency.shards => CosmicScreenStyles.astralShardColor,
     };
     return GestureDetector(
-      onTap: () => setState(() => _currency = cur),
+      onTap: context.soundAction(() => setState(() => _currency = cur)),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
@@ -951,7 +952,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
 
             // Price + Sell button
             GestureDetector(
-              onTap: () => _sell(item),
+              onTap: context.soundAction(() => _sell(item)),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,

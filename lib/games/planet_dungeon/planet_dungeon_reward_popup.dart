@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/games/planet_dungeon/planet_dungeon_reward_popup.dart
 //
 // Reward popup. Reveals the star (or stars) just secured and
@@ -686,15 +687,17 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   Widget _choiceCard(Star3Choice c) {
     final selected = _highlighted == c;
     return GestureDetector(
-      onTap: _busy
-          ? null
-          : () {
-              if (selected) {
-                _pickStar3(c); // second tap on the highlighted card confirms
-              } else {
-                setState(() => _highlighted = c);
-              }
-            },
+      onTap: context.soundAction(
+        _busy
+            ? null
+            : () {
+                if (selected) {
+                  _pickStar3(c); // second tap on the highlighted card confirms
+                } else {
+                  setState(() => _highlighted = c);
+                }
+              },
+      ),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
@@ -780,7 +783,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
       action = widget.onContinue;
     }
     return GestureDetector(
-      onTap: enabled ? action : null,
+      onTap: context.soundAction(enabled ? action : null),
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 200),
         opacity: enabled ? 1.0 : 0.4,

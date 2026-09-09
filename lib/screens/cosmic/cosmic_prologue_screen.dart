@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/cosmic/cosmic_prologue_screen.dart
 //
 // THE FIRST CROSSING — played once, the first time the player ever falls into
@@ -412,7 +413,9 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
               child: Opacity(
                 opacity: ((ready - 0.35) / 0.4).clamp(0.0, 1.0),
                 child: GestureDetector(
-                  onTap: _harvesterClaimed ? null : _claimHarvester,
+                  onTap: context.soundAction(
+                    _harvesterClaimed ? null : _claimHarvester,
+                  ),
                   behavior: HitTestBehavior.opaque,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -681,7 +684,7 @@ class _ElementPortal extends StatelessWidget {
     return Opacity(
       opacity: revealT.clamp(0.0, 1.0),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
           width: 132,

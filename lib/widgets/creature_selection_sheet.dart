@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
@@ -279,11 +280,11 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                       child: Row(
                         children: [
                           GestureDetector(
-                            onTap: () {
+                            onTap: context.soundAction(() {
                               setState(
                                 () => _showFavoritesOnly = !_showFavoritesOnly,
                               );
-                            },
+                            }),
                             child: Container(
                               width: 40,
                               height: 40,
@@ -370,12 +371,12 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                                   ),
                                   if (_searchQuery.isNotEmpty)
                                     GestureDetector(
-                                      onTap: () {
+                                      onTap: context.soundAction(() {
                                         setState(() {
                                           _searchQuery = '';
                                           _searchController.clear();
                                         });
-                                      },
+                                      }),
                                       child: Icon(
                                         AppIcons.clear_rounded,
                                         size: 18,
@@ -641,7 +642,7 @@ class _DefaultHeader extends StatelessWidget {
             // Sort toggle button
             if (selectedSort != null && onSortChanged != null)
               GestureDetector(
-                onTap: () => _cycleSort(),
+                onTap: context.soundAction(() => _cycleSort()),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -679,7 +680,7 @@ class _DefaultHeader extends StatelessWidget {
             // Detail mode toggle
             if (showDetailModeToggle)
               GestureDetector(
-                onTap: onToggleDetailMode,
+                onTap: context.soundAction(onToggleDetailMode),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -708,7 +709,7 @@ class _DefaultHeader extends StatelessWidget {
             // View All button (replaces grid/list toggle)
             if (showViewToggle)
               GestureDetector(
-                onTap: onToggleView,
+                onTap: context.soundAction(onToggleView),
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -864,7 +865,7 @@ class _CreatureGridCard extends StatelessWidget {
     final rarityColor = BreedConstants.getRarityColor(c.rarity);
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         decoration: BoxDecoration(
           color: theme.surface,

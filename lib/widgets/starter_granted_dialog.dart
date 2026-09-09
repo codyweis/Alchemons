@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/ui/system_dialog.dart
 import 'dart:async';
 import 'package:alchemons/screens/story/models/story_page.dart';
@@ -126,10 +127,10 @@ class SystemDialog extends StatelessWidget {
                 if (secondaryLabel != null) ...[
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () {
+                      onPressed: context.soundAction(() {
                         Navigator.of(context).pop(false);
                         onSecondary?.call();
-                      },
+                      }),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white70,
                         side: BorderSide(
@@ -155,10 +156,10 @@ class SystemDialog extends StatelessWidget {
                 ],
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () {
+                    onPressed: context.soundAction(() {
                       Navigator.of(context).pop(true);
                       onPrimary?.call();
-                    },
+                    }),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: Colors.white, width: 1.5),

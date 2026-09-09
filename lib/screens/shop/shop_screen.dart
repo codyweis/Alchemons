@@ -422,13 +422,13 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
             : t.danger.withValues(alpha: 0.5);
 
         return GestureDetector(
-          onTap: () {
+          onTap: context.soundAction(() {
             if (canPurchase) {
               _handlePurchase(context, offer, allCurrencies, canAfford);
             } else {
               _showDetails(context, offer, allCurrencies, canAfford);
             }
-          },
+          }),
           child: Container(
             decoration: BoxDecoration(
               color: Colors.transparent,
@@ -729,9 +729,16 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
               ),
           ];
           return GestureDetector(
-            onTap: () => canPurchase
-                ? _handlePurchase(context, offer, allCurrencies, canAffordUnit)
-                : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            onTap: context.soundAction(
+              () => canPurchase
+                  ? _handlePurchase(
+                      context,
+                      offer,
+                      allCurrencies,
+                      canAffordUnit,
+                    )
+                  : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            ),
             child: GameShopCard(
               key: ValueKey('effect-${offer.id}'),
               title: offer.name,
@@ -860,9 +867,16 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
             }
           }
           return GestureDetector(
-            onTap: () => canPurchase
-                ? _handlePurchase(context, offer, mergedBalances, canAffordUnit)
-                : _showDetails(context, offer, mergedBalances, canAffordUnit),
+            onTap: context.soundAction(
+              () => canPurchase
+                  ? _handlePurchase(
+                      context,
+                      offer,
+                      mergedBalances,
+                      canAffordUnit,
+                    )
+                  : _showDetails(context, offer, mergedBalances, canAffordUnit),
+            ),
             child: GameShopCard(
               key: ValueKey('device-${offer.id}'),
               title: offer.name,
@@ -923,9 +937,16 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
               ),
           ];
           return GestureDetector(
-            onTap: () => canPurchase
-                ? _handlePurchase(context, offer, allCurrencies, canAffordUnit)
-                : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            onTap: context.soundAction(
+              () => canPurchase
+                  ? _handlePurchase(
+                      context,
+                      offer,
+                      allCurrencies,
+                      canAffordUnit,
+                    )
+                  : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            ),
             child: GameShopCard(
               key: ValueKey('exploration-${offer.id}'),
               title: offer.name,
@@ -970,20 +991,22 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
           );
           cards.add(
             GestureDetector(
-              onTap: () => enabled
-                  ? _handleBubbleSlotPurchase(
-                      context,
-                      slotOffer,
-                      resourceBalances,
-                      canAfford,
-                      slotNumber,
-                    )
-                  : _showBubbleSlotDetails(
-                      context,
-                      slotOffer,
-                      resourceBalances,
-                      canAfford,
-                    ),
+              onTap: context.soundAction(
+                () => enabled
+                    ? _handleBubbleSlotPurchase(
+                        context,
+                        slotOffer,
+                        resourceBalances,
+                        canAfford,
+                        slotNumber,
+                      )
+                    : _showBubbleSlotDetails(
+                        context,
+                        slotOffer,
+                        resourceBalances,
+                        canAfford,
+                      ),
+              ),
               child: GameShopCard(
                 key: ValueKey('upgrade-slot-$slotNumber'),
                 title: 'Alchemy Chamber $slotNumber',
@@ -1030,20 +1053,22 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
           );
           cards.add(
             GestureDetector(
-              onTap: () => enabled
-                  ? _handleCosmicPartySlotPurchase(
-                      context,
-                      slotOffer,
-                      allCurrencies,
-                      canAfford,
-                      slotNumber,
-                    )
-                  : _showBubbleSlotDetails(
-                      context,
-                      slotOffer,
-                      allCurrencies,
-                      canAfford,
-                    ),
+              onTap: context.soundAction(
+                () => enabled
+                    ? _handleCosmicPartySlotPurchase(
+                        context,
+                        slotOffer,
+                        allCurrencies,
+                        canAfford,
+                        slotNumber,
+                      )
+                    : _showBubbleSlotDetails(
+                        context,
+                        slotOffer,
+                        allCurrencies,
+                        canAfford,
+                      ),
+              ),
               child: GameShopCard(
                 key: ValueKey('cosmic-party-slot-$slotNumber'),
                 title: 'Patrol Slot $slotNumber',
@@ -1206,9 +1231,16 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
               ),
           ];
           return GestureDetector(
-            onTap: () => canPurchase
-                ? _handlePurchase(context, offer, allCurrencies, canAffordUnit)
-                : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            onTap: context.soundAction(
+              () => canPurchase
+                  ? _handlePurchase(
+                      context,
+                      offer,
+                      allCurrencies,
+                      canAffordUnit,
+                    )
+                  : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            ),
             child: GameShopCard(
               key: ValueKey('portalkey-${offer.id}'),
               title: offer.name,
@@ -1275,9 +1307,16 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
               ),
           ];
           return GestureDetector(
-            onTap: () => canPurchase
-                ? _handlePurchase(context, offer, allCurrencies, canAffordUnit)
-                : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            onTap: context.soundAction(
+              () => canPurchase
+                  ? _handlePurchase(
+                      context,
+                      offer,
+                      allCurrencies,
+                      canAffordUnit,
+                    )
+                  : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            ),
             child: GameShopCard(
               key: ValueKey('orb-${offer.id}'),
               title: offer.name,
@@ -1363,9 +1402,16 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
               ),
           ];
           return GestureDetector(
-            onTap: () => canPurchase
-                ? _handlePurchase(context, offer, allCurrencies, canAffordUnit)
-                : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            onTap: context.soundAction(
+              () => canPurchase
+                  ? _handlePurchase(
+                      context,
+                      offer,
+                      allCurrencies,
+                      canAffordUnit,
+                    )
+                  : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            ),
             child: GameShopCard(
               key: ValueKey('instant-${offer.id}'),
               title: offer.name,
@@ -1439,9 +1485,16 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
             }
           });
           return GestureDetector(
-            onTap: () => canPurchase
-                ? _handlePurchase(context, offer, mergedBalances, canAffordUnit)
-                : _showDetails(context, offer, mergedBalances, canAffordUnit),
+            onTap: context.soundAction(
+              () => canPurchase
+                  ? _handlePurchase(
+                      context,
+                      offer,
+                      mergedBalances,
+                      canAffordUnit,
+                    )
+                  : _showDetails(context, offer, mergedBalances, canAffordUnit),
+            ),
             child: GameShopCard(
               key: ValueKey('fx-${offer.id}'),
               title: offer.name,
@@ -1550,9 +1603,16 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
               ),
           ];
           return GestureDetector(
-            onTap: () => canPurchase
-                ? _handlePurchase(context, offer, mergedBalances, canAffordUnit)
-                : _showDetails(context, offer, mergedBalances, canAffordUnit),
+            onTap: context.soundAction(
+              () => canPurchase
+                  ? _handlePurchase(
+                      context,
+                      offer,
+                      mergedBalances,
+                      canAffordUnit,
+                    )
+                  : _showDetails(context, offer, mergedBalances, canAffordUnit),
+            ),
             child: GameShopCard(
               key: ValueKey('special-${offer.id}'),
               title: offer.name,
@@ -1693,6 +1753,7 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
     HapticFeedback.lightImpact();
     final success = await shopService.purchase(offer.id, qty: qty);
     if (!context.mounted) return;
+    context.sound(success ? SoundCue.purchaseSuccess : SoundCue.uiDenied);
 
     // Result snackbar
     _toast(
@@ -1860,7 +1921,7 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
         final actionAccent = t.readableAccent(t.amberBright);
 
         return GestureDetector(
-          onTap: () {
+          onTap: context.soundAction(() {
             if (!unlocked) {
               _toast(
                 'Explore the constellations to unlock.',
@@ -1875,7 +1936,7 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
                 builder: (_) => const AlchemonExchangeScreen(),
               ),
             );
-          },
+          }),
           child: SizedBox(
             width: 75,
             height: 75,
@@ -2038,7 +2099,7 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
               SizedBox(
                 width: double.infinity,
                 child: GestureDetector(
-                  onTap: () => Navigator.pop(ctx),
+                  onTap: context.soundAction(() => Navigator.pop(ctx)),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(
@@ -2096,7 +2157,7 @@ class _ShopSoulOrb extends StatelessWidget {
     final t = ForgeTokens(theme);
     final goldCost = cost['gold'] ?? 0;
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: Opacity(
         opacity: canAfford ? 1.0 : 0.55,
@@ -2237,7 +2298,7 @@ class _ShopPowerupOrbState extends State<_ShopPowerupOrb>
     final goldCost = widget.cost['gold'] ?? 0;
 
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: context.soundAction(widget.onTap),
       child: SizedBox(
         width: 76,
         child: Column(
@@ -2633,7 +2694,7 @@ class _GoldOrbCard extends StatelessWidget {
         : [const Color(0xFFF6F6F6), const Color(0xFFEEEEEE)];
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 240),
         curve: Curves.easeOutCubic,
@@ -3236,7 +3297,7 @@ class _GoldBuyStrip extends StatelessWidget {
                     const SizedBox(width: 12),
                     // Buy button
                     GestureDetector(
-                      onTap: canBuy ? onBuy : null,
+                      onTap: context.soundAction(canBuy ? onBuy : null),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(

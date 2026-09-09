@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:ui'; // for BackdropFilter
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
@@ -75,7 +76,7 @@ class GlowingIcon extends StatelessWidget {
     final wrapped = Material(
       type: MaterialType.transparency,
       child: InkResponse(
-        onTap: () => _handleTap(context),
+        onTap: context.soundAction(() => _handleTap(context)),
         radius: (minTapSize / 2) + 6,
         customBorder: const CircleBorder(),
         child: tappable,
@@ -170,7 +171,9 @@ class GlowingIcon extends StatelessWidget {
                             ),
                           ),
                           IconButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
+                            onPressed: context.soundAction(
+                              () => Navigator.of(ctx).pop(),
+                            ),
                             icon: Icon(
                               AppIcons.close_rounded,
                               size: 18,
@@ -196,7 +199,9 @@ class GlowingIcon extends StatelessWidget {
                       Align(
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
-                          onTap: () => Navigator.of(ctx).pop(),
+                          onTap: context.soundAction(
+                            () => Navigator.of(ctx).pop(),
+                          ),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 14,

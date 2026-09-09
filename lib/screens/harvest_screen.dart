@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math' show sin;
 import 'package:alchemons/widgets/element_resource_glyph.dart';
 
@@ -132,10 +133,10 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
           ),
           actions: [
             TextButton(
-              onPressed: () {
+              onPressed: context.soundAction(() {
                 HapticFeedback.lightImpact();
                 Navigator.of(context).pop();
-              },
+              }),
               child: Text(
                 'Got it',
                 style: TextStyle(
@@ -165,6 +166,7 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
     if (confirmed == true) {
       final ok = await svc.unlock(farm.biome, cost: costDb);
       if (!mounted) return;
+      context.sound(ok ? SoundCue.upgradeComplete : SoundCue.uiDenied);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -867,7 +869,7 @@ class _PrimaryActionButtonCompact extends StatelessWidget {
         : Colors.white.withValues(alpha: .12);
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
         decoration: BoxDecoration(
@@ -1086,7 +1088,7 @@ class _DialogBtn extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
+    onTap: context.soundAction(onTap),
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
@@ -1124,7 +1126,7 @@ class _DialogPrimaryBtn extends StatelessWidget {
   Widget build(BuildContext context) => Opacity(
     opacity: disabled ? .5 : 1,
     child: GestureDetector(
-      onTap: disabled ? null : onTap,
+      onTap: context.soundAction(disabled ? null : onTap),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(

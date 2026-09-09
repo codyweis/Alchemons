@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/debug/dungeon_debug_screen.dart
 //
 // DEVELOPER TOOL — descend into any built dungeon from the profile.
@@ -364,7 +365,7 @@ class _DungeonRow extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                     GestureDetector(
-                      onTap: onDescend,
+                      onTap: context.soundAction(onDescend),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,

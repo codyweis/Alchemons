@@ -245,6 +245,7 @@ extension StormCircuit on PlanetDungeonGame {
             announce: false,
           );
           activeTrunk = null;
+          onSound?.call(SoundCue.dungeonSwitch);
           _dynamoSwing = 0;
           _setHint('The fulminate flashes, the dynamo trips dark', 3.4);
           return true;
@@ -1437,6 +1438,7 @@ extension StormCircuit on PlanetDungeonGame {
   bool _rotateMirror(DungeonCreature a, CircuitNode node) {
     final cur = mirrorOrient[node.id] ?? 0;
     mirrorOrient[node.id] = (cur + 1) % node.orientations;
+    onSound?.call(SoundCue.dungeonSwitch);
     _spawnAlchemyBurst(
       node.position,
       producedElement: 'Lightning',
