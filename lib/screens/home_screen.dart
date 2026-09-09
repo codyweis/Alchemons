@@ -165,7 +165,18 @@ class _MainShellState extends State<MainShell> {
     }
 
     // Trigger tutorials when user actually visits these sections:
-    if (section == NavSection.creatures && !_creaturesTutorialRequested) {
+    //
+    // Not when a new discovery brought us here. The reveal switches to this
+    // section itself, so the first extraction opened the database tutorial on
+    // top of the extraction result — and the pop that was meant to dismiss the
+    // result closed the tutorial instead, leaving the result stranded, while
+    // the filing-away card flew at a catalog hidden behind a modal. The flag
+    // stays unset, so the tutorial greets them on their next real visit.
+    final revealInFlight =
+        NewDiscoveryReveal.instance.pendingRevealCreatureId.value != null;
+    if (section == NavSection.creatures &&
+        !_creaturesTutorialRequested &&
+        !revealInFlight) {
       _creaturesTutorialRequested = true;
       _creaturesKey.currentState?.maybeShowCreaturesTutorial();
     }

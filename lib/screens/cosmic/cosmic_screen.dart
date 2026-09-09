@@ -1005,6 +1005,14 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     final inst = instances.first;
     final base = catalog.getCreatureById(inst.baseId);
+    // The memory runs on whatever the player owns first, which is a starter
+    // with starter stats — and special cooldown scales off those, so the
+    // tutorial spent most of its length waiting for the one ability it is
+    // trying to teach. A memory is not a fair fight, so it borrows the
+    // creature's shape and gives it a veteran's numbers. Nothing here is
+    // written back; this is a transient party member.
+    const memoryStat = 95;
+    const memoryPotential = 95.0;
     final typeName = (base?.types.isNotEmpty ?? false)
         ? base!.types.first
         : 'Spirit';
@@ -1026,26 +1034,20 @@ class _CosmicScreenState extends State<CosmicScreen>
           element: typeName,
           family: family,
           level: inst.level,
-          statSpeed: combatBonuses.applyCombatStatBonus(
-            'speed',
-            inst.statSpeed,
-          ),
+          statSpeed: combatBonuses.applyCombatStatBonus('speed', memoryStat),
           statIntelligence: combatBonuses.applyCombatStatBonus(
             'intelligence',
-            inst.statIntelligence,
+            memoryStat,
           ),
           statStrength: combatBonuses.applyCombatStatBonus(
             'strength',
-            inst.statStrength,
+            memoryStat,
           ),
-          statBeauty: combatBonuses.applyCombatStatBonus(
-            'beauty',
-            inst.statBeauty,
-          ),
-          statSpeedPotential: inst.statSpeedPotential,
-          statIntelligencePotential: inst.statIntelligencePotential,
-          statStrengthPotential: inst.statStrengthPotential,
-          statBeautyPotential: inst.statBeautyPotential,
+          statBeauty: combatBonuses.applyCombatStatBonus('beauty', memoryStat),
+          statSpeedPotential: memoryPotential,
+          statIntelligencePotential: memoryPotential,
+          statStrengthPotential: memoryPotential,
+          statBeautyPotential: memoryPotential,
           slotIndex: 0,
           staminaBars: max(1, inst.staminaBars),
           staminaMax: max(1, inst.staminaMax),

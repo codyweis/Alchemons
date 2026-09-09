@@ -14,6 +14,8 @@ import 'package:flutter/material.dart';
 /// down the left, caps monospace — so a notification reads as this game's
 /// notification, and the colour carries the severity instead of the whole
 /// rectangle.
+const double _barHeight = 96;
+
 void showGameSnack(
   BuildContext context,
   String message, {
@@ -30,6 +32,19 @@ void showGameSnack(
   final fc = FC.of(context);
   final tint = accent ?? fc.amber;
 
+  // Top of the screen, not the bottom.
+  //
+  // A SnackBar has no anchor of its own; a floating one is positioned by its
+  // margin off the bottom, so the whole viewport height minus the bar is what
+  // puts it under the status bar. Clamped because a short viewport (a landscape
+  // phone, a split screen) would otherwise ask for a negative margin.
+  final media = MediaQuery.of(context);
+  final topInset = media.padding.top;
+  final liftBy = (media.size.height - topInset - _barHeight).clamp(
+    0.0,
+    double.infinity,
+  );
+
   messenger.showSnackBar(
     SnackBar(
       duration: duration,
@@ -39,6 +54,7 @@ void showGameSnack(
       dismissDirection: DismissDirection.horizontal,
       backgroundColor: fc.bg1,
       elevation: 8,
+      margin: EdgeInsets.only(left: 14, right: 14, bottom: liftBy),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(4),
         side: BorderSide(color: tint.withValues(alpha: 0.5)),

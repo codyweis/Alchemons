@@ -11,6 +11,7 @@ import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -147,28 +148,9 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
   }
 
   void _notify(String message) {
-    final fc = FC.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: fc.bg3,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-          side: BorderSide(color: fc.borderDim),
-        ),
-        content: Text(
-          message.toUpperCase(),
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: fc.textPrimary,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.1,
-          ),
-        ),
-      ),
-    );
+    showGameSnack(context, message, accent: FC.of(context).rewardGold);
   }
+
 
   String category(CampaignAchievement a) {
     if (campaignMissionIds.contains(a.id)) return 'Story';
