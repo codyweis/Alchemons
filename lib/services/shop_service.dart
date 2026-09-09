@@ -554,6 +554,20 @@ class ShopService extends ChangeNotifier {
       inventoryKey: InvKeys.harvesterGuaranteed, // NEW
     ),
 
+    ShopOffer(
+      id: 'boost.wildlife_lure',
+      name: 'Wildlife Lure',
+      description:
+          'Draws a specimen to an empty biome immediately. Use it from the '
+          'map when a region has nothing in it.',
+      icon: AppIcons.pets_rounded,
+      cost: const {'gold': 1},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.wildlifeLure,
+    ),
+
     // --- NEW: Eggs & Packs ---
     ShopOffer(
       id: 'boost.instant_hatch',

@@ -63,6 +63,10 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
 
   int _slotsUnlocked = 1;
   int _cosmicPartySlots = 0;
+
+  /// Cosmic space found. Raids only exist out there, so the beacon that
+  /// summons one is meaningless — and a spoiler — before then.
+  bool _cosmicDiscovered = false;
   bool _showPurchased = false;
 
   /// False while something is pushed over the shop (the item-detail dialog,
@@ -89,6 +93,17 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
       if (!mounted) return;
       context.read<BlackMarketService>().checkNow();
     });
+
+    () async {
+      final found =
+          await context.read<AlchemonsDatabase>().settingsDao.getSetting(
+            'cosmic_ship_unlocked',
+          ) ==
+          '1';
+      if (mounted && found != _cosmicDiscovered) {
+        setState(() => _cosmicDiscovered = found);
+      }
+    }();
 
     _refreshAll();
   }
@@ -610,20 +625,28 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
                         resourceBalances,
                       ),
 
-                      _buildSectionHeader(
-                        'ALCHEMICAL POWERUPS',
-                        const Color(0xFFB58CFF),
-                        AppIcons.blur_circular_rounded,
-                      ),
-                      // Five floating/pulsing orbs, each with a blurred glow;
-                      // own layer, paused once out of the viewport.
-                      ViewportTickerGate(
-                        child: _buildAlchemicalPowerupsRow(
-                          theme,
-                          allCurrencies,
-                          inventoryByKey,
+                      // Power Orbs raise Enhancement ranks, so they are
+                      // stock for a screen the player cannot open yet. Hidden
+                      // until Enhance is unlocked, the way Enhance itself is
+                      // hidden on the home dock.
+                      if (context
+                          .watch<ShopService>()
+                          .hasElementalCreatorUnlocked()) ...[
+                        _buildSectionHeader(
+                          'ALCHEMICAL POWERUPS',
+                          const Color(0xFFB58CFF),
+                          AppIcons.blur_circular_rounded,
                         ),
-                      ),
+                        // Five floating/pulsing orbs, each with a blurred
+                        // glow; own layer, paused once out of the viewport.
+                        ViewportTickerGate(
+                          child: _buildAlchemicalPowerupsRow(
+                            theme,
+                            allCurrencies,
+                            inventoryByKey,
+                          ),
+                        ),
+                      ],
 
                       _buildSectionHeader(
                         'SPECIAL ITEMS',
@@ -1350,13 +1373,14 @@ class _ShopScreenState extends State<ShopScreen> with RouteAware {
   /// two a player restocks routinely.
   static const _commonConsumableIds = <String>[
     'boost.instant_stamina_potion',
+    'boost.wildlife_lure',
     ShopService.wildFusionOfferId,
   ];
 
-  /// Situational consumables: one summons a raid, one skips a fusion timer.
-  static const _specialConsumableIds = <String>[
+  /// Situational consumables: one skips a fusion timer, one summons a raid.
+  List<String> get _specialConsumableIds => <String>[
     'boost.instant_hatch',
-    'boost.instant_boss_refresh',
+    if (_cosmicDiscovered) 'boost.instant_boss_refresh',
   ];
 
   Widget _buildInstantItemsGrid(

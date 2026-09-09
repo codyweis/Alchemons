@@ -125,6 +125,11 @@ void _drawStoryBracketFrame(
   canvas.drawPath(path, paint);
 }
 
+/// Below this zoom a node's fine detail is smaller than a few pixels, so it
+/// is not drawn. Sits under the overview zoom, so the framed overview still
+/// shows everything and only a deliberate pinch-out drops it.
+const double kConstellationDetailZoom = 0.38;
+
 class ConstellationGame extends FlameGame with ScaleDetector {
   ConstellationTree selectedTree;
   Set<String> _unlockedSkills;
@@ -1307,7 +1312,8 @@ class TreeStoryBlock extends PositionComponent {
 }
 
 /// Individual skill node with improved particle system
-class SkillNode extends PositionComponent with TapCallbacks {
+class SkillNode extends PositionComponent
+    with TapCallbacks, HasGameReference<ConstellationGame> {
   final ConstellationTree tree;
   final ConstellationSkill skill;
   final Color primaryColor;
@@ -1643,8 +1649,16 @@ class SkillNode extends PositionComponent with TapCallbacks {
       );
     }
 
-    // Alchemical accents for unlocked nodes
-    if (isUnlocked) {
+    // Alchemical accents for unlocked nodes.
+    //
+    // Skipped when zoomed out. A node is about 30 world units across, so
+    // below this zoom its twelve motes and its sigil ring land inside a few
+    // pixels — invisible, but every unlocked node was still bucketing,
+    // pathing and drawing them on every frame. That is the pinch-out stutter:
+    // the further out you go the more nodes are on screen, each paying full
+    // price for detail nobody can resolve.
+    if (isUnlocked &&
+        game.camera.viewfinder.zoom >= kConstellationDetailZoom) {
       _drawAlchemicalAccents(canvas, center.toOffset(), 35);
       _renderParticles(canvas, center);
     }

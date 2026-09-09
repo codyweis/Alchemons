@@ -146,9 +146,7 @@ class ExtractionVialCard extends StatelessWidget {
     final fx = vial.rarity.fx;
     final (aType, bType) = vial.group.particleTypes;
     final nameTag = vial.group.displayName.trim();
-    final rarityTag = vial.rarity.badgeLabel.trim().toUpperCase();
     final hasNameTag = showTags && nameTag.isNotEmpty;
-    final hasRarityTag = showTags && rarityTag.isNotEmpty;
 
     // particle dial — rarity scales both count and speed.
     final particleCount = (_baseParticles(vial.group) * fx.particleMult)
@@ -225,38 +223,20 @@ class ExtractionVialCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (hasNameTag || hasRarityTag)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (hasNameTag)
-                              _ScorchedVialTag(
-                                text: nameTag,
-                                compact: compact,
-                                accent: _scorchedAccent(skin.badge),
-                              ),
-                            if (hasNameTag && hasRarityTag)
-                              const SizedBox(height: 6),
-                            if (hasRarityTag)
-                              _ScorchedVialTag(
-                                text: rarityTag,
-                                compact: compact,
-                                accent: _scorchedAccent(skin.frameEnd),
-                              ),
-                          ],
+                      // The element, and nothing else. The grade tag under it
+                      // read "WORN" / "RUNED" — flavour words that told the
+                      // player nothing they could act on, stacked on the one
+                      // label that does. Two empty Texts sat below it holding
+                      // a line of height each, which is what pushed this card
+                      // past its box in the shop.
+                      if (hasNameTag) ...[
+                        _ScorchedVialTag(
+                          text: nameTag,
+                          compact: compact,
+                          accent: _scorchedAccent(skin.badge),
                         ),
-                      if (hasNameTag || hasRarityTag) const SizedBox(height: 8),
-                      Text(
-                        '',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: compact ? 14 : 16,
-                          fontWeight: FontWeight.w700,
-                          height: 1.1,
-                        ),
-                      ),
+                        const SizedBox(height: 8),
+                      ],
                       const Spacer(),
                       Row(
                         children: [
@@ -267,14 +247,6 @@ class ExtractionVialCard extends StatelessWidget {
                                 color: Colors.white.withValues(alpha: 0.95),
                                 fontWeight: FontWeight.w700,
                                 fontSize: compact ? 14 : 16,
-                              ),
-                            ),
-                            Text(
-                              '',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.70),
-                                fontWeight: FontWeight.w500,
-                                fontSize: compact ? 12 : 13,
                               ),
                             ),
                             const Spacer(),

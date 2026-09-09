@@ -1,3 +1,5 @@
+import 'package:alchemons/widgets/game_snack.dart';
+import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/screens/wilderness_peek_dialog.dart';
 import 'dart:async';
@@ -409,6 +411,83 @@ class _MapScreenState extends State<MapScreen>
   // --------------------------------------------------
   // TAP HANDLER FOR MAP MARKERS
   // --------------------------------------------------
+  Future<bool> _confirmLure(BuildContext context, int held) async {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.isDark ? t.bg1 : Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: t.amber.withValues(alpha: .45)),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(width: 3, height: 28, color: t.amber),
+                        const SizedBox(width: 12),
+                        Text(
+                          'WILDLIFE LURE',
+                          style: TextStyle(
+                            color: t.amber,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'This region is empty. Use a lure to draw a specimen '
+                      'here now? You are carrying $held.',
+                      style: TextStyle(
+                        color: theme.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _LureButton(
+                            label: 'CANCEL',
+                            color: theme.textMuted,
+                            filled: false,
+                            onTap: () => Navigator.pop(ctx, false),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _LureButton(
+                            label: 'USE LURE',
+                            color: t.amber,
+                            filled: true,
+                            onTap: () => Navigator.pop(ctx, true),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ) ??
+        false;
+  }
+
   Future<void> _handleRegionTap(
     BuildContext context,
     String biomeId,
@@ -421,13 +500,49 @@ class _MapScreenState extends State<MapScreen>
 
     final sceneSpawnCount = spawnService.getSceneSpawnCount(biomeId);
     if (sceneSpawnCount == 0) {
-      _showToast(
+      // An empty region used to be a flat no. If the player is carrying a
+      // lure, this is the one moment it is for, so offer it here rather than
+      // making them find it in the inventory and work out where it applies.
+      final lures = await db.inventoryDao.getItemQty(InvKeys.wildlifeLure);
+      if (!context.mounted) return;
+      if (lures <= 0) {
+        _showToast(
+          context,
+          'No creatures detected in this area',
+          AppIcons.search_off_rounded,
+          Colors.orange.shade400,
+        );
+        return;
+      }
+
+      final useLure = await _confirmLure(context, lures);
+      if (!context.mounted || !useLure) return;
+
+      // Consume first: the spawn is the thing being bought, and a lure that
+      // vanishes without one is worse than one that is never spent.
+      final spent = await db.inventoryDao.consumeItem(InvKeys.wildlifeLure);
+      if (!context.mounted) return;
+      if (!spent) return;
+
+      await spawnService.ensureSpawnsForScene(biomeId);
+      if (!context.mounted) return;
+      if (spawnService.getSceneSpawnCount(biomeId) == 0) {
+        // Nothing took. Give the lure back rather than pocketing it.
+        await db.inventoryDao.addItemQty(InvKeys.wildlifeLure, 1);
+        if (!context.mounted) return;
+        _showToast(
+          context,
+          'Nothing answered the lure — it was not spent',
+          AppIcons.search_off_rounded,
+          Colors.orange.shade400,
+        );
+        return;
+      }
+      showGameSnack(
         context,
-        'No creatures detected in this area',
-        AppIcons.search_off_rounded,
-        Colors.orange.shade400,
+        'Something has been drawn to the area',
+        icon: AppIcons.pets_rounded,
       );
-      return;
     }
 
     // During tutorial, skip access checks
@@ -1343,6 +1458,58 @@ class _InfoDialog extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+
+/// The confirm dialog's buttons, in the shape the rest of the game's
+/// confirmations use.
+class _LureButton extends StatelessWidget {
+  const _LureButton({
+    required this.label,
+    required this.color,
+    required this.filled,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(4);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: radius,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: context.soundAction(onTap),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            color: filled
+                ? color.withValues(alpha: .9)
+                : color.withValues(alpha: .08),
+            border: Border.all(color: color.withValues(alpha: .35)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: filled ? Colors.white : color,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ),
         ),
       ),
     );

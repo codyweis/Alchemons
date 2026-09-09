@@ -541,6 +541,7 @@ class LootBoxConfig {
 // Keys
 class InvKeys {
   static const instantHatch = 'item.instant_hatch';
+  static const wildlifeLure = 'item.wildlife_lure';
   static const powerupSpeed = 'item.powerup.speed';
   static const powerupIntelligence = 'item.powerup.intelligence';
   static const powerupStrength = 'item.powerup.strength';
@@ -602,6 +603,15 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name: 'Instant Fusion Extractor',
       description: 'Complete one active fusion vial instantly.',
       icon: AppIcons.access_alarms,
+      canUse: false,
+    ),
+    InvKeys.wildlifeLure: InventoryItemDef(
+      key: InvKeys.wildlifeLure,
+      name: 'Wildlife Lure',
+      description:
+          'Draws a specimen to an empty biome at once, instead of waiting for '
+          'one to wander in.',
+      icon: AppIcons.pets_rounded,
       canUse: false,
     ),
     InvKeys.powerupSpeed: InventoryItemDef(
