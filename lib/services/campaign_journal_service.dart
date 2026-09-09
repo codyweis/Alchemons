@@ -78,7 +78,15 @@ const campaignEntries = [
 /// Generated rather than hand-written: six near-identical entries invite the
 /// copy-paste slip where one keeps the previous family's metric and silently
 /// never completes. Adding the seventh family is one word here.
-const kFusionFamilies = <String>['let', 'pip', 'horn', 'mask', 'wing', 'kin'];
+const kFusionFamilies = <String>[
+  'let',
+  'pip',
+  'horn',
+  'mask',
+  'wing',
+  'kin',
+  'mane',
+];
 
 /// The metric name for a family's cultivation counter.
 String fusionMetric(String family) =>
@@ -91,6 +99,7 @@ final kCampaignCounters = <String, String>{
   for (final f in kFusionFamilies)
     fusionMetric(f): 'campaign_fuse_family_${f}_v1',
   'raids': 'campaign_raids_won_v1',
+  'orbSkin': 'campaign_orb_skin_equipped_v1',
   'wildFusions': 'campaign_wild_fusions_v1',
   'wildHarvests': 'campaign_wild_harvests_v1',
   'biomeHarvest': 'campaign_biome_harvest_v1',
@@ -261,6 +270,12 @@ final campaignAchievements = <CampaignAchievement>[
     1,
     1,
     500,
+    items: {
+      InvKeys.powerupSpeed: 2,
+      InvKeys.powerupIntelligence: 2,
+      InvKeys.powerupStrength: 2,
+      InvKeys.powerupBeauty: 2,
+    },
   ),
   CampaignAchievement(
     'ending',
@@ -475,6 +490,24 @@ final campaignAchievements = <CampaignAchievement>[
     20,
     3,
     300,
+  ),
+  CampaignAchievement(
+    'survival_30',
+    'The thirtieth wave',
+    'Clear Survival wave 30.',
+    'survivalCleared',
+    30,
+    3,
+    600,
+  ),
+  CampaignAchievement(
+    'survival_orb',
+    'A different core',
+    'Deploy with an orb base other than the default.',
+    'orbSkin',
+    1,
+    0,
+    1000,
   ),
   CampaignAchievement(
     'survival_50',

@@ -3,6 +3,7 @@
 // Manages persistent survival upgrades — orb skins, guardian stat boosts,
 // and base abilities. Uses Settings DAO key-value store for persistence.
 
+import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:flutter/foundation.dart';
@@ -91,6 +92,11 @@ class SurvivalUpgradeService extends ChangeNotifier {
     if (!_state.ownedSkins.contains(skin)) return;
     _state.equippedSkin = skin;
     await _db.settingsDao.setSetting(_kEquippedSkin, skin.name);
+    // Owning a base is a purchase; carrying one into a run is the thing the
+    // achievement is for, so it marks on equip and only for a real choice.
+    if (skin != OrbBaseSkin.defaultOrb) {
+      await CampaignJournalService.mark(_db.settingsDao, 'orbSkin');
+    }
     notifyListeners();
   }
 

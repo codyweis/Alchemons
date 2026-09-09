@@ -115,6 +115,7 @@ class CultivationVialStage extends StatelessWidget {
     this.below,
     this.fusion = false,
     this.pureElementTypeId,
+    this.onStageTap,
   });
 
   final List<String>? parentTypes;
@@ -146,6 +147,13 @@ class CultivationVialStage extends StatelessWidget {
   final bool fusion;
   final String? pureElementTypeId;
 
+  /// Tapping the vial itself does what the button on it does.
+  ///
+  /// The word EXTRACT is a small target sitting on a 245px disc that reads as
+  /// the thing you are acting on — so the disc is the target too, and the
+  /// button is the label for it.
+  final VoidCallback? onStageTap;
+
   /// Dark in both themes, so these never branch on brightness.
   static const _overlayTint = Colors.black;
   static const _vignetteAlpha = .5;
@@ -171,61 +179,67 @@ class CultivationVialStage extends StatelessWidget {
             children: [
               // The brew, drawn as the round chamber it stands in.
               Center(
-                child: SizedBox.square(
-                  dimension: 245,
-                  child: ClipOval(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (showParticles)
-                          RepaintBoundary(
-                            child: AlchemyBrewingParticleSystem(
-                              parentATypeId: parentTypes![0],
-                              parentBTypeId: parentTypes!.length > 1
-                                  ? parentTypes![1]
-                                  : null,
-                              particleCount: particleCount,
-                              speedMultiplier: speedMultiplier,
-                              fusion: fusion,
-                              pureElementTypeId: pureElementTypeId,
-                              theme: theme,
-                            ),
-                          )
-                        else
-                          const ColoredBox(color: kCultivationStage),
-                        DecoratedBox(
-                          decoration: const BoxDecoration(
-                            gradient: RadialGradient(
-                              center: Alignment.center,
-                              radius: 0.85,
-                              colors: [
-                                Colors.transparent,
-                                Color.fromRGBO(0, 0, 0, _vignetteAlpha),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          height: 56,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
+                child: GestureDetector(
+                  onTap: onStageTap == null
+                      ? null
+                      : context.soundTap(onStageTap!),
+                  behavior: HitTestBehavior.opaque,
+                  child: SizedBox.square(
+                    dimension: 245,
+                    child: ClipOval(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (showParticles)
+                            RepaintBoundary(
+                              child: AlchemyBrewingParticleSystem(
+                                parentATypeId: parentTypes![0],
+                                parentBTypeId: parentTypes!.length > 1
+                                    ? parentTypes![1]
+                                    : null,
+                                particleCount: particleCount,
+                                speedMultiplier: speedMultiplier,
+                                fusion: fusion,
+                                pureElementTypeId: pureElementTypeId,
+                                theme: theme,
+                              ),
+                            )
+                          else
+                            const ColoredBox(color: kCultivationStage),
+                          DecoratedBox(
+                            decoration: const BoxDecoration(
+                              gradient: RadialGradient(
+                                center: Alignment.center,
+                                radius: 0.85,
                                 colors: [
                                   Colors.transparent,
-                                  _overlayTint.withValues(
-                                    alpha: _bottomFadeAlpha,
-                                  ),
+                                  Color.fromRGBO(0, 0, 0, _vignetteAlpha),
                                 ],
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            height: 56,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    _overlayTint.withValues(
+                                      alpha: _bottomFadeAlpha,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

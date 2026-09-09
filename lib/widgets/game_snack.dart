@@ -14,11 +14,13 @@ import 'package:flutter/material.dart';
 /// down the left, caps monospace — so a notification reads as this game's
 /// notification, and the colour carries the severity instead of the whole
 /// rectangle.
-/// Roughly what one of these occupies, used to lift it by the right amount.
-const double _barHeight = 88;
+/// Roughly what one of these occupies. MaterialApp's builder lifts every
+/// snackbar by the viewport height less this, which is what puts them at the
+/// top; see the comment there for why it cannot live on the theme.
+const double kSnackHeight = 88;
 
 /// Breathing room under the status bar.
-const double _topGap = 10;
+const double kSnackTopGap = 14;
 
 void showGameSnack(
   BuildContext context,
@@ -36,25 +38,6 @@ void showGameSnack(
   final fc = FC.of(context);
   final tint = accent ?? fc.amber;
 
-  // Top of the screen, not the bottom.
-  //
-  // A SnackBar has no anchor of its own; a floating one is positioned by its
-  // margin off the bottom, so lifting it by the viewport height less its own
-  // height puts it up there.
-  //
-  // viewPadding, not padding: padding is what is *left* after an ancestor
-  // Scaffold or SafeArea has consumed the inset, and it is routinely zero by
-  // the time a screen calls this — which parked the bar under the status bar
-  // and the notch. viewPadding reports the physical inset whoever is asking.
-  // Clamped because a short viewport (landscape, split screen) would otherwise
-  // ask for a negative margin.
-  final media = MediaQuery.of(context);
-  final safeTop = media.viewPadding.top + _topGap;
-  final liftBy = (media.size.height - safeTop - _barHeight).clamp(
-    0.0,
-    double.infinity,
-  );
-
   messenger.showSnackBar(
     SnackBar(
       duration: duration,
@@ -64,7 +47,6 @@ void showGameSnack(
       dismissDirection: DismissDirection.horizontal,
       backgroundColor: fc.bg1,
       elevation: 8,
-      margin: EdgeInsets.only(left: 14, right: 14, bottom: liftBy),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(4),
         side: BorderSide(color: tint.withValues(alpha: 0.5)),

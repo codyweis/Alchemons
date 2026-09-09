@@ -156,6 +156,10 @@ class ExtractionDialogState extends State<ExtractionDialog>
                 speedMultiplier: 0.22,
                 // The finished look, as on the chamber card.
                 fusion: true,
+                onStageTap: () {
+                  HapticFeedback.heavyImpact();
+                  widget.onExtract();
+                },
                 action: VialActionButton(
                   label: 'EXTRACT',
                   onTap: () {

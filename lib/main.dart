@@ -1,3 +1,4 @@
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/audio/scene_ambience.dart';
 import 'package:alchemons/audio/navigation_sounds.dart';
@@ -148,6 +149,38 @@ class AlchemonsApp extends StatelessWidget {
               ambienceRouteObserver,
               navigationSoundObserver,
             ],
+            // Notifications sit at the top, everywhere, including the
+            // fifty-odd raw snackbars that never went through showGameSnack.
+            //
+            // A SnackBar has no anchor of its own and SnackBarThemeData cannot
+            // compute one — the position is a margin off the bottom, so it
+            // needs the viewport height, which a theme built without a context
+            // does not have. Here it does, and this MediaQuery is the app's
+            // own: a snackbar raised from inside a landscape route or a bottom
+            // sheet was measuring that subtree instead and landing wherever
+            // that subtree happened to be tall.
+            builder: (context, child) {
+              final media = MediaQuery.of(context);
+              final lift =
+                  (media.size.height -
+                          media.viewPadding.top -
+                          kSnackTopGap -
+                          kSnackHeight)
+                      .clamp(0.0, double.infinity);
+              final theme = Theme.of(context);
+              return Theme(
+                data: theme.copyWith(
+                  snackBarTheme: theme.snackBarTheme.copyWith(
+                    insetPadding: EdgeInsets.only(
+                      left: 14,
+                      right: 14,
+                      bottom: lift,
+                    ),
+                  ),
+                ),
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
             // >>> wrap HomeScreen so we can bootstrap spawns once
             home: const AppGate(child: MainShell()),
           );

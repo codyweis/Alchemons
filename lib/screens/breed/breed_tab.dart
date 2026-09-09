@@ -1185,6 +1185,24 @@ class _BreedingTabState extends State<BreedingTab>
         return;
       }
 
+      // Stamina belongs up here with the other refusals. It was checked
+      // inside _performBreeding, which runs after the dissolve fade — so a
+      // resting specimen played the whole wind-up and then said no.
+      final stamina = context.read<StaminaService>();
+      final restedA = await stamina.canBreed(selectedParent1!.instanceId);
+      final restedB = await stamina.canBreed(selectedParent2!.instanceId);
+      if (!restedA || !restedB) {
+        _showToast(
+          !restedA && !restedB
+              ? 'Both specimens are resting'
+              : (!restedA ? 'Specimen A is resting' : 'Specimen B is resting'),
+          icon: AppIcons.hourglass_bottom_rounded,
+          color: Colors.orange,
+        );
+        return;
+      }
+      if (!mounted) return;
+
       final famA = _familyKeyForCreature(speciesA);
       final famB = _familyKeyForCreature(speciesB);
       final sameFamily = famA == famB;
