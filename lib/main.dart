@@ -325,7 +325,6 @@ class _AppGateState extends State<AppGate> {
 
       // Header/avatar + quick actions
       'assets/images/ui/profileicon.png',
-      'assets/images/ui/enhanceicon.png',
       'assets/images/ui/fieldicon.png',
       'assets/images/ui/competeicon.png',
 

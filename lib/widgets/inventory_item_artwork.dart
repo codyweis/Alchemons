@@ -16,7 +16,11 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/static_effect_snapshot.dart';
+import 'package:alchemons/widgets/instant_extractor_glyph.dart';
+import 'package:alchemons/widgets/portal_key_glyph.dart';
+import 'package:alchemons/widgets/raid_beacon_glyph.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
+import 'package:alchemons/widgets/stamina_elixir_glyph.dart';
 import 'package:alchemons/widgets/wild_fusion_glyph.dart';
 import 'package:flutter/material.dart';
 
@@ -67,6 +71,23 @@ class InventoryItemArtwork extends StatelessWidget {
 
     if (inventoryKey == InvKeys.wildFusion) {
       return WildFusionGlyph(size: size, animate: animate);
+    }
+
+    if (inventoryKey == InvKeys.staminaPotion) {
+      return StaminaElixirGlyph(size: size, animate: animate);
+    }
+
+    if (inventoryKey == InvKeys.instantHatch) {
+      return InstantExtractorGlyph(size: size, animate: animate);
+    }
+
+    if (inventoryKey == InvKeys.raidBeacon) {
+      return RaidBeaconGlyph(size: size, animate: animate);
+    }
+
+    final riftKey = PortalKeyGlyph.biomeForInventoryKey(inventoryKey);
+    if (riftKey != null) {
+      return PortalKeyGlyph(biomeId: riftKey, size: size, animate: animate);
     }
 
     // 2. Alchemy effects — the real sprite effect, baked unless animating.

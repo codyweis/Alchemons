@@ -419,8 +419,6 @@ class ShopService extends ChangeNotifier {
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
       inventoryKey: InvKeys.staminaPotion,
-      assetName:
-          'assets/images/ui/instantstaminaicon.png', // optional, if you add one
     ),
     ShopOffer(
       id: 'boost.wild_fusion',
@@ -447,7 +445,6 @@ class ShopService extends ChangeNotifier {
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
       inventoryKey: InvKeys.raidBeacon,
-      assetName: 'assets/images/ui/boss-summon.png',
     ),
     for (final powerup in AlchemicalPowerupType.values)
       ShopOffer(
@@ -562,7 +559,6 @@ class ShopService extends ChangeNotifier {
       name: 'Instant Fusion Extractor',
       description:
           'Instantly completes one active cultivation in your Alchemy Chamber. Skip the wait and extract your Alchemon now.',
-      assetName: 'assets/images/ui/instantbreedicon.png',
       icon: AppIcons.access_alarms,
       cost: const {'gold': 15},
       reward: const {},
@@ -607,7 +603,6 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/extrastorage.png',
     ),
     ShopOffer(
       id: 'unlock.fusion_slot.2',
@@ -619,7 +614,6 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/extrastorage.png',
     ),
     ShopOffer(
       id: 'unlock.fusion_slot.3',
@@ -631,7 +625,6 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/extrastorage.png',
     ),
     ShopOffer(
       id: 'unlock.fusion_slot.4',
@@ -643,7 +636,6 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/extrastorage.png',
     ),
     ShopOffer(
       id: 'unlock.fusion_slot.5',
@@ -655,7 +647,6 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/extrastorage.png',
     ),
     ShopOffer(
       id: 'unlock.storage_cap.1',
@@ -666,7 +657,6 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/breedicon.png',
     ),
     ShopOffer(
       id: 'unlock.storage_cap.2',
@@ -677,7 +667,6 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/breedicon.png',
     ),
     ShopOffer(
       id: 'unlock.storage_cap.3',
@@ -688,7 +677,6 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/breedicon.png',
     ),
     ShopOffer(
       id: 'boost.faction_change',
@@ -700,7 +688,6 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.daily,
-      assetName: 'assets/images/ui/factionorb.png',
     ),
 
     // Alchemy Effects Section
@@ -865,7 +852,6 @@ class ShopService extends ChangeNotifier {
           'Opens a Volcanic Rift portal in cosmic space. Battle and capture rare Volcanic Alchemons inside. Consumed on entry.',
       icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFFFF5722),
-      assetName: 'assets/images/ui/volcanickey.png',
       cost: const {'gold': 5},
       reward: const {},
       rewardType: 'boost',
@@ -879,7 +865,6 @@ class ShopService extends ChangeNotifier {
           'Opens an Oceanic Rift portal in cosmic space. Battle and capture rare Oceanic Alchemons inside. Consumed on entry.',
       icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFF64B5F6),
-      assetName: 'assets/images/ui/oceanickey.png',
       cost: const {'gold': 5},
       reward: const {},
       rewardType: 'boost',
@@ -893,7 +878,6 @@ class ShopService extends ChangeNotifier {
           'Opens a Verdant Rift portal in cosmic space. Battle and capture rare Verdant Alchemons inside. Consumed on entry.',
       icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFF66BB6A),
-      assetName: 'assets/images/ui/verdantkey.png',
       cost: const {'gold': 5},
       reward: const {},
       rewardType: 'boost',
@@ -907,7 +891,6 @@ class ShopService extends ChangeNotifier {
           'Opens an Earthen Rift portal in cosmic space. Battle and capture rare Earthen Alchemons inside. Consumed on entry.',
       icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFF8D6E63),
-      assetName: 'assets/images/ui/earthenkey.png',
       cost: const {'gold': 5},
       reward: const {},
       rewardType: 'boost',
@@ -921,7 +904,6 @@ class ShopService extends ChangeNotifier {
           'Opens an Arcane Rift portal in cosmic space. Battle and capture rare Arcane Alchemons inside. Consumed on entry.',
       icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFFCE93D8),
-      assetName: 'assets/images/ui/arcanekey.png',
       cost: const {'gold': 5},
       reward: const {},
       rewardType: 'boost',

@@ -11,6 +11,7 @@ import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_rewards.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/widgets/instant_extractor_glyph.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'dart:math';
 
@@ -402,12 +403,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     if (line.contains('Guardian Relic')) return _relicArt(size);
     if (line.contains('Gold')) return CoinIcon.gold(size: size);
     if (line.contains('Extractor')) {
-      return Image.asset(
-        'assets/images/ui/instantbreedicon.png',
-        width: size,
-        height: size,
-        fit: BoxFit.contain,
-      );
+      return InstantExtractorGlyph(size: size);
     }
     final type = line.contains('Speed')
         ? AlchemicalPowerupType.speed
@@ -611,12 +607,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   Widget _choiceArt(Star3Choice c, double size, {required bool selected}) {
     final art = switch (c) {
       Star3Choice.gold => CoinIcon.gold(size: size),
-      Star3Choice.extractors => Image.asset(
-        'assets/images/ui/instantbreedicon.png',
-        width: size,
-        height: size,
-        fit: BoxFit.contain,
-      ),
+      Star3Choice.extractors => InstantExtractorGlyph(size: size),
       Star3Choice.powerups => SizedBox(
         width: size * 1.3,
         height: size,

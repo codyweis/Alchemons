@@ -24,6 +24,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/harvester_glyph.dart';
+import 'package:alchemons/widgets/portal_key_glyph.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ITEM DEFINITIONS
@@ -35,7 +36,6 @@ class _MarketItem {
   final String description;
   final IconData icon;
   final Color iconColor;
-  final String? assetName;
   final String inventoryKey;
   final Map<String, int> baseCost;
   final String faction; // volcanic, oceanic, verdant, earthen, arcane, neutral
@@ -46,7 +46,6 @@ class _MarketItem {
     required this.description,
     required this.icon,
     required this.iconColor,
-    this.assetName,
     required this.inventoryKey,
     required this.baseCost,
     required this.faction,
@@ -123,7 +122,6 @@ const _riftKeyItems = <_MarketItem>[
     description: 'Grants entry into a Volcanic Rift. Consumed on entry.',
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFFFF5722),
-    assetName: 'assets/images/ui/volcanickey.png',
     inventoryKey: 'item.portal_key.volcanic',
     baseCost: {'gold': 5},
     faction: 'volcanic',
@@ -134,7 +132,6 @@ const _riftKeyItems = <_MarketItem>[
     description: 'Grants entry into an Oceanic Rift. Consumed on entry.',
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF64B5F6),
-    assetName: 'assets/images/ui/oceanickey.png',
     inventoryKey: 'item.portal_key.oceanic',
     baseCost: {'gold': 5},
     faction: 'oceanic',
@@ -145,7 +142,6 @@ const _riftKeyItems = <_MarketItem>[
     description: 'Grants entry into a Verdant Rift. Consumed on entry.',
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF66BB6A),
-    assetName: 'assets/images/ui/verdantkey.png',
     inventoryKey: 'item.portal_key.verdant',
     baseCost: {'gold': 5},
     faction: 'verdant',
@@ -156,7 +152,6 @@ const _riftKeyItems = <_MarketItem>[
     description: 'Grants entry into an Earthen Rift. Consumed on entry.',
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF8D6E63),
-    assetName: 'assets/images/ui/earthenkey.png',
     inventoryKey: 'item.portal_key.earthen',
     baseCost: {'gold': 5},
     faction: 'earthen',
@@ -167,7 +162,6 @@ const _riftKeyItems = <_MarketItem>[
     description: 'Grants entry into an Arcane Rift. Consumed on entry.',
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFFCE93D8),
-    assetName: 'assets/images/ui/arcanekey.png',
     inventoryKey: 'item.portal_key.arcane',
     baseCost: {'gold': 5},
     faction: 'arcane',
@@ -674,18 +668,14 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                 size: 48,
                               );
                             }
-                            if (item.assetName != null) {
-                              return ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.asset(
-                                  item.assetName!,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => Icon(
-                                    item.icon,
-                                    color: item.iconColor,
-                                    size: 28,
-                                  ),
-                                ),
+                            final riftKey =
+                                PortalKeyGlyph.biomeForInventoryKey(
+                                  item.inventoryKey,
+                                );
+                            if (riftKey != null) {
+                              return PortalKeyGlyph(
+                                biomeId: riftKey,
+                                size: 48,
                               );
                             }
                             return Icon(

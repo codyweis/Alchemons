@@ -14,6 +14,14 @@ import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
+import 'package:alchemons/widgets/coin_exchange_icon.dart';
+import 'package:alchemons/widgets/cold_storage_glyph.dart';
+import 'package:alchemons/widgets/portal_key_glyph.dart';
+import 'package:alchemons/widgets/raid_beacon_glyph.dart';
+import 'package:alchemons/widgets/fusion_chamber_glyph.dart';
+import 'package:alchemons/widgets/instant_extractor_glyph.dart';
+import 'package:alchemons/widgets/stamina_elixir_glyph.dart';
+import 'package:alchemons/widgets/faction_essence_glyph.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/static_effect_snapshot.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
@@ -726,19 +734,124 @@ Widget _buildOfferPreview(
     }
   }
 
-  if (offer.id.startsWith('unlock.storage_cap.') && offer.assetName != null) {
+  // 1a-ii. The exchange rows show the coins they trade, not one generic
+  // exchange glyph on both of them.
+  if (offer.id == 'fx.silver_to_gold.unit') {
     return Center(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.asset(
-          offer.assetName!,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => Icon(
-            offer.icon,
-            size: size * 0.8,
-            color: offer.iconColor ?? theme.text,
-          ),
+      child: CoinExchangeIcon(
+        from: CoinKind.silver,
+        to: CoinKind.gold,
+        size: size,
+      ),
+    );
+  }
+  if (offer.id == 'fx.gold_to_silver.unit') {
+    return Center(
+      child: CoinExchangeIcon(
+        from: CoinKind.gold,
+        to: CoinKind.silver,
+        size: size,
+      ),
+    );
+  }
+
+  // 1b-0. The extractor and the beacon shared one swirl asset in two colours.
+  // They draw as what they do now.
+  if (offer.inventoryKey == InvKeys.instantHatch) {
+    final live = InstantExtractorGlyph(size: size, animate: animate);
+    if (animate) return Center(child: live);
+    return Center(
+      child: StaticEffectSnapshot(
+        cacheKey: 'shop.instant_hatch',
+        boxSize: size,
+        child: live,
+      ),
+    );
+  }
+  if (offer.inventoryKey == InvKeys.raidBeacon) {
+    final live = RaidBeaconGlyph(size: size, animate: animate);
+    if (animate) return Center(child: live);
+    return Center(
+      child: StaticEffectSnapshot(
+        cacheKey: 'shop.raid_beacon',
+        boxSize: size,
+        child: live,
+      ),
+    );
+  }
+
+  // 1b-i. Rift keys draw as the element condensing into a key, matching the
+  // ones in the space market.
+  {
+    final riftKey = PortalKeyGlyph.biomeForInventoryKey(offer.inventoryKey);
+    if (riftKey != null) {
+      final live = PortalKeyGlyph(
+        biomeId: riftKey,
+        size: size,
+        animate: animate,
+      );
+      if (animate) return Center(child: live);
+      return Center(
+        child: StaticEffectSnapshot(
+          cacheKey: 'shop.portal_key.$riftKey',
+          boxSize: size,
+          child: live,
         ),
+      );
+    }
+  }
+
+  // 1b-ii. The elixir draws as the flask charging and discharging, which is
+  // what it does to a specimen's stamina.
+  if (offer.inventoryKey == InvKeys.staminaPotion) {
+    final live = StaminaElixirGlyph(size: size, animate: animate);
+    if (animate) return Center(child: live);
+    return Center(
+      child: StaticEffectSnapshot(
+        cacheKey: 'shop.stamina_elixir',
+        boxSize: size,
+        child: live,
+      ),
+    );
+  }
+
+  // 1b-iii. An extra chamber draws as the chambers, not as the cold-storage
+  // eggs it used to borrow.
+  if (offer.id.startsWith('unlock.fusion_slot.')) {
+    final live = FusionChamberGlyph(size: size, animate: animate);
+    if (animate) return Center(child: live);
+    return Center(
+      child: StaticEffectSnapshot(
+        cacheKey: 'shop.fusion_slot',
+        boxSize: size,
+        child: live,
+      ),
+    );
+  }
+
+  // 1c. Cold storage is capacity, so it draws as the stasis cells the
+  // upgrade adds rather than the breeding icon it used to borrow.
+  if (offer.id.startsWith('unlock.storage_cap.')) {
+    final live = ColdStorageGlyph(size: size, animate: animate);
+    if (animate) return Center(child: live);
+    return Center(
+      child: StaticEffectSnapshot(
+        cacheKey: 'shop.storage_cap',
+        boxSize: size,
+        child: live,
+      ),
+    );
+  }
+
+  // 1d. Changing faction is the four essences handing the core between them.
+  if (offer.id == 'boost.faction_change') {
+    final live = FactionEssenceGlyph(size: size, animate: animate);
+    if (animate) return Center(child: live);
+    return Center(
+      child: StaticEffectSnapshot(
+        cacheKey: 'shop.faction_change',
+        boxSize: size,
+        child: live,
       ),
     );
   }

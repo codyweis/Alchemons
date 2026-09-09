@@ -2,6 +2,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/enhance_orbs_icon.dart';
 
 class SideDockFloating extends StatelessWidget {
   final FactionTheme theme;
@@ -86,7 +87,7 @@ class SideDockFloating extends StatelessWidget {
                 size: 70,
                 theme: theme,
                 label: 'Enhance',
-                assetPath: 'assets/images/ui/enhanceicon.png',
+                iconBuilder: (size) => EnhanceOrbsIcon(size: size),
                 onTap: context.soundTap(onEnhance),
                 highlight: highlightEnhance,
               ),
@@ -124,7 +125,12 @@ class SideDockFloating extends StatelessWidget {
 class _FloatingSideButton extends StatefulWidget {
   final FactionTheme theme;
   final String label;
-  final String assetPath;
+
+  /// An illustrated icon. Null when the button paints its own.
+  final String? assetPath;
+
+  /// A painted icon, for the buttons whose art is drawn rather than shipped.
+  final Widget Function(double size)? iconBuilder;
   final VoidCallback onTap;
   final double size;
   final bool highlight; // NEW: Add highlight parameter
@@ -133,12 +139,13 @@ class _FloatingSideButton extends StatefulWidget {
   const _FloatingSideButton({
     required this.theme,
     required this.label,
-    required this.assetPath,
     required this.onTap,
+    this.assetPath,
+    this.iconBuilder,
     this.size = 60,
     this.highlight = false, // NEW: Default to false
     this.showDot = false,
-  });
+  }) : assert(assetPath != null || iconBuilder != null);
 
   @override
   State<_FloatingSideButton> createState() => _FloatingSideButtonState();
@@ -195,12 +202,14 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
         clipBehavior: Clip.none,
         children: [
           Center(
-            child: Image.asset(
-              widget.assetPath,
-              width: widget.size,
-              height: widget.size,
-              fit: BoxFit.contain,
-            ),
+            child:
+                widget.iconBuilder?.call(widget.size) ??
+                Image.asset(
+                  widget.assetPath!,
+                  width: widget.size,
+                  height: widget.size,
+                  fit: BoxFit.contain,
+                ),
           ),
           if (widget.showDot)
             const Positioned(right: -2, top: -2, child: _RedDotTiny()),

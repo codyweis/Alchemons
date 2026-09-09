@@ -336,7 +336,6 @@ class _LoadingScreenState extends State<_LoadingScreen> {
       // header/avatar + quick actions likely visible immediately
       'assets/images/ui/profileicon.png',
       'assets/images/ui/map.png',
-      'assets/images/ui/enhanceicon.png',
       'assets/images/ui/fieldicon.png',
       'assets/images/ui/competeicon.png',
     ];

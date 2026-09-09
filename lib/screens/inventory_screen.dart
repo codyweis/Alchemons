@@ -6,7 +6,11 @@ import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
+import 'package:alchemons/widgets/instant_extractor_glyph.dart';
+import 'package:alchemons/widgets/portal_key_glyph.dart';
+import 'package:alchemons/widgets/raid_beacon_glyph.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
+import 'package:alchemons/widgets/stamina_elixir_glyph.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -80,6 +84,19 @@ class InventoryImageHelper {
     }
     if (key == InvKeys.potentialSoul) {
       return PotentialSoulSphere(size: size);
+    }
+    if (key == InvKeys.staminaPotion) {
+      return StaminaElixirGlyph(size: size);
+    }
+    if (key == InvKeys.instantHatch) {
+      return InstantExtractorGlyph(size: size);
+    }
+    if (key == InvKeys.raidBeacon) {
+      return RaidBeaconGlyph(size: size);
+    }
+    final riftKey = PortalKeyGlyph.biomeForInventoryKey(key);
+    if (riftKey != null) {
+      return PortalKeyGlyph(biomeId: riftKey, size: size);
     }
 
     final harvester = harvesterBiomeForKey(key);
