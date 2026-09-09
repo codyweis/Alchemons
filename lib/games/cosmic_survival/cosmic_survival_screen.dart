@@ -350,6 +350,78 @@ class _ForgeButton extends StatelessWidget {
   }
 }
 
+/// The equipped orb, drawn in its own colours.
+///
+/// Same construction the shop uses for the orb offers, so the thing you
+/// bought and the thing you are carrying look like each other.
+class _OrbSphere extends StatelessWidget {
+  const _OrbSphere({required this.def, required this.size});
+
+  final OrbBaseDef def;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            center: const Alignment(-0.3, -0.35),
+            colors: [
+              Color.lerp(def.glowColor, Colors.white, 0.55)!,
+              def.primaryColor,
+              def.secondaryColor,
+            ],
+            stops: const [0.0, 0.52, 1.0],
+          ),
+          border: Border.all(color: def.glowColor.withValues(alpha: 0.45)),
+        ),
+      ),
+    );
+  }
+}
+
+/// One guardian upgrade axis and what it is currently worth.
+class _BonusChip extends StatelessWidget {
+  const _BonusChip({required this.def, required this.level});
+
+  final GuardianUpgradeDef def;
+  final int level;
+
+  @override
+  Widget build(BuildContext context) {
+    final earned = level > 0;
+    final tint = earned ? def.color : _C.textMuted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: earned ? 0.14 : 0.05),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: tint.withValues(alpha: earned ? 0.5 : 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(def.icon, size: 11, color: tint),
+          const SizedBox(width: 4),
+          Text(
+            def.bonusLabel(level),
+            style: _display(
+              context,
+              10,
+              tint,
+              weight: FontWeight.w800,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// "3 READY" on Base Command — the count of upgrades the player can afford
 /// right now.
 ///
@@ -1877,7 +1949,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   children: [
                     const SizedBox(height: 8),
                     _buildSpeciesRoster(),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 22),
+                    _buildLoadout(),
+                    const SizedBox(height: 22),
                     _ForgeButton(
                       label: 'Assign Team',
                       icon: AppIcons.groups_rounded,
@@ -2149,6 +2223,115 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           }),
         ),
       ],
+    );
+  }
+
+  /// What you are about to deploy with: the orb you are carrying and the
+  /// guardian bonuses riding on it.
+  ///
+  /// The lobby had a wide empty band between the roster and the buttons, and
+  /// nothing anywhere said which orb was equipped — you had to open Base
+  /// Command to find out what you were about to take into a run. The panel
+  /// fills the gap with that answer and doubles as a second way in.
+  Widget _buildLoadout() {
+    return Consumer<SurvivalUpgradeService>(
+      builder: (context, svc, _) {
+        final orb = getOrbBaseDef(svc.state.equippedSkin);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _EtchedDivider(label: 'DEPLOYMENT'),
+            const SizedBox(height: 14),
+            GestureDetector(
+              onTap: context.soundAction(() async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const CosmicSurvivalBaseCommandScreen(
+                      hideAbilities: true,
+                    ),
+                  ),
+                );
+                await _loadSilver();
+              }),
+              child: CustomPaint(
+                painter: _BracketFramePainter(
+                  color: orb.glowColor.withValues(alpha: 0.40),
+                  bracketSize: 10,
+                  strokeWidth: 1.1,
+                ),
+                child: Container(
+                  color: _C.bg2.withValues(alpha: 0.55),
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _OrbSphere(def: orb, size: 66),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    orb.name.toUpperCase(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: _display(
+                                      context,
+                                      13,
+                                      orb.glowColor,
+                                      weight: FontWeight.w900,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  AppIcons.chevron_right_rounded,
+                                  size: 16,
+                                  color: _C.textMuted,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              orb.ability,
+                              style: _display(
+                                context,
+                                11,
+                                _C.textSecondary,
+                                weight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            // All five axes, dim at zero — the empty ones are
+                            // the point on a fresh save: they show what there
+                            // is to go and earn.
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                for (final def in kGuardianUpgrades)
+                                  _BonusChip(
+                                    def: def,
+                                    level: svc.state.getGuardianLevel(
+                                      def.upgrade,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
