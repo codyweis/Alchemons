@@ -1,3 +1,4 @@
+import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'dart:convert';
 import 'package:alchemons/widgets/animations/hatch_reveal_stage.dart';
@@ -642,6 +643,27 @@ class EggHatching {
       if (purity.isElementallyPure && purity.elementLineage.isNotEmpty) {
         pureElementTypeId = purity.elementLineage.keys.first;
       }
+    }
+
+    // ── Achievement counters ────────────────────────────────────────────────
+    // Counted here because this is the one place that knows the finished
+    // specimen, its family, its purity and whether it was a first discovery.
+    final family = offspring.mutationFamily?.toLowerCase();
+    if (family == 'let') {
+      await CampaignJournalService.bump(db.settingsDao, 'fuseLet');
+    } else if (family == 'pip') {
+      await CampaignJournalService.bump(db.settingsDao, 'fusePip');
+    }
+    // "Breeds true": a first sighting whose lineage is a single element, out
+    // of two parents that were not the same species. Two of a kind producing
+    // their own kind is not the trick.
+    if (isNewDiscovery &&
+        pureElementTypeId != null &&
+        parent1 != null &&
+        parent2 != null &&
+        parent1['baseId'] != null &&
+        parent1['baseId'] != parent2['baseId']) {
+      await CampaignJournalService.mark(db.settingsDao, 'purebredNew');
     }
 
     final recipeDiscoveryFuture =

@@ -1,3 +1,6 @@
+import 'package:alchemons/database/alchemons_db.dart';
+import 'dart:async';
+import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/scenes/rift_portal_screen.dart
 import 'dart:math';
@@ -53,6 +56,13 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
   @override
   void initState() {
     super.initState();
+    // Arriving on this screen is entering the rift; there is no other way in.
+    unawaited(
+      CampaignJournalService.mark(
+        context.read<AlchemonsDatabase>().settingsDao,
+        'portalEnter',
+      ),
+    );
     // Force landscape orientation inside the rift
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,

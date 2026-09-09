@@ -1,3 +1,4 @@
+import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'dart:convert';
 import 'dart:math';
@@ -64,6 +65,34 @@ const campaignEntries = [
     'You called it sacrifice. You kept what you wanted. Once, you made a world to escape this hunger. Now you remember, and your hands return to their work.',
   ),
 ];
+
+/// Metrics that are simply "how many times has the player done this".
+///
+/// Each is a settings counter bumped by [CampaignJournalService.bump] at the
+/// place the thing happens. Kept in one map so the metric name, the storage
+/// key and the read all come from a single line — a counter that is written
+/// under one key and read under another fails silently forever.
+const kCampaignCounters = <String, String>{
+  'raids': 'campaign_raids_won_v1',
+  'fuseLet': 'campaign_fuse_family_let_v1',
+  'fusePip': 'campaign_fuse_family_pip_v1',
+  'wildFusions': 'campaign_wild_fusions_v1',
+  'wildHarvests': 'campaign_wild_harvests_v1',
+  'biomeHarvest': 'campaign_biome_harvest_v1',
+  'enhance': 'campaign_enhance_v1',
+  'orbUse': 'campaign_orb_use_v1',
+  'soulUse': 'campaign_soul_use_v1',
+  'portalEnter': 'campaign_portal_enter_v1',
+  'customization': 'campaign_customization_v1',
+  'purebredNew': 'campaign_pure_new_species_v1',
+};
+
+/// How many hidden maxims exist to be found.
+///
+/// Six planets carry one today; the intention is one per planet. Raise this as
+/// they are added — until then "every maxim" must not ask for maxims that do
+/// not exist, or it can never be earned.
+const kHiddenMaximCount = 6;
 
 class CampaignAchievement {
   const CampaignAchievement(
@@ -227,6 +256,117 @@ const campaignAchievements = [
     1,
     1000,
   ),
+  // ── Practice: the systems, taught by paying you in them ───────────────────
+  CampaignAchievement(
+    'fuse_let_5',
+    'A lineage of lets',
+    'Cultivate 5 Alchemons of the Let family.',
+    'fuseLet',
+    5,
+    0,
+    250,
+    items: {InvKeys.instantHatch: 1},
+  ),
+  CampaignAchievement(
+    'fuse_pip_5',
+    'A lineage of pips',
+    'Cultivate 5 Alchemons of the Pip family.',
+    'fusePip',
+    5,
+    0,
+    250,
+    items: {InvKeys.instantHatch: 1},
+  ),
+  CampaignAchievement(
+    'pure_new_species',
+    'Something that breeds true',
+    'Cultivate a new pure species from two different species.',
+    'purebredNew',
+    1,
+    3,
+    500,
+    items: {InvKeys.instantHatch: 5},
+  ),
+  CampaignAchievement(
+    'enhance_1',
+    'Improved by hand',
+    'Enhance an Alchemon.',
+    'enhance',
+    1,
+    1,
+    200,
+  ),
+  CampaignAchievement(
+    'orb_use_1',
+    'Infusion',
+    'Infuse an Alchemon with a Power Orb.',
+    'orbUse',
+    1,
+    1,
+    200,
+    items: {
+      InvKeys.powerupSpeed: 1,
+      InvKeys.powerupIntelligence: 1,
+      InvKeys.powerupStrength: 1,
+      InvKeys.powerupBeauty: 1,
+    },
+  ),
+  CampaignAchievement(
+    'soul_use_1',
+    'Potential unlocked',
+    'Infuse an Alchemon with a Potential Soul.',
+    'soulUse',
+    1,
+    2,
+    300,
+    items: {InvKeys.potentialSoul: 1},
+  ),
+  CampaignAchievement(
+    'wild_fusion_10',
+    'Wild lineage',
+    'Fuse with 10 wild Alchemons.',
+    'wildFusions',
+    10,
+    2,
+    400,
+    items: {InvKeys.wildFusion: 10},
+  ),
+  CampaignAchievement(
+    'wild_harvest_10',
+    'Field collector',
+    'Harvest 10 wild Alchemons.',
+    'wildHarvests',
+    10,
+    2,
+    400,
+    items: {InvKeys.harvesterGuaranteed: 1},
+  ),
+  CampaignAchievement(
+    'biome_harvest_1',
+    'The chambers pay out',
+    'Collect a harvest from a biome extractor.',
+    'biomeHarvest',
+    1,
+    1,
+    150,
+    resources: {
+      'res_volcanic': 100,
+      'res_oceanic': 100,
+      'res_earthen': 100,
+      'res_verdant': 100,
+      'res_arcane': 100,
+    },
+  ),
+  CampaignAchievement(
+    'customization_1',
+    'Made your own',
+    'Customize the cosmic ship.',
+    'customization',
+    1,
+    1,
+    150,
+  ),
+
   // ── Exploration ───────────────────────────────────────────────────────────
   CampaignAchievement(
     'planets_1',
@@ -254,6 +394,42 @@ const campaignAchievements = [
     17,
     3,
     1000,
+  ),
+  CampaignAchievement(
+    'portal_1',
+    'Through the gate',
+    'Enter a rift portal.',
+    'portalEnter',
+    1,
+    1,
+    200,
+    items: {
+      InvKeys.portalKeyVolcanic: 1,
+      InvKeys.portalKeyOceanic: 1,
+      InvKeys.portalKeyVerdant: 1,
+      InvKeys.portalKeyEarthen: 1,
+      InvKeys.portalKeyArcane: 1,
+    },
+  ),
+  CampaignAchievement(
+    'maxim_1',
+    'A lost maxim',
+    'Find a hidden maxim on a planet.',
+    'maxims',
+    1,
+    2,
+    300,
+    items: {InvKeys.alchemyElementalAura: 1},
+  ),
+  CampaignAchievement(
+    'maxim_all',
+    'Every lost word',
+    'Find every hidden maxim.',
+    'maxims',
+    kHiddenMaximCount,
+    5,
+    1500,
+    items: {InvKeys.potentialSoul: 5},
   ),
   CampaignAchievement(
     'raid_1',
@@ -499,8 +675,14 @@ class CampaignJournalService {
       'planets': CosmicFogState.deserialise(
         prefs.getString('cosmic_fog_state_v2') ?? '',
       ).discoveredIndices.length,
-      'raids':
-          int.tryParse(settings['campaign_raids_won_v1'] ?? '') ?? 0,
+      // Maxims are already persisted as 'egg:'-prefixed discovered clouds, so
+      // this needs no counter of its own.
+      'maxims': kCosmicPlanetEntry.keys
+          .expand(stars.discoveredCloudsFor)
+          .where((id) => id.startsWith('egg:'))
+          .length,
+      for (final entry in kCampaignCounters.entries)
+        entry.key: int.tryParse(settings[entry.value] ?? '') ?? 0,
       'rites':
           (int.tryParse(settings['pureblood_rite_stage_index_v2'] ?? '') ?? 0) +
           (int.tryParse(settings['campaign_weekly_rites_v1'] ?? '') ?? 0),
@@ -537,6 +719,28 @@ class CampaignJournalService {
       );
     }
   });
+
+  /// Bump one of [kCampaignCounters] by one.
+  ///
+  /// Takes the metric name rather than the storage key, so a call site cannot
+  /// invent a key that nothing reads.
+  static Future<void> bump(SettingsDao settings, String metric) async {
+    final key = kCampaignCounters[metric];
+    assert(key != null, 'unknown campaign counter: $metric');
+    if (key == null) return;
+    final current = int.tryParse(await settings.getSetting(key) ?? '') ?? 0;
+    await settings.setSetting(key, '${current + 1}');
+  }
+
+  /// Set a one-off counter to at least one, for the achievements that only
+  /// ask whether a thing has ever happened.
+  static Future<void> mark(SettingsDao settings, String metric) async {
+    final key = kCampaignCounters[metric];
+    if (key == null) return;
+    final current = int.tryParse(await settings.getSetting(key) ?? '') ?? 0;
+    if (current > 0) return;
+    await settings.setSetting(key, '1');
+  }
 
   Future<bool> claim(String id) => db.transaction(() async {
     final matches = campaignAchievements.where((a) => a.id == id);

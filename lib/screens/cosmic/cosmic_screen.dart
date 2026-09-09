@@ -5723,6 +5723,12 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     _homePlanet!.activeColor = element;
     _saveHomePlanet();
+    unawaited(
+      CampaignJournalService.mark(
+        context.read<AlchemonsDatabase>().settingsDao,
+        'customization',
+      ),
+    );
     _markHomeVisualChanged();
     setState(() {});
   }

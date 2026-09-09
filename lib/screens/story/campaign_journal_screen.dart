@@ -159,9 +159,8 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     if (campaignMissionIds.contains(a.id)) return 'Story';
     if (a.id.startsWith('collection')) return 'Collection';
     if (a.id.startsWith('survival')) return 'Survival';
-    if (a.id.startsWith('planets') || a.id.startsWith('raid')) {
-      return 'Exploration';
-    }
+    const exploration = {'planets', 'raid', 'portal', 'maxim'};
+    if (exploration.any(a.id.startsWith)) return 'Exploration';
     return 'Challenges';
   }
 

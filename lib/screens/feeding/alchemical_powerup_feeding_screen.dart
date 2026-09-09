@@ -1,3 +1,4 @@
+import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'dart:async' show unawaited;
 import 'dart:math' as math;
@@ -1495,6 +1496,8 @@ class _AlchemicalPowerupFeedingScreenState
     if (_busy) return;
 
     final db = context.read<AlchemonsDatabase>();
+    await CampaignJournalService.mark(db.settingsDao, 'orbUse');
+    if (!mounted) return;
     final repo = context.read<CreatureCatalog>();
     const animationDuration = Duration(milliseconds: 1500);
     const flashDuration = Duration(milliseconds: 500);
@@ -1594,6 +1597,8 @@ class _AlchemicalPowerupFeedingScreenState
     if (_busy) return;
 
     final db = context.read<AlchemonsDatabase>();
+    await CampaignJournalService.mark(db.settingsDao, 'soulUse');
+    if (!mounted) return;
     final repo = context.read<CreatureCatalog>();
     _orbController.reset();
     _flashController.reset();

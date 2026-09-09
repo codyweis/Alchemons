@@ -1,4 +1,5 @@
 // lib/services/catch_service.dart
+import 'package:alchemons/services/campaign_journal_service.dart';
 import 'dart:math';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
@@ -232,6 +233,9 @@ class CatchService {
       'rolled ${(roll * 100).toStringAsFixed(0)}, ${success ? "SUCCESS" : "FAILED"}',
     );
 
+    if (success) {
+      await CampaignJournalService.bump(db.settingsDao, 'wildHarvests');
+    }
     return success;
   }
 }

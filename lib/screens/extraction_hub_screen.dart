@@ -1,3 +1,4 @@
+import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/audio/scene_ambience.dart';
 import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
@@ -357,6 +358,13 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
   Future<void> _collectAll(List<BiomeFarmState> farms) async {
     HapticFeedback.mediumImpact();
     final completed = farms.where((f) => f.completed).toList();
+    if (completed.isNotEmpty) {
+      await CampaignJournalService.mark(
+        context.read<AlchemonsDatabase>().settingsDao,
+        'biomeHarvest',
+      );
+      if (!mounted) return;
+    }
 
     // Geometry is read before the collects, because a collected job clears
     // and the rail chip it flew out of redraws as idle.

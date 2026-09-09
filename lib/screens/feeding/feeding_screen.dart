@@ -1,3 +1,4 @@
+import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/screens/feeding/alchemical_powerup_feeding_screen.dart';
 import 'package:alchemons/screens/feeding/feeding_stages.dart';
@@ -519,6 +520,7 @@ class _FeedingScreenState extends State<FeedingScreen>
     );
     final preFeedLevel = currentInstance?.level ?? 0;
     final preFeedXp = currentInstance?.xp ?? 0;
+    await CampaignJournalService.mark(db.settingsDao, 'enhance');
 
     try {
       if (!mounted) return;

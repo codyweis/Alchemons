@@ -1393,7 +1393,13 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                 raidLevel: widget.raid!.safeLevel,
                 level3ClearsBeforeFight: widget.raid!.level3Clears,
                 db: context.read<AlchemonsDatabase>(),
-                onGranted: () async => widget.onRaidCleared?.call(),
+                onGranted: () async {
+                  await CampaignJournalService.bump(
+                    context.read<AlchemonsDatabase>().settingsDao,
+                    'raids',
+                  );
+                  widget.onRaidCleared?.call();
+                },
                 onContinue: () => _popDungeon(true),
               ),
           ],
