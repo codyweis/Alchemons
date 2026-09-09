@@ -13,6 +13,7 @@ import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/nursery/brewing_card_widget.dart';
 import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:alchemons/widgets/nursery/egg_extraction_dialog.dart';
+import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
 import 'package:alchemons/widgets/nursery/non_ready_hatch_widget.dart';
 import 'package:alchemons/widgets/nursery/storage_section_widget.dart';
 import 'package:flutter/material.dart';
@@ -282,9 +283,9 @@ class _NurseryTabState extends State<NurseryTab> {
                           ),
                   ),
                   const SizedBox(height: 12),
-                  _buildActiveGridWithPlaceholders(
-                    activeSlots: activeSlots,
-                    placeholders: unlockedEmptySlots.length,
+                  _buildChamberGrid(
+                    chambers: [...activeSlots, ...unlockedEmptySlots]
+                      ..sort((a, b) => a.id.compareTo(b.id)),
                     primaryColor: theme.text,
                     theme: theme,
                   ),
@@ -368,13 +369,20 @@ class _NurseryTabState extends State<NurseryTab> {
     }
   }
 
-  Widget _buildActiveGridWithPlaceholders({
-    required List<IncubatorSlot> activeSlots,
-    required int placeholders,
+  /// Every unlocked chamber, in chamber order.
+  ///
+  /// This used to draw the occupied chambers first and then a run of anonymous
+  /// placeholders, so a chamber's position in the grid had nothing to do with
+  /// its number: with chamber 1 empty, the cultivation in chamber 2 sat in the
+  /// first cell while its details — and the "added to chamber N" toast —
+  /// called it 2. A chamber is a numbered place, so an empty one holds its
+  /// position rather than being swept to the end.
+  Widget _buildChamberGrid({
+    required List<IncubatorSlot> chambers,
     required Color primaryColor,
     required FactionTheme theme,
   }) {
-    final totalCount = activeSlots.length + placeholders;
+    final totalCount = chambers.length;
 
     return GridView.builder(
       shrinkWrap: true,
@@ -387,8 +395,10 @@ class _NurseryTabState extends State<NurseryTab> {
       ),
       itemCount: totalCount,
       itemBuilder: (context, index) {
-        if (index < activeSlots.length) {
-          final slot = activeSlots[index];
+        final chamber = chambers[index];
+        final occupied = chamber.eggId != null && chamber.hatchAtUtcMs != null;
+        if (occupied) {
+          final slot = chamber;
           final remaining = _remainingFor(slot.hatchAtUtcMs!);
           final ready = remaining.inSeconds <= 0;
           final rarity = slot.rarity?.toLowerCase();
@@ -531,10 +541,20 @@ class _NurseryTabState extends State<NurseryTab> {
     }
   }
 
-  Future<void> _startHatchFromReadyPopup(IncubatorSlot slot) async {
-    // Let the extraction dialog close animation finish before cinematic starts.
-    await Future<void>.delayed(const Duration(milliseconds: 140));
-    if (!mounted) return;
+  Future<void> _startHatchFromReadyPopup(
+    IncubatorSlot slot, {
+    required VoidCallback closeDialog,
+  }) async {
+    // Go dark first, then close the dialog underneath. Popping first left the
+    // nursery on screen at full brightness for the length of the close
+    // animation plus the hatch's own database work, and the cinematic then cut
+    // in over it.
+    await HatchCurtain.raise(context);
+    closeDialog();
+    if (!mounted) {
+      HatchCurtain.lower();
+      return;
+    }
     await _hatchFromSlot(slot);
   }
 
@@ -555,8 +575,8 @@ class _NurseryTabState extends State<NurseryTab> {
         isUndiscovered: isUndiscovered,
         isTutorial: !extractionDone,
         onExtract: () {
-          Navigator.pop(context);
-          unawaited(_startHatchFromReadyPopup(slot));
+          final nav = Navigator.of(context);
+          unawaited(_startHatchFromReadyPopup(slot, closeDialog: nav.pop));
         },
         onDiscard: () {
           Navigator.pop(context);
@@ -1077,6 +1097,16 @@ class _NurseryTabState extends State<NurseryTab> {
 
     _acquireBackgroundAnimationPause();
 
+    // No-op when the ready popup already raised it. The other hatch entries —
+    // instant fuse, and a chamber that finished while the sheet was open —
+    // get the same cover for free.
+    await HatchCurtain.raise(context);
+    if (!mounted) {
+      HatchCurtain.lower();
+      _releaseBackgroundAnimationPause();
+      return;
+    }
+
     late final HatchingResult result;
     try {
       result = await EggHatching.performHatching(
@@ -1085,6 +1115,9 @@ class _NurseryTabState extends State<NurseryTab> {
         undiscoveredCache: _undiscoveredCache,
       );
     } finally {
+      // The cinematic drops the curtain itself once it is up; this is the
+      // backstop for the paths that never got that far.
+      HatchCurtain.lower();
       _releaseBackgroundAnimationPause();
     }
 
@@ -1269,26 +1302,10 @@ class _SlotInfoDialogWrapperState extends State<_SlotInfoDialogWrapper> {
             ? _remainingFor(currentSlot.hatchAtUtcMs!)
             : Duration.zero;
 
-        final rarity = currentSlot.rarity?.toLowerCase();
-        final hatchDelay = rarity != null
-            ? BreedConstants.rarityHatchTimes[rarity]
-            : null;
-
-        double progress = 0.0;
-        if (hatchDelay != null && hatchDelay.inMilliseconds > 0) {
-          final left = remaining.isNegative ? Duration.zero : remaining;
-          final done = (hatchDelay.inMilliseconds - left.inMilliseconds).clamp(
-            0,
-            hatchDelay.inMilliseconds,
-          );
-          progress = done / hatchDelay.inMilliseconds;
-        }
-
         return SlotInfoDialog(
           slot: currentSlot,
           primaryColor: widget.primaryColor,
           remaining: remaining,
-          progress: progress.clamp(0, 1),
           isUndiscovered: widget.isUndiscovered,
           onAccelerate: widget.onAccelerate,
           onInstantHatch: widget.onInstantHatch,
@@ -1346,56 +1363,51 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
         animation: _pulseAnim,
         builder: (context, _) {
           final a = _pulseAnim.value;
-          return CustomPaint(
-            painter: BracketFramePainter(
-              color: widget.primaryColor.withValues(alpha: a),
-              bracketSize: 12,
-              strokeWidth: 1.3,
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: palette.surfaceMutedFill(),
-                border: Border.all(
-                  color: palette.lineSoft.withValues(alpha: 0.5),
-                  width: 1,
-                ),
+          // Round and unframed, to match the occupied chambers beside it.
+          return Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: palette.surfaceMutedFill(),
+              border: Border.all(
+                color: palette.lineSoft.withValues(alpha: 0.5),
+                width: 1,
               ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: widget.primaryColor.withValues(alpha: a * .12),
-                        border: Border.all(
-                          color: widget.primaryColor.withValues(alpha: a * .45),
-                          width: 1.2,
-                        ),
-                      ),
-                      child: Icon(
-                        AppIcons.add_rounded,
-                        color: widget.primaryColor.withValues(
-                          alpha: (a + .3).clamp(0, 1),
-                        ),
-                        size: 22,
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: widget.primaryColor.withValues(alpha: a * .12),
+                      border: Border.all(
+                        color: widget.primaryColor.withValues(alpha: a * .45),
+                        width: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Place specimen',
-                      style: bracketText(
-                        context,
-                        12.5,
-                        palette.muted,
-                        weight: FontWeight.w700,
-                        letterSpacing: 0.6,
+                    child: Icon(
+                      AppIcons.add_rounded,
+                      color: widget.primaryColor.withValues(
+                        alpha: (a + .3).clamp(0, 1),
                       ),
+                      size: 22,
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Place specimen',
+                    style: bracketText(
+                      context,
+                      12.5,
+                      palette.muted,
+                      weight: FontWeight.w700,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
               ),
             ),
           );

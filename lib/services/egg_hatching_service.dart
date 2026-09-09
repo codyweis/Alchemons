@@ -35,6 +35,7 @@ import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/widgets/animations/breed_result_animation.dart';
 import 'package:alchemons/widgets/animations/database_typing_animation.dart';
 import 'package:alchemons/widgets/animations/hatching_cinematic.dart';
+import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -674,6 +675,9 @@ class EggHatching {
         quality: cinematicQuality,
       );
     } catch (e) {
+      // The alchemy cinematic never got far enough to drop the curtain, and
+      // the Lottie fallback must not play behind it.
+      HatchCurtain.lower();
       if (!context.mounted) return;
       final factionSvc = context.read<FactionService>();
       final faction = factionSvc.current;

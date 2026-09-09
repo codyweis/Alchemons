@@ -20,9 +20,6 @@ class AlchemyParticle {
   // a Color alloc + withValues() call in the hot draw path every frame.
   Color drawnColor;
 
-  // Pre-baked soft-halo color (same lifecycle as drawnColor).
-  Color glowColor;
-
   AlchemyParticle({
     required this.position,
     required this.velocity,
@@ -34,13 +31,11 @@ class AlchemyParticle {
     this.rotationSpeed = 0,
     this.life = 1.0,
     this.energy = 1.0,
-  }) : drawnColor = color.withValues(alpha: opacity),
-       glowColor = color.withValues(alpha: opacity * 0.22);
+  }) : drawnColor = color.withValues(alpha: opacity);
 
   void bakeColor() {
     final a = (opacity * life).clamp(0.0, 1.0);
     drawnColor = color.withValues(alpha: a);
-    glowColor = color.withValues(alpha: a * 0.22);
   }
 }
 
@@ -356,17 +351,71 @@ class AlchemyBrewingPainter extends CustomPainter {
   // without an always-true reference comparison.
   final int frameCount;
 
-  // FIX 2: Cached Paint objects — allocated once on the painter, reused
-  // every frame. Eliminates ~3,600 Paint allocs/sec at 60fps × 60 particles.
-  final _particlePaint = Paint()..style = PaintingStyle.fill;
-  final _glowPaint = Paint()..style = PaintingStyle.fill;
-  final _corePaint = Paint()..style = PaintingStyle.fill;
-  final _sparkGlowPaint = Paint()..style = PaintingStyle.fill;
-  final _sparkCorePaint = Paint()..style = PaintingStyle.fill;
-  final _strokePaint = Paint()..style = PaintingStyle.stroke;
-  final _trailPaint = Paint()
+  // Shared, not per-instance. A new painter is built every frame inside the
+  // AnimatedBuilder, so instance fields here were six Paint allocations per
+  // frame per card — the opposite of what caching them was for. Painting is
+  // synchronous on the UI thread and each draw sets its own colour first, so
+  // one set for every card is safe.
+  static final _particlePaint = Paint()..style = PaintingStyle.fill;
+  static final _glowPaint = Paint()..style = PaintingStyle.fill;
+  static final _corePaint = Paint()..style = PaintingStyle.fill;
+  static final _sparkCorePaint = Paint()..style = PaintingStyle.fill;
+  static final _strokePaint = Paint()..style = PaintingStyle.stroke;
+  static final _trailPaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
+
+  // ── Energy field shader cache ───────────────────────────────────────────
+  // Rebuilt 60x/sec for a gradient whose only inputs are the two parent
+  // colours and the radius, none of which change between frames. And it only
+  // runs above speedMultiplier 2.0, so it was the nearly-done chambers — the
+  // ones most likely to be on screen together — paying for it.
+  // Keyed, not single-slot: two chambers of different elements both past the
+  // 2.0 threshold would alternate every frame and thrash a one-entry cache
+  // back to rebuilding twice a frame — which is the exact situation the cache
+  // exists for. There are five biomes, so this stays tiny.
+  static final Map<(int, int, int), Shader> _fieldShaders = {};
+
+  // ── Unit-size shape paths ───────────────────────────────────────────────
+  // Built once at radius 1 and scaled by the canvas, instead of one Path
+  // allocation per particle per frame.
+  static final Path _diamondPath = Path()
+    ..moveTo(0, -1)
+    ..lineTo(1, 0)
+    ..lineTo(0, 1)
+    ..lineTo(-1, 0)
+    ..close();
+
+  static final Path _starPath = _buildStarPath();
+  static final Path _shardPath = Path()
+    ..moveTo(0, -1)
+    ..lineTo(0.3, 0.5)
+    ..lineTo(-0.3, 1)
+    ..lineTo(-0.3, 0)
+    ..close();
+  static final Path _leafPath = Path()
+    ..moveTo(0, -1)
+    ..quadraticBezierTo(0.7, -0.3, 1, 1)
+    ..quadraticBezierTo(0, 0.7, 0, -1)
+    ..close();
+
+  static Path _buildStarPath() {
+    final path = Path();
+    const points = 5;
+    const angle = (pi * 2) / points;
+    for (int i = 0; i < points * 2; i++) {
+      final r = i.isEven ? 1.0 : 0.5;
+      final x = r * cos(i * angle / 2 - pi / 2);
+      final y = r * sin(i * angle / 2 - pi / 2);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+    return path;
+  }
 
   AlchemyBrewingPainter({
     required this.particles,
@@ -390,9 +439,7 @@ class AlchemyBrewingPainter extends CustomPainter {
     // Draw reaction sparks — iterate ring buffer, skip dead slots
     for (final spark in sparks) {
       if (spark.life <= 0) continue;
-      _sparkGlowPaint.color = spark.color.withValues(alpha: spark.life * 0.15);
       _sparkCorePaint.color = spark.color.withValues(alpha: spark.life * 0.8);
-      canvas.drawCircle(spark.position, spark.size * 2.5, _sparkGlowPaint);
       canvas.drawCircle(spark.position, spark.size, _sparkCorePaint);
     }
 
@@ -473,19 +520,24 @@ class AlchemyBrewingPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final maxRadius = min(size.width, size.height) * 0.5;
 
-    final gradient = RadialGradient(
-      colors: [
-        _blendColors(
-          config1.colors.first,
-          config2?.colors.first ?? config1.colors.first,
-        ).withValues(alpha: 0.3),
-        Colors.transparent,
-      ],
+    final tint = _blendColors(
+      config1.colors.first,
+      config2?.colors.first ?? config1.colors.first,
+    ).withValues(alpha: 0.3);
+
+    // Keyed on the box, not just the radius: the shader bakes in the centre,
+    // and the details banner is not square, so two surfaces can share a radius
+    // while needing the gradient in a different place. Rounded so a sub-pixel
+    // layout difference does not mint a shader per card.
+    final key = (tint.toARGB32(), size.width.round(), size.height.round());
+    final shader = _fieldShaders.putIfAbsent(
+      key,
+      () => RadialGradient(
+        colors: [tint, Colors.transparent],
+      ).createShader(Rect.fromCircle(center: center, radius: maxRadius)),
     );
 
-    _glowPaint.shader = gradient.createShader(
-      Rect.fromCircle(center: center, radius: maxRadius),
-    );
+    _glowPaint.shader = shader;
     canvas.drawCircle(center, maxRadius, _glowPaint);
     _glowPaint.shader = null;
   }
@@ -493,15 +545,14 @@ class AlchemyBrewingPainter extends CustomPainter {
   void _drawParticle(Canvas canvas, AlchemyParticle particle) {
     // Use pre-baked colors — no withValues() alloc here
     _particlePaint.color = particle.drawnColor;
-    _glowPaint.color = particle.glowColor;
 
     final config = particle.elementType == 'parentA'
         ? config1
         : (config2 ?? config1);
 
-    // Soft halo behind every particle: a larger low-alpha disc. Layered under
-    // the core it reads as a glow without any blur/saveLayer cost.
-    canvas.drawCircle(particle.position, particle.size * 2.1, _glowPaint);
+    // No halo behind the particle. It used to draw a 2.1x low-alpha disc under
+    // every core, which read as a haze over the whole brew rather than as
+    // distinct motes — and cost a second draw call per particle per frame.
 
     // Circle fast-path: skip save/translate/rotate/restore entirely.
     // drawCircle accepts a world-space center directly and circles are
@@ -567,53 +618,26 @@ class AlchemyBrewingPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawDiamond(Canvas canvas, Paint paint, double size) {
-    final path = Path()
-      ..moveTo(0, -size)
-      ..lineTo(size, 0)
-      ..lineTo(0, size)
-      ..lineTo(-size, 0)
-      ..close();
+  /// The canvas is already translated and rotated onto the particle, so a
+  /// scale is all these need.
+  void _drawUnitPath(Canvas canvas, Paint paint, Path path, double size) {
+    canvas.save();
+    canvas.scale(size);
     canvas.drawPath(path, paint);
+    canvas.restore();
   }
 
-  void _drawStar(Canvas canvas, Paint paint, double size) {
-    final path = Path();
-    const points = 5;
-    final angle = (pi * 2) / points;
+  void _drawDiamond(Canvas canvas, Paint paint, double size) =>
+      _drawUnitPath(canvas, paint, _diamondPath, size);
 
-    for (int i = 0; i < points * 2; i++) {
-      final r = i.isEven ? size : size / 2;
-      final x = r * cos(i * angle / 2 - pi / 2);
-      final y = r * sin(i * angle / 2 - pi / 2);
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, paint);
-  }
+  void _drawStar(Canvas canvas, Paint paint, double size) =>
+      _drawUnitPath(canvas, paint, _starPath, size);
 
-  void _drawLeaf(Canvas canvas, Paint paint, double size) {
-    final path = Path()
-      ..moveTo(0, -size)
-      ..quadraticBezierTo(size * 0.7, -size * 0.3, size, size)
-      ..quadraticBezierTo(0, size * 0.7, 0, -size)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
+  void _drawLeaf(Canvas canvas, Paint paint, double size) =>
+      _drawUnitPath(canvas, paint, _leafPath, size);
 
-  void _drawShard(Canvas canvas, Paint paint, double size) {
-    final path = Path()
-      ..moveTo(0, -size)
-      ..lineTo(size * 0.3, size * 0.5)
-      ..lineTo(-size * 0.3, size)
-      ..lineTo(-size * 0.3, 0)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
+  void _drawShard(Canvas canvas, Paint paint, double size) =>
+      _drawUnitPath(canvas, paint, _shardPath, size);
 
   void _drawFusion(Canvas canvas, Size size, double t) {
     final center = Offset(size.width / 2, size.height / 2);
@@ -1761,4 +1785,39 @@ class _AlchemyBrewingParticleSystemState
       if (_sparkCount < _sparkCapacity) _sparkCount++;
     }
   }
+}
+
+/// How fast a cultivation's brew churns, from how far along it is.
+///
+/// The brewing card ramped this from a crawl to a boil as a cultivation
+/// neared its hatch, while the details dialog hardcoded 0.12 — a hair above
+/// the floor. So a chamber that was visibly seconds from done went placid the
+/// moment you tapped into it. One curve, read by both.
+///
+/// [progress] is 0..1 against the egg's expected duration; when it is unknown
+/// the remaining time stands in for it.
+double brewingSpeedForProgress({
+  required double? progress,
+  required Duration remaining,
+  required bool isReady,
+}) {
+  // A finished brew settles rather than racing.
+  if (isReady) return 0.2;
+
+  if (progress != null) {
+    const minSpeed = 0.1;
+    const maxSpeed = 6.0;
+    // Gamma 2: it stays calm for most of the wait and only really moves at
+    // the end, which is what makes an almost-done chamber read as almost done.
+    final eased = pow(progress.clamp(0.0, 1.0), 2.0).toDouble();
+    return minSpeed + (maxSpeed - minSpeed) * eased;
+  }
+
+  final totalMinutes = remaining.inMinutes;
+  if (totalMinutes > 120) return 0.1;
+  if (totalMinutes > 60) return 0.6;
+  if (totalMinutes > 30) return 1.2;
+  if (totalMinutes > 10) return 2.5;
+  if (totalMinutes > 5) return 4.0;
+  return 6.0;
 }

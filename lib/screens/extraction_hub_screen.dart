@@ -138,25 +138,20 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
   /// to know where the resources are going.
   final Map<String, GlobalKey> _totalKeys = {};
 
-  /// One per biome, anchoring that biome's chip in the selector rail. Collect
-  /// All pays out several chambers at once, and each payout should visibly
-  /// leave the biome it came from rather than the one chamber on screen.
-  final Map<String, GlobalKey> _railKeys = {};
+  /// The bay, so a Collect All payout has somewhere to leave from. It used to
+  /// fly out of each biome's chip in the selector rail; with the rail folded
+  /// into the totals strip there is no per-biome origin on screen any more, so
+  /// they all leave the chamber and fan out to their own totals.
+  final GlobalKey _bayKey = GlobalKey(debugLabel: 'extraction_bay');
 
   GlobalKey _totalKeyFor(String biomeId) => _totalKeys.putIfAbsent(
     biomeId,
     () => GlobalKey(debugLabel: 'total_$biomeId'),
   );
 
-  GlobalKey _railKeyFor(String biomeId) => _railKeys.putIfAbsent(
-    biomeId,
-    () => GlobalKey(debugLabel: 'rail_$biomeId'),
-  );
-
-  /// Screen-space rect of a biome's rail chip, or null if it is not laid out.
-  Rect? _railRect(String biomeId) {
-    final ctx = _railKeys[biomeId]?.currentContext;
-    final box = ctx?.findRenderObject();
+  /// Screen-space rect of the bay, or null if it is not laid out.
+  Rect? _bayRect() {
+    final box = _bayKey.currentContext?.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return null;
     return box.localToGlobal(Offset.zero) & box.size;
   }
@@ -366,7 +361,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
     // and the rail chip it flew out of redraws as idle.
     final flights = <({Rect from, Offset to, Color tint, Biome biome})>[];
     for (final farm in completed) {
-      final from = _railRect(farm.biome.id);
+      final from = _bayRect();
       final to = _totalCenter(farm.biome.id);
       if (from == null || to == null) continue;
       flights.add((
@@ -524,6 +519,17 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                                 f.biome.id,
                                               ),
                                           },
+                                          states: {
+                                            for (final f in farms)
+                                              f.biome.id: ElementChamberState(
+                                                unlocked: f.unlocked,
+                                                ready: f.completed,
+                                              ),
+                                          },
+                                          selectedBiomeId: selectedBiomeId,
+                                          onSelect: (id) => setState(
+                                            () => _selectedBiomeId = id,
+                                          ),
                                         ),
                                         if (completedCount > 0)
                                           _CollectAllBanner(
@@ -534,18 +540,13 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                           ),
                                         Expanded(
                                           child: _ExtractionBay(
+                                            key: _bayKey,
                                             farms: farms,
                                             // Pinned here rather than left to
                                             // the bay's fallback, so a collect
                                             // cannot move the view out from
                                             // under its own animation.
                                             selectedBiomeId: selectedBiomeId,
-                                            railKeys: {
-                                              for (final f in farms)
-                                                f.biome.id: _railKeyFor(
-                                                  f.biome.id,
-                                                ),
-                                            },
                                             totalKeys: {
                                               for (final f in farms)
                                                 f.biome.id: _totalKeyFor(
@@ -558,13 +559,6 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                             defaultDuration: const Duration(
                                               hours: 4,
                                             ),
-                                            onSelect: (farm) {
-                                              HapticFeedback.selectionClick();
-                                              setState(
-                                                () => _selectedBiomeId =
-                                                    farm.biome.id,
-                                              );
-                                            },
                                             onUnlock: _promptUnlock,
                                           ),
                                         ),
@@ -593,15 +587,14 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
 
 class _ExtractionBay extends StatelessWidget {
   const _ExtractionBay({
+    super.key,
     required this.farms,
     required this.theme,
     required this.service,
     required this.discoveredCreatures,
     required this.selectedBiomeId,
     required this.defaultDuration,
-    required this.onSelect,
     required this.onUnlock,
-    required this.railKeys,
     required this.totalKeys,
   });
 
@@ -613,12 +606,7 @@ class _ExtractionBay extends StatelessWidget {
   /// Always concrete — the hub resolves and pins it.
   final String selectedBiomeId;
   final Duration defaultDuration;
-  final ValueChanged<BiomeFarmState> onSelect;
   final ValueChanged<BiomeFarmState> onUnlock;
-
-  /// One key per biome, anchoring its chip in the selector rail so a Collect
-  /// All payout can fly out of the biome it belongs to.
-  final Map<String, GlobalKey> railKeys;
 
   /// One key per biome, anchoring its running total in the header strip — the
   /// number a collect flies to.
@@ -645,14 +633,6 @@ class _ExtractionBay extends StatelessWidget {
         // action buttons dock to the bottom instead of floating above dead
         // space.
         final bottomPad = wide ? 26.0 : 14.0;
-        final rail = _BiomeSelectorRail(
-          farms: farms,
-          selectedBiomeId: selected.biome.id,
-          theme: theme,
-          vertical: wide,
-          onSelect: onSelect,
-          railKeys: railKeys,
-        );
         final chamber = _EmbeddedChamber(
           key: ValueKey('bay-${selected.biome.id}'),
           farm: selected,
@@ -665,227 +645,13 @@ class _ExtractionBay extends StatelessWidget {
           collectTargetKey: totalKeys[selected.biome.id],
         );
 
+        // The selector lives in the totals strip above now, so the bay is
+        // just the chamber and it gets the whole space.
         return Padding(
           padding: EdgeInsets.fromLTRB(8, 4, 8, bottomPad),
-          child: wide
-              ? Row(
-                  children: [
-                    SizedBox(width: 154, child: rail),
-                    const SizedBox(width: 10),
-                    Expanded(child: chamber),
-                  ],
-                )
-              : Column(
-                  children: [
-                    SizedBox(height: 78, child: rail),
-                    const SizedBox(height: 10),
-                    Expanded(child: chamber),
-                  ],
-                ),
+          child: chamber,
         );
       },
-    );
-  }
-}
-
-class _BiomeSelectorRail extends StatelessWidget {
-  const _BiomeSelectorRail({
-    required this.farms,
-    required this.selectedBiomeId,
-    required this.railKeys,
-    required this.theme,
-    required this.vertical,
-    required this.onSelect,
-  });
-
-  final List<BiomeFarmState> farms;
-  final String selectedBiomeId;
-  final Map<String, GlobalKey> railKeys;
-  final FactionTheme theme;
-  final bool vertical;
-  final ValueChanged<BiomeFarmState> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    if (vertical) {
-      return ListView.separated(
-        padding: EdgeInsets.zero,
-        itemCount: farms.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (_, index) {
-          final farm = farms[index];
-          return _BiomeSelectorChip(
-            key: railKeys[farm.biome.id],
-            farm: farm,
-            theme: theme,
-            selected: farm.biome.id == selectedBiomeId,
-            vertical: true,
-            onTap: context.soundTap(() => onSelect(farm)),
-          );
-        },
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      scrollDirection: Axis.horizontal,
-      itemCount: farms.length,
-      separatorBuilder: (_, __) => const SizedBox(width: 8),
-      itemBuilder: (_, index) {
-        final farm = farms[index];
-        return SizedBox(
-          width: 106,
-          child: _BiomeSelectorChip(
-            key: railKeys[farm.biome.id],
-            farm: farm,
-            theme: theme,
-            selected: farm.biome.id == selectedBiomeId,
-            vertical: false,
-            onTap: context.soundTap(() => onSelect(farm)),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _BiomeSelectorChip extends StatelessWidget {
-  const _BiomeSelectorChip({
-    super.key,
-    required this.farm,
-    required this.theme,
-    required this.selected,
-    required this.vertical,
-    required this.onTap,
-  });
-
-  final BiomeFarmState farm;
-  final FactionTheme theme;
-  final bool selected;
-  final bool vertical;
-  final VoidCallback onTap;
-
-  double get _progress {
-    final job = farm.activeJob;
-    if (job == null || job.durationMs <= 0) return 0;
-    if (farm.completed) return 1;
-    final remaining = farm.remaining;
-    if (remaining == null) return 0;
-    return (1.0 - remaining.inMilliseconds / job.durationMs).clamp(0.0, 1.0);
-  }
-
-  String get _status {
-    if (!farm.unlocked) return 'Locked';
-    if (farm.completed) return 'Ready';
-    if (farm.hasActive) return '${(_progress * 100).clamp(0, 99).floor()}%';
-    return 'Open';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    final accent = farm.currentColor;
-    final lineColor = selected
-        ? accent
-        : farm.completed
-        ? t.success
-        : t.borderDim;
-
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.fromLTRB(
-          vertical ? 10 : 8,
-          vertical ? 9 : 8,
-          vertical ? 8 : 8,
-          vertical ? 9 : 7,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          border: vertical
-              ? Border(
-                  left: BorderSide(
-                    color: lineColor.withValues(alpha: selected ? 0.95 : 0.42),
-                    width: selected ? 3 : 1,
-                  ),
-                )
-              : Border(
-                  bottom: BorderSide(
-                    color: lineColor.withValues(alpha: selected ? 0.95 : 0.42),
-                    width: selected ? 3 : 1,
-                  ),
-                ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 18,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: accent.withValues(alpha: 0.16),
-                    border: Border.all(color: accent.withValues(alpha: 0.8)),
-                  ),
-                  child: Center(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      width: selected ? 8 : 5,
-                      height: selected ? 8 : 5,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: farm.completed ? t.success : accent,
-                      ),
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                if (farm.completed)
-                  Icon(AppIcons.check_rounded, color: t.success, size: 16)
-                else if (!farm.unlocked)
-                  Icon(
-                    AppIcons.lock_outline_rounded,
-                    color: t.textMuted,
-                    size: 15,
-                  ),
-                // A running job used to print what the run would be worth
-                // here, and the collect flew to that number — which is not a
-                // balance and read as one. The header totals carry the real
-                // figure; the run's progress is on the status line below.
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              farm.biome.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _display(
-                context,
-                vertical ? 13 : 12,
-                t.textPrimary,
-                weight: selected ? FontWeight.w800 : FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              _status,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _display(
-                context,
-                10,
-                farm.completed ? t.success : t.textSecondary,
-                weight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

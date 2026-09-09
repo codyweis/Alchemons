@@ -1,4 +1,3 @@
-import 'package:alchemons/audio/audio.dart';
 import 'dart:convert';
 
 import 'package:alchemons/constants/breed_constants.dart';
@@ -7,7 +6,7 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
-import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
+import 'package:alchemons/widgets/nursery/cultivation_stage.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -16,9 +15,8 @@ class SlotInfoDialog extends StatefulWidget {
   final IncubatorSlot slot;
   final Color primaryColor;
 
-  // Incoming values are kept for initial render; live animation takes over.
+  /// Kept for the first frame; every rebuild reads hatchAtUtcMs instead.
   final Duration remaining;
-  final double progress; // 0..1
 
   final bool isUndiscovered;
   final VoidCallback onAccelerate;
@@ -31,7 +29,6 @@ class SlotInfoDialog extends StatefulWidget {
     required this.slot,
     required this.primaryColor,
     required this.remaining,
-    required this.progress,
     required this.isUndiscovered,
     required this.onAccelerate,
     required this.onReturn,
@@ -49,11 +46,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
 
-  late AnimationController _progressCtrl; // drives the circular progress
-
   // Cache to detect when to resync the progress controller
-  int? _lastHatchAtMs;
-  String? _lastRarityKey;
 
   // Keep a copy of latest slot from DB
   IncubatorSlot? _slot;
@@ -75,48 +68,6 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
     ).animate(CurvedAnimation(parent: _introCtrl, curve: Curves.easeOutCubic));
     _fadeAnimation = CurvedAnimation(parent: _introCtrl, curve: Curves.easeOut);
     _introCtrl.forward();
-
-    // Progress animation controller
-    final startValue = (widget.progress.isNaN ? 0.0 : widget.progress).clamp(
-      0.0,
-      1.0,
-    );
-    _progressCtrl = AnimationController(
-      vsync: this,
-      lowerBound: 0.0,
-      upperBound: 1.0,
-      value: startValue,
-    );
-
-    _lastHatchAtMs = widget.slot.hatchAtUtcMs;
-    _lastRarityKey = (widget.slot.rarity ?? 'common').toLowerCase();
-
-    // Kick off an initial animation to 1.0 using the incoming remaining (best effort).
-    final rarityDelay = _hatchDelayFor(widget.slot);
-    if (rarityDelay != null) {
-      final safeRemaining = widget.remaining.isNegative
-          ? Duration.zero
-          : widget.remaining;
-      _restartProgressAnimation(
-        currentProgress: startValue,
-        remaining: safeRemaining,
-      );
-    }
-
-    // After _progressCtrl = AnimationController(...)
-    _progressCtrl.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        _closeIfReady();
-      }
-    });
-
-    // Also handle cases where we set value = 1.0 directly (no status change)
-    _progressCtrl.addListener(() {
-      final v = _progressCtrl.value;
-      if (v >= .999) {
-        _closeIfReady();
-      }
-    });
   }
 
   void _closeIfReady() {
@@ -135,13 +86,38 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
   @override
   void dispose() {
     _introCtrl.dispose();
-    _progressCtrl.dispose();
     super.dispose();
   }
 
-  Duration? _hatchDelayFor(IncubatorSlot slot) {
-    final key = (slot.rarity ?? 'common').toLowerCase();
-    return BreedConstants.rarityHatchTimes[key];
+  /// 0..1 against the rarity's expected duration — the same measure the
+  /// chamber card is handed, so the two brews churn alike.
+  double? _brewProgress(IncubatorSlot slot) {
+    final delay = BreedConstants
+        .rarityHatchTimes[(slot.rarity ?? 'common').toLowerCase()];
+    if (delay == null || delay.inMilliseconds <= 0) return null;
+    final left = _remainingFor(
+      slot,
+    ).inMilliseconds.clamp(0, delay.inMilliseconds);
+    return (delay.inMilliseconds - left) / delay.inMilliseconds;
+  }
+
+  /// Instant fuse, when the player has one and there is still a wait to skip.
+  Widget? _instantFuse(ForgeTokens t) {
+    final slot = _slot;
+    if (slot == null || _remainingFor(slot) <= Duration.zero) return null;
+    return FutureBuilder<int>(
+      future: context.read<AlchemonsDatabase>().inventoryDao.getItemQty(
+        InvKeys.instantHatch,
+      ),
+      builder: (context, snap) {
+        final qty = snap.data ?? 0;
+        if (qty <= 0) return const SizedBox.shrink();
+        return VialActionButton(
+          label: 'INSTANT FUSE x$qty',
+          onTap: widget.onInstantHatch,
+        );
+      },
+    );
   }
 
   Duration _remainingFor(IncubatorSlot slot) {
@@ -151,45 +127,6 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
     final now = DateTime.now().toUtc();
     final diff = hatchAt.difference(now);
     return diff.isNegative ? Duration.zero : diff;
-  }
-
-  double _progressFor(IncubatorSlot slot, Duration remaining) {
-    final delay = _hatchDelayFor(slot);
-    if (delay == null || delay.inMilliseconds <= 0) {
-      final p = widget.progress.isNaN ? 0.0 : widget.progress;
-      return p.clamp(0.0, 1.0);
-    }
-    final left = remaining.inMilliseconds.clamp(0, delay.inMilliseconds);
-    final done = delay.inMilliseconds - left;
-    return (done / delay.inMilliseconds).clamp(0.0, 1.0);
-  }
-
-  void _restartProgressAnimation({
-    required double currentProgress,
-    required Duration remaining,
-  }) {
-    _progressCtrl.stop();
-    _progressCtrl.value = currentProgress;
-    if (remaining <= Duration.zero) {
-      _progressCtrl.value = 1.0;
-    } else {
-      _progressCtrl.animateTo(1.0, duration: remaining, curve: Curves.linear);
-    }
-  }
-
-  // Resync the animation if DB reports a change (e.g., acceleration or slot move)
-  void _maybeResync(IncubatorSlot slot) {
-    final hatchMs = slot.hatchAtUtcMs;
-    final rarityKey = (slot.rarity ?? 'common').toLowerCase();
-    final changed = hatchMs != _lastHatchAtMs || rarityKey != _lastRarityKey;
-    if (!changed) return;
-
-    _lastHatchAtMs = hatchMs;
-    _lastRarityKey = rarityKey;
-
-    final remaining = _remainingFor(slot);
-    final progress = _progressFor(slot, remaining);
-    _restartProgressAnimation(currentProgress: progress, remaining: remaining);
   }
 
   List<String>? _extractParentTypes(IncubatorSlot slot) {
@@ -209,7 +146,6 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
     final db = context.read<AlchemonsDatabase>();
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
-    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
 
     return AnimatedBuilder(
       animation: _introCtrl,
@@ -240,22 +176,12 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                     widget.slot;
 
                 final slot = _slot!;
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => _maybeResync(slot),
-                );
+                // No resync to do any more: the countdown reads hatchAtUtcMs
+                // directly, so an acceleration shows up on the next rebuild
+                // without an animation to nudge back into step.
 
-                final isLight = !theme.isDark;
-                final overlayTint = isLight
-                    ? const Color(0xFF1B1D29)
-                    : Colors.black;
-                final vignetteAlpha = isLight ? .18 : .5;
-                final bottomFadeAlpha = isLight ? .28 : .65;
-                // In light mode the panel is white, so a near-black disc keeps
-                // the rarity-tinted % text legible (mirrors the dark-mode look).
-                final progressDiscBg = isLight
-                    ? const Color(0xFF1B1D29).withValues(alpha: .82)
-                    : Colors.black.withValues(alpha: .45);
-
+                // Matches the ready dialog: the stage is dark in both
+                // themes, so the tints do not branch on it.
                 final parentTypes = _extractParentTypes(slot);
                 final payload =
                     slot.payloadJson == null || slot.payloadJson!.isEmpty
@@ -266,326 +192,47 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                 final rarityColor = isBloodborn
                     ? kBloodbornSecondary
                     : BreedConstants.getRarityColor(rarity);
-                final chamberLabel = 'CHAMBER ${slot.id + 1}';
-                final hatchDelay = _hatchDelayFor(slot);
-                final isReady =
-                    _progressCtrl.value >= 0.999 ||
-                    (_remainingFor(slot) <= Duration.zero);
+                final isReady = _remainingFor(slot) <= Duration.zero;
+                if (isReady) _closeIfReady();
 
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // ── PROGRESS BANNER ──────────────────────────────────
-                    SizedBox(
-                      height: 190,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // Particle background
-                          if (parentTypes != null && parentTypes.isNotEmpty)
-                            RepaintBoundary(
-                              child: AlchemyBrewingParticleSystem(
-                                parentATypeId: parentTypes[0],
-                                parentBTypeId: parentTypes.length > 1
-                                    ? parentTypes[1]
-                                    : null,
-                                particleCount: 50,
-                                speedMultiplier: 0.12,
-                                fusion: false,
-                                theme: theme,
-                              ),
-                            )
-                          else
-                            Container(color: dialogSurface),
-
-                          // Vignette
-                          Container(
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                center: Alignment.center,
-                                radius: 0.85,
-                                colors: [
-                                  Colors.transparent,
-                                  overlayTint.withValues(alpha: vignetteAlpha),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          // Bottom fade
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            height: 56,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.transparent,
-                                    overlayTint.withValues(
-                                      alpha: bottomFadeAlpha,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          // Top-left chamber pill
-                          Positioned(
-                            top: 14,
-                            left: 14,
-                            child: _InProgressPill(
-                              label: chamberLabel,
-                              color: rarityColor,
-                            ),
-                          ),
-
-                          // Circular progress in center
-                          Center(
-                            child: AnimatedBuilder(
-                              animation: _progressCtrl,
-                              builder: (context, _) {
-                                final v = _progressCtrl.value.clamp(0.0, 1.0);
-                                return SizedBox(
-                                  width: 92,
-                                  height: 92,
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: 92,
-                                        height: 92,
-                                        child: CircularProgressIndicator(
-                                          value: v,
-                                          strokeWidth: 5,
-                                          backgroundColor: isLight
-                                              ? t.borderMid.withValues(
-                                                  alpha: .35,
-                                                )
-                                              : Colors.white.withValues(
-                                                  alpha: .10,
-                                                ),
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                rarityColor,
-                                              ),
-                                        ),
-                                      ),
-                                      Container(
-                                        width: 72,
-                                        height: 72,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: progressDiscBg,
-                                          border: Border.all(
-                                            color: rarityColor.withValues(
-                                              alpha: .3,
-                                            ),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            '${(v * 100).toStringAsFixed(0)}%',
-                                            style: TextStyle(
-                                              color: rarityColor,
-                                              fontSize: 17,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: .5,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
+                return CultivationVialStage(
+                  theme: theme,
+                  parentTypes: parentTypes,
+                  accentColor: rarityColor,
+                  chamberLabel: 'CHAMBER ${slot.id + 1}',
+                  particleCount: 62,
+                  speedMultiplier: brewingSpeedForProgress(
+                    progress: _brewProgress(slot),
+                    remaining: _remainingFor(slot),
+                    isReady: isReady,
+                  ),
+                  action: VialActionButton(
+                    label: 'ACCELERATE',
+                    onTap: widget.onAccelerate,
+                  ),
+                  leading: StageIconButton(
+                    icon: AppIcons.inventory_2_rounded,
+                    tooltip: 'Store this cultivation',
+                    color: t.teal,
+                    onTap: widget.onReturn,
+                  ),
+                  trailing: StageIconButton(
+                    icon: AppIcons.close_rounded,
+                    tooltip: 'Close',
+                    color: t.textSecondary,
+                    onTap: widget.onClose,
+                  ),
+                  centre: Text(
+                    BreedConstants.formatRemaining(_remainingFor(slot)),
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: rarityColor,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.6,
                     ),
-
-                    // ── INFO + ACTIONS PANEL ──────────────────────────────
-                    Container(
-                      decoration: BoxDecoration(
-                        color: dialogSurface,
-                        border: Border(
-                          left: BorderSide(color: t.borderMid, width: 1),
-                          right: BorderSide(color: t.borderMid, width: 1),
-                          bottom: BorderSide(color: t.borderMid, width: 1),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 3,
-                                      height: 32,
-                                      decoration: BoxDecoration(
-                                        color: rarityColor,
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'IN CULTIVATION',
-                                            style: TextStyle(
-                                              color: theme.text,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: 1.4,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          AnimatedBuilder(
-                                            animation: _progressCtrl,
-                                            builder: (context, _) {
-                                              Duration remaining;
-                                              if (hatchDelay != null) {
-                                                final v = _progressCtrl.value
-                                                    .clamp(0.0, 1.0);
-                                                final leftMs =
-                                                    ((1.0 - v) *
-                                                            hatchDelay
-                                                                .inMilliseconds)
-                                                        .clamp(
-                                                          0.0,
-                                                          hatchDelay
-                                                              .inMilliseconds
-                                                              .toDouble(),
-                                                        )
-                                                        .round();
-                                                remaining = Duration(
-                                                  milliseconds: leftMs,
-                                                );
-                                              } else {
-                                                remaining = _remainingFor(
-                                                  _slot!,
-                                                );
-                                              }
-                                              return Text(
-                                                BreedConstants.formatRemaining(
-                                                  remaining,
-                                                ),
-                                                style: TextStyle(
-                                                  color: rarityColor,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w900,
-                                                  letterSpacing: .4,
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 18),
-                                Container(
-                                  height: 1,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        rarityColor.withValues(alpha: .35),
-                                        Colors.transparent,
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          FutureBuilder<int>(
-                            future: context
-                                .read<AlchemonsDatabase>()
-                                .inventoryDao
-                                .getItemQty(InvKeys.instantHatch),
-                            builder: (context, snap) {
-                              final qty = snap.data ?? 0;
-                              final canUseInstant = !isReady && qty > 0;
-                              return CultivationDialogActionArea(
-                                tokens: t,
-                                children: [
-                                  CultivationDialogButton(
-                                    tokens: t,
-                                    label: 'ACCELERATE CULTIVATION',
-                                    icon: AppIcons.speed_rounded,
-                                    accentColor: t.amberBright,
-                                    emphasis:
-                                        CultivationDialogButtonEmphasis.primary,
-                                    onTap: context.soundTap(
-                                      widget.onAccelerate,
-                                    ),
-                                  ),
-                                  if (canUseInstant) ...[
-                                    const SizedBox(height: 8),
-                                    CultivationDialogButton(
-                                      tokens: t,
-                                      label: 'USE INSTANT FUSE ×$qty',
-                                      icon: AppIcons.flash_on_rounded,
-                                      accentColor: t.success,
-                                      emphasis: CultivationDialogButtonEmphasis
-                                          .primary,
-                                      onTap: context.soundTap(
-                                        widget.onInstantHatch,
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: CultivationDialogButton(
-                                          tokens: t,
-                                          label: 'STORE',
-                                          icon: AppIcons.inventory_2_rounded,
-                                          accentColor: t.teal,
-                                          onTap: context.soundTap(
-                                            widget.onReturn,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: CultivationDialogButton(
-                                          tokens: t,
-                                          label: 'CLOSE',
-                                          icon: AppIcons.close_rounded,
-                                          accentColor: t.textSecondary,
-                                          onTap: context.soundTap(
-                                            widget.onClose,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
+                  below: _instantFuse(t),
                 );
               },
             ),
@@ -598,33 +245,4 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PILL
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _InProgressPill extends StatelessWidget {
-  const _InProgressPill({required this.label, required this.color});
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .14),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: color.withValues(alpha: .45)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.3,
-        ),
-      ),
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────

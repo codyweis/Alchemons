@@ -74,29 +74,11 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
     _pureElementTypeId = pure;
   }
 
-  double _ease(double p, {double gamma = 2.0}) {
-    final clamped = p.clamp(0.0, 1.0);
-    return math.pow(clamped, gamma).toDouble();
-  }
-
-  double get _speedFromProgress {
-    if (widget.isReady) return 0.2;
-    if (widget.progress != null) {
-      const minSpeed = 0.1;
-      const maxSpeed = 6.0;
-      final eased = _ease(widget.progress!);
-      return minSpeed + (maxSpeed - minSpeed) * eased;
-    }
-
-    final remaining = Duration(milliseconds: widget.egg.remainingMs);
-    final totalMinutes = remaining.inMinutes;
-    if (totalMinutes > 120) return 0.1;
-    if (totalMinutes > 60) return 0.6;
-    if (totalMinutes > 30) return 1.2;
-    if (totalMinutes > 10) return 2.5;
-    if (totalMinutes > 5) return 4.0;
-    return 6.0;
-  }
+  double get _speedFromProgress => brewingSpeedForProgress(
+    progress: widget.progress,
+    remaining: Duration(milliseconds: widget.egg.remainingMs),
+    isReady: widget.isReady,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +108,14 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
       CinematicQuality.cinematic => 1.0,
       CinematicQuality.performance => 0.6,
     };
-    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 128);
+    // A quarter more than the tiers above. Applied here rather than folded
+    // into them so the device tiers stay legible as device tiers, and the
+    // performance multiplier still scales the whole thing down.
+    const density = 1.25;
+    particleCount = (particleCount * qualityMultiplier * density).round().clamp(
+      0,
+      160,
+    );
 
     if (deferEffects) {
       particleCount = math.min(particleCount, 12);
@@ -151,11 +140,6 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
                     .readableAccent(const Color(0xFFFFD700))
                     .withValues(alpha: 0.92)
               : readyOuterFrameColor.withValues(alpha: 0.55));
-    final frameColor = widget.isReady
-        ? readyOuterFrameColor
-        : (isBloodborn
-              ? kBloodbornSecondary.withValues(alpha: 0.85)
-              : palette.line.withValues(alpha: 0.75));
     final fillColor = isLight ? palette.bg1 : Colors.black;
     // In light-mode ready we draw a dark outer outline plus a thinner gold
     // inset line; other states keep a single border.
@@ -179,44 +163,42 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
     return RepaintBoundary(
       child: GestureDetector(
         onTap: context.soundAction(widget.onTap),
-        child: CustomPaint(
-          painter: BracketFramePainter(
-            color: frameColor,
-            bracketSize: 10,
-            strokeWidth: widget.isReady ? 1.4 : 1.05,
+        // A chamber is a vessel, so it is round — and nothing square around
+        // it. The corner brackets read as leftover scaffolding once the fill
+        // stopped being a box.
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: fillColor,
+            border: Border.all(color: borderColor, width: borderWidth),
           ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: fillColor,
-              border: Border.all(color: borderColor, width: borderWidth),
-            ),
-            foregroundDecoration: insetAccentColor != null
-                ? BoxDecoration(
-                    border: Border.all(color: insetAccentColor, width: 1),
-                  )
-                : null,
-            child: ClipRect(
-              child: Stack(
-                children: [
-                  if (showParticles &&
-                      _parentTypes != null &&
-                      _parentTypes!.isNotEmpty)
-                    Positioned.fill(
-                      child: AlchemyBrewingParticleSystem(
-                        parentATypeId: _parentTypes![0],
-                        parentBTypeId: _parentTypes!.length > 1
-                            ? _parentTypes![1]
-                            : null,
-                        particleCount: particleCount,
-                        speedMultiplier: _speedFromProgress,
-                        fusion: widget.isReady,
-                        pureElementTypeId: _pureElementTypeId,
-                        useSimpleFusion: widget.useSimpleFusion,
-                        theme: widget.theme,
-                      ),
+          foregroundDecoration: insetAccentColor != null
+              ? BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: insetAccentColor, width: 1),
+                )
+              : null,
+          child: ClipOval(
+            child: Stack(
+              children: [
+                if (showParticles &&
+                    _parentTypes != null &&
+                    _parentTypes!.isNotEmpty)
+                  Positioned.fill(
+                    child: AlchemyBrewingParticleSystem(
+                      parentATypeId: _parentTypes![0],
+                      parentBTypeId: _parentTypes!.length > 1
+                          ? _parentTypes![1]
+                          : null,
+                      particleCount: particleCount,
+                      speedMultiplier: _speedFromProgress,
+                      fusion: widget.isReady,
+                      pureElementTypeId: _pureElementTypeId,
+                      useSimpleFusion: widget.useSimpleFusion,
+                      theme: widget.theme,
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ),

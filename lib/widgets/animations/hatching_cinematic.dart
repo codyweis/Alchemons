@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
+import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
 
 class _GeoCache {
   ui.Picture? flower;
@@ -53,6 +54,11 @@ Future<void> playHatchingCinematicAlchemy({
       barrierColor: Colors.black,
       transitionDuration: const Duration(milliseconds: 250),
       reverseTransitionDuration: const Duration(milliseconds: 200),
+      // PageRouteBuilder's default is no transition at all, so only the black
+      // barrier faded and the ceremony itself snapped on. It comes up with
+      // the dark now.
+      transitionsBuilder: (_, animation, __, child) =>
+          FadeTransition(opacity: animation, child: child),
       pageBuilder: (_, __, ___) => _HatchingCinematicPage(
         parentATypeId: parentATypeId,
         parentBTypeId: parentBTypeId,
@@ -133,9 +139,32 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
   int _hintJoltCount = 0;
   static const int _maxHintJolts = 3;
 
+  /// Take away the cover the nursery raised over the dialog-to-cinematic
+  /// seam, but not until this route is opaque — pulled early it would reveal
+  /// the nursery through a half-faded ceremony, which is the flash it exists
+  /// to prevent.
+  void _dropHatchCurtainWhenVisible() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final animation = ModalRoute.of(context)?.animation;
+      if (animation == null || animation.isCompleted) {
+        HatchCurtain.lower(fade: false);
+        return;
+      }
+      void onStatus(AnimationStatus status) {
+        if (status != AnimationStatus.completed) return;
+        animation.removeStatusListener(onStatus);
+        HatchCurtain.lower(fade: false);
+      }
+
+      animation.addStatusListener(onStatus);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+    _dropHatchCurtainWhenVisible();
 
     _timeline = AnimationController(
       vsync: this,
@@ -406,21 +435,26 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
             } else if (t < 0.55) {
               geoOpacity = 1.0;
             } else {
+              // Held longer and eased out rather than cut at 0.70: the line
+              // art used to be gone before the burst had resolved, leaving
+              // the accents on top of nothing.
               final fadeOut = _intervalValue(
                 t,
-                0.55,
-                0.70,
-                Curves.easeOutCubic,
+                0.58,
+                0.82,
+                Curves.easeInOutCubic,
               );
               geoOpacity = 1.0 - fadeOut;
             }
 
-            // Particle count
-            int baseParticleCount = (t >= 0.55 && t < 0.65) ? 90 : 62;
+            // Particle count. This is a one-off fullscreen ceremony rather
+            // than something on a scrolling grid, so it can carry a denser
+            // field than the chambers do.
+            int baseParticleCount = (t >= 0.55 && t < 0.65) ? 130 : 88;
             if (highQualityEffects && t >= 0.50 && t < 0.72) {
-              baseParticleCount += 20;
+              baseParticleCount += 30;
             }
-            final maxParticles = highQualityEffects ? 210 : 180;
+            final maxParticles = highQualityEffects ? 300 : 240;
             baseParticleCount = (baseParticleCount * _fxScale).round().clamp(
               6,
               maxParticles,
@@ -468,7 +502,16 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                           parentBTypeId: widget.parentBTypeId,
                           particleCount: baseParticleCount,
                           speedMultiplier: speed,
-                          fusion: true,
+                          // NOT fusion. That flag drives the particle system
+                          // into its idle mode: 2.5s in, it discards the count
+                          // entirely and keeps twelve orbital motes, which is
+                          // why this ceremony looked empty for two thirds of
+                          // its run and why raising the count did nothing.
+                          // The ceremony's core, geometry and burst are drawn
+                          // by this page's own painter, so the system is only
+                          // needed for the field it was already failing to
+                          // provide.
+                          fusion: false,
                           pureElementTypeId: widget.pureElementTypeId,
                           fromCinematic: true,
                         ),
@@ -788,7 +831,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
       final envelope =
           _intervalValue(t, 0.02, 0.18, Curves.easeOut) * (1.0 - whiteout);
       if (envelope > 0.01) {
-        final moteCount = highQualityEffects ? 42 : (reducedEffects ? 16 : 26);
+        final moteCount = highQualityEffects ? 70 : (reducedEffects ? 26 : 44);
         final motePaint = Paint()..style = PaintingStyle.fill;
         for (int i = 0; i < moteCount; i++) {
           final mx = _hash(i * 3 + 1) * size.width;
@@ -1051,23 +1094,39 @@ class _CoreAndGeometryPainter extends CustomPainter {
       );
     }
 
-    // Radial speed-lines at the burst: quick anime-style accents that sell
-    // the impact, gone by explosionT 0.6. Cheap lines — phones get a thinned
-    // count rather than none.
-    if (explosionT > 0 && explosionT < 0.6) {
-      final lineAlpha = (1.0 - explosionT / 0.6) * 0.45;
+    // Radial speed-lines at the burst: a quick accent that sells the impact.
+    //
+    // These were evenly spaced, all the same length, width and alpha, which
+    // draws a rigid asterisk rather than motion — and they outlived the
+    // sacred geometry that fades at 0.55, so the frame went from line art to
+    // a bare cross sitting on nothing. Now each spoke has its own angle,
+    // reach and weight, and they are gone by 0.42 rather than lingering.
+    if (explosionT > 0 && explosionT < 0.42) {
+      final fade = 1.0 - explosionT / 0.42;
+      final n = highQualityEffects ? 22 : (reducedEffects ? 10 : 16);
       final linePaint = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..strokeCap = StrokeCap.round
-        ..color = palette.withValues(alpha: lineAlpha);
-      final n = highQualityEffects ? 20 : (reducedEffects ? 10 : 14);
-      final r1 = size.shortestSide * (0.10 + 0.45 * explosionT);
-      final r2 = r1 + size.shortestSide * 0.11 * (1.0 - explosionT);
+        ..strokeCap = StrokeCap.round;
+      // Stable per-spoke spread, so the burst is the same shape every run.
+      double seed(int i, int salt) => ((i * 43 + salt * 37) % 100) / 100.0;
+
       for (int i = 0; i < n; i++) {
-        final a = i * 2 * pi / n + 0.35;
+        final jitter = (seed(i, 1) - 0.5) * (2 * pi / n) * 1.8;
+        final a = i * 2 * pi / n + jitter + 0.35;
         final ca = cos(a);
         final sa = sin(a);
+        final r1 = size.shortestSide * (0.10 + 0.45 * explosionT);
+        final r2 =
+            r1 +
+            size.shortestSide *
+                0.11 *
+                (0.45 + seed(i, 2) * 1.1) *
+                (1.0 - explosionT);
+        linePaint
+          ..strokeWidth = 0.9 + seed(i, 3) * 1.2
+          ..color = palette.withValues(
+            alpha: fade * 0.38 * (0.5 + seed(i, 4) * 0.5),
+          );
         canvas.drawLine(
           center + Offset(ca * r1, sa * r1),
           center + Offset(ca * r2, sa * r2),
@@ -1076,28 +1135,47 @@ class _CoreAndGeometryPainter extends CustomPainter {
       }
     }
 
-    // Explosion particles
+    // Explosion particles.
+    //
+    // These used to sit at evenly spaced angles all at the same radius and the
+    // same size, which draws a ring of dots expanding in lockstep rather than
+    // anything being thrown. Each one now gets its own angle jitter, reach,
+    // size and rate, so the front is ragged and the field thins as it goes.
     if (explosionT > 0 && explosionT < 0.75) {
       final particlePaint = Paint()
         ..style = PaintingStyle.fill
         ..isAntiAlias = true;
 
       final burstParticleCount = reducedEffects
-          ? 10
-          : (highQualityEffects ? 24 : 16);
+          ? 26
+          : (highQualityEffects ? 64 : 42);
+      // Stable per-shard spread, so the burst is the same shape every run
+      // instead of reshuffling.
+      double seed(int i, int salt) => ((i * 47 + salt * 29) % 100) / 100.0;
+
       for (int i = 0; i < burstParticleCount; i++) {
-        final angle = (i * 2 * pi / burstParticleCount) + (t * 0.5);
-        final distance = size.shortestSide * 0.12 * explosionT;
+        final spread = (seed(i, 1) - 0.5) * (2 * pi / burstParticleCount) * 2.4;
+        final angle = (i * 2 * pi / burstParticleCount) + spread + (t * 0.5);
+
+        // Some shards outrun the rest.
+        final reach = 0.07 + seed(i, 2) * 0.17;
+        // ...and they slow as they go, rather than travelling flat.
+        final travel = Curves.easeOutCubic.transform(explosionT);
+        final distance = size.shortestSide * reach * travel;
         final particlePos =
             center + Offset(cos(angle) * distance, sin(angle) * distance);
-        final particleAlpha = (1.0 - explosionT) * 0.75;
+
+        // Staggered fade so the field thins out unevenly.
+        final life = (1.0 - explosionT) * (0.55 + seed(i, 3) * 0.45);
+        if (life <= 0.02) continue;
+
         final particleSize = ui.lerpDouble(
-          highQualityEffects ? 3.4 : 3.0,
-          1,
+          (highQualityEffects ? 3.4 : 3.0) * (0.55 + seed(i, 4) * 0.9),
+          0.8,
           explosionT,
         )!;
 
-        particlePaint.color = palette.withValues(alpha: particleAlpha);
+        particlePaint.color = palette.withValues(alpha: life * 0.8);
         canvas.drawCircle(particlePos, particleSize, particlePaint);
       }
     }
