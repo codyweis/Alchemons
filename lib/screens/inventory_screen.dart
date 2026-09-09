@@ -532,10 +532,10 @@ class _InventoryScreenState extends State<InventoryScreen>
           storageKey: 'inventory-vials',
           padding: const EdgeInsets.all(12),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 1,
+            crossAxisCount: 3,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 0.82,
           ),
           itemCount: vials.length,
           itemBuilder: (context, index) {
