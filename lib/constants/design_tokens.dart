@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 
 /// Mobile-first design tokens for Alchemons.
@@ -104,7 +105,7 @@ class TapTarget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       borderRadius: borderRadius ?? BorderRadius.circular(AppRadius.md),
       child: SizedBox(
         width: size,

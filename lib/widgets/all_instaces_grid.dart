@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async' as async;
 import 'dart:convert';
 
@@ -625,13 +626,13 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                     ),
                     if (_localSelections.isNotEmpty)
                       GestureDetector(
-                        onTap: () {
+                        onTap: context.soundAction(() {
                           if (widget.onConfirmSelection != null) {
                             widget.onConfirmSelection!(
                               _currentSelectedInstances(),
                             );
                           }
-                        },
+                        }),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -1044,7 +1045,7 @@ class _TopControlChip extends StatelessWidget {
     );
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: showBracketWhenSelected && selected
           ? CustomPaint(

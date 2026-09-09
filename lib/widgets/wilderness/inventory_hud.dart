@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/wilderness/game_inventory_overlay.dart
 import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -421,16 +422,16 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, null),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, null)),
             child: Text('Cancel', style: TextStyle(color: theme.textMuted)),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, 'one'),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, 'one')),
             style: TextButton.styleFrom(foregroundColor: Colors.orange),
             child: const Text('Remove 1'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, 'all'),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, 'all')),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Remove All'),
           ),
@@ -611,7 +612,7 @@ class _OverlayCloseButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         borderRadius: BorderRadius.circular(AppRadius.md),
         child: Container(
           width: 30,
@@ -649,7 +650,7 @@ class _CompactItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         decoration: BoxDecoration(
           color: t.bg2,

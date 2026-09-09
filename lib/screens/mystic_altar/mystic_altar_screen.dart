@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/mystic_altar/mystic_altar_screen.dart
 //
 // MYSTIC ALTAR — Spinning Relic Wheel hub.
@@ -1482,10 +1483,10 @@ class _Btn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: () {
+    onTap: context.soundAction(() {
       HapticFeedback.lightImpact();
       onTap();
-    },
+    }),
     child: CustomPaint(
       painter: _CornerBracketPainter(
         color: color.withValues(alpha: primary ? 0.72 : 0.34),
@@ -1522,7 +1523,7 @@ class _BackBracketButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: SizedBox(
         width: 40,
         height: 40,
@@ -1560,7 +1561,7 @@ class _PanelActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = color ?? _C.ivoryDim;
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 42, minWidth: 112),
         child: CustomPaint(

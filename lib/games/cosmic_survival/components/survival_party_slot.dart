@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import '../cosmic_survival_game.dart';
 import '../../cosmic/cosmic_data.dart';
@@ -100,7 +101,7 @@ class SurvivalPartySlot extends StatelessWidget {
       child: Tooltip(
         message: '$name · ${state.label}\n$action',
         child: InkWell(
-          onTap: state.dead ? null : onTap,
+          onTap: context.soundAction(state.dead ? null : onTap),
           borderRadius: BorderRadius.circular(5),
           child: Container(
             width: 72,

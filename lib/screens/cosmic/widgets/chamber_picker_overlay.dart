@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -244,10 +245,10 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                         ),
                         if (_searchQuery.isNotEmpty)
                           GestureDetector(
-                            onTap: () {
+                            onTap: context.soundAction(() {
                               _searchController.clear();
                               setState(() => _searchQuery = '');
-                            },
+                            }),
                             child: Padding(
                               padding: const EdgeInsets.only(right: 12),
                               child: Icon(
@@ -313,12 +314,14 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                           );
 
                           return GestureDetector(
-                            onTap: alreadyAssigned || emptySlot < 0
-                                ? null
-                                : () => widget.onAssign(
-                                    emptySlot,
-                                    inst.instanceId,
-                                  ),
+                            onTap: context.soundAction(
+                              alreadyAssigned || emptySlot < 0
+                                  ? null
+                                  : () => widget.onAssign(
+                                      emptySlot,
+                                      inst.instanceId,
+                                    ),
+                            ),
                             child: AnimatedOpacity(
                               duration: const Duration(milliseconds: 150),
                               opacity: alreadyAssigned ? 0.4 : 1.0,
@@ -516,7 +519,7 @@ class _ChamberSlotTile extends StatelessWidget {
                 const Spacer(),
                 if (hasCreature)
                   GestureDetector(
-                    onTap: onClear,
+                    onTap: context.soundAction(onClear),
                     behavior: HitTestBehavior.opaque,
                     child: Icon(
                       AppIcons.close_rounded,
@@ -604,7 +607,7 @@ class _OverlayCloseButton extends StatelessWidget {
     return Tooltip(
       message: 'Close',
       child: GestureDetector(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         behavior: HitTestBehavior.opaque,
         child: CustomPaint(
           painter: BracketFramePainter(

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 
 import 'package:alchemons/database/alchemons_db.dart';
@@ -171,10 +172,12 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
                               // standalone "Clear" button.
                               if (_searchText.isNotEmpty)
                                 GestureDetector(
-                                  onTap: () => setState(() {
-                                    _searchText = '';
-                                    _searchController.clear();
-                                  }),
+                                  onTap: context.soundAction(
+                                    () => setState(() {
+                                      _searchText = '';
+                                      _searchController.clear();
+                                    }),
+                                  ),
                                   behavior: HitTestBehavior.opaque,
                                   child: Padding(
                                     padding: const EdgeInsets.only(left: 6),
@@ -195,11 +198,13 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
                     if (_hasResettableState) ...[
                       const SizedBox(width: 10),
                       GestureDetector(
-                        onTap: () => setState(() {
-                          _searchText = '';
-                          _searchController.clear();
-                          _clearVersion++;
-                        }),
+                        onTap: context.soundAction(
+                          () => setState(() {
+                            _searchText = '';
+                            _searchController.clear();
+                            _clearVersion++;
+                          }),
+                        ),
                         child: CustomPaint(
                           painter: BracketFramePainter(
                             color: activeAccent,
@@ -300,7 +305,7 @@ class _HeaderSquareButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         behavior: HitTestBehavior.opaque,
         child: CustomPaint(
           painter: BracketFramePainter(

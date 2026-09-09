@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/cosmic/widgets/elemental_cache_popup.dart
 //
 // The payout card shown once a sealed elemental cache gives way. Rows arrive
@@ -131,7 +132,7 @@ class _ElementalCachePopupState extends State<ElementalCachePopup>
     final font = appFontFamily(context);
 
     return GestureDetector(
-      onTap: widget.onDismiss,
+      onTap: context.soundAction(widget.onDismiss),
       child: Container(
         color: Colors.black.withValues(alpha: 0.78),
         alignment: Alignment.center,

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -370,9 +371,9 @@ class _CosmicBeautyContestArenaOverlayState
                     ),
                     const SizedBox(height: 12),
                     FilledButton(
-                      onPressed: _canContinue
-                          ? () => Navigator.of(context).pop()
-                          : null,
+                      onPressed: context.soundAction(
+                        _canContinue ? () => Navigator.of(context).pop() : null,
+                      ),
                       child: Text(_canContinue ? 'CONTINUE' : 'JUDGING...'),
                     ),
                   ],
@@ -606,9 +607,9 @@ class _CosmicSpeedContestArenaOverlayState
                   ),
                   const SizedBox(height: 12),
                   FilledButton(
-                    onPressed: _canContinue
-                        ? () => Navigator.of(context).pop()
-                        : null,
+                    onPressed: context.soundAction(
+                      _canContinue ? () => Navigator.of(context).pop() : null,
+                    ),
                     child: Text(
                       _canContinue ? 'CONTINUE' : 'CHECKING TIMES...',
                     ),
@@ -844,9 +845,9 @@ class _CosmicStrengthContestArenaOverlayState
                   ),
                   const SizedBox(height: 12),
                   FilledButton(
-                    onPressed: _canContinue
-                        ? () => Navigator.of(context).pop()
-                        : null,
+                    onPressed: context.soundAction(
+                      _canContinue ? () => Navigator.of(context).pop() : null,
+                    ),
                     child: Text(_canContinue ? 'CONTINUE' : 'JUDGING POWER...'),
                   ),
                 ],
@@ -1082,9 +1083,9 @@ class _CosmicIntelligenceContestArenaOverlayState
                   ),
                   const SizedBox(height: 12),
                   FilledButton(
-                    onPressed: _canContinue
-                        ? () => Navigator.of(context).pop()
-                        : null,
+                    onPressed: context.soundAction(
+                      _canContinue ? () => Navigator.of(context).pop() : null,
+                    ),
                     child: Text(
                       _canContinue ? 'CONTINUE' : 'EVALUATING PATTERNS...',
                     ),

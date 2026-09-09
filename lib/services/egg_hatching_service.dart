@@ -1463,7 +1463,7 @@ class EggHatching {
                                     children: [
                                       Expanded(
                                         child: GestureDetector(
-                                          onTap: () async {
+                                          onTap: context.soundAction(() async {
                                             if (closing) return;
 
                                             // Signal animation to stop any pending callbacks
@@ -1503,7 +1503,7 @@ class EggHatching {
                                                     Navigator.of(context).pop();
                                                   }
                                                 });
-                                          },
+                                          }),
 
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(
@@ -1545,7 +1545,7 @@ class EggHatching {
                                       ),
                                       const SizedBox(width: 10),
                                       GestureDetector(
-                                        onTap: () {
+                                        onTap: context.soundAction(() {
                                           if (closing) return;
 
                                           CreatureDetailsDialog.show(
@@ -1554,7 +1554,7 @@ class EggHatching {
                                             true,
                                             instanceId: instanceId,
                                           );
-                                        },
+                                        }),
                                         child: Container(
                                           width: 50,
                                           height: 50,
@@ -1720,7 +1720,7 @@ class EggHatching {
           child: Material(
             color: Colors.transparent,
             child: GestureDetector(
-              onTap: openEncyclopedia,
+              onTap: context.soundAction(openEncyclopedia),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -1897,7 +1897,7 @@ class EggHatching {
           child: Material(
             color: Colors.transparent,
             child: GestureDetector(
-              onTap: openProgress,
+              onTap: context.soundAction(openProgress),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,

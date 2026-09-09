@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -328,7 +329,7 @@ class _PowerUpCard extends StatelessWidget {
     final hasSystemTag = !isCompanion && !def.isKeystone;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: _BracketFramePainter(
           color: accent.withValues(alpha: 0.6),

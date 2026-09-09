@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/genetics_util.dart';
@@ -287,7 +288,7 @@ class _SaveButton extends StatelessWidget {
     return Opacity(
       opacity: enabled ? 1.0 : 0.5,
       child: GestureDetector(
-        onTap: enabled ? onTap : null,
+        onTap: context.soundAction(enabled ? onTap : null),
         child: Container(
           height: 44,
           decoration: BoxDecoration(
@@ -355,7 +356,7 @@ class _CloseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         width: 38,
         height: 38,

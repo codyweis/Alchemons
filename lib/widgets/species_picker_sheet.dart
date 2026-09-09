@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/species_picker_sheet.dart
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:flutter/material.dart';
@@ -118,12 +119,12 @@ class _SpeciesPickerSheetState extends State<SpeciesPickerSheet> {
                         color: t.textSecondary,
                         size: 18,
                       ),
-                      onPressed: () {
+                      onPressed: context.soundAction(() {
                         _searchController.clear();
                         setState(() {
                           _searchQuery = '';
                         });
-                      },
+                      }),
                     )
                   : null,
               enabledBorder: OutlineInputBorder(
@@ -263,7 +264,7 @@ class _SpeciesRow extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         borderRadius: BorderRadius.circular(3),
         splashColor: t.amber.withValues(alpha: 0.15),
         highlightColor: t.amber.withValues(alpha: 0.06),

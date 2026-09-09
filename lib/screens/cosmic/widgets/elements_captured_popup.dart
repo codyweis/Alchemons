@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 
@@ -28,7 +29,7 @@ class ElementsCapturedPopup extends StatelessWidget {
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return GestureDetector(
-      onTap: onDismiss,
+      onTap: context.soundAction(onDismiss),
       child: Container(
         color: Colors.black.withValues(alpha: 0.72),
         alignment: Alignment.center,
@@ -141,7 +142,7 @@ class ElementsCapturedPopup extends StatelessWidget {
 
                 const SizedBox(height: 20),
                 GestureDetector(
-                  onTap: onDismiss,
+                  onTap: context.soundAction(onDismiss),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(

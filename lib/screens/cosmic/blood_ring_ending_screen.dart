@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -201,10 +202,10 @@ class _BloodRingStoryScenePageState extends State<BloodRingStoryScenePage>
       backgroundColor: const Color(0xFF050505),
       body: SafeArea(
         child: GestureDetector(
-          onTap: () {
+          onTap: context.soundAction(() {
             if (_index == 0 && !_introDone) return;
             _next();
-          },
+          }),
           child: Stack(
             children: [
               Container(
@@ -818,7 +819,7 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
           final tetherAngle = atan2(tetherDy, tetherDx);
 
           return GestureDetector(
-            onTap: _jump,
+            onTap: context.soundAction(_jump),
             behavior: HitTestBehavior.opaque,
             child: Transform.translate(
               offset: Offset(cameraShakeX, cameraShakeY),
@@ -1098,7 +1099,9 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
                               ? 0.4
                               : 1.0,
                           child: GestureDetector(
-                            onTap: _activateOfferingAbility,
+                            onTap: context.soundAction(
+                              _activateOfferingAbility,
+                            ),
                             child: SizedBox(
                               width: 58,
                               height: 58,

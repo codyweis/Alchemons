@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -167,7 +168,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
               ? 'Achievements, $ready rewards ready'
               : 'Achievements, $done of $total collected',
           child: GestureDetector(
-            onTap: widget.enabled ? open : null,
+            onTap: context.soundAction(widget.enabled ? open : null),
             behavior: HitTestBehavior.opaque,
             child: Opacity(
               opacity: widget.enabled ? 1 : 0.4,
@@ -307,7 +308,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
       tooltip: count > 0
           ? 'Achievements · $count rewards ready'
           : 'Achievements',
-      onPressed: widget.enabled ? open : null,
+      onPressed: context.soundAction(widget.enabled ? open : null),
       icon: icon,
     );
   }

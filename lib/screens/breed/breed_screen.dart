@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // screens/breed/breed_screen.dart
 import 'dart:math' as math;
 
@@ -150,7 +151,9 @@ class _BreedScreenState extends State<BreedScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    onPressed: context.soundAction(
+                      () => Navigator.of(dialogContext).pop(),
+                    ),
                     child: Text(
                       'Got it',
                       style: TextStyle(
@@ -385,7 +388,7 @@ class _FuseModeToggleState extends State<_FuseModeToggle>
           onTapDown: (_) => _press.forward(),
           onTapCancel: () => _press.reverse(),
           onTapUp: (_) => _press.reverse(),
-          onTap: _handleTap,
+          onTap: context.soundAction(_handleTap),
           child: Transform.scale(
             scale: scale,
             child: AnimatedContainer(

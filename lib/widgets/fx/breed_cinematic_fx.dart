@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -1332,7 +1333,7 @@ class _SkipButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           // The hatching cinematic's chrome, to the pixel.

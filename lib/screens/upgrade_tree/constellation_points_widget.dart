@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/constellation_points_widget.dart
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/navigation/world_transition.dart';
@@ -64,10 +65,10 @@ class ConstellationPointsWidget extends StatelessWidget {
         final points = snapshot.data ?? 0;
 
         return GestureDetector(
-          onTap: () {
+          onTap: context.soundAction(() {
             HapticFeedback.lightImpact();
             VoidPortal.push(context, page: const ConstellationScreen());
-          },
+          }),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: Stack(

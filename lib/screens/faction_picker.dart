@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/faction_picker.dart
 
 import 'package:alchemons/database/alchemons_db.dart';
@@ -643,7 +644,7 @@ class _OrbNavigation extends StatelessWidget {
         final isActive = index == currentIndex;
 
         return GestureDetector(
-          onTap: () => onTap(index),
+          onTap: context.soundAction(() => onTap(index)),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             margin: const EdgeInsets.symmetric(horizontal: 10),
@@ -724,7 +725,7 @@ class _ConfirmButton extends StatelessWidget {
         : null;
 
     return GestureDetector(
-      onTap: onPressed,
+      onTap: context.soundAction(onPressed),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
         decoration: BoxDecoration(

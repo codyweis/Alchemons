@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // ============================================================================
 // Expanded operation section
 // ============================================================================
@@ -87,7 +88,7 @@ class OperationSection extends StatelessWidget {
               _StatChip(label: 'Available', value: open, theme: theme),
               const Spacer(),
               GestureDetector(
-                onTap: onOpen,
+                onTap: context.soundAction(onOpen),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,

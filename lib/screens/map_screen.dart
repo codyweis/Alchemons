@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/screens/wilderness_peek_dialog.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -378,7 +379,7 @@ class _MapScreenState extends State<MapScreen>
               ),
               const SizedBox(height: 16),
               GestureDetector(
-                onTap: () => Navigator.pop(context),
+                onTap: context.soundAction(() => Navigator.pop(context)),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -581,7 +582,7 @@ class _HeaderBar extends StatelessWidget {
 
               // info
               GestureDetector(
-                onTap: onInfo,
+                onTap: context.soundAction(onInfo),
                 child: SizedBox(
                   width: 40,
                   height: 40,
@@ -773,7 +774,7 @@ class _ExpeditionMap extends StatelessWidget {
             top: dy - 70,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => onSelectRegion(biomeId, scene),
+              onTap: context.soundAction(() => onSelectRegion(biomeId, scene)),
               onLongPress: () {
                 if (onPeekRegion != null) {
                   HapticFeedback.selectionClick();
@@ -1087,7 +1088,7 @@ class _ArcaneVortexState extends State<_ArcaneVortex>
       top: cy,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
+        onTap: context.soundAction(widget.onTap),
         onLongPress: widget.onLongPress == null
             ? null
             : () {
@@ -1323,7 +1324,7 @@ class _InfoDialog extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             GestureDetector(
-              onTap: () => Navigator.pop(context),
+              onTap: context.soundAction(() => Navigator.pop(context)),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 10),

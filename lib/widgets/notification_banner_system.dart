@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math' as math;
 
 import 'package:alchemons/constants/design_tokens.dart';
@@ -420,10 +421,10 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
                     const SizedBox(width: 8),
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () {
+                      onTap: context.soundAction(() {
                         HapticFeedback.lightImpact();
                         widget.onDismiss();
-                      },
+                      }),
                       child: SizedBox(
                         width: AppTap.min,
                         height: AppTap.min,
@@ -473,7 +474,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
         duration: const Duration(milliseconds: 250),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () {
+          onTap: context.soundAction(() {
             if (_isDragging) return;
             HapticFeedback.mediumImpact();
             if (widget.isExpanded) {
@@ -481,7 +482,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
             } else {
               widget.onExpand?.call();
             }
-          },
+          }),
           onHorizontalDragStart: _handleDragStart,
           onHorizontalDragUpdate: _handleDragUpdate,
           onHorizontalDragEnd: _handleDragEnd,

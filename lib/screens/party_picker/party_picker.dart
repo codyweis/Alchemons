@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/party_picker/party_picker.dart
 //
 // SQUAD PICKER — Scorched Forge header + squad panel,
@@ -197,7 +198,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => Navigator.of(ctx).pop(),
+            onTap: ctx.soundAction(() => Navigator.of(ctx).pop()),
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -241,7 +242,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
           ),
           // Teams button
           GestureDetector(
-            onTap: () async {
+            onTap: ctx.soundAction(() async {
               await showDialog<void>(
                 context: ctx,
                 builder: (_) => TeamBuilderDialog(
@@ -253,7 +254,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                       .toList(),
                 ),
               );
-            },
+            }),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -282,7 +283,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
           const SizedBox(width: 8),
           // Clear filters button (X) — highlighted when filters are active
           GestureDetector(
-            onTap: () => setState(() => _clearVersion++),
+            onTap: ctx.soundAction(() => setState(() => _clearVersion++)),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -366,8 +367,9 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                       const SizedBox(width: 8),
                       if (count > 0)
                         GestureDetector(
-                          onTap: () =>
-                              ctx.read<SelectedPartyNotifier>().clear(),
+                          onTap: ctx.soundAction(
+                            () => ctx.read<SelectedPartyNotifier>().clear(),
+                          ),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -476,9 +478,11 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     final species = isFilled ? repo.getCreatureById(instance.baseId) : null;
 
     return GestureDetector(
-      onTap: isFilled
-          ? () => context.read<SelectedPartyNotifier>().toggle(instanceId!)
-          : null,
+      onTap: context.soundAction(
+        isFilled
+            ? () => context.read<SelectedPartyNotifier>().toggle(instanceId!)
+            : null,
+      ),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         height: 58,
@@ -566,22 +570,27 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
         border: Border(top: BorderSide(color: _C.borderDim)),
       ),
       child: GestureDetector(
-        onTap: canDeploy
-            ? () async {
-                if (widget.showDeployConfirm && ctx.mounted) {
-                  final confirmed = await showDialog<bool>(
-                    context: ctx,
-                    barrierDismissible: false,
-                    builder: (_) => DeployConfirmDialog(theme: theme),
-                  );
-                  if (confirmed != true) return;
-                }
+        onTap: ctx.soundAction(
+          canDeploy
+              ? () async {
+                  if (widget.showDeployConfirm && ctx.mounted) {
+                    final confirmed = await showDialog<bool>(
+                      context: ctx,
+                      barrierDismissible: false,
+                      builder: (_) => DeployConfirmDialog(theme: theme),
+                    );
+                    if (confirmed != true) return;
+                  }
 
-                if (ctx.mounted) {
-                  Navigator.pop(ctx, ctx.read<SelectedPartyNotifier>().members);
+                  if (ctx.mounted) {
+                    Navigator.pop(
+                      ctx,
+                      ctx.read<SelectedPartyNotifier>().members,
+                    );
+                  }
                 }
-              }
-            : null,
+              : null,
+        ),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: double.infinity,

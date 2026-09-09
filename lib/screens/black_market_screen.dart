@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/black_market_screen.dart
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/widgets/element_resource_glyph.dart';
@@ -494,6 +495,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     final available = currencies[costType] ?? 0;
 
     if (available < vial.price!) {
+      if (mounted) context.sound(SoundCue.uiDenied);
       _showToast(
         'Not enough $costType',
         icon: AppIcons.warning_rounded,
@@ -536,6 +538,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
 
     // Mark 'purchased' so the UI disables the card
     await marketService.purchaseOffer(vial.id);
+    if (mounted) context.sound(SoundCue.purchaseSuccess);
 
     if (!mounted) return false;
     HapticFeedback.heavyImpact();
@@ -629,17 +632,19 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(
-                            onPressed: isPurchased
-                                ? null
-                                : () async {
-                                    final purchased = await _buyVial(
-                                      vial,
-                                      marketService,
-                                    );
-                                    if (purchased && dialogContext.mounted) {
-                                      Navigator.of(dialogContext).pop();
-                                    }
-                                  },
+                            onPressed: context.soundAction(
+                              isPurchased
+                                  ? null
+                                  : () async {
+                                      final purchased = await _buyVial(
+                                        vial,
+                                        marketService,
+                                      );
+                                      if (purchased && dialogContext.mounted) {
+                                        Navigator.of(dialogContext).pop();
+                                      }
+                                    },
+                            ),
                             style: FilledButton.styleFrom(
                               backgroundColor: isPurchased
                                   ? Colors.green.withValues(alpha: 0.75)
@@ -689,6 +694,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     for (final entry in offer.cost.entries) {
       final available = currencies[entry.key] ?? 0;
       if (available < entry.value) {
+        if (mounted) context.sound(SoundCue.uiDenied);
         _showToast(
           'Not enough ${entry.key}',
           icon: AppIcons.warning_rounded,
@@ -734,6 +740,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
 
     // Mark as purchased
     await marketService.purchaseOffer(offer.id);
+    if (mounted) context.sound(SoundCue.purchaseSuccess);
 
     if (!mounted) return;
     HapticFeedback.heavyImpact();
@@ -779,7 +786,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         children: [
           // Back button
           GestureDetector(
-            onTap: () => Navigator.pop(context),
+            onTap: context.soundAction(() => Navigator.pop(context)),
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -963,13 +970,13 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     ),
                   ),
                   GestureDetector(
-                    onTap: () {
+                    onTap: context.soundAction(() {
                       setState(() {
                         _selectedResources.clear();
                         _recalculateResourceTotal();
                       });
                       HapticFeedback.lightImpact();
-                    },
+                    }),
                     behavior: HitTestBehavior.opaque,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -1132,14 +1139,14 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                 ),
                 const Spacer(),
                 GestureDetector(
-                  onTap: () {
+                  onTap: context.soundAction(() {
                     setState(() {
                       _selectedForSale.clear();
                       _totalValue = 0;
                       _totalGoldValue = 0;
                     });
                     HapticFeedback.lightImpact();
-                  },
+                  }),
                   child: Text(
                     'Clear',
                     style: TextStyle(
@@ -1274,16 +1281,18 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
           children: [
             // Browse button
             GestureDetector(
-              onTap: !canInteract
-                  ? () {
-                      _showToast(
-                        'Unlock "Valuable Resources" in the Extraction tree to sell resources.',
-                        icon: AppIcons.lock_rounded,
-                        color: Colors.deepPurple,
-                      );
-                      HapticFeedback.mediumImpact();
-                    }
-                  : _showResourceBrowser,
+              onTap: context.soundAction(
+                !canInteract
+                    ? () {
+                        _showToast(
+                          'Unlock "Valuable Resources" in the Extraction tree to sell resources.',
+                          icon: AppIcons.lock_rounded,
+                          color: Colors.deepPurple,
+                        );
+                        HapticFeedback.mediumImpact();
+                      }
+                    : _showResourceBrowser,
+              ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
@@ -1325,16 +1334,18 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             if (hasSelection) ...[
               const SizedBox(height: 10),
               GestureDetector(
-                onTap: !canInteract
-                    ? () {
-                        _showToast(
-                          'Unlock "Valuable Resources" in the Extraction tree to sell resources.',
-                          icon: AppIcons.lock_rounded,
-                          color: Colors.deepPurple,
-                        );
-                        HapticFeedback.mediumImpact();
-                      }
-                    : _confirmResourceSale,
+                onTap: context.soundAction(
+                  !canInteract
+                      ? () {
+                          _showToast(
+                            'Unlock "Valuable Resources" in the Extraction tree to sell resources.',
+                            icon: AppIcons.lock_rounded,
+                            color: Colors.deepPurple,
+                          );
+                          HapticFeedback.mediumImpact();
+                        }
+                      : _confirmResourceSale,
+                ),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1472,7 +1483,9 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => Navigator.pop(context),
+                        onTap: context.soundAction(
+                          () => Navigator.pop(context),
+                        ),
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
@@ -1505,24 +1518,26 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: GestureDetector(
-                          onTap: balance > 0
-                              ? () {
-                                  setState(() {
-                                    if (alreadySelected) {
-                                      _selectedResources.remove(
-                                        resource.settingsKey,
-                                      );
-                                    } else {
-                                      _selectedResources[resource
-                                          .settingsKey] = (balance * 0.1)
-                                          .ceil(); // Default to 10% of balance
-                                    }
-                                    _recalculateResourceTotal();
-                                  });
-                                  HapticFeedback.selectionClick();
-                                  Navigator.pop(context);
-                                }
-                              : null,
+                          onTap: context.soundAction(
+                            balance > 0
+                                ? () {
+                                    setState(() {
+                                      if (alreadySelected) {
+                                        _selectedResources.remove(
+                                          resource.settingsKey,
+                                        );
+                                      } else {
+                                        _selectedResources[resource
+                                            .settingsKey] = (balance * 0.1)
+                                            .ceil(); // Default to 10% of balance
+                                      }
+                                      _recalculateResourceTotal();
+                                    });
+                                    HapticFeedback.selectionClick();
+                                    Navigator.pop(context);
+                                  }
+                                : null,
+                          ),
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
@@ -2055,7 +2070,7 @@ class _CompactCreatureRow extends StatelessWidget {
 
           // Remove button
           GestureDetector(
-            onTap: onRemove,
+            onTap: context.soundAction(onRemove),
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
@@ -2166,7 +2181,7 @@ class _CompactResourceRow extends StatelessWidget {
 
               // Remove button
               GestureDetector(
-                onTap: onRemove,
+                onTap: context.soundAction(onRemove),
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -2284,7 +2299,9 @@ class _SaleConfirmationDialog extends StatelessWidget {
               children: [
                 Expanded(
                   child: TextButton(
-                    onPressed: () => Navigator.pop(context, false),
+                    onPressed: context.soundAction(
+                      () => Navigator.pop(context, false),
+                    ),
                     style: TextButton.styleFrom(
                       backgroundColor: Colors.white.withValues(alpha: 0.1),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -2304,7 +2321,9 @@ class _SaleConfirmationDialog extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextButton(
-                    onPressed: () => Navigator.pop(context, true),
+                    onPressed: context.soundAction(
+                      () => Navigator.pop(context, true),
+                    ),
                     style: TextButton.styleFrom(
                       backgroundColor: Colors.green.shade700,
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -2392,7 +2411,9 @@ class _ResourceSaleConfirmationDialog extends StatelessWidget {
               children: [
                 Expanded(
                   child: TextButton(
-                    onPressed: () => Navigator.pop(context, false),
+                    onPressed: context.soundAction(
+                      () => Navigator.pop(context, false),
+                    ),
                     style: TextButton.styleFrom(
                       backgroundColor: Colors.white.withValues(alpha: 0.1),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -2412,7 +2433,9 @@ class _ResourceSaleConfirmationDialog extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextButton(
-                    onPressed: () => Navigator.pop(context, true),
+                    onPressed: context.soundAction(
+                      () => Navigator.pop(context, true),
+                    ),
                     style: TextButton.styleFrom(
                       backgroundColor: Colors.green.shade700,
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -2455,7 +2478,7 @@ class _TabButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -2513,7 +2536,7 @@ class _SubTabButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -2710,7 +2733,7 @@ class _OfferCard extends StatelessWidget {
                 // Buy button
                 if (!isPurchased)
                   GestureDetector(
-                    onTap: onPurchase,
+                    onTap: context.soundAction(onPurchase),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
@@ -2853,7 +2876,9 @@ class _PurchaseConfirmationDialog extends StatelessWidget {
               children: [
                 Expanded(
                   child: TextButton(
-                    onPressed: () => Navigator.pop(context, false),
+                    onPressed: context.soundAction(
+                      () => Navigator.pop(context, false),
+                    ),
                     style: TextButton.styleFrom(
                       backgroundColor: Colors.white.withValues(alpha: 0.1),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -2873,7 +2898,9 @@ class _PurchaseConfirmationDialog extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextButton(
-                    onPressed: () => Navigator.pop(context, true),
+                    onPressed: context.soundAction(
+                      () => Navigator.pop(context, true),
+                    ),
                     style: TextButton.styleFrom(
                       backgroundColor: Colors.green.shade700,
                       padding: const EdgeInsets.symmetric(vertical: 12),

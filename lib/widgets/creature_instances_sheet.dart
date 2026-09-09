@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/instance_widgets/instances_sheet.dart
 //
 // REDESIGNED INSTANCES SHEET
@@ -588,10 +589,10 @@ class _InstancesSheetState extends State<InstancesSheet> {
           ),
           if (_searchText.isNotEmpty)
             GestureDetector(
-              onTap: () {
+              onTap: context.soundAction(() {
                 _searchController.clear();
                 _mutate(() => _searchText = '');
-              },
+              }),
               child: Padding(
                 padding: EdgeInsets.only(right: 8),
                 child: Icon(
@@ -622,16 +623,18 @@ class _InstancesSheetState extends State<InstancesSheet> {
     };
 
     return GestureDetector(
-      onTap: () => _mutate(() {
-        _detailMode = switch (_detailMode) {
-          InstanceDetailMode.stats => InstanceDetailMode.genetics,
-          InstanceDetailMode.genetics => InstanceDetailMode.stats,
-          // This sheet never offers Enhancement; the arm exists only to keep
-          // the switch total.
-          InstanceDetailMode.enhancement => InstanceDetailMode.genetics,
-          InstanceDetailMode.info => InstanceDetailMode.genetics,
-        };
-      }),
+      onTap: context.soundAction(
+        () => _mutate(() {
+          _detailMode = switch (_detailMode) {
+            InstanceDetailMode.stats => InstanceDetailMode.genetics,
+            InstanceDetailMode.genetics => InstanceDetailMode.stats,
+            // This sheet never offers Enhancement; the arm exists only to keep
+            // the switch total.
+            InstanceDetailMode.enhancement => InstanceDetailMode.genetics,
+            InstanceDetailMode.info => InstanceDetailMode.genetics,
+          };
+        }),
+      ),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         height: 36,
@@ -672,7 +675,9 @@ class _InstancesSheetState extends State<InstancesSheet> {
 
   Widget _buildFiltersToggle(bool hasFiltersActive) {
     return GestureDetector(
-      onTap: () => _mutate(() => _filtersOpen = !_filtersOpen),
+      onTap: context.soundAction(
+        () => _mutate(() => _filtersOpen = !_filtersOpen),
+      ),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         height: 36,

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/faction_util.dart'; // FactionTheme
 import 'package:alchemons/widgets/app_icons.dart';
@@ -81,7 +82,9 @@ class BottomSheetShell extends StatelessWidget {
                         const SizedBox(width: 8),
                       ],
                       GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
+                        onTap: context.soundAction(
+                          () => Navigator.of(context).pop(),
+                        ),
                         child: Container(
                           padding: const EdgeInsets.all(8),
 

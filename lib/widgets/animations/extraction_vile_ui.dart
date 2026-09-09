@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/shop/extraction_vial_ui.dart
 //
 // Extraction Vial UI — rarity + elemental-driven animations
@@ -155,7 +156,7 @@ class ExtractionVialCard extends StatelessWidget {
     final borderRadius = BorderRadius.circular(compact ? 12 : 16);
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeOut,
@@ -413,10 +414,10 @@ class _AddButtonState extends State<_AddButton>
             borderRadius: BorderRadius.circular(10),
           ),
         ),
-        onPressed: () {
+        onPressed: context.soundAction(() {
           _ctrl.forward(from: 0);
           widget.onPressed();
-        },
+        }),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

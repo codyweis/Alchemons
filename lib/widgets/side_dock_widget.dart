@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -209,7 +210,7 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
 
     Widget button = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: widget.onTap,
+      onTap: context.soundAction(widget.onTap),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -337,7 +338,7 @@ class _MysticSwirlButtonState extends State<MysticSwirlButton>
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: widget.onTap,
+      onTap: context.soundAction(widget.onTap),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

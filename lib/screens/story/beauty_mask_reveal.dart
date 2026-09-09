@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
@@ -152,9 +153,9 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
                               foregroundColor: const Color(0xFFE4C16A),
                               disabledForegroundColor: Colors.white54,
                             ),
-                            onPressed: _dissolve.isAnimating || _saving
-                                ? null
-                                : advance,
+                            onPressed: context.soundAction(
+                              _dissolve.isAnimating || _saving ? null : advance,
+                            ),
                             child: Text(
                               _page == 0
                                   ? 'Look closer'

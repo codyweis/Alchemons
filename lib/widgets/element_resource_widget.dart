@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // widgets/element_resource_widget.dart — CLEAN V1 (solid, gamey, less glass)
 // Drop-in replacement for ResourceCollectionWidget
 // - Keeps expand/contract animation, removes blur + glass, uses solid cards
@@ -94,7 +95,7 @@ class _ResourceCollectionWidgetState extends State<ResourceCollectionWidget>
         const compactSpacing = 8.0;
         return RepaintBoundary(
           child: GestureDetector(
-            onTap: _toggle,
+            onTap: context.soundAction(_toggle),
             behavior: HitTestBehavior.opaque,
             child: LayoutBuilder(
               builder: (context, constraints) {

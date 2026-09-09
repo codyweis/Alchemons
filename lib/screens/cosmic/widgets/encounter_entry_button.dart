@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
@@ -23,7 +24,7 @@ class CosmicEncounterEntryButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Container(
           constraints: const BoxConstraints(minWidth: 72, minHeight: 56),

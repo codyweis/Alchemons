@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/cosmic/widgets/elemental_cache_prompt.dart
 //
 // The prompt that appears when the ship parks at a sealed elemental cache.
@@ -63,7 +64,7 @@ class _ElementalCachePromptState extends State<ElementalCachePrompt> {
     if (!_ready) return const SizedBox.shrink();
 
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: context.soundAction(widget.onTap),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),

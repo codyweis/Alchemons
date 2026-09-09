@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/story/story_intro_screen.dart
 
 import 'dart:async';
@@ -129,7 +130,9 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
     return Scaffold(
       backgroundColor: currentPage.backgroundColor ?? Colors.black,
       body: GestureDetector(
-        onTap: isLoadingPage ? null : _nextPage, // ← Disabled on loading
+        onTap: context.soundAction(
+          isLoadingPage ? null : _nextPage,
+        ), // ← Disabled on loading
         onLongPressStart: isLoadingPage
             ? null
             : (_) => _onSkipStart(), // ← Disabled

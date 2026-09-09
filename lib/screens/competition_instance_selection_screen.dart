@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -161,7 +162,9 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(AppIcons.arrow_back_rounded),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: context.soundAction(
+            () => Navigator.of(context).maybePop(),
+          ),
         ),
         title: Text('${widget.biome.name} • Select Creature'),
         actions: [
@@ -383,7 +386,7 @@ class _StatsCard extends StatelessWidget {
     }
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(

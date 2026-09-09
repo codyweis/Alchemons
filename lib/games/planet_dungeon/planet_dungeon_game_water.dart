@@ -254,6 +254,7 @@ extension MirrorTide on PlanetDungeonGame {
 
   void _setTide(int level) {
     if (level == tideLevel) return;
+    onSound?.call(SoundCue.dungeonSwitch);
     tideLevel = level.clamp(0, 2);
     _setHint('The temple groans, the ${_tideName(tideLevel)} water comes', 3.2);
     _spawnAlchemyBurst(
@@ -1092,6 +1093,7 @@ extension MirrorTide on PlanetDungeonGame {
         return true;
       }
       openedSeals.add(seal.id);
+      onSound?.call(SoundCue.dungeonGateOpen);
       _spawnAlchemyBurst(
         seal.position,
         producedElement: 'Water',

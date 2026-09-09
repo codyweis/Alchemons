@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -116,6 +117,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     required bool isDisabled,
   }) async {
     if (isDisabled) {
+      context.sound(SoundCue.uiDenied);
       try {
         HapticFeedback.heavyImpact();
 
@@ -358,7 +360,9 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
         return Transform.translate(
           offset: Offset(0, verticalOffset),
           child: GestureDetector(
-            onTap: () => _handleTap(section, isDisabled: isDisabled),
+            onTap: context.soundAction(
+              () => _handleTap(section, isDisabled: isDisabled),
+            ),
             child: SizedBox(
               width: size,
               height: size,

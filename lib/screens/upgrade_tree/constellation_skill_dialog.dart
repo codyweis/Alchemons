@@ -725,7 +725,7 @@ class _DialogButton extends StatelessWidget {
       enabled: live,
       label: label,
       child: GestureDetector(
-        onTap: live ? onTap : null,
+        onTap: context.soundAction(live ? onTap : null),
         child: Container(
           width: double.infinity,
           // 44pt tall: the old buttons were 11pt padding around a 12pt label,

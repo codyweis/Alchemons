@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -113,7 +114,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                 child: Row(
                   children: [
                     GestureDetector(
-                      onTap: widget.onClose,
+                      onTap: context.soundAction(widget.onClose),
                       child: Container(
                         width: 34,
                         height: 34,
@@ -217,9 +218,11 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
                               final col = _invColor(e.key);
                               final isSelected = _selectedKey == e.key;
                               return GestureDetector(
-                                onTap: () => setState(() {
-                                  _selectedKey = isSelected ? null : e.key;
-                                }),
+                                onTap: context.soundAction(
+                                  () => setState(() {
+                                    _selectedKey = isSelected ? null : e.key;
+                                  }),
+                                ),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 180),
                                   margin: const EdgeInsets.only(bottom: 8),

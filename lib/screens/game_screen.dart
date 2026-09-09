@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -108,14 +109,14 @@ class _GameScreenState extends State<GameScreen>
                 // build button to lead to arena
                 child: Center(
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: context.soundAction(() {
                       // Navigator.push(
                       //   context,
                       //   MaterialPageRoute(
                       //     builder: (_) => const TeamPrepScreen(),
                       //   ),
                       // );
-                    },
+                    }),
                     child: const Text('Warming up'),
                   ),
                 ),

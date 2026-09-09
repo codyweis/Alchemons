@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/breeding_milestone_screen.dart
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:alchemons/services/constellation_service.dart';
@@ -125,7 +126,7 @@ class _BreedingMilestoneScreenState extends State<BreedingMilestoneScreen>
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: Icon(AppIcons.arrow_back, color: t.textPrimary),
-          onPressed: () => Navigator.pop(context),
+          onPressed: context.soundAction(() => Navigator.pop(context)),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

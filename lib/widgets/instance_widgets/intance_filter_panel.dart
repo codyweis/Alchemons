@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/instance_widgets/intance_filter_panel.dart
 //
 // REDESIGNED INSTANCE FILTERS PANEL
@@ -71,7 +72,7 @@ class _BracketChip extends StatelessWidget {
     );
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: active || showInactiveFrame
           ? CustomPaint(
@@ -596,7 +597,9 @@ Future<String?> pickFromList(
                     return Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: GestureDetector(
-                        onTap: () => Navigator.pop(ctx, '_clear_'),
+                        onTap: context.soundAction(
+                          () => Navigator.pop(ctx, '_clear_'),
+                        ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -641,7 +644,9 @@ Future<String?> pickFromList(
                   final isSelected = entry.key == current;
 
                   return GestureDetector(
-                    onTap: () => Navigator.pop(ctx, entry.key),
+                    onTap: context.soundAction(
+                      () => Navigator.pop(ctx, entry.key),
+                    ),
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 6),
                       padding: const EdgeInsets.symmetric(

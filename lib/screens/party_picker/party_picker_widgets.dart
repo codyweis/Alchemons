@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -41,10 +42,10 @@ class StageHeader extends StatelessWidget {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () {
+            onTap: context.soundAction(() {
               HapticFeedback.lightImpact();
               Navigator.of(context).maybePop();
-            },
+            }),
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -84,14 +85,14 @@ class StageHeader extends StatelessWidget {
           ),
           // Build teams button (replaces live count badge)
           GestureDetector(
-            onTap: () async {
+            onTap: context.soundAction(() async {
               HapticFeedback.lightImpact();
               await showDialog<void>(
                 context: context,
                 builder: (_) =>
                     TeamBuilderDialog(theme: theme, storageKey: teamStorageKey),
               );
-            },
+            }),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -120,10 +121,10 @@ class StageHeader extends StatelessWidget {
           if (onClear != null) ...[
             const SizedBox(width: 8),
             GestureDetector(
-              onTap: () {
+              onTap: context.soundAction(() {
                 HapticFeedback.lightImpact();
                 onClear!();
-              },
+              }),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -527,7 +528,7 @@ class _DeployButtonState extends State<DeployButton>
           onTapDown: canTap ? (_) => _pressCtrl.forward() : null,
           onTapUp: canTap ? (_) => _pressCtrl.reverse() : null,
           onTapCancel: canTap ? () => _pressCtrl.reverse() : null,
-          onTap: canTap ? widget.onTap : null,
+          onTap: context.soundAction(canTap ? widget.onTap : null),
           child: Transform.scale(
             scale: 1.0 - (_pressCtrl.value * 0.05),
             child: Container(

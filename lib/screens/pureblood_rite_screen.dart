@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -1343,7 +1344,7 @@ class _HkPathNode extends StatelessWidget {
 
     if (onTap == null) return node;
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: node,
     );
@@ -1457,7 +1458,7 @@ class _ChallengePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: _HkPanel(
         accentColor: _kBlood,
@@ -1663,7 +1664,7 @@ class _HkStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         height: 70,
@@ -1975,7 +1976,7 @@ class _WideSacrificeButton extends StatelessWidget {
     final textColor = enabled ? _kIvory : _kIvoryMuted;
 
     return GestureDetector(
-      onTap: enabled && !busy ? onTap : null,
+      onTap: context.soundAction(enabled && !busy ? onTap : null),
       child: CustomPaint(
         painter: _CornerBracketPainter(
           color: borderColor,
@@ -2012,7 +2013,7 @@ class _ChamberActionButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton(
-        onPressed: onTap,
+        onPressed: context.soundAction(onTap),
         style: OutlinedButton.styleFrom(
           foregroundColor: _kIvory,
           side: BorderSide(
@@ -2233,7 +2234,7 @@ class _NextRiteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: CustomPaint(
         painter: _CornerBracketPainter(
@@ -2666,7 +2667,7 @@ class _WeeklyChallengePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final accentColor = isCompleted ? _kSoulGold : _kSoulBlue;
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: _HkPanel(
         accentColor: accentColor,
@@ -3755,7 +3756,7 @@ class _HkBackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: SizedBox(
         width: 40,
         height: 40,
@@ -3785,7 +3786,7 @@ class _RiteHeaderAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: ConstrainedBox(
         constraints: const BoxConstraints.tightFor(width: 58, height: 58),
         child: CustomPaint(
@@ -3817,7 +3818,7 @@ class _HkBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: _CornerBracketPainter(
           color: primary

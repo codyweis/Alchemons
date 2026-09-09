@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/mystic_altar/boss_altar_detail_screen.dart
 //
 // Individual boss ritual screen.
@@ -1939,7 +1940,9 @@ class _BottomBar extends StatelessWidget {
                   // Place / filled button
                   Expanded(
                     child: GestureDetector(
-                      onTap: selectedFilled ? null : onPlace,
+                      onTap: context.soundAction(
+                        selectedFilled ? null : onPlace,
+                      ),
                       child: _BracketActionButton(
                         label: selectedFilled
                             ? '$selectedName placed'
@@ -1983,12 +1986,14 @@ class _BottomBar extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: GestureDetector(
-                onTap: canSummon
-                    ? () {
-                        HapticFeedback.mediumImpact();
-                        onSummon();
-                      }
-                    : null,
+                onTap: context.soundAction(
+                  canSummon
+                      ? () {
+                          HapticFeedback.mediumImpact();
+                          onSummon();
+                        }
+                      : null,
+                ),
                 child: Transform.scale(
                   scale: canSummon ? 1.0 + pulse.value * 0.018 : 1.0,
                   child: CustomPaint(
@@ -2147,7 +2152,7 @@ class _NavBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
+    onTap: context.soundAction(onTap),
     child: SizedBox(
       width: 40,
       height: 40,
@@ -2175,7 +2180,7 @@ class _BackBracketButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: SizedBox(
         width: 40,
         height: 40,
@@ -2504,7 +2509,7 @@ class _SpecimenPickTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: _CornerBracketPainter(
           color: color.withValues(alpha: 0.26),
@@ -2778,10 +2783,10 @@ class _Btn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: () {
+    onTap: context.soundAction(() {
       HapticFeedback.lightImpact();
       onTap();
-    },
+    }),
     child: CustomPaint(
       painter: _CornerBracketPainter(
         color: color.withValues(alpha: primary ? 0.72 : 0.34),

@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/scene_ambience.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/audio/audio.dart';
 // lib/games/planet_dungeon/planet_dungeon_screen.dart
@@ -322,6 +323,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   void initState() {
     super.initState();
     _soundController = context.audio;
+    context.sound(SoundCue.cosmicPlanetEnter, owner: this);
     _showBeautyMask = widget.revealBeautyMask;
     _flyCtrl = AnimationController(vsync: this, duration: _kStarFlightDuration)
       ..addStatusListener((s) {
@@ -884,7 +886,12 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => SceneAmbience(
+    cue: AmbienceCue.forDungeon(widget.element),
+    child: _buildScene(context),
+  );
+
+  Widget _buildScene(BuildContext context) {
     final game = _game;
     if (!_ready || game == null) {
       return Scaffold(backgroundColor: _C.bg, body: _descentIntro());
@@ -912,10 +919,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                     ? Center(
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () {
+                          onTap: context.soundAction(() {
                             HapticFeedback.selectionClick();
                             game.cancelPourWatch();
-                          },
+                          }),
                           // The house chrome at size: hard corners, the same
                           // bracket painter every other control wears, and
                           // the monospace caps. It was a rounded Material
@@ -1008,7 +1015,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                     valueListenable: _tick,
                     builder: (_, __, ___) => GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () => setState(() => _showFullMap = true),
+                      onTap: context.soundAction(
+                        () => setState(() => _showFullMap = true),
+                      ),
                       child: DungeonMiniMap(game: game, boxSize: 106),
                     ),
                   ),
@@ -1478,7 +1487,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     return Positioned.fill(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => setState(() => _showFullMap = false),
+        onTap: context.soundAction(() => setState(() => _showFullMap = false)),
         child: Container(
           color: Colors.black.withValues(alpha: 0.48),
           child: SafeArea(
@@ -1780,7 +1789,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         // sizes to that name instead of sitting in a fixed 154px box.
         if (game.carriedCloudType != null) ...[
           GestureDetector(
-            onTap: game.dropCarriedCloud,
+            onTap: context.soundAction(game.dropCarriedCloud),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
@@ -1898,7 +1907,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       label: semantics,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         child: SizedBox(
           width: box,
           height: box,
@@ -2063,7 +2072,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     final down = !c.alive;
     final ec = elementColor(c.member.element);
     return GestureDetector(
-      onTap: () => game.setActive(i),
+      onTap: context.soundAction(() => game.setActive(i)),
       child: Container(
         width: 52,
         height: 60,
@@ -2155,7 +2164,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       button: true,
       label: semantics,
       child: GestureDetector(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         // The box is 36 but the tap target is padded out to 44, so a
         // slimmer button is not a harder one to hit.
         behavior: HitTestBehavior.opaque,
@@ -2208,7 +2217,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     IconData? icon,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: _HudBracketPainter(
           color: color.withValues(alpha: 0.7),

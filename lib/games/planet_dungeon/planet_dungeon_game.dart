@@ -1253,6 +1253,7 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _reviveCreature(DungeonCreature c) {
+    onSound?.call(SoundCue.dungeonCheckpoint);
     c.respawnTimer = 0;
     c.downHandled = false;
     c.hp = c.maxHp;
@@ -2040,6 +2041,9 @@ class PlanetDungeonGame extends FlameGame {
   static const double _speed = 187.5;
   static const double _flightSpeedMul = 1.35;
   static const double _radius = 16.0;
+  double _soundStepDistance = 0;
+  bool _soundInHazard = false;
+
   static const double _hazardDps = 60.0;
   static const double _guardianHazardDps = 28.0;
 
@@ -2312,6 +2316,9 @@ class PlanetDungeonGame extends FlameGame {
         '${layout.starName(0)} and ${layout.starName(1)}',
       );
       return;
+    }
+    if (conduitEnergy[id] != double.infinity) {
+      onSound?.call(SoundCue.dungeonSwitch);
     }
     conduitEnergy[id] = double.infinity;
     _conduitMaxEnergy[id] = double.infinity;
@@ -2788,7 +2795,10 @@ class PlanetDungeonGame extends FlameGame {
     final relicFx = _relicFx;
     if (relicFx != null) {
       relicFx.t += dt;
-      if (relicFx.done) _relicFx = null;
+      if (relicFx.done) {
+        onSound?.call(SoundCue.dungeonRelicCollect);
+        _relicFx = null;
+      }
     }
     _ambient.update(dt);
     _skyMood += (_skyMoodTarget - _skyMood) * min(1.0, dt * 1.1);
@@ -2851,6 +2861,23 @@ class PlanetDungeonGame extends FlameGame {
         a.position = _moveDashing(a.position, dir * moveSpeed * 0.8 * dt, room);
       } else {
         a.position = _moveWithCollision(a.position, dir * moveSpeed * dt, room);
+      }
+      if (!flightActive && !airborneWalker) {
+        final travelled = (a.position - beforeStep).distance;
+        _soundStepDistance += travelled;
+        if (_soundStepDistance >= 48) {
+          _soundStepDistance %= 48;
+          final wet =
+              _isTemple &&
+              room.tideZones.any(
+                (z) => _zoneFlooded(z) && z.rect.contains(a.position),
+              );
+          onSound?.call(
+            wet ? SoundCue.dungeonStepWater : SoundCue.dungeonStepStone,
+          );
+        }
+      } else {
+        _soundStepDistance = 0;
       }
       // Steam Star 1: walking into the raised stone SHOVES it (and walking
       // into a stone that cannot move stops you, like any other solid).
@@ -3700,6 +3727,7 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _crackAnvilShell(HiddenCloud sealed, {required bool viaRecipe}) {
+    if (!_anvilShellStruck) onSound?.call(SoundCue.dungeonWallBreak);
     _anvilShellStruck = true;
     _setHint(
       viaRecipe
@@ -9068,6 +9096,11 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _checkHazards(DungeonCreature a, double dt) {
+    final inHazard = currentRoom.hazards.any((h) => h.contains(a.position));
+    if (inHazard && !_soundInHazard) {
+      onSound?.call(SoundCue.dungeonHazardTrigger);
+    }
+    _soundInHazard = inHazard;
     for (final h in currentRoom.hazards) {
       if (h.contains(a.position)) {
         a.hp = max(0, a.hp - _hazardDps * dt); // _handleDowns resolves a KO
@@ -9228,6 +9261,7 @@ class PlanetDungeonGame extends FlameGame {
   void earnStar(int starIndex) {
     if (starIndex < 0 || starIndex > 2) return;
     if (_earnedStars.contains(starIndex)) return;
+    if (starIndex < 2 && !isRaid) onSound?.call(SoundCue.dungeonPuzzleSolved);
     _earnedStars.add(starIndex);
     starMask |= (1 << starIndex);
     lastStarEarnPosition = active?.position ?? currentRoom.bounds.center;

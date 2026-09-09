@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/creatures_screen.dart
 //
 // REDESIGNED CREATURES SCREEN
@@ -296,7 +297,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
               ),
               const SizedBox(height: 18),
               GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
+                onTap: context.soundAction(() => Navigator.of(context).pop()),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -580,7 +581,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                 _RarityPill(rarity: 'CLASS ?'),
                 const SizedBox(height: 20),
                 GestureDetector(
-                  onTap: () => Navigator.pop(ctx),
+                  onTap: context.soundAction(() => Navigator.pop(ctx)),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 11),
@@ -681,10 +682,12 @@ class CreaturesScreenState extends State<CreaturesScreen>
       builder: (_) => BottomSheetShell(
         theme: theme,
         titleAction: GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => BreedingMilestoneScreen(speciesId: species.id),
+          onTap: context.soundAction(
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BreedingMilestoneScreen(speciesId: species.id),
+              ),
             ),
           ),
           child: Container(
@@ -855,7 +858,7 @@ class _HeaderSearchFieldState extends State<_HeaderSearchField> {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => widget.focusNode?.requestFocus(),
+      onTap: context.soundAction(() => widget.focusNode?.requestFocus()),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -894,11 +897,11 @@ class _HeaderSearchFieldState extends State<_HeaderSearchField> {
               if (hasQuery) ...[
                 const SizedBox(width: 6),
                 GestureDetector(
-                  onTap: () {
+                  onTap: context.soundAction(() {
                     widget.controller.clear();
                     widget.onChanged('');
                     widget.focusNode?.requestFocus();
-                  },
+                  }),
                   child: Icon(
                     AppIcons.close_rounded,
                     size: 16,
@@ -950,7 +953,7 @@ class _HeaderIconSquare extends StatelessWidget {
         ? bracketReadableAccent(context.read<FactionTheme>(), color: accent)
         : palette.muted;
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: BracketFramePainter(
           color: highlighted
@@ -1020,10 +1023,10 @@ class _StatsHeaderSolidState extends State<_StatsHeaderSolid> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () {
+            onTap: context.soundAction(() {
               HapticFeedback.selectionClick();
               setState(() => _expanded = !_expanded);
-            },
+            }),
             child: AnimatedSize(
               duration: const Duration(milliseconds: 240),
               curve: Curves.easeOutCubic,
@@ -1437,7 +1440,7 @@ class _CreatureCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(4),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         child: CustomPaint(
           painter: BracketFramePainter(
             color: palette.line.withValues(alpha: 0.75),
@@ -1538,7 +1541,7 @@ class _CreatureRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         child: CustomPaint(
           painter: BracketFramePainter(
             color: palette.line.withValues(alpha: 0.75),
@@ -1812,10 +1815,10 @@ class SearchFieldSolid extends StatelessWidget {
             ),
             if (controller.text.isNotEmpty)
               GestureDetector(
-                onTap: () {
+                onTap: context.soundAction(() {
                   controller.clear();
                   onChanged('');
-                },
+                }),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Icon(
@@ -1848,7 +1851,7 @@ class IconButtonSolid extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = BracketPalette.fromTheme(theme);
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: BracketFramePainter(
           color: palette.line.withValues(alpha: 0.65),
@@ -1886,7 +1889,7 @@ class PillButton extends StatelessWidget {
     final palette = BracketPalette.fromTheme(theme);
     final activeAccent = bracketReadableAccent(theme);
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: BracketFramePainter(
           color: activeAccent,

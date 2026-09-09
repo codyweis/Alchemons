@@ -91,7 +91,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
           if (!mounted) return;
 
           HapticFeedback.mediumImpact();
-          context.sound(SoundCue.rewardCollect, owner: this);
+          context.sound(SoundCue.achievementUnlock, owner: this);
           setState(() => _collecting.add(reward.id));
 
           if (rect != null) {
@@ -261,7 +261,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: context.soundAction(onTap),
           borderRadius: BorderRadius.circular(3),
           child: Container(
             padding: EdgeInsets.symmetric(
@@ -594,7 +594,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
           actions: [
             IconButton(
               tooltip: 'Refresh progress',
-              onPressed: _claiming ? null : refresh,
+              onPressed: context.soundAction(_claiming ? null : refresh),
               icon: Icon(AppIcons.refresh_rounded, color: fc.textSecondary),
             ),
           ],
@@ -1052,10 +1052,10 @@ class _FilterRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
-                onTap: () {
+                onTap: context.soundAction(() {
                   HapticFeedback.selectionClick();
                   onSelect(f);
-                },
+                }),
                 // Outline and coloured text, never a fill: a filled chip reads
                 // as a button you are meant to press again.
                 child: Container(

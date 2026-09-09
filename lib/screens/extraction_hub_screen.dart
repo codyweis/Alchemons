@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/scene_ambience.dart';
 import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/widgets/achievements/reward_collect_burst.dart';
@@ -287,10 +288,10 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
               Align(
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
-                  onTap: () {
+                  onTap: context.soundAction(() {
                     HapticFeedback.lightImpact();
                     Navigator.of(context).pop();
-                  },
+                  }),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
@@ -376,7 +377,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
     }
     if (!mounted) return;
     HapticFeedback.lightImpact();
-    context.sound(SoundCue.extractionComplete, owner: this);
+    if (total > 0) context.sound(SoundCue.extractionComplete, owner: this);
 
     for (final flight in flights) {
       final got = gained[flight.biome.id] ?? 0;
@@ -406,7 +407,10 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      SceneAmbience(cue: AmbienceCue.lab, child: _buildScene(context));
+
+  Widget _buildScene(BuildContext context) {
     return ForcedFactionBrightness(
       brightness: Brightness.dark,
       child: Builder(
@@ -778,7 +782,7 @@ class _BiomeSelectorChip extends StatelessWidget {
         : t.borderDim;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
@@ -1425,7 +1429,9 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                   children: [
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => Navigator.pop(ctx, false),
+                        onTap: context.soundAction(
+                          () => Navigator.pop(ctx, false),
+                        ),
                         child: Container(
                           height: 42,
                           alignment: Alignment.center,
@@ -1450,7 +1456,9 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                     const SizedBox(width: 10),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => Navigator.pop(ctx, true),
+                        onTap: context.soundAction(
+                          () => Navigator.pop(ctx, true),
+                        ),
                         child: Container(
                           height: 42,
                           alignment: Alignment.center,
@@ -1584,7 +1592,9 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                   children: [
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => Navigator.pop(ctx, false),
+                        onTap: context.soundAction(
+                          () => Navigator.pop(ctx, false),
+                        ),
                         child: Container(
                           height: 42,
                           alignment: Alignment.center,
@@ -1609,7 +1619,9 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                     const SizedBox(width: 10),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => Navigator.pop(ctx, true),
+                        onTap: context.soundAction(
+                          () => Navigator.pop(ctx, true),
+                        ),
                         child: Container(
                           height: 42,
                           alignment: Alignment.center,
@@ -2277,7 +2289,7 @@ class _PrimaryBtn extends StatelessWidget {
     return Opacity(
       opacity: disabled ? 0.6 : 1,
       child: GestureDetector(
-        onTap: disabled ? null : onTap,
+        onTap: context.soundAction(disabled ? null : onTap),
         child: CustomPaint(
           painter: _BracketFramePainter(
             color: border,
@@ -2326,7 +2338,7 @@ class _OutlineBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: _BracketFramePainter(
           color: accent.withValues(alpha: 0.55),
@@ -3130,7 +3142,9 @@ class _UnlockDialog extends StatelessWidget {
                   children: [
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => Navigator.pop(context, false),
+                        onTap: context.soundAction(
+                          () => Navigator.pop(context, false),
+                        ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
@@ -3157,9 +3171,11 @@ class _UnlockDialog extends StatelessWidget {
                       child: Opacity(
                         opacity: hasShortage ? 0.5 : 1,
                         child: GestureDetector(
-                          onTap: hasShortage
-                              ? null
-                              : () => Navigator.pop(context, true),
+                          onTap: context.soundAction(
+                            hasShortage
+                                ? null
+                                : () => Navigator.pop(context, true),
+                          ),
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
@@ -3233,10 +3249,10 @@ class _HarvestHeader extends StatelessWidget {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () {
+            onTap: context.soundAction(() {
               HapticFeedback.lightImpact();
               Navigator.of(context).maybePop();
-            },
+            }),
             child: Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(

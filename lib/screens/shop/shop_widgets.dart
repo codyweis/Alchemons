@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/shop_widgets.dart
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/widgets/element_resource_glyph.dart';
@@ -338,7 +339,7 @@ class _DialogPrimaryButton extends StatelessWidget {
     }
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: Container(
         height: 44,
         decoration: BoxDecoration(
@@ -383,7 +384,7 @@ class _DialogSecondaryButton extends StatelessWidget {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: Container(
         height: 44,
@@ -1002,7 +1003,7 @@ class TabButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1227,6 +1228,9 @@ class MarketplaceGrid extends StatelessWidget {
                 HapticFeedback.lightImpact();
                 final success = await shopService.purchase(offer.id, qty: qty);
                 if (!context.mounted) return;
+                context.sound(
+                  success ? SoundCue.purchaseSuccess : SoundCue.uiDenied,
+                );
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Row(
@@ -1365,6 +1369,7 @@ class FarmUnlockSection extends StatelessWidget {
     Biome biome,
   ) async {
     final farm = await db.biomeDao.getBiomeByBiomeId(biome.id);
+    if (!context.mounted) return null;
     final unlocked = farm?.unlocked == true;
 
     if (unlocked && !showPurchased) return null;
@@ -1430,7 +1435,7 @@ class FarmUnlockSection extends StatelessWidget {
     );
 
     return GestureDetector(
-      onTap: () async {
+      onTap: context.soundAction(() async {
         if (unlocked) {
           // Already unlocked - just show details
           await showItemDetailDialog(
@@ -1490,7 +1495,7 @@ class FarmUnlockSection extends StatelessWidget {
             ),
           );
         }
-      },
+      }),
       child: card,
     );
   }
@@ -1905,7 +1910,7 @@ class _StepperButton extends StatelessWidget {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
     return GestureDetector(
-      onTap: enabled ? onTap : null,
+      onTap: context.soundAction(enabled ? onTap : null),
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: 38,

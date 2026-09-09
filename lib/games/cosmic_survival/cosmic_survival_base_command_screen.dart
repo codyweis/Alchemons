@@ -160,7 +160,7 @@ class _CosmicSurvivalBaseCommandScreenState
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
+            onTap: context.soundAction(() => Navigator.of(context).pop()),
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -418,7 +418,7 @@ class _CosmicSurvivalBaseCommandScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, false)),
             child: Text(
               'CANCEL',
               style: TextStyle(
@@ -430,7 +430,7 @@ class _CosmicSurvivalBaseCommandScreenState
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, true)),
             child: Text(
               'BUY',
               style: TextStyle(
@@ -551,7 +551,7 @@ class _CosmicSurvivalBaseCommandScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, false)),
             child: Text(
               'CANCEL',
               style: TextStyle(
@@ -563,7 +563,7 @@ class _CosmicSurvivalBaseCommandScreenState
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, true)),
             child: Text(
               'UPGRADE',
               style: TextStyle(
@@ -668,7 +668,7 @@ class _CosmicSurvivalBaseCommandScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, false)),
             child: Text(
               'CANCEL',
               style: TextStyle(
@@ -680,7 +680,7 @@ class _CosmicSurvivalBaseCommandScreenState
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: context.soundAction(() => Navigator.pop(ctx, true)),
             child: Text(
               'UPGRADE',
               style: TextStyle(
@@ -974,7 +974,7 @@ class _OrbSkinCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // Tap anywhere to equip (if owned & not already equipped)
     return GestureDetector(
-      onTap: (isOwned && !isEquipped) ? onEquip : null,
+      onTap: context.soundAction((isOwned && !isEquipped) ? onEquip : null),
       child: _PlateBox(
         highlight: isEquipped,
         accentColor: def.primaryColor,

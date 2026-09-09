@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/wilderness/device_selection_dialog.dart
 import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/models/creature.dart';
@@ -288,10 +289,10 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
     final accent = isGuaranteed ? _amber : _success;
 
     return GestureDetector(
-      onTap: () {
+      onTap: context.soundAction(() {
         HapticFeedback.lightImpact();
         Navigator.pop(context, device);
-      },
+      }),
       child: CustomPaint(
         painter: BracketFramePainter(
           color: accent.withValues(alpha: 0.75),
@@ -416,10 +417,10 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
         ),
       ),
       child: GestureDetector(
-        onTap: () {
+        onTap: context.soundAction(() {
           HapticFeedback.lightImpact();
           Navigator.pop(context);
-        },
+        }),
         behavior: HitTestBehavior.opaque,
         child: CustomPaint(
           painter: BracketFramePainter(
@@ -501,7 +502,7 @@ class _PickerCloseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: CustomPaint(
         painter: BracketFramePainter(

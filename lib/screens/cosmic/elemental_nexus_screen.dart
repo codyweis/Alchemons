@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/cosmic/elemental_nexus_screen.dart
 //
 // The Elemental Nexus — a hidden black portal easter-egg in cosmic space.
@@ -576,7 +577,7 @@ class _PortalButton extends StatelessWidget {
       child: Transform.scale(
         scale: scale,
         child: GestureDetector(
-          onTap: onTap,
+          onTap: context.soundAction(onTap),
           child: Container(
             width: 130,
             height: 160,

@@ -276,12 +276,16 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: context.soundAction(
+              () => Navigator.of(context).pop(false),
+            ),
             child: const Text('Cancel'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: _accent),
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: context.soundAction(
+              () => Navigator.of(context).pop(true),
+            ),
             child: const Text(
               'Convert',
               style: TextStyle(color: Colors.black87),
@@ -406,12 +410,16 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: context.soundAction(
+              () => Navigator.of(context).pop(false),
+            ),
             child: const Text('Cancel'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: _accent),
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: context.soundAction(
+              () => Navigator.of(context).pop(true),
+            ),
             child: const Text('Sell', style: TextStyle(color: Colors.black87)),
           ),
         ],
@@ -511,10 +519,10 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
             ),
           ),
           GestureDetector(
-            onTap: () {
+            onTap: context.soundAction(() {
               HapticFeedback.lightImpact();
               Navigator.of(context).pop();
-            },
+            }),
             child: Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
@@ -723,12 +731,14 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
   }) {
     final enabled = onTap != null;
     return GestureDetector(
-      onTap: enabled
-          ? () {
-              HapticFeedback.selectionClick();
-              onTap();
-            }
-          : null,
+      onTap: context.soundAction(
+        enabled
+            ? () {
+                HapticFeedback.selectionClick();
+                onTap();
+              }
+            : null,
+      ),
       behavior: HitTestBehavior.opaque,
       child: Opacity(
         opacity: enabled ? 1 : 0.4,
@@ -867,12 +877,14 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
   ) {
     final enabled = onTap != null;
     return GestureDetector(
-      onTap: enabled
-          ? () {
-              HapticFeedback.selectionClick();
-              onTap();
-            }
-          : null,
+      onTap: context.soundAction(
+        enabled
+            ? () {
+                HapticFeedback.selectionClick();
+                onTap();
+              }
+            : null,
+      ),
       child: Opacity(
         opacity: enabled ? 1 : 0.35,
         child: Container(
@@ -893,12 +905,14 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
   Widget _quickChip(ForgeTokens t, String label, VoidCallback? onTap) {
     final enabled = onTap != null;
     return GestureDetector(
-      onTap: enabled
-          ? () {
-              HapticFeedback.selectionClick();
-              onTap();
-            }
-          : null,
+      onTap: context.soundAction(
+        enabled
+            ? () {
+                HapticFeedback.selectionClick();
+                onTap();
+              }
+            : null,
+      ),
       child: Opacity(
         opacity: enabled ? 1 : 0.35,
         child: Container(
@@ -985,12 +999,14 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
   }) {
     final enabled = onTap != null;
     return GestureDetector(
-      onTap: enabled
-          ? () {
-              HapticFeedback.mediumImpact();
-              onTap();
-            }
-          : null,
+      onTap: context.soundAction(
+        enabled
+            ? () {
+                HapticFeedback.mediumImpact();
+                onTap();
+              }
+            : null,
+      ),
       behavior: HitTestBehavior.opaque,
       child: Opacity(
         opacity: enabled ? 1 : 0.35,

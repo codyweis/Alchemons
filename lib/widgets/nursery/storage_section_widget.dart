@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -198,7 +199,9 @@ class _StorageSectionState extends State<StorageSection> {
     final accent = bracketReadableAccent(theme, color: group?.color);
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedFaction = group),
+      onTap: context.soundAction(
+        () => setState(() => _selectedFaction = group),
+      ),
       child: CustomPaint(
         painter: BracketFramePainter(
           color: isSelected ? accent : palette.line.withValues(alpha: 0.55),
@@ -444,7 +447,7 @@ class _StorageEggCardState extends State<StorageEggCard>
         : null;
 
     return GestureDetector(
-      onTap: () => _showEggDetails(context),
+      onTap: context.soundAction(() => _showEggDetails(context)),
       child: ListenableBuilder(
         listenable: _pulseController,
         builder: (context, child) {
@@ -1244,7 +1247,9 @@ class EggDetailsModal extends StatelessWidget {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => Navigator.pop(ctx, false),
+                      onTap: context.soundAction(
+                        () => Navigator.pop(ctx, false),
+                      ),
                       child: Container(
                         height: 40,
                         decoration: BoxDecoration(
@@ -1269,7 +1274,9 @@ class EggDetailsModal extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => Navigator.pop(ctx, true),
+                      onTap: context.soundAction(
+                        () => Navigator.pop(ctx, true),
+                      ),
                       child: Container(
                         height: 40,
                         decoration: BoxDecoration(
@@ -1373,7 +1380,7 @@ class _DetailsCloseButton extends StatelessWidget {
     return Tooltip(
       message: 'Close',
       child: GestureDetector(
-        onTap: onTap,
+        onTap: context.soundAction(onTap),
         behavior: HitTestBehavior.opaque,
         child: CustomPaint(
           painter: BracketFramePainter(
@@ -1410,7 +1417,7 @@ class _DetailsTextLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

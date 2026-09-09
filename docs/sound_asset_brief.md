@@ -157,7 +157,7 @@ After the shared effects work, add these reusable accents for combat and dungeon
 
 ## Optional ambience and music
 
-All ambience below is P3, stereo, and seamlessly looping. These are new layers requiring playback support. Use subtle textures without a melody or beat, leaving space for existing music.
+All ambience below is P3, stereo, and authored for seamless looping. Scene-aware playback is implemented for space, laboratories, and dungeons. These subtle textures leave space for existing music; audible loop/mix verification on the device remains outstanding.
 
 | Filename | Loop length | Character |
 |---|---|---|
@@ -177,5 +177,5 @@ Keep WAV ambience as production masters; choose compressed runtime exports after
 - The cosmic subfolder is explicitly registered in the Flutter asset manifest.
 - All one-shot filenames above now have cue mappings. Connected gameplay/UI hooks are listed in `docs/audio_integration.md`; unused cues remain available for later events.
 - Playback now reuses completed players, caps concurrent sounds at six, and applies per-cue gain, variation selection, cooldowns, and priority. First-use latency still needs an audible device check.
-- Ambient loops need their own lifecycle-managed playback, with fades on scene changes and muting/pausing consistent with app settings.
+- Ambient loops now use their own lifecycle-managed player, with scene fades, route ownership, and muting/background behavior consistent with the SFX settings.
 - Generated files passed numerical checks for PCM format, clipping, DC offset, one-shot endpoints, loop boundary steps, and unchanged approved samples. Runtime scheduling, asset bundling, scan callbacks, and selected gameplay regressions also passed automated tests. These checks do not replace listening review. Verify real-device latency, overlapping effects, background/resume behavior, and music/SFX balance.

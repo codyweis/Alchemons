@@ -1860,7 +1860,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       child: Row(
         children: [
           GestureDetector(
-            onTap: _exit,
+            onTap: context.soundAction(_exit),
             child: SizedBox(
               width: 40,
               height: 40,
@@ -1913,7 +1913,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           ),
           if (_highScore != null && _highScore!.bestWave > 0)
             GestureDetector(
-              onTap: _showHighScoreDetails,
+              onTap: context.soundAction(_showHighScoreDetails),
               child: CustomPaint(
                 painter: _BracketFramePainter(
                   color: _C.amberBright.withValues(alpha: 0.55),
@@ -2047,7 +2047,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(3),
         child: InkWell(
-          onTap: () {
+          onTap: context.soundAction(() {
             setState(() {
               if (expanded) {
                 _expandedFamilyCards.remove(info.id);
@@ -2055,7 +2055,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 _expandedFamilyCards.add(info.id);
               }
             });
-          },
+          }),
           child: Stack(
             children: [
               Positioned.fill(child: CustomPaint(painter: _ScanlinePainter())),
@@ -2459,7 +2459,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             duration: const Duration(milliseconds: 520),
             curve: Curves.easeInOut,
             child: GestureDetector(
-              onTap: isReady ? game.triggerDetonation : null,
+              onTap: context.soundAction(
+                isReady ? game.triggerDetonation : null,
+              ),
               child: SizedBox(
                 width: 60,
                 height: 60,
@@ -2702,7 +2704,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     }
 
     return GestureDetector(
-      onTap: _closePauseMenu,
+      onTap: context.soundAction(_closePauseMenu),
       child: Container(
         decoration: BoxDecoration(
           color: _C.bg0.withValues(alpha: 0.84),
@@ -2849,11 +2851,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                 children: keystoneHistory.map((entry) {
                                   return InkWell(
                                     borderRadius: BorderRadius.circular(6),
-                                    onTap: () => _showPowerUpInfo(
-                                      entry.def,
-                                      game.powerUps,
-                                      slotIndex: entry.targetSlot,
-                                      targetName: entry.targetName,
+                                    onTap: context.soundAction(
+                                      () => _showPowerUpInfo(
+                                        entry.def,
+                                        game.powerUps,
+                                        slotIndex: entry.targetSlot,
+                                        targetName: entry.targetName,
+                                      ),
                                     ),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
@@ -2930,11 +2934,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                           );
                                       return InkWell(
                                         borderRadius: BorderRadius.circular(6),
-                                        onTap: () => _showPowerUpInfo(
-                                          entry.def,
-                                          game.powerUps,
-                                          slotIndex: entry.targetSlot,
-                                          targetName: entry.targetName,
+                                        onTap: context.soundAction(
+                                          () => _showPowerUpInfo(
+                                            entry.def,
+                                            game.powerUps,
+                                            slotIndex: entry.targetSlot,
+                                            targetName: entry.targetName,
+                                          ),
                                         ),
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
@@ -3183,7 +3189,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 const SizedBox(height: 6),
                 // Tether / Follow toggle
                 GestureDetector(
-                  onTap: () {
+                  onTap: context.soundAction(() {
                     HapticFeedback.lightImpact();
                     if (tethered) {
                       game.clearCompanionTether();
@@ -3191,7 +3197,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       game.tetherClosestCompanionToShip();
                     }
                     setState(() {});
-                  },
+                  }),
                   child: Container(
                     width: 72,
                     padding: const EdgeInsets.symmetric(vertical: 5),
@@ -3408,7 +3414,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 ),
                 const SizedBox(height: 20),
                 GestureDetector(
-                  onTap: () => Navigator.pop(dialogCtx),
+                  onTap: ctx.soundAction(() => Navigator.pop(dialogCtx)),
                   child: Container(
                     width: double.infinity,
                     height: 42,
@@ -3502,7 +3508,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     ...(_gameOverRewardEntries.map(
                       (entry) => Builder(
                         builder: (ctx) => GestureDetector(
-                          onTap: () => showRewardDetail(ctx, entry),
+                          onTap: context.soundAction(
+                            () => showRewardDetail(ctx, entry),
+                          ),
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 8),
                             padding: const EdgeInsets.symmetric(
@@ -3586,7 +3594,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: _newTeam,
+                          onPressed: context.soundAction(_newTeam),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white70,
                             side: BorderSide(
@@ -3611,7 +3619,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: _replay,
+                          onPressed: context.soundAction(_replay),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white,
                             side: BorderSide(color: frame, width: 1.5),
@@ -3805,7 +3813,7 @@ class _HudIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: _BracketFramePainter(
           color: color.withValues(alpha: 0.68),
@@ -3950,7 +3958,7 @@ class _PauseActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: _BracketFramePainter(
           color: fillColor.withValues(alpha: filled ? 0.72 : 0.42),
@@ -4109,7 +4117,7 @@ class _PauseCompanionCard extends StatelessWidget {
         : null;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.all(10),
@@ -4236,7 +4244,7 @@ class _PauseCompanionCard extends StatelessWidget {
                 children: appliedPowerUps.map((entry) {
                   return InkWell(
                     borderRadius: BorderRadius.circular(6),
-                    onTap: () => onPowerUpTap(entry),
+                    onTap: context.soundAction(() => onPowerUpTap(entry)),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,

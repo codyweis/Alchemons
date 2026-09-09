@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math' as math;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -343,7 +344,7 @@ class _ElementRow extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               GestureDetector(
-                onTap: onRemove,
+                onTap: context.soundAction(onRemove),
                 behavior: HitTestBehavior.opaque,
                 child: CustomPaint(
                   painter: BracketFramePainter(

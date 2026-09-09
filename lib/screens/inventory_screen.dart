@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/screens/inventory_screen.dart - REDESIGNED
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -207,10 +208,10 @@ class _InventoryScreenState extends State<InventoryScreen>
                 right: index == _tabLabels.length - 1 ? 0 : 8,
               ),
               child: GestureDetector(
-                onTap: () {
+                onTap: context.soundAction(() {
                   HapticFeedback.selectionClick();
                   _tabController.animateTo(index);
-                },
+                }),
                 child: CustomPaint(
                   painter: _BracketFramePainter(
                     color: selected
@@ -1279,7 +1280,7 @@ class _CleanItemCard extends StatelessWidget {
         : palette.line.withValues(alpha: 0.9);
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: _BracketFramePainter(
           color: frameColor,
@@ -1343,7 +1344,7 @@ class _CleanVialCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: ExtractionVialCard(vial: vial, compact: true),
     );
   }
@@ -1359,7 +1360,7 @@ class _DialogCloseButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = _InventoryPalette.of(context);
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: _BracketFramePainter(
           color: color.withValues(alpha: 0.78),
@@ -1397,7 +1398,7 @@ class _DialogActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = _InventoryPalette.of(context);
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       child: CustomPaint(
         painter: _BracketFramePainter(
           color: color.withValues(alpha: secondary ? 0.55 : 0.8),

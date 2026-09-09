@@ -785,6 +785,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (final f in kRimeFlues) {
       if (_flue(f.id) != RimeFlueState.stair) continue;
       flueState[f.id] = RimeFlueState.scoured;
+      onSound?.call(SoundCue.elementIce);
       _setHint('Frowyrm roars up the shaft, a stair goes out from under it');
       return;
     }

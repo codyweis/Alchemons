@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 // lib/widgets/currency_display_widget.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -80,7 +81,7 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
     final isDark = _isDark(context);
 
     return GestureDetector(
-      onTap: _handleTap,
+      onTap: context.soundAction(_handleTap),
       behavior: HitTestBehavior.opaque,
       child: StreamBuilder<Map<String, int>>(
         stream: db.currencyDao.watchAllCurrencies(),
