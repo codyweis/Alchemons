@@ -601,15 +601,6 @@ class _EnhancementEntryView extends StatelessWidget {
               height: 1.1,
             ),
           ),
-          Text(
-            'Modes',
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 36,
-              fontWeight: FontWeight.w300,
-              height: 1.1,
-            ),
-          ),
           const SizedBox(height: 12),
           Text(
             'Choose how you want to strengthen your creatures',
