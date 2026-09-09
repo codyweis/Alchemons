@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
@@ -48,12 +49,45 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
 
   final GlobalKey _creaturesIconKey = GlobalKey(debugLabel: 'nav-creatures');
 
+  /// Whether any chamber has finished and is waiting to be extracted.
+  ///
+  /// Readiness is a moment in time, not a row change, so watching the slots is
+  /// only half of it — the stream says nothing when a timer simply elapses.
+  /// The ticker is what notices that, and it is slow because a chamber being
+  /// ready ten seconds late costs nothing.
+  bool _cultivationReady = false;
+  StreamSubscription<List<IncubatorSlot>>? _slotSub;
+  Timer? _readyTicker;
+  List<IncubatorSlot> _slots = const [];
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_navIconsCached) {
       _navIconsCached = true;
       _precacheNavIcons();
+    }
+    _slotSub ??= context
+        .read<AlchemonsDatabase>()
+        .incubatorDao
+        .watchSlots()
+        .listen((slots) {
+          _slots = slots;
+          _refreshCultivationReady();
+        });
+    _readyTicker ??= Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => _refreshCultivationReady(),
+    );
+  }
+
+  void _refreshCultivationReady() {
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final ready = _slots.any(
+      (s) => s.eggId != null && (s.hatchAtUtcMs ?? 0) <= now,
+    );
+    if (mounted && ready != _cultivationReady) {
+      setState(() => _cultivationReady = ready);
     }
   }
 
@@ -82,6 +116,8 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _slotSub?.cancel();
+    _readyTicker?.cancel();
     _expandController.dispose();
     if (identical(
       NewDiscoveryReveal.instance.databaseNavKey,
@@ -310,6 +346,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                           label: 'FUSION',
                           theme: theme,
                           isDisabled: isDisabled,
+                          showDot: _cultivationReady,
                         ),
                         _buildNavButton(
                           section: NavSection.shop,
@@ -330,6 +367,31 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     );
   }
 
+  /// A chamber is waiting. Drawn overflowing the icon's corner rather than
+  /// inside it, so it does not shrink with the icon when the tab is inactive.
+  Widget _withDot(bool show, Widget icon) {
+    if (!show) return icon;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        icon,
+        Positioned(
+          right: -1,
+          top: -1,
+          child: Container(
+            width: 11,
+            height: 11,
+            decoration: BoxDecoration(
+              color: const Color(0xFF34D399),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF0B0E13), width: 2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildNavButton({
     required NavSection section,
     required dynamic icon, // IconData | String (asset path)
@@ -337,6 +399,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     required FactionTheme? theme,
     required bool isDisabled,
     Key? iconKey,
+    bool showDot = false,
   }) {
     final isActive = widget.current == section;
     final double opacity = isDisabled ? 0.5 : 1.0;
@@ -377,25 +440,31 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       if (icon is IconData)
-                        Icon(
-                          icon,
-                          key: iconKey,
-                          color: iconColor,
-                          size: iconSize,
+                        _withDot(
+                          showDot,
+                          Icon(
+                            icon,
+                            key: iconKey,
+                            color: iconColor,
+                            size: iconSize,
+                          ),
                         )
                       else if (icon is String)
-                        SizedBox(
-                          key: iconKey,
-                          width: iconSize,
-                          height: iconSize,
-                          child: FittedBox(
-                            fit: BoxFit.cover,
-                            child: Image.asset(
-                              gaplessPlayback: true,
-                              icon,
-                              fit: BoxFit.contain,
-                              color: iconColor,
-                              colorBlendMode: BlendMode.modulate,
+                        _withDot(
+                          showDot,
+                          SizedBox(
+                            key: iconKey,
+                            width: iconSize,
+                            height: iconSize,
+                            child: FittedBox(
+                              fit: BoxFit.cover,
+                              child: Image.asset(
+                                gaplessPlayback: true,
+                                icon,
+                                fit: BoxFit.contain,
+                                color: iconColor,
+                                colorBlendMode: BlendMode.modulate,
+                              ),
                             ),
                           ),
                         ),
