@@ -3,13 +3,11 @@ import 'package:flutter/material.dart';
 
 /// PrismaticCascade — the most premium alchemy effect.
 ///
-/// Five layered animations rendered via CustomPainter:
+/// Four layered animations rendered via CustomPainter:
 ///   1. Outer hue-cycling radial glow that slowly shifts through the full spectrum
 ///   2. Two counter-rotating rainbow sweep rings
-///   3. 12 crystal shards (6 inner + 6 outer) orbiting at staggered phases,
-///      each catching a different hue
-///   4. 8 radiating light-ray beams with hue offsets
-///   5. 16 prismatic sparkle stars that pulse and color-shift
+///   3. 8 radiating light-ray beams with hue offsets
+///   4. 16 prismatic sparkle stars that pulse and color-shift
 class PrismaticCascade extends StatefulWidget {
   final double size;
   const PrismaticCascade({super.key, required this.size});
@@ -117,10 +115,10 @@ class _PrismaticPainter extends CustomPainter {
     // ── 3. Light rays ────────────────────────────────────────────────────────
     _drawLightRays(canvas, r, angle * 0.4, hueBase);
 
-    // ── 4. Crystal shards ────────────────────────────────────────────────────
-    _drawShards(canvas, r, angle, hueBase);
-
-    // ── 5. Sparkle stars ─────────────────────────────────────────────────────
+    // ── 4. Sparkle stars ─────────────────────────────────────────────────────
+    // The orbiting crystal shards that used to sit between the rays and the
+    // sparkles read as floating leaves rather than refracted light, so the
+    // cascade is rings + rays + sparkles now.
     _drawSparkles(canvas, r, angle, hueBase);
 
     canvas.restore();
@@ -217,64 +215,6 @@ class _PrismaticPainter extends CustomPainter {
   }
 
   // ── Layer 4 ─────────────────────────────────────────────────────────────────
-  void _drawShards(Canvas canvas, double r, double angle, double hueBase) {
-    // 6 inner shards + 6 outer shards
-    const shardCount = 6;
-
-    for (int ring = 0; ring < 2; ring++) {
-      final orbitR = ring == 0 ? r * 0.75 : r * 1.2;
-      final orbitSpeed = ring == 0 ? angle : -angle * 0.65;
-      final shardLen = ring == 0 ? r * 0.18 : r * 0.14;
-      final shardWidth = ring == 0 ? r * 0.065 : r * 0.05;
-
-      for (int i = 0; i < shardCount; i++) {
-        final shardAngle = orbitSpeed + (i / shardCount) * 2 * math.pi;
-        final hue = (hueBase + ring * 30 + i * (360 / shardCount)) % 360;
-
-        // Pulse opacity with staggered phase
-        final phase = (t + i / shardCount + ring * 0.5) % 1.0;
-        final alpha = (0.5 + math.sin(phase * 2 * math.pi) * 0.45).clamp(
-          0.15,
-          0.95,
-        );
-
-        final px = math.cos(shardAngle) * orbitR;
-        final py = math.sin(shardAngle) * orbitR;
-
-        canvas.save();
-        canvas.translate(px, py);
-        canvas.rotate(shardAngle + math.pi / 4);
-
-        // Diamond shape
-        final path = Path()
-          ..moveTo(0, -shardLen)
-          ..lineTo(shardWidth, 0)
-          ..lineTo(0, shardLen)
-          ..lineTo(-shardWidth, 0)
-          ..close();
-
-        canvas.drawPath(
-          path,
-          Paint()
-            ..color = _hsl(hue, l: 0.75, a: alpha)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, shardLen * 0.3),
-        );
-
-        // Bright specular highlight inside shard
-        canvas.drawPath(
-          path,
-          Paint()
-            ..color = _hsl(hue, l: 0.92, a: alpha * 0.5)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.8,
-        );
-
-        canvas.restore();
-      }
-    }
-  }
-
-  // ── Layer 5 ─────────────────────────────────────────────────────────────────
   void _drawSparkles(Canvas canvas, double r, double angle, double hueBase) {
     const sparkCount = 16;
 

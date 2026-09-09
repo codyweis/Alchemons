@@ -8,13 +8,11 @@ import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/widgets/achievements/reward_collect_burst.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-
-const _gold = Color(0xFFE4C16A);
-const _mint = Color(0xFF8CD9B3);
 
 class CampaignJournalScreen extends StatefulWidget {
   const CampaignJournalScreen({super.key});
@@ -191,6 +189,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
   /// A reward, drawn with the coins the rest of the game uses rather than the
   /// words "Gold" and "Silver".
   Widget rewardLabel(CampaignAchievement a, {double size = 13}) {
+    final fc = FC.of(context);
     Widget coin(Widget icon, int amount, Color color) => Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -211,14 +210,11 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (a.gold > 0) coin(CoinIcon.gold(size: size + 2), a.gold, _gold),
+        if (a.gold > 0)
+          coin(CoinIcon.gold(size: size + 2), a.gold, fc.rewardGold),
         if (a.gold > 0 && a.silver > 0) const SizedBox(width: 12),
         if (a.silver > 0)
-          coin(
-            CoinIcon.silver(size: size + 2),
-            a.silver,
-            const Color(0xFFCFD6DE),
-          ),
+          coin(CoinIcon.silver(size: size + 2), a.silver, fc.rewardSilver),
       ],
     );
   }
@@ -356,7 +352,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     final accent = collected
         ? fc.textMuted
         : ready
-        ? _mint
+        ? fc.mint
         : fc.amberBright;
 
     return _AchievementCard(
@@ -448,7 +444,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                   _forgeButton(
                     label: 'Collect',
                     icon: AppIcons.inventory_2_outlined,
-                    accent: _mint,
+                    accent: fc.mint,
                     dense: true,
                     onTap: _claiming ? null : () => claim([a]),
                   ),
@@ -551,18 +547,25 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
       ),
   ];
 
+  /// The journal used to hardcode `ThemeData.dark()`. Its own surfaces come
+  /// from [FC], which follows the faction theme, so in light mode the screen
+  /// ended up with dark-theme Material defaults — white default text, dark
+  /// dividers and ripples — painted over light parchment.
   ThemeData get journalTheme {
-    final fc = FC.of(context);
-    return ThemeData.dark().copyWith(
+    final theme = context.read<FactionTheme>();
+    final fc = FC(theme);
+    final brightness = theme.isDark ? Brightness.dark : Brightness.light;
+    final gold = fc.rewardGold;
+    return (theme.isDark ? ThemeData.dark() : ThemeData.light()).copyWith(
       scaffoldBackgroundColor: fc.bg1,
       appBarTheme: AppBarTheme(
         backgroundColor: fc.bg1,
         surfaceTintColor: Colors.transparent,
       ),
       colorScheme: ColorScheme.fromSeed(
-        seedColor: _gold,
-        brightness: Brightness.dark,
-      ).copyWith(primary: _gold, onPrimary: const Color(0xFF201B0C)),
+        seedColor: gold,
+        brightness: brightness,
+      ).copyWith(primary: gold, onPrimary: fc.onColor(gold)),
     );
   }
 
@@ -658,12 +661,12 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                   if (ready.isNotEmpty) ...[
                     _sectionHeader(
                       '${ready.length} reward${ready.length == 1 ? '' : 's'} ready',
-                      accent: _mint,
+                      accent: fc.mint,
                     ),
                     _forgeButton(
                       label: _claiming ? 'Collecting…' : 'Collect all',
                       icon: AppIcons.inventory_2_outlined,
-                      accent: _mint,
+                      accent: fc.mint,
                       onTap: _claiming ? null : () => claim(ready),
                     ),
                     const SizedBox(height: 6),
@@ -675,9 +678,9 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                           const SizedBox(width: 4),
                           Text(
                             '${ready.fold(0, (v, a) => v + a.gold)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: 'monospace',
-                              color: _gold,
+                              color: fc.rewardGold,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -686,9 +689,9 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                           const SizedBox(width: 4),
                           Text(
                             '${ready.fold(0, (v, a) => v + a.silver)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: 'monospace',
-                              color: Color(0xFFCFD6DE),
+                              color: fc.rewardSilver,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -698,7 +701,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                     for (final a in ready) achievement(s, a),
                     const SizedBox(height: 18),
                   ] else ...[
-                    _sectionHeader('All rewards collected', accent: _mint),
+                    _sectionHeader('All rewards collected', accent: fc.mint),
                     Padding(
                       padding: const EdgeInsets.only(left: 11, bottom: 20),
                       child: Text(
@@ -968,14 +971,16 @@ class _AchievementCardState extends State<_AchievementCard>
             key: widget.cardKey,
             margin: const EdgeInsets.only(bottom: 10),
             decoration: BoxDecoration(
-              color: widget.ready ? Color.lerp(fc.bg2, _mint, 0.06) : fc.bg2,
+              color: widget.ready
+                  ? Color.lerp(fc.bg2, fc.mint, 0.06)
+                  : fc.bg2,
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
                 color: Color.lerp(
                   widget.ready
                       ? widget.accent.withValues(alpha: 0.55)
                       : fc.borderDim,
-                  _gold,
+                  fc.rewardGold,
                   surge * 0.8,
                 )!,
                 width: 1 + surge * 0.8,
@@ -1102,7 +1107,7 @@ class _ChapterRow extends StatelessWidget {
     final done = snapshot.earned(achievement);
     final revealed = done || isCurrent;
     final accent = done
-        ? _mint
+        ? fc.mint
         : isCurrent
         ? fc.amberBright
         : fc.textMuted;

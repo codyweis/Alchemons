@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
-
-const _gold = Color(0xFFE4C16A);
-const _silver = Color(0xFFCFD6DE);
+import 'package:provider/provider.dart';
 
 /// The reward leaving the card and going where rewards go.
 ///
@@ -22,6 +21,13 @@ Future<void> playRewardCollect(
   final overlay = Overlay.maybeOf(context, rootOverlay: true);
   if (overlay == null || (gold <= 0 && silver <= 0)) return;
 
+  // The burst paints over the live screen, so the coins take their palette
+  // from the current theme — the dark-mode gold and silver wash out to
+  // nothing against a light surface.
+  final tokens = ForgeTokens(context.read<FactionTheme>());
+  final coinGold = tokens.rewardGold;
+  final coinSilver = tokens.rewardSilver;
+
   final completer = Completer<void>();
   late final OverlayEntry entry;
   entry = OverlayEntry(
@@ -33,6 +39,8 @@ Future<void> playRewardCollect(
           gold: gold,
           silver: silver,
           tint: tint,
+          coinGold: coinGold,
+          coinSilver: coinSilver,
           onDone: () {
             entry.remove();
             if (!completer.isCompleted) completer.complete();
@@ -52,6 +60,8 @@ class _RewardBurst extends StatefulWidget {
     required this.gold,
     required this.silver,
     required this.onDone,
+    required this.coinGold,
+    required this.coinSilver,
     this.tint,
   });
 
@@ -60,6 +70,10 @@ class _RewardBurst extends StatefulWidget {
   final int gold;
   final int silver;
   final VoidCallback onDone;
+
+  /// Theme-resolved coin colours, used when [tint] does not override them.
+  final Color coinGold;
+  final Color coinSilver;
 
   /// Overrides the gold/silver palette — a harvest pays out in its element,
   /// not in coins.
@@ -115,6 +129,9 @@ class _RewardBurstState extends State<_RewardBurst>
         from: widget.from,
         to: widget.to,
         progress: _ctrl,
+        tint: widget.tint,
+        coinGold: widget.coinGold,
+        coinSilver: widget.coinSilver,
       ),
     );
   }
@@ -164,6 +181,8 @@ class _BurstPainter extends CustomPainter {
     required this.from,
     required this.to,
     required this.progress,
+    required this.coinGold,
+    required this.coinSilver,
     this.tint,
   }) : super(repaint: progress);
 
@@ -172,6 +191,8 @@ class _BurstPainter extends CustomPainter {
   final Offset to;
   final Animation<double> progress;
   final Color? tint;
+  final Color coinGold;
+  final Color coinSilver;
 
   static final Paint _p = Paint();
 
@@ -191,7 +212,7 @@ class _BurstPainter extends CustomPainter {
         _p
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.4 * (1 - e)
-          ..color = (tint ?? _gold).withValues(alpha: 0.55 * (1 - e)),
+          ..color = (tint ?? coinGold).withValues(alpha: 0.55 * (1 - e)),
       );
       _p.style = PaintingStyle.fill;
     }
@@ -218,7 +239,7 @@ class _BurstPainter extends CustomPainter {
       final fade = (1 - flyK * flyK).clamp(0.0, 1.0);
       if (fade <= 0.02) continue;
 
-      final base = tint ?? (coin.isGold ? _gold : _silver);
+      final base = tint ?? (coin.isGold ? coinGold : coinSilver);
       canvas.drawOval(
         Rect.fromCenter(center: pos, width: w * 3.4, height: coin.size * 3.4),
         _p..color = base.withValues(alpha: 0.18 * fade),
@@ -235,5 +256,7 @@ class _BurstPainter extends CustomPainter {
       old.coins != coins ||
       old.from != from ||
       old.to != to ||
-      old.tint != tint;
+      old.tint != tint ||
+      old.coinGold != coinGold ||
+      old.coinSilver != coinSilver;
 }

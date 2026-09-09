@@ -69,7 +69,7 @@ class StatPotentialBar extends StatelessWidget {
                   child: Text(
                     statName.toUpperCase(),
                     style: isDominant
-                        ? ft.label.copyWith(color: fc.amberBright)
+                        ? ft.label.copyWith(color: fc.dominant)
                         : ft.label,
                     maxLines: 1,
                     softWrap: false,

@@ -397,12 +397,18 @@ class InstanceSprite extends StatelessWidget {
   final double size;
   final bool flipX;
 
+  /// Alchemy effects are animated particle fields; a scrolling grid of them
+  /// is dozens of tickers and blurred paints per frame. Lists turn this off
+  /// and let the detail surfaces show the effect.
+  final bool showAlchemyEffect;
+
   const InstanceSprite({
     super.key,
     required this.creature,
     required this.instance,
     required this.size,
     this.flipX = false,
+    this.showAlchemyEffect = true,
   });
 
   @override
@@ -428,7 +434,7 @@ class InstanceSprite extends StatelessWidget {
       ),
     );
 
-    if (instance.alchemyEffect != null) {
+    if (showAlchemyEffect && instance.alchemyEffect != null) {
       // Use a simple Stack. The effect layer and the padded sprite are centered.
       sprite = Stack(
         alignment: Alignment.center,

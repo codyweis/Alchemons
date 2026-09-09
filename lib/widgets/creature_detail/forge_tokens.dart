@@ -29,6 +29,14 @@ class FC {
   Color get amberBright => _t.amberBright;
   Color get amberDim => _t.amberDim;
   Color get amberGlow => _t.amberGlow;
+
+  /// Gold marker for Dominant stats — readable in both themes.
+  Color get dominant => _t.dominant;
+
+  // Rewards
+  Color get rewardGold => _t.rewardGold;
+  Color get rewardSilver => _t.rewardSilver;
+  Color get mint => _t.mint;
   Color get onAccent => _t.onAccent;
 
   // Status (game-semantic, fixed)

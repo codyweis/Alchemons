@@ -8,7 +8,6 @@ import 'package:alchemons/widgets/background/alchemical_particle_background.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-const _mintAccent = Color(0xFF8CD9B3);
 
 /// Event-driven notifications: database changes, route return, and app resume.
 /// No polling, background service, or system notification permission required.
@@ -153,7 +152,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
     final total = campaignAchievements.length;
     final done = snapshot?.claimed.length ?? 0;
     final hasReady = ready > 0;
-    final accent = hasReady ? _mintAccent : fc.amberBright;
+    final accent = hasReady ? fc.mint : fc.amberBright;
 
     return LayoutBuilder(
       builder: (context, c) {
@@ -277,12 +276,14 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final count = _snapshot?.ready.length ?? 0;
+    final badgeColor = fc.rewardGold;
     final icon = Badge(
       isLabelVisible: count > 0,
       label: Text('$count'),
-      backgroundColor: const Color(0xFFE4C16A),
-      textColor: const Color(0xFF201B0C),
+      backgroundColor: badgeColor,
+      textColor: fc.onColor(badgeColor),
       child: Icon(Icons.emoji_events_outlined, color: widget.color),
     );
     if (widget.style == CampaignRewardsStyle.bar) {

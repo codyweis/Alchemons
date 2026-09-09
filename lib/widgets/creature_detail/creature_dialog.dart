@@ -2067,7 +2067,7 @@ class _StatBar extends StatelessWidget {
               style: bracketText(
                 context,
                 11,
-                isDominant ? FC.of(context).amberBright : palette.muted,
+                isDominant ? FC.of(context).dominant : palette.muted,
                 weight: FontWeight.w700,
                 letterSpacing: 0.9,
               ),

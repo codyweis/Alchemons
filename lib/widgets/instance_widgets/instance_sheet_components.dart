@@ -179,12 +179,14 @@ class InstanceCard extends StatelessWidget {
                   builder: (context, constraints) {
                     // A hardcoded 90 left most of this box empty on wider
                     // grids. Size to the box instead, keeping a margin so the
-                    // corner pills overlaid here still clear the artwork.
+                    // corner pills overlaid here still clear the artwork —
+                    // at 0.94 the artwork ran under the pills and crowded the
+                    // card, so the sprite sits smaller inside its slot.
                     final box = math.min(
                       constraints.maxWidth,
                       constraints.maxHeight,
                     );
-                    final spriteSize = (box * 0.94).clamp(64.0, 168.0);
+                    final spriteSize = (box * 0.74).clamp(52.0, 132.0);
                     return Stack(
                       children: [
                         Center(
@@ -194,6 +196,10 @@ class InstanceCard extends StatelessWidget {
                                     creature: species,
                                     instance: instance,
                                     size: spriteSize,
+                                    // The alchemy particle fields made this
+                                    // grid stutter while scrolling; the
+                                    // detail sheets still show them.
+                                    showAlchemyEffect: false,
                                   )
                                 : Image.asset(
                                     species.image,

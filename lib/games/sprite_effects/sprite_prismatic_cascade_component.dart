@@ -64,10 +64,9 @@ class PrismaticCascadeComponent extends PositionComponent {
     // ── 3. Light rays ────────────────────────────────────────────────────────
     _drawRays(canvas, r, angle * 0.4, hueBase);
 
-    // ── 4. Crystal shards ────────────────────────────────────────────────────
-    _drawShards(canvas, r, angle, hueBase);
-
-    // ── 5. Sparkle stars ─────────────────────────────────────────────────────
+    // ── 4. Sparkle stars ─────────────────────────────────────────────────────
+    // Mirrors the widget effect: the orbiting shards read as floating leaves,
+    // so the cascade is rings + rays + sparkles.
     _drawSparkles(canvas, r, angle, hueBase, breathe);
 
     canvas.restore();
@@ -134,55 +133,6 @@ class PrismaticCascadeComponent extends PositionComponent {
         stops: const [0.0, 0.45, 1.0],
       ).createShader(Rect.fromPoints(startPt, endPt));
       canvas.drawLine(startPt, endPt, paint);
-    }
-  }
-
-  void _drawShards(Canvas canvas, double r, double angle, double hueBase) {
-    const shardCount = 6;
-    for (int ring = 0; ring < 2; ring++) {
-      final orbitR = ring == 0 ? r * 0.75 : r * 1.2;
-      final orbitSpeed = ring == 0 ? angle : -angle * 0.65;
-      final shardLen = ring == 0 ? r * 0.18 : r * 0.14;
-      final shardWidth = ring == 0 ? r * 0.065 : r * 0.05;
-
-      for (int i = 0; i < shardCount; i++) {
-        final shardAngle = orbitSpeed + (i / shardCount) * 2 * math.pi;
-        final hue = (hueBase + ring * 30 + i * (360.0 / shardCount)) % 360;
-        final phase = (_t + i / shardCount + ring * 0.5) % 1.0;
-        final alpha = (0.5 + math.sin(phase * 2 * math.pi) * 0.45).clamp(
-          0.15,
-          0.95,
-        );
-
-        final px = math.cos(shardAngle) * orbitR;
-        final py = math.sin(shardAngle) * orbitR;
-
-        canvas.save();
-        canvas.translate(px, py);
-        canvas.rotate(shardAngle + math.pi / 4);
-
-        final path = Path()
-          ..moveTo(0, -shardLen)
-          ..lineTo(shardWidth, 0)
-          ..lineTo(0, shardLen)
-          ..lineTo(-shardWidth, 0)
-          ..close();
-
-        canvas.drawPath(
-          path,
-          Paint()
-            ..color = _hsl(hue, l: 0.75, a: alpha)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, shardLen * 0.3),
-        );
-        canvas.drawPath(
-          path,
-          Paint()
-            ..color = _hsl(hue, l: 0.92, a: alpha * 0.5)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.8,
-        );
-        canvas.restore();
-      }
     }
   }
 

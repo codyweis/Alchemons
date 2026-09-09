@@ -213,8 +213,13 @@ void main() {
     addTearDown(db.close);
     await tester.runAsync(() => CampaignJournalService(db).load());
     await tester.pumpWidget(
-      Provider.value(
-        value: db,
+      MultiProvider(
+        providers: [
+          Provider<AlchemonsDatabase>.value(value: db),
+          // The badge takes its gold from the theme now, so that it stays
+          // legible in light mode as well as dark.
+          Provider<FactionTheme>.value(value: factionThemeFor(FactionId.oceanic)),
+        ],
         child: const MaterialApp(home: Scaffold(body: CampaignRewardsButton())),
       ),
     );

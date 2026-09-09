@@ -2143,7 +2143,7 @@ class EggHatching {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'monospace',
-                color: isDominant ? fc.amberBright : fc.textSecondary,
+                color: isDominant ? fc.dominant : fc.textSecondary,
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.2,

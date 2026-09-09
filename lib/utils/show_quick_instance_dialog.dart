@@ -644,7 +644,7 @@ class _QuickStatLine extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: isDominant ? t.amberBright : t.textPrimary,
+                    color: isDominant ? t.dominant : t.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),

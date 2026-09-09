@@ -20,6 +20,7 @@ import 'package:alchemons/utils/harvest_rate.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/element_resource_totals_bar.dart';
 import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
@@ -31,8 +32,10 @@ import 'package:alchemons/widgets/app_icons.dart';
 
 // ---------------------------------------------------------------------------
 // ExtractionHubScreen
-// All 5 animated extraction chambers on one scrollable screen.
-// Replaces both BiomeHarvestScreen and BiomeDetailScreen.
+// All 5 animated extraction chambers on one scrollable screen. This is the
+// only harvest surface — the older BiomeHarvestScreen / BiomeDetailScreen pair
+// it replaced carried duplicate copies of the chamber and collect code, and
+// was deleted once nothing routed to it.
 // ---------------------------------------------------------------------------
 
 TextStyle _display(
@@ -111,15 +114,57 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
   bool _tutorialChecked = false;
   String? _selectedBiomeId;
 
-  /// One per biome, kept on the state so a chip's yield label keeps the same
-  /// key across rebuilds — the collect animation reads its rect to know where
-  /// the resources are going.
-  final Map<String, GlobalKey> _yieldKeys = {};
+  /// Which chamber the bay shows, resolved once and then held.
+  ///
+  /// The bay used to fall back to "the first ready biome" whenever nothing had
+  /// been picked explicitly. Collecting the chamber on screen makes it stop
+  /// being ready, so the fallback moved to the next ready biome and the view
+  /// jumped mid-collect — cutting the drain and the particles in half.
+  String _resolveSelectedBiomeId(List<BiomeFarmState> farms) {
+    final current = _selectedBiomeId;
+    if (current != null && farms.any((f) => f.biome.id == current)) {
+      return current;
+    }
+    final ready = farms.where((f) => f.completed);
+    if (ready.isNotEmpty) return ready.first.biome.id;
+    final active = farms.where((f) => f.hasActive);
+    if (active.isNotEmpty) return active.first.biome.id;
+    return farms.first.biome.id;
+  }
 
-  GlobalKey _yieldKeyFor(String biomeId) => _yieldKeys.putIfAbsent(
+  /// One per biome, kept on the state so the running total for that element
+  /// keeps the same key across rebuilds — the collect animation reads its rect
+  /// to know where the resources are going.
+  final Map<String, GlobalKey> _totalKeys = {};
+
+  /// One per biome, anchoring that biome's chip in the selector rail. Collect
+  /// All pays out several chambers at once, and each payout should visibly
+  /// leave the biome it came from rather than the one chamber on screen.
+  final Map<String, GlobalKey> _railKeys = {};
+
+  GlobalKey _totalKeyFor(String biomeId) => _totalKeys.putIfAbsent(
     biomeId,
-    () => GlobalKey(debugLabel: 'yield_$biomeId'),
+    () => GlobalKey(debugLabel: 'total_$biomeId'),
   );
+
+  GlobalKey _railKeyFor(String biomeId) =>
+      _railKeys.putIfAbsent(biomeId, () => GlobalKey(debugLabel: 'rail_$biomeId'));
+
+  /// Screen-space rect of a biome's rail chip, or null if it is not laid out.
+  Rect? _railRect(String biomeId) {
+    final ctx = _railKeys[biomeId]?.currentContext;
+    final box = ctx?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  /// Screen-space centre of a biome's total chip in the header strip.
+  Offset? _totalCenter(String biomeId) {
+    final ctx = _totalKeys[biomeId]?.currentContext;
+    final box = ctx?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return null;
+    return box.localToGlobal(box.size.center(Offset.zero));
+  }
 
   @override
   void initState() {
@@ -306,13 +351,48 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
   Future<void> _collectAll(List<BiomeFarmState> farms) async {
     HapticFeedback.mediumImpact();
     final completed = farms.where((f) => f.completed).toList();
-    int total = 0;
+
+    // Geometry is read before the collects, because a collected job clears
+    // and the rail chip it flew out of redraws as idle.
+    final flights = <({Rect from, Offset to, Color tint, Biome biome})>[];
     for (final farm in completed) {
-      total += await _svc.collect(farm.biome);
+      final from = _railRect(farm.biome.id);
+      final to = _totalCenter(farm.biome.id);
+      if (from == null || to == null) continue;
+      flights.add((
+        from: from,
+        to: to,
+        tint: farm.currentColor,
+        biome: farm.biome,
+      ));
+    }
+
+    int total = 0;
+    final gained = <String, int>{};
+    for (final farm in completed) {
+      final got = await _svc.collect(farm.biome);
+      gained[farm.biome.id] = got;
+      total += got;
     }
     if (!mounted) return;
     HapticFeedback.lightImpact();
     context.sound(SoundCue.extractionComplete, owner: this);
+
+    for (final flight in flights) {
+      final got = gained[flight.biome.id] ?? 0;
+      if (got <= 0) continue;
+      unawaited(
+        playRewardCollect(
+          context,
+          from: flight.from,
+          to: flight.to,
+          gold: got,
+          silver: 0,
+          tint: flight.tint,
+        ),
+      );
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -400,6 +480,13 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                     final lockedCount = farms
                                         .where((f) => !f.unlocked)
                                         .length;
+                                    // Held on the state so the choice survives
+                                    // a farm changing under it. Assigned here
+                                    // rather than in a callback because this
+                                    // is the value being rendered this frame.
+                                    final selectedBiomeId =
+                                        _resolveSelectedBiomeId(farms);
+                                    _selectedBiomeId = selectedBiomeId;
                                     return Column(
                                       children: [
                                         // The header lives inside the listenable
@@ -412,6 +499,19 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                           ready: completedCount,
                                           active: activeCount,
                                         ),
+                                        // Where a collect lands. The totals
+                                        // are the player's actual stock of
+                                        // each element, not what one chamber
+                                        // happens to be holding.
+                                        ElementResourceTotalsBar(
+                                          theme: theme,
+                                          totalKeys: {
+                                            for (final f in farms)
+                                              f.biome.id: _totalKeyFor(
+                                                f.biome.id,
+                                              ),
+                                          },
+                                        ),
                                         if (completedCount > 0)
                                           _CollectAllBanner(
                                             count: completedCount,
@@ -422,16 +522,26 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                         Expanded(
                                           child: _ExtractionBay(
                                             farms: farms,
-                                            yieldKeys: {
+                                            // Pinned here rather than left to
+                                            // the bay's fallback, so a collect
+                                            // cannot move the view out from
+                                            // under its own animation.
+                                            selectedBiomeId: selectedBiomeId,
+                                            railKeys: {
                                               for (final f in farms)
-                                                f.biome.id: _yieldKeyFor(
+                                                f.biome.id: _railKeyFor(
+                                                  f.biome.id,
+                                                ),
+                                            },
+                                            totalKeys: {
+                                              for (final f in farms)
+                                                f.biome.id: _totalKeyFor(
                                                   f.biome.id,
                                                 ),
                                             },
                                             theme: theme,
                                             service: _svc,
                                             discoveredCreatures: discovered,
-                                            selectedBiomeId: _selectedBiomeId,
                                             defaultDuration: const Duration(
                                               hours: 4,
                                             ),
@@ -478,21 +588,27 @@ class _ExtractionBay extends StatelessWidget {
     required this.defaultDuration,
     required this.onSelect,
     required this.onUnlock,
-    required this.yieldKeys,
+    required this.railKeys,
+    required this.totalKeys,
   });
 
   final List<BiomeFarmState> farms;
   final FactionTheme theme;
   final HarvestService service;
   final List<CreatureEntry> discoveredCreatures;
-  final String? selectedBiomeId;
+  /// Always concrete — the hub resolves and pins it.
+  final String selectedBiomeId;
   final Duration defaultDuration;
   final ValueChanged<BiomeFarmState> onSelect;
   final ValueChanged<BiomeFarmState> onUnlock;
 
-  /// One key per biome, anchoring that chip's yield label so a collect can fly
-  /// to the number it is filling.
-  final Map<String, GlobalKey> yieldKeys;
+  /// One key per biome, anchoring its chip in the selector rail so a Collect
+  /// All payout can fly out of the biome it belongs to.
+  final Map<String, GlobalKey> railKeys;
+
+  /// One key per biome, anchoring its running total in the header strip — the
+  /// number a collect flies to.
+  final Map<String, GlobalKey> totalKeys;
 
   BiomeFarmState _selectedFarm() {
     if (farms.isEmpty) {
@@ -501,10 +617,6 @@ class _ExtractionBay extends StatelessWidget {
     for (final farm in farms) {
       if (farm.biome.id == selectedBiomeId) return farm;
     }
-    final ready = farms.where((farm) => farm.completed);
-    if (ready.isNotEmpty) return ready.first;
-    final active = farms.where((farm) => farm.hasActive);
-    if (active.isNotEmpty) return active.first;
     return farms.first;
   }
 
@@ -525,7 +637,7 @@ class _ExtractionBay extends StatelessWidget {
           theme: theme,
           vertical: wide,
           onSelect: onSelect,
-          yieldKeys: yieldKeys,
+          railKeys: railKeys,
         );
         final chamber = _EmbeddedChamber(
           key: ValueKey('bay-${selected.biome.id}'),
@@ -536,7 +648,7 @@ class _ExtractionBay extends StatelessWidget {
           defaultDuration: defaultDuration,
           featured: true,
           onUnlock: () => onUnlock(selected),
-          collectTargetKey: yieldKeys[selected.biome.id],
+          collectTargetKey: totalKeys[selected.biome.id],
         );
 
         return Padding(
@@ -566,7 +678,7 @@ class _BiomeSelectorRail extends StatelessWidget {
   const _BiomeSelectorRail({
     required this.farms,
     required this.selectedBiomeId,
-    required this.yieldKeys,
+    required this.railKeys,
     required this.theme,
     required this.vertical,
     required this.onSelect,
@@ -574,7 +686,7 @@ class _BiomeSelectorRail extends StatelessWidget {
 
   final List<BiomeFarmState> farms;
   final String selectedBiomeId;
-  final Map<String, GlobalKey> yieldKeys;
+  final Map<String, GlobalKey> railKeys;
   final FactionTheme theme;
   final bool vertical;
   final ValueChanged<BiomeFarmState> onSelect;
@@ -589,12 +701,12 @@ class _BiomeSelectorRail extends StatelessWidget {
         itemBuilder: (_, index) {
           final farm = farms[index];
           return _BiomeSelectorChip(
+            key: railKeys[farm.biome.id],
             farm: farm,
             theme: theme,
             selected: farm.biome.id == selectedBiomeId,
             vertical: true,
             onTap: () => onSelect(farm),
-            yieldKey: yieldKeys[farm.biome.id],
           );
         },
       );
@@ -610,12 +722,12 @@ class _BiomeSelectorRail extends StatelessWidget {
         return SizedBox(
           width: 106,
           child: _BiomeSelectorChip(
+            key: railKeys[farm.biome.id],
             farm: farm,
             theme: theme,
             selected: farm.biome.id == selectedBiomeId,
             vertical: false,
             onTap: () => onSelect(farm),
-            yieldKey: yieldKeys[farm.biome.id],
           ),
         );
       },
@@ -625,12 +737,12 @@ class _BiomeSelectorRail extends StatelessWidget {
 
 class _BiomeSelectorChip extends StatelessWidget {
   const _BiomeSelectorChip({
+    super.key,
     required this.farm,
     required this.theme,
     required this.selected,
     required this.vertical,
     required this.onTap,
-    this.yieldKey,
   });
 
   final BiomeFarmState farm;
@@ -638,9 +750,6 @@ class _BiomeSelectorChip extends StatelessWidget {
   final bool selected;
   final bool vertical;
   final VoidCallback onTap;
-
-  /// Anchors the collect animation: the coins fly to this chip's yield label.
-  final GlobalKey? yieldKey;
 
   double get _progress {
     final job = farm.activeJob;
@@ -656,13 +765,6 @@ class _BiomeSelectorChip extends StatelessWidget {
     if (farm.completed) return 'Ready';
     if (farm.hasActive) return '${(_progress * 100).clamp(0, 99).floor()}%';
     return 'Open';
-  }
-
-  /// What the run will hand over when it finishes.
-  int get _yield {
-    final job = farm.activeJob;
-    if (job == null) return 0;
-    return job.ratePerMinute * Duration(milliseconds: job.durationMs).inMinutes;
   }
 
   @override
@@ -736,23 +838,11 @@ class _BiomeSelectorChip extends StatelessWidget {
                     AppIcons.lock_outline_rounded,
                     color: t.textMuted,
                     size: 15,
-                  )
-                // A running job used to draw its own little ring here.
-                // Progress reads around the chamber now, so this slot shows
-                // what the run is actually worth — the number the collect
-                // animation flies to.
-                else if (farm.hasActive)
-                  Text(
-                    '+$_yield',
-                    key: yieldKey,
-                    maxLines: 1,
-                    style: _display(
-                      context,
-                      12,
-                      accent,
-                      weight: FontWeight.w800,
-                    ),
                   ),
+                // A running job used to print what the run would be worth
+                // here, and the collect flew to that number — which is not a
+                // balance and read as one. The header totals carry the real
+                // figure; the run's progress is on the status line below.
               ],
             ),
             const SizedBox(height: 6),
@@ -897,6 +987,28 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
   late final AnimationController _jobCtrl;
   late final AnimationController _statusCtrl;
 
+  /// Chamber contents and rim progress as live values.
+  ///
+  /// These used to be plain doubles handed to the painters at widget-build
+  /// time. The painters repaint every frame off the clock, but the drain only
+  /// ever moved between rebuilds — which the chamber's cached subtree never
+  /// did — so a collect emptied the chamber on paper and never on screen.
+  final ValueNotifier<double> _fill = ValueNotifier<double>(0);
+  final ValueNotifier<double> _rim = ValueNotifier<double>(0);
+
+  /// What the chamber held when a collect began. The job clears the instant
+  /// the collect lands, so draining from live state would snap to empty
+  /// instead of emptying.
+  double _drainFillFrom = 0;
+  double _drainRimFrom = 0;
+  bool _draining = false;
+
+  /// Anchors for the collect's origin. One per layout rather than one shared
+  /// key, because a GlobalKey attached to two trees at once throws — only one
+  /// of these is ever mounted.
+  final GlobalKey _featuredOrbKey = GlobalKey(debugLabel: 'orb_featured');
+  final GlobalKey _compactOrbKey = GlobalKey(debugLabel: 'orb_compact');
+
   Widget? _creatureWidget;
   String? _cachedInstanceId;
 
@@ -924,6 +1036,12 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     _ticker = createTicker((elapsed) {
       _tNotifier.value = elapsed.inMicroseconds / 1e6;
     })..start();
+    // The drain is the collect's whole visual payload, so it runs off the
+    // controller rather than waiting on a rebuild that never comes.
+    _collectCtrl.addListener(_pushDrain);
+    // The rim used to advance only when the service notified. It is a 4-hour
+    // sweep; riding the job controller makes it move.
+    _jobCtrl.addListener(_pushRim);
     PushNotificationService().cancelHarvestSummaryNotification();
     _refreshCreatureCache();
   }
@@ -936,10 +1054,26 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     }
   }
 
+  void _pushDrain() {
+    if (!_draining) return;
+    final left = 1 - Curves.easeInOutCubic.transform(_collectCtrl.value);
+    _fill.value = _drainFillFrom * left;
+    _rim.value = _drainRimFrom * left;
+  }
+
+  void _pushRim() {
+    if (_draining) return;
+    _rim.value = widget.farm.hasActive ? _jobCtrl.value : 0;
+  }
+
   @override
   void dispose() {
     _ticker.dispose();
     _tNotifier.dispose();
+    _collectCtrl.removeListener(_pushDrain);
+    _jobCtrl.removeListener(_pushRim);
+    _fill.dispose();
+    _rim.dispose();
     _jobCtrl.dispose();
     _collectCtrl.dispose();
     _tapFxCtrl.dispose();
@@ -992,6 +1126,10 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     if (job == null) {
       if (_jobCtrl.value != 0) _jobCtrl.value = 0;
       if (_jobCtrl.isAnimating) _jobCtrl.stop();
+      if (!_draining) {
+        _fill.value = 0;
+        _rim.value = 0;
+      }
       return const _ProgressViewModel(
         progress: 0,
         effectiveFill: 0,
@@ -1019,14 +1157,19 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
         ? (0.0 + 0.85 * progress).clamp(0.0, 0.85)
         : 0.0;
     final curvedFill = Curves.easeOutCubic.transform(targetFill);
-    final drainP = Curves.easeInOutCubic.transform(_collectCtrl.value);
-    final effectiveFill = curvedFill * (1.0 - drainP);
+    // A collect owns these until it finishes. Letting the live job state write
+    // them mid-drain is what made the chamber snap to empty the moment the job
+    // cleared, instead of emptying.
+    if (!_draining) {
+      _fill.value = curvedFill;
+      _rim.value = farm.hasActive ? progress : 0;
+    }
     final Duration? remainingTime = farm.hasActive && _jobCtrl.duration != null
         ? _jobCtrl.duration! * (1 - _jobCtrl.value)
         : farm.remaining;
     return _ProgressViewModel(
       progress: progress,
-      effectiveFill: effectiveFill,
+      effectiveFill: curvedFill,
       remaining: remainingTime,
     );
   }
@@ -1138,38 +1281,64 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 
   // ── Collect ───────────────────────────────────────────────────────────────
 
-  /// The chamber's rect and the chip it pays into, in screen space.
+  /// The orb's own square, so the particles leave the chamber rather than the
+  /// whole card — the panels and buttons below it are not where the resources
+  /// were sitting.
+  Rect? _orbRect() {
+    for (final key in [_featuredOrbKey, _compactOrbKey]) {
+      final box = key.currentContext?.findRenderObject();
+      if (box is RenderBox && box.hasSize) {
+        return box.localToGlobal(Offset.zero) & box.size;
+      }
+    }
+    final fallback = context.findRenderObject();
+    if (fallback is! RenderBox || !fallback.hasSize) return null;
+    return fallback.localToGlobal(Offset.zero) & fallback.size;
+  }
+
+  /// The chamber's orb and the total it pays into, in screen space.
   ({Rect from, Offset to})? _collectFlight() {
-    // This state's own box, rather than a key on the chamber: the two chamber
-    // layouts (featured and compact) would need one GlobalKey between them,
-    // and a GlobalKey attached twice throws.
     final toCtx = widget.collectTargetKey?.currentContext;
     if (toCtx == null || !mounted) return null;
-    final fromBox = context.findRenderObject();
+    final from = _orbRect();
     final toBox = toCtx.findRenderObject();
-    if (fromBox is! RenderBox || toBox is! RenderBox) return null;
-    if (!fromBox.hasSize || !toBox.hasSize) return null;
+    if (from == null || toBox is! RenderBox || !toBox.hasSize) return null;
     return (
-      from: fromBox.localToGlobal(Offset.zero) & fromBox.size,
+      from: from,
       to: toBox.localToGlobal(toBox.size.center(Offset.zero)),
     );
   }
 
   Future<void> _handleCollect(BiomeFarmState farm) async {
+    if (_draining) return;
     final previousJob = farm.activeJob;
     HapticFeedback.mediumImpact();
 
-    // Read the geometry before the collect, because the job clears and the
-    // chip's yield label goes away with it.
+    // Read the geometry before the collect: the job clears as it lands, and
+    // the chamber empties out from under the origin rect.
     final flight = _collectFlight();
 
-    await _collectCtrl.forward(from: 0);
-    final got = await widget.service.collect(widget.farm.biome);
-    if (!mounted) return;
-    HapticFeedback.lightImpact();
+    // Emptying and streaming out are one motion, so the drain starts here and
+    // is not awaited until the particles are already on their way. Awaiting it
+    // first left a second of dead air before anything moved.
+    _drainFillFrom = _fill.value;
+    _drainRimFrom = _rim.value;
+    _draining = true;
+    final drain = _collectCtrl.forward(from: 0);
 
-    // The resources visibly leave the chamber and land on the number that was
-    // counting up for them, in the biome's own colour.
+    final got = await widget.service.collect(widget.farm.biome);
+    if (!mounted) {
+      _draining = false;
+      return;
+    }
+    HapticFeedback.lightImpact();
+    // Collecting one chamber had no sound at all — the cue existed but its only
+    // caller was the old BiomeDetailScreen, which nothing routed to any more.
+    // Collect All still uses the louder extractionComplete.
+    context.sound(SoundCue.harvestCollect, owner: this);
+
+    // The resources visibly leave the chamber and land on the total they are
+    // added to, in the biome's own colour.
     if (flight != null && got > 0) {
       unawaited(
         playRewardCollect(
@@ -1182,6 +1351,10 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
         ),
       );
     }
+
+    await drain;
+    if (!mounted) return;
+    _draining = false;
 
     await _refreshCreatureCache();
     if (previousJob == null || !mounted) return;
@@ -1610,7 +1783,10 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                       child: AspectRatio(
                         aspectRatio: 1,
                         child: _ChamberView(
+                          key: _featuredOrbKey,
                           tListenable: _tNotifier,
+                          fillListenable: _fill,
+                          rimListenable: _rim,
                           progress: vm.progress,
                           collectCtrl: _collectCtrl,
                           tapFxCtrl: _tapFxCtrl,
@@ -1618,7 +1794,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                           farm: farm,
                           accent: accent,
                           statusOverlay: badge,
-                          effectiveFill: vm.effectiveFill,
                           creatureWidget: _creatureWidget,
                           onTapDown: (details, inner) {
                             final lp = details.localPosition;
@@ -1800,7 +1975,10 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                                     ? 1.14
                                     : 1.08,
                                 child: _ChamberView(
+                                  key: _compactOrbKey,
                                   tListenable: _tNotifier,
+                                  fillListenable: _fill,
+                                  rimListenable: _rim,
                                   progress: vm.progress,
                                   collectCtrl: _collectCtrl,
                                   tapFxCtrl: _tapFxCtrl,
@@ -1808,7 +1986,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                                   farm: farm,
                                   accent: accent,
                                   statusOverlay: badge,
-                                  effectiveFill: vm.effectiveFill,
                                   creatureWidget: _creatureWidget,
                                   onTapDown: (details, inner) {
                                     final lp = details.localPosition;
@@ -1896,7 +2073,7 @@ class _ProgressViewModel {
 }
 
 // ---------------------------------------------------------------------------
-// Panels — identical to BiomeDetailScreen
+// Panels
 // ---------------------------------------------------------------------------
 
 class _StartPanel extends StatelessWidget {
@@ -2178,19 +2355,21 @@ class _OutlineBtn extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// _ChamberView — verbatim from BiomeDetailScreen
+// _ChamberView
 // ---------------------------------------------------------------------------
 
 class _ChamberView extends StatelessWidget {
   const _ChamberView({
+    super.key,
     required this.tListenable,
+    required this.fillListenable,
+    required this.rimListenable,
     required this.progress,
     required this.collectCtrl,
     required this.tapFxCtrl,
     required this.onTapBoost,
     required this.farm,
     required this.accent,
-    required this.effectiveFill,
     required this.creatureWidget,
     required this.onTapDown,
     required this.tapLocal,
@@ -2198,13 +2377,20 @@ class _ChamberView extends StatelessWidget {
   });
   final Widget? statusOverlay;
   final ValueListenable<double> tListenable;
+
+  /// Chamber contents and rim sweep, read live at paint time. The painters
+  /// already repaint every frame off [tListenable]; handing them plain doubles
+  /// meant the collect drain could only move on a rebuild that never happened.
+  final ValueListenable<double> fillListenable;
+  final ValueListenable<double> rimListenable;
+
+  /// Only drives [_tempo], which changes slowly enough to ride rebuilds.
   final double progress;
   final AnimationController collectCtrl;
   final AnimationController tapFxCtrl;
   final VoidCallback onTapBoost;
   final BiomeFarmState farm;
   final Color accent;
-  final double effectiveFill;
   final Widget? creatureWidget;
   final void Function(TapDownDetails details, RRect inner) onTapDown;
   final Offset? tapLocal;
@@ -2258,8 +2444,8 @@ class _ChamberView extends StatelessWidget {
                 CustomPaint(
                   painter: _ChamberBackgroundPainter(
                     tListenable: tListenable,
+                    fillListenable: fillListenable,
                     tempo: _tempo(),
-                    fill: effectiveFill,
                     color: accent,
                     active: farm.hasActive,
                   ),
@@ -2280,10 +2466,10 @@ class _ChamberView extends StatelessWidget {
                 CustomPaint(
                   painter: _ChamberForegroundPainter(
                     tListenable: tListenable,
+                    rimListenable: rimListenable,
                     tempo: _tempo(),
                     color: accent,
                     active: farm.hasActive,
-                    progress: progress,
                   ),
                   size: size,
                 ),
@@ -2378,15 +2564,18 @@ class _ChamberBackgroundPainter extends CustomPainter {
   /// meant the only way to animate was to rebuild the widget tree every frame.
   _ChamberBackgroundPainter({
     required this.tListenable,
+    required this.fillListenable,
     required this.tempo,
-    required this.fill,
     required this.color,
     required this.active,
-  }) : super(repaint: tListenable);
+  }) : super(repaint: Listenable.merge([tListenable, fillListenable]));
   final ValueListenable<double> tListenable;
+  final ValueListenable<double> fillListenable;
   double get tSeconds => tListenable.value;
+
+  /// Read per paint, so the collect drain shows up without a rebuild.
+  double get fill => fillListenable.value;
   final double tempo;
-  final double fill;
   final Color color;
   final bool active;
 
@@ -2526,20 +2715,22 @@ class _ChamberBackgroundPainter extends CustomPainter {
 class _ChamberForegroundPainter extends CustomPainter {
   _ChamberForegroundPainter({
     required this.tListenable,
+    required this.rimListenable,
     required this.tempo,
     required this.color,
     required this.active,
-    required this.progress,
-  }) : super(repaint: tListenable);
+  }) : super(repaint: Listenable.merge([tListenable, rimListenable]));
   final ValueListenable<double> tListenable;
+  final ValueListenable<double> rimListenable;
   double get tSeconds => tListenable.value;
   final double tempo;
   final Color color;
   final bool active;
 
   /// 0..1 job completion, filled around the rim the chamber already has
-  /// rather than drawn as a second ring outside it.
-  final double progress;
+  /// rather than drawn as a second ring outside it. Read per paint so the
+  /// rim sweeps as the job advances and unwinds as a collect drains it.
+  double get progress => rimListenable.value;
 
   @override
   void paint(Canvas canvas, Size size) {

@@ -322,6 +322,26 @@ class ForgeTokens {
       ? const Color(0xFFFFB020)
       : readableAccent(_theme.accent).withValues(alpha: 0.85);
 
+  // ── Dominant marker ────────────────────────────────────────────────────────
+  // The two stats an Alchemon passes down are flagged in gold everywhere they
+  // appear. In light mode this used to ride on the faction accent, which for
+  // the paler factions was nearly invisible against the surface — so light
+  // mode gets its own deep gold instead of whatever the faction happens to be.
+  Color get dominant =>
+      isDark ? const Color(0xFFF59E0B) : const Color(0xFFA16207);
+
+  // ── Reward palette ─────────────────────────────────────────────────────────
+  // Coin and "ready" colours. The dark values are what the forge aesthetic was
+  // drawn around; a pale gold, mint or silver on a parchment surface is
+  // unreadable, so light mode gets darkened counterparts doing the same job.
+  Color get rewardGold =>
+      isDark ? const Color(0xFFE4C16A) : const Color(0xFF9A6B12);
+  Color get rewardSilver =>
+      isDark ? const Color(0xFFCFD6DE) : const Color(0xFF5A6572);
+
+  /// The "earned / ready to collect" accent.
+  Color get mint => isDark ? const Color(0xFF8CD9B3) : const Color(0xFF0F6B4F);
+
   // ── Text ───────────────────────────────────────────────────────────────────
   Color get textPrimary => isDark ? const Color(0xFFE8DCC8) : _theme.text;
   Color get textSecondary =>
