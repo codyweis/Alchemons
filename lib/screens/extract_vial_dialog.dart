@@ -334,7 +334,7 @@ class _Button extends StatelessWidget {
       button: true,
       label: label,
       child: GestureDetector(
-        onTap: context.soundAction(onTap, SoundCue.uiConfirm),
+        onTap: context.soundAction(onTap),
         child: Container(
           width: double.infinity,
           height: 44,

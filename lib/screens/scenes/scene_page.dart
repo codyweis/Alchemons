@@ -1375,8 +1375,12 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                     },
                     // The harvest belongs to the scene: it plays on the wild
                     // component that is already standing there.
-                    onHarvestInScene: (accent, task) => _game
-                        .playHarvestOnEncounter(accent: accent, task: task),
+                    onHarvestInScene: (accent, task, profile) =>
+                        _game.playHarvestOnEncounter(
+                          accent: accent,
+                          task: task,
+                          profile: profile,
+                        ),
                     onFusionInScene: (party, wild) =>
                         _game.playFusionOnEncounter(
                           accentParty: party,

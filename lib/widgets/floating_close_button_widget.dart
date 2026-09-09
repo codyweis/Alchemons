@@ -22,7 +22,7 @@ class FloatingCloseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: context.soundAction(onTap, SoundCue.uiBack),
+      onTap: context.soundAction(onTap),
       child: Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,

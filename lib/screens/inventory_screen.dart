@@ -2,6 +2,7 @@ import 'package:alchemons/audio/audio.dart';
 // lib/screens/inventory_screen.dart - REDESIGNED
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
@@ -79,6 +80,11 @@ class InventoryImageHelper {
     }
     if (key == InvKeys.potentialSoul) {
       return PotentialSoulSphere(size: size);
+    }
+
+    final harvester = harvesterBiomeForKey(key);
+    if (harvester != null) {
+      return HarvesterGlyph(biomeId: harvester, size: size);
     }
 
     // 1. Check if it's an alchemy effect using the key prefix

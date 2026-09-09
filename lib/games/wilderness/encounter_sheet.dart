@@ -31,6 +31,7 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
 import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
+import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart'; // 🆕 Import highlight widget
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -66,7 +67,11 @@ class EncounterOverlay extends StatefulWidget {
   /// the roll's result. Null hosts (the rift portal, the prologue) fall back
   /// to the old full-screen cinematic, which is still correct for a screen
   /// that has no scene to play in.
-  final Future<bool> Function(Color accent, Future<bool> Function() task)?
+  final Future<bool> Function(
+    Color accent,
+    Future<bool> Function() task,
+    HarvesterProfile profile,
+  )?
   onHarvestInScene;
 
   /// Merges the party creature and the wild one where they stand, answering
@@ -872,10 +877,17 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       // duplicate appeared on a black card. The scene owns the animation now —
       // the field closes on the live component and drives its transform — so
       // there is one creature, and the world keeps running behind it.
+      // Which device is doing this decides how the field behaves — a Crusher
+      // arrives in stages and grinds, a Snare cinches and writhes. Both the
+      // in-scene field and the full-screen fallback read the same profile.
+      final harvester = HarvesterProfile.forInventoryKey(
+        selectedDevice.inventoryKey,
+      );
+
       final playInScene = widget.onHarvestInScene;
       final bool success;
       if (playInScene != null) {
-        success = await playInScene(targetColor, roll);
+        success = await playInScene(targetColor, roll, harvester);
       } else {
         if (!ctx.mounted) return;
         success = await showHarvestCinematic(
@@ -883,6 +895,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           targetSprite: _buildWildSprite(wildCreature),
           targetColor: targetColor,
           deviceLabel: selectedDevice.label,
+          profile: harvester,
           minDuration: const Duration(milliseconds: 1600),
           task: roll,
         );

@@ -849,7 +849,7 @@ class _ForgeButton extends StatelessWidget {
     final btnColor = color ?? _C.amber;
     final isDisabled = onTap == null || loading;
     return GestureDetector(
-      onTap: isDisabled ? null : context.soundAction(onTap, SoundCue.uiConfirm),
+      onTap: isDisabled ? null : context.soundAction(onTap),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         height: 44,

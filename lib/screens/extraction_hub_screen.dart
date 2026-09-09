@@ -338,6 +338,13 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
     if (confirmed != true || !mounted) return;
     final ok = await _svc.unlock(farm.biome, cost: costDb);
     if (!mounted) return;
+    // Unlocking a biome costs resources and opens a chamber for good, and it
+    // was landing on nothing but a snackbar.
+    HapticFeedback.mediumImpact();
+    context.sound(
+      ok ? SoundCue.upgradeComplete : SoundCue.uiDenied,
+      owner: this,
+    );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -1713,11 +1720,17 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
             final compact = widget.featured
                 ? constraints.maxWidth < 320
                 : constraints.maxWidth < 180;
+            // A fixed reservation rather than a height per state. The panel
+            // used to shrink the moment a job cleared, and the chamber above
+            // it — sized from whatever is left over — jumped a step larger the
+            // instant you pressed Collect, right on top of its own drain. The
+            // start panel centres its button, so the taller box only gives it
+            // more air.
             final panelHeight = widget.featured
-                ? (farm.hasActive ? 104.0 : 64.0)
+                ? 104.0
                 : compact
-                ? (farm.hasActive ? 82.0 : 48.0)
-                : (farm.hasActive ? 86.0 : 50.0);
+                ? 82.0
+                : 86.0;
 
             Widget? badge;
             if (farm.completed) {

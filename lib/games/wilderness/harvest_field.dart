@@ -22,6 +22,7 @@ import 'dart:math' as math;
 
 import 'package:alchemons/games/wilderness/disintegration.dart';
 import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
+import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
@@ -31,8 +32,14 @@ class HarvestFieldEffect extends PositionComponent {
     required this.target,
     required this.accent,
     required this.task,
+    HarvesterProfile? profile,
     this.minSeize = 1.5,
-  }) : super(anchor: Anchor.center, priority: 900);
+  }) : profile = profile ?? HarvesterProfile.forBiome(null),
+       super(anchor: Anchor.center, priority: 900);
+
+  /// Which harvester is doing this. Drives how the field closes, how it
+  /// answers being pushed, and what it throws — see [HarvesterProfile].
+  final HarvesterProfile profile;
 
   /// The creature in the scene. Its transform is what animates.
   final PositionComponent target;
@@ -238,7 +245,6 @@ class HarvestFieldEffect extends PositionComponent {
   void render(Canvas canvas) {
     final c = (size / 2).toOffset();
     final cage = _cage;
-    final closing = Curves.easeOutCubic.transform(_closing);
     final collapse = Curves.easeInOutCubic.transform(_collapse);
     final shatter = Curves.easeOutCubic.transform(_shatter);
     final push = _push;
@@ -260,29 +266,41 @@ class HarvestFieldEffect extends PositionComponent {
       );
     }
 
-    for (var ring = 0; ring < 3; ring++) {
+    // Everything about the apparatus below comes from the harvester in hand:
+    // a Crusher arrives as two heavy jaws in stages, a Drown as a continuous
+    // sheet rippling round itself, a Snare as thin tendrils that cinch.
+    final shaped = profile.closingCurve(_closing);
+    final strainPhase = _t * 0.35;
+    for (var ring = 0; ring < profile.ringCount; ring++) {
       final rest = cage * (1.0 + ring * 0.2);
       final start = rest * (3.6 - ring * 0.4);
-      var radius = start + (rest - start) * closing;
+      var radius = start + (rest - start) * shaped;
       radius *= 1 - 0.92 * collapse;
       radius *= 1 + 1.6 * shatter;
       if (radius <= 1) continue;
 
-      final spin = _t * (ring.isEven ? 1.0 : -1.0) * (0.9 + ring * 0.4);
-      final segs = 5 + ring * 2;
-      final flex = push * cage * 0.12 * (1 - collapse);
+      final spin =
+          _t *
+          (ring.isEven ? 1.0 : -1.0) *
+          profile.spinRate *
+          (0.9 + ring * 0.4);
+      final segs = profile.segsBase + ring * profile.segsPerRing;
       final alpha =
-          (0.22 + 0.6 * closing) * (1 - collapse * 0.4) * (1 - shatter);
+          (0.22 + 0.6 * shaped) * (1 - collapse * 0.4) * (1 - shatter);
       if (alpha <= 0.01) continue;
 
+      final ringTint = profile.ringColor(ring);
       final paint = _stroke
-        ..strokeWidth = (ring == 0 ? 2.6 : 1.5) + 1.4 * push
-        ..color = Color.lerp(accent, _amber, 0.4)!.withValues(alpha: alpha);
+        ..strokeWidth =
+            (ring == 0 ? profile.strokeBase : profile.strokeBase * 0.6) +
+            1.4 * push
+        ..color = ringTint.withValues(alpha: alpha);
 
       for (var s = 0; s < segs; s++) {
         final a0 = spin + s * math.pi * 2 / segs;
         final a1 = a0 + math.pi * 2 / segs * 0.62;
-        final fly = shatter * cage * 1.5 * (0.6 + 0.4 * (s % 3));
+        final fly =
+            shatter * cage * profile.shatterSpread * (0.6 + 0.4 * (s % 3));
         final off = shatter == 0
             ? Offset.zero
             : Offset(math.cos(a0), math.sin(a0)) * fly;
@@ -290,13 +308,35 @@ class HarvestFieldEffect extends PositionComponent {
         const steps = 10;
         for (var k = 0; k <= steps; k++) {
           final a = a0 + (a1 - a0) * k / steps;
-          // The wall bulges where the specimen is leaning on it.
-          final rr = radius + flex * math.sin(a * 3 - _t * 2.2);
+          final rr =
+              radius +
+              profile.radialFlex(a, strainPhase, push, cage) *
+                  (1 - collapse);
           final p = c + Offset(math.cos(a), math.sin(a)) * rr + off;
           k == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
         }
         canvas.drawPath(path, paint);
       }
+    }
+
+    // The bound sigil, for the units that write a specimen into place rather
+    // than clamping it.
+    if (profile.sigil && shaped > 0.2 && shatter < 0.9) {
+      final r = cage * 1.05 * (1 - 0.92 * collapse);
+      final spin = -_t * profile.spinRate * 0.5;
+      final p = _stroke
+        ..strokeWidth = 1.4
+        ..color = profile.accent.withValues(
+          alpha: 0.42 * shaped * (1 - shatter) * (1 - collapse),
+        );
+      final path = _arc..reset();
+      for (var i = 0; i <= 6; i++) {
+        // Step by two points round a hexagon to draw the star in one stroke.
+        final a = spin + (i * 2 % 6) * math.pi / 3;
+        final pt = c + Offset(math.cos(a), math.sin(a)) * r;
+        i == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
+      }
+      canvas.drawPath(path, p);
     }
 
     // Anchors biting in.
@@ -307,7 +347,7 @@ class HarvestFieldEffect extends PositionComponent {
       final r = cage * (1.45 - 0.1 * bite) * (1 - 0.92 * collapse);
       final p = _stroke
         ..strokeWidth = 2.2
-        ..color = _amber.withValues(
+        ..color = profile.accent.withValues(
           alpha: 0.55 * bite * (1 - shatter) * (1 - collapse),
         );
       for (var i = 0; i < 4; i++) {

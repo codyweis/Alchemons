@@ -278,10 +278,7 @@ class _ForgeButton extends StatelessWidget {
     return GestureDetector(
       onTap: isDisabled
           ? null
-          : context.soundAction(
-              onTap,
-              secondary ? SoundCue.uiBack : SoundCue.uiConfirm,
-            ),
+          : context.soundAction(onTap),
       child: CustomPaint(
         painter: _BracketFramePainter(
           color: secondary

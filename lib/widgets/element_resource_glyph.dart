@@ -1,39 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:alchemons/constants/element_resources.dart';
+import 'package:alchemons/widgets/fx/glyph_clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
-
-/// One clock for every glyph on screen.
-///
-/// These appear in lists — the black market picker draws five at once, the
-/// shop rows more — and giving each its own AnimationController means one
-/// ticker per glyph all asking for the same frame. Ref-counted so the ticker
-/// only runs while something is actually painting.
-class _GlyphClock {
-  _GlyphClock._();
-  static final _GlyphClock instance = _GlyphClock._();
-
-  final ValueNotifier<double> seconds = ValueNotifier<double>(0);
-  Ticker? _ticker;
-  int _listeners = 0;
-
-  void acquire() {
-    _listeners++;
-    if (_ticker != null) return;
-    _ticker = Ticker((elapsed) {
-      seconds.value = elapsed.inMicroseconds / 1e6;
-    })..start();
-  }
-
-  void release() {
-    _listeners = math.max(0, _listeners - 1);
-    if (_listeners > 0) return;
-    _ticker?.dispose();
-    _ticker = null;
-  }
-}
 
 /// A resource drawn as its own small particle field instead of a flat asset.
 ///
@@ -87,34 +57,26 @@ class ElementResourceGlyph extends StatefulWidget {
   State<ElementResourceGlyph> createState() => _ElementResourceGlyphState();
 }
 
-class _ElementResourceGlyphState extends State<ElementResourceGlyph> {
-  bool _held = false;
+class _ElementResourceGlyphState extends State<ElementResourceGlyph>
+    with GlyphClockLease {
+  @override
+  bool get wantsClock => widget.animate;
 
   @override
   void initState() {
     super.initState();
-    _sync();
+    syncGlyphClock();
   }
 
   @override
   void didUpdateWidget(covariant ElementResourceGlyph oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _sync();
-  }
-
-  void _sync() {
-    if (widget.animate && !_held) {
-      _GlyphClock.instance.acquire();
-      _held = true;
-    } else if (!widget.animate && _held) {
-      _GlyphClock.instance.release();
-      _held = false;
-    }
+    syncGlyphClock();
   }
 
   @override
   void dispose() {
-    if (_held) _GlyphClock.instance.release();
+    releaseGlyphClock();
     super.dispose();
   }
 
@@ -132,7 +94,7 @@ class _ElementResourceGlyphState extends State<ElementResourceGlyph> {
           biomeId: widget.biomeId,
           color: widget.color,
           glow: widget.glow,
-          clock: widget.animate ? _GlyphClock.instance.seconds : null,
+          clock: glyphClock,
         ),
       ),
     );

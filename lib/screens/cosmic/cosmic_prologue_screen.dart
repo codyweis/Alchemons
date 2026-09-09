@@ -32,6 +32,7 @@ import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -437,11 +438,9 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
                                 scale: 1 + claim * 0.55,
                                 child: Opacity(
                                   opacity: (1 - claim).clamp(0.0, 1.0),
-                                  child: Image.asset(
-                                    'assets/images/ui/universalharvest.png',
-                                    width: 82,
-                                    height: 82,
-                                    fit: BoxFit.contain,
+                                  child: const HarvesterGlyph(
+                                    biomeId: universalHarvester,
+                                    size: 82,
                                   ),
                                 ),
                               ),

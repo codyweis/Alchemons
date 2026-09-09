@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:alchemons/games/wilderness/harvest_field.dart';
+import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/models/rift_state.dart';
 import 'package:alchemons/models/creature.dart';
@@ -438,6 +439,7 @@ class SceneGame extends FlameGame with ScaleDetector {
   Future<bool> playHarvestOnEncounter({
     required Color accent,
     required Future<bool> Function() task,
+    HarvesterProfile? profile,
   }) async {
     final id = _currentEncounterSpawnId;
     final target = id == null ? null : _wildBySpawnId[id];
@@ -465,6 +467,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       target: target,
       accent: accent,
       task: task,
+      profile: profile,
     );
     // Parented to the creature's own anchor, so it tracks the spawn point.
     (target.parent ?? world).add(field);

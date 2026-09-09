@@ -150,7 +150,7 @@ class _MainShellState extends State<MainShell> {
     bool withHaptic = true,
   }) {
     if (section == _currentSection) return;
-    if (withHaptic) context.sound(SoundCue.uiSelect);
+    if (withHaptic) HapticFeedback.selectionClick();
 
     // Unfocus the creatures search field when leaving that tab
     if (_currentSection == NavSection.creatures) {

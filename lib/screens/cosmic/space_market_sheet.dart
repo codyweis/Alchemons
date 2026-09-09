@@ -23,6 +23,7 @@ import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/harvester_glyph.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ITEM DEFINITIONS
@@ -59,7 +60,6 @@ const _harvesterItems = <_MarketItem>[
     description: 'Standard capture device for volcanic creatures.',
     icon: AppIcons.local_fire_department_rounded,
     iconColor: Color(0xFFFF5722),
-    assetName: 'assets/images/ui/volcanicharvester.png',
     inventoryKey: 'item.harvest_std_volcanic',
     baseCost: {'shards': 50, 'silver': 999},
     faction: 'volcanic',
@@ -70,7 +70,6 @@ const _harvesterItems = <_MarketItem>[
     description: 'Standard capture device for oceanic creatures.',
     icon: AppIcons.water_rounded,
     iconColor: Color(0xFF64B5F6),
-    assetName: 'assets/images/ui/oceanicharvester.png',
     inventoryKey: 'item.harvest_std_oceanic',
     baseCost: {'shards': 50, 'silver': 999},
     faction: 'oceanic',
@@ -81,7 +80,6 @@ const _harvesterItems = <_MarketItem>[
     description: 'Standard capture device for verdant creatures.',
     icon: AppIcons.eco_rounded,
     iconColor: Color(0xFF66BB6A),
-    assetName: 'assets/images/ui/verdantharvester.png',
     inventoryKey: 'item.harvest_std_verdant',
     baseCost: {'shards': 50, 'silver': 999},
     faction: 'verdant',
@@ -92,7 +90,6 @@ const _harvesterItems = <_MarketItem>[
     description: 'Standard capture device for earthen creatures.',
     icon: AppIcons.terrain_rounded,
     iconColor: Color(0xFF8D6E63),
-    assetName: 'assets/images/ui/earthenharvester.png',
     inventoryKey: 'item.harvest_std_earthen',
     baseCost: {'shards': 50, 'silver': 999},
     faction: 'earthen',
@@ -103,7 +100,6 @@ const _harvesterItems = <_MarketItem>[
     description: 'Standard capture device for arcane creatures.',
     icon: AppIcons.auto_awesome_rounded,
     iconColor: Color(0xFFCE93D8),
-    assetName: 'assets/images/ui/arcaneharvester.png',
     inventoryKey: 'item.harvest_std_arcane',
     baseCost: {'shards': 50, 'silver': 999},
     faction: 'arcane',
@@ -114,7 +110,6 @@ const _harvesterItems = <_MarketItem>[
     description: 'Guaranteed capture, never fails.',
     icon: AppIcons.shield_rounded,
     iconColor: Color(0xFFFFD700),
-    assetName: 'assets/images/ui/universalharvest.png',
     inventoryKey: 'item.harvest_guaranteed',
     baseCost: {'gold': 1},
     faction: 'neutral',
@@ -668,8 +663,19 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                           color: item.iconColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: item.assetName != null
-                            ? ClipRRect(
+                        child: Builder(
+                          builder: (_) {
+                            final harvester = harvesterBiomeForKey(
+                              item.inventoryKey,
+                            );
+                            if (harvester != null) {
+                              return HarvesterGlyph(
+                                biomeId: harvester,
+                                size: 48,
+                              );
+                            }
+                            if (item.assetName != null) {
+                              return ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: Image.asset(
                                   item.assetName!,
@@ -680,8 +686,15 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                     size: 28,
                                   ),
                                 ),
-                              )
-                            : Icon(item.icon, color: item.iconColor, size: 28),
+                              );
+                            }
+                            return Icon(
+                              item.icon,
+                              color: item.iconColor,
+                              size: 28,
+                            );
+                          },
+                        ),
                       ),
                       const SizedBox(width: 12),
 

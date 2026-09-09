@@ -16,7 +16,9 @@ import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/static_effect_snapshot.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/widgets/wild_fusion_glyph.dart';
 import 'package:flutter/material.dart';
@@ -395,12 +397,12 @@ class _DialogSecondaryButton extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(
           label,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: t.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.4,
+          style: bracketText(
+            context,
+            13.5,
+            t.textSecondary,
+            weight: FontWeight.w800,
+            letterSpacing: 1.2,
           ),
         ),
       ),
@@ -669,6 +671,50 @@ Widget _buildOfferPreview(
       return Center(
         child: StaticEffectSnapshot(
           cacheKey: 'shop.alchemy.${offer.inventoryKey}',
+          boxSize: size,
+          child: live,
+        ),
+      );
+    }
+  }
+
+  // 1a. Harvesters are devices, so they draw as the pulser rather than a
+  // painting of one.
+  {
+    final harvester = harvesterBiomeForKey(offer.inventoryKey);
+    if (harvester != null) {
+      final live = HarvesterGlyph(
+        biomeId: harvester,
+        size: size,
+        animate: animate,
+      );
+      if (animate) return Center(child: live);
+      return Center(
+        child: StaticEffectSnapshot(
+          cacheKey: 'shop.harvester.$harvester',
+          boxSize: size,
+          child: live,
+        ),
+      );
+    }
+  }
+
+  // 1b. Element currencies draw as their own particle field, the same way the
+  // harvest strip, the black market and the purchase dialog draw them. The
+  // exchange was the last place still showing the flat PNGs.
+  {
+    final resource = _offerElementResource(offer);
+    if (resource != null) {
+      final live = ElementResourceGlyph(
+        biomeId: resource.biomeId,
+        color: resource.color,
+        size: size,
+        animate: animate,
+      );
+      if (animate) return Center(child: live);
+      return Center(
+        child: StaticEffectSnapshot(
+          cacheKey: 'shop.element.${resource.biomeId}',
           boxSize: size,
           child: live,
         ),
@@ -1725,116 +1771,133 @@ Future<int?> showPurchaseConfirmationDialog({
             horizontal: 24,
             vertical: 24,
           ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: t.bg1,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: theme.isDark ? 0.5 : 0.18,
-                  ),
-                  blurRadius: 28,
-                  offset: const Offset(0, 12),
-                ),
-              ],
+          // Squared and bracketed, like every other panel in the app. The
+          // 16px rounded card with centred monospace read as a system alert
+          // rather than something in the game.
+          child: CustomPaint(
+            painter: BracketFramePainter(
+              color: primaryAccent.withValues(alpha: 0.75),
+              bracketSize: 14,
+              strokeWidth: 1.3,
             ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'CONFIRM PURCHASE',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: primaryAccent,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 2.6,
-                      ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: t.bg1,
+                border: Border.all(color: t.borderDim),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: theme.isDark ? 0.5 : 0.18,
                     ),
-                    const SizedBox(height: 12),
-                    // ── Item icon + name ─────────────────────────────────
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          offer.icon,
-                          color: offer.iconColor ?? theme.accent,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            offer.name + (canQty && qty > 1 ? '  ×$qty' : ''),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: t.textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1,
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Accent rule + label: the app's standard panel head.
+                      Row(
+                        children: [
+                          Container(width: 3, height: 22, color: primaryAccent),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'CONFIRM PURCHASE',
+                              style: bracketText(
+                                context,
+                                12.5,
+                                primaryAccent,
+                                weight: FontWeight.w800,
+                                letterSpacing: 2.0,
+                              ),
                             ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      // ── Item icon + name ─────────────────────────────────
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            offer.icon,
+                            color: offer.iconColor ?? primaryAccent,
+                            size: 26,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              offer.name + (canQty && qty > 1 ? '  ×$qty' : ''),
+                              style: bracketText(
+                                context,
+                                19,
+                                t.textPrimary,
+                                weight: FontWeight.w800,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Left-aligned: centred prose at 12px was the least
+                      // readable thing in the dialog.
+                      Text(
+                        offer.description,
+                        style: bracketText(
+                          context,
+                          13.5,
+                          t.textSecondary,
+                          weight: FontWeight.w500,
+                        ).copyWith(height: 1.45),
+                      ),
+                      if (canQty) ...[
+                        const SizedBox(height: 14),
+                        _DialogQuantityPicker(
+                          qty: qty,
+                          onChanged: (next) => setState(() => qty = next),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      offer.description,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.textSecondary,
-                        fontSize: 12,
-                        height: 1.6,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    if (canQty) ...[
-                      const SizedBox(height: 14),
-                      _DialogQuantityPicker(
-                        qty: qty,
-                        onChanged: (next) => setState(() => qty = next),
+                      const SizedBox(height: 16),
+                      _MonoSectionHeader(label: 'COST', color: t.textMuted),
+                      const SizedBox(height: 4),
+                      for (final entry in previewCost().entries)
+                        DialogResourceDisplay(
+                          type: entry.key,
+                          amount: entry.value,
+                          current: currencies[entry.key] ?? 0,
+                          isSpending: true,
+                        ),
+                      const SizedBox(height: 12),
+                      _MonoSectionHeader(label: 'REWARD', color: t.textMuted),
+                      const SizedBox(height: 4),
+                      ...buildRewardWidgets(),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _DialogSecondaryButton(
+                              label: 'CANCEL',
+                              onTap: () => Navigator.pop(ctx, null),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _DialogPrimaryButton(
+                              label: 'CONFIRM',
+                              onTap: () => Navigator.pop(ctx, qty),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                    const SizedBox(height: 16),
-                    _MonoSectionHeader(label: 'COST', color: t.textMuted),
-                    const SizedBox(height: 4),
-                    for (final entry in previewCost().entries)
-                      DialogResourceDisplay(
-                        type: entry.key,
-                        amount: entry.value,
-                        current: currencies[entry.key] ?? 0,
-                        isSpending: true,
-                      ),
-                    const SizedBox(height: 12),
-                    _MonoSectionHeader(label: 'REWARD', color: t.textMuted),
-                    const SizedBox(height: 4),
-                    ...buildRewardWidgets(),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _DialogSecondaryButton(
-                            label: 'CANCEL',
-                            onTap: () => Navigator.pop(ctx, null),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _DialogPrimaryButton(
-                            label: 'CONFIRM',
-                            onTap: () => Navigator.pop(ctx, qty),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -1843,6 +1906,23 @@ Future<int?> showPurchaseConfirmationDialog({
       );
     },
   );
+}
+
+/// The element an offer trades in, if it trades in one.
+///
+/// Exchange offers are generated per resource and carry the key in both their
+/// id (`fx.res_to_gold.res_volcanic`) and their cost map, so the visual can be
+/// resolved without the offer having to name an asset.
+ElementResource? _offerElementResource(ShopOffer offer) {
+  for (final key in offer.cost.keys) {
+    final match = ElementResources.byKey[key];
+    if (match != null) return match;
+  }
+  for (final key in offer.reward.keys) {
+    final match = ElementResources.byKey[key];
+    if (match != null) return match;
+  }
+  return null;
 }
 
 /// Flat quantity stepper: [−]  ×N  [+]   with comfortable tap targets but
@@ -1948,12 +2028,12 @@ class _MonoSectionHeader extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
             label,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 2.5,
+            style: bracketText(
+              context,
+              12.5,
+              color,
+              weight: FontWeight.w800,
+              letterSpacing: 1.8,
             ),
           ),
         ),
@@ -2059,51 +2139,84 @@ class DialogResourceDisplay extends StatelessWidget {
     final (icon, label, color) = _getDisplayInfo(type);
     final hasEnough = current != null ? current! >= amount : true;
     final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
     final coin = CoinKind.tryFromToken(type);
+    // Element currencies are drawn as their own particle field, the way the
+    // shop rows, the black market and the harvest strip already draw them —
+    // this dialog was the one place still falling back to a flat icon.
+    final resource = ElementResources.byKey[type];
+    // Short of the cost turns the whole row red — glyph, name and figure —
+    // rather than reddening the particles while the name stays on-element.
+    final swatch = hasEnough
+        ? (resource?.color ?? color)
+        : Colors.red.shade400;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: [
-          if (coin != null)
+          if (resource != null)
+            // The motion says which element it is, so the colour is free to
+            // carry the can-afford state instead.
+            ElementResourceGlyph(
+              biomeId: resource.biomeId,
+              color: swatch,
+              size: 22,
+            )
+          else if (coin != null)
             CoinIcon(kind: coin, size: 18)
           else
             Icon(icon, size: 18, color: color),
           const SizedBox(width: 10),
+          // The label is the only thing allowed to give way. It used to be the
+          // lone Expanded next to two unbounded Texts, so on a narrow dialog
+          // it was squeezed to a couple of pixels and wrapped one letter per
+          // line — a vertical stack of characters where a word should be.
           Expanded(
             child: Text(
               label,
-              style: TextStyle(
-                color: color,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: bracketText(context, 14, swatch, weight: FontWeight.w700),
             ),
           ),
-          // Amount being spent/gained
-          Text(
-            '${isSpending ? '-' : '+'}${_formatShopValue(amount)}',
-            style: TextStyle(
-              color: isSpending
-                  ? (hasEnough ? Colors.red.shade300 : Colors.red.shade400)
-                  : Colors.green.shade300,
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          // Current holdings (if provided)
-          if (current != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 6.0),
-              child: Text(
-                '(Have: ${_formatShopValue(current!)})',
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${isSpending ? '-' : '+'}${_formatShopValue(amount)}',
+                maxLines: 1,
                 style: TextStyle(
-                  color: hasEnough ? theme.textMuted : Colors.red.shade400,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontFamily: 'monospace',
+                  color: isSpending
+                      ? (hasEnough ? t.danger : Colors.red.shade400)
+                      : t.success,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
-            ),
+              // Only worth printing when it is what stops the purchase, or
+              // when the player is close enough for it to matter.
+              if (current != null)
+                Text(
+                  hasEnough
+                      ? 'have ${_formatShopValue(current!)}'
+                      : 'only ${_formatShopValue(current!)}',
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: hasEnough ? t.textMuted : Colors.red.shade400,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );

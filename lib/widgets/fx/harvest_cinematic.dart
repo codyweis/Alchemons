@@ -21,6 +21,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -34,6 +35,7 @@ Future<bool> showHarvestCinematic({
   required Widget targetSprite,
   required Color targetColor,
   required String deviceLabel,
+  HarvesterProfile? profile,
   Duration minDuration = const Duration(milliseconds: 1600),
   required Future<bool> Function() task,
 }) {
@@ -46,6 +48,7 @@ Future<bool> showHarvestCinematic({
             targetSprite: targetSprite,
             targetColor: targetColor,
             deviceLabel: deviceLabel,
+            profile: profile ?? HarvesterProfile.forBiome(null),
             minDuration: minDuration,
             task: task,
           ),
@@ -65,6 +68,7 @@ class _HarvestCinematicPage extends StatefulWidget {
     required this.targetSprite,
     required this.targetColor,
     required this.deviceLabel,
+    required this.profile,
     required this.minDuration,
     required this.task,
   });
@@ -72,6 +76,9 @@ class _HarvestCinematicPage extends StatefulWidget {
   final Widget targetSprite;
   final Color targetColor;
   final String deviceLabel;
+
+  /// The apparatus doing the taking.
+  final HarvesterProfile profile;
   final Duration minDuration;
   final Future<bool> Function() task;
 
@@ -181,6 +188,7 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
                           painter: _ContainmentFieldPainter(
                             beat: beat,
                             color: widget.targetColor,
+                            profile: widget.profile,
                           ),
                         ),
                       ),
@@ -309,10 +317,18 @@ class _Specimen extends StatelessWidget {
 /// The apparatus: rings that close, flex where the specimen pushes, and then
 /// either fall inward or blow apart.
 class _ContainmentFieldPainter extends CustomPainter {
-  _ContainmentFieldPainter({required this.beat, required this.color});
+  _ContainmentFieldPainter({
+    required this.beat,
+    required this.color,
+    required this.profile,
+  });
 
   final _HarvestBeat beat;
   final Color color;
+
+  /// Which harvester is closing. See [HarvesterProfile] — this is the same
+  /// choreography the in-scene Flame field runs.
+  final HarvesterProfile profile;
 
   static const _ember = Color(0xFFD07A4A);
   static const _amber = Color(0xFFE4C16A);
@@ -321,7 +337,6 @@ class _ContainmentFieldPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
     final cage = math.min(size.width, size.height) * 0.30;
-    final closing = Curves.easeOutCubic.transform(beat.closing);
     final collapse = Curves.easeInOutCubic.transform(beat.collapse);
     final shatter = Curves.easeOutCubic.transform(beat.shatter);
 
@@ -336,33 +351,40 @@ class _ContainmentFieldPainter extends CustomPainter {
       );
     }
 
-    for (var ring = 0; ring < 3; ring++) {
+    final shaped = profile.closingCurve(beat.closing);
+    for (var ring = 0; ring < profile.ringCount; ring++) {
       // Sweeps in from well outside the frame, settles just off the specimen.
       final rest = cage * (1.0 + ring * 0.19);
       final start = rest * (3.4 - ring * 0.4);
-      var radius = start + (rest - start) * closing;
+      var radius = start + (rest - start) * shaped;
       radius *= 1.0 - 0.92 * collapse;
       radius *= 1.0 + 1.6 * shatter;
       if (radius <= 1) continue;
 
-      final spin = beat.seize * (ring.isEven ? 1.0 : -1.0) * (1.1 + ring * 0.5);
-      final segs = 5 + ring * 2;
-      final flex = beat.push * cage * 0.11 * (1 - collapse);
+      final spin =
+          beat.seize *
+          (ring.isEven ? 1.0 : -1.0) *
+          profile.spinRate *
+          (1.1 + ring * 0.5);
+      final segs = profile.segsBase + ring * profile.segsPerRing;
       final alpha =
-          (0.20 + 0.55 * closing) * (1 - collapse * 0.35) * (1 - shatter);
+          (0.20 + 0.55 * shaped) * (1 - collapse * 0.35) * (1 - shatter);
       if (alpha <= 0.01) continue;
 
       final paint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
-        ..strokeWidth = (ring == 0 ? 2.6 : 1.5) + 1.4 * beat.push
-        ..color = Color.lerp(color, _amber, 0.35)!.withValues(alpha: alpha);
+        ..strokeWidth =
+            (ring == 0 ? profile.strokeBase : profile.strokeBase * 0.6) +
+            1.4 * beat.push
+        ..color = profile.ringColor(ring).withValues(alpha: alpha);
 
       for (var s = 0; s < segs; s++) {
         final a0 = spin + s * math.pi * 2 / segs;
         final a1 = a0 + math.pi * 2 / segs * 0.62;
         // Shards fly apart on a failure instead of holding their arc.
-        final fly = shatter * cage * 1.4 * (0.6 + 0.4 * (s % 3));
+        final fly =
+            shatter * cage * profile.shatterSpread * (0.6 + 0.4 * (s % 3));
         final off = shatter == 0
             ? Offset.zero
             : Offset(math.cos(a0), math.sin(a0)) * fly;
@@ -370,9 +392,11 @@ class _ContainmentFieldPainter extends CustomPainter {
         const steps = 10;
         for (var k = 0; k <= steps; k++) {
           final a = a0 + (a1 - a0) * k / steps;
-          // THE FLEX: the wall bulges where the specimen is leaning on it.
+          // THE FLEX: how this device answers being leaned on.
           final rr =
-              radius + flex * math.sin(a * 3 - beat.strain * math.pi * 2);
+              radius +
+              profile.radialFlex(a, beat.strain, beat.push, cage) *
+                  (1 - collapse);
           final p = c + Offset(math.cos(a), math.sin(a)) * rr + off;
           if (k == 0) {
             path.moveTo(p.dx, p.dy);
@@ -382,6 +406,29 @@ class _ContainmentFieldPainter extends CustomPainter {
         }
         canvas.drawPath(path, paint);
       }
+    }
+
+    // The bound sigil, for units that write a specimen into place.
+    if (profile.sigil && shaped > 0.2 && shatter < 0.9) {
+      final r = cage * 1.05 * (1 - 0.92 * collapse);
+      final spin = -beat.seize * profile.spinRate * 0.5;
+      final p = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = profile.accent.withValues(
+          alpha: 0.42 * shaped * (1 - shatter) * (1 - collapse),
+        );
+      final path = Path();
+      for (var i = 0; i <= 6; i++) {
+        final a = spin + (i * 2 % 6) * math.pi / 3;
+        final pt = c + Offset(math.cos(a), math.sin(a)) * r;
+        if (i == 0) {
+          path.moveTo(pt.dx, pt.dy);
+        } else {
+          path.lineTo(pt.dx, pt.dy);
+        }
+      }
+      canvas.drawPath(path, p);
     }
 
     // Anchors: four brackets that bite in as the field locks.
@@ -394,7 +441,7 @@ class _ContainmentFieldPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.2
         ..strokeCap = StrokeCap.round
-        ..color = _amber.withValues(
+        ..color = profile.accent.withValues(
           alpha: 0.5 * bite * (1 - shatter) * (1 - collapse),
         );
       for (var i = 0; i < 4; i++) {
