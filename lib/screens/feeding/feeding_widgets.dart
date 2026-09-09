@@ -753,6 +753,37 @@ class CurrentStatsDisplay extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  hasPreview ? 'POWER · AFTER' : 'POWER',
+                                  style: TextStyle(
+                                    color: t.textMuted,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              Tooltip(
+                                message:
+                                    'Inheritable Potential, rated 1–100. '
+                                    'XP training increases Power.',
+                                child: Text(
+                                  'POTENTIAL',
+                                  style: TextStyle(
+                                    color: t.textMuted,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 2),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -820,13 +851,8 @@ class CurrentStatsDisplay extends StatelessWidget {
   }
 }
 
-// ---------- Unified Stat Row ----------
-//
-// One row per stat. Shows the label, a bar with current + projected-gain
-// segment, and `current → projected` inline. Reserves space for the
-// projected column even when no preview is active so the panel height is
-// stable across selection changes.
-
+// Power has no fixed ceiling; Potential is a separate inheritable rating.
+// Keep them in separate columns instead of implying a shared bar maximum.
 class UnifiedStatRow extends StatelessWidget {
   final String label;
   final double current;
@@ -849,132 +875,87 @@ class UnifiedStatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fc = FC.of(context);
     final t = ForgeTokens(theme);
-
     final currentRating = AlchemonStatSystem.displayRating(current);
+    final projectedRating = AlchemonStatSystem.displayRating(current + gain);
     final potentialRating = AlchemonStatSystem.normalizePotential(potential);
-    final currentPct = AlchemonStatSystem.displayFraction(current);
-    final potentialPct = potentialRating / 100.0;
-    final projected = current + gain;
-    final projectedRating = AlchemonStatSystem.displayRating(projected);
-    final projectedPct = AlchemonStatSystem.displayFraction(projected);
-
     final showGain = hasPreview && gain != 0;
-    final gainColor = gain > 0
-        ? color
-        : (gain < 0 ? fc.danger : t.textSecondary);
+    final gainColor = gain < 0 ? t.danger : t.success;
+    final powerText = showGain
+        ? '$currentRating → $projectedRating'
+        : '$currentRating';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 28,
-            child: Text(
+    return Semantics(
+      label:
+          '$label, Power $currentRating'
+          '${showGain ? ', after training $projectedRating' : ''}'
+          ', Potential $potentialRating out of 100',
+      excludeSemantics: true,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: t.bg1,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: showGain ? gainColor.withValues(alpha: 0.35) : t.borderDim,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 3,
+              height: 16,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
               label,
               style: TextStyle(
                 color: t.textSecondary,
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w800,
-                fontFamily: 'monospace',
               ),
             ),
-          ),
-          Expanded(
-            child: Container(
-              height: 9,
-              decoration: BoxDecoration(
-                color: t.bg1,
-                borderRadius: const BorderRadius.all(Radius.circular(5)),
-              ),
-              child: Stack(
-                children: [
-                  FractionallySizedBox(
-                    widthFactor: potentialPct,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: t.borderMid,
-                        borderRadius: const BorderRadius.all(
-                          Radius.circular(5),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (showGain && gain > 0)
-                    FractionallySizedBox(
-                      widthFactor: projectedPct,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.55),
-                          borderRadius: const BorderRadius.all(
-                            Radius.circular(5),
-                          ),
-                        ),
-                      ),
-                    ),
-                  FractionallySizedBox(
-                    widthFactor: currentPct,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: const BorderRadius.all(
-                          Radius.circular(5),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 82,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  '$currentRating · P$potentialRating',
+            const SizedBox(width: 6),
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  powerText,
                   style: TextStyle(
-                    color: t.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                    color: showGain ? gainColor : t.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
                     fontFamily: 'monospace',
                   ),
                 ),
-                SizedBox(
-                  width: 40,
-                  child: showGain
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const SizedBox(width: 2),
-                            Icon(
-                              gain > 0
-                                  ? AppIcons.arrow_forward_rounded
-                                  : AppIcons.arrow_back_rounded,
-                              size: 10,
-                              color: gainColor,
-                            ),
-                            const SizedBox(width: 1),
-                            Text(
-                              '$projectedRating',
-                              style: TextStyle(
-                                color: gainColor,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                          ],
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+            Container(
+              width: 45,
+              margin: const EdgeInsets.only(left: 8),
+              padding: const EdgeInsets.only(left: 6),
+              decoration: BoxDecoration(
+                border: Border(left: BorderSide(color: t.borderDim)),
+              ),
+              child: Text(
+                '$potentialRating',
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: t.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
