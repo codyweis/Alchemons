@@ -520,7 +520,9 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
                         element: kPrologueElements[i],
                         revealT: ((r - i * 0.13) / 0.5).clamp(0.0, 1.0),
                         t: t,
-                        onTap: () => _chooseElement(kPrologueElements[i], i),
+                        onTap: context.soundTap(
+                          () => _chooseElement(kPrologueElements[i], i),
+                        ),
                       ),
                   ],
                 ),

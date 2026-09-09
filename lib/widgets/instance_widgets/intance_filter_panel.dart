@@ -173,28 +173,28 @@ class InstanceFiltersPanel extends StatelessWidget {
           icon: AppIcons.science_rounded,
           labelWhenAny: 'VARIANT',
           valueText: variantValueText?.toUpperCase(),
-          onTap: onCycleVariant,
+          onTap: context.soundTap(onCycleVariant),
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
           icon: AppIcons.straighten_rounded,
           labelWhenAny: 'SIZE',
           valueText: sizeValueText?.toUpperCase(),
-          onTap: onCycleSize,
+          onTap: context.soundTap(onCycleSize),
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
           icon: AppIcons.palette_outlined,
           labelWhenAny: 'TINT',
           valueText: tintValueText?.toUpperCase(),
-          onTap: onCycleTint,
+          onTap: context.soundTap(onCycleTint),
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
           icon: AppIcons.verified_rounded,
           labelWhenAny: 'PURITY',
           valueText: purityFilter.chipValueText,
-          onTap: onCyclePurity,
+          onTap: context.soundTap(onCyclePurity),
           showInactiveFrame: showInactiveBrackets,
         ),
       ] else ...[
@@ -202,14 +202,14 @@ class InstanceFiltersPanel extends StatelessWidget {
           icon: AppIcons.straighten_rounded,
           labelWhenAny: 'SIZE',
           valueText: sizeValueText?.toUpperCase(),
-          onTap: onCycleSize,
+          onTap: context.soundTap(onCycleSize),
           showInactiveFrame: showInactiveBrackets,
         ),
         _CycleChip(
           icon: AppIcons.verified_rounded,
           labelWhenAny: 'PURITY',
           valueText: purityFilter.chipValueText,
-          onTap: onCyclePurity,
+          onTap: context.soundTap(onCyclePurity),
           showInactiveFrame: showInactiveBrackets,
         ),
       ],
@@ -242,7 +242,7 @@ class InstanceFiltersPanel extends StatelessWidget {
         label: 'PRISMATIC',
         active: filterPrismatic,
         activeColor: const Color(0xFFE879F9), // purple for prismatic
-        onTap: onTogglePrismatic,
+        onTap: context.soundTap(onTogglePrismatic),
         showInactiveFrame: showInactiveBrackets,
       ),
 
@@ -270,28 +270,30 @@ class InstanceFiltersPanel extends StatelessWidget {
                 _SortChip(
                   label: 'NEWEST',
                   selected: sortBy == SortBy.newest,
-                  onTap: () => onSortChanged(SortBy.newest),
+                  onTap: context.soundTap(() => onSortChanged(SortBy.newest)),
                   showInactiveFrame: showInactiveBrackets,
                 ),
                 const SizedBox(width: 6),
                 _SortChip(
                   label: 'OLDEST',
                   selected: sortBy == SortBy.oldest,
-                  onTap: () => onSortChanged(SortBy.oldest),
+                  onTap: context.soundTap(() => onSortChanged(SortBy.oldest)),
                   showInactiveFrame: showInactiveBrackets,
                 ),
                 const SizedBox(width: 6),
                 _SortChip(
                   label: 'LV ↑',
                   selected: sortBy == SortBy.levelHigh,
-                  onTap: () => onSortChanged(SortBy.levelHigh),
+                  onTap: context.soundTap(
+                    () => onSortChanged(SortBy.levelHigh),
+                  ),
                   showInactiveFrame: showInactiveBrackets,
                 ),
                 const SizedBox(width: 6),
                 _SortChip(
                   label: 'LV ↓',
                   selected: sortBy == SortBy.levelLow,
-                  onTap: () => onSortChanged(SortBy.levelLow),
+                  onTap: context.soundTap(() => onSortChanged(SortBy.levelLow)),
                   showInactiveFrame: showInactiveBrackets,
                 ),
                 const SizedBox(width: 6),
@@ -349,7 +351,7 @@ class _SortChip extends StatelessWidget {
     return _BracketChip(
       label: label,
       active: selected,
-      onTap: onTap,
+      onTap: context.soundTap(onTap),
       showInactiveFrame: showInactiveFrame,
     );
   }
@@ -395,7 +397,7 @@ class _StatCycleChip extends StatelessWidget {
       label: label,
       active: isStat,
       activeColor: color,
-      onTap: onTap,
+      onTap: context.soundTap(onTap),
       leading: Icon(icon, size: 12, color: iconColor),
       showInactiveFrame: showInactiveFrame,
       trailing: (hasPotentialAnalyzer && isStat && currentStat.isPotentialSort)
@@ -428,7 +430,7 @@ class _CycleChip extends StatelessWidget {
     return _BracketChip(
       label: valueText ?? labelWhenAny,
       active: active,
-      onTap: onTap,
+      onTap: context.soundTap(onTap),
       leading: Icon(icon, size: 12, color: iconColor),
       showInactiveFrame: showInactiveFrame,
     );
@@ -462,7 +464,7 @@ class _ToggleChip extends StatelessWidget {
       label: label,
       active: active,
       activeColor: activeColor,
-      onTap: onTap,
+      onTap: context.soundTap(onTap),
       leading: Icon(icon, size: 12, color: iconColor),
       showInactiveFrame: showInactiveFrame,
     );
@@ -492,7 +494,7 @@ class _PickerChip extends StatelessWidget {
     return _BracketChip(
       label: value?.toUpperCase() ?? '$label: ANY',
       active: active,
-      onTap: onTap,
+      onTap: context.soundTap(onTap),
       leading: Icon(icon, size: 12, color: iconColor),
       showInactiveFrame: showInactiveFrame,
       trailing: Icon(
@@ -515,7 +517,7 @@ class _ClearChip extends StatelessWidget {
       label: 'CLEAR',
       active: true,
       activeColor: t.danger,
-      onTap: onTap,
+      onTap: context.soundTap(onTap),
       leading: Icon(AppIcons.close_rounded, size: 11, color: t.danger),
     );
   }

@@ -310,8 +310,7 @@ class HarvestFieldEffect extends PositionComponent {
           final a = a0 + (a1 - a0) * k / steps;
           final rr =
               radius +
-              profile.radialFlex(a, strainPhase, push, cage) *
-                  (1 - collapse);
+              profile.radialFlex(a, strainPhase, push, cage) * (1 - collapse);
           final p = c + Offset(math.cos(a), math.sin(a)) * rr + off;
           k == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
         }

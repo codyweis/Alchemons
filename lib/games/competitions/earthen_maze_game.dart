@@ -433,7 +433,7 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
                                     child: _SpeedButton(
                                       speed: _simulationSpeed,
                                       color: color,
-                                      onTap: _toggleSpeed,
+                                      onTap: context.soundTap(_toggleSpeed),
                                     ),
                                   ),
                               ],

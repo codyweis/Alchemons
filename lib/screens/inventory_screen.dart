@@ -404,7 +404,9 @@ class _InventoryScreenState extends State<InventoryScreen>
               def: def,
               theme: theme,
               accent: theme.accent,
-              onTap: () => _showItemDetailsDialog(item, def, theme),
+              onTap: context.soundTap(
+                () => _showItemDetailsDialog(item, def, theme),
+              ),
             );
           },
         );
@@ -456,7 +458,9 @@ class _InventoryScreenState extends State<InventoryScreen>
               def: def,
               theme: theme,
               accent: theme.accent,
-              onTap: () => _showItemDetailsDialog(item, def, theme),
+              onTap: context.soundTap(
+                () => _showItemDetailsDialog(item, def, theme),
+              ),
             );
           },
         );
@@ -538,7 +542,9 @@ class _InventoryScreenState extends State<InventoryScreen>
             final vial = vials[index];
             return _CleanVialCard(
               vial: vial,
-              onTap: () => _showVialDetailsDialog(vial, theme),
+              onTap: context.soundTap(
+                () => _showVialDetailsDialog(vial, theme),
+              ),
             );
           },
         );
@@ -703,7 +709,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                       ),
                       _DialogCloseButton(
                         color: palette.line,
-                        onTap: () => Navigator.pop(ctx),
+                        onTap: context.soundTap(() => Navigator.pop(ctx)),
                       ),
                     ],
                   ),
@@ -883,7 +889,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                       ),
                       _DialogCloseButton(
                         color: palette.line,
-                        onTap: () => Navigator.pop(ctx),
+                        onTap: context.soundTap(() => Navigator.pop(ctx)),
                       ),
                     ],
                   ),
@@ -1615,7 +1621,7 @@ class _InventoryChoiceDialog extends StatelessWidget {
                   ),
                   _DialogCloseButton(
                     color: palette.line,
-                    onTap: () => Navigator.pop(context),
+                    onTap: context.soundTap(() => Navigator.pop(context)),
                   ),
                 ],
               ),
@@ -1638,7 +1644,9 @@ class _InventoryChoiceDialog extends StatelessWidget {
                     label: option.label,
                     icon: option.icon,
                     color: option.color,
-                    onTap: () => Navigator.pop(context, option.value),
+                    onTap: context.soundTap(
+                      () => Navigator.pop(context, option.value),
+                    ),
                     secondary: option.secondary,
                   ),
                 ),
@@ -1649,7 +1657,7 @@ class _InventoryChoiceDialog extends StatelessWidget {
                 icon: AppIcons.close_rounded,
                 color: palette.line,
                 secondary: true,
-                onTap: () => Navigator.pop(context),
+                onTap: context.soundTap(() => Navigator.pop(context)),
               ),
             ],
           ),

@@ -236,7 +236,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
                     factionName: _factions[_currentIndex].name,
                     color: _factions[_currentIndex].primaryColor,
                     tokens: t,
-                    onPressed: _selectFaction,
+                    onPressed: context.soundTap(_selectFaction),
                   ),
                 ),
               ),

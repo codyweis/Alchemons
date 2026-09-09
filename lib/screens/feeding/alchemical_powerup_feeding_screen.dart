@@ -1855,7 +1855,7 @@ class _PowerupHeader extends StatelessWidget {
             if (canGoBack)
               _iconButton(
                 icon: AppIcons.arrow_back,
-                onTap: onBack,
+                onTap: context.soundTap(onBack),
                 t: t,
                 margin: const EdgeInsets.only(right: 10),
               ),

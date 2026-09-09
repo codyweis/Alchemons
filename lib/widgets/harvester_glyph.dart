@@ -189,8 +189,7 @@ class _PulserPainter extends CustomPainter {
         final wobble = _wobble(element, phase, idx, s);
 
         final pos =
-            c +
-            Offset(math.cos(angle) * dist, math.sin(angle) * dist + wobble);
+            c + Offset(math.cos(angle) * dist, math.sin(angle) * dist + wobble);
         // Fades in off the rim and is swallowed at the aperture.
         final fade =
             (phase < 0.14 ? phase / 0.14 : 1.0) *

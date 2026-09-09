@@ -217,7 +217,7 @@ class EncounterScaffold extends StatelessWidget {
               return _PartyMemberTile(
                 instanceId: m.instanceId,
                 selected: m.instanceId == chosenInstanceId,
-                onTap: () => onSelectParty(m.instanceId),
+                onTap: context.soundTap(() => onSelectParty(m.instanceId)),
               );
             },
           ),
@@ -246,7 +246,7 @@ class EncounterScaffold extends StatelessWidget {
           color: _runColor,
           filled: false,
           large: false,
-          onTap: onRun,
+          onTap: context.soundAction(onRun),
         ),
       ],
     );

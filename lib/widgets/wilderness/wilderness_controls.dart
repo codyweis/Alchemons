@@ -56,7 +56,9 @@ class WildernessControls extends StatelessWidget {
                 icon: AppIcons.exit_to_app_rounded,
                 accentColor: _wDanger,
                 tooltip: leaveTooltip,
-                onPressed: () => _showLeaveConfirmation(context),
+                onPressed: context.soundTap(
+                  () => _showLeaveConfirmation(context),
+                ),
               ),
             ),
             // Items moved down to the bottom-left corner.
@@ -67,7 +69,9 @@ class WildernessControls extends StatelessWidget {
                 icon: AppIcons.inventory_2_rounded,
                 accentColor: _wAmber,
                 tooltip: 'Inventory',
-                onPressed: () => _showInventoryOverlay(context),
+                onPressed: context.soundTap(
+                  () => _showInventoryOverlay(context),
+                ),
               ),
             ),
           ],

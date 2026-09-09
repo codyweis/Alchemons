@@ -1838,7 +1838,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             // While gliding, the rim IS the flight meter — which retires the
             // separate 90x6 bar that used to float above the pad.
             charge: glide ? game.flightFraction : 1.0,
-            onTap: game.activateAbility,
+            onTap: context.soundTap(game.activateAbility),
           ),
           const SizedBox(height: 6),
         ],
@@ -1857,7 +1857,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               cooldownFraction: game.autoCooldownFraction,
               deniedPulse: game.autoDeniedPulse,
               color: _C.cyan,
-              onTap: game.activateAutoAttack,
+              onTap: context.soundTap(game.activateAutoAttack),
             ),
             const SizedBox(width: 6),
             _combatButton(
@@ -1876,7 +1876,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
               dimmed: game.abilityIsPassive,
               deniedPulse: game.abilityDeniedPulse,
               color: _C.amberBright,
-              onTap: game.activateCombatAbility,
+              onTap: context.soundTap(game.activateCombatAbility),
             ),
           ],
         ),
@@ -2040,7 +2040,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       // never grows a badge that overlaps its own rim.
       caption: cooldownText ?? label,
       semantics: label,
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
     );
   }
 

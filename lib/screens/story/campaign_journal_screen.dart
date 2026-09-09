@@ -607,7 +607,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                 child: _forgeButton(
                   label: 'Could not load · retry',
                   icon: AppIcons.refresh_rounded,
-                  onTap: refresh,
+                  onTap: context.soundAction(refresh),
                 ),
               );
             }
@@ -890,13 +890,13 @@ class _StoryBanner extends StatelessWidget {
                     forgeButton(
                       label: 'Story progress',
                       icon: AppIcons.menu_book_rounded,
-                      onTap: onProgress,
+                      onTap: context.soundAction(onProgress),
                       dense: true,
                     ),
                     forgeButton(
                       label: 'Memories',
                       icon: AppIcons.menu_book_rounded,
-                      onTap: onMemories,
+                      onTap: context.soundAction(onMemories),
                       dense: true,
                     ),
                   ],
@@ -971,9 +971,7 @@ class _AchievementCardState extends State<_AchievementCard>
             key: widget.cardKey,
             margin: const EdgeInsets.only(bottom: 10),
             decoration: BoxDecoration(
-              color: widget.ready
-                  ? Color.lerp(fc.bg2, fc.mint, 0.06)
-                  : fc.bg2,
+              color: widget.ready ? Color.lerp(fc.bg2, fc.mint, 0.06) : fc.bg2,
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
                 color: Color.lerp(

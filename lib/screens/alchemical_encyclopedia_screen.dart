@@ -1203,7 +1203,7 @@ class _DockedControls extends StatelessWidget {
               _ToggleChip(
                 label: 'Known',
                 enabled: showKnownOnly,
-                onTap: onToggleKnownOnly,
+                onTap: context.soundTap(onToggleKnownOnly),
               ),
             ],
           ),

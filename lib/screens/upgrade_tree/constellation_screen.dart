@@ -726,7 +726,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
               const SizedBox(width: 6),
               _ConstellationPointsButton(
                 points: points,
-                onTap: _openProgressOverview,
+                onTap: context.soundTap(_openProgressOverview),
               ),
             ],
           ),
@@ -767,7 +767,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
               accent: _getTreeAccentColor(theme, tree),
               progress: progress,
               selected: _selectedTree == tree,
-              onTap: () => _handleTreeTap(tree),
+              onTap: context.soundTap(() => _handleTreeTap(tree)),
             ),
           );
         }),
@@ -902,7 +902,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
               _ConstellationDialogButton(
                 theme: theme,
                 label: 'GOT IT',
-                onTap: () => Navigator.pop(context),
+                onTap: context.soundTap(() => Navigator.pop(context)),
               ),
             ],
           ),
@@ -1006,7 +1006,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                     _ConstellationIconButton(
                       theme: theme,
                       icon: AppIcons.close_rounded,
-                      onTap: () => Navigator.pop(context),
+                      onTap: context.soundTap(() => Navigator.pop(context)),
                     ),
                   ],
                 ),

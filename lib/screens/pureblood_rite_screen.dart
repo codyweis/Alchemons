@@ -540,7 +540,7 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
               width: 220,
               child: _HkBtn(
                 label: 'Return',
-                onTap: () => Navigator.of(context).maybePop(),
+                onTap: context.soundTap(() => Navigator.of(context).maybePop()),
                 primary: false,
               ),
             ),
@@ -719,7 +719,9 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                   child: _WeeklyChallengePanel(
                     challenge: weeklyChallenge,
                     isCompleted: isCompleted,
-                    onTap: () => _showRecipeDialog(weeklyChallenge),
+                    onTap: context.soundTap(
+                      () => _showRecipeDialog(weeklyChallenge),
+                    ),
                   ),
                 ),
               ),
@@ -817,7 +819,9 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                   width: 220,
                   child: _HkBtn(
                     label: 'Return',
-                    onTap: () => Navigator.of(context).maybePop(),
+                    onTap: context.soundTap(
+                      () => Navigator.of(context).maybePop(),
+                    ),
                     primary: false,
                   ),
                 ),
@@ -997,7 +1001,7 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                 child: _ChallengePanel(
                   challenge: challenge,
                   currentStageIndex: stageIndex,
-                  onTap: () => _showRecipeDialog(challenge),
+                  onTap: context.soundTap(() => _showRecipeDialog(challenge)),
                 ),
               ),
             ),
@@ -1087,7 +1091,9 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                     ? const _PathEndCard()
                     : _NextRiteCard(
                         challenge: nextChallenge,
-                        onTap: () => _showRecipeDialog(nextChallenge),
+                        onTap: context.soundTap(
+                          () => _showRecipeDialog(nextChallenge),
+                        ),
                       ),
               ),
             ),
@@ -1625,7 +1631,7 @@ class _TriStatRow extends StatelessWidget {
             label: 'OWNED',
             value: '$ownedCount',
             color: _kIvoryDim,
-            onTap: onOwnedTap,
+            onTap: context.soundAction(onOwnedTap),
           ),
         ),
         const SizedBox(width: 12),
@@ -1634,7 +1640,7 @@ class _TriStatRow extends StatelessWidget {
             label: 'ELIGIBLE',
             value: '$eligibleCount',
             color: _kSealGreenBr,
-            onTap: onEligibleTap,
+            onTap: context.soundAction(onEligibleTap),
           ),
         ),
         const SizedBox(width: 12),
@@ -1901,7 +1907,7 @@ class _SacrificeChamberCard extends StatelessWidget {
                 enabled: canSacrifice,
                 busy: isBusy,
                 label: 'Perform Ritual',
-                onTap: onSacrifice,
+                onTap: context.soundAction(onSacrifice),
               ),
             ),
           ],
@@ -2391,7 +2397,9 @@ class _RiteRecipeDialogState extends State<_RiteRecipeDialog>
                       width: 180,
                       child: _HkBtn(
                         label: 'Close',
-                        onTap: () => Navigator.of(context).pop(),
+                        onTap: context.soundTap(
+                          () => Navigator.of(context).pop(),
+                        ),
                         primary: true,
                       ),
                     ),
@@ -2635,7 +2643,9 @@ class _RiteSpecimenDialogState extends State<_RiteSpecimenDialog>
                       width: 180,
                       child: _HkBtn(
                         label: 'Close',
-                        onTap: () => Navigator.of(context).pop(),
+                        onTap: context.soundTap(
+                          () => Navigator.of(context).pop(),
+                        ),
                         primary: true,
                       ),
                     ),
@@ -2953,7 +2963,9 @@ class _HkConfirmDialogState extends State<_HkConfirmDialog>
                         Expanded(
                           child: _HkBtn(
                             label: 'Turn Back',
-                            onTap: () => Navigator.of(context).pop(false),
+                            onTap: context.soundTap(
+                              () => Navigator.of(context).pop(false),
+                            ),
                             primary: false,
                           ),
                         ),
@@ -2961,7 +2973,9 @@ class _HkConfirmDialogState extends State<_HkConfirmDialog>
                         Expanded(
                           child: _HkBtn(
                             label: 'Perform Ritual',
-                            onTap: () => Navigator.of(context).pop(true),
+                            onTap: context.soundTap(
+                              () => Navigator.of(context).pop(true),
+                            ),
                             primary: true,
                           ),
                         ),
@@ -3056,7 +3070,9 @@ class _RiteStoryDialogState extends State<_RiteStoryDialog>
                       width: 180,
                       child: _HkBtn(
                         label: 'Continue',
-                        onTap: () => Navigator.of(context).pop(),
+                        onTap: context.soundTap(
+                          () => Navigator.of(context).pop(),
+                        ),
                         primary: true,
                       ),
                     ),
@@ -3308,7 +3324,7 @@ class _RitualEchoOverlayState extends State<_RitualEchoOverlay>
                           width: 180,
                           child: _HkBtn(
                             label: 'Continue',
-                            onTap: _closeOverlay,
+                            onTap: context.soundTap(_closeOverlay),
                             primary: true,
                           ),
                         ),

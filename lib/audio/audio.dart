@@ -24,6 +24,13 @@ extension SoundContext on BuildContext {
   ///
   /// Pass [cue] for the handful of taps that do earn a sound. It still fires
   /// only if the action did not itself navigate or play something.
+  /// [soundAction] for a slot that will not take a null callback.
+  ///
+  /// Dart cannot express "non-null in, non-null out" on one method, and a
+  /// great many widgets in this app declare `required VoidCallback onTap`.
+  VoidCallback soundTap(VoidCallback action, [SoundCue? cue]) =>
+      soundAction(action, cue)!;
+
   VoidCallback? soundAction(VoidCallback? action, [SoundCue? cue]) {
     if (action == null) return null;
     return () {

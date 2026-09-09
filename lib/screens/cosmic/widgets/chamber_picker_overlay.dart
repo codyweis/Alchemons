@@ -144,7 +144,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                     const SizedBox(width: 10),
                     _OverlayCloseButton(
                       palette: palette,
-                      onTap: widget.onClose,
+                      onTap: context.soundTap(widget.onClose),
                     ),
                   ],
                 ),

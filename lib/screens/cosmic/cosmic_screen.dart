@@ -3634,7 +3634,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                   ),
                   for (final c in candidates)
                     ListTile(
-                      onTap: () => Navigator.of(context).pop(c),
+                      onTap: context.soundAction(
+                        () => Navigator.of(context).pop(c),
+                      ),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                       leading: CircleAvatar(
                         backgroundColor: const Color(0xFF2B1011),
@@ -6900,7 +6902,7 @@ class _CosmicScreenState extends State<CosmicScreen>
               glow: const Color(0xFFE25544),
               icon: Icons.whatshot_rounded,
               fullWidth: true,
-              onTap: () => unawaited(_enterRaid(planet)),
+              onTap: context.soundTap(() => unawaited(_enterRaid(planet))),
             ),
           ] else if (descendReady) ...[
             const SizedBox(height: 14),
@@ -6910,7 +6912,7 @@ class _CosmicScreenState extends State<CosmicScreen>
               glow: color,
               icon: Icons.south_rounded,
               fullWidth: true,
-              onTap: () => unawaited(_enterDungeon(planet)),
+              onTap: context.soundTap(() => unawaited(_enterDungeon(planet))),
             ),
             if (canSummonRaidHere) ...[
               const SizedBox(height: 7),
@@ -6921,7 +6923,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 icon: Icons.local_fire_department_rounded,
                 compact: true,
                 fullWidth: true,
-                onTap: () => unawaited(_summonRaid(planet)),
+                onTap: context.soundTap(() => unawaited(_summonRaid(planet))),
               ),
             ] else if (showDebugRaid) ...[
               const SizedBox(height: 7),
@@ -6932,7 +6934,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                 icon: Icons.local_fire_department_rounded,
                 compact: true,
                 fullWidth: true,
-                onTap: () => unawaited(_debugSummonRaid(planet)),
+                onTap: context.soundTap(
+                  () => unawaited(_debugSummonRaid(planet)),
+                ),
               ),
             ],
           ],
@@ -7563,7 +7567,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                     child: CosmicMiniMapCircle(
                       world: _world,
                       game: _game!,
-                      onTap: _toggleMiniMap,
+                      onTap: context.soundTap(_toggleMiniMap),
                       onLongPress: _togglePinnedMiniMap,
                       tutorialTargetPos: tutorialTargetPos,
                     ),
@@ -8561,7 +8565,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                     child: ElementalCachePrompt(
                       game: _game!,
                       cache: _nearCache!,
-                      onTap: _handleCacheTap,
+                      onTap: context.soundTap(_handleCacheTap),
                     ),
                   ),
                 ),

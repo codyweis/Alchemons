@@ -275,7 +275,7 @@ class WildernessPeekDialog extends StatelessWidget {
           child: _Btn(
             label: 'CLOSE',
             accent: _textSoft,
-            onTap: () => Navigator.of(context).pop(),
+            onTap: context.soundTap(() => Navigator.of(context).pop()),
           ),
         ),
         if (reset != null) ...[

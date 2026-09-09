@@ -1133,7 +1133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.transparent,
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         floatingActionButton: FloatingCloseButton(
-          onTap: () => Navigator.pop(context),
+          onTap: context.soundTap(() => Navigator.pop(context)),
           theme: factionTheme,
         ),
         body: FutureBuilder<_ProfileData>(
@@ -1489,12 +1489,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               _ForgeButton(
                                 label: 'SIGN IN',
                                 icon: AppIcons.login_rounded,
-                                onTap: _signInAccount,
+                                onTap: context.soundAction(_signInAccount),
                               ),
                               _ForgeButton(
                                 label: 'CREATE ACCOUNT',
                                 icon: AppIcons.person_add_alt_1_rounded,
-                                onTap: _createAccount,
+                                onTap: context.soundAction(_createAccount),
                               ),
                             ],
                           ),
@@ -1544,22 +1544,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               _ForgeButton(
                                 label: 'RENAME',
                                 icon: AppIcons.badge_rounded,
-                                onTap: () => _renameAccount(account),
+                                onTap: context.soundAction(
+                                  () => _renameAccount(account),
+                                ),
                               ),
                               _ForgeButton(
                                 label: 'PASSWORD',
                                 icon: AppIcons.password_rounded,
-                                onTap: () => _changePassword(account),
+                                onTap: context.soundAction(
+                                  () => _changePassword(account),
+                                ),
                               ),
                               _ForgeButton(
                                 label: 'SIGN OUT',
                                 icon: AppIcons.logout_rounded,
-                                onTap: () => _signOutAccount(account),
+                                onTap: context.soundAction(
+                                  () => _signOutAccount(account),
+                                ),
                               ),
                               _ForgeButton(
                                 label: 'DELETE ACCOUNT',
                                 icon: AppIcons.delete_forever_rounded,
-                                onTap: () => _deleteAccount(account),
+                                onTap: context.soundAction(
+                                  () => _deleteAccount(account),
+                                ),
                               ),
                             ],
                           ),
@@ -1693,7 +1701,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _ForgeButton(
                           label: 'WATCH',
                           icon: AppIcons.play_arrow_rounded,
-                          onTap: _replayStory,
+                          onTap: context.soundAction(_replayStory),
                         ),
                       ],
                     ),
@@ -1748,7 +1756,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           _ForgeButton(
                             label: 'OPEN',
                             icon: AppIcons.south_rounded,
-                            onTap: _openDungeonDebug,
+                            onTap: context.soundAction(_openDungeonDebug),
                           ),
                         ],
                       ),

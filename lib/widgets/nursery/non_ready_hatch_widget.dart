@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:convert';
 
 import 'package:alchemons/constants/breed_constants.dart';
@@ -531,7 +532,9 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                     accentColor: t.amberBright,
                                     emphasis:
                                         CultivationDialogButtonEmphasis.primary,
-                                    onTap: widget.onAccelerate,
+                                    onTap: context.soundTap(
+                                      widget.onAccelerate,
+                                    ),
                                   ),
                                   if (canUseInstant) ...[
                                     const SizedBox(height: 8),
@@ -542,7 +545,9 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                       accentColor: t.success,
                                       emphasis: CultivationDialogButtonEmphasis
                                           .primary,
-                                      onTap: widget.onInstantHatch,
+                                      onTap: context.soundTap(
+                                        widget.onInstantHatch,
+                                      ),
                                     ),
                                   ],
                                   const SizedBox(height: 8),
@@ -554,7 +559,9 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                           label: 'STORE',
                                           icon: AppIcons.inventory_2_rounded,
                                           accentColor: t.teal,
-                                          onTap: widget.onReturn,
+                                          onTap: context.soundTap(
+                                            widget.onReturn,
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 8),
@@ -564,7 +571,9 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                           label: 'CLOSE',
                                           icon: AppIcons.close_rounded,
                                           accentColor: t.textSecondary,
-                                          onTap: widget.onClose,
+                                          onTap: context.soundTap(
+                                            widget.onClose,
+                                          ),
                                         ),
                                       ),
                                     ],

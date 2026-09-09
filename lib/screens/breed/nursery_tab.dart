@@ -442,7 +442,7 @@ class _NurseryTabState extends State<NurseryTab> {
 
         return _PlaceholderTile(
           primaryColor: theme.text,
-          onTap: widget.onRequestAddEgg,
+          onTap: context.soundTap(widget.onRequestAddEgg),
         );
       },
     );
@@ -631,7 +631,7 @@ class _NurseryTabState extends State<NurseryTab> {
                           label: 'CANCEL',
                           color: theme.textMuted,
                           filled: false,
-                          onTap: () => Navigator.pop(context),
+                          onTap: context.soundTap(() => Navigator.pop(context)),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -857,7 +857,9 @@ class _NurseryTabState extends State<NurseryTab> {
                       label: 'CANCEL',
                       icon: AppIcons.close_rounded,
                       accentColor: t.textSecondary,
-                      onTap: () => Navigator.of(context).pop(),
+                      onTap: context.soundTap(
+                        () => Navigator.of(context).pop(),
+                      ),
                     ),
                   ],
                 ),

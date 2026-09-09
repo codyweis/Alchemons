@@ -173,7 +173,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     final theme = Theme.of(context);
 
     return CosmicOverlayBackdrop(
-      onTap: widget.onClose,
+      onTap: context.soundAction(widget.onClose),
       alpha: 0.84,
       child: GestureDetector(
         onTap: () {}, // absorb inner taps

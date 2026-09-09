@@ -84,7 +84,7 @@ class AppRadius {
 /// Example:
 /// ```dart
 /// TapTarget(
-///   onTap: _close,
+///   onTap: context.soundAction(_close),
 ///   child: const Icon(AppIcons.close, size: AppIcon.md),
 /// )
 /// ```

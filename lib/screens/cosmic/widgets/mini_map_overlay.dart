@@ -628,7 +628,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                             0,
                             _discoveredPlanets.length - 1,
                           )],
-                      onTap: _navigateToSelected,
+                      onTap: context.soundTap(_navigateToSelected),
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -826,7 +826,7 @@ class _Header extends StatelessWidget {
                 if (hasHomePlanet)
                   _IconBtn(
                     icon: AppIcons.home_rounded,
-                    onTap: onGoHome,
+                    onTap: context.soundTap(onGoHome),
                     accent: const Color(0xFFF6D55C),
                     tooltip: 'Home',
                   )
@@ -888,7 +888,7 @@ class _Header extends StatelessWidget {
                 // Close button
                 _IconBtn(
                   icon: AppIcons.close_rounded,
-                  onTap: onClose,
+                  onTap: context.soundTap(onClose),
                   accent: Colors.white,
                   tooltip: 'Close',
                 ),
@@ -1015,7 +1015,7 @@ class _ChartToolRow extends StatelessWidget {
                 active: markerMode,
                 accent: MapMarker
                     .colors[selectedColor.clamp(0, MapMarker.typeCount - 1)],
-                onTap: onToggleMarkerMode,
+                onTap: context.soundTap(onToggleMarkerMode),
               ),
               const SizedBox(width: 6),
               // Erase mode — one marker at a time. Removal used to exist only
@@ -1025,7 +1025,7 @@ class _ChartToolRow extends StatelessWidget {
                 icon: AppIcons.delete_outline_rounded,
                 active: eraseMode,
                 accent: const Color(0xFFFF6B6B),
-                onTap: onToggleErase,
+                onTap: context.soundTap(onToggleErase),
               ),
               const SizedBox(width: 6),
               if (showMarkerColors)
@@ -1457,7 +1457,7 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
                 planet: planet,
                 isSelected: isSelected,
                 dungeonStars: widget.dungeonStarsFor?.call(planet),
-                onTap: () => widget.onChanged(index),
+                onTap: context.soundTap(() => widget.onChanged(index)),
               ),
             );
           },

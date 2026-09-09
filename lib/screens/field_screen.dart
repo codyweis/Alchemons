@@ -1,4 +1,5 @@
 // lib/screens/field_screen.dart
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math' as math;
 import 'package:alchemons/screens/competition_hub_screen.dart';
 import 'package:alchemons/screens/extraction_hub_screen.dart';
@@ -111,7 +112,7 @@ class _FieldScreenState extends State<FieldScreen>
                         color: theme.accent, // use accent for icon chip
                         pillA: 'Open',
                         pillB: 'Field Map',
-                        onTap: _goExpeditions,
+                        onTap: context.soundTap(_goExpeditions),
                         floatPhase: _floatCtrl.value,
                       ),
                       _FieldActionCard(
@@ -123,7 +124,7 @@ class _FieldScreenState extends State<FieldScreen>
                         ),
                         pillA: 'Open',
                         pillB: 'Extract',
-                        onTap: _goHarvest,
+                        onTap: context.soundTap(_goHarvest),
                         floatPhase: (_floatCtrl.value + 0.33) % 1.0,
                       ),
                       _FieldActionCard(
@@ -135,7 +136,7 @@ class _FieldScreenState extends State<FieldScreen>
                         ),
                         pillA: 'Open',
                         pillB: 'Ranked',
-                        onTap: _goCompetitions,
+                        onTap: context.soundTap(_goCompetitions),
                         floatPhase: (_floatCtrl.value + 0.66) % 1.0,
                       ),
                     ];

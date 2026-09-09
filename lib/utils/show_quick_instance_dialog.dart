@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/potential_genetics.dart';
 import 'package:provider/provider.dart';
@@ -225,7 +226,9 @@ Future<void> showQuickInstanceDialog({
                               ),
                               const SizedBox(width: 8),
                               GestureDetector(
-                                onTap: () => Navigator.of(ctx).pop(),
+                                onTap: context.soundAction(
+                                  () => Navigator.of(ctx).pop(),
+                                ),
                                 child: Container(
                                   width: 28,
                                   height: 28,

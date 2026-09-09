@@ -525,7 +525,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     label:
                                         'REFUEL (${_fmtCost(ShipFuel.fuelCost)}/ea)',
                                     color: const Color(0xFFFF6F00),
-                                    onTap: widget.onRefuel,
+                                    onTap: context.soundTap(widget.onRefuel),
                                     enabled: widget.isNearHome,
                                   )
                                 else
@@ -559,7 +559,9 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     label:
                                         'CRAFT MISSILES (${_fmtCost(ShipFuel.missileCost)}/ea)',
                                     color: const Color(0xFFE53935),
-                                    onTap: widget.onCraftMissiles,
+                                    onTap: context.soundTap(
+                                      widget.onCraftMissiles,
+                                    ),
                                     enabled: widget.isNearHome,
                                   )
                                 else
@@ -608,7 +610,9 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                     label:
                                         'CRAFT SENTINELS (${_fmtCost(OrbitalSentinel.sentinelCost)}/ea)',
                                     color: const Color(0xFF42A5F5),
-                                    onTap: widget.onCraftSentinels,
+                                    onTap: context.soundTap(
+                                      widget.onCraftSentinels,
+                                    ),
                                     enabled: widget.isNearHome,
                                   )
                                 else
@@ -701,7 +705,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
           child: _forgeAction(
             icon: AppIcons.my_location_rounded,
             label: 'MOVE HOME (50)',
-            onTap: widget.onRelocateHome,
+            onTap: context.soundTap(widget.onRelocateHome),
           ),
         ),
     ];
@@ -748,7 +752,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
             _forgeAction(
               icon: AppIcons.add_location_alt_rounded,
               label: 'BUILD HOME',
-              onTap: widget.onBuildHome,
+              onTap: context.soundTap(widget.onBuildHome),
               primary: true,
             ),
             const SizedBox(height: 10),

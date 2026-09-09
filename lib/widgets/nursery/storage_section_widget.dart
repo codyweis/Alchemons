@@ -773,7 +773,7 @@ class EggDetailsModal extends StatelessWidget {
                       label: 'Delete specimen',
                       icon: AppIcons.delete_outline_rounded,
                       color: t.danger,
-                      onTap: () => _confirmDelete(context, t),
+                      onTap: context.soundTap(() => _confirmDelete(context, t)),
                     ),
                   ),
                 ],
@@ -786,7 +786,7 @@ class EggDetailsModal extends StatelessWidget {
           right: 10,
           child: _DetailsCloseButton(
             palette: palette,
-            onTap: () => Navigator.pop(context),
+            onTap: context.soundTap(() => Navigator.pop(context)),
           ),
         ),
       ],

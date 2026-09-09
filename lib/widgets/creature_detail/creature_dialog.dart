@@ -1156,7 +1156,7 @@ class _HeaderBar extends StatelessWidget {
                 icon: AppIcons.close_rounded,
                 iconColor: palette.muted,
                 frameColor: palette.line,
-                onTap: onClose,
+                onTap: context.soundAction(onClose),
               ),
             ],
           ),

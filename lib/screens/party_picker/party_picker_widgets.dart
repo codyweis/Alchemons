@@ -375,7 +375,7 @@ class TeamSlotFilled extends StatelessWidget {
     final name = base?.name ?? instance.baseId;
 
     return FastLongPressDetector(
-      onTap: onRemove,
+      onTap: context.soundAction(onRemove),
       onLongPress: base == null
           ? null
           : () {

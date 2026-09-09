@@ -75,16 +75,17 @@ class DominantStats {
     required num strength,
     required num beauty,
   }) {
-    final ranked = <MapEntry<StatKind, num>>[
-      MapEntry(StatKind.speed, speed),
-      MapEntry(StatKind.intelligence, intelligence),
-      MapEntry(StatKind.strength, strength),
-      MapEntry(StatKind.beauty, beauty),
-    ]..sort((a, b) {
-      final byValue = b.value.compareTo(a.value);
-      // Ties resolve by declaration order so the result is stable.
-      return byValue != 0 ? byValue : a.key.index.compareTo(b.key.index);
-    });
+    final ranked =
+        <MapEntry<StatKind, num>>[
+          MapEntry(StatKind.speed, speed),
+          MapEntry(StatKind.intelligence, intelligence),
+          MapEntry(StatKind.strength, strength),
+          MapEntry(StatKind.beauty, beauty),
+        ]..sort((a, b) {
+          final byValue = b.value.compareTo(a.value);
+          // Ties resolve by declaration order so the result is stable.
+          return byValue != 0 ? byValue : a.key.index.compareTo(b.key.index);
+        });
     return DominantStats(ranked[0].key, ranked[1].key);
   }
 

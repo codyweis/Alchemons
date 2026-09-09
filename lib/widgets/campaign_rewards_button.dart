@@ -9,7 +9,6 @@ import 'package:alchemons/widgets/background/alchemical_particle_background.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-
 /// Event-driven notifications: database changes, route return, and app resume.
 /// No polling, background service, or system notification permission required.
 /// How the campaign entry point presents itself.

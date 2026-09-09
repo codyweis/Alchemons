@@ -276,9 +276,7 @@ class _ForgeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDisabled = onTap == null || loading;
     return GestureDetector(
-      onTap: isDisabled
-          ? null
-          : context.soundAction(onTap),
+      onTap: isDisabled ? null : context.soundAction(onTap),
       child: CustomPaint(
         painter: _BracketFramePainter(
           color: secondary
@@ -697,7 +695,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       child: _PauseActionButton(
                         label: 'CLOSE',
                         icon: AppIcons.close_rounded,
-                        onTap: () => Navigator.of(context).pop(),
+                        onTap: context.soundTap(
+                          () => Navigator.of(context).pop(),
+                        ),
                       ),
                     ),
                   ],
@@ -1428,13 +1428,17 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   _PauseActionButton(
                     label: 'STAY',
                     icon: AppIcons.play_arrow_rounded,
-                    onTap: () => Navigator.of(context).pop(false),
+                    onTap: context.soundTap(
+                      () => Navigator.of(context).pop(false),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   _PauseActionButton(
                     label: 'QUIT',
                     icon: AppIcons.exit_to_app_rounded,
-                    onTap: () => Navigator.of(context).pop(true),
+                    onTap: context.soundTap(
+                      () => Navigator.of(context).pop(true),
+                    ),
                     fillColor: _C.danger,
                   ),
                 ],
@@ -1573,7 +1577,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 child: _PauseActionButton(
                   label: 'CLOSE',
                   icon: AppIcons.close_rounded,
-                  onTap: () => Navigator.of(context).pop(),
+                  onTap: context.soundTap(() => Navigator.of(context).pop()),
                 ),
               ),
             ],
@@ -1732,7 +1736,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 child: _PauseActionButton(
                   label: 'CLOSE',
                   icon: AppIcons.close_rounded,
-                  onTap: () => Navigator.of(context).pop(),
+                  onTap: context.soundTap(() => Navigator.of(context).pop()),
                 ),
               ),
             ],
@@ -1800,7 +1804,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       label: 'Assign Team',
                       icon: AppIcons.groups_rounded,
                       loading: false,
-                      onTap: _pickTeam,
+                      onTap: context.soundAction(_pickTeam),
                     ),
                     const SizedBox(height: 10),
                     _ForgeButton(
@@ -2636,13 +2640,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     ? AppIcons.play_arrow_rounded
                     : AppIcons.pause_rounded,
                 color: _C.accent,
-                onTap: _togglePauseMenu,
+                onTap: context.soundTap(_togglePauseMenu),
               ),
               const SizedBox(width: 6),
               _HudIconButton(
                 icon: zoomIcon,
                 color: _C.teal,
-                onTap: _cycleZoomLevel,
+                onTap: context.soundTap(_cycleZoomLevel),
               ),
               const SizedBox(width: 8),
               // Ship HP
@@ -3002,7 +3006,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                     slotIndex: entry.targetSlot,
                                     targetName: entry.targetName,
                                   ),
-                                  onTap: () => _showCompanionStats(index),
+                                  onTap: context.soundTap(
+                                    () => _showCompanionStats(index),
+                                  ),
                                 );
                               },
                             ),
@@ -3028,7 +3034,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                               _PauseActionButton(
                                 label: 'QUIT',
                                 icon: AppIcons.exit_to_app_rounded,
-                                onTap: _quitRunFromPause,
+                                onTap: context.soundTap(_quitRunFromPause),
                                 fillColor: _C.danger,
                                 filled: false,
                                 compact: true,
@@ -3038,7 +3044,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                 child: _PauseActionButton(
                                   label: 'RESUME',
                                   icon: AppIcons.play_arrow_rounded,
-                                  onTap: _closePauseMenu,
+                                  onTap: context.soundTap(_closePauseMenu),
                                 ),
                               ),
                             ],

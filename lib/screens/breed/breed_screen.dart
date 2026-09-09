@@ -243,7 +243,7 @@ class _BreedScreenState extends State<BreedScreen> {
                             child: _FuseModeToggle(
                               theme: theme,
                               mode: _mode,
-                              onTap: _toggleMode,
+                              onTap: context.soundTap(_toggleMode),
                             ),
                           ),
                           Expanded(

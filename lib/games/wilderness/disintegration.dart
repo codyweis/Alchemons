@@ -83,7 +83,11 @@ class Disintegration {
         rad * 2.0,
         _halo..color = color.withValues(alpha: alpha * 0.20),
       );
-      canvas.drawCircle(pos, rad, _core..color = bright.withValues(alpha: alpha));
+      canvas.drawCircle(
+        pos,
+        rad,
+        _core..color = bright.withValues(alpha: alpha),
+      );
     }
   }
 }

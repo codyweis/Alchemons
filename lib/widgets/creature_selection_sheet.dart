@@ -451,7 +451,7 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
             Positioned(
               bottom: 16,
               child: FloatingCloseButton(
-                onTap: () => Navigator.of(context).pop(),
+                onTap: context.soundTap(() => Navigator.of(context).pop()),
                 theme: theme,
               ),
             ),
@@ -784,7 +784,7 @@ class _FilterSortRow extends StatelessWidget {
                 label: type,
                 color: color,
                 selected: selected,
-                onTap: () => onFilterChanged(type),
+                onTap: context.soundTap(() => onFilterChanged(type)),
               );
             },
           ),
@@ -840,7 +840,7 @@ class _CreatureGrid extends StatelessWidget {
         final c = data.creature;
         return _CreatureGridCard(
           c: c,
-          onTap: () => onSelectCreature(c.id),
+          onTap: context.soundTap(() => onSelectCreature(c.id)),
           theme: theme,
         );
       },
@@ -1012,7 +1012,7 @@ class _SpeciesFilterRow extends StatelessWidget {
                 label: species,
                 color: theme.accent, // or a species-based color if you have one
                 selected: selected,
-                onTap: () => onSpeciesChanged(species),
+                onTap: context.soundTap(() => onSpeciesChanged(species)),
               );
             },
           ),

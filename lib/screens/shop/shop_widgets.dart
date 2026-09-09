@@ -165,7 +165,9 @@ Future<bool> showItemDetailDialog({
                         ),
                       ),
                       IconButton(
-                        onPressed: () => Navigator.pop(ctx, false),
+                        onPressed: context.soundAction(
+                          () => Navigator.pop(ctx, false),
+                        ),
                         icon: Icon(
                           AppIcons.close_rounded,
                           color: t.textMuted,
@@ -270,7 +272,9 @@ Future<bool> showItemDetailDialog({
                         flex: 2,
                         child: _DialogSecondaryButton(
                           label: 'BACK',
-                          onTap: () => Navigator.pop(ctx, false),
+                          onTap: context.soundTap(
+                            () => Navigator.pop(ctx, false),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -1652,14 +1656,18 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                       Expanded(
                         child: _DialogSecondaryButton(
                           label: 'CANCEL',
-                          onTap: () => Navigator.pop(ctx, false),
+                          onTap: context.soundTap(
+                            () => Navigator.pop(ctx, false),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _DialogPrimaryButton(
                           label: 'CONFIRM',
-                          onTap: () => Navigator.pop(ctx, true),
+                          onTap: context.soundAction(
+                            () => Navigator.pop(ctx, true),
+                          ),
                         ),
                       ),
                     ],
@@ -1884,14 +1892,18 @@ Future<int?> showPurchaseConfirmationDialog({
                           Expanded(
                             child: _DialogSecondaryButton(
                               label: 'CANCEL',
-                              onTap: () => Navigator.pop(ctx, null),
+                              onTap: context.soundTap(
+                                () => Navigator.pop(ctx, null),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: _DialogPrimaryButton(
                               label: 'CONFIRM',
-                              onTap: () => Navigator.pop(ctx, qty),
+                              onTap: context.soundAction(
+                                () => Navigator.pop(ctx, qty),
+                              ),
                             ),
                           ),
                         ],
@@ -2147,9 +2159,7 @@ class DialogResourceDisplay extends StatelessWidget {
     final resource = ElementResources.byKey[type];
     // Short of the cost turns the whole row red — glyph, name and figure —
     // rather than reddening the particles while the name stays on-element.
-    final swatch = hasEnough
-        ? (resource?.color ?? color)
-        : Colors.red.shade400;
+    final swatch = hasEnough ? (resource?.color ?? color) : Colors.red.shade400;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),

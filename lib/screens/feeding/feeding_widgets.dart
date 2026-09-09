@@ -1260,7 +1260,7 @@ class FeedFooter extends StatelessWidget {
                 selectedCount > 0 && !busy && !(targetInstance?.level == 10),
             busy: busy,
             selectedCount: selectedCount,
-            onTap: onEnhance,
+            onTap: context.soundTap(onEnhance),
           ),
         ],
       ),

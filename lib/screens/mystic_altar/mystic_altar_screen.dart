@@ -1161,7 +1161,7 @@ class _InfoPanel extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               _PanelActionButton(
-                onTap: onEnter,
+                onTap: context.soundTap(onEnter),
                 label: ctaLabel,
                 enabled: unlocked,
                 color: ritualComplete ? elColor : null,
@@ -1350,7 +1350,7 @@ class _RelicPlaceDialogState extends State<_RelicPlaceDialog>
                         child: _Btn(
                           label: 'Return',
                           color: _C.ivoryMuted,
-                          onTap: widget.onCancel,
+                          onTap: context.soundTap(widget.onCancel),
                           primary: false,
                         ),
                       ),
@@ -1359,7 +1359,7 @@ class _RelicPlaceDialogState extends State<_RelicPlaceDialog>
                         child: _Btn(
                           label: 'Place relic',
                           color: elColor,
-                          onTap: widget.onConfirm,
+                          onTap: context.soundTap(widget.onConfirm),
                           primary: true,
                         ),
                       ),

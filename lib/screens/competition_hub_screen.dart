@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:ui';
 import 'dart:math' as math;
 import 'package:alchemons/games/competitions/earthen_maze_game.dart';
@@ -84,7 +85,7 @@ class _CompetitionHubScreenState extends State<CompetitionHubScreen>
               _IconButton(
                 icon: AppIcons.arrow_back_rounded,
                 accentColor: accentColor,
-                onTap: () => Navigator.of(context).pop(),
+                onTap: context.soundTap(() => Navigator.of(context).pop()),
               ),
               const SizedBox(width: 12),
               Expanded(

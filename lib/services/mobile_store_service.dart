@@ -395,18 +395,18 @@ class MobileStoreService extends ChangeNotifier {
     }
 
     if (settled.isNotEmpty) {
-      queue = queue.where((entry) => !settled.contains(entry.localKey)).toList();
+      queue = queue
+          .where((entry) => !settled.contains(entry.localKey))
+          .toList();
       await _writeQueue(queue);
     }
     _pendingRedeemCount = queue.length;
     notifyListeners();
   }
 
-  GoldPackDefinition? _packFor(String productId) =>
-      _catalog.cast<GoldPackDefinition?>().firstWhere(
-        (entry) => entry?.productId == productId,
-        orElse: () => null,
-      );
+  GoldPackDefinition? _packFor(String productId) => _catalog
+      .cast<GoldPackDefinition?>()
+      .firstWhere((entry) => entry?.productId == productId, orElse: () => null);
 
   Future<List<_PendingRedeem>> _readQueue() async {
     final prefs = await SharedPreferences.getInstance();

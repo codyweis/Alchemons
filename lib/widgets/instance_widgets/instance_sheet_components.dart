@@ -5,6 +5,7 @@
 // All logic, props, and public API preserved exactly.
 //
 
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math' as math;
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/creature_dao.dart';
@@ -149,7 +150,7 @@ class InstanceCard extends StatelessWidget {
     final selColor = isSelected ? _selectionColor(t) : palette.line;
 
     return FastLongPressDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       onLongPress: onLongPress,
       child: CustomPaint(
         painter: BracketFramePainter(

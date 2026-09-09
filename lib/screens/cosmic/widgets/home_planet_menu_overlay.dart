@@ -9,6 +9,7 @@
 // player came here to look at and what they came here to press are both always
 // on screen.
 
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -104,7 +105,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: CosmicOverlayBackdrop(
-        onTap: onClose,
+        onTap: context.soundAction(onClose),
         alpha: 0.96,
         child: GestureDetector(
           // The panel fills the screen; taps inside it must not reach the
@@ -622,7 +623,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                     context: context,
                     icon: AppIcons.auto_awesome,
                     label: 'CUSTOMIZE',
-                    onTap: onCustomize,
+                    onTap: context.soundTap(onCustomize),
                     primary: true,
                   ),
                 ),
@@ -632,7 +633,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
                     context: context,
                     icon: AppIcons.shield,
                     label: 'GARRISON',
-                    onTap: onGarrison,
+                    onTap: context.soundTap(onGarrison),
                   ),
                 ),
               ],
@@ -644,7 +645,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
               context: context,
               icon: AppIcons.close_rounded,
               label: 'CLOSE',
-              onTap: onClose,
+              onTap: context.soundTap(onClose),
               muted: true,
               height: 38,
             ),
@@ -675,7 +676,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
               : CosmicScreenStyles.borderAccent.withValues(alpha: 0.7));
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: Container(
         height: height,

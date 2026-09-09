@@ -186,7 +186,7 @@ class TopHudState extends State<TopHud> {
                   // Settings button
                   _HudIconButton(
                     icon: AppIcons.settings_rounded,
-                    onTap: widget.onSettings,
+                    onTap: context.soundTap(widget.onSettings),
                   ),
                   const SizedBox(width: 10),
                   // Title + stats
@@ -267,7 +267,7 @@ class TopHudState extends State<TopHud> {
                   // Collapse button
                   _HudIconButton(
                     icon: AppIcons.keyboard_arrow_up_rounded,
-                    onTap: () => _setCollapsed(true),
+                    onTap: context.soundTap(() => _setCollapsed(true)),
                   ),
                 ],
               ),

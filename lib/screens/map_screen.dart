@@ -908,7 +908,9 @@ class _ExpeditionMap extends StatelessWidget {
                   _ArcaneVortex(
                     mapSize: size,
                     hasSpawns: spawnService.getSceneSpawnCount('arcane') > 0,
-                    onTap: () => onSelectRegion('arcane', arcaneScene),
+                    onTap: context.soundTap(
+                      () => onSelectRegion('arcane', arcaneScene),
+                    ),
                     onLongPress: onPeekRegion == null
                         ? null
                         : () => onPeekRegion!('arcane'),

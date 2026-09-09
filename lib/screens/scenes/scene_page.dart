@@ -915,6 +915,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
     _game.placeShipBeaconAt(
       spawnId,
+      // _onShipTapped already fires its own heavier haptic.
       onTap: _onShipTapped,
       flyIn: flyIn,
       onCrashLanded: _onShipCrashLanded,

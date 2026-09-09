@@ -153,7 +153,7 @@ class _DungeonDebugScreenState extends State<DungeonDebugScreen> {
               right: 16,
               bottom: 16,
               child: FloatingCloseButton(
-                onTap: () => Navigator.pop(context),
+                onTap: context.soundTap(() => Navigator.pop(context)),
                 theme: factionTheme,
               ),
             ),

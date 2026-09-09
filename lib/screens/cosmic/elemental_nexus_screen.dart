@@ -533,7 +533,7 @@ class _ElementalPortalGrid extends StatelessWidget {
               def: portal,
               revealT: localT,
               pulseTime: pulseTime,
-              onTap: () => onPortalChosen(portal.element),
+              onTap: context.soundTap(() => onPortalChosen(portal.element)),
             );
           }),
         ),

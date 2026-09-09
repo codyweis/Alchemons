@@ -81,7 +81,9 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                     item: item,
                     def: def,
                     t: t,
-                    onTap: () => _showItemQuickActions(item, def, t),
+                    onTap: context.soundTap(
+                      () => _showItemQuickActions(item, def, t),
+                    ),
                   );
                 },
               ),

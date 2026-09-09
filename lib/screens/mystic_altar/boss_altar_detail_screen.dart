@@ -2683,7 +2683,7 @@ class _GameDialog extends StatelessWidget {
                     child: _Btn(
                       label: cancelLabel,
                       color: _C.ivoryMuted,
-                      onTap: onCancel,
+                      onTap: context.soundTap(onCancel),
                       primary: false,
                     ),
                   ),
@@ -2692,7 +2692,7 @@ class _GameDialog extends StatelessWidget {
                     child: _Btn(
                       label: confirmLabel,
                       color: elColor,
-                      onTap: onConfirm,
+                      onTap: context.soundTap(onConfirm),
                       primary: true,
                     ),
                   ),

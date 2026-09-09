@@ -288,7 +288,7 @@ class ExtractVialDialog extends StatelessWidget {
       return _Button(
         label: 'CLOSE',
         accent: _textSoft,
-        onTap: () => Navigator.of(context).pop(false),
+        onTap: context.soundTap(() => Navigator.of(context).pop(false)),
       );
     }
     return Row(
@@ -297,7 +297,7 @@ class ExtractVialDialog extends StatelessWidget {
           child: _Button(
             label: 'CANCEL',
             accent: _textSoft,
-            onTap: () => Navigator.of(context).pop(false),
+            onTap: context.soundTap(() => Navigator.of(context).pop(false)),
           ),
         ),
         const SizedBox(width: 10),
@@ -307,7 +307,7 @@ class ExtractVialDialog extends StatelessWidget {
             label: 'EXTRACT',
             accent: accent,
             filled: true,
-            onTap: () => Navigator.of(context).pop(true),
+            onTap: context.soundTap(() => Navigator.of(context).pop(true)),
           ),
         ),
       ],

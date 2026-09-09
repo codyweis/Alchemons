@@ -567,7 +567,7 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
                             return _buildTeamRow(
                               t,
                               members,
-                              onTap: () => _applyTeam(i),
+                              onTap: context.soundAction(() => _applyTeam(i)),
                               highlight: isActive,
                               label: isActive ? 'DEPLOYED' : null,
                               labelColor: t.success,

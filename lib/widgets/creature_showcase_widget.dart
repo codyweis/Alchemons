@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
@@ -107,7 +108,7 @@ class FeaturedHeroInteractive extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FastLongPressDetector(
-      onTap: onTapDetails,
+      onTap: context.soundAction(onTapDetails),
       onLongPress: onLongPressChoose,
       child: Container(
         color: Colors.transparent,

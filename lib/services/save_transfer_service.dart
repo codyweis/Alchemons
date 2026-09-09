@@ -20,6 +20,7 @@ class SaveTransferService {
   static const String _legacyPrefix = 'ALCHEMONS_SAVE_V1:';
   static const int _maxCloudSaveBytes = 900 * 1024;
   static const int _potentialScaleSchemaVersion = 37;
+
   /// Preferences that belong to the device rather than to the save.
   ///
   /// They are left out of an export and preserved across an import, so a

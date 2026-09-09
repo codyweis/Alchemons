@@ -381,7 +381,9 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                       ExtractionVialCard(
                         vial: vial,
                         compact: true,
-                        onTap: () => _showVialDetails(vial),
+                        onTap: context.soundAction(
+                          () => _showVialDetails(vial),
+                        ),
                         onAddToInventory: isPurchased
                             ? null
                             : () => _buyVial(vial, marketService),

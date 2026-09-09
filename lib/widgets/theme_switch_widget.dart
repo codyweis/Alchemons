@@ -24,13 +24,17 @@ class ThemeModeSelector extends StatelessWidget {
           _AlchemyThemeButton(
             icon: AppIcons.wb_sunny_outlined,
             isSelected: current == ThemeMode.light,
-            onTap: () => themeNotifier.setThemeMode(ThemeMode.light),
+            onTap: context.soundTap(
+              () => themeNotifier.setThemeMode(ThemeMode.light),
+            ),
           ),
           const SizedBox(width: 4),
           _AlchemyThemeButton(
             icon: AppIcons.nightlight_outlined,
             isSelected: current == ThemeMode.dark,
-            onTap: () => themeNotifier.setThemeMode(ThemeMode.dark),
+            onTap: context.soundTap(
+              () => themeNotifier.setThemeMode(ThemeMode.dark),
+            ),
           ),
         ],
       ),

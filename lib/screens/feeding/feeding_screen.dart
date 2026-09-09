@@ -620,7 +620,7 @@ class _EnhancementEntryView extends StatelessWidget {
                       subtitle:
                           'Sacrifice spare specimens of the same species to gain levels and recalculate Power from Base and Potential.',
                       accent: const Color(0xFFFFB649),
-                      onTap: onFeedMons,
+                      onTap: context.soundTap(onFeedMons),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -632,7 +632,7 @@ class _EnhancementEntryView extends StatelessWidget {
                       subtitle:
                           'Spend Power Orbs on +3% Enhancement ranks, or use rare Potential Souls to raise a selected inheritable Potential.',
                       accent: const Color(0xFF78B7FF),
-                      onTap: onFeedPowerups,
+                      onTap: context.soundTap(onFeedPowerups),
                     ),
                   ),
                 ],

@@ -518,7 +518,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                       ),
                       _OverlayHeaderButton(
                         icon: AppIcons.close_rounded,
-                        onTap: () => Navigator.of(ctx).pop(),
+                        onTap: context.soundTap(() => Navigator.of(ctx).pop()),
                         compact: true,
                       ),
                     ],

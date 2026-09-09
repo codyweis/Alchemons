@@ -1292,7 +1292,7 @@ class _FilterBarSolid extends StatelessWidget {
             theme: theme,
             label: scope,
             icon: AppIcons.filter_list_rounded,
-            onTap: onScopeChanged,
+            onTap: context.soundTap(onScopeChanged),
           ),
           const SizedBox(width: 6),
           IconButtonSolid(
@@ -1300,7 +1300,7 @@ class _FilterBarSolid extends StatelessWidget {
             icon: showCounts
                 ? AppIcons.numbers_rounded
                 : AppIcons.numbers_outlined,
-            onTap: onToggleCounts,
+            onTap: context.soundTap(onToggleCounts),
           ),
           const SizedBox(width: 6),
           IconButtonSolid(
@@ -1308,13 +1308,13 @@ class _FilterBarSolid extends StatelessWidget {
             icon: isGrid
                 ? AppIcons.view_list_rounded
                 : AppIcons.grid_view_rounded,
-            onTap: onToggleView,
+            onTap: context.soundTap(onToggleView),
           ),
           const SizedBox(width: 6),
           IconButtonSolid(
             theme: theme,
             icon: AppIcons.sort_rounded,
-            onTap: onSortTap,
+            onTap: context.soundTap(onSortTap),
           ),
         ],
       ),
@@ -1363,7 +1363,7 @@ class _CreatureGrid extends StatelessWidget {
           discovered: isDiscovered,
           instanceCount: instanceCounts[c.id] ?? 0,
           showCount: showCounts,
-          onTap: () => onTap(c, isDiscovered),
+          onTap: context.soundTap(() => onTap(c, isDiscovered)),
         );
         if (!isRevealing) return card;
         return _RevealPulse(theme: theme, child: card);
@@ -1405,7 +1405,7 @@ class _CreatureList extends StatelessWidget {
             discovered: isDiscovered,
             instanceCount: instanceCounts[c.id] ?? 0,
             showCount: showCounts,
-            onTap: () => onTap(c, isDiscovered),
+            onTap: context.soundTap(() => onTap(c, isDiscovered)),
           ),
         );
         if (!isRevealing) return row;

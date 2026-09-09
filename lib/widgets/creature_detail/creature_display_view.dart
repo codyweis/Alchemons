@@ -73,7 +73,9 @@ class _CreatureDisplayViewState extends State<CreatureDisplayView> {
               top: padding.top + 8,
               right: 8,
               child: _CloseButton(
-                onTap: () => Navigator.of(context).pop(_savedOption),
+                onTap: context.soundTap(
+                  () => Navigator.of(context).pop(_savedOption),
+                ),
               ),
             ),
             if (_savedMsg != null)
@@ -222,7 +224,7 @@ class _BackgroundPicker extends StatelessWidget {
           return CreatureBgSwatch(
             option: option,
             selected: option.id == selectedId,
-            onTap: () => onSelect(option),
+            onTap: context.soundTap(() => onSelect(option)),
           );
         },
       ),
@@ -253,7 +255,7 @@ class _SaveButtonsRow extends StatelessWidget {
             child: _SaveButton(
               label: 'Save for species',
               enabled: !saving,
-              onTap: onSaveSpecies,
+              onTap: context.soundTap(onSaveSpecies),
             ),
           ),
           if (hasInstance) ...[

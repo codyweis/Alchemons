@@ -148,8 +148,10 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
     () => GlobalKey(debugLabel: 'total_$biomeId'),
   );
 
-  GlobalKey _railKeyFor(String biomeId) =>
-      _railKeys.putIfAbsent(biomeId, () => GlobalKey(debugLabel: 'rail_$biomeId'));
+  GlobalKey _railKeyFor(String biomeId) => _railKeys.putIfAbsent(
+    biomeId,
+    () => GlobalKey(debugLabel: 'rail_$biomeId'),
+  );
 
   /// Screen-space rect of a biome's rail chip, or null if it is not laid out.
   Rect? _railRect(String biomeId) {
@@ -607,6 +609,7 @@ class _ExtractionBay extends StatelessWidget {
   final FactionTheme theme;
   final HarvestService service;
   final List<CreatureEntry> discoveredCreatures;
+
   /// Always concrete — the hub resolves and pins it.
   final String selectedBiomeId;
   final Duration defaultDuration;
@@ -717,7 +720,7 @@ class _BiomeSelectorRail extends StatelessWidget {
             theme: theme,
             selected: farm.biome.id == selectedBiomeId,
             vertical: true,
-            onTap: () => onSelect(farm),
+            onTap: context.soundTap(() => onSelect(farm)),
           );
         },
       );
@@ -738,7 +741,7 @@ class _BiomeSelectorRail extends StatelessWidget {
             theme: theme,
             selected: farm.biome.id == selectedBiomeId,
             vertical: false,
-            onTap: () => onSelect(farm),
+            onTap: context.soundTap(() => onSelect(farm)),
           ),
         );
       },
@@ -941,7 +944,7 @@ class _CollectAllBanner extends StatelessWidget {
                 theme: theme,
                 compact: true,
                 minHeight: 38,
-                onTap: onCollectAll,
+                onTap: context.soundTap(onCollectAll),
               ),
             ],
           ),
@@ -2127,7 +2130,7 @@ class _StartPanel extends StatelessWidget {
           accent: color,
           theme: theme,
           compact: compact,
-          onTap: onPickAndStart,
+          onTap: context.soundAction(onPickAndStart),
         ),
       ],
     );
@@ -2198,7 +2201,7 @@ class _ActivePanel extends StatelessWidget {
                   theme: theme,
                   compact: compact,
                   minHeight: 38,
-                  onTap: onCancel,
+                  onTap: context.soundTap(onCancel),
                 ),
               ),
             ],
@@ -2227,7 +2230,7 @@ class _ActivePanel extends StatelessWidget {
                   theme: theme,
                   compact: compact,
                   minHeight: 42,
-                  onTap: onCancel,
+                  onTap: context.soundTap(onCancel),
                 ),
               ),
             ],
@@ -2269,7 +2272,7 @@ class _LockedPanel extends StatelessWidget {
           accent: color,
           theme: theme,
           compact: compact,
-          onTap: onBack,
+          onTap: context.soundTap(onBack),
         ),
       ],
     );

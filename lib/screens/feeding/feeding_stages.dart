@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -261,7 +262,9 @@ class FeedingStageBuilders {
                         theme: theme,
                         creature: creature,
                         count: count,
-                        onTap: () => onSpeciesSelected(creature.id),
+                        onTap: context.soundTap(
+                          () => onSpeciesSelected(creature.id),
+                        ),
                       ),
                     );
                   },
@@ -356,7 +359,7 @@ class FeedingStageBuilders {
         final isSelected = selectedFodder.contains(inst.instanceId);
         final baseCreature = repo.getCreatureById(inst.baseId);
         return FastLongPressDetector(
-          onTap: () => onFodderToggle(inst.instanceId),
+          onTap: context.soundAction(() => onFodderToggle(inst.instanceId)),
           onLongPress: baseCreature == null
               ? null
               : () {

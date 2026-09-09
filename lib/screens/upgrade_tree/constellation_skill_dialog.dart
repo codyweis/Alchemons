@@ -642,7 +642,7 @@ class _ActionsState extends State<_Actions> {
         label: 'CLOSE',
         accent: ConstellationSkillDialog._textSoft,
         filled: false,
-        onTap: () => Navigator.of(context).pop(),
+        onTap: context.soundAction(() => Navigator.of(context).pop()),
       );
     }
 
@@ -663,7 +663,7 @@ class _ActionsState extends State<_Actions> {
             label: 'CLOSE',
             accent: ConstellationSkillDialog._textSoft,
             filled: false,
-            onTap: () => Navigator.of(context).pop(),
+            onTap: context.soundAction(() => Navigator.of(context).pop()),
           ),
         ],
       );
