@@ -434,7 +434,7 @@ const campaignAchievements = [
   CampaignAchievement(
     'raid_1',
     'Answered the beacon',
-    'Win a planetary raid.',
+    'Complete a planetary raid.',
     'raids',
     1,
     2,

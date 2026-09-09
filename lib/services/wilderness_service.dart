@@ -1,5 +1,4 @@
 // services/wilderness_service.dart
-import 'package:alchemons/services/campaign_journal_service.dart';
 import 'dart:math';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
@@ -48,15 +47,8 @@ class WildernessService {
 
   /// A Wild Fusion is an encounter charge, not creature stamina. It is spent
   /// when the stability attempt begins, whether that attempt succeeds or not.
-  Future<bool> consumeWildFusion() async {
-    final spent = await db.inventoryDao.consumeItem(InvKeys.wildFusion);
-    // Counted on the charge being spent, matching the comment above: the
-    // attempt is the thing, not whether it landed.
-    if (spent) {
-      await CampaignJournalService.bump(db.settingsDao, 'wildFusions');
-    }
-    return spent;
-  }
+  Future<bool> consumeWildFusion() =>
+      db.inventoryDao.consumeItem(InvKeys.wildFusion);
 
   // The actual roll
   bool rollSuccess(double p) => _rng.nextDouble() < p;

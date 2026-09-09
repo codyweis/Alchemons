@@ -14,6 +14,7 @@ import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 // - Center-right: Action buttons
 // - Clean, game-like presentation optimized for landscape
 
+import 'package:alchemons/services/campaign_journal_service.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:alchemons/audio/audio.dart';
@@ -715,6 +716,11 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       final success = wilderness.rollSuccess(p);
       if (success) {
+        // The achievement is for fusions that landed, not charges spent.
+        await CampaignJournalService.bump(
+          wilderness.db.settingsDao,
+          'wildFusions',
+        );
         final speciesA = repo.getCreatureById(instance.baseId);
         final speciesB = wildCreature;
 
