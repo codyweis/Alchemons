@@ -14,7 +14,6 @@ import 'package:alchemons/screens/competition_hub_screen.dart';
 import 'package:alchemons/screens/cosmic/cosmic_screen.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
 import 'package:alchemons/screens/map_screen.dart';
-import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_points_widget.dart';
 import 'package:alchemons/screens/mystic_altar/mystic_altar_screen.dart';
 import 'package:alchemons/data/mystic_altar_data.dart';
@@ -47,6 +46,7 @@ import 'package:drift/drift.dart' hide Column;
 import 'package:flame/flame.dart' show Flame;
 import 'package:flutter/cupertino.dart' hide Column;
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -2198,18 +2198,16 @@ class _HomeScreenState extends State<HomeScreen>
     if (storyPending) {
       _memoryStoryShowing = true;
       try {
-        await LandscapeDialog.show(
+        // Was the full-screen story dialog — empty title, typewriter, not
+        // dismissable — for a recap of mechanics the player performed thirty
+        // seconds earlier. That register belongs to the story, and a summary
+        // of what you just did does not need to be acknowledged to be read.
+        showGameSnack(
           context,
-          title: '',
-          message:
-              'Cosmic combat basics covered: summon an Alchemon to a slot, use '
-              'the magnet to make it follow or hold position, and let its '
-              'abilities come off cooldown.',
-          typewriter: true,
-          kind: LandscapeDialogKind.info,
+          'Cosmic combat: summon to a slot, magnet to follow or hold, '
+          'abilities on cooldown',
           icon: AppIcons.auto_awesome,
-          primaryLabel: 'Continue',
-          barrierDismissible: false,
+          duration: const Duration(seconds: 6),
         );
         await CosmicMemoryTutorialService.acknowledgeStory(settings);
       } finally {
