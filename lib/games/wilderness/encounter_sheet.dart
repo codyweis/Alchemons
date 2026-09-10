@@ -21,6 +21,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
+import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -33,6 +34,8 @@ import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
 import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
+import 'package:alchemons/games/wilderness/encounter_top_hud.dart';
+import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart'; // 🆕 Import highlight widget
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -126,6 +129,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   bool _busy = false;
   bool _wildReady = false;
   int _wildFusionQty = 0;
+
+  /// Which harvester the Harvest button draws. Null until the kit answers.
+  String? _harvesterBiome;
   late Creature _wildCreature;
   late String _status;
 
@@ -176,6 +182,53 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       _wildReady = true;
     });
     widget.onWildCreaturePrepared?.call(prepared);
+    await _resolveHarvesterGlyph();
+  }
+
+  /// Work out which device the Harvest button should be drawn as.
+  ///
+  /// The button is a picture of the thing you are about to spend, so it asks
+  /// the field kit rather than the biome: an element harvester is what a
+  /// player reaches for first, the stabilized unit is the fallback they own,
+  /// and an empty kit still names the device they need to go and buy.
+  Future<void> _resolveHarvesterGlyph() async {
+    final creature = _wildCreature;
+    final usable = await context.read<CatchService>().getUsableDevices(
+      creature,
+    );
+    CatchDeviceType? pick;
+    for (final device in usable) {
+      if (device != CatchDeviceType.guaranteed) {
+        pick = device;
+        break;
+      }
+    }
+    pick ??= usable.isEmpty ? null : usable.first;
+
+    final String biome;
+    if (pick != null) {
+      biome = harvesterBiomeForKey(pick.inventoryKey) ?? universalHarvester;
+    } else {
+      final group = elementalGroupOf(creature);
+      biome = group == null ? universalHarvester : groupIdFrom(group);
+    }
+
+    if (!mounted || biome == _harvesterBiome) return;
+    setState(() => _harvesterBiome = biome);
+  }
+
+  /// The four Potential ratings, or null when this specimen carries no stat
+  /// block. Only ever called once the Wild Potential Scanner is unlocked —
+  /// a locked scanner leaves the readout absent rather than blank.
+  List<WildPotentialReading>? _wildPotentialReadings(Creature c) {
+    final stats = c.stats;
+    if (stats == null) return null;
+    return [
+      (label: 'SPD', value: stats.speedPotential),
+      (label: 'INT', value: stats.intelligencePotential),
+      (label: 'STR', value: stats.strengthPotential),
+      (label: 'BEA', value: stats.beautyPotential),
+    ];
   }
 
   bool get _supportsFusion =>
@@ -460,82 +513,65 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         .hasWildPotentialAnalyzer();
     return Stack(
       children: [
-        // Center: Wild creature name title
+        // Top band: specimen identity, field status and the party strip, all
+        // laid out together so they cannot land on top of each other.
         AnimatedBuilder(
           animation: _slideController,
           builder: (_, __) {
             final slide = Curves.easeOutCubic.transform(_slideController.value);
-            final size = MediaQuery.sizeOf(context);
-            final isLandscape = size.width > size.height;
-            // Inset so the FIELD STATUS card clears the side HUDs (party
-            // strip + scene controls) in landscape.
-            //
-            // This used to be a flat 210, which a full party overran: four
-            // 56px cards with 6px gaps, 8px of strip padding each side and
-            // 16px off the edge come to 274, so STABILITY ended up underneath
-            // the strip. Measured from the party instead of guessed, and kept
-            // symmetric so the creature name stays centred.
-            const partyCardWidth = 56.0;
-            const partyCardGap = 6.0;
-            const partyStripPadding = 16.0;
-            const hudEdgeInset = 16.0;
-            const breathingRoom = 12.0;
-            final partyCount = widget.party.length;
-            final partyStripWidth = partyCount == 0
-                ? 0.0
-                : partyCount * partyCardWidth +
-                      (partyCount - 1) * partyCardGap +
-                      partyStripPadding;
-            final sideInset = isLandscape
-                ? max(210.0, hudEdgeInset + partyStripWidth + breathingRoom)
-                : 16.0;
             return Positioned(
-              top: 16,
-              left: sideInset,
-              right: sideInset,
-              child: Opacity(
-                opacity: slide,
-                child: _WildCreatureTitle(
-                  creature: wildCreature,
-                  rarity: widget.encounter.rarity,
-                  showRarityBadge: widget.showRarityBadge,
-                  status: _status,
-                  breedChance: _supportsFusion ? _breedChance : null,
-                  showPotentials: showWildPotentials,
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    kEncounterHudEdgePad,
+                    kEncounterHudEdgePad,
+                    kEncounterHudEdgePad,
+                    0,
+                  ),
+                  child: WildEncounterTopHud(
+                    name: wildCreature.name,
+                    rarity: widget.encounter.rarity,
+                    showRarityBadge: widget.showRarityBadge,
+                    status: _status,
+                    breedChance: _supportsFusion ? _breedChance : null,
+                    potentials: showWildPotentials
+                        ? _wildPotentialReadings(wildCreature)
+                        : null,
+                    opacity: slide,
+                    partyStripWidth: _supportsFusion
+                        ? partyStripWidthFor(widget.party.length)
+                        : 0,
+                    partyStrip: _supportsFusion
+                        ? Transform.translate(
+                            // Slides in from off-screen without taking any
+                            // layout room with it.
+                            offset: Offset(300 * (1 - slide), 0),
+                            child: Opacity(
+                              opacity: slide,
+                              child: TutorialHighlight(
+                                enabled:
+                                    widget.highlightPartyHUD &&
+                                    _chosenInstanceId == null, // 🆕
+                                label: 'Select an Alchemon to breed', // 🆕
+                                child: _PartyHUD(
+                                  party: widget.party,
+                                  chosenInstanceId: _chosenInstanceId,
+                                  onSelect: _onSelectPartyCreature,
+                                ),
+                              ),
+                            ),
+                          )
+                        : null,
+                  ),
                 ),
               ),
             );
           },
         ),
-
-        // Top-right: Party HUD with optional tutorial highlighting 🆕
-        if (_supportsFusion)
-          AnimatedBuilder(
-            animation: _slideController,
-            builder: (_, __) {
-              final slide = Curves.easeOutCubic.transform(
-                _slideController.value,
-              );
-              return Positioned(
-                top: 16,
-                right: 16 - (300 * (1 - slide)),
-                child: Opacity(
-                  opacity: slide,
-                  child: TutorialHighlight(
-                    enabled:
-                        widget.highlightPartyHUD &&
-                        _chosenInstanceId == null, // 🆕
-                    label: 'Select an Alchemon to breed', // 🆕
-                    child: _PartyHUD(
-                      party: widget.party,
-                      chosenInstanceId: _chosenInstanceId,
-                      onSelect: _onSelectPartyCreature,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
 
         // Bottom: Action buttons row
         AnimatedBuilder(
@@ -565,6 +601,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     showFusionAction: _supportsFusion,
                     showMapAction: widget.showMapAction,
                     wildFusionQty: _wildFusionQty,
+                    harvesterBiome: _harvesterBiome,
                   ),
                 ),
               ),
@@ -1151,379 +1188,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 }
 
 // ==========================================
-// WILD CREATURE TITLE (Center top)
-// ==========================================
-class _EncounterStatusStyle {
-  final Color accent;
-  final IconData icon;
-
-  const _EncounterStatusStyle({required this.accent, required this.icon});
-
-  static const _danger = Color(0xFFC0392B);
-  static const _amber = Color(0xFFE4C16A);
-  static const _success = Color(0xFF22C55E);
-  static const _teal = Color(0xFF5BC8E8);
-
-  factory _EncounterStatusStyle.resolve(String status) {
-    final normalized = status.toLowerCase();
-
-    if (normalized.contains('failed') ||
-        normalized.contains('error') ||
-        normalized.contains('lost')) {
-      return const _EncounterStatusStyle(
-        accent: _danger,
-        icon: AppIcons.warning_amber_rounded,
-      );
-    }
-    if (normalized.contains('research') ||
-        normalized.contains('stamina') ||
-        normalized.contains('capacity')) {
-      return const _EncounterStatusStyle(
-        accent: _amber,
-        icon: AppIcons.bolt_rounded,
-      );
-    }
-    if (normalized.contains('complete') ||
-        normalized.contains('sent to cultivations') ||
-        normalized.contains('transferred')) {
-      return const _EncounterStatusStyle(
-        accent: _success,
-        icon: AppIcons.check_circle_rounded,
-      );
-    }
-    if (normalized.contains('calibrating') ||
-        normalized.contains('select') ||
-        normalized.contains('choose') ||
-        normalized.contains('secure')) {
-      return const _EncounterStatusStyle(
-        accent: _teal,
-        icon: AppIcons.tune_rounded,
-      );
-    }
-    return const _EncounterStatusStyle(
-      accent: _amber,
-      icon: AppIcons.auto_awesome_rounded,
-    );
-  }
-}
-
-class _WildCreatureTitle extends StatelessWidget {
-  final Creature creature;
-  final String rarity;
-  final bool showRarityBadge;
-  final String status;
-  final double? breedChance;
-  final bool showPotentials;
-
-  const _WildCreatureTitle({
-    required this.creature,
-    required this.rarity,
-    required this.status,
-    this.showRarityBadge = true,
-    this.breedChance,
-    this.showPotentials = false,
-  });
-
-  Color get _rarityColor {
-    switch (rarity.toLowerCase()) {
-      case 'uncommon':
-        return const Color(0xFF34D399);
-      case 'rare':
-        return const Color(0xFF60A5FA);
-      case 'epic':
-        return const Color(0xFFA855F7);
-      case 'legendary':
-        return const Color(0xFFF59E0B);
-      default:
-        return const Color(0xFF9AA0AC);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final statusStyle = _EncounterStatusStyle.resolve(status);
-    final chancePct = breedChance == null
-        ? null
-        : '${(breedChance! * 100).toStringAsFixed(1)}%';
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppSpace.md),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 320),
-            child: CustomPaint(
-              painter: BracketFramePainter(
-                color: statusStyle.accent.withValues(alpha: 0.8),
-                bracketSize: 9,
-                strokeWidth: 1.1,
-              ),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpace.md,
-                  vertical: AppSpace.sm,
-                ),
-                color: _kPalette.surfaceFill(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          statusStyle.icon,
-                          color: statusStyle.accent,
-                          size: AppIcon.sm,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'FIELD STATUS',
-                          style: bracketText(
-                            context,
-                            10,
-                            _kPalette.muted,
-                            weight: FontWeight.w700,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                        if (chancePct != null) ...[
-                          const Spacer(),
-                          Text(
-                            'STABILITY ',
-                            style: bracketText(
-                              context,
-                              9.5,
-                              _kPalette.muted,
-                              weight: FontWeight.w700,
-                              letterSpacing: 0.6,
-                            ),
-                          ),
-                          Text(
-                            chancePct,
-                            style: bracketText(
-                              context,
-                              11.5,
-                              const Color(0xFF22C55E),
-                              weight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      status,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: bracketText(
-                        context,
-                        13,
-                        _kPalette.ink,
-                        weight: FontWeight.w700,
-                      ),
-                      strutStyle: const StrutStyle(height: 1.25),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        // Classification rank badge
-        if (showRarityBadge) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: _rarityColor.withValues(alpha: 0.16),
-              border: Border(left: BorderSide(color: _rarityColor, width: 2)),
-            ),
-            child: Text(
-              rarity.toUpperCase(),
-              style: bracketText(
-                context,
-                11,
-                _rarityColor,
-                weight: FontWeight.w800,
-                letterSpacing: 1.0,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-        ],
-        // Creature designation
-        _DigitalAnimatedText(
-          text: creature.name.toUpperCase(),
-          duration: const Duration(milliseconds: 900),
-          style: TextStyle(
-            color: _kPalette.ink,
-            fontSize: 32,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 3.0,
-            shadows: [
-              const Shadow(
-                color: Colors.black87,
-                blurRadius: 12,
-                offset: Offset(0, 3),
-              ),
-              Shadow(
-                color: _rarityColor.withValues(alpha: 0.34),
-                blurRadius: 20,
-              ),
-            ],
-          ),
-        ),
-        if (showPotentials && creature.stats != null) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            color: const Color(0xFF12161D).withValues(alpha: 0.92),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _WildPotential(
-                  label: 'SPD',
-                  value: creature.stats!.speedPotential,
-                ),
-                _WildPotential(
-                  label: 'INT',
-                  value: creature.stats!.intelligencePotential,
-                ),
-                _WildPotential(
-                  label: 'STR',
-                  value: creature.stats!.strengthPotential,
-                ),
-                _WildPotential(
-                  label: 'BEA',
-                  value: creature.stats!.beautyPotential,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _WildPotential extends StatelessWidget {
-  const _WildPotential({required this.label, required this.value});
-
-  final String label;
-  final double value;
-
-  @override
-  Widget build(BuildContext context) {
-    const accent = Color(0xFF60A5FA);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$label ',
-            style: bracketText(
-              context,
-              9,
-              _kPalette.muted,
-              weight: FontWeight.w700,
-              letterSpacing: 0.5,
-            ),
-          ),
-          Text(
-            value.round().clamp(1, 100).toString(),
-            style: bracketText(context, 11.5, accent, weight: FontWeight.w900),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ==========================================
-// UTILITY: Digital Animated Text
-// ==========================================
-class _DigitalAnimatedText extends StatefulWidget {
-  final String text;
-  final TextStyle style;
-  final Duration duration;
-
-  const _DigitalAnimatedText({
-    required this.text,
-    required this.style,
-    this.duration = const Duration(milliseconds: 900),
-  });
-
-  @override
-  __DigitalAnimatedTextState createState() => __DigitalAnimatedTextState();
-}
-
-class __DigitalAnimatedTextState extends State<_DigitalAnimatedText> {
-  String _displayText = '';
-  late Timer _timer;
-  int _currentIndex = 0;
-  final Random _random = Random();
-
-  @override
-  void initState() {
-    super.initState();
-    _startAnimation();
-  }
-
-  void _startAnimation() {
-    // Shorter interval for fast "glitchy" type-in effect
-    final interval = widget.duration.inMilliseconds ~/ widget.text.length;
-
-    _timer = Timer.periodic(
-      Duration(milliseconds: interval > 0 ? interval : 1),
-      (timer) {
-        if (_currentIndex < widget.text.length) {
-          // Add one correct character
-          _displayText = widget.text.substring(0, _currentIndex + 1);
-
-          // Add 1-3 random, glitchy characters at the end
-          final glitchLength = _random.nextInt(3) + 1;
-          for (int i = 0; i < glitchLength; i++) {
-            _displayText += String.fromCharCode(
-              _random.nextInt(26) + 65,
-            ); // Random uppercase letter
-          }
-
-          _currentIndex++;
-        } else {
-          // Animation finished, set final text and stop timer
-          _displayText = widget.text;
-          timer.cancel();
-        }
-        if (mounted) {
-          setState(() {});
-        }
-      },
-    );
-  }
-
-  @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Only show the finished text at the very end
-    final display = _currentIndex >= widget.text.length
-        ? widget.text
-        : _displayText;
-
-    return Text(
-      display,
-      style: widget.style,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-}
-
-// ==========================================
 // PARTY HUD (Top-right) - Clean design
 // ==========================================
 class _PartyHUD extends StatelessWidget {
@@ -1546,7 +1210,9 @@ class _PartyHUD extends StatelessWidget {
         strokeWidth: 1.05,
       ),
       child: Container(
-        padding: const EdgeInsets.all(8),
+        // Same constants the top band reserves its right-hand gutter from,
+        // so the strip can never be wider than the room kept for it.
+        padding: const EdgeInsets.all(kPartyStripPadding),
         color: _kPalette.surfaceFill(),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1557,7 +1223,7 @@ class _PartyHUD extends StatelessWidget {
                 selected: party[i].instanceId == chosenInstanceId,
                 onTap: context.soundTap(() => onSelect(party[i].instanceId)),
               ),
-              if (i < party.length - 1) const SizedBox(width: 6),
+              if (i < party.length - 1) const SizedBox(width: kPartyCardGap),
             ],
           ],
         ),
@@ -1603,7 +1269,7 @@ class _PartyMemberCard extends StatelessWidget {
               strokeWidth: selected ? 1.4 : 1.0,
             ),
             child: Container(
-              width: 56,
+              width: kPartyCardWidth,
               padding: const EdgeInsets.all(5),
               color: selected
                   ? selAccent.withValues(alpha: 0.12)
@@ -1648,6 +1314,10 @@ class _ActionPanel extends StatelessWidget {
   final bool showMapAction;
   final int wildFusionQty;
 
+  /// Element of the harvester the player is about to spend, so the action
+  /// draws as that device. Null until the field kit has been read.
+  final String? harvesterBiome;
+
   const _ActionPanel({
     required this.canAct,
     required this.onBreed,
@@ -1659,6 +1329,7 @@ class _ActionPanel extends StatelessWidget {
     this.showFusionAction = true,
     this.showMapAction = true,
     this.wildFusionQty = 0,
+    this.harvesterBiome,
   });
 
   @override
@@ -1690,6 +1361,7 @@ class _ActionPanel extends StatelessWidget {
                 child: _ActionButton(
                   label: 'Harvest',
                   icon: AppIcons.catching_pokemon_rounded,
+                  glyphBiome: harvesterBiome,
                   accentColor: danger,
                   onPressed: canAct ? onCapture : null,
                 ),
@@ -1717,12 +1389,18 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool disabled;
 
+  /// Draws the painted harvester in place of [icon] — the shop, the inventory
+  /// and the space market all show the device this way, and this is where the
+  /// player actually spends it.
+  final String? glyphBiome;
+
   const _ActionButton({
     required this.label,
     required this.icon,
     required this.accentColor,
     this.onPressed,
     this.disabled = false,
+    this.glyphBiome,
   });
 
   @override
@@ -1748,7 +1426,17 @@ class _ActionButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: accent, size: 17),
+              if (glyphBiome != null)
+                HarvesterGlyph(
+                  biomeId: glyphBiome!,
+                  size: 22,
+                  // Greyed out it is not a device you can use, so it stops
+                  // beating and stops asking for frames.
+                  color: isDisabled ? _kPalette.muted : null,
+                  animate: !isDisabled,
+                )
+              else
+                Icon(icon, color: accent, size: 17),
               const SizedBox(width: 8),
               Text(
                 label,
