@@ -1114,15 +1114,28 @@
     "description": "Alchemical matter drawn into the meter \u2014 a soft intake, not a coin",
     "target": "0.15\u20130.30 s",
     "path": "assets/audio/sounds/sfx_cosmic_matter_collect.wav",
-    "duration": 0.52,
+    "duration": 0.34,
     "loop": false,
-    "peak_db": -18.42,
-    "rms_db": -33.92,
-    "sha256": "bb454ff4b892c1c16f0bdb1b4f99854d6656efe61593bd0a9764b90b8fb4b31d",
+    "peak_db": -16.48,
+    "rms_db": -29.33,
+    "sha256": "714518a0420be5819998342c27713fa100d6c0c56e656061c671a0868c6c9b44",
     "variations": [
       "assets/audio/sounds/sfx_cosmic_matter_collect_01.wav",
       "assets/audio/sounds/sfx_cosmic_matter_collect_02.wav",
       "assets/audio/sounds/sfx_cosmic_matter_collect_03.wav"
     ]
+  },
+  {
+    "name": "amb_cosmic_boost_loop",
+    "category": "Later additions",
+    "description": "The booster held down \u2014 a continuous thruster, not a repeated whoosh",
+    "target": "30 s",
+    "loop_seam_delta": 0.007568,
+    "path": "assets/audio/sounds/amb_cosmic_boost_loop.wav",
+    "duration": 4.0,
+    "loop": true,
+    "peak_db": -16.48,
+    "rms_db": -26.57,
+    "sha256": "6568a1988f411354a97f00acd5e26cb796a00572a858a1d280defc157f9ea9da"
   }
 ]

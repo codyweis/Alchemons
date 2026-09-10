@@ -293,11 +293,7 @@ class OnboardingTaskService {
             label: 'Collect',
             onPressed: () {
               if (!context.mounted) return;
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const CampaignJournalScreen(),
-                ),
-              );
+              Navigator.of(context).push(CampaignJournalScreen.route());
             },
           ),
         );

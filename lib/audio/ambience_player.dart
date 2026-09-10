@@ -8,7 +8,12 @@ enum AmbienceCue {
   dungeonWater('amb_dungeon_water_loop'),
   dungeonFire('amb_dungeon_fire_loop'),
   dungeonArcane('amb_dungeon_arcane_loop'),
-  lab('amb_lab_loop');
+  lab('amb_lab_loop'),
+
+  /// Not a place — the booster, held. Rendered through the ambience path
+  /// because it has to loop seamlessly: a one-shot restarting is a pulse,
+  /// and holding boost should be one continuous note.
+  cosmicBoost('amb_cosmic_boost_loop');
 
   const AmbienceCue(this.filename);
   final String filename;

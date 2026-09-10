@@ -5241,7 +5241,12 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (widget.memoryTutorial) return;
     if (!_customizationState.hasBooster) return;
     if (_isBoosting || _game == null) return;
+    // The kick of engaging, then the engine underneath it for as long as it
+    // is held — one dash sample on its own said "boosted", not "boosting".
     _playCosmicSfx(SoundCue.cosmicDash);
+    unawaited(
+      context.read<AudioController>().startSustained(AmbienceCue.cosmicBoost),
+    );
     _isBoosting = true;
     _game?.boosting = true;
     HapticFeedback.selectionClick();
@@ -5249,6 +5254,9 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _stopBoosting() {
+    if (mounted) {
+      unawaited(context.read<AudioController>().stopSustained());
+    }
     _isBoosting = false;
     _game?.boosting = false;
     setState(() {});

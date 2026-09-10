@@ -605,12 +605,13 @@ class ShopService extends ChangeNotifier {
     ),
     ShopOffer(
       id: 'fx.gold_to_silver.unit',
-      name: 'Gold → Silver (5,000s)',
+      name: 'Gold → Silver (1,000s)',
       description:
-          'Exchange 1 gold for 5,000 silver. Stock up on silver for harvesters, elixirs, and daily essentials.',
+          'Exchange 1 gold for 1,000 silver. Stock up on silver for '
+          'harvesters, elixirs, and daily essentials.',
       icon: AppIcons.currency_exchange_rounded,
       cost: const {'gold': 1},
-      reward: const {'silver': EconomyBalance.silverPerGoldPayout},
+      reward: const {'silver': EconomyBalance.silverPerGoldExchange},
       rewardType: 'currency',
       limit: PurchaseLimit.unlimited,
     ),
@@ -656,6 +657,20 @@ class ShopService extends ChangeNotifier {
           'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
       icon: AppIcons.biotech_rounded,
       cost: const {'gold': 250}, // 4th purchase: 250 gold
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+    ),
+    ShopOffer(
+      id: 'unlock.fusion_slot.5',
+      name: 'Fusion Slot (Step 5)',
+      description:
+          'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
+      icon: AppIcons.biotech_rounded,
+      // The shop's stepping card and _applyBoost both already handled a
+      // fifth slot; only the offer behind them was missing, so the ladder
+      // stopped at four with nothing to buy.
+      cost: const {'gold': 250}, // 5th purchase: 250 gold
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,

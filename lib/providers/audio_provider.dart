@@ -1,3 +1,4 @@
+import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/audio/ambience_player.dart';
 import 'dart:async';
 import 'package:alchemons/audio/sound_cue.dart';
@@ -86,6 +87,14 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   final AudioPlayer _musicPlayer = AudioPlayer();
   final SoundEffectsPlayer _sounds = SoundEffectsPlayer();
   final AmbiencePlayer _ambience = AmbiencePlayer();
+
+  /// A single held effect — currently the booster.
+  ///
+  /// Separate from both the ambience player, which owns one scene at a time
+  /// and would have to give up the room tone, and the effects player, whose
+  /// voices are one-shots that free themselves when they finish.
+  final AudioPlayer _sustainPlayer = AudioPlayer();
+  AmbienceCue? _sustainCue;
   bool _disposed = false;
   late final Future<void> _bootstrapFuture;
 
@@ -128,7 +137,12 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     final isForeground = state == AppLifecycleState.resumed;
     if (_appIsForeground == isForeground) return;
     _appIsForeground = isForeground;
+    // Told here rather than through a second observer: this one already
+    // exists, already runs for the whole app, and already knows.
+    PushNotificationService().setAppInForeground(isForeground);
     _syncSounds();
+    // A held effect has no business continuing into the background.
+    if (!isForeground) unawaited(stopSustained());
     unawaited(_applyMusicState());
   }
 
@@ -310,6 +324,34 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   void setAmbience(Object owner, AmbienceCue cue) =>
       _ambience.setScene(owner, cue);
   void stopAmbienceOwner(Object owner) => _ambience.stopOwner(owner);
+
+  /// Starts a held effect, looping until [stopSustained].
+  ///
+  /// Idempotent: calling it again for the cue already running does nothing,
+  /// so a caller can drive it from a state change without checking first.
+  Future<void> startSustained(AmbienceCue cue, {double volume = 0.45}) async {
+    if (_disposed) return;
+    if (!effectiveSoundsEnabled) return;
+    if (_sustainCue == cue && _sustainPlayer.playing) return;
+    _sustainCue = cue;
+    try {
+      await _sustainPlayer.setAsset(cue.asset);
+      await _sustainPlayer.setLoopMode(LoopMode.one);
+      await _sustainPlayer.setVolume(volume);
+      await _sustainPlayer.play();
+    } catch (_) {
+      // A held effect is never worth breaking the screen it plays on.
+      _sustainCue = null;
+    }
+  }
+
+  Future<void> stopSustained() async {
+    _sustainCue = null;
+    if (_disposed) return;
+    try {
+      await _sustainPlayer.stop();
+    } catch (_) {}
+  }
   void _syncSounds() {
     final enabled =
         !_disposed && _isLoaded && effectiveSoundsEnabled && _appIsForeground;
@@ -534,6 +576,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     _disposed = true;
     _sounds.dispose();
     _ambience.dispose();
+    unawaited(_sustainPlayer.dispose());
     unawaited(_musicPlayer.dispose());
     super.dispose();
   }

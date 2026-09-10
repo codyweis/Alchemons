@@ -182,6 +182,10 @@ New rows go here, at the bottom, where they shift nothing.
 |---|---|---|---|
 | P2 | `sfx_cosmic_matter_collect.wav` | 0.15–0.30 s | Alchemical matter drawn into the meter — a soft intake, not a coin |
 
+| Filename | Loop length | Character |
+|---|---|---|
+| `amb_cosmic_boost_loop.wav` | 30 s | The booster held down — a continuous thruster, not a repeated whoosh |
+
 ## Implementation notes from the current app
 
 - `lib/providers/audio_provider.dart` defines five cosmic `SoundCue` values and their asset candidates; `lib/screens/cosmic/cosmic_screen.dart` calls them.

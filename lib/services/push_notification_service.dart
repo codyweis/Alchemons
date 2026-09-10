@@ -19,6 +19,25 @@ class PushNotificationService {
   final NotificationPreferencesService _prefs =
       NotificationPreferencesService();
 
+  /// Whether the player is looking at the game right now.
+  ///
+  /// A system notification exists to reach someone who is elsewhere. Firing
+  /// one into the tray while they are watching the very screen it describes
+  /// — the app already shows its own banner for each of these — is just
+  /// noise, and on Android it comes with a sound and a heads-up card over
+  /// whatever they were doing.
+  ///
+  /// Scheduled notifications are deliberately NOT suppressed: they are set
+  /// for a future moment that is usually reached with the app closed, and
+  /// cancelling them on the chance the app is open at the time would lose
+  /// reminders outright.
+  bool _appInForeground = true;
+
+  /// Called by the lifecycle observer the app already runs.
+  void setAppInForeground(bool foreground) => _appInForeground = foreground;
+
+  bool get _suppressImmediate => _appInForeground;
+
   // Notification IDs - using separate ranges to prevent collisions
   static const int eggHatchingBaseId = 1000; // 1000-1099 for individual eggs
   static const int eggReadyConsolidatedId =
@@ -281,6 +300,8 @@ class PushNotificationService {
     required int count,
     bool silentUpdate = false,
   }) async {
+    // Silent while they are already here; the in-app banner has it.
+    if (_suppressImmediate) return;
     if (!_initialized) await initialize();
     if (!await _prefs.isCultivationsEnabled()) return;
 
@@ -407,6 +428,8 @@ class PushNotificationService {
     required int locationCount,
     bool silentUpdate = false,
   }) async {
+    // Silent while they are already here; the in-app banner has it.
+    if (_suppressImmediate) return;
     if (!_initialized) await initialize();
     if (!await _prefs.isWildernessEnabled()) return;
 
@@ -491,6 +514,8 @@ class PushNotificationService {
     required int count,
     bool silentUpdate = false,
   }) async {
+    // Silent while they are already here; the in-app banner has it.
+    if (_suppressImmediate) return;
     if (!_initialized) await initialize();
     if (!await _prefs.isExtractionsEnabled()) return;
 

@@ -115,6 +115,12 @@ enum SoundCue {
   String assetForVariant(int index) => hasVariants && index % 4 != 0
       ? asset.replaceFirst('.wav', '_0${index % 4}.wav')
       : asset;
+  /// Higher wins a voice when all six are busy.
+  ///
+  /// The mixer evicts a voice whose priority is strictly LOWER than the
+  /// incoming cue's, so a 0 can never take a slot from anything — it is
+  /// droppable, not merely cheap. A cue that should still be heard in a busy
+  /// scene belongs at 1 even when it is quiet and frequent.
   int get priority => switch (this) {
     SoundCue.combatPlayerHurt ||
     SoundCue.combatDanger ||
@@ -130,7 +136,6 @@ enum SoundCue {
     SoundCue.combatHitHeavy ||
     SoundCue.combatEnemyDefeat ||
     SoundCue.cosmicOrbPickup ||
-    SoundCue.cosmicMatterCollect ||
     SoundCue.dungeonStepStone ||
     SoundCue.dungeonStepWater => 0,
     _ => 1,
@@ -160,7 +165,7 @@ enum SoundCue {
     SoundCue.cosmicOrbPickup => .60,
     // Well under the star-dust plink: this fires many times more often, and
     // its job is to sit under the music rather than on top of it.
-    SoundCue.cosmicMatterCollect => .20,
+    SoundCue.cosmicMatterCollect => .30,
     SoundCue.uiTap || SoundCue.uiSelect || SoundCue.uiBack => .65,
     _ => 1.0,
   };

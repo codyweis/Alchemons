@@ -115,9 +115,16 @@ void main() {
       'gold': EconomyBalance.standardGoldBundle,
     });
     expect(goldToSilver.cost, const {'gold': 1});
+    // The counter's rate, which is deliberately NOT the payout used to price
+    // what things sell for — cashing Gold out is meant to be a poor deal.
     expect(goldToSilver.reward, const {
-      'silver': EconomyBalance.silverPerGoldPayout,
+      'silver': EconomyBalance.silverPerGoldExchange,
     });
+    expect(
+      EconomyBalance.silverPerGoldExchange,
+      lessThan(EconomyBalance.silverPerGoldPurchase),
+      reason: 'buying Gold must never be cheaper than cashing it out',
+    );
   });
 
   test('every survival orb offer uses its catalog Gold price', () {

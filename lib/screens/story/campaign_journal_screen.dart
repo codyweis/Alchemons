@@ -22,6 +22,18 @@ import 'package:provider/provider.dart';
 
 class CampaignJournalScreen extends StatefulWidget {
   const CampaignJournalScreen({super.key});
+
+  /// Names this screen's route so closing can drop every stacked copy of it
+  /// without touching whatever it was opened over.
+  static const String routeName = 'campaign_journal';
+
+  /// The route to push. Always use this rather than a bare
+  /// MaterialPageRoute: an unnamed journal is one the close button cannot
+  /// recognise, and it would be left behind.
+  static Route<void> route() => MaterialPageRoute<void>(
+    settings: const RouteSettings(name: routeName),
+    builder: (_) => const CampaignJournalScreen(),
+  );
   @override
   State<CampaignJournalScreen> createState() => _CampaignJournalScreenState();
 }
@@ -159,7 +171,6 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     showGameSnack(context, message, accent: FC.of(context).rewardGold);
   }
 
-
   /// Which tab an achievement lives under.
   ///
   /// Cultivating specific families and breeding a species true are collection
@@ -171,13 +182,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     const collection = {'collection', 'fuse_', 'pure_'};
     if (collection.any(a.id.startsWith)) return 'Collection';
     if (a.id.startsWith('survival')) return 'Survival';
-    const exploration = {
-      'planets',
-      'raid',
-      'portal',
-      'maxim',
-      'constellation',
-    };
+    const exploration = {'planets', 'raid', 'portal', 'maxim', 'constellation'};
     if (exploration.any(a.id.startsWith)) return 'Exploration';
     return 'Challenges';
   }
@@ -624,11 +629,27 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
               letterSpacing: 2.4,
             ),
           ),
+          // Closes rather than pops one route.
+          //
+          // Collecting a task from a notification pushes this screen, and
+          // that notification can fire while it is already open — so a back
+          // arrow could leave two or three journals stacked behind each
+          // other, each needing its own press. This leaves for good.
+          automaticallyImplyLeading: false,
           actions: [
             IconButton(
-              tooltip: 'Refresh progress',
-              onPressed: context.soundAction(_claiming ? null : refresh),
-              icon: Icon(AppIcons.refresh_rounded, color: fc.textSecondary),
+              tooltip: 'Close',
+              onPressed: context.soundAction(() {
+                // Every journal on the stack, and nothing below them: the
+                // notification can push this over the shop or the
+                // constellations, and closing must not take those with it.
+                Navigator.of(context).popUntil(
+                  (r) =>
+                      r.settings.name != CampaignJournalScreen.routeName ||
+                      r.isFirst,
+                );
+              }),
+              icon: Icon(AppIcons.close_rounded, color: fc.textSecondary),
             ),
           ],
         ),

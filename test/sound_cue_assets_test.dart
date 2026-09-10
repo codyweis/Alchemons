@@ -43,13 +43,30 @@ void main() {
     }
   });
 
-  test('collecting matter is quieter and lower priority than the music', () {
-    // It fires many times more often than anything else in the game; if it
-    // ever gets promoted, it will be the loudest thing in cosmic space.
+  test('collecting matter stays quiet but can still claim a voice', () {
+    // It fires more often than anything else in the game, so it is quiet
+    // and rate-limited — but NOT priority 0. The mixer only evicts a voice
+    // whose priority is strictly lower than the incoming cue's, so a 0 can
+    // never take a slot: in a busy scene it simply stopped being audible.
     const cue = SoundCue.cosmicMatterCollect;
-    expect(cue.priority, 0, reason: 'must be the first thing dropped');
+    expect(cue.priority, greaterThan(0), reason: 'a 0 can evict nothing');
     expect(cue.gain, lessThan(SoundCue.cosmicOrbPickup.gain));
     expect(cue.cooldownMs, greaterThanOrEqualTo(60));
     expect(cue.hasVariants, isTrue, reason: 'or a mote field machine-guns');
+  });
+
+  test('nothing at priority 0 expects to be heard in a crowd', () {
+    // Documenting the mixer's rule where someone will see it: everything
+    // here is a texture that may simply vanish under load.
+    final droppable = SoundCue.values.where((c) => c.priority == 0).toSet();
+    expect(droppable, {
+      SoundCue.combatProjectile,
+      SoundCue.combatHitLight,
+      SoundCue.combatHitHeavy,
+      SoundCue.combatEnemyDefeat,
+      SoundCue.cosmicOrbPickup,
+      SoundCue.dungeonStepStone,
+      SoundCue.dungeonStepWater,
+    });
   });
 }

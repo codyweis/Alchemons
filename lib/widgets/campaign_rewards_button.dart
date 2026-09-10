@@ -140,9 +140,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
 
   Future<void> open() async {
     if (!widget.enabled) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const CampaignJournalScreen()),
-    );
+    await Navigator.of(context).push(CampaignJournalScreen.route());
     if (mounted) await refresh();
   }
 

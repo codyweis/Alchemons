@@ -266,11 +266,18 @@ recipe('element_light', .80, .28, lambda s: s.notes([659.25, 880, 1318.5], gap=.
 # tail needs somewhere to go. Tails overlapping at a mote field's pickup rate
 # is the intended texture, and priority 0 means these are the first voices
 # dropped when the mix runs out of room, so the wash thins itself.
-recipe('cosmic_matter_collect', .52, .12, lambda s: (
-    s.noise(decay=.028, amp=.13, low=140, high=780, attack=.011)
-     .tone(147, decay=.052, amp=.30, end=233, glide=.022, metal=.01)
-     .tone(294, start=.010, decay=.024, amp=.06, metal=.0)
-     .space(amount=.5, decay=.10, damp=1100)))
+# Third pass, after a device listen: it was inaudible. Everything was under
+# 780 Hz and a phone speaker rolls off hard below ~500, so the whole sound
+# sat in the band the hardware reproduces worst. The body stays low for
+# headphones, but there is content up to ~1.6 kHz now for the speaker to
+# actually render, and the tail is a third of what it was — at one pickup
+# every 80ms a half-second tail stacked six deep and filled the voice pool
+# with itself.
+recipe('cosmic_matter_collect', .34, .15, lambda s: (
+    s.noise(decay=.024, amp=.15, low=240, high=1600, attack=.008)
+     .tone(196, decay=.046, amp=.30, end=311, glide=.020, metal=.03)
+     .tone(587, start=.008, decay=.030, amp=.11, metal=.02)
+     .space(amount=.38, decay=.07, damp=1800)))
 
 recipe('element_blood', .65, .30, lambda s: s.tone(85, decay=.045, amp=.6, end=58).tone(95, start=.17, decay=.06, amp=.5, end=62).bubbles(3, start=.02, span=.20, base=200, amp=.15))
 
@@ -322,6 +329,13 @@ def ambience(name, duration, seed):
         'cosmic_space': (400, 65.4), 'dungeon_ruins': (650, 73.4),
         'dungeon_water': (3200, 110), 'dungeon_fire': (1500, 55),
         'dungeon_arcane': (550, 146.83), 'lab': (950, 120),
+        # The booster held down. Brighter and higher-pitched than the room
+        # tones around it, because it is a thruster rather than a place —
+        # it is rendered here to get the ambience path's seamlessness, which
+        # a one-shot cannot have: integer-cycle oscillators and periodic
+        # FFT noise wrap exactly, so holding boost is a continuous note
+        # rather than a sample restarting.
+        'cosmic_boost': (2600, 98),
     }[style]
     for channel in range(2):
         noise = np.fft.rfft(rng.normal(size=n))
@@ -381,7 +395,7 @@ def catalog():
             cells = [c.strip() for c in line.split('|')[1:-1]]
             rows.append({'name': match[1], 'category': section, 'description': cells[-1],
                          'target': cells[-2]})
-    assert len(rows) == 90, len(rows)
+    assert len(rows) == 91, len(rows)
     return rows
 
 
@@ -468,7 +482,11 @@ def main():
             draw(s)
             write_wav(path, tilt(s.y), peak)
         elif loop and not args.only_extraction:
-            write_wav(path, ambience(name, 30, 8500 + i), .15, loop=True)
+            # Room tones want a long cycle so the ear cannot hear it come
+            # round; a thruster is a steady note and only needs enough to
+            # not sound static — 30 s of it would be 5.7 MB of held boost.
+            final = 4 if name == 'amb_cosmic_boost_loop' else 30
+            write_wav(path, ambience(name, final, 8500 + i), .15, loop=True)
         elif args.reapprove and name in APPROVED:
             # No recipe exists for these — they predate the generator — so
             # they are shelved in place rather than re-rendered, at their own
