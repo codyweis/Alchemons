@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:alchemons/services/campaign_journal_service.dart';
+import 'package:alchemons/services/infusion_discovery.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/screens/feeding/alchemical_powerup_feeding_screen.dart';
 import 'package:alchemons/screens/feeding/feeding_stages.dart';
@@ -42,6 +45,11 @@ class _FeedingScreenState extends State<FeedingScreen>
   // Tutorial state
   bool _feedingTutorialChecked = false;
 
+  /// Whether Stat Infusion has ever been available. Starts hidden and is
+  /// resolved on the first frame, so the card cannot flash in and vanish on
+  /// a save that has never held an orb.
+  bool _infusionDiscovered = false;
+
   // Search state (species stage)
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -50,10 +58,25 @@ class _FeedingScreenState extends State<FeedingScreen>
 
   bool _showAllInstances = false;
 
+  /// Reads the one-way discovery flags, and records anything the player is
+  /// holding right now — so the card appears on the same visit the first orb
+  /// lands, not the one after.
+  Future<void> _refreshInfusionDiscovered() async {
+    final db = context.read<AlchemonsDatabase>();
+    final inventory = await InfusionDiscovery.readHoldings(db.inventoryDao);
+    await InfusionDiscovery.observe(db.settingsDao, inventory);
+    final discovered = await InfusionDiscovery.anyDiscovered(db.settingsDao);
+    if (mounted && discovered != _infusionDiscovered) {
+      setState(() => _infusionDiscovered = discovered);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _speciesScrollCtrl = ScrollController();
+
+    unawaited(_refreshInfusionDiscovered());
 
     // Check first-time tutorial after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -224,6 +247,9 @@ class _FeedingScreenState extends State<FeedingScreen>
                 body: SafeArea(
                   child: _EnhancementEntryView(
                     theme: theme,
+                    // Stat Infusion is a door that only exists once you are
+                    // carrying something to put through it.
+                    showInfusion: _infusionDiscovered,
                     onFeedMons: () {
                       HapticFeedback.mediumImpact();
                       setState(
@@ -238,6 +264,7 @@ class _FeedingScreenState extends State<FeedingScreen>
                               const AlchemicalPowerupFeedingScreen(),
                         ),
                       );
+                      await _refreshInfusionDiscovered();
                     },
                   ),
                 ),
@@ -580,10 +607,15 @@ class _EnhancementEntryView extends StatelessWidget {
   final VoidCallback onFeedMons;
   final VoidCallback onFeedPowerups;
 
+  /// False until the player has ever held an orb or a soul. Once true it
+  /// stays true — see [InfusionDiscovery].
+  final bool showInfusion;
+
   const _EnhancementEntryView({
     required this.theme,
     required this.onFeedMons,
     required this.onFeedPowerups,
+    required this.showInfusion,
   });
 
   @override
@@ -605,7 +637,9 @@ class _EnhancementEntryView extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Choose how you want to strengthen your creatures',
+            showInfusion
+                ? 'Choose how you want to strengthen your creatures'
+                : 'Strengthen your creatures',
             style: TextStyle(color: theme.textMuted, fontSize: 14),
           ),
           const SizedBox(height: 32),
@@ -625,18 +659,20 @@ class _EnhancementEntryView extends StatelessWidget {
                       onTap: context.soundTap(onFeedMons),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: _EntryCard(
-                      theme: theme,
-                      title: 'Stat Infusion',
-                      tagline: 'Enhancement + Potential',
-                      subtitle:
-                          'Spend Power Orbs on +3% Enhancement ranks, or use rare Potential Souls to raise a selected inheritable Potential.',
-                      accent: const Color(0xFF78B7FF),
-                      onTap: context.soundTap(onFeedPowerups),
+                  if (showInfusion) ...[
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: _EntryCard(
+                        theme: theme,
+                        title: 'Stat Infusion',
+                        tagline: 'Enhancement + Potential',
+                        subtitle:
+                            'Spend Power Orbs on +3% Enhancement ranks, or use rare Potential Souls to raise a selected inheritable Potential.',
+                        accent: const Color(0xFF78B7FF),
+                        onTap: context.soundTap(onFeedPowerups),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

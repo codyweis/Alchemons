@@ -9,6 +9,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/services/infusion_discovery.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -90,9 +91,7 @@ class _AlchemicalPowerupFeedingScreenState
   /// and out as they buy and use souls, and a control that comes and goes
   /// reads as broken rather than as gated. Discovery is one-way, and the tray
   /// already has a "No Potential Souls held" state for the empty case.
-  static const _soulTraySeenKey = 'enhance_soul_tray_seen_v1';
   bool _soulTrayEverSeen = false;
-  static const _orbTraySeenKey = 'enhance_orb_tray_seen_v1';
   bool _orbTrayEverSeen = false;
 
   // Souls spend Silver, so the commitment happens before the gesture: pick a
@@ -868,10 +867,7 @@ class _AlchemicalPowerupFeedingScreenState
     // Orbs earn their tray the same way. A row of four empty sockets over a
     // BUY prompt is the shop's job, not the forge's — until the player is
     // holding one, infusion is not a thing they can do here.
-    final orbQty = AlchemicalPowerupType.values.fold<int>(
-      0,
-      (sum, type) => sum + (inventory[type.inventoryKey] ?? 0),
-    );
+    final orbQty = InfusionDiscovery.orbCount(inventory);
     if (orbQty > 0 && !_orbTrayEverSeen) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => unawaited(_rememberOrbTraySeen()),
@@ -1553,8 +1549,8 @@ class _AlchemicalPowerupFeedingScreenState
 
   Future<void> _loadSoulTraySeen() async {
     final db = context.read<AlchemonsDatabase>();
-    final seenSoul = await db.settingsDao.getSetting(_soulTraySeenKey) == '1';
-    final seenOrb = await db.settingsDao.getSetting(_orbTraySeenKey) == '1';
+    final seenSoul = await InfusionDiscovery.soulsDiscovered(db.settingsDao);
+    final seenOrb = await InfusionDiscovery.orbsDiscovered(db.settingsDao);
     if (!mounted) return;
     if (seenSoul != _soulTrayEverSeen || seenOrb != _orbTrayEverSeen) {
       setState(() {
@@ -1568,7 +1564,7 @@ class _AlchemicalPowerupFeedingScreenState
     if (_soulTrayEverSeen || !mounted) return;
     _soulTrayEverSeen = true;
     await context.read<AlchemonsDatabase>().settingsDao.setSetting(
-      _soulTraySeenKey,
+      InfusionDiscovery.soulSeenKey,
       '1',
     );
     if (mounted) setState(() {});
@@ -1581,7 +1577,7 @@ class _AlchemicalPowerupFeedingScreenState
     if (_orbTrayEverSeen || !mounted) return;
     _orbTrayEverSeen = true;
     await context.read<AlchemonsDatabase>().settingsDao.setSetting(
-      _orbTraySeenKey,
+      InfusionDiscovery.orbSeenKey,
       '1',
     );
     if (mounted) setState(() {});

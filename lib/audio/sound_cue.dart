@@ -160,7 +160,7 @@ enum SoundCue {
     SoundCue.cosmicOrbPickup => .60,
     // Well under the star-dust plink: this fires many times more often, and
     // its job is to sit under the music rather than on top of it.
-    SoundCue.cosmicMatterCollect => .34,
+    SoundCue.cosmicMatterCollect => .20,
     SoundCue.uiTap || SoundCue.uiSelect || SoundCue.uiBack => .65,
     _ => 1.0,
   };

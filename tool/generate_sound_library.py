@@ -68,9 +68,14 @@ class Synth:
         return self
 
     def impact(self, start=0, size=1, amp=.65):
+        # The strike transient used to reach 3400/size Hz — 5.2 kHz for a
+        # light hit — and carried a .18 metallic overtone. Almost no energy
+        # sat up there, which is why it never showed in a band analysis, but
+        # it is the part the ear calls "clicky". Ceiling roughly halved and
+        # the overtone cut; the body of the hit is untouched.
         self.tone(180 / size, start, .042 * size, amp,
-                  end=65 / size, glide=.016 * size, metal=.18)
-        self.noise(start, .026 * size, amp * .55, 130, 3400 / size)
+                  end=65 / size, glide=.016 * size, metal=.09)
+        self.noise(start, .026 * size, amp * .55, 130, 1850 / size)
         return self
 
     def debris(self, count=6, start=.04, span=.20, low=180, high=3400, amp=.25):
@@ -78,6 +83,33 @@ class Synth:
             at = start + span * i / max(1, count - 1)
             self.noise(at, .012 + self.rng.random() * .02,
                        amp * (1 - .6 * i / count), low, high)
+        return self
+
+    def space(self, amount=.45, decay=.11, damp=1400, predelay=.006):
+        """Wash the sound into a small dark room.
+
+        A decaying noise impulse, low-passed so the tail is duller than the
+        source, convolved by FFT — direct convolution of a tail this long is
+        hundreds of millions of operations. The recipe must leave enough
+        duration for the tail, or write_wav's fade truncates it.
+        """
+        n = len(self.t)
+        ir = np.zeros(n)
+        head = round(predelay * SR)
+        body = n - head
+        if body <= 0:
+            return self
+        tail = self.rng.normal(size=body) * np.exp(-np.arange(body) / (decay * SR))
+        freq = np.fft.rfftfreq(body, 1 / SR)
+        tail = np.fft.irfft(np.fft.rfft(tail) * np.exp(-(freq / damp) ** 2), n=body)
+        ir[head:] = tail
+        ir /= max(np.sum(np.abs(ir)), 1e-9)
+        size = 1
+        while size < 2 * n:
+            size *= 2
+        wet = np.fft.irfft(np.fft.rfft(self.y, size) * np.fft.rfft(ir, size), size)[:n]
+        wet *= max(np.max(np.abs(self.y)), 1e-9) / max(np.max(np.abs(wet)), 1e-9)
+        self.y = (1 - amount) * self.y + amount * wet
         return self
 
     def bubbles(self, count=5, start=0, span=.30, base=450, amp=.28):
@@ -115,7 +147,7 @@ recipe('combat_hit_light', .18, .28, lambda s: s.impact(size=.65))
 recipe('combat_hit_heavy', .38, .38, lambda s: s.impact(size=1.65).debris(3, span=.065, high=1600, amp=.14))
 recipe('combat_critical', .40, .36, lambda s: s.impact(size=1.1).notes([1568, 2093], gap=.018, start=.01, decay=.035, amp=.20))
 recipe('combat_player_hurt', .38, .34, lambda s: s.impact(size=1.2).tone(360, decay=.065, end=145, glide=.033, amp=.40))
-recipe('combat_enemy_defeat', .45, .25, lambda s: s.noise(decay=.065, low=300, high=2600).tone(580, decay=.07, end=105, glide=.04, amp=.4))
+recipe('combat_enemy_defeat', .45, .25, lambda s: s.noise(decay=.065, low=300, high=1500).tone(470, decay=.07, end=95, glide=.04, amp=.4))
 recipe('combat_shield_hit', .28, .26, lambda s: s.notes([622.25, 932.33, 1370], gap=0, decay=.044, amp=.35).noise(decay=.012, amp=.12, low=1800, high=6500))
 recipe('combat_shield_break', .60, .31, lambda s: s.impact(size=.75, amp=.25).notes([1864.66, 1396.91, 932.33, 622.25], gap=.026, decay=.055, amp=.3).debris(7, span=.21, low=1600, high=7000, amp=.20))
 recipe('combat_heal', .85, .25, lambda s: s.notes([440, 554.37, 659.25], gap=.09, decay=.12, amp=.35).tone(880, start=.16, decay=.10, amp=.13, attack=.04))
@@ -219,12 +251,44 @@ recipe('element_light', .80, .28, lambda s: s.notes([659.25, 880, 1318.5], gap=.
 # under the music rather than on top of it: quiet, short, and closing on
 # itself. An intake rather than a coin, and pitched away from the star-dust
 # plink so the two read as different things happening in the same sky.
-recipe('cosmic_matter_collect', .22, .15, lambda s: (
-    s.noise(decay=.019, amp=.17, low=1100, high=4300, attack=.004)
-     .tone(415, decay=.031, amp=.24, end=735, glide=.013, metal=.05)
-     .tone(1244.5, start=.011, decay=.016, amp=.07, metal=.02)))
+# Dark on purpose. The first pass put the intake at 1100-4300 Hz with a
+# 1245 Hz ping on top and it read as glass — fine once, shrill by the tenth,
+# and this plays hundreds of times a run. The band is down to 200-1250, the
+# rise is an octave lower, and the ping is gone; the small 330 Hz partial is
+# only there so the sound survives a phone speaker's bass rolloff.
+#
+# Damped again after that: the band down to 140-780, the onset slowed from
+# 6ms to 11ms so there is no click at the front, and the decay lengthened so
+# it fades rather than stops. What is left is closer to a swallow than a
+# note, which is the point — it should register without being listened to.
+#
+# Then washed into a small dark room, which is why the duration doubled: the
+# tail needs somewhere to go. Tails overlapping at a mote field's pickup rate
+# is the intended texture, and priority 0 means these are the first voices
+# dropped when the mix runs out of room, so the wash thins itself.
+recipe('cosmic_matter_collect', .52, .12, lambda s: (
+    s.noise(decay=.028, amp=.13, low=140, high=780, attack=.011)
+     .tone(147, decay=.052, amp=.30, end=233, glide=.022, metal=.01)
+     .tone(294, start=.010, decay=.024, amp=.06, metal=.0)
+     .space(amount=.5, decay=.10, damp=1100)))
 
 recipe('element_blood', .65, .30, lambda s: s.tone(85, decay=.045, amp=.6, end=58).tone(95, start=.17, decay=.06, amp=.5, end=62).bubbles(3, start=.02, span=.20, base=200, amp=.15))
+
+
+def tilt(y, corner=1500, floor=.45):
+    """Shelve the top off a one-shot.
+
+    Flat to [corner], then easing to [floor] by around 8 kHz. Gentle on
+    purpose: this is the difference between a library that sounds crisp on a
+    laptop and one that is fatiguing through a phone held at arm's length,
+    and it is applied to every one-shot so the set stays coherent with
+    itself. Ambience loops are left alone — they are already dark, and a
+    shelf would dull the air they are made of.
+    """
+    spectrum = np.fft.rfft(y)
+    freq = np.fft.rfftfreq(len(y), 1 / SR)
+    lift = np.clip((freq - corner) / (8000 - corner), 0, 1)
+    return np.fft.irfft(spectrum * (1 - (1 - floor) * lift ** .8), n=len(y))
 
 
 def write_wav(path, data, peak, loop=False):
@@ -382,6 +446,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--only-extraction', action='store_true',
                         help='Render the four revised extraction cues; preserve all other WAVs.')
+    parser.add_argument('--reapprove', action='store_true',
+                        help='Allow the approved samples to change. The hash guard exists to '
+                             'catch accidental drift — a reordered brief row, a stray edit — so '
+                             'lifting it is an explicit act. Use only when the change to the '
+                             'approved sounds is the point of the run.')
     args = parser.parse_args()
     revised = {'sfx_extraction_reaction_start', 'sfx_extraction_reaction_burst',
                'sfx_extraction_creature_reveal', 'sfx_extraction_rare_reveal'}
@@ -397,9 +466,17 @@ def main():
             duration, peak, draw = RECIPES[name]
             s = Synth(duration, 8500 + i)
             draw(s)
-            write_wav(path, s.y, peak)
+            write_wav(path, tilt(s.y), peak)
         elif loop and not args.only_extraction:
             write_wav(path, ambience(name, 30, 8500 + i), .15, loop=True)
+        elif args.reapprove and name in APPROVED:
+            # No recipe exists for these — they predate the generator — so
+            # they are shelved in place rather than re-rendered, at their own
+            # original peak so the set's levels do not shift underneath the
+            # per-cue gains. Done here, before the variants step, so the
+            # pitch variants are cut from the shelved file.
+            source = read_pcm(path)[:, 0]
+            write_wav(path, tilt(source), float(np.max(np.abs(source))))
         pcm = read_pcm(path)
         assert np.isfinite(pcm).all() and np.max(np.abs(pcm)) < .99, name
         assert np.max(np.abs(pcm.mean(axis=0))) < .01, name
@@ -432,15 +509,18 @@ def main():
             pcm = read_pcm(path)
             assert np.max(np.abs(pcm)) < .99 and np.max(np.abs(pcm[[0,-1]])) < .0001
             r['variations'].append(path.relative_to(ROOT).as_posix())
-    for n, digest in original.items():
-        assert hashlib.sha256(asset_path(n).read_bytes()).hexdigest() == digest, n
+    if not args.reapprove:
+        for n, digest in original.items():
+            assert hashlib.sha256(asset_path(n).read_bytes()).hexdigest() == digest, n
     preview(rows)
     (OUT / 'sound_manifest.json').write_text(json.dumps(rows, indent=2) + '\n', encoding='utf-8')
     size = sum(asset_path(r['name']).stat().st_size for r in rows)
     print(json.dumps({'core_sounds': len(rows), 'new_core_sounds': len(rows) - len(APPROVED),
                       'variations': 21, 'approved_unchanged': len(original),
                       'core_wav_megabytes': round(size / 1e6, 2),
-                      'validation': 'PCM, duration, clipping, DC offset, endpoints, loop seam, approved hashes passed',
+                      'validation': 'PCM, duration, clipping, DC offset, endpoints, loop seam'
+                                    + (', approved samples REWRITTEN (--reapprove)' if args.reapprove
+                                       else ', approved hashes passed'),
                       'preview': str(REVIEW / 'index.html')}, indent=2))
 
 
