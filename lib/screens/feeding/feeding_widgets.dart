@@ -771,19 +771,23 @@ class CurrentStatsDisplay extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              Tooltip(
-                                message:
-                                    'Inheritable Potential, rated 1–100. '
-                                    'XP training increases Power.',
-                                child: Text(
-                                  'POTENTIAL',
-                                  style: TextStyle(
-                                    color: t.textMuted,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
+                              // No analyzer, no column — not a heading over
+                              // an empty space, which only advertises that
+                              // something is being withheld.
+                              if (showPotential)
+                                Tooltip(
+                                  message:
+                                      'Inheritable Potential, rated 1–100. '
+                                      'XP training increases Power.',
+                                  child: Text(
+                                    'POTENTIAL',
+                                    style: TextStyle(
+                                      color: t.textMuted,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                    ),
                                   ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
@@ -950,24 +954,25 @@ class UnifiedStatRow extends StatelessWidget {
                 ),
               ),
             ),
-            Container(
-              width: 45,
-              margin: const EdgeInsets.only(left: 8),
-              padding: const EdgeInsets.only(left: 6),
-              decoration: BoxDecoration(
-                border: Border(left: BorderSide(color: t.borderDim)),
-              ),
-              child: Text(
-                showPotential ? '$potentialRating' : '—',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  color: t.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'monospace',
+            if (showPotential)
+              Container(
+                width: 45,
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.only(left: 6),
+                decoration: BoxDecoration(
+                  border: Border(left: BorderSide(color: t.borderDim)),
+                ),
+                child: Text(
+                  '$potentialRating',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: t.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace',
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),

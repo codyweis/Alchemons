@@ -1,3 +1,7 @@
+import 'package:provider/provider.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -303,6 +307,9 @@ class FeedingStageBuilders {
   ) {
     final t = ForgeTokens(theme);
     final fc = FC(theme);
+    final showPotential = context
+        .read<ConstellationEffectsService>()
+        .hasPotentialAnalyzer();
     final candidates =
         instances
             .where(
@@ -429,16 +436,15 @@ class FeedingStageBuilders {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'XP FEED',
-                      style: TextStyle(
-                        color: t.success,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
+                    // "XP FEED" said the same thing on every card — it is
+                    // what the whole screen is for. The space goes to the one
+                    // thing that differs between candidates and actually
+                    // decides which you burn: their Potentials. And only for
+                    // a player holding the analyzer that reads them.
+                    if (showPotential) ...[
+                      const SizedBox(height: 6),
+                      _FodderPotentials(instance: inst, theme: theme),
+                    ],
                   ],
                 ),
               ),
@@ -460,6 +466,70 @@ class FeedingStageBuilders {
           ),
         );
       },
+    );
+  }
+}
+
+
+/// The four Potentials of a candidate, on its card.
+///
+/// Deciding what to sacrifice is a comparison, and this is the figure that
+/// separates two otherwise identical specimens.
+class _FodderPotentials extends StatelessWidget {
+  const _FodderPotentials({required this.instance, required this.theme});
+
+  final CreatureInstance instance;
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    final values = <(String, double, Color)>[
+      ('S', instance.statSpeedPotential, AlchemicalPowerupType.speed.color),
+      (
+        'I',
+        instance.statIntelligencePotential,
+        AlchemicalPowerupType.intelligence.color,
+      ),
+      (
+        'T',
+        instance.statStrengthPotential,
+        AlchemicalPowerupType.strength.color,
+      ),
+      ('B', instance.statBeautyPotential, AlchemicalPowerupType.beauty.color),
+    ];
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (letter, value, color) in values)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  letter,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: color.withValues(alpha: 0.85),
+                    fontSize: 7,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  '${AlchemonStatSystem.normalizePotential(value)}',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.textSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
