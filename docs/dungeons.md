@@ -1830,7 +1830,13 @@ been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
 **SEVEN of seventeen (2026-09-03): Fire · Air · Water · Earth · Lightning ·
-Steam · Lava.** The through-line of all six is that the suite was green the whole
+Steam · Lava.** This list is mirrored in code as `kPolishedDungeons`
+(`lib/games/cosmic/cosmic_data.dart`), and it is what decides whether a planet
+offers DESCEND or the coming-soon placard — the other ten keep their gate
+ritual and cannot be descended. Promoting a planet is one line there, pinned
+by `test/dungeon_polish_gate_test.dart`.
+
+The through-line of all seven is that the suite was green the whole
 time. Every fault that mattered came out of a device session or a rendered
 screenshot — arrivals, doorways, unreachable ground, art that reads as
 something it is not — and none of them out of a test that already existed.

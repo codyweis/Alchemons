@@ -5951,6 +5951,13 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (req == null || !kPlanetDungeonLayouts.containsKey(planet.element)) {
       return;
     }
+    // Backstop for the polish gate. DESCEND is already withheld on an
+    // unpolished planet, but this is the door itself, and a half-finished
+    // first descent is worse than none. Debug descend still goes through.
+    if (!dungeonIsPlayable(planet.element) &&
+        !DebugSettingsService.toolsVisible) {
+      return;
+    }
     // The gate offering must have been completed once (permanently).
     if (!_unsealedGates.contains(planet.element)) return;
     // Hemavorn never opens until the rest of the campaign is done — this is
@@ -6929,7 +6936,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     await prefs.setString(_planetGatesPrefsKey, _unsealedGates.join(','));
     final req = kCosmicPlanetEntry[element] ?? const <String>[];
     final planetName = kPlanetDisplayName[element] ?? element;
-    if (kComingSoonDungeons.contains(element)) {
+    if (dungeonIsComingSoon(element)) {
       _showQuote(
         'The gate of $planetName stands unsealed! '
         'Its depths are still being forged. Descent coming soon.',
@@ -7168,8 +7175,9 @@ class _CosmicScreenState extends State<CosmicScreen>
     final descendReady =
         nearEl != null &&
         !_isNearHome &&
-        kPlanetDungeonLayouts.containsKey(nearEl) &&
-        kCosmicPlanetEntry.containsKey(nearEl) &&
+        // Built is not enough — an unpolished descent shows the coming-soon
+        // placard instead, so a first visit is never the broken one.
+        dungeonIsPlayable(nearEl) &&
         _unsealedGates.contains(nearEl) &&
         cosmicPartySatisfiesEntry(_partyMembers, kCosmicPlanetEntry[nearEl]!) &&
         // The elements get you to the door; the planet's declared family gates
@@ -7196,15 +7204,14 @@ class _CosmicScreenState extends State<CosmicScreen>
     final atUnsealedDungeonGate =
         nearEl != null &&
         !_isNearHome &&
-        kPlanetDungeonLayouts.containsKey(nearEl) &&
-        kCosmicPlanetEntry.containsKey(nearEl) &&
+        dungeonIsPlayable(nearEl) &&
         _unsealedGates.contains(nearEl);
     // A coming-soon planet whose gate is open: same persistent placard slot,
     // but it announces the descent is still being forged instead of DESCEND.
     final atUnsealedComingSoonGate =
         nearEl != null &&
         !_isNearHome &&
-        kComingSoonDungeons.contains(nearEl) &&
+        dungeonIsComingSoon(nearEl) &&
         _unsealedGates.contains(nearEl);
     final showDebugRaid =
         kDebugMode &&

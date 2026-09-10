@@ -1811,6 +1811,41 @@ bool isDungeonGatePlanet(String element) =>
     kCosmicPlanetEntry.containsKey(element) ||
     kComingSoonDungeons.contains(element);
 
+/// The dungeons that have had the polish pass — a device playtest, and the
+/// art, chrome and feel worked on afterwards. docs/dungeons.md §7.9 is the
+/// canonical record; this is that list, in code.
+///
+/// BUILT is not POLISHED. All seventeen are built and proved by the suite,
+/// but the faults that matter on the unpolished ten — arrivals that strand
+/// you, doors on the wrong wall, art that reads as something it is not — are
+/// exactly the class of thing a green suite cannot see. So the unpolished
+/// ones keep their gate ritual and show the coming-soon placard instead of
+/// DESCEND, rather than shipping a first descent that misleads.
+const Set<String> kPolishedDungeons = <String>{
+  'Fire',
+  'Air',
+  'Water',
+  'Earth',
+  'Lightning',
+  'Steam',
+  'Lava',
+};
+
+/// True if [element]'s descent is ready for a player: built AND polished.
+///
+/// Every caller that decides whether DESCEND exists goes through here, so
+/// promoting a planet is one line in [kPolishedDungeons] and nothing else.
+bool dungeonIsPlayable(String element) =>
+    kCosmicPlanetEntry.containsKey(element) &&
+    kPolishedDungeons.contains(element);
+
+/// True if the planet has a gate but no descent to offer yet — either its
+/// dungeon is unauthored, or it is authored but has not had the polish pass.
+bool dungeonIsComingSoon(String element) =>
+    kComingSoonDungeons.contains(element) ||
+    (kCosmicPlanetEntry.containsKey(element) &&
+        !kPolishedDungeons.contains(element));
+
 /// The campaign's terminal planet (Hemavorn). Its gate is the FINAL one: it
 /// only opens once every other planet's guardian has fallen, and entering its
 /// dungeon is the sole path to the Blood Mystic (Sanguorath) → the Blood Ring.
