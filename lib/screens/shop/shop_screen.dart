@@ -361,13 +361,24 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
   // ── SECTION HEADER ─────────────────────────────────────────────────────────
 
+  /// Every section header, in one colour.
+  ///
+  /// They each used to carry their own accent — amber here, the gold vault's
+  /// yellow there, the powerups' violet below — which read as ten unrelated
+  /// headings rather than one list. There is no colour argument any more, so
+  /// a new section cannot reintroduce a tenth hue.
+  ///
+  /// Gold in the dark, black in the light: the dark palette is the one this
+  /// screen was designed against, and on the light ground gold has nothing
+  /// to hold against.
   Widget _buildSectionHeader(
     String title,
-    Color accent,
     IconData icon, {
     CoinKind? coin,
   }) {
-    final displayAccent = t.readableAccent(accent);
+    final displayAccent = context.read<FactionTheme>().isDark
+        ? t.amberBright
+        : Colors.black;
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 0),
       child: Row(
@@ -589,7 +600,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                     children: [
                       _buildSectionHeader(
                         'SPECIAL UNLOCKS',
-                        t.amberBright,
                         AppIcons.auto_awesome_rounded,
                       ),
                       _buildSpecialUnlocksGrid(
@@ -600,7 +610,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
                       _buildSectionHeader(
                         'COMMON ITEMS',
-                        t.textPrimary,
                         AppIcons.flash_on_rounded,
                       ),
                       // The vial is a routine restock like the other two, so
@@ -622,7 +631,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
                       _buildSectionHeader(
                         'GOLD VAULT',
-                        const Color(0xFFFFD700),
                         AppIcons.hexagon_rounded,
                         coin: CoinKind.gold,
                       ),
@@ -632,7 +640,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
                       _buildSectionHeader(
                         'HARVEST DEVICES',
-                        t.textPrimary,
                         AppIcons.science_rounded,
                       ),
                       _buildHarvestDevicesGrid(
@@ -651,7 +658,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                           .hasElementalCreatorUnlocked()) ...[
                         _buildSectionHeader(
                           'ALCHEMICAL POWERUPS',
-                          const Color(0xFFB58CFF),
                           AppIcons.blur_circular_rounded,
                         ),
                         // Five floating/pulsing orbs, each with a blurred
@@ -667,7 +673,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
                       _buildSectionHeader(
                         'SPECIAL ITEMS',
-                        t.amberBright,
                         AppIcons.auto_awesome_rounded,
                       ),
                       _buildInstantItemsGrid(
@@ -679,7 +684,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
                       _buildSectionHeader(
                         'ALCHEMY EFFECTS',
-                        t.amberBright,
                         AppIcons.auto_awesome_rounded,
                       ),
                       _buildAlchemyEffectsGrid(
@@ -690,7 +694,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
                       _buildSectionHeader(
                         'SELL',
-                        t.textPrimary,
                         AppIcons.currency_exchange_rounded,
                       ),
                       _buildCurrencyExchangeGrid(
@@ -701,7 +704,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
                       _buildSectionHeader(
                         'PORTAL KEYS',
-                        t.amberBright,
                         AppIcons.vpn_key_rounded,
                       ),
                       _buildPortalKeysGrid(
@@ -712,7 +714,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
                       _buildSectionHeader(
                         'SURVIVAL ORB SKINS',
-                        t.amberBright,
                         AppIcons.blur_circular_rounded,
                       ),
                       _buildSurvivalOrbGrid(theme, allCurrencies),
