@@ -2,21 +2,13 @@ import 'package:alchemons/audio/audio.dart';
 // lib/widgets/wilderness/device_selection_dialog.dart
 import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
-
-/// Resolves the shop artwork for a harvester device via its inventory key.
-String? _harvesterAsset(CatchDeviceType device) {
-  for (final offer in ShopService.allOffers) {
-    if (offer.inventoryKey == device.inventoryKey) return offer.assetName;
-  }
-  return null;
-}
 
 // Capture dialog renders over dark scene backdrops — always dark.
 const _palette = BracketPalette.dark;
@@ -459,7 +451,10 @@ class _DeviceThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final asset = _harvesterAsset(device);
+    // The device draws as the pulser here too, so the thing you pick looks
+    // like the thing on the Harvest button that opened this and like the
+    // thing you bought in the shop.
+    final biome = harvesterBiomeForKey(device.inventoryKey);
     final isGuaranteed = device == CatchDeviceType.guaranteed;
     return Container(
       width: 42,
@@ -470,19 +465,9 @@ class _DeviceThumb extends StatelessWidget {
       ),
       alignment: Alignment.center,
       padding: const EdgeInsets.all(3),
-      child: asset != null
-          ? Image.asset(
-              asset,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.medium,
-              errorBuilder: (_, __, ___) => Icon(
-                isGuaranteed
-                    ? AppIcons.shield_rounded
-                    : AppIcons.catching_pokemon_rounded,
-                color: accent,
-                size: 20,
-              ),
-            )
+      child: biome != null
+          // A still frame: this is a list of choices, not a running device.
+          ? HarvesterGlyph(biomeId: biome, size: 34, animate: false)
           : Icon(
               isGuaranteed
                   ? AppIcons.shield_rounded
