@@ -641,6 +641,9 @@ class _HomeScreenState extends State<HomeScreen>
   bool _harvestNotificationStateHydrated = false;
 
   bool _isFieldTutorialActive = false;
+  /// Held from setup so teardown never has to consult the provider tree.
+  WildernessSpawnService? _spawnServiceForTeardown;
+
   bool _hasAnyRelic = false;
 
   /// Survival is hidden, not disabled, until the cosmic portal is found. The
@@ -793,9 +796,15 @@ class _HomeScreenState extends State<HomeScreen>
     _slotsSubscription?.cancel();
     _biomesSubscription?.cancel();
 
-    // Remove wilderness spawn listener
-    final spawnService = context.read<WildernessSpawnService>();
-    spawnService.removeListener(_checkWildernessNotifications);
+    // Remove wilderness spawn listener.
+    //
+    // This used to be a context.read, which works right up until the provider
+    // above is being disposed in the same pass — which is exactly what a
+    // progress reset does. Provider.of then dereferences a null element, the
+    // throw aborts this dispose part-way, and every unmount behind it fails
+    // in turn: the grey screen after a reset was this one line.
+    _spawnServiceForTeardown?.removeListener(_checkWildernessNotifications);
+    _spawnServiceForTeardown = null;
 
     super.dispose();
   }
@@ -1096,7 +1105,12 @@ class _HomeScreenState extends State<HomeScreen>
       _checkBiomeNotifications,
     );
 
-    // Wilderness spawns
+    // Wilderness spawns.
+    //
+    // The service is held rather than looked up again at teardown: dispose
+    // cannot reach a provider once the tree above it has gone, and a progress
+    // reset tears the whole tree down at once.
+    _spawnServiceForTeardown = spawnService;
     spawnService.addListener(_checkWildernessNotifications);
   }
 
