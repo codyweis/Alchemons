@@ -500,17 +500,25 @@ class _MapScreenState extends State<MapScreen>
     final spawnService = context.read<WildernessSpawnService>();
 
     // Held for the ship hunt reads as empty, but it is not — and a lure
-    // cannot help, because nothing will spawn there until the other biomes
-    // are done. Say so instead of offering a charge that would be wasted.
+    // cannot help, because nothing will spawn there until the hunt has moved
+    // on. Say so instead of offering a charge that would be wasted, and name
+    // the one region that is open: the hunt points at exactly one at a time,
+    // so there is always a single answer to "then where?".
     if (!widget.isTutorial &&
         await OpeningWildernessService.isHeldForShipHunt(
           db.settingsDao,
           biomeId,
         )) {
+      final open = await OpeningWildernessService.openShipHuntScene(
+        db.settingsDao,
+      );
       if (!context.mounted) return;
+      final where = open == null ? null : _biomeDisplayNames[open];
       showGameSnack(
         context,
-        'This region is quiet — explore the others first',
+        where == null
+            ? 'This region is quiet — explore elsewhere first'
+            : 'This region is quiet — $where is stirring',
         icon: AppIcons.schedule_rounded,
       );
       return;
@@ -604,6 +612,10 @@ class _MapScreenState extends State<MapScreen>
     // consume entry (skip during tutorial)
     if (!widget.isTutorial) {
       await access.markEntered(biomeId);
+      // Arriving is what the hunt asks for, so arriving is what opens the
+      // next one — recorded here rather than on the way out, so backing
+      // straight out still counts as having been.
+      await OpeningWildernessService.markSceneVisited(db.settingsDao, biomeId);
     }
 
     // go to biome scene

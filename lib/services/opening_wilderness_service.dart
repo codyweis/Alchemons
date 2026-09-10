@@ -9,13 +9,23 @@ class OpeningWildernessService {
   static const String capturePendingKey = 'tutorial_wild_capture_pending';
   static const String captureSceneKey = 'tutorial_wild_capture_scene';
 
-  /// The biomes still to be explored before the ship turns up.
+  /// The biomes still to be explored before the ship turns up, in order,
+  /// **head first** — and only the head is open.
   ///
   /// Recovering the ship needs all four core biomes visited, but nothing was
   /// pushing the player out of the two the tutorial already took them
-  /// through — so they could farm those two indefinitely and never trip the
-  /// discovery that moves the story on. After the tutorial the other two are
-  /// the only ones that spawn, and they open back up once the ship is found.
+  /// through, so they could farm those two indefinitely and never trip the
+  /// discovery that moves the story on.
+  ///
+  /// Opening the remaining two together left the player choosing between two
+  /// unfamiliar regions with nothing to choose on. One at a time is the same
+  /// nudge with no decision attached: go here, then here, and then the map is
+  /// yours. The tutorial's own two are already sequential, so this makes the
+  /// whole opening one road rather than a road that forks at the end.
+  ///
+  /// Stored as a list because the order is the point. An older save holding
+  /// the two-open set reads as a queue in whatever order it was written,
+  /// which is a sane way to land mid-hunt.
   static const String shipHuntKey = 'wilderness_ship_hunt_scenes_v1';
   static const String shipUnlockedKey = 'cosmic_ship_unlocked';
 
@@ -133,21 +143,29 @@ class OpeningWildernessService {
       final allowed = await allowedScenes(settings);
       return allowed.contains(sceneId);
     }
-    final hunt = await shipHuntScenes(settings);
-    if (hunt.isEmpty) return true;
-    return hunt.contains(sceneId);
+    final open = await openShipHuntScene(settings);
+    if (open == null) return true;
+    return sceneId == open;
   }
 
-  /// The biomes open during the ship hunt, or empty once it is over.
-  static Future<Set<String>> shipHuntScenes(SettingsDao settings) async {
-    if (await settings.getSetting(shipUnlockedKey) == '1') return <String>{};
+  /// The biomes left to visit before the ship turns up, in order. Empty once
+  /// the hunt is over.
+  static Future<List<String>> shipHuntScenes(SettingsDao settings) async {
+    if (await settings.getSetting(shipUnlockedKey) == '1') return const [];
     final raw = await settings.getSetting(shipHuntKey);
-    if (raw == null || raw.trim().isEmpty) return <String>{};
+    if (raw == null || raw.trim().isEmpty) return const [];
     return raw
         .split(',')
         .map((scene) => scene.trim())
-        .where((scene) => scene.isNotEmpty)
-        .toSet();
+        .where((scene) => scene.isNotEmpty && coreScenes.contains(scene))
+        .toList();
+  }
+
+  /// The one biome the hunt is currently pointing at, or null when the hunt
+  /// is over and the map is open again.
+  static Future<String?> openShipHuntScene(SettingsDao settings) async {
+    final hunt = await shipHuntScenes(settings);
+    return hunt.isEmpty ? null : hunt.first;
   }
 
   /// Whether [sceneId] is closed only because the ship hunt is pointing the
@@ -158,8 +176,28 @@ class OpeningWildernessService {
   ) async {
     if (!coreScenes.contains(sceneId)) return false;
     if (await isRestrictionActive(settings)) return false;
+    final open = await openShipHuntScene(settings);
+    return open != null && sceneId != open;
+  }
+
+  /// Going in is what advances the hunt — not catching anything, not
+  /// finishing a run. Walking in is the whole ask, so arriving is what pays
+  /// for the next one.
+  ///
+  /// Safe to call for any scene at any time: only the biome the hunt is
+  /// currently pointing at moves it along.
+  static Future<void> markSceneVisited(
+    SettingsDao settings,
+    String sceneId,
+  ) async {
     final hunt = await shipHuntScenes(settings);
-    return hunt.isNotEmpty && !hunt.contains(sceneId);
+    if (hunt.isEmpty || hunt.first != sceneId) return;
+    final remaining = hunt.skip(1).toList();
+    if (remaining.isEmpty) {
+      await settings.deleteSetting(shipHuntKey);
+    } else {
+      await settings.setSetting(shipHuntKey, remaining.join(','));
+    }
   }
 
   static Future<void> advanceToCaptureTutorial(
@@ -197,6 +235,7 @@ class OpeningWildernessService {
     final captureScene = await settings.getSetting(captureSceneKey);
     if (captureScene != null && coreScenes.contains(captureScene)) {
       final firstScene = oppositeSceneFor(captureScene);
+      // Order matters now — this is the road, not a pair of options.
       final remaining = coreScenes
           .where((s) => s != captureScene && s != firstScene)
           .toList();
