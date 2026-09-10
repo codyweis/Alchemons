@@ -124,7 +124,7 @@ const List<OnboardingTask> kOnboardingTasks = [
   ),
   OnboardingTask(
     id: 'harvest',
-    title: 'Visit extraction',
+    title: 'Visit harvest',
     blurb: 'Send a harvester out and pull elemental matter from the wild.',
     icon: AppIcons.science_rounded,
     destination: TaskDestination.harvest,
