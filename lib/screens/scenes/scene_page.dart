@@ -1425,6 +1425,21 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                               force: true,
                             );
                           }
+                          // Except the one the hunt is about to send them
+                          // to. Putting a timer on every biome included the
+                          // next stop, so the tutorial ended by pointing at
+                          // a region and making them wait for it — the
+                          // queue advancing already spawns the one after,
+                          // and this is the same courtesy for the first.
+                          final firstStop =
+                              await OpeningWildernessService.openShipHuntScene(
+                                _db.settingsDao,
+                              );
+                          if (firstStop != null) {
+                            await _spawnService.ensureSpawnsForScene(
+                              firstStop,
+                            );
+                          }
                           if (!context.mounted) return;
                           Navigator.of(
                             context,

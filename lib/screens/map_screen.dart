@@ -117,6 +117,7 @@ class _MapScreenState extends State<MapScreen>
   @override
   void initState() {
     super.initState();
+    unawaited(_ensureHuntTargetIsReady());
 
     _mapController = AnimationController(
       vsync: this,
@@ -487,6 +488,24 @@ class _MapScreenState extends State<MapScreen>
           ),
         ) ??
         false;
+  }
+
+  /// The biome the opening is pointing at should never be showing a timer.
+  ///
+  /// Belt and braces for the seeding and advancing paths, and the repair
+  /// for saves made before those were right: the tutorial used to put a
+  /// spawn timer on every core biome including the one it was about to
+  /// send the player to.
+  Future<void> _ensureHuntTargetIsReady() async {
+    if (widget.isTutorial) return;
+    if (!mounted) return;
+    final db = context.read<AlchemonsDatabase>();
+    final spawnService = context.read<WildernessSpawnService>();
+    final open = await OpeningWildernessService.openShipHuntScene(
+      db.settingsDao,
+    );
+    if (open == null || !mounted) return;
+    await spawnService.ensureSpawnsForScene(open);
   }
 
   Future<void> _handleRegionTap(
