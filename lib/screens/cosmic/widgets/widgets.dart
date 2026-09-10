@@ -7,6 +7,7 @@ export 'chamber_picker_overlay.dart';
 export 'elements_captured_popup.dart';
 export 'customization_menu_overlay.dart';
 export 'cosmic_screen_styles.dart';
+export 'leave_expedition_dialog.dart';
 export 'ship_menu_overlay.dart';
 export 'ship_inventory_overlay.dart';
 export 'forge_bar.dart';

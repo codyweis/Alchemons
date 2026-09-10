@@ -5242,70 +5242,49 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  /// "Are you sure?" before leaving — warns that unsaved cargo/shards will be lost.
+  /// Write everything the ten-second autosave owns, immediately.
+  ///
+  /// The leave dialog tells the player their stores, charts, fuel and ammo are
+  /// banked. That is only true if the exit writes them: otherwise up to one
+  /// autosave interval evaporates with the screen — and element pickups are
+  /// worse still, since nothing but a craft or a home deposit ever writes the
+  /// storage they land in.
+  Future<void> _flushVolatileState() async {
+    if (widget.memoryTutorial) return;
+    await Future.wait([
+      _saveFogState(),
+      _saveElementStorage(),
+      _saveFuelState(),
+      _saveMissileState(),
+      _saveOrbitalState(),
+      _saveNexusState(),
+      _saveCacheState(),
+      _saveBattleRingState(),
+      _saveBloodRingState(),
+    ]);
+  }
+
+  /// "Are you sure?" before leaving.
+  ///
+  /// Exactly two things in cosmic space are unbanked: the elemental cargo in
+  /// the meter and the Astral Shards in the ship wallet. Neither is
+  /// serialised, so both die with the game instance. Everything else is
+  /// written as it changes (or by [_flushVolatileState] on the way out), so
+  /// the dialog names the two real losses with their real amounts and stays
+  /// quiet — no red, no alarm — when the hold is already empty.
   Future<void> _confirmLeave() async {
-    final hasCargo = (_game?.meter.total ?? 0) > 0;
-    final hasShards = (_game?.shipWallet.shards ?? 0) > 0;
-    final warningItems = <String>[
-      if (hasCargo) 'elemental cargo',
-      if (hasShards) 'shards',
-    ];
-    final warningText = warningItems.isEmpty
-        ? 'Are you sure you want to leave?'
-        : 'Your ${warningItems.join(' & ')} will be lost!\nAre you sure you want to leave?';
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) {
-        final fc = FC.of(ctx);
-        final ft = FT(fc);
-        return AlertDialog(
-          backgroundColor: fc.bg2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: fc.borderDim),
-          ),
-          title: Text(
-            'LEAVE EXPEDITION?',
-            style: ft.heading.copyWith(fontSize: 15, color: fc.textPrimary),
-          ),
-          content: Text(
-            warningText,
-            style: ft.body.copyWith(color: fc.textSecondary, fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: context.soundAction(
-                () => Navigator.of(ctx).pop(false),
-              ),
-              child: Text(
-                'Stay',
-                style: ft.label.copyWith(color: fc.textMuted),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: fc.danger,
-                foregroundColor: fc.textPrimary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 10,
-                ),
-              ),
-              onPressed: context.soundAction(() => Navigator.of(ctx).pop(true)),
-              child: Text(
-                'Leave',
-                style: ft.mono.copyWith(color: fc.textPrimary),
-              ),
-            ),
-          ],
-        );
-      },
+      barrierColor: Colors.black.withValues(alpha: 0.72),
+      builder: (ctx) => LeaveExpeditionDialog(
+        cargoUnits: _game?.meter.total ?? 0,
+        cargoBreakdown: _game?.meter.breakdown ?? const {},
+        unbankedShards: _game?.shipWallet.shards ?? 0,
+        bankedShards: _homePlanet?.astralBank,
+      ),
     );
     if (result == true && mounted) {
-      await _saveFogState();
+      await _flushVolatileState();
       if (mounted) VoidPortal.pop(context);
     }
   }
