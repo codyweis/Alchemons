@@ -54,8 +54,9 @@ class NewDiscoveryReveal {
     final cardCtx = cardBoundaryKey.currentContext;
 
     void revealOnly() {
-      onSwitchSection?.call(NavSection.creatures);
+      // Pending first — see the note on the main path below.
       pendingRevealCreatureId.value = creatureId;
+      onSwitchSection?.call(NavSection.creatures);
     }
 
     if (overlayState == null || cardCtx == null || navRect == null) {
@@ -98,8 +99,18 @@ class NewDiscoveryReveal {
     // chased a moving target and landed as the scroll finished. Now the
     // catalog settles first and the card flies at something that is standing
     // still.
-    onSwitchSection?.call(NavSection.creatures);
+    // ORDER MATTERS: the pending id goes up before the section switch.
+    //
+    // MainShell fires the first-visit database tutorial when it arrives at
+    // the creatures section, and it suppresses that when a reveal is in
+    // flight — but it reads the pending id to decide, and the switch used to
+    // happen while that id was still null. So the very first extraction
+    // opened the tutorial on top of the extraction result, and the dismissal
+    // meant for the result closed the tutorial instead, stranding the result
+    // on screen. Setting it first is what makes that check able to see
+    // anything.
     pendingRevealCreatureId.value = creatureId;
+    onSwitchSection?.call(NavSection.creatures);
     await WidgetsBinding.instance.endOfFrame;
     await Future<void>.delayed(kRevealScrollSettle);
     if (!context.mounted) {

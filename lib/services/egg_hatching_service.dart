@@ -1496,6 +1496,28 @@ class EggHatching {
                                           onTap: context.soundAction(() async {
                                             if (closing) return;
 
+                                            // Grabbed BEFORE the awaits.
+                                            //
+                                            // The dismissal used to look up
+                                            // the navigator from this context
+                                            // after the flight had finished,
+                                            // inside a post-frame callback —
+                                            // by which point the subtree had
+                                            // rebuilt for `closing` and the
+                                            // shell had switched tabs
+                                            // underneath it. A defunct element
+                                            // makes Navigator.of throw inside
+                                            // the callback, so the card flew
+                                            // and the result just sat there.
+                                            // Holding the route means the
+                                            // dismissal cannot depend on this
+                                            // element still being alive.
+                                            final resultNavigator =
+                                                Navigator.of(context);
+                                            final resultRoute = ModalRoute.of(
+                                              context,
+                                            );
+
                                             // Signal animation to stop any pending callbacks
                                             scanAnimationKey.currentState
                                                 ?.takeAction();
@@ -1525,14 +1547,15 @@ class EggHatching {
                                                   );
                                             }
 
-                                            WidgetsBinding.instance
-                                                .addPostFrameCallback((_) {
-                                                  if (Navigator.of(
-                                                    context,
-                                                  ).canPop()) {
-                                                    Navigator.of(context).pop();
-                                                  }
-                                                });
+                                            if (resultRoute != null &&
+                                                resultRoute.isActive) {
+                                              resultNavigator.removeRoute(
+                                                resultRoute,
+                                              );
+                                            } else if (resultNavigator
+                                                .canPop()) {
+                                              resultNavigator.pop();
+                                            }
                                           }),
 
                                           child: Container(
