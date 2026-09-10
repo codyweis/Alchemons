@@ -1,3 +1,4 @@
+import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'dart:async';
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -171,12 +172,12 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
   @override
   void dispose() {
     _routeAnimation?.removeStatusListener(_handleRouteAnimationStatus);
-    // Restore all orientations when leaving the rift
+    // Portrait when leaving the rift, matching every other landscape
+    // screen. "All four" left the phone sideways on the way back to a map
+    // that is portrait, because that is how it was being held.
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
     ]);
     _controller.dispose();
     _bannerCtrl.dispose();
@@ -384,6 +385,22 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
               showMapAction: false,
               warnOnRun: true,
               onPreRollShake: () {},
+              // The rift is not a Flame scene, so it cannot hand the field
+              // to the world the way the wilderness does — but it can still
+              // avoid the duplicate. The apparatus plays transparently over
+              // the void creature already standing here, which is centred
+              // exactly where the field is.
+              onHarvestInScene: (accent, task, profile) async {
+                if (!mounted) return false;
+                return showHarvestCinematic(
+                  context: context,
+                  targetSprite: null,
+                  targetColor: accent,
+                  deviceLabel: profile.biomeId.toUpperCase(),
+                  profile: profile,
+                  task: task,
+                );
+              },
               onPartyCreatureSelected: (c) {
                 setState(() => _selectedPartyCreature = c);
               },

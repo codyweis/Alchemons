@@ -202,11 +202,14 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
 
   @override
   void dispose() {
+    // Portrait, not "any". Re-allowing all four left the phone in whatever
+    // it was physically held in — landscape, because the prologue just
+    // demanded it — and cosmic space opened sideways. Every other landscape
+    // screen in the app hands portrait back on the way out; see
+    // VoidPortal.pushLandscape's returnOrientation.
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
     ]);
     _clock.dispose();
     _cosmos.dispose();

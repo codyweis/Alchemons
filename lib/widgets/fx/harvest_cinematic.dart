@@ -30,9 +30,17 @@ import 'package:flutter/services.dart';
 /// The route closes only after the resolution has played, and the resolution
 /// does not begin until [task] has answered — so the specimen is still
 /// fighting the field while the roll is being made. Returns the task's result.
+/// [targetSprite] null plays the apparatus over whatever is already on
+/// screen, for callers whose specimen is standing there in their own layout.
+///
+/// The alternative is what this used to force everywhere: a freshly built
+/// copy of the creature on a dark card, so the animal being harvested
+/// blinked out and a duplicate appeared to be caught in its place. The
+/// scenes solved that with their own in-world field; screens that are not
+/// Flame scenes could not, and got the duplicate.
 Future<bool> showHarvestCinematic({
   required BuildContext context,
-  required Widget targetSprite,
+  Widget? targetSprite,
   required Color targetColor,
   required String deviceLabel,
   HarvesterProfile? profile,
@@ -73,7 +81,8 @@ class _HarvestCinematicPage extends StatefulWidget {
     required this.task,
   });
 
-  final Widget targetSprite;
+  /// Null when the specimen is already on screen behind this overlay.
+  final Widget? targetSprite;
   final Color targetColor;
   final String deviceLabel;
 
@@ -158,8 +167,12 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
   Widget build(BuildContext context) {
     return Scaffold(
       // Lighter than the old 70% + vignette. The stage has to isolate the
-      // specimen, not hide it.
-      backgroundColor: Colors.black.withValues(alpha: 0.62),
+      // specimen, not hide it — and when the specimen is the live one on
+      // the screen underneath, the stage must not hide THAT either, so the
+      // scrim is only there to separate a sprite this page drew itself.
+      backgroundColor: widget.targetSprite == null
+          ? Colors.transparent
+          : Colors.black.withValues(alpha: 0.62),
       body: AnimatedBuilder(
         animation: Listenable.merge([_seize, _strain, _resolve]),
         builder: (context, _) {
@@ -192,11 +205,12 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
                           ),
                         ),
                       ),
-                      _Specimen(
-                        beat: beat,
-                        sprite: widget.targetSprite,
-                        color: widget.targetColor,
-                      ),
+                      if (widget.targetSprite != null)
+                        _Specimen(
+                          beat: beat,
+                          sprite: widget.targetSprite!,
+                          color: widget.targetColor,
+                        ),
                     ],
                   ),
                 ),
