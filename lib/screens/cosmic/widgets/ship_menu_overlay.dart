@@ -46,7 +46,6 @@ class ShipMenuOverlay extends StatefulWidget {
     this.onParty,
     this.joystickEnabled = false,
     this.onToggleJoystick,
-    this.tapToShootEnabled = false,
     this.onToggleTapToShoot,
     this.boostToggleEnabled = false,
     this.onToggleBoostToggle,
@@ -84,7 +83,6 @@ class ShipMenuOverlay extends StatefulWidget {
   final VoidCallback? onParty;
   final bool joystickEnabled;
   final ValueChanged<bool>? onToggleJoystick;
-  final bool tapToShootEnabled;
   final ValueChanged<bool>? onToggleTapToShoot;
   final bool boostToggleEnabled;
   final ValueChanged<bool>? onToggleBoostToggle;

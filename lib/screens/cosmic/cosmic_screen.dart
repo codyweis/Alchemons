@@ -209,11 +209,13 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _largeJoystick = true;
 
   // Tap-to-shoot toggle (off by default)
-  bool _tapToShoot = false;
+  /// The turret and launcher engage on their own. On by default, and the
+  /// only firing mode there is now — tap-to-shoot competed with steering for
+  /// the same thumb and is gone.
+  bool _autoFire = true;
 
   // Boost toggle mode (off = hold, on = tap to toggle)
   bool _boostToggleMode = false;
-  int? _movePointerId;
   final Set<int> _tapShootPointerIds = {};
 
   // Cargo upgrade level (0-3)
@@ -573,8 +575,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _showJoystick = prefs.getBool('cosmic_joystick_enabled') ?? true;
     _largeJoystick = prefs.getBool('cosmic_large_joystick') ?? true;
 
-    // Load tap-to-shoot preference
-    _tapToShoot = prefs.getBool('cosmic_tap_to_shoot') ?? false;
+    _autoFire = prefs.getBool('cosmic_auto_fire') ?? true;
 
     // Load boost toggle mode preference
     _boostToggleMode = prefs.getBool('cosmic_boost_toggle') ?? false;
@@ -582,7 +583,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (widget.memoryTutorial) {
       _showJoystick = true;
       _largeJoystick = true;
-      _tapToShoot = false;
       _boostToggleMode = false;
       _showPinnedMiniMap = false;
     }
@@ -689,7 +689,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       initialAmmoId: _customizationState.activeAmmo?.id,
       startCloserToSurvivalSignal: shouldNudgeInitialSpawnTowardSignal,
     );
-    game.tapToShootMode = widget.memoryTutorial ? false : _tapToShoot;
+    // The memory teaches summoning and the magnet, not gunnery.
+    game.autoFire = widget.memoryTutorial ? false : _autoFire;
     game.activeWeaponId = widget.memoryTutorial
         ? 'equip_machinegun'
         : _customizationState.activeWeapon;
@@ -5200,66 +5201,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (slot == 1) _startShootingMissiles();
   }
 
-  // ── Tap-to-shoot pointer handling ──
-
-  void _handleTapShootPointerDown(PointerDownEvent e) {
-    // When the joystick handles steering, every tap is a shoot tap.
-    if (_showJoystick) {
-      _tapShootPointerIds.add(e.pointer);
-      if (!_isShooting) _startShooting();
-      return;
-    }
-    if (_movePointerId == null) {
-      _movePointerId = e.pointer;
-      // Forward initial position to game for steering
-      _game?.setDragTargetFromScreen(e.localPosition);
-      return;
-    }
-    _tapShootPointerIds.add(e.pointer);
-    if (!_isShooting) _startShooting();
-  }
-
-  void _handleTapShootPointerMove(PointerMoveEvent e) {
-    // When joystick is active, steering is handled there — nothing to do.
-    if (_showJoystick) return;
-    // Only forward the move-pointer's drag to steer the ship
-    if (e.pointer == _movePointerId) {
-      _game?.setDragTargetFromScreen(e.localPosition);
-    }
-  }
-
-  void _handleTapShootPointerUp(PointerUpEvent e) {
-    if (_showJoystick) {
-      _tapShootPointerIds.remove(e.pointer);
-      if (_tapShootPointerIds.isEmpty && _isShooting) _stopShooting();
-      return;
-    }
-    if (e.pointer == _movePointerId) {
-      _movePointerId = null;
-      return;
-    }
-    _tapShootPointerIds.remove(e.pointer);
-    if (_tapShootPointerIds.isEmpty && _isShooting) {
-      _stopShooting();
-    }
-  }
-
-  void _handleTapShootPointerCancel(PointerCancelEvent e) {
-    if (_showJoystick) {
-      _tapShootPointerIds.remove(e.pointer);
-      if (_tapShootPointerIds.isEmpty && _isShooting) _stopShooting();
-      return;
-    }
-    if (e.pointer == _movePointerId) {
-      _movePointerId = null;
-      return;
-    }
-    _tapShootPointerIds.remove(e.pointer);
-    if (_tapShootPointerIds.isEmpty && _isShooting) {
-      _stopShooting();
-    }
-  }
-
   void _handleWeaponPointerDown(PointerDownEvent e) {
     final box =
         _weaponColumnKey.currentContext?.findRenderObject() as RenderBox?;
@@ -5292,7 +5233,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _resetCosmicTouchState() {
-    _movePointerId = null;
     _tapShootPointerIds.clear();
     _activeWeaponSlot = -1;
     if (_isShooting) _stopShooting();
@@ -7483,21 +7423,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   ),
                 ),
 
-              // ── Tap-to-shoot full-screen listener ──
-              if (showCosmicHud &&
-                  _tapToShoot &&
-                  !_anyOverlayOpen &&
-                  !_showMiniMap)
-                Positioned.fill(
-                  child: Listener(
-                    behavior: HitTestBehavior.opaque,
-                    onPointerDown: _handleTapShootPointerDown,
-                    onPointerMove: _handleTapShootPointerMove,
-                    onPointerUp: _handleTapShootPointerUp,
-                    onPointerCancel: _handleTapShootPointerCancel,
-                  ),
-                ),
-
               // ── Live-raid badge, tucked under the radar ──
               // Hides with the rest of the HUD chrome when the player
               // collapses it.
@@ -8905,18 +8830,17 @@ class _CosmicScreenState extends State<CosmicScreen>
                                 if (showCosmicHud &&
                                     _customizationState.hasMissiles)
                                   const SizedBox(height: 10),
-                                if (isMemoryTutorial || !_tapToShoot)
-                                  _buildWeaponHudButton(
-                                    accent: const Color(0xFF00E5FF),
-                                    active: _isShooting,
-                                    child: Icon(
-                                      AppIcons.flash_on_rounded,
-                                      color: _isShooting
-                                          ? const Color(0xFF00E5FF)
-                                          : Colors.white54,
-                                      size: 25,
-                                    ),
+                                _buildWeaponHudButton(
+                                  accent: const Color(0xFF00E5FF),
+                                  active: _isShooting,
+                                  child: Icon(
+                                    AppIcons.flash_on_rounded,
+                                    color: _isShooting
+                                        ? const Color(0xFF00E5FF)
+                                        : Colors.white54,
+                                    size: 25,
                                   ),
+                                ),
                               ],
                             ),
                           ),
@@ -9201,7 +9125,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 _CosmicSettingsOverlay(
                   joystickEnabled: _showJoystick,
                   largeJoystickEnabled: _largeJoystick,
-                  tapToShootEnabled: _tapToShoot,
+                  autoFireEnabled: _autoFire,
                   boostToggleEnabled: _boostToggleMode,
                   onClose: () => setState(() => _showSettingsMenu = false),
                   onLeaveSpace: () async {
@@ -9218,16 +9142,13 @@ class _CosmicScreenState extends State<CosmicScreen>
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.setBool('cosmic_large_joystick', v);
                   },
-                  onToggleTapToShoot: (v) async {
+                  onToggleAutoFire: (v) async {
                     setState(() {
-                      _tapToShoot = v;
-                      _game?.tapToShootMode = v;
-                      _movePointerId = null;
-                      _tapShootPointerIds.clear();
-                      if (!v && _isShooting) _stopShooting();
+                      _autoFire = v;
+                      _game?.autoFire = v;
                     });
                     final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('cosmic_tap_to_shoot', v);
+                    await prefs.setBool('cosmic_auto_fire', v);
                   },
                   onToggleBoostToggle: (v) async {
                     setState(() {
@@ -10447,26 +10368,26 @@ class _CosmicSettingsOverlay extends StatelessWidget {
   const _CosmicSettingsOverlay({
     required this.joystickEnabled,
     required this.largeJoystickEnabled,
-    required this.tapToShootEnabled,
+    required this.autoFireEnabled,
     required this.boostToggleEnabled,
     required this.onClose,
     required this.onLeaveSpace,
     required this.onToggleJoystick,
     required this.onToggleLargeJoystick,
-    required this.onToggleTapToShoot,
+    required this.onToggleAutoFire,
     required this.onToggleBoostToggle,
     required this.onReplayPrologue,
   });
 
   final bool joystickEnabled;
   final bool largeJoystickEnabled;
-  final bool tapToShootEnabled;
+  final bool autoFireEnabled;
   final bool boostToggleEnabled;
   final VoidCallback onClose;
   final VoidCallback onLeaveSpace;
   final ValueChanged<bool> onToggleJoystick;
   final ValueChanged<bool> onToggleLargeJoystick;
-  final ValueChanged<bool> onToggleTapToShoot;
+  final ValueChanged<bool> onToggleAutoFire;
   final ValueChanged<bool> onToggleBoostToggle;
 
   /// Developer tool: replay THE FIRST CROSSING from here.
@@ -10602,11 +10523,11 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   _SettingsToggleRow(
-                    icon: AppIcons.touch_app_rounded,
-                    label: 'Tap To Shoot',
-                    subtitle: 'Tap space to fire toward a point',
-                    value: tapToShootEnabled,
-                    onChanged: onToggleTapToShoot,
+                    icon: AppIcons.flash_on_rounded,
+                    label: 'Auto Fire',
+                    subtitle: 'Turret and missiles engage on their own',
+                    value: autoFireEnabled,
+                    onChanged: onToggleAutoFire,
                   ),
                   const SizedBox(height: 8),
                   _SettingsToggleRow(

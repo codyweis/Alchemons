@@ -802,12 +802,20 @@ class CosmicGame extends FlameGame with PanDetector {
   /// Normalised steering direction from the virtual joystick (null = idle).
   Offset? joystickDirection;
 
-  /// When true, pan gestures are ignored (tap-to-shoot handles input instead).
-  bool tapToShootMode = false;
+  /// Fire on anything in range, without being held.
+  ///
+  /// Steering and shooting were competing for the same thumb: you either
+  /// flew or you fired. Survival solved this by making the weapons the
+  /// ship's business, and this is the same — the player picks where to be,
+  /// the turret picks what to hit.
+  bool autoFire = true;
+
+  /// How far the turret will reach on its own. Roughly a screen at default
+  /// zoom, so it engages what the player can see rather than things off it.
+  static const double autoFireRange = 520.0;
 
   @override
   void onPanStart(DragStartInfo info) {
-    if (tapToShootMode) return;
     _dragTarget = _wrap(
       Offset(
         info.eventPosition.global.x / cameraZoom + camX,
@@ -818,7 +826,6 @@ class CosmicGame extends FlameGame with PanDetector {
 
   @override
   void onPanUpdate(DragUpdateInfo info) {
-    if (tapToShootMode) return;
     _dragTarget = _wrap(
       Offset(
         info.eventPosition.global.x / cameraZoom + camX,
@@ -832,7 +839,24 @@ class CosmicGame extends FlameGame with PanDetector {
     // Keep drifting toward last target — don't null it
   }
 
-  /// Set drag target from screen coordinates (used by tap-to-shoot mode).
+  /// The closest living enemy inside [range] of [from], or null.
+  Offset? _nearestEnemyWithin(Offset from, double range) {
+    Offset? best;
+    var bestDist2 = range * range;
+    for (final e in enemies) {
+      if (e.dead) continue;
+      final dx = e.position.dx - from.dx;
+      final dy = e.position.dy - from.dy;
+      final d2 = dx * dx + dy * dy;
+      if (d2 < bestDist2) {
+        bestDist2 = d2;
+        best = e.position;
+      }
+    }
+    return best;
+  }
+
+  /// Set drag target from screen coordinates.
   void setDragTargetFromScreen(Offset screenPos) {
     _dragTarget = _wrap(
       Offset(
@@ -2912,23 +2936,37 @@ class CosmicGame extends FlameGame with PanDetector {
     final fireRate = activeWeaponId == 'equip_machinegun'
         ? 0.12
         : shootInterval;
-    if (shooting && !_shipDead && _shootCooldown <= 0) {
+    // Auto-fire leads at the target rather than along the hull. Held fire
+    // still shoots where the ship points, because then the player is aiming.
+    final autoTarget = autoFire && !_shipDead
+        ? _nearestEnemyWithin(ship.pos, autoFireRange)
+        : null;
+    if ((shooting || autoTarget != null) &&
+        !_shipDead &&
+        _shootCooldown <= 0) {
       _shootCooldown = fireRate;
+      final angle = autoTarget != null && !shooting
+          ? atan2(
+              autoTarget.dy - ship.pos.dy,
+              autoTarget.dx - ship.pos.dx,
+            )
+          : ship.angle;
       onSound?.call(SoundCue.combatProjectile);
       projectiles.add(
         Projectile(
           position: Offset(
-            ship.pos.dx + cos(ship.angle) * 20,
-            ship.pos.dy + sin(ship.angle) * 20,
+            ship.pos.dx + cos(angle) * 20,
+            ship.pos.dy + sin(angle) * 20,
           ),
-          angle: ship.angle,
+          angle: angle,
         ),
       );
     }
 
     // ── missile launcher (secondary weapon, fires independently) ──
     if (_missileShootCooldown > 0) _missileShootCooldown -= dt;
-    if (shootingMissiles &&
+    // Missiles home, so they only need something to be out there.
+    if ((shootingMissiles || (autoFire && autoTarget != null)) &&
         hasMissiles &&
         !_shipDead &&
         _missileShootCooldown <= 0) {
