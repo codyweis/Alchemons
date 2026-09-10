@@ -82,6 +82,17 @@ class _AlchemicalPowerupFeedingScreenState
   bool _overDropTarget = false;
   bool _traySoulMode = false;
 
+  /// Whether the player has ever held a Potential Soul.
+  ///
+  /// Hiding the tray until the first soul keeps a second infusion system out
+  /// of the way of someone who cannot use it. Hiding it again when they spend
+  /// their last one is a different thing entirely: the switch would blink in
+  /// and out as they buy and use souls, and a control that comes and goes
+  /// reads as broken rather than as gated. Discovery is one-way, and the tray
+  /// already has a "No Potential Souls held" state for the empty case.
+  static const _soulTraySeenKey = 'enhance_soul_tray_seen_v1';
+  bool _soulTrayEverSeen = false;
+
   // Souls spend Silver, so the commitment happens before the gesture: pick a
   // Potential, confirm the price, and only then does the soul become
   // draggable. Dropping an armed soul applies it with no further prompt.
@@ -109,6 +120,7 @@ class _AlchemicalPowerupFeedingScreenState
   @override
   void initState() {
     super.initState();
+    unawaited(_loadSoulTraySeen());
     _orbController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1600),
@@ -844,16 +856,12 @@ class _AlchemicalPowerupFeedingScreenState
     // The soul tray is a second infusion system, and offering the way into it
     // to a player holding none only advertises a thing they cannot do. It
     // appears with the first soul.
-    final hasAnySoul = soulQty > 0;
-    // Spending the last one while the tray is open would otherwise strand
-    // them in a mode with no switch to get back out of.
-    if (!hasAnySoul && _traySoulMode) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || soulQty > 0 || !_traySoulMode) return;
-        _trayPageController.reverse();
-        setState(() => _traySoulMode = false);
-      });
+    if (soulQty > 0 && !_soulTrayEverSeen) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(_rememberSoulTraySeen()),
+      );
     }
+    final hasAnySoul = soulQty > 0 || _soulTrayEverSeen;
     return Container(
       decoration: BoxDecoration(
         color: t.bg2,
@@ -1516,6 +1524,24 @@ class _AlchemicalPowerupFeedingScreenState
           instance.statStrengthPotential.round(),
         AlchemicalPowerupType.beauty => instance.statBeautyPotential.round(),
       };
+
+  Future<void> _loadSoulTraySeen() async {
+    final db = context.read<AlchemonsDatabase>();
+    final seen = await db.settingsDao.getSetting(_soulTraySeenKey) == '1';
+    if (mounted && seen != _soulTrayEverSeen) {
+      setState(() => _soulTrayEverSeen = seen);
+    }
+  }
+
+  Future<void> _rememberSoulTraySeen() async {
+    if (_soulTrayEverSeen || !mounted) return;
+    _soulTrayEverSeen = true;
+    await context.read<AlchemonsDatabase>().settingsDao.setSetting(
+      _soulTraySeenKey,
+      '1',
+    );
+    if (mounted) setState(() {});
+  }
 
   Future<void> _applyPowerup(
     CreatureInstance instance,
