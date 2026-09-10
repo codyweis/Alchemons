@@ -111,6 +111,14 @@ class ExtractionVialCard extends StatelessWidget {
   final bool compact; // smaller for grid cells
   final bool showTags;
 
+  /// Draws the vial as a disc rather than a card.
+  ///
+  /// The faction picker shows one vial as a specimen rather than as an item
+  /// in a list, and a round frame reads as a thing held up to the light.
+  /// Rounding has to happen in the decoration, not a clip over it — clipping
+  /// the card would cut its own frame off.
+  final bool circular;
+
   const ExtractionVialCard({
     super.key,
     required this.vial,
@@ -118,6 +126,7 @@ class ExtractionVialCard extends StatelessWidget {
     this.onAddToInventory,
     this.compact = false,
     this.showTags = true,
+    this.circular = false,
   });
 
   int _baseParticles(ElementalGroup g) {
@@ -151,7 +160,11 @@ class ExtractionVialCard extends StatelessWidget {
     // particle dial — rarity scales both count and speed.
     final particleCount = (_baseParticles(vial.group) * fx.particleMult)
         .round();
-    final borderRadius = BorderRadius.circular(compact ? 12 : 16);
+    // A radius bigger than the box is clamped to a circle, so this stays
+    // correct whatever size the caller gives it.
+    final borderRadius = circular
+        ? BorderRadius.circular(9999)
+        : BorderRadius.circular(compact ? 12 : 16);
 
     return GestureDetector(
       onTap: context.soundAction(onTap),
@@ -174,9 +187,11 @@ class ExtractionVialCard extends StatelessWidget {
           ],
         ),
         child: ClipRRect(
-          borderRadius: borderRadius.subtract(
-            const BorderRadius.all(Radius.circular(2)),
-          ),
+          borderRadius: circular
+              ? borderRadius
+              : borderRadius.subtract(
+                  const BorderRadius.all(Radius.circular(2)),
+                ),
           child: Stack(
             children: [
               // Animated backdrop tied to element & rarity

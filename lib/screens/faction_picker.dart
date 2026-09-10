@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/faction_picker.dart
 
@@ -31,6 +33,16 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
   late AnimationController _pulseController;
 
   int _currentIndex = 0;
+
+  /// Runs the commitment: the chosen vial swells and its colour floods the
+  /// screen. The database work happens underneath it, which is the point —
+  /// confirming used to await six writes with no feedback at all and then
+  /// blink the dialog away, so the choppiness was a stall followed by a cut.
+  late final AnimationController _commit = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+  bool _committing = false;
 
   late List<_FactionCardData> _factions;
 
@@ -133,6 +145,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
 
   @override
   void dispose() {
+    _commit.dispose();
     _pageController.dispose();
     _particleController.dispose();
     _rotationController.dispose();
@@ -147,7 +160,9 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
   }
 
   Future<void> _selectFaction() async {
+    if (_committing) return;
     HapticFeedback.heavyImpact();
+    setState(() => _committing = true);
     final selected = _factions[_currentIndex];
     final svc = context.read<FactionService>();
     // final elementalGroup = selected.elementalGroup;
@@ -156,14 +171,26 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
     //   orElse: () => Biome.earthen,
     // );
     final db = context.read<AlchemonsDatabase>();
-    await db.biomeDao.unlockBiome(biomeId: Biome.verdant.id, free: true);
-    await db.biomeDao.unlockBiome(biomeId: Biome.earthen.id, free: true);
-    await db.biomeDao.unlockBiome(biomeId: Biome.oceanic.id, free: true);
-    await db.biomeDao.unlockBiome(biomeId: Biome.volcanic.id, free: true);
-    // Persist through the service (single source of truth).
-    await svc.setId(selected.id);
 
-    await db.settingsDao.setMustPickFaction(false);
+    // Started, not awaited: the animation and the writes run together, so
+    // the wait costs nothing the player can see.
+    final work = () async {
+      for (final biome in [
+        Biome.verdant,
+        Biome.earthen,
+        Biome.oceanic,
+        Biome.volcanic,
+      ]) {
+        await db.biomeDao.unlockBiome(biomeId: biome.id, free: true);
+      }
+      // Persist through the service (single source of truth).
+      await svc.setId(selected.id);
+      await db.settingsDao.setMustPickFaction(false);
+    }();
+
+    // Whichever finishes last decides when we leave, so the screen never
+    // cuts away mid-flood and never sits on a finished flood either.
+    await Future.wait<void>([_commit.forward(from: 0), work]);
 
     if (mounted) {
       Navigator.of(context).pop(selected.id);
@@ -174,78 +201,172 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.watch<FactionTheme>());
 
+    final chosen = _factions[_currentIndex];
+
     return PopScope(
       canPop: false, // Prevent back button
       child: Scaffold(
         backgroundColor: t.bg0,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [t.bg0, t.bg1, t.bg2.withValues(alpha: 0.9)],
+        // Nothing is worth tapping once the choice is made, and a second tap
+        // on Confirm mid-flood would be a second commit.
+        body: AbsorbPointer(
+          absorbing: _committing,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [t.bg0, t.bg1, t.bg2.withValues(alpha: 0.9)],
+                    ),
                   ),
                 ),
               ),
-            ),
-            // Page view with faction cards
-            PageView.builder(
-              controller: _pageController,
-              onPageChanged: _onPageChanged,
-              itemCount: _factions.length,
-              itemBuilder: (context, index) {
-                return _FactionCard(
-                  data: _factions[index],
-                  particleController: _particleController,
-                  rotationController: _rotationController,
-                  waveController: _waveController,
-                  pulseController: _pulseController,
-                );
-              },
-            ),
-
-            // Top orb navigation
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                child: _OrbNavigation(
-                  factions: _factions,
-                  currentIndex: _currentIndex,
-                  tokens: t,
-                  onTap: (index) {
-                    _pageController.animateToPage(
-                      index,
-                      duration: const Duration(milliseconds: 400),
-                      curve: Curves.easeInOutCubic,
-                    );
-                  },
-                ),
+              // Page view with faction cards
+              PageView.builder(
+                controller: _pageController,
+                onPageChanged: _onPageChanged,
+                itemCount: _factions.length,
+                itemBuilder: (context, index) {
+                  return _FactionCard(
+                    data: _factions[index],
+                    particleController: _particleController,
+                    rotationController: _rotationController,
+                    waveController: _waveController,
+                    pulseController: _pulseController,
+                  );
+                },
               ),
-            ),
 
-            // Bottom confirm button
-            SafeArea(
-              child: Align(
-                alignment: Alignment.bottomCenter,
+              // Top orb navigation
+              SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 22),
-                  child: _ConfirmButton(
-                    factionName: _factions[_currentIndex].name,
-                    color: _factions[_currentIndex].primaryColor,
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: _OrbNavigation(
+                    factions: _factions,
+                    currentIndex: _currentIndex,
                     tokens: t,
-                    onPressed: context.soundTap(_selectFaction),
+                    onTap: (index) {
+                      _pageController.animateToPage(
+                        index,
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeInOutCubic,
+                      );
+                    },
                   ),
                 ),
               ),
-            ),
-          ],
+
+              // Bottom confirm button
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 22),
+                    child: _ConfirmButton(
+                      factionName: _factions[_currentIndex].name,
+                      color: _factions[_currentIndex].primaryColor,
+                      tokens: t,
+                      onPressed: context.soundTap(_selectFaction),
+                    ),
+                  ),
+                ),
+              ),
+
+              if (_committing)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _commit,
+                      builder: (context, _) => CustomPaint(
+                        painter: _CommitWashPainter(
+                          progress: _commit.value,
+                          color: chosen.primaryColor,
+                          accent: chosen.accentColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// The faction taking the screen.
+///
+/// A disc of the faction's colour opening from the middle of the vial, a
+/// brighter ring riding its edge, and a last fade to solid so the dialog can
+/// leave underneath it without a cut. No blur: this paints every frame.
+class _CommitWashPainter extends CustomPainter {
+  _CommitWashPainter({
+    required this.progress,
+    required this.color,
+    required this.accent,
+  });
+
+  final double progress;
+  final Color color;
+  final Color accent;
+
+  static final Paint _p = Paint();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Centred on the vial rather than the screen, which sits a little above
+    // the middle once the perks and the button are accounted for.
+    final origin = Offset(size.width / 2, size.height * 0.42);
+    final reach = math.sqrt(
+      math.pow(math.max(origin.dx, size.width - origin.dx), 2) +
+          math.pow(math.max(origin.dy, size.height - origin.dy), 2),
+    );
+
+    // Out fast, then easing as it fills — a wave, not a wipe.
+    final t = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0));
+    final radius = reach * t;
+    if (radius <= 0) return;
+
+    canvas.drawCircle(
+      origin,
+      radius,
+      _p
+        ..style = PaintingStyle.fill
+        ..color = color.withValues(alpha: 0.96),
+    );
+
+    // The leading edge, bright while it is still travelling.
+    final edge = (1 - t).clamp(0.0, 1.0);
+    if (edge > 0.02) {
+      canvas.drawCircle(
+        origin,
+        radius,
+        _p
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = size.shortestSide * 0.05 * edge
+          ..color = accent.withValues(alpha: 0.85 * edge),
+      );
+      _p.style = PaintingStyle.fill;
+    }
+
+    // The last stretch goes solid, so whatever is behind the dialog is
+    // revealed by the next screen rather than by this one vanishing.
+    final settle = ((progress - 0.72) / 0.28).clamp(0.0, 1.0);
+    if (settle > 0) {
+      canvas.drawRect(
+        Offset.zero & size,
+        _p..color = color.withValues(alpha: settle),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CommitWashPainter old) =>
+      old.progress != progress || old.color != color;
 }
 
 // ============================================================================
@@ -439,8 +560,9 @@ class _VialDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shortestSide = MediaQuery.of(context).size.shortestSide;
-    final cardWidth = shortestSide < 380 ? 148.0 : 164.0;
-    final cardHeight = shortestSide < 380 ? 172.0 : 190.0;
+    // Square, because a circle in a rectangle is an ellipse. Sized to the
+    // old card's width so the layout around it does not move.
+    final diameter = shortestSide < 380 ? 148.0 : 164.0;
 
     // Create a starter vial for this faction
     final vial = ExtractionVial(
@@ -460,10 +582,16 @@ class _VialDisplay extends StatelessWidget {
 
         return Transform.scale(
           scale: scale,
-          child: SizedBox(
-            width: cardWidth,
-            height: cardHeight,
-            child: ExtractionVialCard(vial: vial, compact: false),
+          child: SizedBox.square(
+            dimension: diameter,
+            // No tag: the faction's name is already the heading above this,
+            // and the element is the colour of what is swirling inside.
+            child: ExtractionVialCard(
+              vial: vial,
+              compact: false,
+              showTags: false,
+              circular: true,
+            ),
           ),
         );
       },
