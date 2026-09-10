@@ -678,6 +678,14 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
   /// ate half the screen and squeezed the systems readout above them.
   Widget _bottomDock() {
     final showParty = widget.hasParty && widget.onParty != null;
+    // Cosmic space is landscape, so the console has a few hundred logical
+    // pixels of height to work with. The dock is the last child of a Column
+    // and takes its intrinsic height, so once its stacked rows outgrow what
+    // is left, the Column overflows and it is the bottom of the dock — the
+    // CLOSE button — that gets cut off. On a short viewport it folds into a
+    // single row instead of stacking.
+    final short = MediaQuery.of(context).size.height < 460;
+    final gap = short ? 6.0 : 10.0;
 
     final row = <Widget>[
       if (showParty)
@@ -710,8 +718,36 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
         ),
     ];
 
+    final closeButton = GestureDetector(
+      onTap: context.soundAction(widget.onClose),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        height: 38,
+        decoration: BoxDecoration(
+          border: Border.all(color: CosmicScreenStyles.borderMid),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          'CLOSE',
+          style: TextStyle(
+            fontFamily: appFontFamily(context),
+            color: CosmicScreenStyles.textMuted,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.8,
+          ),
+        ),
+      ),
+    );
+
+    // Folded in beside the others rather than onto its own line.
+    if (short && !widget.tutorialBuildHomeMode) {
+      row.add(Expanded(child: closeButton));
+    }
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: EdgeInsets.fromLTRB(16, gap, 16, gap),
       decoration: const BoxDecoration(
         color: CosmicScreenStyles.bg1,
         border: Border(
@@ -755,40 +791,19 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
               onTap: context.soundTap(widget.onBuildHome),
               primary: true,
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: gap),
           ],
           Row(
             children: [
               for (var i = 0; i < row.length; i++) ...[
-                if (i > 0) const SizedBox(width: 10),
+                if (i > 0) SizedBox(width: gap),
                 row[i],
               ],
             ],
           ),
-          if (!widget.tutorialBuildHomeMode) ...[
-            const SizedBox(height: 10),
-            GestureDetector(
-              onTap: context.soundAction(widget.onClose),
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                width: double.infinity,
-                height: 38,
-                decoration: BoxDecoration(
-                  border: Border.all(color: CosmicScreenStyles.borderMid),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  'CLOSE',
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.textMuted,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.8,
-                  ),
-                ),
-              ),
-            ),
+          if (!short && !widget.tutorialBuildHomeMode) ...[
+            SizedBox(height: gap),
+            closeButton,
           ],
         ],
       ),

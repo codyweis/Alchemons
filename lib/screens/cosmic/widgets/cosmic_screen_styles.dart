@@ -3,10 +3,17 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 class CosmicScreenStyles {
-  static const bg0 = Color(0xFF080808);
-  static const bg1 = Color(0xFF111111);
-  static const bg2 = Color(0xFF171511);
-  static const bg3 = Color(0xFF201D17);
+  // Black, not brown.
+  //
+  // bg2 and bg3 carried a warm cast — 171511 and 201D17 are brown, not grey —
+  // so every panel in cosmic space and the customization lab sat on a muddy
+  // yellow ground. Amber ink on brown is the lowest-contrast pairing in the
+  // app; the same ink on black is the highest. The accents are untouched:
+  // the gold is the identity, the ground it sat on was the problem.
+  static const bg0 = Color(0xFF060606);
+  static const bg1 = Color(0xFF0D0D0D);
+  static const bg2 = Color(0xFF121212);
+  static const bg3 = Color(0xFF1A1A1A);
   static const amber = Color(0xFFC4A35A);
   static const amberBright = Color(0xFFE4C16A);
   static const amberGlow = Color(0xFFF1D78A);
