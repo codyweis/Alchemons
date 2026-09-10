@@ -33,10 +33,13 @@ void main() {
   });
 
   group('gates', () {
-    test('the constellations appear with the ship', () async {
+    test('the constellation upgrades are open from the start', () async {
+      // Their button on the home screen has no gate. The ship check in
+      // constellation_points_widget.dart belongs to the other widget in that
+      // file, the orb that opens cosmic space — a task gated on it would
+      // hide the upgrade tree for most of the game for no reason.
       final task = kOnboardingTasks.firstWhere((t) => t.id == 'constellation');
-      expect(await tasks.unlocked(task), isFalse);
-      await db.settingsDao.setSetting('cosmic_ship_unlocked', '1');
+      expect(task.gate, TaskGate.always);
       expect(await tasks.unlocked(task), isTrue);
       expect(
         (await tasks.outstanding()).map((r) => r.$1.id),
@@ -62,13 +65,19 @@ void main() {
     });
 
     test('an earned reward survives its gate', () async {
-      // Earn the constellation task, then take the ship away again.
-      await db.settingsDao.setSetting('cosmic_ship_unlocked', '1');
-      await tasks.markVisited('constellation');
-      await db.settingsDao.setSetting('cosmic_ship_unlocked', '0');
+      // Earn the altar task with a relic in hand, then spend the relic.
+      final relicKey = BossLootKeys.traitKeyForElement(
+        kAltarEntries.first.element,
+      );
+      await db.inventoryDao.addItemQty(relicKey, 1);
+      await tasks.markVisited('rite');
+      await db.inventoryDao.consumeItem(relicKey);
+
+      final task = kOnboardingTasks.firstWhere((t) => t.id == 'rite');
+      expect(await tasks.unlocked(task), isFalse, reason: 'gate shut again');
       expect(
         (await tasks.outstanding()).map((r) => r.$1.id),
-        contains('constellation'),
+        contains('rite'),
         reason: 'the player did the thing; the silver is theirs',
       );
       expect(await tasks.readyCount(), 1);

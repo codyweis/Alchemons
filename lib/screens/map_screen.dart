@@ -616,6 +616,25 @@ class _MapScreenState extends State<MapScreen>
       // next one — recorded here rather than on the way out, so backing
       // straight out still counts as having been.
       await OpeningWildernessService.markSceneVisited(db.settingsDao, biomeId);
+
+      // The biome that just opened needs something in it. Spawns are only
+      // placed in scenes the hunt allows, so the next one was ineligible
+      // until this moment and would otherwise read as an empty region — the
+      // player would finish here, walk to the region they were sent to, and
+      // be told nothing lives there.
+      final nextScene = await OpeningWildernessService.openShipHuntScene(
+        db.settingsDao,
+      );
+      if (nextScene != null) {
+        await spawnService.ensureSpawnsForScene(nextScene);
+      } else {
+        // Or the hunt just ended on this visit, in which case every core
+        // biome became eligible at once and the map should not open onto
+        // four empty regions.
+        for (final scene in OpeningWildernessService.coreScenes) {
+          await spawnService.ensureSpawnsForScene(scene);
+        }
+      }
     }
 
     // go to biome scene

@@ -42,8 +42,6 @@ enum TaskGate {
   /// The altar appears once any relic is held or placed.
   anyRelic,
 
-  /// The constellations appear with the ship.
-  shipFound,
 }
 
 /// A place in the game the player may not know exists.
@@ -142,8 +140,11 @@ const List<OnboardingTask> kOnboardingTasks = [
     title: 'Look up',
     blurb: 'Constellation points buy permanent upgrades to everything else.',
     icon: AppIcons.nights_stay_rounded,
+    // Ungated, because its button on the home screen is ungated. This was
+    // wrongly gated on the ship: constellation_points_widget.dart holds two
+    // widgets, and the ship check belongs to the OTHER one — the orb that
+    // opens cosmic space. The upgrade tree has always been open.
     destination: TaskDestination.constellation,
-    gate: TaskGate.shipFound,
   ),
   OnboardingTask(
     id: 'profile',
@@ -189,9 +190,6 @@ class OnboardingTaskService {
       case TaskGate.enhanceUnlocked:
         // Mirrors the dock's lockEnhance.
         return shop?.hasElementalCreatorUnlocked() ?? false;
-      case TaskGate.shipFound:
-        // Mirrors ConstellationPointsWidget, which hides itself without it.
-        return await db.settingsDao.getSetting('cosmic_ship_unlocked') == '1';
       case TaskGate.anyRelic:
         // Mirrors the home screen's _hasAnyRelic: held, or already placed.
         for (final entry in kAltarEntries) {
