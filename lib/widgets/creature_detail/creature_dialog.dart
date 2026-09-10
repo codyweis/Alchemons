@@ -1426,6 +1426,11 @@ class _OverviewTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = _C.of(context);
+    // The overview was the last place still printing the figure: the stat
+    // bars carried a P-value beside every rating regardless of the analyzer.
+    final showPotential = context
+        .read<ConstellationEffectsService>()
+        .hasPotentialAnalyzer();
     final purity = instance == null
         ? null
         : classifyInstancePurity(instance!, species: creature);
@@ -1459,7 +1464,9 @@ class _OverviewTab extends StatelessWidget {
                   _StatBar(
                     label: 'Speed',
                     value: instance!.statSpeed,
-                    potential: instance!.statSpeedPotential,
+                    potential: showPotential
+                        ? instance!.statSpeedPotential
+                        : null,
                     accent: const Color(0xFF60A5FA),
                     isDominant:
                         _dominants(context)?.contains(StatKind.speed) ?? false,
@@ -1467,7 +1474,9 @@ class _OverviewTab extends StatelessWidget {
                   _StatBar(
                     label: 'Intelligence',
                     value: instance!.statIntelligence,
-                    potential: instance!.statIntelligencePotential,
+                    potential: showPotential
+                        ? instance!.statIntelligencePotential
+                        : null,
                     accent: const Color(0xFFC084FC),
                     isDominant:
                         _dominants(context)?.contains(StatKind.intelligence) ??
@@ -1476,7 +1485,9 @@ class _OverviewTab extends StatelessWidget {
                   _StatBar(
                     label: 'Strength',
                     value: instance!.statStrength,
-                    potential: instance!.statStrengthPotential,
+                    potential: showPotential
+                        ? instance!.statStrengthPotential
+                        : null,
                     accent: const Color(0xFFF87171),
                     isDominant:
                         _dominants(context)?.contains(StatKind.strength) ??
@@ -1485,7 +1496,9 @@ class _OverviewTab extends StatelessWidget {
                   _StatBar(
                     label: 'Beauty',
                     value: instance!.statBeauty,
-                    potential: instance!.statBeautyPotential,
+                    potential: showPotential
+                        ? instance!.statBeautyPotential
+                        : null,
                     accent: const Color(0xFFF9A8D4),
                     isDominant:
                         _dominants(context)?.contains(StatKind.beauty) ?? false,
@@ -2104,20 +2117,24 @@ class _StatBar extends StatelessWidget {
             '$rating',
             style: bracketText(context, 16, accent, weight: FontWeight.w800),
           ),
-          SizedBox(
-            width: 54,
-            child: Text(
-              p == null ? '' : 'P$p',
-              textAlign: TextAlign.right,
-              maxLines: 1,
-              style: bracketText(
-                context,
-                12,
-                perfect ? accent : palette.muted,
-                weight: FontWeight.w700,
+          // No analyzer, no column. An empty box of the same width would
+          // still leave a gap where the number used to be, which is the
+          // thing that gave it away.
+          if (p != null)
+            SizedBox(
+              width: 54,
+              child: Text(
+                'P$p',
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                style: bracketText(
+                  context,
+                  12,
+                  perfect ? accent : palette.muted,
+                  weight: FontWeight.w700,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
