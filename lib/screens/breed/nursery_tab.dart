@@ -1331,13 +1331,25 @@ class _SlotInfoDialogWrapper extends StatefulWidget {
 }
 
 class _SlotInfoDialogWrapperState extends State<_SlotInfoDialogWrapper> {
+  /// Drives the countdown.
+  ///
+  /// The only other thing rebuilding this dialog is watchSlots, and a slot
+  /// row does not change while it is simply cultivating — so the remaining
+  /// time was computed once, on open, and then sat there. The empty initState
+  /// and dispose left behind were where this used to be.
+  Timer? _ticker;
+
   @override
   void initState() {
     super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _ticker?.cancel();
     super.dispose();
   }
 
