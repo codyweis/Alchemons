@@ -6,6 +6,8 @@ import 'package:alchemons/models/potential_genetics.dart';
 import 'dart:math';
 import 'dart:ui';
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/services/timed_boost_service.dart';
+import 'package:alchemons/utils/cultivation_time.dart';
 import 'package:alchemons/constants/egg.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
@@ -31,7 +33,6 @@ import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
-import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/widgets/animations/breed_result_animation.dart';
 import 'package:alchemons/widgets/animations/database_typing_animation.dart';
 import 'package:alchemons/widgets/animations/hatching_cinematic.dart';
@@ -465,26 +466,18 @@ class EggHatching {
     final base =
         BreedConstants.rarityHatchTimes[key] ?? const Duration(minutes: 10);
 
-    // Nature speed-up / slow-down
-    final natureMult = hatchMultForNatures(
-      offspring.nature?.id,
-      offspring.nature2?.id,
+    return cultivationDuration(
+      base: base,
+      natureId: offspring.nature?.id,
+      nature2Id: offspring.nature2?.id,
+      gestationReduction: context
+          .read<ConstellationEffectsService>()
+          .getGestationReduction(),
+      fireMultiplier: context.read<FactionService>().fireBreederTimeMultiplier(
+        bothParentsFire: bothParentsFire,
+      ),
+      halfCultivation: context.read<TimedBoostService>().halfCultivationActive,
     );
-
-    // Constellation gestation reduction (0–0.15)
-    final constellation = context.read<ConstellationEffectsService>();
-    final gestationReduction = constellation.getGestationReduction();
-
-    // 🔥 Volcanic Fire Breeder perk
-    final factions = context.read<FactionService>();
-    final fireMult = factions.fireBreederTimeMultiplier(
-      bothParentsFire: bothParentsFire,
-    );
-
-    // Combine all multipliers
-    final totalMult = natureMult * (1.0 - gestationReduction) * fireMult;
-
-    return Duration(milliseconds: (base.inMilliseconds * totalMult).round());
   }
   // ============================================================================
   // PRIVATE HELPERS

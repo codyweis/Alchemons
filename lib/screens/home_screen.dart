@@ -1,3 +1,5 @@
+import 'package:alchemons/widgets/half_cultivation_chip.dart';
+import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/audio/audio.dart';
 // (imports unchanged except where noted)
 import 'dart:async' as async;
@@ -2397,6 +2399,14 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     if (granted) {
+      // The opening day of halved cultivation. Given here rather than on
+      // first launch because this is the moment the save actually begins —
+      // a faction is chosen and the first egg exists — so the day is not
+      // burned by someone who opened the app and went away again.
+      if (mounted) {
+        await context.read<TimedBoostService>().giveOpeningGrant();
+      }
+
       // 🔑 Set extraction pending IMMEDIATELY after grant (before any UI)
       // This ensures restart will know to redirect to extraction
       await db.settingsDao.setSetting('tutorial_extraction_pending', '1');
@@ -2459,6 +2469,13 @@ class _HomeScreenState extends State<HomeScreen>
               ),
 
             const Spacer(),
+            // Absent unless a boost is running, so it costs the header
+            // nothing the rest of the time.
+            if (!_isFieldTutorialActive)
+              const Padding(
+                padding: EdgeInsets.only(right: 8),
+                child: HalfCultivationChip(),
+              ),
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: Opacity(

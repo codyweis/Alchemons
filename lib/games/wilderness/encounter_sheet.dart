@@ -1,3 +1,4 @@
+import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 // lib/widgets/wilderness/encounter_overlay.dart
 //
@@ -256,6 +257,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       payloadFactory: EggPayloadFactory(repo),
       wildRandomizer: WildCreatureRandomizer(),
       constellation: ctx.read<ConstellationEffectsService>(),
+      boosts: ctx.read<TimedBoostService>(),
       factions: ctx.read<FactionService>(),
     );
   }

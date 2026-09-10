@@ -1,3 +1,4 @@
+import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -14,7 +15,12 @@ void main() {
 
   setUp(() async {
     db = AlchemonsDatabase(NativeDatabase.memory());
-    shop = ShopService(db, ConstellationEffectsService(db), FactionService(db));
+    shop = ShopService(
+      db,
+      ConstellationEffectsService(db),
+      FactionService(db),
+      TimedBoostService(db.settingsDao),
+    );
     await shop.reloadFromStorage();
     initialWildFusion = await db.inventoryDao.getItemQty(InvKeys.wildFusion);
     await db.settingsDao.setSetting('wallet_gold', '100');

@@ -1324,6 +1324,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   /// Situational consumables: one skips a fusion timer, one summons a raid.
   List<String> get _specialConsumableIds => <String>[
     'boost.instant_hatch',
+    ShopService.halfCultivationOfferId,
     if (_cosmicDiscovered) 'boost.instant_boss_refresh',
   ];
 

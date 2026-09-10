@@ -1,3 +1,4 @@
+import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -129,6 +130,7 @@ class CampaignAchievement {
     this.silver, {
     this.items = const {},
     this.resources = const {},
+    this.halfCultivation,
   });
   final String id, title, description, metric;
   final int target, gold, silver;
@@ -140,6 +142,11 @@ class CampaignAchievement {
 
   /// Element resource keys ('res_volcanic' and friends), by quantity.
   final Map<String, int> resources;
+
+  /// A run of halved cultivation time, for milestones where the reward
+  /// should be time rather than money. Coins buy the next thing; this makes
+  /// the thing you already do finish sooner.
+  final Duration? halfCultivation;
 }
 
 final campaignAchievements = <CampaignAchievement>[
@@ -206,6 +213,9 @@ final campaignAchievements = <CampaignAchievement>[
     100,
     5,
     1000,
+    // A hundred species means a lot of time spent waiting on cultivations,
+    // so the milestone pays in the thing that was actually spent.
+    halfCultivation: TimedBoostService.halfCultivationDuration,
   ),
   CampaignAchievement(
     'collection_all',
@@ -802,7 +812,12 @@ class CampaignJournalService {
     await settings.setSetting(key, '1');
   }
 
-  Future<bool> claim(String id) => db.transaction(() async {
+  /// [boosts] is required by any achievement whose reward is a timed boost —
+  /// the service caches its expiry in memory for the cultivation maths, so
+  /// writing the setting behind its back would award a boost that does not
+  /// apply until the next launch.
+  Future<bool> claim(String id, {TimedBoostService? boosts}) =>
+      db.transaction(() async {
     final matches = campaignAchievements.where((a) => a.id == id);
     if (matches.isEmpty) return false;
     final a = matches.first;
@@ -816,6 +831,15 @@ class CampaignJournalService {
     }
     for (final entry in a.resources.entries) {
       await db.currencyDao.addResource(entry.key, entry.value);
+    }
+    final boostDuration = a.halfCultivation;
+    if (boostDuration != null) {
+      assert(
+        boosts != null,
+        'Achievement "$id" rewards a timed boost but claim() was called '
+        'without a TimedBoostService, so the reward would be dropped.',
+      );
+      await boosts?.grantHalfCultivation(duration: boostDuration);
     }
     return true;
   });

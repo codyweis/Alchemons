@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/services/timed_boost_service.dart';
+import 'package:alchemons/utils/cultivation_time.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
@@ -19,7 +21,6 @@ import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/utils/likelihood_analyzer.dart';
-import 'package:alchemons/utils/nature_utils.dart';
 import 'package:flutter/foundation.dart';
 
 class BreedingServiceV2 {
@@ -30,6 +31,7 @@ class BreedingServiceV2 {
   final WildCreatureRandomizer wildRandomizer;
   final ConstellationEffectsService constellation; // 👈 NEW
   final FactionService factions;
+  final TimedBoostService boosts;
 
   // Access catalog via engine so we don’t need another injected param
   CreatureCatalog get repository => engine.repository;
@@ -42,6 +44,7 @@ class BreedingServiceV2 {
     required this.wildRandomizer,
     required this.constellation, // 👈 NEW
     required this.factions,
+    required this.boosts,
   });
 
   String _familyKeyForCreature(Creature c) {
@@ -498,28 +501,18 @@ class BreedingServiceV2 {
     Creature creature, {
     bool bothParentsFire = false,
   }) {
-    final natureMult = hatchMultForNatures(
-      creature.nature?.id,
-      creature.nature2?.id,
+    // FactionService internally checks current faction == Volcanic, perk1
+    // active and bothParentsFire, and does the 50% RNG. Returns 1.0 or 0.5.
+    return cultivationDuration(
+      base: base,
+      natureId: creature.nature?.id,
+      nature2Id: creature.nature2?.id,
+      gestationReduction: constellation.getGestationReduction(),
+      fireMultiplier: factions.fireBreederTimeMultiplier(
+        bothParentsFire: bothParentsFire,
+      ),
+      halfCultivation: boosts.halfCultivationActive,
     );
-
-    // Constellation gestation reduction (0–0.15)
-    final gestationReduction = constellation.getGestationReduction();
-
-    // 🔥 Volcanic Fire Breeder perk
-    // FactionService internally checks:
-    // - current faction == Volcanic
-    // - perk1Active
-    // - bothParentsFire
-    // and does the 50% RNG. Returns 1.0 or 0.5.
-    final fireMult = factions.fireBreederTimeMultiplier(
-      bothParentsFire: bothParentsFire,
-    );
-
-    // Nature can make it slower/faster; constellation and fire perk reduce time
-    final totalMult = natureMult * (1.0 - gestationReduction) * fireMult;
-
-    return Duration(milliseconds: (base.inMilliseconds * totalMult).round());
   }
 
   String _generateEggId(String source) {

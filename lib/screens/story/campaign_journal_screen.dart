@@ -1,3 +1,4 @@
+import 'package:alchemons/services/timed_boost_service.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -89,7 +90,10 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
         // somewhere else entirely.
         final rect = _rectFor(reward.id);
 
-        if (await service.claim(reward.id)) {
+        if (await service.claim(
+          reward.id,
+          boosts: context.read<TimedBoostService>(),
+        )) {
           gold += reward.gold;
           silver += reward.silver;
           if (!mounted) return;

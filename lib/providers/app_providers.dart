@@ -1,4 +1,5 @@
 // providers/app_providers.dart
+import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/helpers/breeding_config_loaders.dart';
 import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
@@ -137,6 +138,16 @@ class AppProviders extends StatelessWidget {
               ConstellationEffectsService(context.read<AlchemonsDatabase>()),
         ),
 
+        // Loaded eagerly: the cultivation maths reads it synchronously, so a
+        // boost that is still loading would silently price the first
+        // cultivation of the session at full length.
+        ChangeNotifierProvider<TimedBoostService>(
+          create: (context) =>
+              TimedBoostService(context.read<AlchemonsDatabase>().settingsDao)
+                ..load(),
+          lazy: false,
+        ),
+
         ChangeNotifierProvider(
           create: (ctx) => BlackMarketService(
             ctx.read<AlchemonsDatabase>(),
@@ -204,6 +215,7 @@ class AppProviders extends StatelessWidget {
             ctx.read<AlchemonsDatabase>(),
             ctx.read<ConstellationEffectsService>(),
             ctx.read<FactionService>(),
+            ctx.read<TimedBoostService>(),
           ),
         ),
 
@@ -323,6 +335,7 @@ class AppProviders extends StatelessWidget {
                   payloadFactory: payloadFactory,
                   wildRandomizer: wildRandomizer,
                   constellation: ctx.read<ConstellationEffectsService>(),
+                  boosts: ctx.read<TimedBoostService>(),
                   factions: ctx.read<FactionService>(),
                 );
               },

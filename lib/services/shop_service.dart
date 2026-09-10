@@ -1,4 +1,5 @@
 // lib/services/shop_service.dart
+import 'package:alchemons/services/timed_boost_service.dart';
 import 'dart:math' as math;
 
 import 'package:alchemons/models/elemental_group.dart';
@@ -66,9 +67,16 @@ class ShopService extends ChangeNotifier {
   final ConstellationEffectsService _constellations;
   final FactionService _factions;
 
+  /// Timed boosts cache their expiry in memory for the cultivation maths to
+  /// read synchronously, so a purchase has to go through the service rather
+  /// than writing the setting behind its back — otherwise the boost is
+  /// bought and inert until the next launch.
+  final TimedBoostService _boosts;
+
   // Keep false in normal gameplay; set true only for temporary local debug.
   static const bool _debugUnlockContestEffectsInShop = false;
 
+  static const halfCultivationOfferId = 'boost.half_cultivation';
   static const potentialSoulOfferId = 'boost.potential_soul';
   static const wildFusionOfferId = 'boost.wild_fusion';
   static const beautyContestEffectOfferId = 'effects.beauty_radiance';
@@ -99,7 +107,7 @@ class ShopService extends ChangeNotifier {
   static const int kAutoUnlockBredThreshold = 10;
   bool _elementalCreatorAutoUnlocked = false;
 
-  ShopService(this._db, this._constellations, this._factions) {
+  ShopService(this._db, this._constellations, this._factions, this._boosts) {
     _loadPurchaseHistory();
     _loadInventoryCache();
     _loadContestEffectUnlocks();
@@ -926,6 +934,21 @@ class ShopService extends ChangeNotifier {
       inventoryKey: InvKeys.portalKeyArcane,
     ),
 
+    // ── Timed boosts ─────────────────────────────────────────────────────────
+    ShopOffer(
+      id: halfCultivationOfferId,
+      name: 'Chronal Catalyst',
+      description:
+          'Halves the time every cultivation takes for 24 hours. Buying '
+          'another adds a day to the one already running.',
+      icon: AppIcons.hourglass_bottom_rounded,
+      iconColor: const Color(0xFF7BE1E8),
+      cost: const {'gold': 250},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+    ),
+
     // ── Survival Orb Base Skins ──────────────────────────────────────────────
     ShopOffer(
       id: 'survival.orb.voidforge',
@@ -1486,6 +1509,14 @@ class ShopService extends ChangeNotifier {
 
       case 'boost.instant_boss_refresh':
         await _db.inventoryDao.addItemQty(InvKeys.raidBeacon, qty);
+        return true;
+
+      case halfCultivationOfferId:
+        // Buying a second one stacks the days rather than wasting the rest
+        // of the first.
+        for (var i = 0; i < qty; i++) {
+          await _boosts.grantHalfCultivation();
+        }
         return true;
 
       // Survival Orb Skins → unlock via SurvivalUpgradeService
