@@ -103,6 +103,14 @@ class ConstellationEffectsService extends ChangeNotifier {
     return _unlockedSkillIds.contains('breeder_potential_analyzer');
   }
 
+  /// Whether an Alchemon's two Dominant stats can be read.
+  ///
+  /// Sits after the Potential Analyzer: knowing what a creature passes down
+  /// is only worth anything once you can see what it has to pass.
+  bool hasDominantAnalyzer() {
+    return _unlockedSkillIds.contains('breeder_dominant_analyzer');
+  }
+
   /// Check if Potential ratings are visible during wild encounters.
   bool hasWildPotentialAnalyzer() {
     return _unlockedSkillIds.contains('breeder_wild_potential_analyzer');

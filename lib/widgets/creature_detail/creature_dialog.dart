@@ -1461,7 +1461,8 @@ class _OverviewTab extends StatelessWidget {
                     value: instance!.statSpeed,
                     potential: instance!.statSpeedPotential,
                     accent: const Color(0xFF60A5FA),
-                    isDominant: _dominants()?.contains(StatKind.speed) ?? false,
+                    isDominant:
+                        _dominants(context)?.contains(StatKind.speed) ?? false,
                   ),
                   _StatBar(
                     label: 'Intelligence',
@@ -1469,7 +1470,8 @@ class _OverviewTab extends StatelessWidget {
                     potential: instance!.statIntelligencePotential,
                     accent: const Color(0xFFC084FC),
                     isDominant:
-                        _dominants()?.contains(StatKind.intelligence) ?? false,
+                        _dominants(context)?.contains(StatKind.intelligence) ??
+                        false,
                   ),
                   _StatBar(
                     label: 'Strength',
@@ -1477,7 +1479,8 @@ class _OverviewTab extends StatelessWidget {
                     potential: instance!.statStrengthPotential,
                     accent: const Color(0xFFF87171),
                     isDominant:
-                        _dominants()?.contains(StatKind.strength) ?? false,
+                        _dominants(context)?.contains(StatKind.strength) ??
+                        false,
                   ),
                   _StatBar(
                     label: 'Beauty',
@@ -1485,7 +1488,7 @@ class _OverviewTab extends StatelessWidget {
                     potential: instance!.statBeautyPotential,
                     accent: const Color(0xFFF9A8D4),
                     isDominant:
-                        _dominants()?.contains(StatKind.beauty) ?? false,
+                        _dominants(context)?.contains(StatKind.beauty) ?? false,
                   ),
                 ],
               ),
@@ -1500,7 +1503,7 @@ class _OverviewTab extends StatelessWidget {
                 children: [
                   _DataRow(
                     label: 'Dominant Stats',
-                    value: _dominantStatsLabel(),
+                    value: _dominantStatsLabel(context),
                     valueColor: c.amberBright,
                   ),
                   _DataRow(label: 'Size Variant', value: _sizeLabel()),
@@ -1765,9 +1768,15 @@ class _OverviewTab extends StatelessWidget {
 
   /// The two stats this Alchemon passes down most reliably. Pre-Dominants
   /// creatures fall back to whatever they are already best at.
-  DominantStats? _dominants() {
+  DominantStats? _dominants(BuildContext context) {
     final inst = instance;
     if (inst == null) return null;
+    // Behind the Dominant Analyzer. Returning null here covers the highlight
+    // on each stat and the Genetic Profile row in one place — the row already
+    // reads "Unknown" for a creature whose dominants cannot be determined.
+    if (!context.read<ConstellationEffectsService>().hasDominantAnalyzer()) {
+      return null;
+    }
     return DominantStats.decode(inst.dominantStats) ??
         DominantStats.fromPotentials(
           speed: inst.statSpeedPotential,
@@ -1777,8 +1786,13 @@ class _OverviewTab extends StatelessWidget {
         );
   }
 
-  String _dominantStatsLabel() {
-    final dominants = _dominants();
+  String _dominantStatsLabel(BuildContext context) {
+    final inst = instance;
+    if (inst != null &&
+        !context.read<ConstellationEffectsService>().hasDominantAnalyzer()) {
+      return 'Requires Dominant Analyzer';
+    }
+    final dominants = _dominants(context);
     if (dominants == null) return 'Unknown';
     return dominants.all.map((k) => k.label).join(' · ');
   }

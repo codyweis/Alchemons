@@ -124,6 +124,17 @@ class ConstellationCatalog {
     tier: 4,
   );
 
+  static const dominantAnalyzer = ConstellationSkill(
+    id: 'breeder_dominant_analyzer',
+    name: 'Dominant Analyzer',
+    description:
+        'Reveal which two stats an Alchemon passes down most reliably',
+    tree: ConstellationTree.breeder,
+    pointsCost: 6,
+    prerequisites: ['breeder_potential_analyzer'],
+    tier: 5,
+  );
+
   static const wildPotentialAnalyzer = ConstellationSkill(
     id: 'breeder_wild_potential_analyzer',
     name: 'Wild Potential Scanner',
@@ -543,6 +554,7 @@ class ConstellationCatalog {
     lineageAnalyzer,
     geneAnalyzer,
     potentialAnalyzer,
+    dominantAnalyzer,
     wildPotentialAnalyzer,
     acceleratedGestation,
     acceleratedGestation2,

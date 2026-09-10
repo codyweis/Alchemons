@@ -1084,9 +1084,12 @@ class EggHatching {
                                   // The two stats this Alchemon passes down most
                                   // reliably; pre-Dominants creatures fall back to
                                   // whatever they are already best at.
-                                  final showPotential = context
-                                      .read<ConstellationEffectsService>()
+                                  final effects = context
+                                      .read<ConstellationEffectsService>();
+                                  final showPotential = effects
                                       .hasPotentialAnalyzer();
+                                  final showDominants = effects
+                                      .hasDominantAnalyzer();
                                   final hatchDominants =
                                       DominantStats.decode(
                                         instance.dominantStats,
@@ -1158,7 +1161,7 @@ class EggHatching {
                                           scanComplete,
                                           fc,
                                           const Color(0xFF0EA5E9),
-                                          isDominant: hatchDominants.contains(
+                                          isDominant: showDominants && hatchDominants.contains(
                                             StatKind.speed,
                                           ),
                                           showPotential: showPotential,
@@ -1170,7 +1173,7 @@ class EggHatching {
                                           scanComplete,
                                           fc,
                                           const Color(0xFFA855F7),
-                                          isDominant: hatchDominants.contains(
+                                          isDominant: showDominants && hatchDominants.contains(
                                             StatKind.intelligence,
                                           ),
                                           showPotential: showPotential,
@@ -1182,7 +1185,7 @@ class EggHatching {
                                           scanComplete,
                                           fc,
                                           const Color(0xFFC0392B),
-                                          isDominant: hatchDominants.contains(
+                                          isDominant: showDominants && hatchDominants.contains(
                                             StatKind.strength,
                                           ),
                                           showPotential: showPotential,
@@ -1194,7 +1197,7 @@ class EggHatching {
                                           scanComplete,
                                           fc,
                                           const Color(0xFFF59E0B),
-                                          isDominant: hatchDominants.contains(
+                                          isDominant: showDominants && hatchDominants.contains(
                                             StatKind.beauty,
                                           ),
                                           showPotential: showPotential,
