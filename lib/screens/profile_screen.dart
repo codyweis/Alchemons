@@ -1,3 +1,5 @@
+import 'package:alchemons/widgets/game_snack.dart';
+import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
@@ -258,6 +260,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => const StoryIntroScreen()),
+    );
+  }
+
+  /// Reopens the faction picker so the choice — and the commit animation
+  /// that plays on it — can be seen again.
+  ///
+  /// The picker is normally the first thing in the game and runs exactly
+  /// once per save, which makes its transition the hardest thing here to
+  /// look at twice. This is a bypass of the shop's paid faction change on
+  /// purpose: it is for watching the animation, not for playing.
+  Future<void> _openFactionTester() async {
+    final before = context.read<FactionService>().current;
+    final selected = await showDialog<FactionId>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const FactionPickerDialog(),
+    );
+    if (!mounted || selected == null) return;
+    showGameSnack(
+      context,
+      selected == before
+          ? 'Faction unchanged — ${selected.name}'
+          : 'Faction set to ${selected.name}',
+      icon: AppIcons.science_rounded,
     );
   }
 
@@ -1834,6 +1860,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             label: 'OPEN',
                             icon: AppIcons.south_rounded,
                             onTap: context.soundAction(_openDungeonDebug),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _ForgePanel(
+                      accentBar: t.teal,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('FACTION TEST', style: _label(t)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Reopen the picker and switch faction for '
+                                  'free — the only way to watch the commit '
+                                  'animation more than once per save',
+                                  style: _body(t).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _ForgeButton(
+                            label: 'PICK',
+                            icon: AppIcons.science_rounded,
+                            onTap: context.soundAction(_openFactionTester),
                           ),
                         ],
                       ),

@@ -558,7 +558,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                                 enabled:
                                     widget.highlightPartyHUD &&
                                     _chosenInstanceId == null, // 🆕
-                                label: 'Select an Alchemon to breed', // 🆕
+                                label: 'Tap an ally to fuse',
                                 child: _PartyHUD(
                                   party: widget.party,
                                   chosenInstanceId: _chosenInstanceId,

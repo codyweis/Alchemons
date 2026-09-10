@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 /// Wraps a widget with a pulsing highlight effect for tutorials
+/// The amber the rest of the game's chrome is drawn in.
+const Color _kLabelAccent = Color(0xFFE4C16A);
+
 class TutorialHighlight extends StatefulWidget {
   final Widget child;
   final bool enabled;
@@ -81,42 +84,53 @@ class _TutorialHighlightState extends State<TutorialHighlight>
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Optional label ABOVE the stack
+            // Optional label ABOVE the stack.
+            //
+            // It overflows rather than sizing the column, because the thing
+            // it points at can be pinned to the right edge of the screen —
+            // the party strip is — and a label wider than its target would
+            // otherwise push the target off screen and get clipped itself.
+            // Growing leftward from the target's right edge keeps both.
             if (widget.label != null) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade700,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+              OverflowBox(
+                alignment: Alignment.centerRight,
+                maxWidth: double.infinity,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 7,
+                  ),
+                  // The forge plate the rest of the game uses, not a
+                  // Material pill: this sits beside bracketed frames and
+                  // monospace labels and used to look borrowed.
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0C0F14).withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: _kLabelAccent.withValues(alpha: 0.75),
                     ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      AppIcons.touch_app_rounded,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      widget.label!,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        AppIcons.touch_app_rounded,
+                        color: _kLabelAccent,
+                        size: 14,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 7),
+                      Text(
+                        widget.label!.toUpperCase(),
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          color: _kLabelAccent,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
