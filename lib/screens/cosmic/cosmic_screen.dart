@@ -662,6 +662,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     final game = CosmicGame(
       world_: _world,
       onMeterChanged: _onMeterChanged,
+      onSound: _playCosmicSfx,
       onPeriodicSave: _periodicSave,
       onNearPlanet: _onNearPlanet,
       onStarDustCollected: _onStarDustCollected,
@@ -2039,11 +2040,9 @@ class _CosmicScreenState extends State<CosmicScreen>
       HapticFeedback.lightImpact();
       _playCosmicSfx(SoundCue.cosmicOrbPickup);
       final totalDust = _game?.starDusts.length ?? 50;
-      const perDustSpeedBonusPct = 2;
-      final totalSpeedBonusPct = ((_collectedDust.length / totalDust) * 100)
-          .round();
+      final speedMultiplier = StarDust.speedMultiplier(_collectedDust.length);
       final progressText =
-          '${_collectedDust.length}/$totalDust STAR DUST COLLECTED • SHIP SPEED +$perDustSpeedBonusPct% (TOTAL +$totalSpeedBonusPct%)';
+          '${_collectedDust.length}/$totalDust STAR DUST COLLECTED • SHIP SPEED ${speedMultiplier.toStringAsFixed(2)}×';
       if (scannerCompleted != null && scannerCompleted == index) {
         _showQuote('$progressText • Scanner signal cleared.');
       } else {

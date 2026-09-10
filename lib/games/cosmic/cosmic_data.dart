@@ -11643,9 +11643,10 @@ class StarDust {
     return dusts;
   }
 
-  /// Speed multiplier: 1.0 at 0 collected, 2.0 at 50 collected (linear).
+  /// All 50 pickups share a gentler range: the old 10-dust starting speed
+  /// through the old 40-dust maximum, without changing collection progress.
   static double speedMultiplier(int collectedCount) =>
-      1.0 + (collectedCount.clamp(0, 50) / 50.0);
+      1.2 + 0.6 * (collectedCount.clamp(0, 50) / 50.0);
 
   /// Serialise collected indices to a compact string.
   static String serialiseCollected(Set<int> collected) =>

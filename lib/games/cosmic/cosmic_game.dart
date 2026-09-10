@@ -5,6 +5,7 @@
 // collects particles to fill a meter, and summons creatures.
 
 import 'dart:math';
+import 'package:alchemons/audio/sound_cue.dart';
 import 'dart:ui' as ui;
 
 import 'cosmic_contests.dart';
@@ -130,6 +131,7 @@ class CosmicGame extends FlameGame with PanDetector {
   CosmicGame({
     required this.world_,
     required this.onMeterChanged,
+    this.onSound,
     this.onPeriodicSave,
     this.onNearPlanet,
     this.onStarDustCollected,
@@ -165,6 +167,7 @@ class CosmicGame extends FlameGame with PanDetector {
   final CosmicWorld world_;
   final bool startCloserToSurvivalSignal;
   final VoidCallback onMeterChanged;
+  final void Function(SoundCue cue)? onSound;
   final VoidCallback? onPeriodicSave;
   final void Function(CosmicPlanet? planet)? onNearPlanet;
   final void Function(int index)? onStarDustCollected;
@@ -2911,6 +2914,7 @@ class CosmicGame extends FlameGame with PanDetector {
         : shootInterval;
     if (shooting && !_shipDead && _shootCooldown <= 0) {
       _shootCooldown = fireRate;
+      onSound?.call(SoundCue.combatProjectile);
       projectiles.add(
         Projectile(
           position: Offset(
@@ -2931,6 +2935,7 @@ class CosmicGame extends FlameGame with PanDetector {
       if (missileAmmo > 0) {
         _missileShootCooldown = 0.85;
         missileAmmo--;
+        onSound?.call(SoundCue.combatProjectile);
         _missiles.add(
           _HomingMissile(
             position: Offset(

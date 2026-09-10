@@ -2508,6 +2508,7 @@ extension CosmicGameWorldSystems on CosmicGame {
   // ── Boss kill helper ──────────────────────────────────
 
   void _handleBossKill(CosmicBoss boss) {
+    onSound?.call(SoundCue.combatVictory);
     boss.dead = true;
     _bossesDefeated++;
     _spawnKillVfx(boss.position, elementColor(boss.element), boss.radius, true);
@@ -2623,6 +2624,9 @@ extension CosmicGameWorldSystems on CosmicGame {
   // ── VFX helpers ────────────────────────────────────────
 
   void _spawnKillVfx(Offset pos, Color color, double radius, bool isBoss) {
+    onSound?.call(
+      isBoss ? SoundCue.combatHitHeavy : SoundCue.combatEnemyDefeat,
+    );
     final rng = Random();
     final count = isBoss ? 40 : 14;
     for (var i = 0; i < count; i++) {
@@ -3302,6 +3306,7 @@ extension CosmicGameWorldSystems on CosmicGame {
   }
 
   void _spawnHitSpark(Offset pos, Color color) {
+    onSound?.call(SoundCue.combatHitLight);
     final rng = Random();
     for (var i = 0; i < 5; i++) {
       final angle = rng.nextDouble() * pi * 2;
@@ -3360,6 +3365,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     if (_shipDead || _shipInvincible > 0) return;
     if (sandboxMode) return; // Ship is invincible in sandbox
     shipHealth -= damage * (CosmicGame.shipMaxHealth / _legacyShipHp);
+    onSound?.call(SoundCue.combatPlayerHurt);
     _shipInvincible = 0.65; // brief invincibility after hit
 
     // Hit flash particles around ship
@@ -3374,6 +3380,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       }
       shipHealth = 0;
       _shipDead = true;
+      onSound?.call(SoundCue.combatDefeat);
       _respawnTimer = 2.5; // 2.5s respawn delay
       shooting = false;
       // Death explosion
