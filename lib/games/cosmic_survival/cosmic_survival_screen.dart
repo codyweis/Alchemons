@@ -53,10 +53,11 @@ import 'package:alchemons/widgets/app_icons.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _C {
-  static const bg0 = Color(0xFF080808);
-  static const bg1 = Color(0xFF111111);
-  static const bg2 = Color(0xFF171511);
-  static const bg3 = Color(0xFF201D17);
+  // Matches CosmicScreenStyles: black rather than the browns these were.
+  static const bg0 = Color(0xFF060606);
+  static const bg1 = Color(0xFF0D0D0D);
+  static const bg2 = Color(0xFF121212);
+  static const bg3 = Color(0xFF1A1A1A);
   static const bg = bg0;
   static const amber = Color(0xFFC4A35A);
   static const amberBright = Color(0xFFE4C16A);

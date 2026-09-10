@@ -694,7 +694,9 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
             opacity: widget.isNearHome ? 1.0 : 0.35,
             child: _forgeAction(
               icon: AppIcons.groups_rounded,
-              label: widget.isNearHome ? 'PARTY' : 'PARTY (AT HOME)',
+              label: widget.isNearHome
+                  ? 'PARTY'
+                  : (short ? 'PARTY' : 'PARTY (AT HOME)'),
               onTap: widget.isNearHome ? widget.onParty! : () {},
             ),
           ),
@@ -712,7 +714,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
         Expanded(
           child: _forgeAction(
             icon: AppIcons.my_location_rounded,
-            label: 'MOVE HOME (50)',
+            label: short ? 'MOVE HOME' : 'MOVE HOME (50)',
             onTap: context.soundTap(widget.onRelocateHome),
           ),
         ),
@@ -977,15 +979,30 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 16, color: iconColor),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.6,
-                color: textColor,
+            const SizedBox(width: 6),
+            // THE label has to be allowed to give.
+            //
+            // It was a bare Text in a Row, so it demanded its full intrinsic
+            // width — and at letterSpacing 1.6, "MOVE HOME (50)" is wide.
+            // The Expanded outside bounds the button, not the Row inside it,
+            // so the text simply ran out past the edge. Scaled down rather
+            // than ellipsised: these are four words the player needs to read,
+            // and "MOVE HOM…" is worse than slightly smaller type.
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.6,
+                    color: textColor,
+                  ),
+                ),
               ),
             ),
           ],
