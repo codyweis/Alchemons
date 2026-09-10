@@ -63,6 +63,17 @@ class SurvivalPartySlot extends StatelessWidget {
   final VoidCallback onTap;
   final int? feedCount;
 
+  /// The card's chrome at three quarters, and the art a tenth larger inside
+  /// it — so the slot takes less of the screen while the thing you actually
+  /// read at a glance, the creature, gets bigger rather than shrinking with
+  /// it. Kept as named constants because the two scales pull opposite ways
+  /// and the numbers have to stay reconcilable: art plus padding must still
+  /// fit the card.
+  static const _cardWidth = 54.0; // was 72
+  static const _artSize = 42.0; // was 38
+  static const _labelSize = 7.0; // was 9
+  static const _statusIconSize = 8.0; // was 10
+
   static const activeColor = Color(0xFFFFC66D);
   static const followColor = Color(0xFF70E7D0);
   static const mutedColor = Color(0xFF9AA6B3);
@@ -87,8 +98,8 @@ class SurvivalPartySlot extends StatelessWidget {
         ? _fallback(name, color)
         : Image.asset(
             member.imagePath!,
-            width: 38,
-            height: 38,
+            width: _artSize,
+            height: _artSize,
             fit: BoxFit.contain,
             errorBuilder: (_, __, ___) => _fallback(name, color),
           );
@@ -104,8 +115,8 @@ class SurvivalPartySlot extends StatelessWidget {
           onTap: context.soundAction(state.dead ? null : onTap),
           borderRadius: BorderRadius.circular(5),
           child: Container(
-            width: 72,
-            padding: const EdgeInsets.fromLTRB(4, 4, 4, 3),
+            width: _cardWidth,
+            padding: const EdgeInsets.fromLTRB(3, 3, 3, 2),
             decoration: BoxDecoration(
               color: state.active
                   ? color.withValues(alpha: 0.16)
@@ -131,7 +142,7 @@ class SurvivalPartySlot extends StatelessWidget {
                           : state.active
                           ? Icons.check_circle
                           : Icons.circle_outlined,
-                      size: 10,
+                      size: _statusIconSize,
                       color: color,
                     ),
                     const SizedBox(width: 2),
@@ -142,7 +153,7 @@ class SurvivalPartySlot extends StatelessWidget {
                           state.label,
                           style: TextStyle(
                             color: color,
-                            fontSize: 9,
+                            fontSize: _labelSize,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 0.3,
                           ),
@@ -151,9 +162,9 @@ class SurvivalPartySlot extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 SizedBox(
-                  height: 38,
+                  height: _artSize,
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
@@ -194,7 +205,8 @@ class SurvivalPartySlot extends StatelessWidget {
                         const Icon(
                           Icons.close_rounded,
                           color: downColor,
-                          size: 28,
+                          // Rides the art, so it grows with it.
+                          size: 31,
                         ),
                     ],
                   ),
@@ -204,7 +216,7 @@ class SurvivalPartySlot extends StatelessWidget {
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(
                     value: state.hp,
-                    minHeight: 4,
+                    minHeight: 3,
                     backgroundColor: const Color(0xFF070B10),
                     color: state.hp > 0.5
                         ? followColor
@@ -213,7 +225,7 @@ class SurvivalPartySlot extends StatelessWidget {
                         : downColor,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
@@ -224,7 +236,7 @@ class SurvivalPartySlot extends StatelessWidget {
                         : 'SP READY',
                     style: TextStyle(
                       color: state.dead ? downColor : Colors.white70,
-                      fontSize: 9,
+                      fontSize: _labelSize,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -232,7 +244,7 @@ class SurvivalPartySlot extends StatelessWidget {
                 if (feedCount != null && state.active)
                   Text(
                     '$feedCount · ${(1 + (feedCount! ~/ 10)).clamp(1, 10)} vines',
-                    style: const TextStyle(color: followColor, fontSize: 8),
+                    style: const TextStyle(color: followColor, fontSize: 6),
                   ),
               ],
             ),
@@ -242,8 +254,10 @@ class SurvivalPartySlot extends StatelessWidget {
     );
   }
 
+  /// Stands in for missing art, so it grows with the art rather than the
+  /// chrome — a slot with no image should still read as the same size slot.
   Widget _fallback(String name, Color color) => Text(
     name.characters.first,
-    style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.bold),
+    style: TextStyle(color: color, fontSize: 26, fontWeight: FontWeight.bold),
   );
 }

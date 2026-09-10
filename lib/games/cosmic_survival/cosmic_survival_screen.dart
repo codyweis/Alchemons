@@ -3433,9 +3433,19 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       120.0,
       screenHeight - MediaQuery.paddingOf(context).vertical - 120.0,
     );
+    // Give the party the height it actually needs, not half the screen.
+    //
+    // A full party of five wants about 410 here, and the old cap was the
+    // lesser of half the screen and 430 — so five slots scrolled even when
+    // there was room below them for all of it. Scrolling a five-item HUD to
+    // find a companion mid-fight is the worst moment to be scrolling.
+    // Bounded by what is genuinely free rather than by a flat fraction, so a
+    // short landscape phone still gives way rather than covering the field.
+    const slotStride = 84.0;
+    final wanted = party.length * slotStride;
     final slotsMaxHeight = min(
-      min(screenHeight * 0.5, 430.0),
-      max(48.0, availableHeight - 100),
+      min(wanted, screenHeight * 0.72),
+      max(48.0, availableHeight - 90),
     );
     return Positioned(
       right: 12,
