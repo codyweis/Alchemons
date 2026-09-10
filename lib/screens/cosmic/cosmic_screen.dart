@@ -186,12 +186,17 @@ class _CosmicScreenState extends State<CosmicScreen>
   HomePlanet? _homePlanet;
   static const _homePlanetPrefsKey = 'cosmic_home_planet_v1';
 
-  /// Which weapons are armed. Armed is not firing: a weapon engages only when
-  /// something comes into range, and holds fire otherwise.
+  /// Whether each weapon aims itself, which is what its HUD button does.
   ///
-  /// Both start on. Steering and shooting were competing for the same thumb —
-  /// you either flew or you fired — so the guns are the ship's business now,
-  /// and the HUD buttons say which ones are minding themselves.
+  /// On, the button is a toggle and the weapon engages whatever comes into
+  /// range — steering and shooting were competing for the same thumb, so this
+  /// is the default. Off, the button is a trigger you hold, firing along the
+  /// hull the way it always did.
+  bool _autoFireGun = true;
+  bool _autoFireMissiles = true;
+
+  /// Whether each weapon is currently firing — armed, on auto; held, on
+  /// manual.
   bool _isShooting = true;
   bool _isShootingMissiles = true;
   bool _isBoosting = false;
@@ -565,8 +570,13 @@ class _CosmicScreenState extends State<CosmicScreen>
     _showJoystick = prefs.getBool('cosmic_joystick_enabled') ?? true;
     _largeJoystick = prefs.getBool('cosmic_large_joystick') ?? true;
 
-    _isShooting = prefs.getBool(_gunArmedPrefsKey) ?? true;
-    _isShootingMissiles = prefs.getBool(_missilesArmedPrefsKey) ?? true;
+    _autoFireGun = prefs.getBool(_autoFireGunPrefsKey) ?? true;
+    _autoFireMissiles = prefs.getBool(_autoFireMissilesPrefsKey) ?? true;
+    // Only an auto weapon can start a flight already firing; a manual one
+    // waits for the thumb.
+    _isShooting = _autoFireGun && (prefs.getBool(_gunArmedPrefsKey) ?? true);
+    _isShootingMissiles =
+        _autoFireMissiles && (prefs.getBool(_missilesArmedPrefsKey) ?? true);
 
     // Load boost toggle mode preference
     _boostToggleMode = prefs.getBool('cosmic_boost_toggle') ?? false;
@@ -683,6 +693,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       initialAmmoId: _customizationState.activeAmmo?.id,
       startCloserToSurvivalSignal: shouldNudgeInitialSpawnTowardSignal,
     );
+    game.autoAimGun = _autoFireGun;
+    game.autoAimMissiles = _autoFireMissiles;
     game.shooting = _isShooting;
     game.shootingMissiles = _isShootingMissiles;
     game.activeWeaponId = widget.memoryTutorial
@@ -4883,6 +4895,31 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
+  /// Wraps a weapon button in whichever gesture its mode calls for.
+  ///
+  /// On auto it is a toggle, so a tap arms or stands the weapon down. On
+  /// manual it is a trigger held with a raw Listener — a tap recogniser
+  /// gives up the moment the thumb drifts, and a firing thumb drifts.
+  Widget _weaponTrigger({
+    required bool auto,
+    required bool firing,
+    required void Function(bool firing) setFiring,
+    required Widget child,
+  }) {
+    if (auto) {
+      return GestureDetector(
+        onTap: context.soundAction(() => setFiring(!firing)),
+        child: child,
+      );
+    }
+    return Listener(
+      onPointerDown: (_) => setFiring(true),
+      onPointerUp: (_) => setFiring(false),
+      onPointerCancel: (_) => setFiring(false),
+      child: child,
+    );
+  }
+
   Widget _buildWeaponHudButton({
     required Color accent,
     required bool active,
@@ -5116,39 +5153,69 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
+  static const _autoFireGunPrefsKey = 'cosmic_auto_fire_gun_v1';
+  static const _autoFireMissilesPrefsKey = 'cosmic_auto_fire_missiles_v1';
   static const _gunArmedPrefsKey = 'cosmic_gun_armed_v1';
   static const _missilesArmedPrefsKey = 'cosmic_missiles_armed_v1';
 
-  /// Arm or stand down the turret. Survives the session, because which guns
-  /// you want minding themselves is a preference, not a per-flight decision.
+  /// Start or stop the turret firing. On auto this is the armed state, which
+  /// is remembered between flights; on manual it is the trigger, which is
+  /// not.
+  void _setGunFiring(bool firing) {
+    if (widget.memoryTutorial) return;
+    if (_isShooting == firing) return;
+    setState(() {
+      _isShooting = firing;
+      _game?.shooting = firing;
+    });
+    HapticFeedback.selectionClick();
+    if (_autoFireGun) _rememberArmed(_gunArmedPrefsKey, firing);
+  }
+
+  void _setMissilesFiring(bool firing) {
+    if (widget.memoryTutorial) return;
+    if (_isShootingMissiles == firing) return;
+    setState(() {
+      _isShootingMissiles = firing;
+      _game?.shootingMissiles = firing;
+    });
+    HapticFeedback.selectionClick();
+    if (_autoFireMissiles) _rememberArmed(_missilesArmedPrefsKey, firing);
+  }
+
+  Future<void> _rememberArmed(String key, bool armed) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, armed);
+  }
+
+  /// Switch a weapon between minding itself and being held.
   ///
-  /// The HUD button and the settings switch both come through here, so the
-  /// two never disagree about what is armed.
-  Future<void> _setGunArmed(bool armed) async {
-    if (widget.memoryTutorial) return;
+  /// Coming off auto drops the trigger, so a weapon that was armed does not
+  /// carry on firing with nobody holding it. Going onto auto arms it, because
+  /// that is what the player just asked for.
+  Future<void> _setAutoFireGun(bool auto) async {
     setState(() {
-      _isShooting = armed;
-      _game?.shooting = armed;
+      _autoFireGun = auto;
+      _game?.autoAimGun = auto;
+      _isShooting = auto && !widget.memoryTutorial;
+      _game?.shooting = _isShooting;
     });
-    HapticFeedback.selectionClick();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_gunArmedPrefsKey, armed);
+    await prefs.setBool(_autoFireGunPrefsKey, auto);
+    if (auto) await prefs.setBool(_gunArmedPrefsKey, true);
   }
 
-  Future<void> _setMissilesArmed(bool armed) async {
-    if (widget.memoryTutorial) return;
+  Future<void> _setAutoFireMissiles(bool auto) async {
     setState(() {
-      _isShootingMissiles = armed;
-      _game?.shootingMissiles = armed;
+      _autoFireMissiles = auto;
+      _game?.autoAimMissiles = auto;
+      _isShootingMissiles = auto && !widget.memoryTutorial;
+      _game?.shootingMissiles = _isShootingMissiles;
     });
-    HapticFeedback.selectionClick();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_missilesArmedPrefsKey, armed);
+    await prefs.setBool(_autoFireMissilesPrefsKey, auto);
+    if (auto) await prefs.setBool(_missilesArmedPrefsKey, true);
   }
-
-  void _toggleGun() => _setGunArmed(!_isShooting);
-
-  void _toggleMissiles() => _setMissilesArmed(!_isShootingMissiles);
 
   void _startBoosting() {
     if (widget.memoryTutorial) return;
@@ -5177,8 +5244,11 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   /// Let go of the stick — after a teleport the ship should not still be
-  /// flying the heading you were holding. Armed weapons stay armed.
+  /// flying the heading you were holding. A held trigger is dropped for the
+  /// same reason; an armed weapon stays armed, because nothing is holding it.
   void _resetCosmicTouchState() {
+    if (!_autoFireGun) _setGunFiring(false);
+    if (!_autoFireMissiles) _setMissilesFiring(false);
     _game?.clearSteeringInput();
   }
 
@@ -8583,8 +8653,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                             children: [
                               if (showCosmicHud &&
                                   _customizationState.hasMissiles)
-                                GestureDetector(
-                                  onTap: context.soundAction(_toggleMissiles),
+                                _weaponTrigger(
+                                  auto: _autoFireMissiles,
+                                  firing: _isShootingMissiles,
+                                  setFiring: _setMissilesFiring,
                                   child: _buildWeaponHudButton(
                                     accent: const Color(0xFFE53935),
                                     active: _isShootingMissiles,
@@ -8617,8 +8689,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                               if (showCosmicHud &&
                                   _customizationState.hasMissiles)
                                 const SizedBox(height: 10),
-                              GestureDetector(
-                                onTap: context.soundAction(_toggleGun),
+                              _weaponTrigger(
+                                auto: _autoFireGun,
+                                firing: _isShooting,
+                                setFiring: _setGunFiring,
                                 child: _buildWeaponHudButton(
                                   accent: const Color(0xFF00E5FF),
                                   active: _isShooting,
@@ -8914,8 +8988,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                 _CosmicSettingsOverlay(
                   joystickEnabled: _showJoystick,
                   largeJoystickEnabled: _largeJoystick,
-                  autoFireGunEnabled: _isShooting,
-                  autoFireMissilesEnabled: _isShootingMissiles,
+                  autoFireGunEnabled: _autoFireGun,
+                  autoFireMissilesEnabled: _autoFireMissiles,
                   boostToggleEnabled: _boostToggleMode,
                   onClose: () => setState(() => _showSettingsMenu = false),
                   onLeaveSpace: () async {
@@ -8932,8 +9006,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.setBool('cosmic_large_joystick', v);
                   },
-                  onToggleAutoFireGun: _setGunArmed,
-                  onToggleAutoFireMissiles: _setMissilesArmed,
+                  onToggleAutoFireGun: _setAutoFireGun,
+                  onToggleAutoFireMissiles: _setAutoFireMissiles,
                   onToggleBoostToggle: (v) async {
                     setState(() {
                       _boostToggleMode = v;
@@ -10313,7 +10387,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                   _SettingsToggleRow(
                     icon: AppIcons.flash_on_rounded,
                     label: 'Auto Fire — Turret',
-                    subtitle: 'The gun engages what comes into range',
+                    subtitle: 'Off, hold the gun button to fire by hand',
                     value: autoFireGunEnabled,
                     onChanged: onToggleAutoFireGun,
                   ),
@@ -10321,7 +10395,7 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                   _SettingsToggleRow(
                     icon: AppIcons.gps_fixed_rounded,
                     label: 'Auto Fire — Missiles',
-                    subtitle: 'The launcher engages what comes into range',
+                    subtitle: 'Off, hold the missile button to fire by hand',
                     value: autoFireMissilesEnabled,
                     onChanged: onToggleAutoFireMissiles,
                   ),

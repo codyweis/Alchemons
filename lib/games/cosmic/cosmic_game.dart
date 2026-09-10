@@ -383,6 +383,15 @@ class CosmicGame extends FlameGame with PanDetector {
   static const double shootInterval = 0.25; // seconds between shots
   bool shooting = false; // controlled by UI
   bool shootingMissiles = false; // secondary missile fire (controlled by UI)
+
+  /// Whether each weapon aims itself.
+  ///
+  /// On, the trigger is an armed state: the weapon picks a target inside
+  /// [autoFireRange] and holds fire when there is nothing there. Off, it is a
+  /// held trigger firing along the hull, and where the ship points is where
+  /// the shot goes.
+  bool autoAimGun = true;
+  bool autoAimMissiles = true;
   double _missileShootCooldown = 0;
   bool _wasNearHome = false; // for change detection
 
@@ -2928,20 +2937,21 @@ class CosmicGame extends FlameGame with PanDetector {
     final fireRate = activeWeaponId == 'equip_machinegun'
         ? 0.12
         : shootInterval;
-    // `shooting` and `shootingMissiles` are armed states now rather than a
-    // held trigger: the player toggles a weapon on and it engages whatever
-    // comes into range, aimed at the target instead of along the hull. With
-    // nothing in range it holds fire, so an armed ship is not spraying at
-    // empty space.
-    final autoTarget = (shooting || shootingMissiles) && !_shipDead
+    // An auto weapon needs something to shoot at; a manual one fires wherever
+    // the nose is pointing, so it is only looked up when a weapon wants it.
+    final wantsTarget =
+        (shooting && autoAimGun) || (shootingMissiles && autoAimMissiles);
+    final autoTarget = wantsTarget && !_shipDead
         ? _nearestEnemyWithin(ship.pos, autoFireRange)
         : null;
-    if (shooting && autoTarget != null && !_shipDead && _shootCooldown <= 0) {
+    // On auto the trigger is an armed state, so holding fire over empty space
+    // is the point of it. On manual the trigger is a trigger.
+    final gunFiring = shooting && (!autoAimGun || autoTarget != null);
+    if (gunFiring && !_shipDead && _shootCooldown <= 0) {
       _shootCooldown = fireRate;
-      final angle = atan2(
-        autoTarget.dy - ship.pos.dy,
-        autoTarget.dx - ship.pos.dx,
-      );
+      final angle = autoAimGun && autoTarget != null
+          ? atan2(autoTarget.dy - ship.pos.dy, autoTarget.dx - ship.pos.dx)
+          : ship.angle;
       onSound?.call(SoundCue.combatProjectile);
       projectiles.add(
         Projectile(
@@ -2956,9 +2966,11 @@ class CosmicGame extends FlameGame with PanDetector {
 
     // ── missile launcher (secondary weapon, fires independently) ──
     if (_missileShootCooldown > 0) _missileShootCooldown -= dt;
-    // Missiles home, so they only need something to be out there.
-    if (shootingMissiles &&
-        autoTarget != null &&
+    // Missiles home, so a manual launch still finds its own way; auto only
+    // spends one when there is something in range worth spending it on.
+    final missilesFiring =
+        shootingMissiles && (!autoAimMissiles || autoTarget != null);
+    if (missilesFiring &&
         hasMissiles &&
         !_shipDead &&
         _missileShootCooldown <= 0) {
