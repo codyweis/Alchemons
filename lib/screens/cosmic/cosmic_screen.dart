@@ -197,8 +197,13 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   /// Whether each weapon is currently firing — armed, on auto; held, on
   /// manual.
-  bool _isShooting = true;
-  bool _isShootingMissiles = true;
+  /// Always false at the start of a flight, and deliberately not
+  /// remembered. Arriving in cosmic space already shooting is startling and
+  /// spends ammo before the player has decided anything; arming is one tap
+  /// and it should be theirs to make. The auto-aim SETTING persists — that
+  /// is a preference — but the trigger does not.
+  bool _isShooting = false;
+  bool _isShootingMissiles = false;
   bool _isBoosting = false;
 
   // Slow-mode toggle
@@ -574,9 +579,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _autoFireMissiles = prefs.getBool(_autoFireMissilesPrefsKey) ?? true;
     // Only an auto weapon can start a flight already firing; a manual one
     // waits for the thumb.
-    _isShooting = _autoFireGun && (prefs.getBool(_gunArmedPrefsKey) ?? true);
-    _isShootingMissiles =
-        _autoFireMissiles && (prefs.getBool(_missilesArmedPrefsKey) ?? true);
+    // Nothing to load: every flight starts with the guns cold.
 
     // Load boost toggle mode preference
     _boostToggleMode = prefs.getBool('cosmic_boost_toggle') ?? false;
@@ -5187,12 +5190,10 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   static const _autoFireGunPrefsKey = 'cosmic_auto_fire_gun_v1';
   static const _autoFireMissilesPrefsKey = 'cosmic_auto_fire_missiles_v1';
-  static const _gunArmedPrefsKey = 'cosmic_gun_armed_v1';
-  static const _missilesArmedPrefsKey = 'cosmic_missiles_armed_v1';
 
-  /// Start or stop the turret firing. On auto this is the armed state, which
-  /// is remembered between flights; on manual it is the trigger, which is
-  /// not.
+  /// Start or stop the turret firing. On auto this is the armed state; on
+  /// manual it is the trigger. Neither survives the flight — see
+  /// [_isShooting].
   void _setGunFiring(bool firing) {
     if (_isShooting == firing) return;
     setState(() {
@@ -5200,7 +5201,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       _game?.shooting = firing;
     });
     HapticFeedback.selectionClick();
-    if (_autoFireGun) _rememberArmed(_gunArmedPrefsKey, firing);
   }
 
   void _setMissilesFiring(bool firing) {
@@ -5210,12 +5210,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       _game?.shootingMissiles = firing;
     });
     HapticFeedback.selectionClick();
-    if (_autoFireMissiles) _rememberArmed(_missilesArmedPrefsKey, firing);
-  }
-
-  Future<void> _rememberArmed(String key, bool armed) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(key, armed);
   }
 
   /// Switch a weapon between minding itself and being held.
@@ -5227,24 +5221,22 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {
       _autoFireGun = auto;
       _game?.autoAimGun = auto;
-      _isShooting = auto;
-      _game?.shooting = _isShooting;
+      _isShooting = false;
+      _game?.shooting = false;
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_autoFireGunPrefsKey, auto);
-    if (auto) await prefs.setBool(_gunArmedPrefsKey, true);
   }
 
   Future<void> _setAutoFireMissiles(bool auto) async {
     setState(() {
       _autoFireMissiles = auto;
       _game?.autoAimMissiles = auto;
-      _isShootingMissiles = auto;
-      _game?.shootingMissiles = _isShootingMissiles;
+      _isShootingMissiles = false;
+      _game?.shootingMissiles = false;
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_autoFireMissilesPrefsKey, auto);
-    if (auto) await prefs.setBool(_missilesArmedPrefsKey, true);
   }
 
   void _startBoosting() {
