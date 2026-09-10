@@ -1,3 +1,4 @@
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'dart:async' show unawaited;
@@ -753,6 +754,7 @@ class _AlchemicalPowerupFeedingScreenState
                             instance,
                             AlchemicalPowerupType.speed,
                           ),
+                          showPotential: _canReadPotential,
                           potential: _displayPotentialValue(
                             instance,
                             AlchemicalPowerupType.speed,
@@ -770,6 +772,7 @@ class _AlchemicalPowerupFeedingScreenState
                             instance,
                             AlchemicalPowerupType.intelligence,
                           ),
+                          showPotential: _canReadPotential,
                           potential: _displayPotentialValue(
                             instance,
                             AlchemicalPowerupType.intelligence,
@@ -791,6 +794,7 @@ class _AlchemicalPowerupFeedingScreenState
                             instance,
                             AlchemicalPowerupType.strength,
                           ),
+                          showPotential: _canReadPotential,
                           potential: _displayPotentialValue(
                             instance,
                             AlchemicalPowerupType.strength,
@@ -808,6 +812,7 @@ class _AlchemicalPowerupFeedingScreenState
                             instance,
                             AlchemicalPowerupType.beauty,
                           ),
+                          showPotential: _canReadPotential,
                           potential: _displayPotentialValue(
                             instance,
                             AlchemicalPowerupType.beauty,
@@ -1275,7 +1280,12 @@ class _AlchemicalPowerupFeedingScreenState
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
-                maxed ? 'MAX' : 'P$potential',
+                // Same instrument gate as the plates above: without the
+                // analyzer the soul tray showed the exact figure the rest of
+                // the game hides.
+                maxed
+                    ? 'MAX'
+                    : (_canReadPotential ? 'P$potential' : 'SOUL'),
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: maxed ? t.amberBright : t.textMuted,
@@ -1320,7 +1330,11 @@ class _AlchemicalPowerupFeedingScreenState
       message = 'Armed — drag the soul onto your Alchemon.';
       color = accent;
     } else {
-      message = 'P$potential → higher for ${_formatSilver(cost)} Silver.';
+      // The cost is the player's business either way; the current figure is
+      // only theirs once they hold the analyzer.
+      message = _canReadPotential
+          ? 'P$potential → higher for ${_formatSilver(cost)} Silver.'
+          : 'Raise it for ${_formatSilver(cost)} Silver.';
     }
 
     return Row(
@@ -1770,6 +1784,15 @@ class _AlchemicalPowerupFeedingScreenState
       AlchemicalPowerupType.beauty => instance.statBeauty,
     };
   }
+
+  /// Whether the player can read Potential at all.
+  ///
+  /// It is a constellation unlock, and every other surface already respects
+  /// it — the quick dialog and the instance grid both pass null without it.
+  /// Enhance was the one screen printing the exact figure to someone who has
+  /// not earned the instrument that reads it.
+  bool get _canReadPotential =>
+      context.read<ConstellationEffectsService>().hasPotentialAnalyzer();
 
   double _displayPotentialValue(
     CreatureInstance instance,
@@ -2362,6 +2385,7 @@ class _StatPlate extends StatelessWidget {
   final String label;
   final double value;
   final double potential;
+  final bool showPotential;
   final int enhancementRank;
   final Color color;
   final FactionTheme theme;
@@ -2370,6 +2394,7 @@ class _StatPlate extends StatelessWidget {
     required this.label,
     required this.value,
     required this.potential,
+    required this.showPotential,
     required this.enhancementRank,
     required this.color,
     required this.theme,
@@ -2412,11 +2437,12 @@ class _StatPlate extends StatelessWidget {
               // A maxed Potential is terminal — no Soul can ever raise it
               // again — so it earns a different treatment from one with
               // headroom left.
-              _PotentialPill(
-                value: potentialRating,
-                maxed: potentialMaxed,
-                theme: theme,
-              ),
+              if (showPotential)
+                _PotentialPill(
+                  value: potentialRating,
+                  maxed: potentialMaxed,
+                  theme: theme,
+                ),
             ],
           ),
           const SizedBox(height: 1),

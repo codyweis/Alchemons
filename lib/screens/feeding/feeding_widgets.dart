@@ -664,6 +664,9 @@ class CurrentStatsDisplay extends StatelessWidget {
   final int? preFeedXp;
   final Widget? constellationTrailing;
 
+  /// Passed down to the stat rows; see [UnifiedStatRow.showPotential].
+  final bool showPotential;
+
   const CurrentStatsDisplay({
     super.key,
     required this.theme,
@@ -674,6 +677,7 @@ class CurrentStatsDisplay extends StatelessWidget {
     this.preFeedLevel,
     this.preFeedXp,
     this.constellationTrailing,
+    required this.showPotential,
   });
 
   @override
@@ -793,6 +797,7 @@ class CurrentStatsDisplay extends StatelessWidget {
                                 label: 'SPD',
                                 current: instance.statSpeed,
                                 potential: instance.statSpeedPotential,
+                                showPotential: showPotential,
                                 gain: gains['speed'] ?? 0,
                                 hasPreview: hasPreview,
                                 theme: theme,
@@ -802,6 +807,7 @@ class CurrentStatsDisplay extends StatelessWidget {
                                 label: 'INT',
                                 current: instance.statIntelligence,
                                 potential: instance.statIntelligencePotential,
+                                showPotential: showPotential,
                                 gain: gains['intelligence'] ?? 0,
                                 hasPreview: hasPreview,
                                 theme: theme,
@@ -811,6 +817,7 @@ class CurrentStatsDisplay extends StatelessWidget {
                                 label: 'STR',
                                 current: instance.statStrength,
                                 potential: instance.statStrengthPotential,
+                                showPotential: showPotential,
                                 gain: gains['strength'] ?? 0,
                                 hasPreview: hasPreview,
                                 theme: theme,
@@ -820,6 +827,7 @@ class CurrentStatsDisplay extends StatelessWidget {
                                 label: 'BEA',
                                 current: instance.statBeauty,
                                 potential: instance.statBeautyPotential,
+                                showPotential: showPotential,
                                 gain: gains['beauty'] ?? 0,
                                 hasPreview: hasPreview,
                                 theme: theme,
@@ -857,6 +865,11 @@ class UnifiedStatRow extends StatelessWidget {
   final String label;
   final double current;
   final double potential;
+
+  /// The Potential Analyzer is a constellation unlock, and the figure stays
+  /// hidden until the player holds it — the same rule the instance grid and
+  /// the quick dialog already follow.
+  final bool showPotential;
   final double gain;
   final bool hasPreview;
   final FactionTheme theme;
@@ -867,6 +880,7 @@ class UnifiedStatRow extends StatelessWidget {
     required this.label,
     required this.current,
     required this.potential,
+    required this.showPotential,
     required this.gain,
     required this.hasPreview,
     required this.theme,
@@ -889,7 +903,7 @@ class UnifiedStatRow extends StatelessWidget {
       label:
           '$label, Power $currentRating'
           '${showGain ? ', after training $projectedRating' : ''}'
-          ', Potential $potentialRating out of 100',
+          '${showPotential ? ', Potential $potentialRating out of 100' : ''}',
       excludeSemantics: true,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 2),
@@ -944,7 +958,7 @@ class UnifiedStatRow extends StatelessWidget {
                 border: Border(left: BorderSide(color: t.borderDim)),
               ),
               child: Text(
-                '$potentialRating',
+                showPotential ? '$potentialRating' : '—',
                 textAlign: TextAlign.right,
                 style: TextStyle(
                   color: t.textSecondary,
@@ -1026,6 +1040,7 @@ class FeedTargetPanel extends StatelessWidget {
               theme: theme,
               instance: targetInstance!,
               creature: targetCreature!,
+              showPotential: constellationEffects.hasPotentialAnalyzer(),
               preview: preview,
               isAnimating: shouldAnimate,
               preFeedLevel: preFeedLevel,
