@@ -1,3 +1,5 @@
+import 'package:alchemons/services/onboarding_tasks.dart';
+import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/mystic_altar/mystic_altar_screen.dart
 //
@@ -139,6 +141,12 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
   @override
   void initState() {
     super.initState();
+    // Arriving is the whole task — see OnboardingTaskService.
+    unawaited(
+      OnboardingTaskService(
+        context.read<AlchemonsDatabase>(),
+      ).markVisited('rite'),
+    );
     _bgCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 18),

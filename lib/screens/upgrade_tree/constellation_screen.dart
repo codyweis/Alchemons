@@ -1,3 +1,5 @@
+import 'package:alchemons/services/onboarding_tasks.dart';
+import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/constellation_screen.dart
 import 'package:alchemons/games/constellations/constellation_game.dart';
@@ -71,6 +73,12 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
   @override
   void initState() {
     super.initState();
+    // Arriving is the whole task — see OnboardingTaskService.
+    unawaited(
+      OnboardingTaskService(
+        context.read<AlchemonsDatabase>(),
+      ).markVisited('constellation'),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _primeConstellationTutorialFlow();
     });

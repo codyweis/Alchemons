@@ -1,3 +1,4 @@
+import 'package:alchemons/services/onboarding_tasks.dart';
 import 'dart:async';
 
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -74,6 +75,12 @@ class _FeedingScreenState extends State<FeedingScreen>
   @override
   void initState() {
     super.initState();
+    // Arriving is the whole task — see OnboardingTaskService.
+    unawaited(
+      OnboardingTaskService(
+        context.read<AlchemonsDatabase>(),
+      ).markVisited('enhance'),
+    );
     _speciesScrollCtrl = ScrollController();
 
     unawaited(_refreshInfusionDiscovered());

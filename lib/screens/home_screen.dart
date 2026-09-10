@@ -1,3 +1,4 @@
+import 'package:alchemons/utils/section_router.dart';
 import 'package:alchemons/widgets/half_cultivation_chip.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/audio/audio.dart';
@@ -102,6 +103,10 @@ class _MainShellState extends State<MainShell> {
       if (!mounted) return;
       _goToSection(section, withHaptic: false);
     };
+    SectionRouter.instance.onSwitchSection = (section) {
+      if (!mounted) return;
+      _goToSection(section, withHaptic: false);
+    };
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _warmNavigationScreens();
     });
@@ -143,6 +148,9 @@ class _MainShellState extends State<MainShell> {
     if (NewDiscoveryReveal.instance.onSwitchSection != null) {
       NewDiscoveryReveal.instance.onSwitchSection = null;
     }
+    // A singleton holding a closure over a dead State is how the account
+    // reset used to leave a grey screen behind.
+    SectionRouter.instance.onSwitchSection = null;
     super.dispose();
   }
 

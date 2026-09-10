@@ -1,3 +1,5 @@
+import 'package:alchemons/services/onboarding_tasks.dart';
+import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/profile_screen.dart
 //
@@ -220,6 +222,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    // Arriving is the whole task — see OnboardingTaskService.
+    unawaited(
+      OnboardingTaskService(
+        context.read<AlchemonsDatabase>(),
+      ).markVisited('profile'),
+    );
     _cosmicHintsController = PageController();
     _load = _fetch();
     _loadNotificationPrefs();

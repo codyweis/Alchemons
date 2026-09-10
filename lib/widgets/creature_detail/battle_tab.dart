@@ -1,3 +1,5 @@
+import 'package:alchemons/services/onboarding_tasks.dart';
+import 'dart:async';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/creature.dart';
@@ -26,6 +28,18 @@ class ImprovedBattleScrollArea extends StatefulWidget {
 }
 
 class _ImprovedBattleScrollAreaState extends State<ImprovedBattleScrollArea> {
+  @override
+  void initState() {
+    super.initState();
+    // The task is reading a battle profile, not reaching the roster — so it
+    // is marked here, on the tab itself.
+    unawaited(
+      OnboardingTaskService(
+        context.read<AlchemonsDatabase>(),
+      ).markVisited('battle_tab'),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final family = widget.creature.mutationFamily ?? 'Unknown';

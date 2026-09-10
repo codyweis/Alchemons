@@ -1,3 +1,4 @@
+import 'package:alchemons/widgets/onboarding_tasks_section.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -538,6 +539,9 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                           snapshot: s,
                           isCurrent: s.currentMission?.id == a.id,
                         ),
+                      // Under the story, because the story is what you are
+                      // doing and these are the rooms you have not opened.
+                      const OnboardingTasksSection(),
                     ],
             ),
           ),

@@ -7,6 +7,7 @@
 // All logic, routing, purchase flows, and service calls unchanged.
 //
 
+import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/models/faction.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -103,6 +104,12 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   @override
   void initState() {
     super.initState();
+    // Arriving is the whole task — see OnboardingTaskService.
+    unawaited(
+      OnboardingTaskService(
+        context.read<AlchemonsDatabase>(),
+      ).markVisited('shop'),
+    );
     _slot2Cost = UnlockCosts.bubbleSlot(2);
     _slot3Cost = UnlockCosts.bubbleSlot(3);
 

@@ -1,3 +1,4 @@
+import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/audio/scene_ambience.dart';
 import 'dart:async';
@@ -169,6 +170,12 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
   @override
   void initState() {
     super.initState();
+    // Arriving is the whole task — see OnboardingTaskService.
+    unawaited(
+      OnboardingTaskService(
+        context.read<AlchemonsDatabase>(),
+      ).markVisited('harvest'),
+    );
     _svc = widget.service ?? context.read<HarvestService>();
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTutorial());
   }

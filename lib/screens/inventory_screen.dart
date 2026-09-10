@@ -1,3 +1,5 @@
+import 'package:alchemons/services/onboarding_tasks.dart';
+import 'dart:async';
 import 'package:alchemons/widgets/inventory_item_artwork.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
 import 'package:alchemons/services/inventory_service.dart';
@@ -134,6 +136,12 @@ class _InventoryScreenState extends State<InventoryScreen>
   @override
   void initState() {
     super.initState();
+    // Arriving is the whole task — see OnboardingTaskService.
+    unawaited(
+      OnboardingTaskService(
+        context.read<AlchemonsDatabase>(),
+      ).markVisited('inventory'),
+    );
     _tabController = TabController(length: _tabCount, vsync: this);
   }
 
