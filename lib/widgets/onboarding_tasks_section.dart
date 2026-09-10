@@ -10,6 +10,7 @@ import 'package:alchemons/screens/upgrade_tree/constellation_screen.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/section_router.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -27,7 +28,8 @@ class OnboardingTasksSection extends StatefulWidget {
 }
 
 class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
-  List<OnboardingTask>? _outstanding;
+  List<(OnboardingTask, TaskState)>? _outstanding;
+  bool _claiming = false;
 
   @override
   void initState() {
@@ -39,6 +41,40 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
     final db = context.read<AlchemonsDatabase>();
     final left = await OnboardingTaskService(db).outstanding();
     if (mounted) setState(() => _outstanding = left);
+  }
+
+  Future<void> _collect(OnboardingTask task) async {
+    if (_claiming) return;
+    setState(() => _claiming = true);
+    final db = context.read<AlchemonsDatabase>();
+    final paid = await OnboardingTaskService(db).claim(task.id);
+    if (!mounted) return;
+    setState(() => _claiming = false);
+    if (paid) {
+      showGameSnack(
+        context,
+        '+$kTaskSilverReward silver',
+        icon: AppIcons.check_circle_rounded,
+      );
+    }
+    await _refresh();
+  }
+
+  Future<void> _collectAll() async {
+    if (_claiming) return;
+    setState(() => _claiming = true);
+    final db = context.read<AlchemonsDatabase>();
+    final paid = await OnboardingTaskService(db).claimAll();
+    if (!mounted) return;
+    setState(() => _claiming = false);
+    if (paid > 0) {
+      showGameSnack(
+        context,
+        '+${paid * kTaskSilverReward} silver',
+        icon: AppIcons.check_circle_rounded,
+      );
+    }
+    await _refresh();
   }
 
   /// Sends the player where the task points, then re-reads on the way back —
@@ -81,6 +117,7 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
     // Nothing at all until it is loaded, and nothing ever again once done.
     if (tasks == null || tasks.isEmpty) return const SizedBox.shrink();
     final theme = context.watch<FactionTheme>();
+    final readyCount = tasks.where((t) => t.$2 == TaskState.earned).length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,9 +136,11 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
             ),
             const SizedBox(width: 8),
             Text(
-              '${tasks.length} LEFT',
+              readyCount > 0
+                  ? '$readyCount READY'
+                  : '${tasks.length} LEFT',
               style: TextStyle(
-                color: theme.textMuted,
+                color: readyCount > 0 ? theme.accent : theme.textMuted,
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.4,
@@ -119,33 +158,87 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
             fontSize: 12,
           ),
         ),
+        if (readyCount > 1) ...[
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: context.soundAction(_claiming ? null : _collectAll),
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              decoration: BoxDecoration(
+                color: theme.accent.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(color: theme.accent.withValues(alpha: 0.6)),
+              ),
+              child: Text(
+                _claiming
+                    ? 'COLLECTING…'
+                    : 'COLLECT ALL  ·  '
+                          '${readyCount * kTaskSilverReward} SILVER',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: theme.accent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
-        for (final task in tasks) _TaskRow(task: task, onGo: () => _go(task)),
+        for (final (task, state) in tasks)
+          _TaskRow(
+            task: task,
+            state: state,
+            busy: _claiming,
+            onGo: () => _go(task),
+            onCollect: () => _collect(task),
+          ),
       ],
     );
   }
 }
 
 class _TaskRow extends StatelessWidget {
-  const _TaskRow({required this.task, required this.onGo});
+  const _TaskRow({
+    required this.task,
+    required this.state,
+    required this.busy,
+    required this.onGo,
+    required this.onCollect,
+  });
 
   final OnboardingTask task;
+  final TaskState state;
+  final bool busy;
   final VoidCallback onGo;
+  final VoidCallback onCollect;
 
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
+    final ready = state == TaskState.earned;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
       decoration: BoxDecoration(
         color: theme.surface.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: theme.border.withValues(alpha: 0.7)),
+        border: Border.all(
+          color: ready
+              ? theme.accent.withValues(alpha: 0.75)
+              : theme.border.withValues(alpha: 0.7),
+        ),
       ),
       child: Row(
         children: [
-          Icon(task.icon, size: 17, color: theme.accent),
+          Icon(
+            ready ? AppIcons.check_circle_rounded : task.icon,
+            size: 17,
+            color: theme.accent,
+          ),
           const SizedBox(width: 11),
           Expanded(
             child: Column(
@@ -161,7 +254,9 @@ class _TaskRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  task.blurb,
+                  ready
+                      ? 'Visited — $kTaskSilverReward silver waiting.'
+                      : task.blurb,
                   style: TextStyle(
                     color: theme.textMuted,
                     fontSize: 11,
@@ -173,7 +268,9 @@ class _TaskRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: context.soundAction(onGo),
+            onTap: context.soundAction(
+              ready ? (busy ? null : onCollect) : onGo,
+            ),
             behavior: HitTestBehavior.opaque,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -186,7 +283,7 @@ class _TaskRow extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'GO',
+                    ready ? 'COLLECT' : 'GO',
                     style: TextStyle(
                       color: theme.accent,
                       fontSize: 11,
@@ -194,12 +291,14 @@ class _TaskRow extends StatelessWidget {
                       letterSpacing: 1.2,
                     ),
                   ),
-                  const SizedBox(width: 3),
-                  Icon(
-                    AppIcons.chevron_right_rounded,
-                    size: 14,
-                    color: theme.accent,
-                  ),
+                  if (!ready) ...[
+                    const SizedBox(width: 3),
+                    Icon(
+                      AppIcons.chevron_right_rounded,
+                      size: 14,
+                      color: theme.accent,
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -141,12 +141,8 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
   @override
   void initState() {
     super.initState();
-    // Arriving is the whole task — see OnboardingTaskService.
-    unawaited(
-      OnboardingTaskService(
-        context.read<AlchemonsDatabase>(),
-      ).markVisited('rite'),
-    );
+    // Arriving earns the task; collecting it happens in the journal.
+    OnboardingTaskService.recordArrival(context, 'rite');
     _bgCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 18),

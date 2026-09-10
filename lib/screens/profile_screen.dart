@@ -222,12 +222,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Arriving is the whole task — see OnboardingTaskService.
-    unawaited(
-      OnboardingTaskService(
-        context.read<AlchemonsDatabase>(),
-      ).markVisited('profile'),
-    );
+    // Arriving earns the task; collecting it happens in the journal.
+    OnboardingTaskService.recordArrival(context, 'profile');
     _cosmicHintsController = PageController();
     _load = _fetch();
     _loadNotificationPrefs();

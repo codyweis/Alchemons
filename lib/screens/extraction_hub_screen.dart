@@ -170,12 +170,8 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
   @override
   void initState() {
     super.initState();
-    // Arriving is the whole task — see OnboardingTaskService.
-    unawaited(
-      OnboardingTaskService(
-        context.read<AlchemonsDatabase>(),
-      ).markVisited('harvest'),
-    );
+    // Arriving earns the task; collecting it happens in the journal.
+    OnboardingTaskService.recordArrival(context, 'harvest');
     _svc = widget.service ?? context.read<HarvestService>();
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTutorial());
   }

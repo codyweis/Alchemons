@@ -104,12 +104,8 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   @override
   void initState() {
     super.initState();
-    // Arriving is the whole task — see OnboardingTaskService.
-    unawaited(
-      OnboardingTaskService(
-        context.read<AlchemonsDatabase>(),
-      ).markVisited('shop'),
-    );
+    // Arriving earns the task; collecting it happens in the journal.
+    OnboardingTaskService.recordArrival(context, 'shop');
     _slot2Cost = UnlockCosts.bubbleSlot(2);
     _slot3Cost = UnlockCosts.bubbleSlot(3);
 

@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/widgets/game_snack.dart';
+import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:flutter/widgets.dart';
@@ -45,11 +49,16 @@ class OnboardingTask {
   final IconData icon;
   final TaskDestination destination;
 
+  /// Set when the player arrives. The reward is not paid here — arriving
+  /// earns it, the journal is where it is collected.
   String get settingKey => 'task_seen_$id';
+
+  String get claimedKey => 'task_claimed_$id';
 }
 
-/// Paid on arrival, the same for every task. Enough to matter early, not
-/// enough to be worth farming — and they cannot be farmed anyway.
+/// The same for every task. Enough to matter early, not enough to be worth
+/// farming — and they cannot be farmed anyway, since a task can only be
+/// earned once.
 const int kTaskSilverReward = 100;
 
 const List<OnboardingTask> kOnboardingTasks = [
@@ -112,38 +121,110 @@ const List<OnboardingTask> kOnboardingTasks = [
   ),
 ];
 
-/// Records arrivals and pays for them.
+/// Where a task is in its short life.
+enum TaskState {
+  /// Not visited. Shows a GO button.
+  todo,
+
+  /// Visited, reward not taken. Shows a COLLECT button.
+  earned,
+
+  /// Collected. Gone from the list.
+  claimed,
+}
+
+/// Records arrivals, and pays for them when the player comes back to collect.
+///
+/// Paying on arrival was simpler but silent: the reward landed while the
+/// player was busy looking at a room they had never seen, so the one thing
+/// they were supposed to notice was the thing they missed. Earning and
+/// collecting are separate now, the same way achievements work here.
 class OnboardingTaskService {
   const OnboardingTaskService(this.db);
 
   final AlchemonsDatabase db;
 
-  Future<Set<String>> completed() async {
-    final done = <String>{};
-    for (final task in kOnboardingTasks) {
-      if (await db.settingsDao.getSetting(task.settingKey) == '1') {
-        done.add(task.id);
-      }
+  Future<TaskState> stateOf(OnboardingTask task) async {
+    if (await db.settingsDao.getSetting(task.claimedKey) == '1') {
+      return TaskState.claimed;
     }
-    return done;
+    if (await db.settingsDao.getSetting(task.settingKey) == '1') {
+      return TaskState.earned;
+    }
+    return TaskState.todo;
   }
 
-  Future<List<OnboardingTask>> outstanding() async {
-    final done = await completed();
-    return [for (final t in kOnboardingTasks) if (!done.contains(t.id)) t];
+  /// Every task still worth showing, with its state. Claimed ones are gone.
+  Future<List<(OnboardingTask, TaskState)>> outstanding() async {
+    final rows = <(OnboardingTask, TaskState)>[];
+    for (final task in kOnboardingTasks) {
+      final state = await stateOf(task);
+      if (state != TaskState.claimed) rows.add((task, state));
+    }
+    return rows;
   }
 
-  /// Marks [id] arrived at and pays the reward, once.
+  /// How many rewards are sitting uncollected — what the home badge counts.
+  Future<int> readyCount() async {
+    var n = 0;
+    for (final task in kOnboardingTasks) {
+      if (await stateOf(task) == TaskState.earned) n++;
+    }
+    return n;
+  }
+
+  /// Marks [id] arrived at. Returns true only the first time, which is what
+  /// the arrival notification hangs off.
   ///
   /// Safe to call from a screen's initState on every visit: the second call
-  /// is a no-op, so the payment cannot be repeated.
+  /// is a no-op.
   Future<bool> markVisited(String id) async {
     final matches = kOnboardingTasks.where((t) => t.id == id);
     if (matches.isEmpty) return false;
     final task = matches.first;
     if (await db.settingsDao.getSetting(task.settingKey) == '1') return false;
     await db.settingsDao.setSetting(task.settingKey, '1');
+    return true;
+  }
+
+  /// Pays for an earned task, once.
+  Future<bool> claim(String id) async {
+    final matches = kOnboardingTasks.where((t) => t.id == id);
+    if (matches.isEmpty) return false;
+    final task = matches.first;
+    if (await stateOf(task) != TaskState.earned) return false;
+    await db.settingsDao.setSetting(task.claimedKey, '1');
     await db.currencyDao.addSilver(kTaskSilverReward);
     return true;
+  }
+
+  /// Marks an arrival and, if it was the first, says so.
+  ///
+  /// Every destination calls this from initState, so the wording and the
+  /// timing live here rather than being written out eight times and drifting
+  /// apart. The frame callback matters: initState is too early to put
+  /// anything on screen.
+  static void recordArrival(BuildContext context, String taskId) {
+    final db = context.read<AlchemonsDatabase>();
+    unawaited(() async {
+      final earned = await OnboardingTaskService(db).markVisited(taskId);
+      if (!earned || !context.mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        showGameSnack(
+          context,
+          'Task complete — collect $kTaskSilverReward silver in Achievements',
+          icon: AppIcons.check_circle_rounded,
+        );
+      });
+    }());
+  }
+
+  Future<int> claimAll() async {
+    var paid = 0;
+    for (final task in kOnboardingTasks) {
+      if (await claim(task.id)) paid++;
+    }
+    return paid;
   }
 }

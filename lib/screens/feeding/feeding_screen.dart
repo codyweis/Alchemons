@@ -75,12 +75,8 @@ class _FeedingScreenState extends State<FeedingScreen>
   @override
   void initState() {
     super.initState();
-    // Arriving is the whole task — see OnboardingTaskService.
-    unawaited(
-      OnboardingTaskService(
-        context.read<AlchemonsDatabase>(),
-      ).markVisited('enhance'),
-    );
+    // Arriving earns the task; collecting it happens in the journal.
+    OnboardingTaskService.recordArrival(context, 'enhance');
     _speciesScrollCtrl = ScrollController();
 
     unawaited(_refreshInfusionDiscovered());

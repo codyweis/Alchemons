@@ -136,12 +136,8 @@ class _InventoryScreenState extends State<InventoryScreen>
   @override
   void initState() {
     super.initState();
-    // Arriving is the whole task — see OnboardingTaskService.
-    unawaited(
-      OnboardingTaskService(
-        context.read<AlchemonsDatabase>(),
-      ).markVisited('inventory'),
-    );
+    // Arriving earns the task; collecting it happens in the journal.
+    OnboardingTaskService.recordArrival(context, 'inventory');
     _tabController = TabController(length: _tabCount, vsync: this);
   }
 

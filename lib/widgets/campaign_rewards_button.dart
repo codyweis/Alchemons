@@ -1,3 +1,4 @@
+import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
@@ -83,6 +84,9 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
     if (state == AppLifecycleState.resumed) scheduleRefresh();
   }
 
+  /// Uncollected task rewards, counted alongside the achievement ones.
+  int _tasksReady = 0;
+
   Future<void> refresh() async {
     if (!mounted || _route?.isCurrent == false) return;
     if (_loading) {
@@ -95,8 +99,18 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
         context.read<AlchemonsDatabase>(),
       ).load();
       if (!mounted) return;
+      // Tasks are collected on this same screen, so the badge has to count
+      // them too — otherwise the reward the player was told to come back for
+      // is the one thing the button does not mention.
+      final tasksReady = await OnboardingTaskService(
+        context.read<AlchemonsDatabase>(),
+      ).readyCount();
+      if (!mounted) return;
       final previous = _snapshot;
-      setState(() => _snapshot = next);
+      setState(() {
+        _snapshot = next;
+        _tasksReady = tasksReady;
+      });
       if (widget.enabled && (_route?.isCurrent ?? false)) {
         final fresh = next.ready
             .where((a) => !_announced.contains(a.id))
@@ -278,7 +292,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
   @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
-    final count = _snapshot?.ready.length ?? 0;
+    final count = (_snapshot?.ready.length ?? 0) + _tasksReady;
     final badgeColor = fc.rewardGold;
     final icon = Badge(
       isLabelVisible: count > 0,

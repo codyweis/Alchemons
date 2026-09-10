@@ -73,12 +73,8 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
   @override
   void initState() {
     super.initState();
-    // Arriving is the whole task — see OnboardingTaskService.
-    unawaited(
-      OnboardingTaskService(
-        context.read<AlchemonsDatabase>(),
-      ).markVisited('constellation'),
-    );
+    // Arriving earns the task; collecting it happens in the journal.
+    OnboardingTaskService.recordArrival(context, 'constellation');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _primeConstellationTutorialFlow();
     });
