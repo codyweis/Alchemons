@@ -130,6 +130,10 @@ void _drawStoryBracketFrame(
 /// shows everything and only a deliberate pinch-out drops it.
 const double kConstellationDetailZoom = 0.38;
 
+/// The unlockable-node halo, by accent and pulse step. Nodes draw in their own
+/// local space, so every node of a given accent shares the same gradient.
+final Map<(int, int), Paint> _sharedHalo = {};
+
 class ConstellationGame extends FlameGame with ScaleDetector {
   ConstellationTree selectedTree;
   Set<String> _unlockedSkills;
@@ -1577,19 +1581,33 @@ class SkillNode extends PositionComponent
       final pulseValue = (math.sin(_pulseTime * 2.5) + 1) / 2; // 0..1
       final accent = _getAvailableAccentColor();
 
-      final haloOuter = 60.0 + pulseValue * 8.0;
-      final haloAlpha = (0.22 + pulseValue * 0.30).clamp(0.0, 1.0);
-      final haloPaint = Paint()
-        ..shader = ui.Gradient.radial(
-          centerOffset,
-          haloOuter,
-          [
-            accent.withValues(alpha: haloAlpha * 0.85),
-            accent.withValues(alpha: haloAlpha * 0.35),
-            Colors.transparent,
-          ],
-          [0.45, 0.7, 1.0],
-        );
+      // Quantised, and cached per step.
+      //
+      // This built a Paint and a radial gradient shader every frame for every
+      // unlockable node. A gradient is not a cheap object — it is compiled and
+      // uploaded — and during a pinch every node repaints on every frame. The
+      // pulse is a slow breath, so a dozen steps is indistinguishable from a
+      // continuous one and reuses twelve shaders instead of allocating
+      // thousands.
+      const steps = 12;
+      final step = (pulseValue * (steps - 1)).round();
+      final quantised = step / (steps - 1);
+      final haloOuter = 60.0 + quantised * 8.0;
+      final haloAlpha = (0.22 + quantised * 0.30).clamp(0.0, 1.0);
+      final haloPaint = _sharedHalo.putIfAbsent(
+        (accent.toARGB32(), step),
+        () => Paint()
+          ..shader = ui.Gradient.radial(
+            centerOffset,
+            haloOuter,
+            [
+              accent.withValues(alpha: haloAlpha * 0.85),
+              accent.withValues(alpha: haloAlpha * 0.35),
+              Colors.transparent,
+            ],
+            [0.45, 0.7, 1.0],
+          ),
+      );
       canvas.drawCircle(centerOffset, haloOuter, haloPaint);
 
       // Inner crisp pulse ring on the hex itself
@@ -2561,6 +2579,16 @@ class StarfieldBackground extends Component
       if (drawX < minX || drawX > maxX || drawY < minY || drawY > maxY) {
         continue;
       }
+
+      // Sub-pixel stars are skipped before the twinkle is evaluated.
+      //
+      // There are over three thousand of these. Zoomed in the bounds test
+      // throws most away, but pinching out passes every one of them and each
+      // then pays for its own opacity curve and a bucket push. A star draws at
+      // size * zoom pixels, so below a third of a pixel it contributes nothing
+      // that can be seen — and that is exactly the far layer, which is more
+      // than half the field.
+      if (star.size * zoom < 0.34) continue;
 
       final alpha = star.currentOpacityAt(_time);
       if (alpha <= 0.02) continue;
