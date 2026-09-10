@@ -2483,6 +2483,13 @@ class _CosmicScreenState extends State<CosmicScreen>
     return shop.unlockContestEffectOffer(offerId, freeQty: 1);
   }
 
+  /// Contest gold lands in the persistent wallet, not the ship's shard purse,
+  /// so it survives leaving open space.
+  Future<void> _grantContestGold(int gold) async {
+    if (gold <= 0) return;
+    await context.read<AlchemonsDatabase>().currencyDao.addGold(gold);
+  }
+
   void _onContestHintCollected(CosmicContestHintNote note) {
     if (_knownContestHintIds.contains(note.id)) return;
     _knownContestHintIds.add(note.id);
@@ -3316,6 +3323,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       _contestProgress = _contestProgress.withCompleted(trait, nextCompleted);
       await _saveContestProgress();
       _game!.shipWallet.shards += level.rewardShards;
+      final goldReward = cosmicContestGoldReward(level.level);
+      await _grantContestGold(goldReward);
       String masteryUnlockText = '';
       if (nextCompleted >= levels.length) {
         final unlockedEffectName = await _unlockContestMasteryEffect(trait);
@@ -3327,7 +3336,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showQuote(
         '${trait.label} Lv${level.level}: ${member.displayName} defeated $opponentLabel '
         '(${playerScore.toStringAsFixed(2)} vs ${opponentScore.toStringAsFixed(2)}). '
-        '+${level.rewardShards} shards.$masteryUnlockText',
+        '+${level.rewardShards} shards, +$goldReward gold.$masteryUnlockText',
       );
       HapticFeedback.heavyImpact();
     } else {
@@ -8246,7 +8255,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                                 Text(
                                   mastered
                                       ? 'MASTERED (5/5)'
-                                      : 'LEVEL $nextLevel / 5  •  TAP TO START',
+                                      : 'LEVEL $nextLevel / 5  •  '
+                                            '+${cosmicContestGoldReward(nextLevel)} GOLD  •  TAP TO START',
                                   style: TextStyle(
                                     color: Colors.white60,
                                     fontSize: 12,
