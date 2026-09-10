@@ -1,3 +1,4 @@
+import 'package:alchemons/services/opening_wilderness_service.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/audio/audio.dart';
@@ -497,6 +498,23 @@ class _MapScreenState extends State<MapScreen>
     final access = WildernessAccessService(db);
     context.read<FactionService>();
     final spawnService = context.read<WildernessSpawnService>();
+
+    // Held for the ship hunt reads as empty, but it is not — and a lure
+    // cannot help, because nothing will spawn there until the other biomes
+    // are done. Say so instead of offering a charge that would be wasted.
+    if (!widget.isTutorial &&
+        await OpeningWildernessService.isHeldForShipHunt(
+          db.settingsDao,
+          biomeId,
+        )) {
+      if (!context.mounted) return;
+      showGameSnack(
+        context,
+        'This region is quiet — explore the others first',
+        icon: AppIcons.schedule_rounded,
+      );
+      return;
+    }
 
     final sceneSpawnCount = spawnService.getSceneSpawnCount(biomeId);
     if (sceneSpawnCount == 0) {

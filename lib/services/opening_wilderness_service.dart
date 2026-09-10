@@ -9,6 +9,16 @@ class OpeningWildernessService {
   static const String capturePendingKey = 'tutorial_wild_capture_pending';
   static const String captureSceneKey = 'tutorial_wild_capture_scene';
 
+  /// The biomes still to be explored before the ship turns up.
+  ///
+  /// Recovering the ship needs all four core biomes visited, but nothing was
+  /// pushing the player out of the two the tutorial already took them
+  /// through — so they could farm those two indefinitely and never trip the
+  /// discovery that moves the story on. After the tutorial the other two are
+  /// the only ones that spawn, and they open back up once the ship is found.
+  static const String shipHuntKey = 'wilderness_ship_hunt_scenes_v1';
+  static const String shipUnlockedKey = 'cosmic_ship_unlocked';
+
   static const Set<String> coreScenes = {'valley', 'sky', 'swamp', 'volcano'};
 
   static String primarySceneForFaction(FactionId faction) {
@@ -119,9 +129,37 @@ class OpeningWildernessService {
     String sceneId,
   ) async {
     if (!coreScenes.contains(sceneId)) return true;
-    if (!await isRestrictionActive(settings)) return true;
-    final allowed = await allowedScenes(settings);
-    return allowed.contains(sceneId);
+    if (await isRestrictionActive(settings)) {
+      final allowed = await allowedScenes(settings);
+      return allowed.contains(sceneId);
+    }
+    final hunt = await shipHuntScenes(settings);
+    if (hunt.isEmpty) return true;
+    return hunt.contains(sceneId);
+  }
+
+  /// The biomes open during the ship hunt, or empty once it is over.
+  static Future<Set<String>> shipHuntScenes(SettingsDao settings) async {
+    if (await settings.getSetting(shipUnlockedKey) == '1') return <String>{};
+    final raw = await settings.getSetting(shipHuntKey);
+    if (raw == null || raw.trim().isEmpty) return <String>{};
+    return raw
+        .split(',')
+        .map((scene) => scene.trim())
+        .where((scene) => scene.isNotEmpty)
+        .toSet();
+  }
+
+  /// Whether [sceneId] is closed only because the ship hunt is pointing the
+  /// player somewhere else — as opposed to simply being empty.
+  static Future<bool> isHeldForShipHunt(
+    SettingsDao settings,
+    String sceneId,
+  ) async {
+    if (!coreScenes.contains(sceneId)) return false;
+    if (await isRestrictionActive(settings)) return false;
+    final hunt = await shipHuntScenes(settings);
+    return hunt.isNotEmpty && !hunt.contains(sceneId);
   }
 
   static Future<void> advanceToCaptureTutorial(
@@ -152,6 +190,21 @@ class OpeningWildernessService {
   }
 
   static Future<void> completeCaptureTutorial(SettingsDao settings) async {
+    // The two the tutorial used are whichever pair it ran in — that depends
+    // on faction, so it is derived rather than named. oppositeSceneFor pairs
+    // them off, and it is its own inverse, so the capture scene gives back
+    // the one the player started in.
+    final captureScene = await settings.getSetting(captureSceneKey);
+    if (captureScene != null && coreScenes.contains(captureScene)) {
+      final firstScene = oppositeSceneFor(captureScene);
+      final remaining = coreScenes
+          .where((s) => s != captureScene && s != firstScene)
+          .toList();
+      if (remaining.isNotEmpty) {
+        await settings.setSetting(shipHuntKey, remaining.join(','));
+      }
+    }
+
     await settings.deleteSetting(capturePendingKey);
     await settings.deleteSetting(captureSceneKey);
     await settings.deleteSetting(allowedScenesKey);
