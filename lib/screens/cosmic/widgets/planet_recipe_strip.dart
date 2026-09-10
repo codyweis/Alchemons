@@ -26,22 +26,21 @@ class PlanetRecipeStrip extends StatelessWidget {
     required this.planet,
     required this.recipe,
     required this.meter,
-    required this.onSummon,
+    required this.ready,
     required this.onDetail,
-    this.actionLabel = 'UNSEAL GATE',
   });
 
   final CosmicPlanet planet;
   final PlanetRecipe recipe;
   final ElementMeter meter;
 
-  /// Null until the gate can actually be opened.
-  final VoidCallback? onSummon;
+  /// Whether the gate could be opened right now. The strip only reports it —
+  /// the UNSEAL action itself sits over the planet, where the player is
+  /// looking, rather than in a band at the top of the screen.
+  final bool ready;
 
   /// Opens the meter breakdown, where the full recipe lives.
   final VoidCallback onDetail;
-
-  final String actionLabel;
 
   static const double height = 26;
 
@@ -50,7 +49,6 @@ class PlanetRecipeStrip extends StatelessWidget {
     final color = planet.color;
     final font = appFontFamily(context);
     final score = recipe.matchScore(meter.breakdown, meter.total);
-    final ready = onSummon != null;
 
     final scoreColor = score >= 0.7
         ? const Color(0xFF7BE88C)
@@ -122,37 +120,20 @@ class PlanetRecipeStrip extends StatelessWidget {
                     ),
                   ),
                 const SizedBox(width: 8),
-                // The action only exists once it can be taken.
-                if (ready)
-                  GestureDetector(
-                    onTap: context.soundAction(onSummon),
-                    child: Container(
-                      height: height,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      alignment: Alignment.center,
-                      color: CosmicScreenStyles.amberBright,
-                      child: Text(
-                        actionLabel,
-                        style: TextStyle(
-                          fontFamily: font,
-                          color: const Color(0xFF12161D),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
-                          height: 1.0,
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: Icon(
-                      AppIcons.keyboard_arrow_down_rounded,
-                      size: 14,
-                      color: CosmicScreenStyles.textMuted,
-                    ),
+                // Says the offering is ready; the plate over the planet is
+                // what takes it.
+                Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Icon(
+                    ready
+                        ? AppIcons.lock_open_rounded
+                        : AppIcons.keyboard_arrow_down_rounded,
+                    size: 14,
+                    color: ready
+                        ? CosmicScreenStyles.amberBright
+                        : CosmicScreenStyles.textMuted,
                   ),
+                ),
               ],
             ),
           ),

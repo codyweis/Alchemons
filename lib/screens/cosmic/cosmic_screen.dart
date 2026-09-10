@@ -6433,80 +6433,79 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  /// A thin gradient rule fading out toward [leftToRight]'s far side —
-  /// the placard's ornament line.
-  Widget _placardRule(Color color, {bool leftToRight = true}) {
-    return Container(
-      width: 34,
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: leftToRight ? Alignment.centerRight : Alignment.centerLeft,
-          end: leftToRight ? Alignment.centerLeft : Alignment.centerRight,
-          colors: [color.withValues(alpha: 0.75), color.withValues(alpha: 0)],
+  /// The creatures this planet's inner gates will actually ask for.
+  ///
+  /// This used to be a verse — THE PLANET WHISPERS — that named each slot's
+  /// ideal family by metaphor, on the theory that working it out was part of
+  /// the descent. In practice the answer had to be known before you packed a
+  /// party, so the puzzle was solved at the door or not at all. It now says
+  /// the names: 'Lightninghorn' for a specific creature, 'Any Horn' when only
+  /// the family's act matters.
+  Widget _dungeonDemandCard(String element, Color accent) {
+    final demands = dungeonEntryDemands(element);
+    if (demands.isEmpty) return const SizedBox.shrink();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'THE DEPTHS ALSO ASK FOR',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.55),
+            fontSize: 8,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.8,
+            shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
+          ),
         ),
-      ),
+        const SizedBox(height: 7),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 6,
+          runSpacing: 5,
+          children: [
+            for (final d in demands)
+              _demandChip(d, met: d.satisfiedBy(_partyMembers)),
+          ],
+        ),
+      ],
     );
   }
 
-  /// The dungeon's descent riddle: a verse that cryptically names the ideal
-  /// FAMILY for each entry slot — party-picking is a puzzle the player can
-  /// reason about, never a guess. [boxed] gives it its own soft backdrop for
-  /// standalone use; inline it melts into the placard.
-  Widget _dungeonRiddleCard(String element, Color accent, {bool boxed = true}) {
-    final riddle = kPlanetDungeonLayouts[element]?.riddle ?? const <String>[];
-    if (riddle.isEmpty) return const SizedBox.shrink();
-    final verse = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _placardRule(const Color(0xFFC4A35A)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                'THE PLANET WHISPERS',
-                style: TextStyle(
-                  color: const Color(0xFFC4A35A).withValues(alpha: 0.75),
-                  fontSize: 8,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2.0,
-                  shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
-                ),
-              ),
-            ),
-            _placardRule(const Color(0xFFC4A35A), leftToRight: false),
-          ],
-        ),
-        const SizedBox(height: 5),
-        for (final line in riddle)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 1.5),
-            child: Text(
-              line,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: const Color(0xFFE8DFC8).withValues(alpha: 0.85),
-                fontSize: 10.5,
-                fontStyle: FontStyle.italic,
-                height: 1.4,
-                shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
-              ),
+  /// One required creature. Carries its own met/unmet state the same way the
+  /// element dots do, so the whole requirement reads at a glance.
+  Widget _demandChip(DungeonEntryDemand demand, {required bool met}) {
+    final tint = demand.element == null
+        ? const Color(0xFFC4A35A)
+        : elementColor(demand.element!);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: met
+            ? tint.withValues(alpha: 0.18)
+            : Colors.black.withValues(alpha: 0.45),
+        border: Border.all(color: tint.withValues(alpha: met ? 0.95 : 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            met ? Icons.check_rounded : Icons.lock_outline_rounded,
+            size: 10,
+            color: tint.withValues(alpha: met ? 1.0 : 0.65),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            demand.speciesLabel,
+            style: TextStyle(
+              color: met ? Colors.white : Colors.white70,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+              shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
             ),
           ),
-      ],
-    );
-    if (!boxed) return verse;
-    return Container(
-      margin: const EdgeInsets.only(top: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-      constraints: const BoxConstraints(maxWidth: 330),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A0805).withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(14),
+        ],
       ),
-      child: verse,
     );
   }
 
@@ -6652,7 +6651,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       );
     });
 
-    final showRiddle =
+    // The inner gates are worth naming until the planet is finished with.
+    final showDemands =
         !raidHere && _planetStarState.starsEarned(planet.element) < 3;
     // Legibility over the bright planet without a hard-edged card: a soft dark
     // vignette that fades to nothing, plus glow shadows on the text itself.
@@ -6727,15 +6727,10 @@ class _CosmicScreenState extends State<CosmicScreen>
             const SizedBox(height: 7),
             Row(mainAxisSize: MainAxisSize.min, children: dots),
           ],
-          if (showRiddle) ...[
-            const SizedBox(height: 9),
-            // The descent riddle — which SPECIES each slot truly wants.
-            _dungeonRiddleCard(planet.element, color, boxed: false),
+          if (showDemands) ...[
+            const SizedBox(height: 11),
+            _dungeonDemandCard(planet.element, color),
           ],
-          // The family gates used to be listed here as well. The riddle
-          // above already names what the descent wants — cryptically, which
-          // is the point of it — so spelling the answer out underneath was
-          // the riddle and its solution stacked one on the other.
           // ── Actions — present once the trio rides ──
           if (raidHere) ...[
             const SizedBox(height: 14),
@@ -7532,9 +7527,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                         planet: hudPlanet,
                         recipe: _getRecipeForPlanet(hudPlanet),
                         meter: _game!.meter,
-                        onSummon: hudCanAct
-                            ? _triggerScreenShakeAndSummon
-                            : null,
+                        ready: hudCanAct,
                         onDetail: _handleMeterTap,
                       ),
                     ),
@@ -7701,6 +7694,35 @@ class _CosmicScreenState extends State<CosmicScreen>
                         _game!.cycleZoomLevel();
                         setState(() {});
                       },
+                    ),
+                  ),
+                ),
+
+              // ── UNSEAL plate — over the planet, not in the top band ──
+              // The offering is made at the gate, so the action belongs where
+              // the player is already looking. It shares the descent
+              // placard's slot, and the two are mutually exclusive: a sealed
+              // gate has no descent, an unsealed one has nothing left to
+              // unseal.
+              if (showCosmicHud &&
+                  recipeHudVisible &&
+                  hudCanAct &&
+                  !_showElementsCaptured &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned(
+                  bottom: 132,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Center(
+                      child: _planetCta(
+                        label: 'UNSEAL GATE',
+                        accent: const Color(0xFFE4C16A),
+                        glow: hudPlanet.color,
+                        icon: AppIcons.lock_open_rounded,
+                        onTap: _triggerScreenShakeAndSummon,
+                      ),
                     ),
                   ),
                 ),

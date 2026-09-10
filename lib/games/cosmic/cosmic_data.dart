@@ -1840,6 +1840,17 @@ class DungeonEntryDemand {
   /// Descent-panel text: 'Lightning HORN' or 'any HORN'.
   final String label;
 
+  /// The requirement named the way the roster names it: 'Lightninghorn' when
+  /// one particular creature opens the gate, 'Any Horn' when the family's act
+  /// is the whole requirement and the element is incidental.
+  ///
+  /// The planet used to put this in verse and let the player work it out.
+  /// Saying it plainly costs the mystery and buys a party you can actually
+  /// pack before you fly out there.
+  String get speciesLabel => element == null
+      ? 'Any $family'
+      : '$element${family.toLowerCase()}';
+
   bool satisfiedBy(Iterable<CosmicPartyMember?> party) {
     final want = family.toLowerCase();
     for (final m in party) {
