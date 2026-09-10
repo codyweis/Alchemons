@@ -57,7 +57,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     }
 
     // Choose tier — behavior determines distribution across all 6 tiers
-    final EnemyTier tier;
+    EnemyTier tier;
     switch (behavior) {
       case EnemyBehavior.aggressive:
         final roll = rng.nextDouble();
@@ -117,19 +117,6 @@ extension CosmicGameWorldSystems on CosmicGame {
         break;
     }
     final element = _randomEnemyElement(rng);
-    final variant = switch (tier) {
-      EnemyTier.brute || EnemyTier.colossus
-          when (behavior == EnemyBehavior.aggressive ||
-                  behavior == EnemyBehavior.territorial) &&
-              rng.nextDouble() < 0.22 =>
-        CosmicEnemyVariant.crusher,
-      EnemyTier.drone || EnemyTier.phantom
-          when (behavior == EnemyBehavior.aggressive ||
-                  behavior == EnemyBehavior.stalking) &&
-              rng.nextDouble() < 0.28 =>
-        CosmicEnemyVariant.pouncer,
-      _ => CosmicEnemyVariant.standard,
-    };
 
     // Position depends on behavior
     Offset pos;
@@ -194,6 +181,25 @@ extension CosmicGameWorldSystems on CosmicGame {
         );
     }
 
+    final nearHome = isHomeRecoveryArea(pos);
+    tier = CosmicBalance.spaceEnemyTier(
+      tier,
+      nearHome ? 0 : _guardiansDefeated,
+    );
+    if (nearHome) behavior = EnemyBehavior.drifting;
+    final variant = switch (tier) {
+      EnemyTier.brute || EnemyTier.colossus
+          when (behavior == EnemyBehavior.aggressive ||
+                  behavior == EnemyBehavior.territorial) &&
+              rng.nextDouble() < 0.22 =>
+        CosmicEnemyVariant.crusher,
+      EnemyTier.drone || EnemyTier.phantom
+          when (behavior == EnemyBehavior.aggressive ||
+                  behavior == EnemyBehavior.stalking) &&
+              rng.nextDouble() < 0.28 =>
+        CosmicEnemyVariant.pouncer,
+      _ => CosmicEnemyVariant.standard,
+    };
     final baseHealth = CosmicBalance.enemyBaseHealth(tier);
     final baseSpeed = switch (tier) {
       EnemyTier.drone => 90 + rng.nextDouble() * 50,
@@ -528,6 +534,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     final cx = belt.center.dx + cos(centerAngle) * centerDist;
     final cy = belt.center.dy + sin(centerAngle) * centerDist;
     final home = _wrap(Offset(cx, cy));
+    if (isHomeRecoveryArea(home)) return;
 
     // Alpha sentinel — bigger, tougher
     enemies.add(
@@ -574,7 +581,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     }
   }
 
-  /// Spawn a swarm cluster of 20-32 swarming small flyers at a position.
+  /// Spawn a swarm of 11-16 early, rising to 23-28 small flyers late-game.
   /// If [center] is not given, picks a random spot in deep space.
   /// Respects the enemy cap — skips if already at max.
   void _spawnSwarmCluster({Offset? center, Random? rng}) {
@@ -584,9 +591,9 @@ extension CosmicGameWorldSystems on CosmicGame {
     const elements = ['Fire', 'Water', 'Earth', 'Air', 'Light', 'Dark'];
     final element = elements[rng.nextInt(elements.length)];
     final count = min(
-      20 + rng.nextInt(13),
+      8 + CosmicBalance.spaceLevel(_guardiansDefeated) * 3 + rng.nextInt(6),
       CosmicGame._maxEnemies - enemies.length,
-    ); // 20-32, capped
+    );
 
     // Pick center if not provided — random position in world, away from edges
     final cx =
@@ -596,6 +603,7 @@ extension CosmicGameWorldSystems on CosmicGame {
         center?.dy ??
         (2000.0 + rng.nextDouble() * (world_.worldSize.height - 4000));
     final home = _wrap(Offset(cx, cy));
+    if (isHomeRecoveryArea(home)) return;
 
     for (int i = 0; i < count; i++) {
       final angle = rng.nextDouble() * pi * 2;
@@ -640,7 +648,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     }
   }
 
-  // ── SKIRMISH (Lv 1-3) ───────────────────────────
+  // ── SKIRMISH (Lv 1-2) ───────────────────────────
   // Simple waves, mostly wisps & sentinels, moderate pacing.
   void _spawnSkirmishEnemy(GalaxyWhirl whirl, int whirlIdx) {
     final rng = Random();
@@ -675,7 +683,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     _addWhirlEnemy(whirl, whirlIdx, tier, behavior, rng);
   }
 
-  // ── SIEGE (Lv 4-7) ──────────────────────────────
+  // ── SIEGE (Lv 3-4) ──────────────────────────────
   // Formation bursts, brute tanks shield wisps, final wave has a mini-boss.
   void _spawnSiegeEnemy(GalaxyWhirl whirl, int whirlIdx) {
     final rng = Random();
@@ -751,7 +759,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     _addWhirlEnemy(whirl, whirlIdx, tier, EnemyBehavior.aggressive, rng);
   }
 
-  // ── ONSLAUGHT (Lv 8-10) ─────────────────────────
+  // ── ONSLAUGHT (Lv 5) ────────────────────────────
   // Relentless, mixed tiers from wave 1, swarming dominant, mini-boss brute finale.
   void _spawnOnslaughtEnemy(GalaxyWhirl whirl, int whirlIdx) {
     final rng = Random();
@@ -1473,6 +1481,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       for (int i = 0; i < needed; i++) {
         bossLairs.add(
           BossLair.generate(
+            guardiansDefeated: _guardiansDefeated,
             rng: Random(),
             worldSize: world_.worldSize,
             planets: world_.planets,
@@ -1494,9 +1503,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     lair.state = BossLairState.fighting;
 
     final lvl = lair.level;
-    final healthScale =
-        CosmicBalance.bossHealthScale(lvl) *
-        CosmicBalance.bossEscalationScale(_bossesDefeated);
+    final healthScale = CosmicBalance.bossHealthScale(lvl);
     final speedScale = CosmicBalance.bossSpeedScale(lvl);
     final radiusBonus = CosmicBalance.bossRadiusBonus(lvl);
 
@@ -1544,7 +1551,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       GalaxyWhirl(
         position: pos,
         element: elements[rng.nextInt(elements.length)],
-        level: rng.nextInt(5) + 1,
+        level: CosmicBalance.rollSpaceLevel(_guardiansDefeated, rng),
         radius: 50 + rng.nextDouble() * 30,
         totalWaves: 3 + rng.nextInt(3),
       ),
@@ -1554,7 +1561,7 @@ extension CosmicGameWorldSystems on CosmicGame {
   void _spawnBoss() {
     final rng = Random();
     final template = pickBossTemplate(rng, titanicChance: 0.05);
-    final lvl = rng.nextInt(5) + 1; // random level 1-5
+    final lvl = CosmicBalance.rollSpaceLevel(_guardiansDefeated, rng);
 
     // Spawn near the matching element's planet
     final matchingPlanet = world_.planets.firstWhere(
@@ -1567,10 +1574,9 @@ extension CosmicGameWorldSystems on CosmicGame {
     final sx = matchingPlanet.position.dx + cos(angle) * orbitDist;
     final sy = matchingPlanet.position.dy + sin(angle) * orbitDist;
     final pos = _wrap(Offset(sx, sy));
+    if (isHomeRecoveryArea(pos)) return;
 
-    final healthScale =
-        CosmicBalance.bossHealthScale(lvl) *
-        CosmicBalance.bossEscalationScale(_bossesDefeated);
+    final healthScale = CosmicBalance.bossHealthScale(lvl);
     final speedScale = CosmicBalance.bossSpeedScale(lvl);
     final radiusBonus = CosmicBalance.bossRadiusBonus(lvl);
 
@@ -1591,7 +1597,7 @@ extension CosmicGameWorldSystems on CosmicGame {
   }
 
   /// Spawn a guaranteed boss when a planet is first discovered.
-  /// Difficulty scales with total number of planets discovered.
+  /// Difficulty follows guardian victories, so exploration stays accessible.
   void _spawnDiscoveryBoss(CosmicPlanet planet) {
     if (activeBoss != null) return; // don't override an active boss
 
@@ -1602,9 +1608,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       titanicChance: 0.025,
     );
 
-    // Level = number of discovered planets, capped to the combat level range.
-    final discovered = world_.planets.where((p) => p.discovered).length;
-    final lvl = discovered.clamp(1, CosmicBalance.maxCombatLevel);
+    final lvl = CosmicBalance.spaceLevel(_guardiansDefeated);
 
     // Spawn near the discovered planet
     final angle = rng.nextDouble() * pi * 2;
@@ -1613,9 +1617,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     final sy = planet.position.dy + sin(angle) * orbitDist;
     final pos = _wrap(Offset(sx, sy));
 
-    final healthScale =
-        CosmicBalance.bossHealthScale(lvl) *
-        CosmicBalance.bossEscalationScale(_bossesDefeated);
+    final healthScale = CosmicBalance.bossHealthScale(lvl);
     final speedScale = CosmicBalance.bossSpeedScale(lvl);
     final radiusBonus = CosmicBalance.bossRadiusBonus(lvl);
 
@@ -2510,7 +2512,6 @@ extension CosmicGameWorldSystems on CosmicGame {
   void _handleBossKill(CosmicBoss boss) {
     onSound?.call(SoundCue.combatVictory);
     boss.dead = true;
-    _bossesDefeated++;
     _spawnKillVfx(boss.position, elementColor(boss.element), boss.radius, true);
     _spawnLootDrops(
       boss.position,

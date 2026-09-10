@@ -43,6 +43,10 @@ List<CosmicPartyMember> potentialParty(int potential) {
           statIntelligence: stat('intelligence'),
           statStrength: stat('strength'),
           statBeauty: stat('beauty'),
+          statSpeedPotential: potential.toDouble(),
+          statIntelligencePotential: potential.toDouble(),
+          statStrengthPotential: potential.toDouble(),
+          statBeautyPotential: potential.toDouble(),
           staminaBars: 3,
           staminaMax: 3,
         );
@@ -126,89 +130,100 @@ void main() {
     },
   );
 
-  for (final seed in [11, 29, 47]) {
-    test('80 Potential level-10 party can clear wave 50, seed $seed', () async {
-      final game = CosmicSurvivalGame(
-        party: potentialParty(80),
-        random: Random(seed),
-        onGameOver: () {},
-      );
-      game.onGameResize(Vector2(900, 700));
-      await game.onLoad();
-      void pick(String id, {int? slot}) => game.applyPowerUp(
-        kAllPowerUps.firstWhere((def) => def.id == id),
-        targetSlot: slot,
-      );
-      // Twenty achievable run picks, no permanent upgrades or enhancements.
-      for (var i = 0; i < 4; i++) {
-        pick('pack_leader');
-      }
-      for (var i = 0; i < 5; i++) {
-        pick('strength_up', slot: i);
-      }
-      pick('orb_vitality');
-      pick('orb_vitality');
-      pick('lifesteal', slot: 0);
-      for (var i = 0; i < 2; i++) {
-        pick('auto_turret');
-        pick('regen_field');
-      }
-      pick('mirror_shield');
-      pick('command_strength');
-      pick('command_intelligence');
-      pick('command_speed');
-      game.startGame();
-      for (var wave = 1; wave < 50; wave++) {
-        game.spawner.resumeAfterIntermission();
-      }
-      for (var i = 0; i < 5; i++) {
-        game.summonCompanion(i);
-      }
-      game.clearCompanionTether();
-      var elapsed = 0.0;
-      while (!game.isGameOver &&
-          game.spawner.currentWave == 50 &&
-          elapsed < 360) {
-        // Simple legal pilot: protect the orb, purge sources, then close on boss.
-        Offset? target;
-        var best = double.infinity;
-        for (final enemy in game.enemies) {
-          if (enemy.isDead) continue;
-          final orbDistance = (enemy.position - game.orb.position).distance;
-          final score = !enemy.isPlagueCore && orbDistance < 300
-              ? orbDistance - 2000
-              : enemy.isPlagueCore
-              ? -1000.0
-              : orbDistance;
-          if (score < best) {
-            best = score;
-            target = enemy.position;
+  for (final (potential, waveTarget, seed) in [
+    (35, 10, 11),
+    (70, 30, 11),
+    (80, 50, 11),
+    (80, 50, 29),
+    (80, 50, 47),
+    (95, 75, 11),
+  ]) {
+    test(
+      '$potential Potential level-10 party can clear wave $waveTarget, seed $seed',
+      () async {
+        final game = CosmicSurvivalGame(
+          party: potentialParty(potential),
+          random: Random(seed),
+          onGameOver: () {},
+        );
+        game.onGameResize(Vector2(900, 700));
+        await game.onLoad();
+        void pick(String id, {int? slot}) => game.applyPowerUp(
+          kAllPowerUps.firstWhere((def) => def.id == id),
+          targetSlot: slot,
+        );
+        // Twenty achievable run picks, no permanent upgrades or enhancements.
+        for (var i = 0; i < 4; i++) {
+          pick('pack_leader');
+        }
+        for (var i = 0; i < 5; i++) {
+          pick('strength_up', slot: i);
+        }
+        pick('orb_vitality');
+        pick('orb_vitality');
+        pick('lifesteal', slot: 0);
+        for (var i = 0; i < 2; i++) {
+          pick('auto_turret');
+          pick('regen_field');
+        }
+        pick('mirror_shield');
+        pick('command_strength');
+        pick('command_intelligence');
+        pick('command_speed');
+        game.startGame();
+        for (var wave = 1; wave < waveTarget; wave++) {
+          game.spawner.resumeAfterIntermission();
+        }
+        for (var i = 0; i < 5; i++) {
+          game.summonCompanion(i);
+        }
+        game.clearCompanionTether();
+        var elapsed = 0.0;
+        while (!game.isGameOver &&
+            game.spawner.currentWave == waveTarget &&
+            elapsed < 360) {
+          // Simple legal pilot: protect the orb, purge sources, then close on boss.
+          Offset? target;
+          var best = double.infinity;
+          for (final enemy in game.enemies) {
+            if (enemy.isDead) continue;
+            final orbDistance = (enemy.position - game.orb.position).distance;
+            final score = !enemy.isPlagueCore && orbDistance < 300
+                ? orbDistance - 2000
+                : enemy.isPlagueCore
+                ? -1000.0
+                : orbDistance;
+            if (score < best) {
+              best = score;
+              target = enemy.position;
+            }
           }
+          target ??= game.activeBoss?.position ?? game.orb.position;
+          final delta = target - game.ship.position;
+          final tangent = delta.distance > 0
+              ? Offset(-delta.dy, delta.dx) / delta.distance
+              : Offset.zero;
+          final movement = delta.distance > 170
+              ? delta / delta.distance
+              : tangent;
+          game.setJoystickInput(movement);
+          if (game.showingPowerUpSelection) {
+            // No extra strength from mid-encounter drafts in this benchmark.
+            game.alchemicalMeter = 0;
+            game.dismissPowerUpSelection();
+          }
+          game.update(1 / 30);
+          elapsed += 1 / 30;
         }
-        target ??= game.activeBoss?.position ?? game.orb.position;
-        final delta = target - game.ship.position;
-        final tangent = delta.distance > 0
-            ? Offset(-delta.dy, delta.dx) / delta.distance
-            : Offset.zero;
-        final movement = delta.distance > 170
-            ? delta / delta.distance
-            : tangent;
-        game.setJoystickInput(movement);
-        if (game.showingPowerUpSelection) {
-          // No extra strength from mid-encounter drafts in this benchmark.
-          game.alchemicalMeter = 0;
-          game.dismissPowerUpSelection();
-        }
-        game.update(1 / 30);
-        elapsed += 1 / 30;
-      }
-      debugPrint(
-        'seed=$seed wave=${game.spawner.currentWave} seconds=${elapsed.round()} '
-        'orb=${game.orb.currentHp.round()} bossHp=${game.activeBoss?.hp.round()} '
-        'party=${game.activeCompanions.length} outbreak=${game.outbreak?.name}',
-      );
-      expect(game.isGameOver, isFalse);
-      expect(game.spawner.currentWave, greaterThan(50));
-    }, timeout: const Timeout(Duration(minutes: 2)));
+        debugPrint(
+          'P$potential seed=$seed wave=${game.spawner.currentWave} seconds=${elapsed.round()} '
+          'orb=${game.orb.currentHp.round()} bossHp=${game.activeBoss?.hp.round()} '
+          'party=${game.activeCompanions.length} outbreak=${game.outbreak?.name}',
+        );
+        expect(game.isGameOver, isFalse);
+        expect(game.spawner.currentWave, greaterThan(waveTarget));
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
   }
 }

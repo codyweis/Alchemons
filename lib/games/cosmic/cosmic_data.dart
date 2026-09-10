@@ -125,6 +125,33 @@ bool isCosmicAbilityElement(String element) =>
 const double kDamageScale = 1.5;
 
 class CosmicBalance {
+  /// Unique planet guardians unlock the open-space combat curve. Exploration
+  /// and repeated space kills never increase this progression.
+  static int spaceLevel(int guardiansDefeated) => switch (guardiansDefeated) {
+    < 1 => 1,
+    < 4 => 2,
+    < 8 => 3,
+    < 12 => 4,
+    _ => 5,
+  };
+
+  /// Keep a quarter of encounters one level easier for variety and recovery.
+  static int rollSpaceLevel(int guardiansDefeated, Random rng) {
+    final ceiling = spaceLevel(guardiansDefeated);
+    return max(1, ceiling - (rng.nextDouble() < 0.25 ? 1 : 0));
+  }
+
+  static EnemyTier spaceEnemyTier(EnemyTier rolled, int guardiansDefeated) {
+    final level = spaceLevel(guardiansDefeated);
+    return switch (rolled) {
+      EnemyTier.colossus when level < 5 =>
+        level >= 3 ? EnemyTier.brute : EnemyTier.sentinel,
+      EnemyTier.brute when level < 3 => EnemyTier.sentinel,
+      EnemyTier.phantom when level < 2 => EnemyTier.wisp,
+      _ => rolled,
+    };
+  }
+
   static const int maxCombatLevel = 5;
   static const int maxCompanionLevel = 10;
   static const double minCombatStat = 1.0;
@@ -322,24 +349,18 @@ class CosmicBalance {
   };
 
   // ── Open-space boss difficulty curve ─────────────────────
-  // Levels 1-5 map onto the stat range so each level is beatable by the
-  // matching genetic band (statPower is harsh below 2.5, so the early
-  // curve must stay LOW and catch up steeply):
-  //   Lv1 ↔ stats ~1.0-1.5 (intro)   Lv2 ↔ ~1.5-2.0   Lv3 ↔ ~2.0-2.5
-  //   Lv4 ↔ ~3.0-3.5                 Lv5 ↔ ~4.0+ (endgame, unchanged)
-  // All Lv5 values are preserved from the previous tuning; only the
-  // low/mid levels were flattened (Lv3 HP was previously mid-curve at
-  // 11.1× — a stats-3 fight wearing a Lv3 badge).
+  // Level-10 breeding benchmarks: Lv1-2 P20-50, Lv3 P60-80,
+  // Lv4 optimized P80-90, Lv5 P90-95+ across the team. Guardian victories
+  // select the tier; equipping a stronger team never raises enemy stats.
 
   /// Eases [t]∈[0,1] so early levels sit low and the curve catches up at 5.
   static double _bossT(int level, double exponent) =>
       pow(_levelT(level), exponent).toDouble();
 
   static double bossHealthScale(int level) {
-    // ×3 keeps open-world bosses in step with the rescaled enemy HP table
-    // and ship weapon damage (see enemyBaseHealth).
-    // Lv: 1→3.0, 2→4.3, 3→7.8, 4→13.4, 5→21.0 (was 3.0/6.2/11.1/16.4/21.0).
-    return (1.0 + _bossT(level, 1.9) * 6.0) * 3.0;
+    // More time for late bosses to use their patterns, without raising damage
+    // against the fixed 100-HP ship. Typical template HP is 35.
+    return const [7.0, 11.0, 24.0, 42.0, 60.0][clampLevel(level) - 1];
   }
 
   static double bossSpeedScale(int level) {
@@ -396,12 +417,6 @@ class CosmicBalance {
     };
     return charging ? base * 1.2 : base;
   }
-
-  /// Global post-kill escalation, CAPPED. The previous uncapped
-  /// `1 + kills × 0.05` compounded forever and silently re-broke the early
-  /// curve once a player had a few kills banked.
-  static double bossEscalationScale(int bossesDefeated) =>
-      1.0 + min(bossesDefeated, 10) * 0.05;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -3908,7 +3923,7 @@ enum BossLairState { waiting, fighting, defeated }
 class BossLair {
   Offset position;
   final BossTemplate template;
-  final int level; // 1-5
+  int level; // 1-5; updated only while waiting
   BossLairState state;
   double respawnTimer; // seconds until a new lair can spawn after defeat
 
@@ -3929,6 +3944,7 @@ class BossLair {
   /// Generate a single boss lair at a random position in deep space.
   static BossLair generate({
     required Random rng,
+    int guardiansDefeated = 0,
     required Size worldSize,
     required List<CosmicPlanet> planets,
     required List<GalaxyWhirl> whirls,
@@ -3970,8 +3986,7 @@ class BossLair {
             whirls.any((w) => (w.position - pos).distance < minWhirlDist) ||
             existing.any((l) => (l.position - pos).distance < minLairDist)));
 
-    // Level: 1-5, weighted toward the provided level hint
-    final level = (rng.nextInt(3) - 1 + (rng.nextInt(5) + 1)).clamp(1, 5);
+    final level = CosmicBalance.rollSpaceLevel(guardiansDefeated, rng);
 
     return BossLair(position: pos, template: template, level: level);
   }
@@ -11892,22 +11907,22 @@ class OrbitalChamber {
 enum WhirlState { dormant, active, completed }
 
 /// Horde archetype — determines wave composition & enemy behaviour.
-/// Assigned based on level: 1-3 Skirmish, 4-7 Siege, 8-10 Onslaught.
+/// Assigned based on level: 1-2 Skirmish, 3-4 Siege, 5 Onslaught.
 enum HordeType {
-  /// Lv 1-3: Simple waves, mostly wisps/sentinels, moderate pacing.
+  /// Lv 1-2: Simple waves, mostly wisps/sentinels, moderate pacing.
   skirmish,
 
-  /// Lv 4-7: Formation bursts spawn all at once, brute tanks, mini-boss on final wave.
+  /// Lv 3-4: Formation bursts, brute tanks, mini-boss on final wave.
   siege,
 
-  /// Lv 8-10: Fast spawns, mixed tiers from wave 1, swarm-dominant, mini-boss brute finale.
+  /// Lv 5: Fast spawns, mixed tiers from wave 1, colossus finale.
   onslaught,
 }
 
 /// Derive the [HordeType] from a whirl level.
 HordeType hordeTypeForLevel(int level) {
-  if (level <= 3) return HordeType.skirmish;
-  if (level <= 7) return HordeType.siege;
+  if (level <= 2) return HordeType.skirmish;
+  if (level <= 4) return HordeType.siege;
   return HordeType.onslaught;
 }
 
@@ -11916,8 +11931,8 @@ HordeType hordeTypeForLevel(int level) {
 class GalaxyWhirl {
   Offset position;
   final String element;
-  final int level; // 1-5
-  final HordeType hordeType;
+  int level; // 1-5; updated only while dormant
+  HordeType get hordeType => hordeTypeForLevel(level);
   final double radius;
   WhirlState state;
   int currentWave;
@@ -11954,7 +11969,7 @@ class GalaxyWhirl {
     this.rotation = 0,
     this.pulse = 0,
     this.miniBossSpawned = false,
-  }) : hordeType = hordeTypeForLevel(level);
+  });
 
   /// Number of enemies per wave — varies by horde type & level.
   int enemiesForWave(int wave) {
@@ -11999,12 +12014,12 @@ class GalaxyWhirl {
   }
 
   /// Enemy health multiplier based on whirl level.
-  /// Lv1=1.0x  Lv5=2.0x  Lv10=4.0x
-  double get enemyHealthScale => 1.0 + (level - 1) * 0.33;
+  /// Lv1=1.0x, Lv5=1.8x; composition supplies the rest of the challenge.
+  double get enemyHealthScale => 1.0 + (level.clamp(1, 5) - 1) * 0.20;
 
   /// Enemy speed multiplier based on whirl level.
-  /// Lv1=1.0x  Lv5=1.3x  Lv10=1.6x
-  double get enemySpeedScale => 1.0 + (level - 1) * 0.067;
+  /// Lv1=1.0x, Lv5≈1.27x.
+  double get enemySpeedScale => 1.0 + (level.clamp(1, 5) - 1) * 0.067;
 
   /// Display name for the horde type.
   String get hordeTypeName => switch (hordeType) {
@@ -12016,6 +12031,7 @@ class GalaxyWhirl {
   /// Generate 5 galaxy whirls scattered across the world.
   static List<GalaxyWhirl> generate({
     required int seed,
+    int guardiansDefeated = 0,
     required Size worldSize,
     required List<CosmicPlanet> planets,
   }) {
@@ -12044,7 +12060,7 @@ class GalaxyWhirl {
         GalaxyWhirl(
           position: pos,
           element: elements[rng.nextInt(elements.length)],
-          level: rng.nextInt(10) + 1, // 1-10
+          level: CosmicBalance.rollSpaceLevel(guardiansDefeated, rng),
           radius: 50 + rng.nextDouble() * 30,
           totalWaves: 3 + rng.nextInt(3),
         ),

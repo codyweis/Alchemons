@@ -160,11 +160,51 @@ class CosmicGame extends FlameGame with PanDetector {
     Map<String, String>? initialOptions,
     String? initialAmmoId,
     this.startCloserToSurvivalSignal = false,
+    int guardiansDefeated = 0,
   }) : activeCustomizations = initialCustomizations ?? {},
+       _guardiansDefeated = max(0, guardiansDefeated),
        customizationOptions = initialOptions ?? {},
        activeAmmoId = initialAmmoId;
 
   final CosmicWorld world_;
+  int _guardiansDefeated;
+  int get guardiansDefeated => _guardiansDefeated;
+
+  /// New ambient contacts near home stay at starter difficulty, including
+  /// across the world's wrapped edges. Enemies already pursuing can follow.
+  bool isHomeRecoveryArea(Offset position) {
+    final home = homePlanet;
+    if (home == null) return false;
+    final width = world_.worldSize.width;
+    final height = world_.worldSize.height;
+    final dx = (position.dx - home.position.dx).abs() % width;
+    final dy = (position.dy - home.position.dy).abs() % height;
+    final x = min(dx, width - dx);
+    final y = min(dy, height - dy);
+    return x * x + y * y <= pow(home.visualRadius + 900, 2);
+  }
+
+  /// Refresh idle encounters after returning from a planet. Active fights
+  /// retain their level, health, wave composition, and rewards.
+  void syncGuardianProgress(int count) {
+    count = max(0, count);
+    if (count == _guardiansDefeated) return;
+    final previousLevel = CosmicBalance.spaceLevel(_guardiansDefeated);
+    _guardiansDefeated = count;
+    if (!isLoaded || previousLevel == CosmicBalance.spaceLevel(count)) return;
+    final rng = Random(world_.planets.first.element.hashCode ^ count);
+    for (final lair in bossLairs) {
+      if (lair.state == BossLairState.waiting) {
+        lair.level = CosmicBalance.rollSpaceLevel(count, rng);
+      }
+    }
+    for (final whirl in galaxyWhirls) {
+      if (whirl.state == WhirlState.dormant) {
+        whirl.level = CosmicBalance.rollSpaceLevel(count, rng);
+      }
+    }
+  }
+
   final bool startCloserToSurvivalSignal;
   final VoidCallback onMeterChanged;
   final void Function(SoundCue cue)? onSound;
@@ -498,7 +538,6 @@ class CosmicGame extends FlameGame with PanDetector {
   final List<LootDrop> lootDrops = [];
   final ShipWallet shipWallet = ShipWallet();
   double _enemySpawnTimer = 0;
-  int _bossesDefeated = 0;
   int _nextPackId = 0; // unique pack ID counter
   static const int _maxEnemies = 220;
 
@@ -740,6 +779,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
     // Generate galaxy whirls (horde encounters)
     galaxyWhirls = GalaxyWhirl.generate(
+      guardiansDefeated: _guardiansDefeated,
       seed: world_.planets.first.element.hashCode ^ 0xAA11,
       worldSize: world_.worldSize,
       planets: world_.planets,
@@ -771,6 +811,7 @@ class CosmicGame extends FlameGame with PanDetector {
     for (int i = 0; i < lairCount; i++) {
       bossLairs.add(
         BossLair.generate(
+          guardiansDefeated: _guardiansDefeated,
           rng: lairRng,
           worldSize: world_.worldSize,
           planets: world_.planets,

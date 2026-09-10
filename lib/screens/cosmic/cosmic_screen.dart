@@ -654,6 +654,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         !widget.memoryTutorial && !cosmicIntroCompleted && savedFog == null;
 
     final game = CosmicGame(
+      guardiansDefeated: _planetStarState.guardiansDefeated(),
       world_: _world,
       onMeterChanged: _onMeterChanged,
       onSound: _playCosmicSfx,
@@ -5988,6 +5989,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     if (!mounted) return;
     setState(() => _planetStarState = refreshed);
+    _game?.syncGuardianProgress(refreshed.guardiansDefeated());
     final db = context.read<AlchemonsDatabase>();
     if (refreshed.guardiansDefeated() > 0 &&
         await db.settingsDao.getSetting('campaign_guardian_presence_seen_v1') !=
@@ -6045,6 +6047,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         prefs.getString(_planetStarStatePrefsKey) ?? '',
       );
     });
+    _game?.syncGuardianProgress(_planetStarState.guardiansDefeated());
     if (!_anyOverlayOpen && !_showMiniMap) _game?.resumeEngine();
   }
 
