@@ -132,6 +132,7 @@ class CosmicGame extends FlameGame with PanDetector {
     required this.world_,
     required this.onMeterChanged,
     this.onSound,
+    this.onBoostActiveChanged,
     this.onPeriodicSave,
     this.onNearPlanet,
     this.onStarDustCollected,
@@ -208,6 +209,12 @@ class CosmicGame extends FlameGame with PanDetector {
   final bool startCloserToSurvivalSignal;
   final VoidCallback onMeterChanged;
   final void Function(SoundCue cue)? onSound;
+
+  /// Fires when boost starts or stops ACTUALLY applying, which is not the
+  /// same as the button being held: an empty tank means a held button does
+  /// nothing. Anything that represents boost to the player — the engine
+  /// loop, most obviously — belongs on this rather than on the input.
+  final void Function(bool active)? onBoostActiveChanged;
   final VoidCallback? onPeriodicSave;
   final void Function(CosmicPlanet? planet)? onNearPlanet;
   final void Function(int index)? onStarDustCollected;
@@ -2523,6 +2530,7 @@ class CosmicGame extends FlameGame with PanDetector {
         : 220.0 * StarDust.speedMultiplier(collectedDustCount);
 
     // Apply boost if booster is equipped and player is holding boost
+    final boostWasActive = isBoosting;
     isBoosting = false;
     if (boosting && !_shipDead && !shipFuel.isEmpty) {
       final fuelUsed = shipFuel.consume(boostFuelPerSecond * dt);
@@ -2531,6 +2539,7 @@ class CosmicGame extends FlameGame with PanDetector {
         isBoosting = true;
       }
     }
+    if (isBoosting != boostWasActive) onBoostActiveChanged?.call(isBoosting);
     if (isBoosting && !_boostTrailWasActive) {
       _boostTrailVisual = 1.0;
     }

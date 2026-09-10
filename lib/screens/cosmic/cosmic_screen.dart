@@ -669,6 +669,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       world_: _world,
       onMeterChanged: _onMeterChanged,
       onSound: _playCosmicSfx,
+      onBoostActiveChanged: _onBoostActiveChanged,
       onPeriodicSave: _periodicSave,
       onNearPlanet: _onNearPlanet,
       onStarDustCollected: _onStarDustCollected,
@@ -5241,19 +5242,35 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (widget.memoryTutorial) return;
     if (!_customizationState.hasBooster) return;
     if (_isBoosting || _game == null) return;
-    // The kick of engaging, then the engine underneath it for as long as it
-    // is held — one dash sample on its own said "boosted", not "boosting".
+    // An empty tank engages nothing, so it should also sound like nothing.
+    // The kick used to fire on the press regardless, which announced a
+    // boost the ship was not going to give.
+    if (_game!.shipFuel.isEmpty) return;
+    // Only the kick here. The engine underneath it follows the game's own
+    // boost state — fuel can run dry mid-hold, and the sound has to stop
+    // with the thrust rather than with the finger.
     _playCosmicSfx(SoundCue.cosmicDash);
-    unawaited(
-      context.read<AudioController>().startSustained(AmbienceCue.cosmicBoost),
-    );
     _isBoosting = true;
     _game?.boosting = true;
     HapticFeedback.selectionClick();
     setState(() {});
   }
 
+  /// The engine, following whether boost is actually being spent rather
+  /// than whether the button is down.
+  void _onBoostActiveChanged(bool active) {
+    if (!mounted) return;
+    final audio = context.read<AudioController>();
+    unawaited(
+      active
+          ? audio.startSustained(AmbienceCue.cosmicBoost)
+          : audio.stopSustained(),
+    );
+  }
+
   void _stopBoosting() {
+    // Belt and braces: the game reports the engine stopping on its next
+    // frame, but a screen being torn down may not get one.
     if (mounted) {
       unawaited(context.read<AudioController>().stopSustained());
     }
