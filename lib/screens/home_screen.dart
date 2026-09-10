@@ -823,9 +823,49 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasForeground = _isAppInForeground;
     _isAppInForeground =
         state == AppLifecycleState.resumed ||
         state == AppLifecycleState.inactive;
+    if (_isAppInForeground == wasForeground) return;
+    // Set here, not left to the audio controller's observer: both observers
+    // see the same event and their order is not defined, and a restore that
+    // ran while the flag still said "foreground" would be refused outright
+    // — leaving the player with no notifications at all.
+    _pushNotifications.setAppInForeground(_isAppInForeground);
+    async.unawaited(
+      _isAppInForeground ? _dropScheduledPushes() : _restoreScheduledPushes(),
+    );
+  }
+
+  /// Take the scheduled pushes down while the player is here.
+  ///
+  /// Suppressing them at the moment they fire is not possible — Android
+  /// posts a scheduled local notification whether or not the app is open,
+  /// which is how a cultivation finishing on the cultivations screen still
+  /// buzzed the tray. So they are removed on the way in and put back on the
+  /// way out.
+  ///
+  /// Losing one is not a real risk: every schedule here is derived from the
+  /// database rather than remembered, so [_restoreScheduledPushes] rebuilds
+  /// them exactly. And a process killed hard enough to skip that also has
+  /// its alarms dropped by the system.
+  Future<void> _dropScheduledPushes() async {
+    await _pushNotifications.cancelEggNotification();
+    await _pushNotifications.cancelHarvestScheduledNotification();
+    await _pushNotifications.cancelWildernessSpawnNotification();
+  }
+
+  Future<void> _restoreScheduledPushes() async {
+    if (!mounted) return;
+    // Order matters only in that all three read the database; none of them
+    // remember anything, so this is the whole schedule rebuilt from state.
+    await _rehydrateEggSchedules();
+    if (!mounted) return;
+    await context.read<AlchemonsDatabase>().biomeDao
+        .syncHarvestNotifications();
+    if (!mounted) return;
+    await _checkWildernessNotifications();
   }
 
   Set<int> _parseNotificationStateIds(String? stateKey, String prefix) {
@@ -1025,7 +1065,6 @@ class _HomeScreenState extends State<HomeScreen>
     await _pushNotifications.initialize();
     try {
       if (!mounted) return;
-      final db = context.read<AlchemonsDatabase>();
       final factionSvc = context.read<FactionService>();
 
       await factionSvc.loadId();
@@ -1064,8 +1103,11 @@ class _HomeScreenState extends State<HomeScreen>
       await _pushNotifications.debugPrintPendingNotifications();
 
       // Recreate per-egg schedules on cold start
-      await _rehydrateEggSchedules();
-      await db.biomeDao.syncHarvestNotifications();
+      // Nothing scheduled while the player is here. A cold start is a
+      // foreground start, so this clears whatever the last session left
+      // pending; the schedule is rebuilt when the app goes away again.
+      _pushNotifications.setAppInForeground(true);
+      await _dropScheduledPushes();
     } catch (e, st) {
       debugPrint('Error during app initialization: $e');
       debugPrint('Error during app initialization: $e\n$st');

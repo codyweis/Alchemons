@@ -38,6 +38,17 @@ class PushNotificationService {
 
   bool get _suppressImmediate => _appInForeground;
 
+  /// Scheduling is refused in the foreground for the same reason showing
+  /// is, and it has to be: Android posts a scheduled notification whether
+  /// or not the app is open, so one set during a session fires during that
+  /// session. A cultivation finishing while its own screen was open is
+  /// exactly that.
+  ///
+  /// Nothing is lost by refusing. Every schedule in here is derived from
+  /// the database rather than remembered, so the app rebuilds them all when
+  /// it goes to the background.
+  bool get _suppressScheduling => _appInForeground;
+
   // Notification IDs - using separate ranges to prevent collisions
   static const int eggHatchingBaseId = 1000; // 1000-1099 for individual eggs
   static const int eggReadyConsolidatedId =
@@ -174,6 +185,8 @@ class PushNotificationService {
     required String eggId,
     int? slotIndex,
   }) async {
+    // Built on the way out instead; see _suppressScheduling.
+    if (_suppressScheduling) return;
     if (!_initialized) await initialize();
     if (!await _prefs.isCultivationsEnabled()) return;
 
@@ -381,6 +394,8 @@ class PushNotificationService {
     required DateTime spawnTime,
     required String sceneId,
   }) async {
+    // Built on the way out instead; see _suppressScheduling.
+    if (_suppressScheduling) return;
     if (!_initialized) await initialize();
 
     if (!await _prefs.isWildernessEnabled()) {
@@ -477,6 +492,8 @@ class PushNotificationService {
     required DateTime readyTime,
     required String biomeId,
   }) async {
+    // Built on the way out instead; see _suppressScheduling.
+    if (_suppressScheduling) return;
     if (!_initialized) await initialize();
     if (!await _prefs.isExtractionsEnabled()) return;
 
