@@ -5121,27 +5121,34 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   /// Arm or stand down the turret. Survives the session, because which guns
   /// you want minding themselves is a preference, not a per-flight decision.
-  Future<void> _toggleGun() async {
+  ///
+  /// The HUD button and the settings switch both come through here, so the
+  /// two never disagree about what is armed.
+  Future<void> _setGunArmed(bool armed) async {
     if (widget.memoryTutorial) return;
     setState(() {
-      _isShooting = !_isShooting;
-      _game?.shooting = _isShooting;
+      _isShooting = armed;
+      _game?.shooting = armed;
     });
     HapticFeedback.selectionClick();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_gunArmedPrefsKey, _isShooting);
+    await prefs.setBool(_gunArmedPrefsKey, armed);
   }
 
-  Future<void> _toggleMissiles() async {
+  Future<void> _setMissilesArmed(bool armed) async {
     if (widget.memoryTutorial) return;
     setState(() {
-      _isShootingMissiles = !_isShootingMissiles;
-      _game?.shootingMissiles = _isShootingMissiles;
+      _isShootingMissiles = armed;
+      _game?.shootingMissiles = armed;
     });
     HapticFeedback.selectionClick();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_missilesArmedPrefsKey, _isShootingMissiles);
+    await prefs.setBool(_missilesArmedPrefsKey, armed);
   }
+
+  void _toggleGun() => _setGunArmed(!_isShooting);
+
+  void _toggleMissiles() => _setMissilesArmed(!_isShootingMissiles);
 
   void _startBoosting() {
     if (widget.memoryTutorial) return;
@@ -8907,6 +8914,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                 _CosmicSettingsOverlay(
                   joystickEnabled: _showJoystick,
                   largeJoystickEnabled: _largeJoystick,
+                  autoFireGunEnabled: _isShooting,
+                  autoFireMissilesEnabled: _isShootingMissiles,
                   boostToggleEnabled: _boostToggleMode,
                   onClose: () => setState(() => _showSettingsMenu = false),
                   onLeaveSpace: () async {
@@ -8923,6 +8932,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.setBool('cosmic_large_joystick', v);
                   },
+                  onToggleAutoFireGun: _setGunArmed,
+                  onToggleAutoFireMissiles: _setMissilesArmed,
                   onToggleBoostToggle: (v) async {
                     setState(() {
                       _boostToggleMode = v;
@@ -10141,22 +10152,30 @@ class _CosmicSettingsOverlay extends StatelessWidget {
   const _CosmicSettingsOverlay({
     required this.joystickEnabled,
     required this.largeJoystickEnabled,
+    required this.autoFireGunEnabled,
+    required this.autoFireMissilesEnabled,
     required this.boostToggleEnabled,
     required this.onClose,
     required this.onLeaveSpace,
     required this.onToggleJoystick,
     required this.onToggleLargeJoystick,
+    required this.onToggleAutoFireGun,
+    required this.onToggleAutoFireMissiles,
     required this.onToggleBoostToggle,
     required this.onReplayPrologue,
   });
 
   final bool joystickEnabled;
   final bool largeJoystickEnabled;
+  final bool autoFireGunEnabled;
+  final bool autoFireMissilesEnabled;
   final bool boostToggleEnabled;
   final VoidCallback onClose;
   final VoidCallback onLeaveSpace;
   final ValueChanged<bool> onToggleJoystick;
   final ValueChanged<bool> onToggleLargeJoystick;
+  final ValueChanged<bool> onToggleAutoFireGun;
+  final ValueChanged<bool> onToggleAutoFireMissiles;
   final ValueChanged<bool> onToggleBoostToggle;
 
   /// Developer tool: replay THE FIRST CROSSING from here.
@@ -10289,6 +10308,22 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                     subtitle: 'Use the expanded movement pad',
                     value: largeJoystickEnabled,
                     onChanged: onToggleLargeJoystick,
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsToggleRow(
+                    icon: AppIcons.flash_on_rounded,
+                    label: 'Auto Fire — Turret',
+                    subtitle: 'The gun engages what comes into range',
+                    value: autoFireGunEnabled,
+                    onChanged: onToggleAutoFireGun,
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsToggleRow(
+                    icon: AppIcons.gps_fixed_rounded,
+                    label: 'Auto Fire — Missiles',
+                    subtitle: 'The launcher engages what comes into range',
+                    value: autoFireMissilesEnabled,
+                    onChanged: onToggleAutoFireMissiles,
                   ),
                   const SizedBox(height: 8),
                   _SettingsToggleRow(
