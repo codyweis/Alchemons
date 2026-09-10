@@ -1107,5 +1107,22 @@
     "peak_db": -16.48,
     "rms_db": -26.57,
     "sha256": "aeeed376e61d2766afd28fbdcc949a8f50e0f51598145d78d71e6b58e7f839dd"
+  },
+  {
+    "name": "sfx_cosmic_matter_collect",
+    "category": "Later additions",
+    "description": "Alchemical matter drawn into the meter \u2014 a soft intake, not a coin",
+    "target": "0.15\u20130.30 s",
+    "path": "assets/audio/sounds/sfx_cosmic_matter_collect.wav",
+    "duration": 0.22,
+    "loop": false,
+    "peak_db": -16.48,
+    "rms_db": -32.58,
+    "sha256": "256a085a085c51f366fd8271135dd2b4c9301752c9e81a65e15e3fa7c5faf54d",
+    "variations": [
+      "assets/audio/sounds/sfx_cosmic_matter_collect_01.wav",
+      "assets/audio/sounds/sfx_cosmic_matter_collect_02.wav",
+      "assets/audio/sounds/sfx_cosmic_matter_collect_03.wav"
+    ]
   }
 ]

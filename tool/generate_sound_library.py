@@ -214,6 +214,16 @@ recipe('element_plant', .65, .26, lambda s: s.noise(decay=.09, amp=.22, low=400,
 recipe('element_spirit', .95, .27, lambda s: s.tone(293.66, decay=.15, amp=.4, attack=.025, wobble=.45).tone(440, decay=.15, amp=.18, attack=.04).tone(587.33, start=.15, decay=.11, amp=.12, attack=.025).noise(decay=.12, amp=.06, low=1800, high=4500, attack=.03))
 recipe('element_dark', .80, .32, lambda s: s.tone(155, decay=.13, amp=.60, end=55, glide=.07, attack=.02).tone(207.65, decay=.13, amp=.18, wobble=.7).noise(decay=.12, amp=.20, low=60, high=650, attack=.02))
 recipe('element_light', .80, .28, lambda s: s.notes([659.25, 880, 1318.5], gap=.035, decay=.115, amp=.36).noise(decay=.08, amp=.04, low=3500, high=7000, attack=.02))
+# Collecting planet matter. This fires far more than anything else in the
+# game — a full meter is a couple of hundred motes — so it is built to sit
+# under the music rather than on top of it: quiet, short, and closing on
+# itself. An intake rather than a coin, and pitched away from the star-dust
+# plink so the two read as different things happening in the same sky.
+recipe('cosmic_matter_collect', .22, .15, lambda s: (
+    s.noise(decay=.019, amp=.17, low=1100, high=4300, attack=.004)
+     .tone(415, decay=.031, amp=.24, end=735, glide=.013, metal=.05)
+     .tone(1244.5, start=.011, decay=.016, amp=.07, metal=.02)))
+
 recipe('element_blood', .65, .30, lambda s: s.tone(85, decay=.045, amp=.6, end=58).tone(95, start=.17, decay=.06, amp=.5, end=62).bubbles(3, start=.02, span=.20, base=200, amp=.15))
 
 
@@ -307,7 +317,7 @@ def catalog():
             cells = [c.strip() for c in line.split('|')[1:-1]]
             rows.append({'name': match[1], 'category': section, 'description': cells[-1],
                          'target': cells[-2]})
-    assert len(rows) == 89, len(rows)
+    assert len(rows) == 90, len(rows)
     return rows
 
 
@@ -407,6 +417,7 @@ def main():
     # Three additional subtle speed/timbre variants leave each canonical file intact.
     varying = {'sfx_combat_projectile', 'sfx_combat_hit_light', 'sfx_combat_hit_heavy',
                'sfx_combat_enemy_defeat', 'sfx_cosmic_orb_pickup',
+               'sfx_cosmic_matter_collect',
                'sfx_dungeon_step_stone', 'sfx_dungeon_step_water'}
     for r in rows:
         if r['name'] not in varying:

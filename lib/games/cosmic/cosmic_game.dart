@@ -2848,10 +2848,12 @@ class CosmicGame extends FlameGame with PanDetector {
       if (dx * dx + dy * dy <
           _planetRecipeParticlePickupRadius *
               _planetRecipeParticlePickupRadius) {
-        // Collected!
+        // Collected! Silent when the meter is full: nothing went in, and a
+        // pickup sound over a hold that cannot take it is a lie.
         if (!meter.isFull) {
           meter.add(p.element, 0.5 * _meterPickupMultiplier);
           onMeterChanged();
+          onSound?.call(SoundCue.cosmicMatterCollect);
         }
         elemParticles.removeAt(i);
       }
@@ -2949,6 +2951,7 @@ class CosmicGame extends FlameGame with PanDetector {
           if (!meter.isFull) {
             meter.add(swarm.element, 1.0 * _meterPickupMultiplier);
             onMeterChanged();
+            onSound?.call(SoundCue.cosmicMatterCollect);
           }
         }
       }
@@ -6773,6 +6776,7 @@ class CosmicGame extends FlameGame with PanDetector {
             if (!meter.isFull) {
               meter.add(poi.element, 8.0 * _meterPickupMultiplier);
               onMeterChanged();
+              onSound?.call(SoundCue.cosmicMatterCollect);
             }
             break;
           case POIType.derelict:

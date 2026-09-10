@@ -170,6 +170,18 @@ All ambience below is P3, stereo, and authored for seamless looping. Scene-aware
 
 Keep WAV ambience as production masters; choose compressed runtime exports after checking size and target-device playback. Existing music already covers home, survival, space exploration, boss battle, planets, portals, wilderness biomes, and credits. New music is lower priority than interaction sounds. If adding a dedicated dungeon exploration track, target 90–180 seconds with a clean loop; a boss track can target 60–120 seconds. Preserve existing music filenames unless updating their mappings.
 
+## Later additions
+
+Appended rather than filed by theme, on purpose. The generator seeds each
+sound from its **row index** in this document, so inserting a row mid-file
+re-rolls the noise in every sound below it — and the approved-hash assertion
+at the end of `tool/generate_sound_library.py` will stop the run when it does.
+New rows go here, at the bottom, where they shift nothing.
+
+| Priority | Filename | Length | Sound / use |
+|---|---|---|---|
+| P2 | `sfx_cosmic_matter_collect.wav` | 0.15–0.30 s | Alchemical matter drawn into the meter — a soft intake, not a coin |
+
 ## Implementation notes from the current app
 
 - `lib/providers/audio_provider.dart` defines five cosmic `SoundCue` values and their asset candidates; `lib/screens/cosmic/cosmic_screen.dart` calls them.

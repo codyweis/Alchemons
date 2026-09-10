@@ -15,6 +15,7 @@ enum SoundCue {
   cosmicPortalOpen('assets/audio/sounds/cosmic/sfx_cosmic_portal_open.wav'),
   cosmicOrbPickup('assets/audio/sounds/cosmic/sfx_cosmic_orb_pickup.wav'),
   cosmicOrbDeposit('assets/audio/sounds/cosmic/sfx_cosmic_orb_deposit.wav'),
+  cosmicMatterCollect('assets/audio/sounds/sfx_cosmic_matter_collect.wav'),
   cosmicAnomalyBurst('assets/audio/sounds/cosmic/sfx_cosmic_anomaly_burst.wav'),
   cosmicStarforgeActivate(
     'assets/audio/sounds/cosmic/sfx_cosmic_starforge_activate.wav',
@@ -107,6 +108,7 @@ enum SoundCue {
     SoundCue.combatHitHeavy,
     SoundCue.combatEnemyDefeat,
     SoundCue.cosmicOrbPickup,
+    SoundCue.cosmicMatterCollect,
     SoundCue.dungeonStepStone,
     SoundCue.dungeonStepWater,
   }.contains(this);
@@ -128,6 +130,7 @@ enum SoundCue {
     SoundCue.combatHitHeavy ||
     SoundCue.combatEnemyDefeat ||
     SoundCue.cosmicOrbPickup ||
+    SoundCue.cosmicMatterCollect ||
     SoundCue.dungeonStepStone ||
     SoundCue.dungeonStepWater => 0,
     _ => 1,
@@ -142,6 +145,10 @@ enum SoundCue {
     SoundCue.combatHitHeavy ||
     SoundCue.combatEnemyDefeat => 100,
     SoundCue.cosmicOrbPickup => 90,
+    // Matter arrives in streams, not singly — a full meter is a couple of
+    // hundred motes. Long enough apart to read as separate pickups, short
+    // enough that flying through a field still sounds continuous.
+    SoundCue.cosmicMatterCollect => 80,
     SoundCue.dungeonStepStone || SoundCue.dungeonStepWater => 220,
     SoundCue.uiTap || SoundCue.uiSelect => 70,
     _ => 250,
@@ -151,6 +158,9 @@ enum SoundCue {
     SoundCue.combatHitLight || SoundCue.combatEnemyDefeat => .55,
     SoundCue.dungeonStepStone || SoundCue.dungeonStepWater => .35,
     SoundCue.cosmicOrbPickup => .60,
+    // Well under the star-dust plink: this fires many times more often, and
+    // its job is to sit under the music rather than on top of it.
+    SoundCue.cosmicMatterCollect => .34,
     SoundCue.uiTap || SoundCue.uiSelect || SoundCue.uiBack => .65,
     _ => 1.0,
   };
