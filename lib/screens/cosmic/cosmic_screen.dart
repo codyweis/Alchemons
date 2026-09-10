@@ -586,10 +586,11 @@ class _CosmicScreenState extends State<CosmicScreen>
       _largeJoystick = true;
       _boostToggleMode = false;
       _showPinnedMiniMap = false;
-      // The memory teaches summoning and the magnet, not gunnery — so the
-      // buttons read stood-down, matching what the game is actually doing.
-      _isShooting = false;
-      _isShootingMissiles = false;
+      // The weapons are NOT stood down here. The gun button is the one
+      // control in its column that the memory does not hide, so disarming it
+      // left a button on screen that ignored every tap. Missiles need no
+      // special case either — the memory ship has none, and the launcher
+      // checks that before it fires.
     }
 
     // Load fuel state
@@ -4925,11 +4926,15 @@ class _CosmicScreenState extends State<CosmicScreen>
   }) {
     if (auto) {
       return GestureDetector(
+        // Opaque, or only the glyph inside the plate answers a tap — the
+        // border and padding are not hit-testable on their own.
+        behavior: HitTestBehavior.opaque,
         onTap: context.soundAction(() => setFiring(!firing)),
         child: child,
       );
     }
     return Listener(
+      behavior: HitTestBehavior.opaque,
       onPointerDown: (_) => setFiring(true),
       onPointerUp: (_) => setFiring(false),
       onPointerCancel: (_) => setFiring(false),
@@ -5179,7 +5184,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// is remembered between flights; on manual it is the trigger, which is
   /// not.
   void _setGunFiring(bool firing) {
-    if (widget.memoryTutorial) return;
     if (_isShooting == firing) return;
     setState(() {
       _isShooting = firing;
@@ -5190,7 +5194,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _setMissilesFiring(bool firing) {
-    if (widget.memoryTutorial) return;
     if (_isShootingMissiles == firing) return;
     setState(() {
       _isShootingMissiles = firing;
@@ -5214,7 +5217,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {
       _autoFireGun = auto;
       _game?.autoAimGun = auto;
-      _isShooting = auto && !widget.memoryTutorial;
+      _isShooting = auto;
       _game?.shooting = _isShooting;
     });
     final prefs = await SharedPreferences.getInstance();
@@ -5226,7 +5229,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {
       _autoFireMissiles = auto;
       _game?.autoAimMissiles = auto;
-      _isShootingMissiles = auto && !widget.memoryTutorial;
+      _isShootingMissiles = auto;
       _game?.shootingMissiles = _isShootingMissiles;
     });
     final prefs = await SharedPreferences.getInstance();
