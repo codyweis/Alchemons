@@ -841,6 +841,19 @@ class _AlchemicalPowerupFeedingScreenState
   ) {
     final t = ForgeTokens(theme);
     final soulQty = inventory[InvKeys.potentialSoul] ?? 0;
+    // The soul tray is a second infusion system, and offering the way into it
+    // to a player holding none only advertises a thing they cannot do. It
+    // appears with the first soul.
+    final hasAnySoul = soulQty > 0;
+    // Spending the last one while the tray is open would otherwise strand
+    // them in a mode with no switch to get back out of.
+    if (!hasAnySoul && _traySoulMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || soulQty > 0 || !_traySoulMode) return;
+        _trayPageController.reverse();
+        setState(() => _traySoulMode = false);
+      });
+    }
     return Container(
       decoration: BoxDecoration(
         color: t.bg2,
@@ -870,7 +883,9 @@ class _AlchemicalPowerupFeedingScreenState
                 ),
                 Expanded(
                   child: Text(
-                    _traySoulMode ? 'POTENTIAL SOULS' : 'POWER ORBS',
+                    _traySoulMode && hasAnySoul
+                        ? 'POTENTIAL SOULS'
+                        : 'POWER ORBS',
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: t.amberBright,
@@ -882,21 +897,22 @@ class _AlchemicalPowerupFeedingScreenState
                 ),
                 // The tray swaps contents rather than stacking both kinds, so
                 // Souls get the same full-width treatment Orbs always had.
-                _TraySwitch(
-                  soulMode: _traySoulMode,
-                  soulQty: soulQty,
-                  theme: theme,
-                  onChanged: (soul) {
-                    if (_busy || soul == _traySoulMode) return;
-                    HapticFeedback.selectionClick();
-                    if (soul) {
-                      _trayPageController.forward();
-                    } else {
-                      _trayPageController.reverse();
-                    }
-                    setState(() => _traySoulMode = soul);
-                  },
-                ),
+                if (hasAnySoul)
+                  _TraySwitch(
+                    soulMode: _traySoulMode,
+                    soulQty: soulQty,
+                    theme: theme,
+                    onChanged: (soul) {
+                      if (_busy || soul == _traySoulMode) return;
+                      HapticFeedback.selectionClick();
+                      if (soul) {
+                        _trayPageController.forward();
+                      } else {
+                        _trayPageController.reverse();
+                      }
+                      setState(() => _traySoulMode = soul);
+                    },
+                  ),
               ],
             ),
           ),
@@ -1283,9 +1299,7 @@ class _AlchemicalPowerupFeedingScreenState
                 // Same instrument gate as the plates above: without the
                 // analyzer the soul tray showed the exact figure the rest of
                 // the game hides.
-                maxed
-                    ? 'MAX'
-                    : (_canReadPotential ? 'P$potential' : 'SOUL'),
+                maxed ? 'MAX' : (_canReadPotential ? 'P$potential' : 'SOUL'),
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: maxed ? t.amberBright : t.textMuted,
