@@ -92,6 +92,8 @@ class _AlchemicalPowerupFeedingScreenState
   /// already has a "No Potential Souls held" state for the empty case.
   static const _soulTraySeenKey = 'enhance_soul_tray_seen_v1';
   bool _soulTrayEverSeen = false;
+  static const _orbTraySeenKey = 'enhance_orb_tray_seen_v1';
+  bool _orbTrayEverSeen = false;
 
   // Souls spend Silver, so the commitment happens before the gesture: pick a
   // Potential, confirm the price, and only then does the soul become
@@ -862,6 +864,23 @@ class _AlchemicalPowerupFeedingScreenState
       );
     }
     final hasAnySoul = soulQty > 0 || _soulTrayEverSeen;
+
+    // Orbs earn their tray the same way. A row of four empty sockets over a
+    // BUY prompt is the shop's job, not the forge's — until the player is
+    // holding one, infusion is not a thing they can do here.
+    final orbQty = AlchemicalPowerupType.values.fold<int>(
+      0,
+      (sum, type) => sum + (inventory[type.inventoryKey] ?? 0),
+    );
+    if (orbQty > 0 && !_orbTrayEverSeen) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(_rememberOrbTraySeen()),
+      );
+    }
+    final hasAnyOrb = orbQty > 0 || _orbTrayEverSeen;
+
+    // Nothing to infuse with at all: the panel is not there.
+    if (!hasAnyOrb && !hasAnySoul) return const SizedBox.shrink();
     return Container(
       decoration: BoxDecoration(
         color: t.bg2,
@@ -891,7 +910,7 @@ class _AlchemicalPowerupFeedingScreenState
                 ),
                 Expanded(
                   child: Text(
-                    _traySoulMode && hasAnySoul
+                    (_traySoulMode || !hasAnyOrb) && hasAnySoul
                         ? 'POTENTIAL SOULS'
                         : 'POWER ORBS',
                     style: TextStyle(
@@ -905,7 +924,7 @@ class _AlchemicalPowerupFeedingScreenState
                 ),
                 // The tray swaps contents rather than stacking both kinds, so
                 // Souls get the same full-width treatment Orbs always had.
-                if (hasAnySoul)
+                if (hasAnyOrb && hasAnySoul)
                   _TraySwitch(
                     soulMode: _traySoulMode,
                     soulQty: soulQty,
@@ -934,44 +953,51 @@ class _AlchemicalPowerupFeedingScreenState
             // Clipped on X only: the offscreen page must stay hidden, but the
             // orbs' glow, float and pulse all paint past the row's height and
             // a full ClipRect beheads them.
-            child: ClipRect(
-              clipper: const _HorizontalOnlyClipper(),
-              child: AnimatedBuilder(
-                animation: _trayPage,
-                builder: (context, _) {
-                  final t = _trayPage.value;
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      FractionalTranslation(
-                        translation: Offset(-t, 0),
-                        child: IgnorePointer(
-                          ignoring: t > 0.5,
-                          child: _buildOrbRow(
-                            instance,
-                            inventory,
-                            silverBalance,
-                            theme,
-                          ),
-                        ),
-                      ),
-                      FractionalTranslation(
-                        translation: Offset(1 - t, 0),
-                        child: IgnorePointer(
-                          ignoring: t <= 0.5,
-                          child: _buildSoulRow(
-                            instance,
-                            soulQty,
-                            silverBalance,
-                            theme,
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
+            // With only one kind in hand there is nothing to slide between,
+            // so the tray is just that page — no switch above it, and no
+            // empty sockets waiting behind it.
+            child: !hasAnyOrb
+                ? _buildSoulRow(instance, soulQty, silverBalance, theme)
+                : !hasAnySoul
+                ? _buildOrbRow(instance, inventory, silverBalance, theme)
+                : ClipRect(
+                    clipper: const _HorizontalOnlyClipper(),
+                    child: AnimatedBuilder(
+                      animation: _trayPage,
+                      builder: (context, _) {
+                        final t = _trayPage.value;
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            FractionalTranslation(
+                              translation: Offset(-t, 0),
+                              child: IgnorePointer(
+                                ignoring: t > 0.5,
+                                child: _buildOrbRow(
+                                  instance,
+                                  inventory,
+                                  silverBalance,
+                                  theme,
+                                ),
+                              ),
+                            ),
+                            FractionalTranslation(
+                              translation: Offset(1 - t, 0),
+                              child: IgnorePointer(
+                                ignoring: t <= 0.5,
+                                child: _buildSoulRow(
+                                  instance,
+                                  soulQty,
+                                  silverBalance,
+                                  theme,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
@@ -1527,9 +1553,14 @@ class _AlchemicalPowerupFeedingScreenState
 
   Future<void> _loadSoulTraySeen() async {
     final db = context.read<AlchemonsDatabase>();
-    final seen = await db.settingsDao.getSetting(_soulTraySeenKey) == '1';
-    if (mounted && seen != _soulTrayEverSeen) {
-      setState(() => _soulTrayEverSeen = seen);
+    final seenSoul = await db.settingsDao.getSetting(_soulTraySeenKey) == '1';
+    final seenOrb = await db.settingsDao.getSetting(_orbTraySeenKey) == '1';
+    if (!mounted) return;
+    if (seenSoul != _soulTrayEverSeen || seenOrb != _orbTrayEverSeen) {
+      setState(() {
+        _soulTrayEverSeen = seenSoul;
+        _orbTrayEverSeen = seenOrb;
+      });
     }
   }
 
@@ -1538,6 +1569,19 @@ class _AlchemicalPowerupFeedingScreenState
     _soulTrayEverSeen = true;
     await context.read<AlchemonsDatabase>().settingsDao.setSetting(
       _soulTraySeenKey,
+      '1',
+    );
+    if (mounted) setState(() {});
+  }
+
+  /// Discovery is one-way, the same as the soul tray's. A tray that vanished
+  /// when the last orb was spent would read as the feature breaking, right at
+  /// the moment the player has learned to want it.
+  Future<void> _rememberOrbTraySeen() async {
+    if (_orbTrayEverSeen || !mounted) return;
+    _orbTrayEverSeen = true;
+    await context.read<AlchemonsDatabase>().settingsDao.setSetting(
+      _orbTraySeenKey,
       '1',
     );
     if (mounted) setState(() {});
