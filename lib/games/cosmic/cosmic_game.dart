@@ -882,6 +882,13 @@ class CosmicGame extends FlameGame with PanDetector {
   }
 
   /// The closest living enemy inside [range] of [from], or null.
+  /// The nearest thing worth shooting inside [range], or null.
+  ///
+  /// The boss is not in [enemies] — it is its own field — so a search that
+  /// only walked the list went blind in the one fight where holding fire is
+  /// least forgivable: alone with the boss and no minions up, an armed ship
+  /// simply never shot. The homing missiles already knew to check both, and
+  /// this is the same pair.
   Offset? _nearestEnemyWithin(Offset from, double range) {
     Offset? best;
     var bestDist2 = range * range;
@@ -893,6 +900,34 @@ class CosmicGame extends FlameGame with PanDetector {
       if (d2 < bestDist2) {
         bestDist2 = d2;
         best = e.position;
+      }
+    }
+    // Ring minions are a third list again, and only exist mid-ring-fight.
+    // Asteroids are deliberately NOT here: they take fire too, but they are
+    // scenery to be mined, and an armed ship would otherwise chew through
+    // every rock it drifted past.
+    if (battleRing.inBattle) {
+      for (final rm in ringMinions) {
+        if (rm.dead) continue;
+        final dx = rm.position.dx - from.dx;
+        final dy = rm.position.dy - from.dy;
+        final d2 = dx * dx + dy * dy;
+        if (d2 < bestDist2) {
+          bestDist2 = d2;
+          best = rm.position;
+        }
+      }
+    }
+    final boss = activeBoss;
+    if (boss != null && !boss.dead) {
+      final dx = boss.position.dx - from.dx;
+      final dy = boss.position.dy - from.dy;
+      final d2 = dx * dx + dy * dy;
+      // Measured to the hull, not the centre: a titanic boss can have the
+      // ship inside its own radius and still read as hundreds of units away.
+      final reach = range + boss.radius;
+      if (d2 < reach * reach && d2 < bestDist2) {
+        best = boss.position;
       }
     }
     return best;
