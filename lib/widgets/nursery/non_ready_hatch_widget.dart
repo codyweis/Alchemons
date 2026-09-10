@@ -6,6 +6,7 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
+import 'package:alchemons/widgets/half_cultivation_chip.dart';
 import 'package:alchemons/widgets/nursery/cultivation_stage.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -222,15 +223,25 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                     color: t.textSecondary,
                     onTap: widget.onClose,
                   ),
-                  centre: Text(
-                    BreedConstants.formatRemaining(_remainingFor(slot)),
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: rarityColor,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.6,
-                    ),
+                  centre: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        BreedConstants.formatRemaining(_remainingFor(slot)),
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: rarityColor,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                      // The catalyst, where its effect is actually felt.
+                      // This countdown is the number it halves, and a player
+                      // watching one tick down is the player most likely to
+                      // want to know how long the halving lasts.
+                      const CatalystCultivationNote(),
+                    ],
                   ),
                   below: _instantFuse(t),
                 );

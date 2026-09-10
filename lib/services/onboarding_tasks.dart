@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:alchemons/data/mystic_altar_data.dart';
+import 'package:alchemons/screens/story/campaign_journal_screen.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/shop_service.dart';
@@ -8,7 +9,7 @@ import 'package:alchemons/widgets/game_snack.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 /// Where a task sends you. Some places are tabs in the shell, the rest are
 /// screens pushed over it, and the Go button has to handle both.
@@ -284,8 +285,21 @@ class OnboardingTaskService {
         if (!context.mounted) return;
         showGameSnack(
           context,
-          'Task complete — collect $kTaskSilverReward silver in Achievements',
+          'Task complete — $kTaskSilverReward silver to collect',
           icon: AppIcons.check_circle_rounded,
+          // Tapping the notification takes them to it, rather than telling
+          // them where to go and leaving them to find it.
+          action: SnackBarAction(
+            label: 'Collect',
+            onPressed: () {
+              if (!context.mounted) return;
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const CampaignJournalScreen(),
+                ),
+              );
+            },
+          ),
         );
       });
     }());

@@ -149,77 +149,90 @@ class _TopNotificationState extends State<_TopNotification>
             onDismissed: (_) => widget.onDismiss(),
             child: Material(
               color: Colors.transparent,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 560),
-                decoration: BoxDecoration(
-                  color: widget.surface,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: widget.tint.withValues(alpha: 0.5),
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x66000000),
-                      blurRadius: 12,
-                      offset: Offset(0, 4),
+              // The whole bar is the button when there is somewhere to go.
+              // The label on the right says what tapping does; making only
+              // that label live meant most taps — aimed at the words the
+              // player was reading — did nothing.
+              child: GestureDetector(
+                onTap: widget.action == null
+                    ? null
+                    : () {
+                        widget.onDismiss();
+                        widget.action!.onPressed();
+                      },
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  decoration: BoxDecoration(
+                    color: widget.surface,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: widget.tint.withValues(alpha: 0.5),
                     ),
-                  ],
-                ),
-                padding: const EdgeInsets.fromLTRB(0, 11, 12, 11),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 3,
-                      height: 26,
-                      color: widget.tint,
-                      margin: const EdgeInsets.only(right: 11),
-                    ),
-                    if (widget.icon != null) ...[
-                      Icon(widget.icon, size: 16, color: widget.tint),
-                      const SizedBox(width: 9),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x66000000),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
+                      ),
                     ],
-                    Expanded(
-                      child: Text(
-                        widget.message.toUpperCase(),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: widget.text,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.6,
-                          height: 1.35,
+                  ),
+                  padding: const EdgeInsets.fromLTRB(0, 11, 12, 11),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 3,
+                        height: 26,
+                        color: widget.tint,
+                        margin: const EdgeInsets.only(right: 11),
+                      ),
+                      if (widget.icon != null) ...[
+                        Icon(widget.icon, size: 16, color: widget.tint),
+                        const SizedBox(width: 9),
+                      ],
+                      Expanded(
+                        child: Text(
+                          widget.message.toUpperCase(),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: widget.text,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                            height: 1.35,
+                          ),
                         ),
                       ),
-                    ),
-                    if (widget.action != null) ...[
-                      const SizedBox(width: 10),
-                      GestureDetector(
-                        onTap: () {
-                          widget.onDismiss();
-                          widget.action!.onPressed();
-                        },
-                        behavior: HitTestBehavior.opaque,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 4,
-                          ),
-                          child: Text(
-                            widget.action!.label.toUpperCase(),
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: widget.tint,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.0,
+                      if (widget.action != null) ...[
+                        const SizedBox(width: 10),
+                        GestureDetector(
+                          onTap: () {
+                            widget.onDismiss();
+                            widget.action!.onPressed();
+                          },
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 4,
+                            ),
+                            child: Text(
+                              widget.action!.label.toUpperCase(),
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: widget.tint,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.0,
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),

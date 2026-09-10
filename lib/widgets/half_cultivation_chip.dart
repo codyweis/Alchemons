@@ -161,3 +161,68 @@ class _HalfCultivationChipState extends State<HalfCultivationChip> {
     );
   }
 }
+
+/// The catalyst's remaining time, for places where a cultivation is being
+/// watched rather than started.
+///
+/// Absent when no boost is running, so it costs nothing the rest of the
+/// time. It says "halved" rather than repeating the item's whole
+/// explanation — the number above it is the thing being halved.
+class CatalystCultivationNote extends StatefulWidget {
+  const CatalystCultivationNote({super.key});
+
+  @override
+  State<CatalystCultivationNote> createState() =>
+      _CatalystCultivationNoteState();
+}
+
+class _CatalystCultivationNoteState extends State<CatalystCultivationNote> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      context.read<TimedBoostService>().pruneExpired();
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final boosts = context.watch<TimedBoostService>();
+    if (!boosts.halfCultivationActive) return const SizedBox.shrink();
+    const accent = Color(0xFF7BE1E8);
+    final left = _HalfCultivationChipState.formatRemaining(
+      boosts.halfCultivationRemaining,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ChronalCatalystGlyph(size: 13),
+          const SizedBox(width: 5),
+          Text(
+            'HALVED · $left LEFT',
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: accent,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

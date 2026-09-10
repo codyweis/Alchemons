@@ -1,4 +1,5 @@
 import 'package:alchemons/audio/audio.dart';
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:alchemons/constants/design_tokens.dart';
@@ -7,6 +8,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 // ============================================================================
@@ -586,12 +588,78 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
   final Map<NotificationBannerType, bool> _expandedStates = {};
   bool _isLoadingDismissals = true;
 
+  // ── Where the stack sits ──────────────────────────────────────────────
+  //
+  // Banners cover the top-right corner, which is also where the currency
+  // and the party strip live, so the player needs to be able to put them
+  // somewhere else. Moving them is a long press and a drag: tap already
+  // expands a banner and a horizontal swipe already dismisses one, so a
+  // plain pan had nowhere to go without taking one of those away.
+  static const _prefsSideKey = 'home_banner_right_side';
+  static const _prefsDyKey = 'home_banner_dy';
+
+  bool _onRight = true;
+  double _dy = 0;
+  bool _dragging = false;
+  double _liveDx = 0;
+  double _liveDy = 0;
+
+  Future<void> _loadPlacement() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _onRight = prefs.getBool(_prefsSideKey) ?? true;
+      _dy = prefs.getDouble(_prefsDyKey) ?? 0;
+    });
+  }
+
+  Future<void> _savePlacement() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefsSideKey, _onRight);
+    await prefs.setDouble(_prefsDyKey, _dy);
+  }
+
+  void _pickUp() {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _dragging = true;
+      _liveDx = 0;
+      _liveDy = 0;
+    });
+  }
+
+  /// [fromOrigin] is measured from where the press started, so it is the
+  /// live offset outright rather than something to accumulate.
+  void _dragTo(Offset fromOrigin) {
+    setState(() {
+      _liveDx = fromOrigin.dx;
+      _liveDy = fromOrigin.dy;
+    });
+  }
+
+  void _drop(double screenWidth, double maxDy, double releasedAtX) {
+    // Whichever half it was released in, so a short nudge across the middle
+    // still switches sides and a long drag that ends up back where it
+    // started does not.
+    final side = releasedAtX > screenWidth / 2;
+    setState(() {
+      _onRight = side;
+      _dy = (_dy + _liveDy).clamp(0.0, maxDy);
+      _dragging = false;
+      _liveDx = 0;
+      _liveDy = 0;
+    });
+    HapticFeedback.selectionClick();
+    unawaited(_savePlacement());
+  }
+
   String _keyFor(NotificationBanner n) => '${n.type.toKey()}|${n.stateKey}';
 
   @override
   void initState() {
     super.initState();
     _loadDismissedNotifications();
+    unawaited(_loadPlacement());
   }
 
   Future<void> _loadDismissedNotifications() async {
@@ -706,22 +774,57 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
       return const SizedBox.shrink();
     }
 
+    final media = MediaQuery.of(context);
+    final baseTop = media.padding.top + 8;
+    // Kept on screen whatever was stored: a rotation or a smaller device
+    // must not strand the banners past the bottom edge.
+    final maxDy = (media.size.height - baseTop - 140).clamp(0.0, 4000.0);
+    final top = (_dy + _liveDy).clamp(0.0, maxDy) + baseTop;
+
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 8,
-      right: 0,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: _activeNotifications
-            .map(
-              (notification) => NotificationBannerWidget(
-                key: ValueKey('${notification.type}_${notification.stateKey}'),
-                notification: notification,
-                isExpanded: _expandedStates[notification.type] ?? false,
-                onExpand: () => _toggleExpanded(notification.type),
-                onDismiss: () => _removeBanner(notification),
-              ),
-            )
-            .toList(),
+      top: top,
+      left: _onRight ? null : 0,
+      right: _onRight ? 0 : null,
+      child: GestureDetector(
+        // Long press to pick up. Tap and horizontal swipe belong to the
+        // banner itself, so this is the one gesture left that cannot be
+        // mistaken for either.
+        onLongPressStart: (_) => _pickUp(),
+        onLongPressMoveUpdate: (d) => _dragTo(d.offsetFromOrigin),
+        onLongPressEnd: (d) =>
+            _drop(media.size.width, maxDy, d.globalPosition.dx),
+        onLongPressCancel: () => setState(() {
+          _dragging = false;
+          _liveDx = 0;
+          _liveDy = 0;
+        }),
+        child: Transform.translate(
+          offset: Offset(_liveDx, 0),
+          child: AnimatedScale(
+            // A small lift, so a picked-up stack looks picked up.
+            scale: _dragging ? 1.04 : 1.0,
+            duration: const Duration(milliseconds: 140),
+            alignment: _onRight ? Alignment.centerRight : Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment: _onRight
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: _activeNotifications
+                  .map(
+                    (notification) => NotificationBannerWidget(
+                      key: ValueKey(
+                        '${notification.type}_${notification.stateKey}',
+                      ),
+                      notification: notification,
+                      isExpanded: _expandedStates[notification.type] ?? false,
+                      onExpand: () => _toggleExpanded(notification.type),
+                      onDismiss: () => _removeBanner(notification),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ),
       ),
     );
   }
