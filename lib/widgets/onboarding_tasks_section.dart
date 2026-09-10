@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
+import 'package:flutter/services.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/extraction_hub_screen.dart';
@@ -13,7 +14,7 @@ import 'package:alchemons/screens/upgrade_tree/constellation_screen.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/section_router.dart';
-import 'package:alchemons/widgets/game_snack.dart';
+import 'package:alchemons/widgets/achievements/reward_collect_burst.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -33,6 +34,48 @@ class OnboardingTasksSection extends StatefulWidget {
 class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
   List<(OnboardingTask, TaskState)>? _outstanding;
   bool _claiming = false;
+
+  /// One key per row, so a collected reward can fly from the row the player
+  /// actually pressed rather than from the middle of the list.
+  final Map<String, GlobalKey> _rowKeys = {};
+
+  GlobalKey _keyFor(String id) =>
+      _rowKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'task_$id'));
+
+  /// Read BEFORE the claim: collecting removes the row, and by the time the
+  /// list has rebuilt its rect is gone.
+  Rect? _rectFor(String id) {
+    final ctx = _rowKeys[id]?.currentContext;
+    if (ctx == null || !ctx.mounted) return null;
+    final box = ctx.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  /// Where the coins land — the wallet's corner, matching the achievements
+  /// collected on this same screen.
+  Offset get _walletTarget {
+    final media = MediaQuery.of(context);
+    return Offset(media.size.width - 34, media.padding.top + 26);
+  }
+
+  /// The beat an achievement plays when it is collected: a knock, the unlock
+  /// cue, and silver crossing the screen to the wallet. A task collected
+  /// beside one should not be quieter than it.
+  void _playCollect(Rect? from) {
+    HapticFeedback.mediumImpact();
+    context.sound(SoundCue.achievementUnlock, owner: this);
+    if (from == null) return;
+    unawaited(
+      playRewardCollect(
+        context,
+        from: from,
+        to: _walletTarget,
+        gold: 0,
+        silver: kTaskSilverReward,
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -59,34 +102,48 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
   Future<void> _collect(OnboardingTask task) async {
     if (_claiming) return;
     setState(() => _claiming = true);
+    final from = _rectFor(task.id);
     final db = context.read<AlchemonsDatabase>();
     final paid = await OnboardingTaskService(db).claim(task.id);
     if (!mounted) return;
     setState(() => _claiming = false);
-    if (paid) {
-      showGameSnack(
-        context,
-        '+$kTaskSilverReward silver',
-        icon: AppIcons.check_circle_rounded,
-      );
-    }
+    if (paid) _playCollect(from);
     await _refresh();
   }
 
   Future<void> _collectAll() async {
     if (_claiming) return;
     setState(() => _claiming = true);
+    final rows = _outstanding ?? const [];
+    // Rects first, all of them: the first claim already invalidates the rest.
+    final rects = {
+      for (final (task, state) in rows)
+        if (state == TaskState.earned) task.id: _rectFor(task.id),
+    };
     final db = context.read<AlchemonsDatabase>();
-    final paid = await OnboardingTaskService(db).claimAll();
-    if (!mounted) return;
-    setState(() => _claiming = false);
-    if (paid > 0) {
-      showGameSnack(
-        context,
-        '+${paid * kTaskSilverReward} silver',
-        icon: AppIcons.check_circle_rounded,
+    final service = OnboardingTaskService(db);
+
+    var fired = 0;
+    for (final id in rects.keys) {
+      if (!await service.claim(id)) continue;
+      if (!mounted) return;
+      final from = rects[id];
+      // Staggered so several rewards read as a sequence rather than one
+      // dump — scheduled, never awaited, so the claims are not held up by
+      // the animation.
+      final delay = Duration(milliseconds: 110 * fired);
+      fired++;
+      unawaited(
+        Future<void>.delayed(delay, () {
+          if (!mounted) return;
+          _playCollect(from);
+        }),
       );
     }
+
+    if (!mounted) return;
+    setState(() => _claiming = false);
+    if (fired > 0) HapticFeedback.heavyImpact();
     await _refresh();
   }
 
@@ -201,6 +258,7 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
         const SizedBox(height: 12),
         for (final (task, state) in tasks)
           _TaskRow(
+            key: _keyFor(task.id),
             task: task,
             state: state,
             busy: _claiming,
@@ -218,6 +276,7 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
 /// one action, not two.
 class _TaskRow extends StatefulWidget {
   const _TaskRow({
+    super.key,
     required this.task,
     required this.state,
     required this.busy,
