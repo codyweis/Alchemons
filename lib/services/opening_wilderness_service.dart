@@ -31,6 +31,15 @@ class OpeningWildernessService {
 
   static const Set<String> coreScenes = {'valley', 'sky', 'swamp', 'volcano'};
 
+  /// How long the region the hunt points at takes to stir.
+  ///
+  /// Not instant: arriving to find something already waiting reads as the
+  /// game handing it over. A short wait makes the region feel like a place
+  /// that fills on its own, and it is short enough that nobody is left
+  /// with nothing to do — the normal spawn window is far longer, and using
+  /// it here is what left the opening pointing at a locked door.
+  static const Duration huntSpawnDelay = Duration(minutes: 1);
+
   static String primarySceneForFaction(FactionId faction) {
     switch (faction) {
       case FactionId.volcanic:

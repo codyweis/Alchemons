@@ -505,7 +505,15 @@ class _MapScreenState extends State<MapScreen>
       db.settingsDao,
     );
     if (open == null || !mounted) return;
-    await spawnService.ensureSpawnsForScene(open);
+    if (spawnService.getSceneSpawnCount(open) > 0) return;
+    // NOT forced: a clock already running must be left to run, or opening
+    // the map would push it back a minute every time and it would never
+    // come round.
+    await spawnService.scheduleNextSpawnTime(
+      open,
+      windowMin: OpeningWildernessService.huntSpawnDelay,
+      windowMax: OpeningWildernessService.huntSpawnDelay,
+    );
   }
 
   Future<void> _handleRegionTap(
@@ -644,14 +652,25 @@ class _MapScreenState extends State<MapScreen>
       final nextScene = await OpeningWildernessService.openShipHuntScene(
         db.settingsDao,
       );
+      // Forced, because this is a transition: whatever the previous state
+      // said about that region, it is the next stop now and its clock
+      // starts here.
+      Future<void> startClock(String scene) => spawnService
+          .scheduleNextSpawnTime(
+            scene,
+            windowMin: OpeningWildernessService.huntSpawnDelay,
+            windowMax: OpeningWildernessService.huntSpawnDelay,
+            force: true,
+          );
+
       if (nextScene != null) {
-        await spawnService.ensureSpawnsForScene(nextScene);
+        await startClock(nextScene);
       } else {
         // Or the hunt just ended on this visit, in which case every core
         // biome became eligible at once and the map should not open onto
-        // four empty regions.
+        // four regions that are all empty with nothing counting down.
         for (final scene in OpeningWildernessService.coreScenes) {
-          await spawnService.ensureSpawnsForScene(scene);
+          await startClock(scene);
         }
       }
     }

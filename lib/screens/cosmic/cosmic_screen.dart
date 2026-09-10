@@ -1556,7 +1556,11 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (game == null) return;
 
     var spawned = 0;
-    const totalEnemies = 20;
+    // Eight, not twenty. They arrive one a second and the boss waits for
+    // the last of them to die, so the count was a twenty-second spawn plus
+    // however long the killing took — before the fight the memory is
+    // actually about had even started.
+    const totalEnemies = 8;
     _memorySpawnTimer?.cancel();
     _memorySpawnTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted || _game == null) {
@@ -1599,11 +1603,16 @@ class _CosmicScreenState extends State<CosmicScreen>
           _memoryTutorialPrompt = 'A large enemy is coming.';
         });
         game.spawnSandboxBoss(
+          // Health is multiplied sevenfold at level 1 (bossHealthScale), so
+          // 18 here was 126 HP — a real boss's worth, handed to a single
+          // borrowed companion in a tutorial. 8 is 56, which is long enough
+          // to demonstrate a cooldown and short enough not to become the
+          // memory's whole second half.
           template: const BossTemplate(
             name: 'Memory Warden',
             element: 'Spirit',
             radius: 30,
-            health: 18,
+            health: 8,
             speed: 22,
             preferredType: BossType.gunner,
           ),

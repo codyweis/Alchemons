@@ -1436,8 +1436,13 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                                 _db.settingsDao,
                               );
                           if (firstStop != null) {
-                            await _spawnService.ensureSpawnsForScene(
+                            await _spawnService.scheduleNextSpawnTime(
                               firstStop,
+                              windowMin:
+                                  OpeningWildernessService.huntSpawnDelay,
+                              windowMax:
+                                  OpeningWildernessService.huntSpawnDelay,
+                              force: true,
                             );
                           }
                           if (!context.mounted) return;
