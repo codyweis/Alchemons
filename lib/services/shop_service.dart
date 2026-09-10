@@ -1476,6 +1476,10 @@ class ShopService extends ChangeNotifier {
         await _db.inventoryDao.addItemQty(InvKeys.wildFusion, qty);
         return true;
 
+      case 'boost.wildlife_lure':
+        await _db.inventoryDao.addItemQty(InvKeys.wildlifeLure, qty);
+        return true;
+
       case potentialSoulOfferId:
         await _db.inventoryDao.addItemQty(InvKeys.potentialSoul, qty);
         return true;
@@ -1550,6 +1554,17 @@ class ShopService extends ChangeNotifier {
         await _db.settingsDao.setSetting('cosmic_ship_unlocked', '1');
         return true;
       default:
+        // An offer with no case here takes the player's currency and hands
+        // back nothing, so the purchase is refused instead — and says why,
+        // because "purchase failed" on a correctly priced, affordable item
+        // is otherwise indistinguishable from a bug in the wallet. Adding an
+        // offer means adding its grant.
+        assert(
+          false,
+          'Shop offer "$offerId" has no grant in _applyBoost. '
+          'Every boost offer needs one, or buying it does nothing.',
+        );
+        debugPrint('⚠️ Shop offer "$offerId" has no grant; refusing.');
         return false;
     }
   }
