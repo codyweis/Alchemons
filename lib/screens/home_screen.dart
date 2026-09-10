@@ -675,6 +675,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Stream subscriptions for reactive notifications
   async.StreamSubscription<List<IncubatorSlot>>? _slotsSubscription;
+  async.StreamSubscription<Set<String>>? _rosterSubscription;
   async.StreamSubscription<List<BiomeFarm>>? _biomesSubscription;
 
   // FEATURED HERO STATE
@@ -804,6 +805,7 @@ class _HomeScreenState extends State<HomeScreen>
     _shakeController.dispose();
     _enhanceRevealController.dispose();
     _slotsSubscription?.cancel();
+    _rosterSubscription?.cancel();
     _biomesSubscription?.cancel();
 
     // Remove wilderness spawn listener.
@@ -1049,26 +1051,7 @@ class _HomeScreenState extends State<HomeScreen>
       await _refreshSurvivalUnlocked();
 
       // Load featured hero
-      final featuredInstance = await _loadFeaturedInstanceOrAuto();
-      debugPrint('🎯 Featured instance: ${featuredInstance?.instanceId}');
-      debugPrint('🎯 Featured baseId: ${featuredInstance?.baseId}');
-
-      if (featuredInstance != null) {
-        if (!mounted) return;
-        final repo = context.read<CreatureCatalog>();
-        final base = repo.getCreatureById(featuredInstance.baseId);
-
-        debugPrint('🎯 Base creature: ${base?.name}');
-        debugPrint('🎯 SpriteData: ${base?.spriteData}');
-        debugPrint('🎯 SpriteData path: ${base?.spriteData?.spriteSheetPath}');
-
-        _featuredInstanceId = featuredInstance.instanceId;
-        await _prewarmFeaturedSprite(featuredInstance, repo);
-        _featuredData = _presentationFromInstance(featuredInstance, repo);
-      } else {
-        _featuredInstanceId = null;
-        _featuredData = null;
-      }
+      await _refreshFeatured(notify: false);
 
       setState(() => _isInitialized = true);
 
@@ -1101,6 +1084,30 @@ class _HomeScreenState extends State<HomeScreen>
   // REACTIVE NOTIFICATION SYSTEM
   // ============================================================
 
+  /// Reads the featured hero and prepares its sprite.
+  ///
+  /// At startup the player's first Alchemon is still an egg, so this finds
+  /// nothing; it has to run again when one actually exists, or the home
+  /// screen stays empty until the app is restarted.
+  Future<void> _refreshFeatured({bool notify = true}) async {
+    if (!mounted) return;
+    final featuredInstance = await _loadFeaturedInstanceOrAuto();
+    if (!mounted) return;
+
+    if (featuredInstance != null) {
+      final repo = context.read<CreatureCatalog>();
+      await _prewarmFeaturedSprite(featuredInstance, repo);
+      if (!mounted) return;
+      _featuredInstanceId = featuredInstance.instanceId;
+      _featuredData = _presentationFromInstance(featuredInstance, repo);
+    } else {
+      _featuredInstanceId = null;
+      _featuredData = null;
+    }
+    // The startup path sets state itself once everything else is ready.
+    if (notify) setState(() {});
+  }
+
   void _setupNotificationWatchers() {
     final db = context.read<AlchemonsDatabase>();
     final spawnService = context.read<WildernessSpawnService>();
@@ -1109,6 +1116,20 @@ class _HomeScreenState extends State<HomeScreen>
     _slotsSubscription = db.incubatorDao.watchSlots().listen(
       _checkEggNotifications,
     );
+
+    // The roster: the first Alchemon arrives long after startup — it hatches
+    // out of the starter egg — and the home screen has nothing to feature
+    // until it does. Watched rather than polled so the hero appears the
+    // moment it exists.
+    _rosterSubscription = db.creatureDao.watchSpeciesWithInstances().listen((
+      species,
+    ) {
+      if (!mounted) return;
+      // Only fills a gap. Picking a different favourite is the profile's
+      // job, and re-running this on every roster change would fight it.
+      if (_featuredInstanceId != null || species.isEmpty) return;
+      async.unawaited(_refreshFeatured());
+    });
 
     // Harvests: react to biome changes
     _biomesSubscription = db.biomeDao.watchBiomes().listen(
