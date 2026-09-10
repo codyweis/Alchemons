@@ -3451,99 +3451,103 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       right: 12,
       top: 100,
       child: SafeArea(
-        child: _SurvivalPlate(
-          accent: tethered ? _C.teal : _C.borderAccent,
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
-          background: _C.bg1.withValues(alpha: 0.82),
-          bracketSize: 8,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: slotsMaxHeight + 82),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${game.activeCompanions.values.where((comp) => !comp.isDead).length}/${game.maxActiveCompanions} ACTIVE',
-                  style: const TextStyle(
-                    color: _C.textPrimary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                  ),
+        // No plate.
+        //
+        // The party cards are already bordered boxes; wrapping the column of
+        // them in another bordered box drew a frame round a frame and ate
+        // width doing it. The cards are the chrome.
+        child: SizedBox(
+          width: SurvivalPartySlot.cardWidth,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${game.activeCompanions.values.where((comp) => !comp.isDead).length}/${game.maxActiveCompanions} ACTIVE',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: _C.textPrimary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(height: 6),
-                // Tether / Follow toggle
-                GestureDetector(
-                  onTap: context.soundAction(() {
-                    HapticFeedback.lightImpact();
-                    if (tethered) {
-                      game.clearCompanionTether();
-                    } else {
-                      game.tetherClosestCompanionToShip();
-                    }
-                    setState(() {});
-                  }),
-                  child: Container(
-                    width: 72,
-                    padding: const EdgeInsets.symmetric(vertical: 5),
-                    decoration: BoxDecoration(
-                      color: tethered
-                          ? _C.teal.withValues(alpha: 0.20)
-                          : _C.bg2.withValues(alpha: 0.72),
-                      border: Border.all(
-                        color: tethered
-                            ? _C.teal.withValues(alpha: 0.74)
-                            : _C.borderDim,
-                        width: 1.5,
-                      ),
-                    ),
+              ),
+              const SizedBox(height: 6),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: slotsMaxHeight),
+                child: Scrollbar(
+                  thickness: 3,
+                  radius: const Radius.circular(8),
+                  thumbVisibility: party.length > 8,
+                  child: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          tethered
-                              ? AppIcons.link_rounded
-                              : AppIcons.link_off_rounded,
-                          color: tethered ? _C.teal : _C.textSecondary,
-                          size: 18,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          tethered ? 'FOLLOW' : 'FREE',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 7,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                            color: tethered
-                                ? _C.teal
-                                : _C.textSecondary.withValues(alpha: 0.7),
-                          ),
-                        ),
+                        for (var i = 0; i < party.length; i++) ...[
+                          _buildCompanionSlot(game, party[i], i),
+                          if (i < party.length - 1) const SizedBox(height: 6),
+                        ],
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: slotsMaxHeight),
-                  child: Scrollbar(
-                    thickness: 3,
-                    radius: const Radius.circular(8),
-                    thumbVisibility: party.length > 8,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (var i = 0; i < party.length; i++) ...[
-                            _buildCompanionSlot(game, party[i], i),
-                            if (i < party.length - 1) const SizedBox(height: 6),
-                          ],
-                        ],
-                      ),
+              ),
+              const SizedBox(height: 6),
+              // The magnet sits under the party it acts on, and matches their
+              // width — it used to be above them at 72 against their 54,
+              // which made the whole stack look ragged.
+              // Tether / Follow toggle
+              GestureDetector(
+                onTap: context.soundAction(() {
+                  HapticFeedback.lightImpact();
+                  if (tethered) {
+                    game.clearCompanionTether();
+                  } else {
+                    game.tetherClosestCompanionToShip();
+                  }
+                  setState(() {});
+                }),
+                child: Container(
+                  width: SurvivalPartySlot.cardWidth,
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  decoration: BoxDecoration(
+                    color: tethered
+                        ? _C.teal.withValues(alpha: 0.20)
+                        : _C.bg2.withValues(alpha: 0.72),
+                    border: Border.all(
+                      color: tethered
+                          ? _C.teal.withValues(alpha: 0.74)
+                          : _C.borderDim,
+                      width: 1.5,
                     ),
                   ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        tethered
+                            ? AppIcons.link_rounded
+                            : AppIcons.link_off_rounded,
+                        color: tethered ? _C.teal : _C.textSecondary,
+                        size: 18,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        tethered ? 'FOLLOW' : 'FREE',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 7,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: tethered
+                              ? _C.teal
+                              : _C.textSecondary.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

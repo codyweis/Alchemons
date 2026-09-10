@@ -69,7 +69,9 @@ class SurvivalPartySlot extends StatelessWidget {
   /// it. Kept as named constants because the two scales pull opposite ways
   /// and the numbers have to stay reconcilable: art plus padding must still
   /// fit the card.
-  static const _cardWidth = 54.0; // was 72
+  /// Public so the HUD around these can match their width rather than
+  /// keeping its own copy of the number and drifting from it.
+  static const cardWidth = 54.0; // was 72
   static const _artSize = 42.0; // was 38
   static const _labelSize = 7.0; // was 9
   static const _statusIconSize = 8.0; // was 10
@@ -115,7 +117,7 @@ class SurvivalPartySlot extends StatelessWidget {
           onTap: context.soundAction(state.dead ? null : onTap),
           borderRadius: BorderRadius.circular(5),
           child: Container(
-            width: _cardWidth,
+            width: cardWidth,
             padding: const EdgeInsets.fromLTRB(3, 3, 3, 2),
             decoration: BoxDecoration(
               color: state.active
