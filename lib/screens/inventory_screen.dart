@@ -69,15 +69,26 @@ class InventoryImageHelper {
     return _imageCache[inventoryKey];
   }
 
+  /// [animate] is for the places where the item is the subject — the detail
+  /// dialog, a reveal — not for grids. A tile is one of dozens on screen and
+  /// a painter per tile is exactly the per-frame cost this app watches for,
+  /// so the default is a still frame. Note this used to be backwards for
+  /// harvesters alone: HarvesterGlyph animates by default, so the one item
+  /// that moved was the one in the grid.
   static Widget getVisualWidget({
     required String key,
     String? assetName,
     IconData? icon,
     required double size,
+    bool animate = false,
   }) {
     final harvester = harvesterBiomeForKey(key);
     if (harvester != null) {
-      return HarvesterGlyph(biomeId: harvester, size: size);
+      return HarvesterGlyph(
+        biomeId: harvester,
+        size: size,
+        animate: animate,
+      );
     }
     // Preserve relic and caller-supplied artwork for items without shop offers.
     if (assetName != null && InventoryItemArtwork.offerFor(key) == null) {
@@ -89,6 +100,7 @@ class InventoryImageHelper {
     return InventoryItemArtwork(
       inventoryKey: key,
       size: size,
+      animate: animate,
       fallbackIcon: icon,
     );
   }
@@ -634,6 +646,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       assetName: InventoryImageHelper.getImage(item.key),
       icon: def.icon,
       size: 100,
+      animate: true,
     );
 
     showDialog(
@@ -995,6 +1008,7 @@ class _InventoryScreenState extends State<InventoryScreen>
               assetName: InventoryImageHelper.getImage(reward.key),
               icon: rewardDef?.icon,
               size: size,
+              animate: true,
             ),
           );
         }).toList(),

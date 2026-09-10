@@ -67,7 +67,10 @@ class InventoryItemArtwork extends StatelessWidget {
     }
 
     if (inventoryKey == InvKeys.potentialSoul) {
-      return PotentialSoulSphere(size: size);
+      // Its shells spin only where it is the subject — which is what the
+      // widget's own "one hero instance" flag is for, and it was never being
+      // handed through.
+      return PotentialSoulSphere(size: size, animate: animate);
     }
 
     if (inventoryKey == InvKeys.wildFusion) {
