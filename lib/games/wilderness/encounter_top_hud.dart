@@ -58,6 +58,21 @@ double partyStripWidthFor(int count) => count == 0
           (count - 1) * kPartyCardGap +
           kPartyStripPadding * 2;
 
+/// Room for the tutorial callout that sits above the strip.
+///
+/// The callout is wider than one card and the strip's box is sized to its
+/// cards, so without this the words are scaled down to nothing on a
+/// one-member party — which is exactly when the tutorial runs.
+const double kPartyStripCalloutWidth = 184;
+
+/// The gutter to reserve for [count] members, widened while [withCallout]
+/// so the callout above them has somewhere to be.
+double partyStripGutterFor(int count, {bool withCallout = false}) {
+  final strip = partyStripWidthFor(count);
+  if (!withCallout || strip == 0) return strip;
+  return strip > kPartyStripCalloutWidth ? strip : kPartyStripCalloutWidth;
+}
+
 /// One of the wild specimen's four Potential ratings.
 typedef WildPotentialReading = ({String label, double value});
 

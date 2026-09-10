@@ -227,4 +227,38 @@ void main() {
     expect(partyStripWidthFor(1), kPartyCardWidth + 2 * kPartyStripPadding);
     expect(partyStripWidthFor(4), 4 * 56 + 3 * 6 + 16);
   });
+
+  // The tutorial callout sits above the party strip and is wider than it.
+  //
+  // The strip is forced into a box sized to its cards, so the callout used
+  // to run off the right of the screen showing one word. Letting it overflow
+  // that box instead broke selection outright — the strip's own taps stopped
+  // landing — so the room is reserved, and the label scales down rather than
+  // overflowing whatever it is given.
+  group('party strip gutter', () {
+    test('a plain strip reserves exactly its cards', () {
+      for (var n = 0; n <= 4; n++) {
+        expect(partyStripGutterFor(n), partyStripWidthFor(n));
+      }
+    });
+
+    test('the callout widens a strip too narrow to hold it', () {
+      // One member is the tutorial case, and the worst one.
+      expect(partyStripWidthFor(1), lessThan(kPartyStripCalloutWidth));
+      expect(
+        partyStripGutterFor(1, withCallout: true),
+        kPartyStripCalloutWidth,
+      );
+    });
+
+    test('a strip already wider than the callout is left alone', () {
+      final wide = partyStripWidthFor(4);
+      expect(wide, greaterThan(kPartyStripCalloutWidth));
+      expect(partyStripGutterFor(4, withCallout: true), wide);
+    });
+
+    test('no party means no gutter, callout or not', () {
+      expect(partyStripGutterFor(0, withCallout: true), 0);
+    });
+  });
 }

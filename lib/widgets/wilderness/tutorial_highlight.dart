@@ -83,18 +83,23 @@ class _TutorialHighlightState extends State<TutorialHighlight>
       builder: (context, child) {
         return Column(
           mainAxisSize: MainAxisSize.min,
+          // The party strip sits in the screen's right corner inside a box
+          // sized to its cards, so anything wider than them has to hug that
+          // same edge rather than centre over it and hang off the screen.
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             // Optional label ABOVE the stack.
             //
-            // It overflows rather than sizing the column, because the thing
-            // it points at can be pinned to the right edge of the screen —
-            // the party strip is — and a label wider than its target would
-            // otherwise push the target off screen and get clipped itself.
-            // Growing leftward from the target's right edge keeps both.
+            // Scaled down rather than clipped. This points at things pinned
+            // to a screen edge inside boxes sized to them, so the label is
+            // routinely wider than the room it is given — it used to run off
+            // the screen leaving one visible word. Shrinking cannot overflow
+            // and cannot disturb the layout of the thing being pointed at,
+            // which an OverflowBox here very much could.
             if (widget.label != null) ...[
-              OverflowBox(
+              FittedBox(
+                fit: BoxFit.scaleDown,
                 alignment: Alignment.centerRight,
-                maxWidth: double.infinity,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 11,

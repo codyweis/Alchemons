@@ -545,7 +545,12 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                         : null,
                     opacity: slide,
                     partyStripWidth: _supportsFusion
-                        ? partyStripWidthFor(widget.party.length)
+                        ? partyStripGutterFor(
+                            widget.party.length,
+                            withCallout:
+                                widget.highlightPartyHUD &&
+                                _chosenInstanceId == null,
+                          )
                         : 0,
                     partyStrip: _supportsFusion
                         ? Transform.translate(
