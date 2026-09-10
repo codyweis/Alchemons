@@ -1,3 +1,4 @@
+import 'package:alchemons/widgets/wildlife_lure_glyph.dart';
 import 'package:alchemons/audio/audio.dart';
 // lib/widgets/shop_widgets.dart
 import 'package:alchemons/constants/element_resources.dart';
@@ -763,6 +764,17 @@ Widget _buildOfferPreview(
     return Center(
       child: StaticEffectSnapshot(
         cacheKey: 'shop.instant_hatch',
+        boxSize: size,
+        child: live,
+      ),
+    );
+  }
+  if (offer.inventoryKey == InvKeys.wildlifeLure) {
+    final live = WildlifeLureGlyph(size: size, animate: animate);
+    if (animate) return Center(child: live);
+    return Center(
+      child: StaticEffectSnapshot(
+        cacheKey: 'shop.wildlife_lure',
         boxSize: size,
         child: live,
       ),

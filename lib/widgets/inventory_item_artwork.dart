@@ -11,6 +11,7 @@
 // This resolves an inventory key back to the same sources the shop draws from,
 // in the same order, so an item looks identical wherever it appears.
 
+import 'package:alchemons/widgets/wildlife_lure_glyph.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/shop_service.dart';
@@ -79,6 +80,10 @@ class InventoryItemArtwork extends StatelessWidget {
 
     if (inventoryKey == InvKeys.instantHatch) {
       return InstantExtractorGlyph(size: size, animate: animate);
+    }
+
+    if (inventoryKey == InvKeys.wildlifeLure) {
+      return WildlifeLureGlyph(size: size, animate: animate);
     }
 
     if (inventoryKey == InvKeys.raidBeacon) {
