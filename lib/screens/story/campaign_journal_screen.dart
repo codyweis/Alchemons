@@ -539,9 +539,6 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                           snapshot: s,
                           isCurrent: s.currentMission?.id == a.id,
                         ),
-                      // Under the story, because the story is what you are
-                      // doing and these are the rooms you have not opened.
-                      const OnboardingTasksSection(),
                     ],
             ),
           ),
@@ -750,6 +747,12 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                       ),
                     ),
                   ],
+
+                  // Under the story and above the achievements, but below
+                  // anything claimable: a reward the player can collect right
+                  // now outranks a room they have not visited, and eight task
+                  // rows above it would push it off a phone screen.
+                  const OnboardingTasksSection(),
 
                   _sectionHeader('Next achievements'),
                   _FilterRow(
