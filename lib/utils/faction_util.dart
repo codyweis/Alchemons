@@ -526,6 +526,37 @@ extension FactionMaterialTheme on FactionTheme {
   }
 }
 
+/// Pins a subtree to one faction's palette, whatever the player's own is.
+///
+/// For the places whose identity is the place rather than the player — the
+/// shop is a shop no matter who walks into it, and it was picking up whatever
+/// colours the player's allegiance happened to bring, which made the same
+/// screen look like four different screens.
+///
+/// Brightness is deliberately not forced: a player in light mode stays in
+/// light mode, they just get this faction's hues within it.
+class ForcedFaction extends StatelessWidget {
+  const ForcedFaction({super.key, required this.faction, required this.child});
+
+  final FactionId faction;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final themeNotifier = context.watch<ThemeNotifier>();
+    final brightness = Theme.of(context).brightness;
+    final forcedTheme = factionThemeFor(faction, brightness: brightness);
+    final textTheme = themeNotifier.currentTextThemeFn(
+      Theme.of(context).textTheme,
+    );
+
+    return Provider<FactionTheme>.value(
+      value: forcedTheme,
+      child: Theme(data: forcedTheme.toMaterialTheme(textTheme), child: child),
+    );
+  }
+}
+
 class ForcedFactionBrightness extends StatelessWidget {
   const ForcedFactionBrightness({
     super.key,

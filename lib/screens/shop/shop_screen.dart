@@ -7,6 +7,7 @@
 // All logic, routing, purchase flows, and service calls unchanged.
 //
 
+import 'package:alchemons/models/faction.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -51,14 +52,30 @@ import 'package:alchemons/widgets/app_icons.dart';
 // SCREEN
 // ──────────────────────────────────────────────────────────────────────────────
 
-class ShopScreen extends StatefulWidget {
+/// The shop, always in oceanic colours.
+///
+/// It used to wear the player's faction, so the same screen looked like four
+/// different screens depending on allegiance — and the shop is a shop
+/// whoever walks into it. The override lives here rather than at the place
+/// the shop is opened from, so a second entry point cannot arrive without it.
+class ShopScreen extends StatelessWidget {
   const ShopScreen({super.key});
 
   @override
-  State<ShopScreen> createState() => _ShopScreenState();
+  Widget build(BuildContext context) => const ForcedFaction(
+    faction: FactionId.oceanic,
+    child: _ShopScreenBody(),
+  );
 }
 
-class _ShopScreenState extends State<ShopScreen> with RouteAware {
+class _ShopScreenBody extends StatefulWidget {
+  const _ShopScreenBody();
+
+  @override
+  State<_ShopScreenBody> createState() => _ShopScreenState();
+}
+
+class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   ForgeTokens get t => ForgeTokens(context.read<FactionTheme>());
 
   int _slotsUnlocked = 1;
