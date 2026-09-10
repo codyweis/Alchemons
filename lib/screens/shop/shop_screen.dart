@@ -1611,7 +1611,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   }
 
   String? _specialUnlockLabel(ShopOffer offer) {
-    if (offer.id.startsWith('unlock.storage_cap.')) return 'STORAGE';
+    if (offer.id.startsWith('unlock.storage_cap.')) return 'COLD STORAGE';
     if (offer.id.startsWith('unlock.fusion_slot.')) return 'CHAMBERS';
     if (offer.id == 'boost.faction_change') return 'FACTION';
     return null;
