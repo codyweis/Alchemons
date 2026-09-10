@@ -1022,6 +1022,13 @@ class _CosmicScreenState extends State<CosmicScreen>
     // written back; this is a transient party member.
     const memoryStat = 95;
     const memoryPotential = 95.0;
+    // The LEVEL has to come with them. Every combat number a companion has —
+    // HP, both attacks, both defences — is scaled by
+    // `(level - 1) / 9`, so a level-1 starter lands on the bottom of every
+    // one of those curves no matter how good its stats are. Boosting the
+    // stats alone left the memory's veteran fighting like a starter, which
+    // is the thing this block exists to prevent.
+    const memoryLevel = CosmicBalance.maxCompanionLevel;
     final typeName = (base?.types.isNotEmpty ?? false)
         ? base!.types.first
         : 'Spirit';
@@ -1042,7 +1049,7 @@ class _CosmicScreenState extends State<CosmicScreen>
               : null,
           element: typeName,
           family: family,
-          level: inst.level,
+          level: memoryLevel,
           statSpeed: combatBonuses.applyCombatStatBonus('speed', memoryStat),
           statIntelligence: combatBonuses.applyCombatStatBonus(
             'intelligence',
