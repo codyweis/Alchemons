@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -598,6 +599,14 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
   static const _prefsSideKey = 'home_banner_right_side';
   static const _prefsDyKey = 'home_banner_dy';
 
+  /// How long the press has to be held before the stack lifts.
+  ///
+  /// Well under the 500ms Flutter default and under the app's own 250ms
+  /// fast timeout: picking a banner up should feel immediate. Not lower
+  /// than this, though — a deliberate tap can run past 100ms, and a pick-up
+  /// that steals taps would break expanding a banner.
+  static const _pickUpDelay = Duration(milliseconds: 150);
+
   bool _onRight = true;
   double _dy = 0;
   bool _dragging = false;
@@ -617,6 +626,15 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefsSideKey, _onRight);
     await prefs.setDouble(_prefsDyKey, _dy);
+  }
+
+  void _cancelDrag() {
+    if (!_dragging && _liveDx == 0 && _liveDy == 0) return;
+    setState(() {
+      _dragging = false;
+      _liveDx = 0;
+      _liveDy = 0;
+    });
   }
 
   void _pickUp() {
@@ -785,19 +803,28 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
       top: top,
       left: _onRight ? null : 0,
       right: _onRight ? 0 : null,
-      child: GestureDetector(
-        // Long press to pick up. Tap and horizontal swipe belong to the
-        // banner itself, so this is the one gesture left that cannot be
-        // mistaken for either.
-        onLongPressStart: (_) => _pickUp(),
-        onLongPressMoveUpdate: (d) => _dragTo(d.offsetFromOrigin),
-        onLongPressEnd: (d) =>
-            _drop(media.size.width, maxDy, d.globalPosition.dx),
-        onLongPressCancel: () => setState(() {
-          _dragging = false;
-          _liveDx = 0;
-          _liveDy = 0;
-        }),
+      child: RawGestureDetector(
+        // Hold to pick up. Tap and horizontal swipe belong to the banner
+        // itself, so this is the one gesture left that cannot be mistaken
+        // for either — and it goes through the recognizer directly because
+        // GestureDetector gives no way to shorten the hold.
+        gestures: <Type, GestureRecognizerFactory>{
+          LongPressGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+                () => LongPressGestureRecognizer(
+                  duration: _pickUpDelay,
+                  debugOwner: this,
+                ),
+                (instance) {
+                  instance.onLongPressStart = (_) => _pickUp();
+                  instance.onLongPressMoveUpdate = (d) =>
+                      _dragTo(d.offsetFromOrigin);
+                  instance.onLongPressEnd = (d) =>
+                      _drop(media.size.width, maxDy, d.globalPosition.dx);
+                  instance.onLongPressCancel = _cancelDrag;
+                },
+              ),
+        },
         child: Transform.translate(
           offset: Offset(_liveDx, 0),
           child: AnimatedScale(
