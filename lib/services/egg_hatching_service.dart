@@ -1084,6 +1084,9 @@ class EggHatching {
                                   // The two stats this Alchemon passes down most
                                   // reliably; pre-Dominants creatures fall back to
                                   // whatever they are already best at.
+                                  final showPotential = context
+                                      .read<ConstellationEffectsService>()
+                                      .hasPotentialAnalyzer();
                                   final hatchDominants =
                                       DominantStats.decode(
                                         instance.dominantStats,
@@ -1158,6 +1161,7 @@ class EggHatching {
                                           isDominant: hatchDominants.contains(
                                             StatKind.speed,
                                           ),
+                                          showPotential: showPotential,
                                         ),
                                         _buildCompactStatRow(
                                           'INTELLIGENCE',
@@ -1169,6 +1173,7 @@ class EggHatching {
                                           isDominant: hatchDominants.contains(
                                             StatKind.intelligence,
                                           ),
+                                          showPotential: showPotential,
                                         ),
                                         _buildCompactStatRow(
                                           'STRENGTH',
@@ -1180,6 +1185,7 @@ class EggHatching {
                                           isDominant: hatchDominants.contains(
                                             StatKind.strength,
                                           ),
+                                          showPotential: showPotential,
                                         ),
                                         _buildCompactStatRow(
                                           'BEAUTY',
@@ -1191,6 +1197,7 @@ class EggHatching {
                                           isDominant: hatchDominants.contains(
                                             StatKind.beauty,
                                           ),
+                                          showPotential: showPotential,
                                         ),
                                       ],
                                     ),
@@ -2149,6 +2156,7 @@ class EggHatching {
     FC fc,
     Color statColor, {
     bool isDominant = false,
+    required bool showPotential,
   }) {
     final potentialRating = AlchemonStatSystem.normalizePotential(potential);
 
@@ -2180,6 +2188,10 @@ class EggHatching {
                 fontWeight: FontWeight.w900,
               ),
             ),
+            // The extraction result was announcing the figure the rest of
+            // the game hides — and it is the first place a new specimen's
+            // Potential could ever be read, so it undid the gate entirely.
+            if (showPotential) ...[
             const SizedBox(width: 7),
             Text.rich(
               TextSpan(
@@ -2203,6 +2215,7 @@ class EggHatching {
               ),
               maxLines: 1,
             ),
+            ],
           ],
         ],
       ),
