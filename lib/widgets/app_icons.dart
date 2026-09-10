@@ -260,6 +260,7 @@ class AppIcons {
   static const IconData military_tech_rounded = PhosphorIconsBold.medal;
   static const IconData monetization_on = PhosphorIconsBold.coin;
   static const IconData monetization_on_rounded = PhosphorIconsBold.coin;
+  static const IconData more_vert = PhosphorIconsBold.dotsThreeVertical;
   static const IconData movie_filter_rounded = PhosphorIconsBold.filmStrip;
   static const IconData music_note_rounded = PhosphorIconsBold.musicNote;
   static const IconData my_location_rounded = PhosphorIconsBold.crosshair;

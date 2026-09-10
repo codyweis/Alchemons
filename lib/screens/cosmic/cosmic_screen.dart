@@ -7949,6 +7949,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                     },
                     onClose: _dismissPanels,
                     onBack: _closeSubPanel,
+                    hintText:
+                        'Pick a slot, then tap an Alchemon to assign it. '
+                        'Summon crew from the HUD to fight beside your ship.',
                     excludeInstanceIds: _garrisonMembers
                         .whereType<CosmicPartyMember>()
                         .map((m) => m.instanceId)
@@ -7961,6 +7964,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 Positioned.fill(
                   child: CosmicPartyPickerOverlay(
                     title: 'HOME GARRISON',
+                    subtitle: 'HOME BASE DEFENDERS',
                     maxSlots: kHomeGarrisonMaxSlots,
                     slotsUnlocked: _garrisonSlots,
                     partyMembers: _garrisonMembers,
@@ -7969,7 +7973,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                     onClose: _dismissPanels,
                     onBack: _closeSubPanel,
                     hintText:
-                        'Tap a slot to station an Alchemon.\nGarrison size grows with planet tier!',
+                        'Pick a slot, then tap an Alchemon to station it. '
+                        'Garrison size grows with planet tier.',
                     excludeInstanceIds: _partyMembers
                         .whereType<CosmicPartyMember>()
                         .map((m) => m.instanceId)
