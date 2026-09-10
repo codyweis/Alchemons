@@ -712,11 +712,13 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                         inventoryByKey,
                       ),
 
-                      _buildSectionHeader(
-                        'SURVIVAL ORB SKINS',
-                        AppIcons.blur_circular_rounded,
-                      ),
-                      _buildSurvivalOrbGrid(theme, allCurrencies),
+                      // 'SURVIVAL ORB SKINS' removed — an orb skin is
+                      // chosen where it is worn. Base Command sells and
+                      // equips them side by side, so buying one here meant a
+                      // trip to a second screen to put it on, and the two
+                      // lists could disagree about what you owned. The
+                      // offers still exist: Base Command reads them for
+                      // pricing and for the once-only limit.
 
                       // 'COSMIC EXPLORATION' removed — discovery will occur in-world
                     ],
@@ -1284,82 +1286,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             ),
             child: GameShopCard(
               key: ValueKey('portalkey-${offer.id}'),
-              title: offer.name,
-              offer: offer,
-              theme: theme,
-              costWidgets: costWidgets,
-              statusText: status,
-              enabled: canPurchase,
-              canAfford: canAffordUnit,
-            ),
-          );
-        }).toList();
-
-        return Padding(
-          padding: const EdgeInsets.all(12),
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: responsiveCrossAxisCount(context),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 0.75,
-            children: cards,
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSurvivalOrbGrid(
-    FactionTheme theme,
-    Map<String, int> allCurrencies,
-  ) {
-    return Consumer<ShopService>(
-      builder: (context, shopService, _) {
-        final orbOffers = ShopService.allOffers
-            .where((o) => o.id.startsWith('survival.orb'))
-            .toList();
-
-        if (orbOffers.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(12),
-            child: EmptySection(
-              message: 'No orb skins available',
-              icon: AppIcons.blur_circular_outlined,
-            ),
-          );
-        }
-
-        final cards = orbOffers.map((offer) {
-          final canPurchase = shopService.canPurchase(offer.id);
-          final effectiveCost = shopService.getEffectiveCost(offer);
-          final canAffordUnit = effectiveCost.entries.every(
-            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
-          );
-          final purchased = shopService.getPurchaseCount(offer.id) > 0;
-          final status = purchased ? 'OWNED' : null;
-          final costWidgets = <Widget>[
-            for (final entry in effectiveCost.entries)
-              CostChip(
-                currencyType: entry.key,
-                amount: entry.value,
-                available: allCurrencies[entry.key] ?? 0,
-              ),
-          ];
-          return GestureDetector(
-            onTap: context.soundAction(
-              () => canPurchase
-                  ? _handlePurchase(
-                      context,
-                      offer,
-                      allCurrencies,
-                      canAffordUnit,
-                    )
-                  : _showDetails(context, offer, allCurrencies, canAffordUnit),
-            ),
-            child: GameShopCard(
-              key: ValueKey('orb-${offer.id}'),
               title: offer.name,
               offer: offer,
               theme: theme,
