@@ -254,9 +254,9 @@ void main() {
       enhancementRank: 10,
     );
 
-    expect(levelOne, closeTo(1.8975, 0.0001));
-    expect(mature, closeTo(3.45, 0.0001));
-    expect(enhanced, closeTo(4.485, 0.0001));
+    expect(levelOne, closeTo(2.0625, 0.0001));
+    expect(mature, closeTo(3.75, 0.0001));
+    expect(enhanced, closeTo(4.875, 0.0001));
   });
 
   test('orb costs escalate toward rank ten', () {

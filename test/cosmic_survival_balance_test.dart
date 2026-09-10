@@ -94,7 +94,7 @@ void main() {
       );
       expect(
         CosmicSurvivalBalance.enemyWaveHpScale(50),
-        inInclusiveRange(3.9, 4.7),
+        inInclusiveRange(5.3, 6.0),
       );
       // Damage now climbs alongside HP so late waves stay threatening
       // instead of becoming pure damage sponges, while still trailing

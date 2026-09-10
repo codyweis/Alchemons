@@ -81,6 +81,14 @@ void main() {
         closeTo(expected(40, 40, 1, 'beauty'), 1e-9),
       );
       expect(reconciled.statSpeed, greaterThan(5));
+      // Reopening must recalculate from genetics, never multiply cached Power.
+      await GameDataService(db: db, catalog: catalog).init();
+      final reopened = (await db.creatureDao.getInstance('legacy-instance'))!;
+      expect(reopened.statSpeed, reconciled.statSpeed);
+      expect(reopened.statBeauty, reconciled.statBeauty);
+      expect(reopened.statSpeedPotential, 100);
+      expect(reopened.statBeautyPotential, 40);
+      expect(reopened.statSpeedEnhancement, 10);
     },
   );
 }

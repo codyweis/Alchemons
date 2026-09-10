@@ -45,7 +45,6 @@ abstract final class AlchemonStatSystem {
   static const int maxLevel = 10;
   static const int maxPotential = 100;
   static const int maxEnhancementRank = 10;
-  static const double potentialBonusPerPoint = 0.003;
   static const double enhancementBonusPerRank = 0.03;
   static const double matchingNatureBonus = 0.05;
   static const double speciesPointsPerInternalPoint = 20.0;
@@ -86,8 +85,30 @@ abstract final class AlchemonStatSystem {
     return 0.55 + ((safeLevel - 1) * 0.05);
   }
 
-  static double potentialMultiplier(num potential) =>
-      1.0 + normalizePotential(potential) * potentialBonusPerPoint;
+  /// Breeding is the primary progression after level 10. Interpolate each
+  /// stat independently; species, Nature, and Enhancement keep their roles.
+  /// Below P20, continue gently down to 0.85 at P1.
+  static double potentialMultiplier(num potential) {
+    final value = normalizePotential(potential);
+    const anchors = <(int, double)>[
+      (1, 0.85),
+      (20, 1.00),
+      (50, 1.25),
+      (70, 1.55),
+      (80, 1.80),
+      (90, 2.10),
+      (95, 2.30),
+      (100, 2.50),
+    ];
+    for (var i = 1; i < anchors.length; i++) {
+      final (upper, high) = anchors[i];
+      if (value <= upper) {
+        final (lower, low) = anchors[i - 1];
+        return low + (high - low) * (value - lower) / (upper - lower);
+      }
+    }
+    return anchors.last.$2;
+  }
 
   static double enhancementMultiplier(int rank) =>
       1.0 + rank.clamp(0, maxEnhancementRank) * enhancementBonusPerRank;
@@ -131,8 +152,8 @@ abstract final class AlchemonStatSystem {
   }
 
   /// Normalized strength for gameplay systems authored around the former
-  /// 1-5 stat band. Values through 5 retain their exact old curve; Power above
-  /// 100 earns up to 30% overcap strength instead of being silently discarded.
+  /// 1-5 stat band. Values through 5 retain their exact old curve; higher
+  /// values gain additional combat strength with diminishing returns.
   static double combatProgress(num internalValue) {
     final value = max(1.0, internalValue.toDouble());
     final legacy = value.clamp(1.0, legacyCombatCeiling);

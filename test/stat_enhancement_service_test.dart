@@ -73,8 +73,8 @@ void main() {
     expect(result.ok, isTrue);
     expect(result.delta, 3);
     expect(updated!.statSpeedEnhancement, 1);
-    expect(updated.statSpeed, closeTo(3.5535, 0.0001));
-    expect(updated.statIntelligence, closeTo(3.45, 0.0001));
+    expect(updated.statSpeed, closeTo(3.8625, 0.0001));
+    expect(updated.statIntelligence, closeTo(3.75, 0.0001));
     expect(await db.inventoryDao.getItemQty(InvKeys.powerupSpeed), 0);
   });
 
@@ -214,7 +214,7 @@ void main() {
     expect(result.silverCost, 50000);
     expect(updated!.statSpeedPotential, 100);
     expect(updated.statIntelligencePotential, 50);
-    expect(updated.statSpeed, closeTo(2.145, 0.0001));
+    expect(updated.statSpeed, closeTo(4.125, 0.0001));
     expect(await db.inventoryDao.getItemQty(InvKeys.potentialSoul), 0);
     expect(await db.currencyDao.getSilverBalance(), 0);
   });

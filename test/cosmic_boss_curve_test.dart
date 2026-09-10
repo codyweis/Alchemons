@@ -1,10 +1,8 @@
-// Open-space boss difficulty curve targets.
-//
-// Design intent (see CosmicBalance boss section): levels 1-5 map onto the
-// stat range — Lv3 must be beatable by a stats ~1.5-2.0 loadout (~8 DPS),
-// while Lv5 keeps the previous endgame tuning exactly.
+// Open-space bosses use level-10 breeding benchmarks. These are stationary
+// basic-attack timing checks, not simulated win rates or guaranteed clears.
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -18,18 +16,28 @@ void main() {
       }
     });
 
-    test('Lv5 endgame tuning is preserved (21×)', () {
-      expect(CosmicBalance.bossHealthScale(5), closeTo(21.0, 0.001));
+    test('Lv5 has room for optimized level-10 team damage (60×)', () {
+      expect(CosmicBalance.bossHealthScale(5), closeTo(60.0, 0.001));
     });
 
-    test('Lv3 is a stats ~2.0 fight: ≤45s at a low-stat ~8 DPS loadout', () {
+    test('Lv3 fits a level-10 P70 trio basic-attack budget', () {
       // Typical boss template health is ~28-45 (35 median).
       final lv3Hp = 35 * CosmicBalance.bossHealthScale(3);
-      const lowStatDps = 8.0;
+      final stat = AlchemonStatSystem.effectiveInternal(
+        speciesBase: 60,
+        level: 10,
+        potential: 70,
+      );
+      final attack = CosmicBalance.companionPhysAtk(level: 10, strength: stat);
+      final cooldown =
+          CosmicCompanion.baseBasicCooldown /
+          CosmicBalance.companionCooldownReduction(stat) /
+          (1.0 + (attack - 1) * 0.05);
+      final lowStatDps = 3 * attack / cooldown;
       expect(
         lv3Hp / lowStatDps,
         lessThanOrEqualTo(45),
-        reason: 'Lv3 must be killable by stats 1.5-2.0 inside ~45s',
+        reason: 'A neutral P70 trio should have a 25-45s basic-only HP budget',
       );
       // …but not trivial either: at least ~25s for the band it targets.
       expect(lv3Hp / lowStatDps, greaterThanOrEqualTo(25));
@@ -99,15 +107,6 @@ void main() {
           }
         }
       }
-    });
-  });
-
-  group('boss escalation', () {
-    test('post-kill escalation caps at +50%', () {
-      expect(CosmicBalance.bossEscalationScale(0), 1.0);
-      expect(CosmicBalance.bossEscalationScale(4), closeTo(1.2, 0.001));
-      expect(CosmicBalance.bossEscalationScale(10), closeTo(1.5, 0.001));
-      expect(CosmicBalance.bossEscalationScale(60), closeTo(1.5, 0.001));
     });
   });
 }

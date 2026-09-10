@@ -16,7 +16,10 @@ class CosmicSurvivalBalance {
     final base = 42.0 * 16 * 1.55 * enemyWaveHpScale(wave);
     // The old titanic multiplier was almost seven ordinary bosses' health.
     // Three bodies' worth leaves time to manage the outbreak and escorts.
+    // Strong breeding accelerates late-wave kills. Extend boss encounters
+    // gradually after wave 10, keeping opening waves and orb damage intact.
     return base *
+        (1.0 + max(0, wave - 10) * 0.018) *
         (titanic
             ? 3.2
             : wave == 5
@@ -93,7 +96,8 @@ class CosmicSurvivalBalance {
 
   static double enemyWaveHpScale(int wave) {
     if (wave <= 1) return 1.0;
-    return 1.0 + pow(wave - 1, 1.12).toDouble() * 0.042;
+    final base = 1.0 + pow(wave - 1, 1.12).toDouble() * 0.042;
+    return base * (1.0 + max(0, wave - 10) * 0.008);
   }
 
   static double enemyWaveDamageScale(int wave) {
