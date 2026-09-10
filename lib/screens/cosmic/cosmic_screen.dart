@@ -15,10 +15,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_rewards.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
-import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart'
-    show kAnyElement;
 import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
-import 'package:alchemons/utils/color_util.dart' show FamilyColors;
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/services/raid_service.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_screen.dart';
@@ -116,7 +113,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   // The persistent descent placard collapses to a compact pill on demand so
   // the player can see the planet beneath it.
   bool _descentPlacardMinimized = false;
-  String? _pinnedRecipeElement;
 
   // Recipe & storage state
   CosmicPlanet? _nearPlanet;
@@ -227,7 +223,6 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   // Map marker state
   static const _markersPrefsKey = 'cosmic_map_markers_v1';
-  static const _pinnedRecipePrefsKey = 'cosmic_pinned_recipe_element_v1';
   List<MapMarker> _mapMarkers = [];
 
   // Home customization state
@@ -632,7 +627,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (markersRaw != null && markersRaw.isNotEmpty) {
       _mapMarkers = MapMarker.deserialiseList(markersRaw);
     }
-    _pinnedRecipeElement = prefs.getString(_pinnedRecipePrefsKey);
 
     // Load triggered quotes
     final quotesRaw = prefs.getString(_quotesPrefsKey);
@@ -6512,129 +6506,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   /// The planet's hard family gates, declared UP FRONT.
   ///
-  /// These used to appear only after the player had walked into the gate and
-  /// been refused ("the seal remembers"). That made sense while a missing key
-  /// only cost you one star of a run you could still finish — it does not now
-  /// that a missing key turns the descent away at the door. A requirement you
-  /// are held to has to be a requirement you can read before you commit, so
-  /// every gate shows from the first visit, and the ones the current party
-  /// cannot answer are marked.
-  List<Widget> _familyGateChips(String element) {
-    final gates =
-        kPlanetDungeonLayouts[element]?.familyGates ??
-        const <DungeonFamilyGate>[];
-    if (gates.isEmpty) return const [];
-    // Two gates wanting the same key read as one requirement.
-    final seen = <String>{};
-    final known = [
-      for (final g in gates)
-        if (seen.add('${g.element}/${g.family}')) g,
-    ];
-    final unmet = unmetEntryDemands(
-      element,
-      _partyMembers,
-    ).map((d) => '${d.element ?? kAnyElement}/${d.family}').toSet();
-    return [
-      const SizedBox(height: 9),
-      Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _placardRule(const Color(0xFFC4A35A)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              'THIS DESCENT REQUIRES',
-              style: TextStyle(
-                color: const Color(0xFFC4A35A).withValues(alpha: 0.75),
-                fontSize: 8,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 2.0,
-                shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
-              ),
-            ),
-          ),
-          _placardRule(const Color(0xFFC4A35A), leftToRight: false),
-        ],
-      ),
-      const SizedBox(height: 6),
-      Wrap(
-        spacing: 8,
-        runSpacing: 6,
-        alignment: WrapAlignment.center,
-        children: [
-          for (final g in known)
-            _familyGateChip(
-              g,
-              unmet: unmet.contains('${g.element}/${g.family}'),
-            ),
-        ],
-      ),
-    ];
-  }
 
-  Widget _familyGateChip(DungeonFamilyGate gate, {required bool unmet}) {
-    final famColor = FamilyColors.of(gate.family);
-    // A verb-only gate names no element, so it gets the family's own colour
-    // rather than a dot for an element it does not care about.
-    final elColor = gate.needsElement ? elementColor(gate.element) : famColor;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A0805).withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(11),
-        // A requirement the party already answers sits quiet; one it does not
-        // is what is standing between the player and the descent, so it is the
-        // thing on this placard that should catch the eye.
-        border: Border.all(
-          color: unmet
-              ? const Color(0xFFE25544).withValues(alpha: 0.95)
-              : famColor.withValues(alpha: 0.55),
-          width: unmet ? 1.4 : 1.1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: elColor.withValues(alpha: unmet ? 0.45 : 1.0),
-              shape: BoxShape.circle,
-              boxShadow: unmet
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: elColor.withValues(alpha: 0.6),
-                        blurRadius: 6,
-                      ),
-                    ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            gate.needsElement
-                ? '${gate.element.toUpperCase()} '
-                      '${FamilyColors.label(gate.family).toUpperCase()}'
-                // Verb-only: say ANY out loud, because "HORN" alone reads as
-                // an element being omitted by mistake.
-                : 'ANY ${FamilyColors.label(gate.family).toUpperCase()}',
-            style: TextStyle(
-              color: unmet ? const Color(0xFFE25544) : famColor,
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.4,
-              shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
-            ),
-          ),
-          if (unmet) ...[
-            const SizedBox(width: 5),
-            const Icon(Icons.block_flipped, size: 10, color: Color(0xFFE25544)),
-          ],
-        ],
-      ),
-    );
-  }
 
   /// The persistent descent placard, shown whenever the player stands at an
   /// unsealed dungeon gate. It carries the planet's name, stars, the carried
@@ -6854,10 +6726,10 @@ class _CosmicScreenState extends State<CosmicScreen>
             // The descent riddle — which SPECIES each slot truly wants.
             _dungeonRiddleCard(planet.element, color, boxed: false),
           ],
-          // "The seal remembers" (§4): family gates struck in-world, stamped
-          // here forever. Unlike the riddle this never fades at 3 stars, and
-          // unlike the element row it ignores party state.
-          ..._familyGateChips(planet.element),
+          // The family gates used to be listed here as well. The riddle
+          // above already names what the descent wants — cryptically, which
+          // is the point of it — so spelling the answer out underneath was
+          // the riddle and its solution stacked one on the other.
           // ── Actions — present once the trio rides ──
           if (raidHere) ...[
             const SizedBox(height: 14),
@@ -7240,26 +7112,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  CosmicPlanet? _planetForElement(String element) {
-    for (final p in _world.planets) {
-      if (p.element == element) return p;
-    }
-    return null;
-  }
-
-  Future<void> _togglePinnedRecipe(CosmicPlanet planet) async {
-    final next = _pinnedRecipeElement == planet.element ? null : planet.element;
-    final prefs = await SharedPreferences.getInstance();
-    if (next == null) {
-      await prefs.remove(_pinnedRecipePrefsKey);
-    } else {
-      await prefs.setString(_pinnedRecipePrefsKey, next);
-    }
-    if (!mounted) return;
-    setState(() => _pinnedRecipeElement = next);
-    HapticFeedback.selectionClick();
-    _showQuote(next == null ? 'Recipe unpinned.' : 'Recipe pinned.');
-  }
 
   @override
   Widget build(BuildContext context) => SceneAmbience(
@@ -7295,20 +7147,11 @@ class _CosmicScreenState extends State<CosmicScreen>
       );
     }
 
-    final pinnedPlanet = _pinnedRecipeElement != null
-        ? _planetForElement(_pinnedRecipeElement!)
-        : null;
-    final hasPinnedRecipe = pinnedPlanet != null;
-    // A sealed gated planet's ONE-TIME offering outranks any pinned recipe:
-    // standing at the gate must always show the gate (a persisted pin used
-    // to hijack the HUD here, hiding new planets' offerings entirely).
-    final nearGatePending =
-        _nearPlanet != null &&
-        isDungeonGatePlanet(_nearPlanet!.element) &&
-        !_unsealedGates.contains(_nearPlanet!.element);
-    final hudPlanet = nearGatePending
-        ? _nearPlanet
-        : (hasPinnedRecipe ? pinnedPlanet : _nearPlanet);
+
+    // Recipes are no longer pinnable, so the strip is always about the planet
+    // you are standing at — which is what the gate override already forced
+    // whenever it mattered.
+    final hudPlanet = _nearPlanet;
     // Whether the HUD planet runs the gate ritual — built dungeon OR
     // coming-soon. Drives the UNSEAL GATE label and one-time offering.
     final hudIsGate =
@@ -7687,8 +7530,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                             ? _triggerScreenShakeAndSummon
                             : null,
                         onDetail: _handleMeterTap,
-                        onTogglePin: () => _togglePinnedRecipe(hudPlanet),
-                        isPinned: _pinnedRecipeElement == hudPlanet.element,
                       ),
                     ),
                   ),

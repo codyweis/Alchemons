@@ -1519,12 +1519,16 @@ class PlanetRecipe {
     final others = kElementColors.keys.where((e) => e != element).toList()
       ..shuffle(rng);
 
-    // Difficulty curve:
-    // L1: 1-2 total ingredients, L2: 2-3, L3: 3-4.
+    // Difficulty curve, capped at two elements.
+    //
+    // It used to reach four at level 3, and a recipe naming four elements is
+    // not read as a puzzle — it is read as a list to satisfy. Two is the most
+    // a player can hold while choosing what to summon. Depth comes from the
+    // proportions and the tolerance band instead, which is where it was
+    // always more interesting.
     final nSec = switch (recipeLevel) {
       1 => rng.nextBool() ? 0 : 1,
-      2 => rng.nextBool() ? 1 : 2,
-      _ => rng.nextBool() ? 2 : 3,
+      _ => 1,
     };
 
     // Raw weights → normalised later
@@ -1588,11 +1592,30 @@ class PlanetRecipe {
       2 => 7.0,
       _ => 5.0,
     };
+    // At most two, same as the generated recipes.
+    //
+    // An authored entry trio of three different elements produced a
+    // three-element recipe, which is the offering the player finds hardest to
+    // read. The two heaviest carry it — the planet's own element is nudged
+    // above, so it survives the cut on any planet that asks for itself — and
+    // what the third contributed simply falls inside the tolerance band.
+    // Ties broken by name, not by luck. Two elements from the trio can carry
+    // the same weight, and Dart's sort is not stable — so without this, which
+    // one survived the cut could differ between runs of the same seed, and a
+    // recipe the player has already read is supposed to be the same recipe
+    // every time it is rebuilt.
+    final ranked = weights.entries.toList()
+      ..sort((a, b) {
+        final byWeight = b.value.compareTo(a.value);
+        return byWeight != 0 ? byWeight : a.key.compareTo(b.key);
+      });
+    final kept = ranked.take(2);
+
     final assignable = 100.0 - randomPct;
-    final totalW = weights.values.fold(0.0, (s, v) => s + v);
+    final totalW = kept.fold(0.0, (s, e) => s + e.value);
 
     final components = <String, double>{};
-    for (final e in weights.entries) {
+    for (final e in kept) {
       components[e.key] = (e.value / totalW * assignable).roundToDouble();
     }
     final assigned = components.values.fold(0.0, (s, v) => s + v);

@@ -141,7 +141,7 @@ void main() {
   });
 
   group('PlanetRecipe.fromEntryRequirement', () {
-    test('reflects the trio with the home element weighted highest', () {
+    test('trims the trio to two, home element kept and dominant', () {
       final recipe = PlanetRecipe.fromEntryRequirement(
         element: 'Air',
         slots: const ['Air', 'Lightning', 'Fire'],
@@ -149,14 +149,24 @@ void main() {
       );
 
       expect(recipe.planetElement, 'Air');
-      // All three elements present in the composition.
-      expect(recipe.components.keys.toSet(), {'Air', 'Lightning', 'Fire'});
-      // Home element dominates.
-      expect(
-        recipe.components['Air']! > recipe.components['Lightning']!,
-        isTrue,
-      );
+      // Two elements at most. A trio of three distinct elements is trimmed to
+      // the two heaviest, and the rest falls inside the tolerance band —
+      // three named elements read as a shopping list rather than a recipe.
+      expect(recipe.components.length, 2);
+      // The home element is nudged above the others, so it always survives
+      // the cut on a planet that asks for itself.
+      expect(recipe.components.containsKey('Air'), isTrue);
+      // Fire and Lightning weigh the same here, so which one keeps its place
+      // is settled by name rather than by sort order — the same seed has to
+      // rebuild the same recipe.
+      expect(recipe.components.containsKey('Fire'), isTrue);
       expect(recipe.components['Air']! > recipe.components['Fire']!, isTrue);
+      final again = PlanetRecipe.fromEntryRequirement(
+        element: 'Air',
+        slots: const ['Air', 'Lightning', 'Fire'],
+        level: 1,
+      );
+      expect(again.components, recipe.components);
       // Components + random tolerance sum to ~100%.
       final total =
           recipe.components.values.fold(0.0, (s, v) => s + v) +

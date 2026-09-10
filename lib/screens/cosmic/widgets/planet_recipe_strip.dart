@@ -29,8 +29,6 @@ class PlanetRecipeStrip extends StatelessWidget {
     required this.onSummon,
     required this.onDetail,
     this.actionLabel = 'UNSEAL GATE',
-    this.isPinned = false,
-    this.onTogglePin,
   });
 
   final CosmicPlanet planet;
@@ -44,8 +42,6 @@ class PlanetRecipeStrip extends StatelessWidget {
   final VoidCallback onDetail;
 
   final String actionLabel;
-  final bool isPinned;
-  final VoidCallback? onTogglePin;
 
   static const double height = 26;
 
@@ -125,16 +121,6 @@ class PlanetRecipeStrip extends StatelessWidget {
                       height: 1.0,
                     ),
                   ),
-                const SizedBox(width: 8),
-                InkResponse(
-                  onTap: context.soundAction(onTogglePin),
-                  radius: 14,
-                  child: Icon(
-                    isPinned ? AppIcons.push_pin : AppIcons.push_pin_outlined,
-                    size: 13,
-                    color: isPinned ? color : CosmicScreenStyles.textMuted,
-                  ),
-                ),
                 const SizedBox(width: 8),
                 // The action only exists once it can be taken.
                 if (ready)
