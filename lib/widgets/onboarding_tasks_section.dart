@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'dart:math' as math;
+
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/extraction_hub_screen.dart';
 import 'package:alchemons/screens/feeding/feeding_screen.dart';
@@ -8,7 +11,7 @@ import 'package:alchemons/screens/mystic_altar/mystic_altar_screen.dart';
 import 'package:alchemons/screens/profile_screen.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_screen.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
-import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/section_router.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -39,7 +42,17 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
 
   Future<void> _refresh() async {
     final db = context.read<AlchemonsDatabase>();
-    final left = await OnboardingTaskService(db).outstanding();
+    // Read defensively: this section is decoration on someone else's
+    // screen, and it must not be able to take the journal down with it if it
+    // is ever shown somewhere the shop is not provided. Without it the
+    // forge task simply stays hidden.
+    ShopService? shop;
+    try {
+      shop = context.read<ShopService>();
+    } on ProviderNotFoundException {
+      shop = null;
+    }
+    final left = await OnboardingTaskService(db).outstanding(shop: shop);
     if (mounted) setState(() => _outstanding = left);
   }
 
@@ -116,7 +129,7 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
     final tasks = _outstanding;
     // Nothing at all until it is loaded, and nothing ever again once done.
     if (tasks == null || tasks.isEmpty) return const SizedBox.shrink();
-    final theme = context.watch<FactionTheme>();
+    final fc = FC.of(context);
     final readyCount = tasks.where((t) => t.$2 == TaskState.earned).length;
 
     return Column(
@@ -128,7 +141,8 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
             Text(
               'TASKS',
               style: TextStyle(
-                color: theme.text,
+                fontFamily: 'monospace',
+                color: fc.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 2.0,
@@ -140,7 +154,7 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
                   ? '$readyCount READY'
                   : '${tasks.length} LEFT',
               style: TextStyle(
-                color: readyCount > 0 ? theme.accent : theme.textMuted,
+                color: readyCount > 0 ? fc.mint : fc.textMuted,
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.4,
@@ -152,11 +166,7 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
         Text(
           'Places you have not been. Each one pays '
           '$kTaskSilverReward silver for showing up.',
-          style: TextStyle(
-            color: theme.textMuted,
-            height: 1.5,
-            fontSize: 12,
-          ),
+          style: TextStyle(color: fc.textMuted, height: 1.5, fontSize: 12),
         ),
         if (readyCount > 1) ...[
           const SizedBox(height: 10),
@@ -167,9 +177,9 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 9),
               decoration: BoxDecoration(
-                color: theme.accent.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: theme.accent.withValues(alpha: 0.6)),
+                color: fc.mint.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: fc.mint.withValues(alpha: 0.6)),
               ),
               child: Text(
                 _claiming
@@ -178,7 +188,8 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
                           '${readyCount * kTaskSilverReward} SILVER',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: theme.accent,
+                  fontFamily: 'monospace',
+                  color: fc.mint,
                   fontSize: 11,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.2,
@@ -201,7 +212,11 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
   }
 }
 
-class _TaskRow extends StatelessWidget {
+/// Matches _AchievementCard beside it: the same forge palette, the same 4px
+/// plate, and the same surge when a reward is taken — a task and an
+/// achievement are collected on one screen, so collecting should feel like
+/// one action, not two.
+class _TaskRow extends StatefulWidget {
   const _TaskRow({
     required this.task,
     required this.state,
@@ -217,93 +232,166 @@ class _TaskRow extends StatelessWidget {
   final VoidCallback onCollect;
 
   @override
+  State<_TaskRow> createState() => _TaskRowState();
+}
+
+class _TaskRowState extends State<_TaskRow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _seal = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 620),
+  );
+
+  @override
+  void didUpdateWidget(covariant _TaskRow old) {
+    super.didUpdateWidget(old);
+    // The row is removed from the list the moment it is claimed, so the
+    // surge plays on the transition INTO earned — the moment the reward
+    // appears, which is the moment worth marking.
+    if (widget.state == TaskState.earned && old.state != TaskState.earned) {
+      _seal.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _seal.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
-    final ready = state == TaskState.earned;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-      decoration: BoxDecoration(
-        color: theme.surface.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: ready
-              ? theme.accent.withValues(alpha: 0.75)
-              : theme.border.withValues(alpha: 0.7),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            ready ? AppIcons.check_circle_rounded : task.icon,
-            size: 17,
-            color: theme.accent,
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.title,
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  ready
-                      ? 'Visited — $kTaskSilverReward silver waiting.'
-                      : task.blurb,
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 11,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: context.soundAction(
-              ready ? (busy ? null : onCollect) : onGo,
-            ),
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: theme.accent.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: theme.accent.withValues(alpha: 0.6)),
+    final fc = FC.of(context);
+    final ready = widget.state == TaskState.earned;
+    return AnimatedBuilder(
+      animation: _seal,
+      builder: (context, child) {
+        final t = _seal.value;
+        final surge = math.sin(t * math.pi);
+        return Transform.scale(
+          scale: 1 + 0.035 * Curves.easeOut.transform(surge),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: ready ? Color.lerp(fc.bg2, fc.mint, 0.06) : fc.bg2,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: Color.lerp(
+                  ready ? fc.mint.withValues(alpha: 0.55) : fc.borderDim,
+                  fc.rewardGold,
+                  surge * 0.8,
+                )!,
+                width: 1 + surge * 0.8,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
+        child: Row(
+          children: [
+            Icon(
+              ready ? AppIcons.check_circle_rounded : widget.task.icon,
+              size: 17,
+              color: ready ? fc.mint : fc.amberBright,
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    ready ? 'COLLECT' : 'GO',
+                    widget.task.title,
                     style: TextStyle(
-                      color: theme.accent,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
+                      fontFamily: 'monospace',
+                      color: fc.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  if (!ready) ...[
-                    const SizedBox(width: 3),
-                    Icon(
-                      AppIcons.chevron_right_rounded,
-                      size: 14,
-                      color: theme.accent,
+                  const SizedBox(height: 3),
+                  Text(
+                    ready
+                        ? '$kTaskSilverReward silver waiting.'
+                        : widget.task.blurb,
+                    style: TextStyle(
+                      color: fc.textMuted,
+                      fontSize: 11,
+                      height: 1.35,
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
+            _TaskButton(
+              label: ready ? 'Collect' : 'Go',
+              icon: ready
+                  ? AppIcons.inventory_2_outlined
+                  : AppIcons.chevron_right_rounded,
+              accent: ready ? fc.mint : fc.amberBright,
+              onTap: ready
+                  ? (widget.busy ? null : widget.onCollect)
+                  : widget.onGo,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The journal's own button shape, which lives inside its screen — repeated
+/// here rather than exported, because reaching into that file for one
+/// private helper would drag the whole screen along with it.
+class _TaskButton extends StatelessWidget {
+  const _TaskButton({
+    required this.label,
+    required this.icon,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color accent;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final enabled = onTap != null;
+    return GestureDetector(
+      onTap: context.soundAction(onTap),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: enabled ? 0.12 : 0.05),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: accent.withValues(alpha: enabled ? 0.6 : 0.25),
           ),
-        ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: enabled ? accent : fc.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(icon, size: 13, color: enabled ? accent : fc.textMuted),
+          ],
+        ),
       ),
     );
   }

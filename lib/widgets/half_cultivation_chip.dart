@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
+import 'package:alchemons/widgets/chronal_catalyst_glyph.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -113,11 +114,9 @@ class _HalfCultivationChipState extends State<HalfCultivationChip> {
         contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
         title: Row(
           children: [
-            const Icon(
-              AppIcons.hourglass_bottom_rounded,
-              size: 18,
-              color: Color(0xFF7BE1E8),
-            ),
+            // The same glyph the shop sells it with, so the countdown in the
+            // header and the item on the shelf are recognisably one thing.
+            const ChronalCatalystGlyph(size: 22),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

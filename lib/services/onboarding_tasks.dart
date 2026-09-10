@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'package:alchemons/data/mystic_altar_data.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -25,6 +28,24 @@ enum TaskDestination {
   final NavSection? section;
 }
 
+/// What has to be true before a task is worth showing.
+///
+/// Each mirrors the gate on the real entry point, so a task cannot advertise
+/// a button that is not there.
+enum TaskGate {
+  /// Always reachable.
+  always,
+
+  /// The forge opens with the Elemental Creator.
+  enhanceUnlocked,
+
+  /// The altar appears once any relic is held or placed.
+  anyRelic,
+
+  /// The constellations appear with the ship.
+  shipFound,
+}
+
 /// A place in the game the player may not know exists.
 ///
 /// These are not achievements. An achievement records something you managed;
@@ -38,6 +59,7 @@ class OnboardingTask {
     required this.blurb,
     required this.icon,
     required this.destination,
+    this.gate = TaskGate.always,
   });
 
   final String id;
@@ -48,6 +70,14 @@ class OnboardingTask {
   final String blurb;
   final IconData icon;
   final TaskDestination destination;
+
+  /// Whether this place exists for the player yet.
+  ///
+  /// A task is an advertisement, and advertising a door that will not open
+  /// is worse than saying nothing — it is the spoiler-and-dead-control
+  /// problem the Survival dock button already had. Locked tasks are absent,
+  /// not greyed, and they appear when the place does.
+  final TaskGate gate;
 
   /// Set when the player arrives. The reward is not paid here — arriving
   /// earns it, the journal is where it is collected.
@@ -90,6 +120,7 @@ const List<OnboardingTask> kOnboardingTasks = [
     blurb: 'Sacrifice spare specimens for levels, or infuse a stat directly.',
     icon: AppIcons.auto_awesome_rounded,
     destination: TaskDestination.enhance,
+    gate: TaskGate.enhanceUnlocked,
   ),
   OnboardingTask(
     id: 'harvest',
@@ -104,6 +135,7 @@ const List<OnboardingTask> kOnboardingTasks = [
     blurb: 'The rite turns what you have gathered into something rarer.',
     icon: AppIcons.auto_fix_high_rounded,
     destination: TaskDestination.rite,
+    gate: TaskGate.anyRelic,
   ),
   OnboardingTask(
     id: 'constellation',
@@ -111,6 +143,7 @@ const List<OnboardingTask> kOnboardingTasks = [
     blurb: 'Constellation points buy permanent upgrades to everything else.',
     icon: AppIcons.nights_stay_rounded,
     destination: TaskDestination.constellation,
+    gate: TaskGate.shipFound,
   ),
   OnboardingTask(
     id: 'profile',
@@ -144,6 +177,36 @@ class OnboardingTaskService {
 
   final AlchemonsDatabase db;
 
+  /// Whether the place this task points at exists yet.
+  ///
+  /// Each check mirrors the real entry point's own condition; if one of
+  /// those moves, this is the second place to change, which is why the
+  /// mirroring is named rather than inlined.
+  Future<bool> unlocked(OnboardingTask task, {ShopService? shop}) async {
+    switch (task.gate) {
+      case TaskGate.always:
+        return true;
+      case TaskGate.enhanceUnlocked:
+        // Mirrors the dock's lockEnhance.
+        return shop?.hasElementalCreatorUnlocked() ?? false;
+      case TaskGate.shipFound:
+        // Mirrors ConstellationPointsWidget, which hides itself without it.
+        return await db.settingsDao.getSetting('cosmic_ship_unlocked') == '1';
+      case TaskGate.anyRelic:
+        // Mirrors the home screen's _hasAnyRelic: held, or already placed.
+        for (final entry in kAltarEntries) {
+          final qty = await db.inventoryDao.getItemQty(
+            BossLootKeys.traitKeyForElement(entry.element),
+          );
+          if (qty > 0) return true;
+        }
+        final placed = await db.altarDao.getRelicPlacedIds(
+          kAltarEntries.map((e) => e.id).toList(),
+        );
+        return placed.isNotEmpty;
+    }
+  }
+
   Future<TaskState> stateOf(OnboardingTask task) async {
     if (await db.settingsDao.getSetting(task.claimedKey) == '1') {
       return TaskState.claimed;
@@ -154,17 +217,27 @@ class OnboardingTaskService {
     return TaskState.todo;
   }
 
-  /// Every task still worth showing, with its state. Claimed ones are gone.
-  Future<List<(OnboardingTask, TaskState)>> outstanding() async {
+  /// Every task still worth showing, with its state. Claimed ones are gone,
+  /// and so are ones whose place does not exist yet.
+  Future<List<(OnboardingTask, TaskState)>> outstanding({
+    ShopService? shop,
+  }) async {
     final rows = <(OnboardingTask, TaskState)>[];
     for (final task in kOnboardingTasks) {
       final state = await stateOf(task);
-      if (state != TaskState.claimed) rows.add((task, state));
+      if (state == TaskState.claimed) continue;
+      // An earned reward is always collectable, even if the gate somehow
+      // closed behind them — the player did the thing.
+      if (state == TaskState.todo && !await unlocked(task, shop: shop)) {
+        continue;
+      }
+      rows.add((task, state));
     }
     return rows;
   }
 
   /// How many rewards are sitting uncollected — what the home badge counts.
+  /// Gates do not apply: an earned reward is earned.
   Future<int> readyCount() async {
     var n = 0;
     for (final task in kOnboardingTasks) {

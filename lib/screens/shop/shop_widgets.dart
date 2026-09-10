@@ -16,6 +16,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/coin_exchange_icon.dart';
+import 'package:alchemons/widgets/chronal_catalyst_glyph.dart';
 import 'package:alchemons/widgets/cold_storage_glyph.dart';
 import 'package:alchemons/widgets/portal_key_glyph.dart';
 import 'package:alchemons/widgets/raid_beacon_glyph.dart';
@@ -849,6 +850,20 @@ Widget _buildOfferPreview(
     return Center(
       child: StaticEffectSnapshot(
         cacheKey: 'shop.storage_cap',
+        boxSize: size,
+        child: live,
+      ),
+    );
+  }
+
+  // 1c-ii. The catalyst draws the thing it does: one hand at ordinary speed,
+  // one at double, and the gap between them is what you are buying.
+  if (offer.id == ShopService.halfCultivationOfferId) {
+    final live = ChronalCatalystGlyph(size: size, animate: animate);
+    if (animate) return Center(child: live);
+    return Center(
+      child: StaticEffectSnapshot(
+        cacheKey: 'shop.half_cultivation',
         boxSize: size,
         child: live,
       ),

@@ -9,6 +9,9 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/screens/story/campaign_journal_screen.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:drift/native.dart';
@@ -24,6 +27,15 @@ Future<void> pumpJournal(WidgetTester tester, AlchemonsDatabase db) async {
         Provider<AlchemonsDatabase>.value(value: db),
         ChangeNotifierProvider<TimedBoostService>(
           create: (_) => TimedBoostService(db.settingsDao)..load(),
+        ),
+        // The task gates ask the shop whether the forge is unlocked.
+        ChangeNotifierProvider<ShopService>(
+          create: (ctx) => ShopService(
+            db,
+            ConstellationEffectsService(db),
+            FactionService(db),
+            ctx.read<TimedBoostService>(),
+          ),
         ),
         Provider<FactionTheme>.value(
           value: factionThemeFor(
@@ -57,13 +69,19 @@ void main() {
     await pumpJournal(tester, db);
 
     expect(find.text('TASKS'), findsOneWidget);
-    expect(
-      find.text('${kOnboardingTasks.length} LEFT'),
-      findsOneWidget,
-      reason: 'a fresh save owes every task',
-    );
-    // The first task's row and its way in.
-    expect(find.text(kOnboardingTasks.first.title), findsOneWidget);
+    // Three of the eight point at places a fresh save has not unlocked, and
+    // a task advertising a door that will not open is worse than silence.
+    final open = kOnboardingTasks
+        .where((t) => t.gate == TaskGate.always)
+        .toList();
+    expect(find.text('${open.length} LEFT'), findsOneWidget);
+    for (final task in kOnboardingTasks) {
+      expect(
+        find.text(task.title),
+        task.gate == TaskGate.always ? findsOneWidget : findsNothing,
+        reason: task.id,
+      );
+    }
     expect(find.text('GO'), findsWidgets);
   });
 

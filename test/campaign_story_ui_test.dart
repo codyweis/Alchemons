@@ -1,3 +1,6 @@
+import 'package:alchemons/services/shop_service.dart';
+import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -147,6 +150,14 @@ void main() {
             ChangeNotifierProvider<TimedBoostService>(
               create: (_) => TimedBoostService(db.settingsDao)..load(),
             ),
+            ChangeNotifierProvider<ShopService>(
+              create: (ctx) => ShopService(
+                db,
+                ConstellationEffectsService(db),
+                FactionService(db),
+                ctx.read<TimedBoostService>(),
+              ),
+            ),
             // The journal is forge-themed now and reads FactionTheme the same
             // way every other themed screen does; the app provides it globally.
             Provider<FactionTheme>.value(
@@ -222,6 +233,14 @@ void main() {
           Provider<AlchemonsDatabase>.value(value: db),
           ChangeNotifierProvider<TimedBoostService>(
             create: (_) => TimedBoostService(db.settingsDao)..load(),
+          ),
+          ChangeNotifierProvider<ShopService>(
+            create: (ctx) => ShopService(
+              db,
+              ConstellationEffectsService(db),
+              FactionService(db),
+              ctx.read<TimedBoostService>(),
+            ),
           ),
           // The badge takes its gold from the theme now, so that it stays
           // legible in light mode as well as dark.

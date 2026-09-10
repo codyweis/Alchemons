@@ -6,7 +6,9 @@
 // in a screen's initState and will fire on every single visit. The one thing
 // that must hold is that it only ever pays once.
 
+import 'package:alchemons/data/mystic_altar_data.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:drift/native.dart';
@@ -22,11 +24,55 @@ void main() {
   });
   tearDown(() async => db.close());
 
-  test('a fresh save owes every task, none of them ready', () async {
+  test('a fresh save shows only the places that exist yet', () async {
     final left = await tasks.outstanding();
-    expect(left.length, kOnboardingTasks.length);
+    final open = kOnboardingTasks.where((t) => t.gate == TaskGate.always);
+    expect(left.map((r) => r.$1.id), open.map((t) => t.id));
     expect(left.map((r) => r.$2), everyElement(TaskState.todo));
     expect(await tasks.readyCount(), 0);
+  });
+
+  group('gates', () {
+    test('the constellations appear with the ship', () async {
+      final task = kOnboardingTasks.firstWhere((t) => t.id == 'constellation');
+      expect(await tasks.unlocked(task), isFalse);
+      await db.settingsDao.setSetting('cosmic_ship_unlocked', '1');
+      expect(await tasks.unlocked(task), isTrue);
+      expect(
+        (await tasks.outstanding()).map((r) => r.$1.id),
+        contains('constellation'),
+      );
+    });
+
+    test('the altar appears with a relic in hand', () async {
+      final task = kOnboardingTasks.firstWhere((t) => t.id == 'rite');
+      expect(await tasks.unlocked(task), isFalse);
+      await db.inventoryDao.addItemQty(
+        BossLootKeys.traitKeyForElement(kAltarEntries.first.element),
+        1,
+      );
+      expect(await tasks.unlocked(task), isTrue);
+    });
+
+    test('the forge needs the shop to answer', () async {
+      final task = kOnboardingTasks.firstWhere((t) => t.id == 'enhance');
+      // No ShopService means no claim either way, so it stays hidden rather
+      // than advertising a locked door.
+      expect(await tasks.unlocked(task), isFalse);
+    });
+
+    test('an earned reward survives its gate', () async {
+      // Earn the constellation task, then take the ship away again.
+      await db.settingsDao.setSetting('cosmic_ship_unlocked', '1');
+      await tasks.markVisited('constellation');
+      await db.settingsDao.setSetting('cosmic_ship_unlocked', '0');
+      expect(
+        (await tasks.outstanding()).map((r) => r.$1.id),
+        contains('constellation'),
+        reason: 'the player did the thing; the silver is theirs',
+      );
+      expect(await tasks.readyCount(), 1);
+    });
   });
 
   test('arriving earns but does not pay', () async {
@@ -90,7 +136,6 @@ void main() {
     await tasks.claim('rite');
     left = await tasks.outstanding();
     expect(left.map((r) => r.$1.id), isNot(contains('rite')));
-    expect(left.length, kOnboardingTasks.length - 1);
   });
 
   test('the list empties only once everything is collected', () async {
@@ -102,7 +147,7 @@ void main() {
     expect(
       (await tasks.outstanding()).length,
       kOnboardingTasks.length,
-      reason: 'visited is not finished',
+      reason: 'an earned task is listed whatever its gate says',
     );
     expect(await tasks.readyCount(), kOnboardingTasks.length);
 
