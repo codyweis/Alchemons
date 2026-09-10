@@ -528,8 +528,6 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     _contestCinematicMode = _ContestCinematicMode.beauty;
     _beautyContestShipIntroStart = ship.pos;
 
-    shooting = false;
-    shootingMissiles = false;
     boosting = false;
 
     companionProjectiles.clear();
@@ -623,8 +621,6 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     _speedContestCompProgress = pi * 0.5;
     _speedContestOppProgress = pi * 0.5 - 0.18;
 
-    shooting = false;
-    shootingMissiles = false;
     boosting = false;
 
     companionProjectiles.clear();
@@ -716,8 +712,6 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     _strengthContestDuration = 11.0;
     _strengthContestShift = 0.0;
 
-    shooting = false;
-    shootingMissiles = false;
     boosting = false;
 
     companionProjectiles.clear();
@@ -809,8 +803,6 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     _intelligenceContestOrbit = 0.0;
     _intelligenceContestOrbPos = _beautyContestCenter;
 
-    shooting = false;
-    shootingMissiles = false;
     boosting = false;
 
     companionProjectiles.clear();

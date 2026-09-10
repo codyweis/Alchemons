@@ -186,13 +186,15 @@ class _CosmicScreenState extends State<CosmicScreen>
   HomePlanet? _homePlanet;
   static const _homePlanetPrefsKey = 'cosmic_home_planet_v1';
 
-  // Shooting state
-  bool _isShooting = false;
-  bool _isShootingMissiles = false;
+  /// Which weapons are armed. Armed is not firing: a weapon engages only when
+  /// something comes into range, and holds fire otherwise.
+  ///
+  /// Both start on. Steering and shooting were competing for the same thumb —
+  /// you either flew or you fired — so the guns are the ship's business now,
+  /// and the HUD buttons say which ones are minding themselves.
+  bool _isShooting = true;
+  bool _isShootingMissiles = true;
   bool _isBoosting = false;
-  // Tracks which weapon the sliding finger is currently on (0=bullets, 1=missiles, -1=none)
-  int _activeWeaponSlot = -1;
-  final GlobalKey _weaponColumnKey = GlobalKey();
 
   // Slow-mode toggle
   bool _slowMode = false;
@@ -204,15 +206,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _showJoystick = true;
   bool _largeJoystick = true;
 
-  // Tap-to-shoot toggle (off by default)
-  /// The turret and launcher engage on their own. On by default, and the
-  /// only firing mode there is now — tap-to-shoot competed with steering for
-  /// the same thumb and is gone.
-  bool _autoFire = true;
-
   // Boost toggle mode (off = hold, on = tap to toggle)
   bool _boostToggleMode = false;
-  final Set<int> _tapShootPointerIds = {};
 
   // Cargo upgrade level (0-3)
   int _cargoLevel = 0;
@@ -570,7 +565,8 @@ class _CosmicScreenState extends State<CosmicScreen>
     _showJoystick = prefs.getBool('cosmic_joystick_enabled') ?? true;
     _largeJoystick = prefs.getBool('cosmic_large_joystick') ?? true;
 
-    _autoFire = prefs.getBool('cosmic_auto_fire') ?? true;
+    _isShooting = prefs.getBool(_gunArmedPrefsKey) ?? true;
+    _isShootingMissiles = prefs.getBool(_missilesArmedPrefsKey) ?? true;
 
     // Load boost toggle mode preference
     _boostToggleMode = prefs.getBool('cosmic_boost_toggle') ?? false;
@@ -580,6 +576,10 @@ class _CosmicScreenState extends State<CosmicScreen>
       _largeJoystick = true;
       _boostToggleMode = false;
       _showPinnedMiniMap = false;
+      // The memory teaches summoning and the magnet, not gunnery — so the
+      // buttons read stood-down, matching what the game is actually doing.
+      _isShooting = false;
+      _isShootingMissiles = false;
     }
 
     // Load fuel state
@@ -683,8 +683,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       initialAmmoId: _customizationState.activeAmmo?.id,
       startCloserToSurvivalSignal: shouldNudgeInitialSpawnTowardSignal,
     );
-    // The memory teaches summoning and the magnet, not gunnery.
-    game.autoFire = widget.memoryTutorial ? false : _autoFire;
+    game.shooting = _isShooting;
+    game.shootingMissiles = _isShootingMissiles;
     game.activeWeaponId = widget.memoryTutorial
         ? 'equip_machinegun'
         : _customizationState.activeWeapon;
@@ -5116,31 +5116,31 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  void _startShooting() {
-    _isShooting = true;
-    _game?.shooting = true;
-    HapticFeedback.selectionClick();
-    setState(() {});
-  }
+  static const _gunArmedPrefsKey = 'cosmic_gun_armed_v1';
+  static const _missilesArmedPrefsKey = 'cosmic_missiles_armed_v1';
 
-  void _stopShooting() {
-    _isShooting = false;
-    _game?.shooting = false;
-    setState(() {});
-  }
-
-  void _startShootingMissiles() {
+  /// Arm or stand down the turret. Survives the session, because which guns
+  /// you want minding themselves is a preference, not a per-flight decision.
+  Future<void> _toggleGun() async {
     if (widget.memoryTutorial) return;
-    _isShootingMissiles = true;
-    _game?.shootingMissiles = true;
+    setState(() {
+      _isShooting = !_isShooting;
+      _game?.shooting = _isShooting;
+    });
     HapticFeedback.selectionClick();
-    setState(() {});
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_gunArmedPrefsKey, _isShooting);
   }
 
-  void _stopShootingMissiles() {
-    _isShootingMissiles = false;
-    _game?.shootingMissiles = false;
-    setState(() {});
+  Future<void> _toggleMissiles() async {
+    if (widget.memoryTutorial) return;
+    setState(() {
+      _isShootingMissiles = !_isShootingMissiles;
+      _game?.shootingMissiles = _isShootingMissiles;
+    });
+    HapticFeedback.selectionClick();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_missilesArmedPrefsKey, _isShootingMissiles);
   }
 
   void _startBoosting() {
@@ -5169,68 +5169,9 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
-  /// Determine which weapon slot (0=bullets, 1=missiles) the pointer Y is over.
-  /// Returns -1 if outside both.
-  /// Column layout: [MISSILE(50)] [gap(10)] [BULLETS(50)] — or just [BULLETS(50)].
-  int _weaponSlotAtY(double localY) {
-    final hasMissileSlot =
-        !widget.memoryTutorial && _customizationState.hasMissiles;
-    if (hasMissileSlot) {
-      if (localY >= 0 && localY < 50) return 1; // missiles (top)
-      if (localY >= 60 && localY < 110) return 0; // bullets (below)
-    } else {
-      if (localY >= 0 && localY < 50) return 0; // bullets only
-    }
-    return -1;
-  }
-
-  void _switchToWeaponSlot(int slot) {
-    if (slot == _activeWeaponSlot) return;
-    // Deactivate previous
-    if (_activeWeaponSlot == 0) _stopShooting();
-    if (_activeWeaponSlot == 1) _stopShootingMissiles();
-    // Activate new
-    _activeWeaponSlot = slot;
-    if (slot == 0) _startShooting();
-    if (slot == 1) _startShootingMissiles();
-  }
-
-  void _handleWeaponPointerDown(PointerDownEvent e) {
-    final box =
-        _weaponColumnKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final local = box.globalToLocal(e.position);
-    final slot = _weaponSlotAtY(local.dy);
-    if (slot >= 0) _switchToWeaponSlot(slot);
-  }
-
-  void _handleWeaponPointerMove(PointerMoveEvent e) {
-    if (_activeWeaponSlot < 0) return; // not tracking
-    final box =
-        _weaponColumnKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final local = box.globalToLocal(e.position);
-    final slot = _weaponSlotAtY(local.dy);
-    if (slot >= 0) _switchToWeaponSlot(slot);
-  }
-
-  void _handleWeaponPointerUp(PointerUpEvent e) {
-    if (_activeWeaponSlot == 0) _stopShooting();
-    if (_activeWeaponSlot == 1) _stopShootingMissiles();
-    _activeWeaponSlot = -1;
-  }
-
-  void _handleWeaponPointerCancel(PointerCancelEvent e) {
-    if (_activeWeaponSlot == 0) _stopShooting();
-    if (_activeWeaponSlot == 1) _stopShootingMissiles();
-    _activeWeaponSlot = -1;
-  }
-
+  /// Let go of the stick — after a teleport the ship should not still be
+  /// flying the heading you were holding. Armed weapons stay armed.
   void _resetCosmicTouchState() {
-    _tapShootPointerIds.clear();
-    _activeWeaponSlot = -1;
-    if (_isShooting) _stopShooting();
-    if (_isShootingMissiles) _stopShootingMissiles();
     _game?.clearSteeringInput();
   }
 
@@ -8628,19 +8569,16 @@ class _CosmicScreenState extends State<CosmicScreen>
                             ),
                           if (showCosmicHud && _customizationState.hasBooster)
                             const SizedBox(height: 14),
-                          // Weapon buttons (slide-to-switch)
-                          Listener(
-                            onPointerDown: _handleWeaponPointerDown,
-                            onPointerMove: _handleWeaponPointerMove,
-                            onPointerUp: _handleWeaponPointerUp,
-                            onPointerCancel: _handleWeaponPointerCancel,
-                            child: Column(
-                              key: _weaponColumnKey,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (showCosmicHud &&
-                                    _customizationState.hasMissiles)
-                                  _buildWeaponHudButton(
+                          // Weapon buttons. Each one arms its own weapon and
+                          // stays lit while it is minding itself.
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (showCosmicHud &&
+                                  _customizationState.hasMissiles)
+                                GestureDetector(
+                                  onTap: context.soundAction(_toggleMissiles),
+                                  child: _buildWeaponHudButton(
                                     accent: const Color(0xFFE53935),
                                     active: _isShootingMissiles,
                                     child: Column(
@@ -8668,10 +8606,13 @@ class _CosmicScreenState extends State<CosmicScreen>
                                       ],
                                     ),
                                   ),
-                                if (showCosmicHud &&
-                                    _customizationState.hasMissiles)
-                                  const SizedBox(height: 10),
-                                _buildWeaponHudButton(
+                                ),
+                              if (showCosmicHud &&
+                                  _customizationState.hasMissiles)
+                                const SizedBox(height: 10),
+                              GestureDetector(
+                                onTap: context.soundAction(_toggleGun),
+                                child: _buildWeaponHudButton(
                                   accent: const Color(0xFF00E5FF),
                                   active: _isShooting,
                                   child: Icon(
@@ -8682,8 +8623,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                                     size: 25,
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -8966,7 +8907,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                 _CosmicSettingsOverlay(
                   joystickEnabled: _showJoystick,
                   largeJoystickEnabled: _largeJoystick,
-                  autoFireEnabled: _autoFire,
                   boostToggleEnabled: _boostToggleMode,
                   onClose: () => setState(() => _showSettingsMenu = false),
                   onLeaveSpace: () async {
@@ -8982,14 +8922,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                     setState(() => _largeJoystick = v);
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.setBool('cosmic_large_joystick', v);
-                  },
-                  onToggleAutoFire: (v) async {
-                    setState(() {
-                      _autoFire = v;
-                      _game?.autoFire = v;
-                    });
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('cosmic_auto_fire', v);
                   },
                   onToggleBoostToggle: (v) async {
                     setState(() {
@@ -10209,26 +10141,22 @@ class _CosmicSettingsOverlay extends StatelessWidget {
   const _CosmicSettingsOverlay({
     required this.joystickEnabled,
     required this.largeJoystickEnabled,
-    required this.autoFireEnabled,
     required this.boostToggleEnabled,
     required this.onClose,
     required this.onLeaveSpace,
     required this.onToggleJoystick,
     required this.onToggleLargeJoystick,
-    required this.onToggleAutoFire,
     required this.onToggleBoostToggle,
     required this.onReplayPrologue,
   });
 
   final bool joystickEnabled;
   final bool largeJoystickEnabled;
-  final bool autoFireEnabled;
   final bool boostToggleEnabled;
   final VoidCallback onClose;
   final VoidCallback onLeaveSpace;
   final ValueChanged<bool> onToggleJoystick;
   final ValueChanged<bool> onToggleLargeJoystick;
-  final ValueChanged<bool> onToggleAutoFire;
   final ValueChanged<bool> onToggleBoostToggle;
 
   /// Developer tool: replay THE FIRST CROSSING from here.
@@ -10361,14 +10289,6 @@ class _CosmicSettingsOverlay extends StatelessWidget {
                     subtitle: 'Use the expanded movement pad',
                     value: largeJoystickEnabled,
                     onChanged: onToggleLargeJoystick,
-                  ),
-                  const SizedBox(height: 8),
-                  _SettingsToggleRow(
-                    icon: AppIcons.flash_on_rounded,
-                    label: 'Auto Fire',
-                    subtitle: 'Turret and missiles engage on their own',
-                    value: autoFireEnabled,
-                    onChanged: onToggleAutoFire,
                   ),
                   const SizedBox(height: 8),
                   _SettingsToggleRow(

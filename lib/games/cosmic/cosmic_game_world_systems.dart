@@ -3374,7 +3374,6 @@ extension CosmicGameWorldSystems on CosmicGame {
     if (shipHealth <= 0) {
       if (sandboxMode) {
         _spawnKillVfx(ship.pos, const Color(0xFF00E5FF), 18, true);
-        shooting = false;
         resetSandboxCombatState();
         return;
       }
@@ -3382,7 +3381,6 @@ extension CosmicGameWorldSystems on CosmicGame {
       _shipDead = true;
       onSound?.call(SoundCue.combatDefeat);
       _respawnTimer = 2.5; // 2.5s respawn delay
-      shooting = false;
       // Death explosion
       _spawnKillVfx(ship.pos, const Color(0xFF00E5FF), 18, true);
       // Reset meter
