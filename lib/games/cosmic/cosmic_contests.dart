@@ -84,6 +84,18 @@ class CosmicContestLevel {
   });
 }
 
+/// Gold paid for winning a contest at [level].
+///
+/// Shards are the in-run currency and already ramp steeply; gold leaves the
+/// run, so it stays linear — one per level, starting at one. A wallet that
+/// begins at 5 gold and buys orbs at 10 cannot absorb a curve that bends
+/// upward, and linear is the only shape that is still sane if the ladder is
+/// ever extended past five rings.
+///
+/// Single source of truth: the arena HUD quotes it before the match and the
+/// win handler grants exactly this, so the two can never disagree.
+int cosmicContestGoldReward(int level) => level < 1 ? 1 : level;
+
 const Map<CosmicContestTrait, List<CosmicContestLevel>> kCosmicContestLevels = {
   CosmicContestTrait.beauty: [
     CosmicContestLevel(
