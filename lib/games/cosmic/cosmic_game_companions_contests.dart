@@ -1,8 +1,10 @@
 part of 'cosmic_game.dart';
 
 /// Horn family gets bonus HP and DEF since they're the tanks.
-double _familyHpMultiplier(String family) => family == 'horn' ? 1.30 : 1.0;
-double _familyDefMultiplier(String family) => family == 'horn' ? 1.20 : 1.0;
+double _familyHpMultiplier(String family) =>
+    CosmicBalance.familyHpMultiplier(family);
+double _familyDefMultiplier(String family) =>
+    CosmicBalance.familyDefMultiplier(family);
 
 extension CosmicGameCompanionsAndContests on CosmicGame {
   void summonCompanion(

@@ -2,6 +2,7 @@ import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -75,6 +76,8 @@ class _ExploreTab extends StatelessWidget {
           const BracketSectionDivider(label: 'Stats'),
           const SizedBox(height: 10),
           _ExploreStatGrid(instance: instance, family: family),
+          const SizedBox(height: 10),
+          _GeneticDriversCard(instance: instance, family: family),
           const SizedBox(height: 18),
           const BracketSectionDivider(label: 'Role'),
           const SizedBox(height: 10),
@@ -115,10 +118,19 @@ class _ExploreTab extends StatelessWidget {
 // ──────────────────────────────────────────────────────────────────────────
 
 class _BracketStatTile extends StatelessWidget {
-  const _BracketStatTile({required this.label, required this.value});
+  const _BracketStatTile({
+    required this.label,
+    required this.value,
+    this.source,
+  });
 
   final String label;
   final String value;
+
+  /// The genetic stats this number is derived from, e.g. 'STR-INT'. Printed
+  /// under the value so the tab answers "which stat do I enhance for this?"
+  /// without turning into a formula dump.
+  final String? source;
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +172,22 @@ class _BracketStatTile extends StatelessWidget {
                 letterSpacing: 0.2,
               ),
             ),
+            if (source != null) ...[
+              const SizedBox(height: 3),
+              Text(
+                source!,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: bracketText(
+                  context,
+                  9,
+                  palette.muted.withValues(alpha: 0.72),
+                  weight: FontWeight.w600,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -192,11 +220,20 @@ class _ExploreStatGrid extends StatelessWidget {
       'speed',
       instance.statSpeed,
     );
-    final hp = CosmicBalance.companionMaxHp(
-      level: instance.level,
-      strength: strength,
-      intelligence: intelligence,
-    );
+    // The summoned companion is built with the family shape modifiers applied
+    // (see summonCompanion); reporting the unmodified figures here understated
+    // every Horn's HP by 30% and its defenses by 20%.
+    final hpMultiplier = CosmicBalance.familyHpMultiplier(family);
+    final defMultiplier = CosmicBalance.familyDefMultiplier(family);
+
+    final hp =
+        (CosmicBalance.companionMaxHp(
+                  level: instance.level,
+                  strength: strength,
+                  intelligence: intelligence,
+                ) *
+                hpMultiplier)
+            .round();
     final physAtk = CosmicBalance.companionPhysAtk(
       level: instance.level,
       strength: strength,
@@ -205,27 +242,41 @@ class _ExploreStatGrid extends StatelessWidget {
       level: instance.level,
       beauty: beauty,
     );
-    final physDef = CosmicBalance.companionPhysDef(
-      level: instance.level,
-      strength: strength,
-      intelligence: intelligence,
-    );
-    final elemDef = CosmicBalance.companionElemDef(
-      level: instance.level,
-      beauty: beauty,
-      intelligence: intelligence,
-    );
+    final physDef =
+        (CosmicBalance.companionPhysDef(
+                  level: instance.level,
+                  strength: strength,
+                  intelligence: intelligence,
+                ) *
+                defMultiplier)
+            .round();
+    final elemDef =
+        (CosmicBalance.companionElemDef(
+                  level: instance.level,
+                  beauty: beauty,
+                  intelligence: intelligence,
+                ) *
+                defMultiplier)
+            .round();
     final cdr = CosmicBalance.companionCooldownReduction(speed);
     final crit = CosmicBalance.companionCritChance(strength);
+    final range = CosmicBalance.familyAttackRange(
+      family,
+      CosmicBalance.companionBaseRange(intelligence),
+    );
 
     final stats = <_StatEntry>[
-      _StatEntry('HP', hp.toString()),
-      _StatEntry('P-ATK', physAtk.toString()),
-      _StatEntry('E-ATK', elemAtk.toString()),
-      _StatEntry('P-DEF', physDef.toString()),
-      _StatEntry('E-DEF', elemDef.toString()),
-      _StatEntry('CD', '×${cdr.toStringAsFixed(2)}'),
-      _StatEntry('CRIT', '${(crit * 100).round()}%'),
+      _StatEntry('HP', hp.toString(), 'STR-INT'),
+      _StatEntry('P-ATK', physAtk.toString(), 'STR'),
+      _StatEntry('E-ATK', elemAtk.toString(), 'BEA'),
+      _StatEntry('RANGE', range.round().toString(), 'INT'),
+      _StatEntry('P-DEF', physDef.toString(), 'STR-INT'),
+      _StatEntry('E-DEF', elemDef.toString(), 'BEA-INT'),
+      // cdr divides the base cooldown, so printing it raw read backwards:
+      // a '×0.89' specimen actually waits 13% longer between casts. Show the
+      // cooldown length itself, where lower is plainly better.
+      _StatEntry('CD', '×${(1 / cdr).toStringAsFixed(2)}', 'SPD'),
+      _StatEntry('CRIT', '${(crit * 100).round()}%', 'STR'),
     ];
 
     return _StatGrid(stats: stats);
@@ -233,9 +284,10 @@ class _ExploreStatGrid extends StatelessWidget {
 }
 
 class _StatEntry {
-  const _StatEntry(this.label, this.value);
+  const _StatEntry(this.label, this.value, this.source);
   final String label;
   final String value;
+  final String source;
 }
 
 class _StatGrid extends StatelessWidget {
@@ -259,6 +311,7 @@ class _StatGrid extends StatelessWidget {
               child: _BracketStatTile(
                 label: stats[idx].label,
                 value: stats[idx].value,
+                source: stats[idx].source,
               ),
             ),
           );
@@ -271,6 +324,224 @@ class _StatGrid extends StatelessWidget {
     }
     return Column(children: rows);
   }
+}
+
+/// Bridges the Analysis tab's genetic ratings to the derived combat numbers
+/// above it. Analysis prints stats on the display scale (internal x100) while
+/// the grid prints the figures those stats produce, and nothing connected the
+/// two — a player enhancing Beauty had no way to learn it never touches P-ATK.
+class _GeneticDriversCard extends StatelessWidget {
+  const _GeneticDriversCard({required this.instance, required this.family});
+
+  final CreatureInstance instance;
+  final String family;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final theme = context.read<FactionTheme>();
+    final accent = bracketReadableAccent(theme);
+    final combatBonuses = context.watch<ConstellationEffectsService>();
+
+    final drivers = <_GeneticDriver>[
+      _GeneticDriver(
+        'Strength',
+        instance.statStrength,
+        combatBonuses.applyCombatStatBonus('strength', instance.statStrength),
+        'P-ATK · CRIT · HP · P-DEF',
+      ),
+      _GeneticDriver(
+        'Beauty',
+        instance.statBeauty,
+        combatBonuses.applyCombatStatBonus('beauty', instance.statBeauty),
+        'E-ATK · E-DEF',
+      ),
+      _GeneticDriver(
+        'Intelligence',
+        instance.statIntelligence,
+        combatBonuses.applyCombatStatBonus(
+          'intelligence',
+          instance.statIntelligence,
+        ),
+        'RANGE · HP · P-DEF · E-DEF',
+      ),
+      _GeneticDriver(
+        'Speed',
+        instance.statSpeed,
+        combatBonuses.applyCombatStatBonus('speed', instance.statSpeed),
+        'CD — lower waits less between attacks and specials',
+      ),
+    ];
+
+    final shapeNote = _familyShapeNote(family);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surfaceFill(),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: palette.line.withValues(alpha: 0.55)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(width: 3, height: 10, color: accent),
+                const SizedBox(width: 7),
+                Text(
+                  'GENETIC DRIVERS',
+                  style: bracketText(
+                    context,
+                    11,
+                    accent,
+                    weight: FontWeight.w700,
+                    letterSpacing: 0.9,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (var i = 0; i < drivers.length; i++) ...[
+              if (i > 0) const SizedBox(height: 9),
+              _GeneticDriverRow(driver: drivers[i], accent: accent),
+            ],
+            const SizedBox(height: 11),
+            Container(height: 1, color: palette.line.withValues(alpha: 0.35)),
+            const SizedBox(height: 9),
+            Text(
+              'Ratings past ${AlchemonStatSystem.displayRating(CosmicBalance.maxCombatStat)} '
+              'keep adding power, at a reduced rate.',
+              style: bracketText(
+                context,
+                11,
+                palette.muted.withValues(alpha: 0.85),
+                weight: FontWeight.w500,
+              ),
+              strutStyle: const StrutStyle(height: 1.35),
+            ),
+            if (shapeNote != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                shapeNote,
+                style: bracketText(
+                  context,
+                  11,
+                  palette.muted.withValues(alpha: 0.85),
+                  weight: FontWeight.w500,
+                ),
+                strutStyle: const StrutStyle(height: 1.35),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GeneticDriver {
+  const _GeneticDriver(this.name, this.base, this.effective, this.drives);
+
+  final String name;
+  final double base;
+  final double effective;
+  final String drives;
+}
+
+class _GeneticDriverRow extends StatelessWidget {
+  const _GeneticDriverRow({required this.driver, required this.accent});
+
+  final _GeneticDriver driver;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final baseRating = AlchemonStatSystem.displayRating(driver.base);
+    final effectiveRating = AlchemonStatSystem.displayRating(driver.effective);
+    // Constellation combat bonuses are why this can exceed the Analysis tab's
+    // figure; name the gap rather than letting the two tabs quietly disagree.
+    final bonus = effectiveRating - baseRating;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Expanded(
+              child: Text(
+                driver.name.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: bracketText(
+                  context,
+                  11.5,
+                  palette.ink,
+                  weight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$effectiveRating',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: accent,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            if (bonus > 0)
+              Text(
+                ' (+$bonus)',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: palette.muted,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          driver.drives,
+          style: bracketText(
+            context,
+            11,
+            palette.muted,
+            weight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Reads the family shape modifiers back out of CosmicBalance so the note can
+/// never drift from the multipliers actually applied to the grid.
+String? _familyShapeNote(String family) {
+  final parts = <String>[];
+
+  // Wing and Mask sit within a few percent of baseline reach; printing that
+  // would be noise, so only a shape the player can actually feel gets a line.
+  void addPercent(String label, double multiplier) {
+    final percent = ((multiplier - 1.0) * 100).round();
+    if (percent.abs() < 8) return;
+    parts.add('${percent > 0 ? '+' : '−'}${percent.abs()}% $label');
+  }
+
+  addPercent('HP', CosmicBalance.familyHpMultiplier(family));
+  addPercent('DEF', CosmicBalance.familyDefMultiplier(family));
+  addPercent('reach', CosmicBalance.familyAttackRange(family, 1.0));
+
+  if (parts.isEmpty) return null;
+  return '${family.toUpperCase()} frame: ${parts.join(' · ')}.';
 }
 
 class _BracketInfoCard extends StatelessWidget {

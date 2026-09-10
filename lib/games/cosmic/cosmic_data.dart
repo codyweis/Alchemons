@@ -282,6 +282,42 @@ class CosmicBalance {
     return 95.0 + AlchemonStatSystem.legacyGameplayRating(intelligence) * 30.0;
   }
 
+  // Family shape modifiers. Horns trade reach for bulk; wings and casters buy
+  // reach back. These live here rather than in CosmicGame so the creature
+  // detail Battle tab reports the same numbers the summoned companion gets.
+  static double familyHpMultiplier(String family) =>
+      family.toLowerCase() == 'horn' ? 1.30 : 1.0;
+
+  static double familyDefMultiplier(String family) =>
+      family.toLowerCase() == 'horn' ? 1.20 : 1.0;
+
+  static double familyAttackRange(String family, double baseRange) {
+    return baseRange *
+        switch (family.toLowerCase()) {
+          'horn' => 0.58,
+          'mane' => 0.85,
+          'mask' => 0.95,
+          'kin' => 0.90,
+          'wing' => 1.05,
+          _ => 1.0,
+        };
+  }
+
+  static double familySpecialRange(String family, double baseRange) {
+    return baseRange *
+        switch (family.toLowerCase()) {
+          'horn' => 0.82,
+          'mane' => 1.05,
+          'mask' => 1.20,
+          'let' => 1.25,
+          'pip' => 1.20,
+          'wing' => 1.35,
+          'kin' => 1.10,
+          'mystic' => 1.45,
+          _ => 1.25,
+        };
+  }
+
   static double shipDamageMultiplier(int level) {
     final safeLevel = level.clamp(0, HomeCustomizationState.maxUpgradeLevel);
     return 1.0 + safeLevel * 0.08;

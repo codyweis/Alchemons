@@ -994,45 +994,11 @@ class CosmicGame extends FlameGame with PanDetector {
     return value.clamp(minValue, maxValue).toDouble();
   }
 
-  double _familyAttackRange(String family, double baseRange) {
-    switch (family.toLowerCase()) {
-      case 'horn':
-        return baseRange * 0.58;
-      case 'mane':
-        return baseRange * 0.85;
-      case 'mask':
-        return baseRange * 0.95;
-      case 'kin':
-        return baseRange * 0.90;
-      case 'wing':
-        return baseRange * 1.05;
-      default:
-        return baseRange;
-    }
-  }
+  double _familyAttackRange(String family, double baseRange) =>
+      CosmicBalance.familyAttackRange(family, baseRange);
 
-  double _familySpecialRange(String family, double baseRange) {
-    switch (family.toLowerCase()) {
-      case 'horn':
-        return baseRange * 0.82;
-      case 'mane':
-        return baseRange * 1.05;
-      case 'mask':
-        return baseRange * 1.20;
-      case 'let':
-        return baseRange * 1.25;
-      case 'pip':
-        return baseRange * 1.20;
-      case 'wing':
-        return baseRange * 1.35;
-      case 'kin':
-        return baseRange * 1.10;
-      case 'mystic':
-        return baseRange * 1.45;
-      default:
-        return baseRange * 1.25;
-    }
-  }
+  double _familySpecialRange(String family, double baseRange) =>
+      CosmicBalance.familySpecialRange(family, baseRange);
 
   double _combatAcquireRange({
     required String family,
