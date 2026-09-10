@@ -1,9 +1,10 @@
-import 'dart:math' as math;
-
+import 'package:alchemons/widgets/animations/shaders/fire_animation.dart';
+import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/faction_picker.dart
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/screens/faction_commit_transition.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
@@ -118,6 +119,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
   @override
   void initState() {
     super.initState();
+    _warmCommitShaders();
     _pageController = PageController();
 
     _particleController = AnimationController(
@@ -158,6 +160,11 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
     setState(() => _currentIndex = index);
     HapticFeedback.mediumImpact();
   }
+
+  /// The volcanic commit is a shader, and compiling it costs a frame or two.
+  /// Done when the picker opens, so the burn is at full strength on the
+  /// frame the button is pressed.
+  void _warmCommitShaders() => unawaited(FireFX.warm());
 
   Future<void> _selectFaction() async {
     if (_committing) return;
@@ -277,17 +284,11 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
 
               if (_committing)
                 Positioned.fill(
-                  child: IgnorePointer(
-                    child: AnimatedBuilder(
-                      animation: _commit,
-                      builder: (context, _) => CustomPaint(
-                        painter: _CommitWashPainter(
-                          progress: _commit.value,
-                          color: chosen.primaryColor,
-                          accent: chosen.accentColor,
-                        ),
-                      ),
-                    ),
+                  child: FactionCommitTransition(
+                    faction: chosen.id,
+                    progress: _commit,
+                    color: chosen.primaryColor,
+                    accent: chosen.accentColor,
                   ),
                 ),
             ],
@@ -296,77 +297,6 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
       ),
     );
   }
-}
-
-/// The faction taking the screen.
-///
-/// A disc of the faction's colour opening from the middle of the vial, a
-/// brighter ring riding its edge, and a last fade to solid so the dialog can
-/// leave underneath it without a cut. No blur: this paints every frame.
-class _CommitWashPainter extends CustomPainter {
-  _CommitWashPainter({
-    required this.progress,
-    required this.color,
-    required this.accent,
-  });
-
-  final double progress;
-  final Color color;
-  final Color accent;
-
-  static final Paint _p = Paint();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Centred on the vial rather than the screen, which sits a little above
-    // the middle once the perks and the button are accounted for.
-    final origin = Offset(size.width / 2, size.height * 0.42);
-    final reach = math.sqrt(
-      math.pow(math.max(origin.dx, size.width - origin.dx), 2) +
-          math.pow(math.max(origin.dy, size.height - origin.dy), 2),
-    );
-
-    // Out fast, then easing as it fills — a wave, not a wipe.
-    final t = Curves.easeOutCubic.transform(progress.clamp(0.0, 1.0));
-    final radius = reach * t;
-    if (radius <= 0) return;
-
-    canvas.drawCircle(
-      origin,
-      radius,
-      _p
-        ..style = PaintingStyle.fill
-        ..color = color.withValues(alpha: 0.96),
-    );
-
-    // The leading edge, bright while it is still travelling.
-    final edge = (1 - t).clamp(0.0, 1.0);
-    if (edge > 0.02) {
-      canvas.drawCircle(
-        origin,
-        radius,
-        _p
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = size.shortestSide * 0.05 * edge
-          ..color = accent.withValues(alpha: 0.85 * edge),
-      );
-      _p.style = PaintingStyle.fill;
-    }
-
-    // The last stretch goes solid, so whatever is behind the dialog is
-    // revealed by the next screen rather than by this one vanishing.
-    final settle = ((progress - 0.72) / 0.28).clamp(0.0, 1.0);
-    if (settle > 0) {
-      canvas.drawRect(
-        Offset.zero & size,
-        _p..color = color.withValues(alpha: settle),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _CommitWashPainter old) =>
-      old.progress != progress || old.color != color;
 }
 
 // ============================================================================

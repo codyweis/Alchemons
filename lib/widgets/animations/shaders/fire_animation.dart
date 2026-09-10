@@ -27,9 +27,32 @@ class FireFX extends StatefulWidget {
   final double speedFactor;
   final bool blendOnTop;
 
+  /// Compiles the fire shader if it is not compiled already.
+  ///
+  /// Safe and cheap to call repeatedly; concurrent callers share the one
+  /// load. Call it before a FireFX that has to be right on its first frame.
+  static Future<ui.FragmentProgram> warm() {
+    final ready = _fireProgram;
+    if (ready != null) return Future<ui.FragmentProgram>.value(ready);
+    return _fireProgramLoading ??=
+        ui.FragmentProgram.fromAsset('assets/shaders/fire.frag').then((p) {
+          _fireProgram = p;
+          return p;
+        });
+  }
+
   @override
   State<FireFX> createState() => _FireFXState();
 }
+
+/// The compiled program, kept for the life of the app.
+///
+/// Loading it takes a frame or two, during which a FireFX paints nothing.
+/// That is invisible on a background but not on the faction commit, where
+/// the fire IS the transition and starts the instant the button is pressed —
+/// so callers who cannot afford the gap call [FireFX.warm] in advance.
+ui.FragmentProgram? _fireProgram;
+Future<ui.FragmentProgram>? _fireProgramLoading;
 
 class _FireFXState extends State<FireFX> with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
@@ -50,9 +73,14 @@ class _FireFXState extends State<FireFX> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _loadShader() async {
-    final program = await ui.FragmentProgram.fromAsset(
-      'assets/shaders/fire.frag',
-    );
+    final cached = _fireProgram;
+    if (cached != null) {
+      // Already compiled: take it this frame rather than after an await.
+      _shader = cached.fragmentShader();
+      return;
+    }
+    final program = await FireFX.warm();
+    if (!mounted) return;
     setState(() {
       _shader = program.fragmentShader();
     });
