@@ -8417,11 +8417,6 @@ CosmicSpecialResult _maneSpecial(
     return (base * scale * 0.58).round().clamp(min, max);
   }
 
-  int scaledManePowerCount({int min = 4, int max = 10}) {
-    final weightedStat = casterStrength * 0.62 + casterBeauty * 0.38;
-    final t = AlchemonStatSystem.combatProgress(weightedStat);
-    return (min + (max - min) * t).round().clamp(min, max);
-  }
 
   double scaledSpread(double base) {
     final beautySpread = _specialStatScaleFromBaseline(
@@ -8700,18 +8695,20 @@ CosmicSpecialResult _maneSpecial(
         ),
       );
     case 'Lava':
+      // "For every enemy collision, leave a blob of lava." One shot doing the
+      // colliding — the fan of four never had anything to do with the design.
       return finalize(
         fanResult(
-          lanes: scaledCount(5, min: 4, max: 7),
-          arc: pi * 0.34,
-          damageMultiplier: 2.05,
-          life: 2.25,
-          speed: 1.08,
-          visualScale: 1.7,
+          lanes: 1,
+          arc: 0,
+          damageMultiplier: 3.9,
+          life: 3.6,
+          speed: 0.62,
+          visualScale: 3.4,
           piercing: true,
-          snareRadius: 72,
-          snareMoveMultiplier: 0.82,
-          radiusMultiplier: 1.5,
+          snareRadius: 92,
+          snareMoveMultiplier: 0.80,
+          radiusMultiplier: 4.6,
         ),
       );
     case 'Mud':
@@ -8730,12 +8727,15 @@ CosmicSpecialResult _maneSpecial(
           lanes: 1,
           arc: 0,
           damageMultiplier: 2.10,
-          life: 3.1,
-          speed: 0.90,
-          visualScale: 1.60,
+          life: 3.6,
+          // Sized with the rest of the family. It was already a single shot,
+          // but still carried a fan lane's hitbox, so next to the consolidated
+          // Manes it read as the runt of a family built on heavy throws.
+          speed: 0.66,
+          visualScale: 3.0,
           snareRadius: 124,
           snareMoveMultiplier: 0.56,
-          radiusMultiplier: 1.55,
+          radiusMultiplier: 3.8,
           basicHasteTimer: 1.2,
           basicHasteMultiplier: 0.90,
         ),
@@ -8777,13 +8777,17 @@ CosmicSpecialResult _maneSpecial(
       // roughly 2x speed and shoves enemies along its path on pierce.
       return finalize(
         fanResult(
-          lanes: scaledCount(8, min: 5, max: 10),
-          arc: pi * 0.94,
-          damageMultiplier: 0.98,
-          life: 1.8,
+          // Speed stays at 2x — that IS the design for Air. What goes is the
+          // near-180-degree spray of ten thin lanes, which is not "a
+          // projectile that travels at 2x speed" by any reading.
+          lanes: 1,
+          arc: 0,
+          damageMultiplier: 2.4,
+          life: 1.9,
           speed: 2.0,
-          visualScale: 1.02,
+          visualScale: 3.0,
           piercing: true,
+          radiusMultiplier: 4.0,
           basicHasteTimer: 2.0,
           basicHasteMultiplier: 0.74,
         ),
@@ -8832,10 +8836,11 @@ CosmicSpecialResult _maneSpecial(
               angle: baseAngle,
               element: 'Steam',
               damage: damage * 1.4,
-              life: 3.8,
-              speedMultiplier: 0.68,
-              radiusMultiplier: 2.4,
-              visualScale: 2.2,
+              life: 4.2,
+              // "BIG geyser projectile" — sized with the rest of the family.
+              speedMultiplier: 0.60,
+              radiusMultiplier: 4.0,
+              visualScale: 3.2,
               piercing: true,
               visualStyle: ProjectileVisualStyle.slash,
               abilityFamily: 'mane',
@@ -8851,108 +8856,99 @@ CosmicSpecialResult _maneSpecial(
         ),
       );
     case 'Plant':
+      // "Every enemy passed through is temporarily rooted." One vine passing
+      // through them.
       return finalize(
-        CosmicSpecialResult(
+        fanResult(
+          lanes: 1,
+          arc: 0,
+          damageMultiplier: 3.6,
+          life: 3.6,
+          speed: 0.66,
+          visualScale: 3.4,
+          piercing: true,
+          snareRadius: 138,
+          snareMoveMultiplier: 0.60,
+          radiusMultiplier: 4.6,
           basicHasteTimer: 1.5,
           basicHasteMultiplier: 0.84,
-          projectiles: [
-            ...forwardFan(
-              lanes: scaledCount(5, min: 4, max: 7),
-              arc: pi * 0.28,
-              damageMultiplier: 1.42,
-              life: 2.9,
-              speed: 1.02,
-              visualScale: 1.08,
-              piercing: true,
-              snareRadius: 112,
-              snareMoveMultiplier: 0.62,
-            ),
-            ...forwardFan(
-              lanes: scaledCount(2, min: 2, max: 3),
-              arc: pi * 0.76,
-              damageMultiplier: 1.02,
-              life: 3.2,
-              speed: 0.94,
-              visualScale: 1.02,
-              piercing: true,
-              snareRadius: 122,
-              snareMoveMultiplier: 0.56,
-            ),
-          ],
         ),
       );
     case 'Poison':
       return finalize(
         fanResult(
-          lanes: scaledCount(6, min: 4, max: 8),
-          arc: pi * 0.70,
-          damageMultiplier: 1.12,
-          life: 4.3,
-          speed: 0.82,
-          visualScale: 1.20,
+          // "Applies a stack of poison to every enemy hit" — one shot, and the
+          // more it pierces the harder the poison bites.
+          lanes: 1,
+          arc: 0,
+          damageMultiplier: 2.1,
+          life: 5.0,
+          speed: 0.60,
+          visualScale: 3.2,
           piercing: true,
-          snareRadius: 116,
+          snareRadius: 128,
           snareMoveMultiplier: 0.58,
           basicHasteTimer: 1.6,
           basicHasteMultiplier: 0.82,
-          radiusMultiplier: 1.18,
+          radiusMultiplier: 4.4,
         ),
       );
     case 'Ice':
       return finalize(
         fanResult(
-          lanes: scaledCount(6, min: 4, max: 8),
-          arc: pi * 0.40,
-          damageMultiplier: 1.46,
-          life: 3.0,
-          speed: 0.88,
-          visualScale: 1.12,
+          // "Ball freezes anything it touches as it travels." One ball.
+          lanes: 1,
+          arc: 0,
+          damageMultiplier: 2.8,
+          life: 3.8,
+          speed: 0.62,
+          visualScale: 3.2,
           piercing: true,
-          snareRadius: 90,
+          snareRadius: 104,
           snareMoveMultiplier: 0.58,
-          radiusMultiplier: 1.12,
+          radiusMultiplier: 4.4,
         ),
       );
     case 'Crystal':
+      // "If IT hits a boss, instantly explodes for huge AOE damage." One
+      // prism, so there is an "it" to do the hitting — five splinters meant
+      // whichever happened to clip the boss first, which is not a read the
+      // player can aim.
       return finalize(
-        CosmicSpecialResult(
+        fanResult(
+          lanes: 1,
+          arc: 0,
+          damageMultiplier: 3.6,
+          life: 3.8,
+          speed: 0.60,
+          visualScale: 3.4,
+          piercing: true,
+          radiusMultiplier: 4.6,
           basicHasteTimer: 1.0,
           basicHasteMultiplier: 0.90,
-          projectiles: [
-            ...forwardFan(
-              lanes: 3,
-              arc: pi * 0.16,
-              damageMultiplier: 1.92,
-              life: 3.1,
-              speed: 0.82,
-              visualScale: 1.20,
-              piercing: true,
-              radiusMultiplier: 1.22,
-            ),
-            ...forwardFan(
-              lanes: 2,
-              arc: pi * 0.66,
-              damageMultiplier: 0.88,
-              life: 2.8,
-              speed: 0.80,
-              visualScale: 0.92,
-              piercing: true,
-            ),
-          ],
         ),
       );
     case 'Spirit':
-      // Survival ramps the lane count 1→10 across successive casts
-      // (see cosmic_survival_game.dart); open-world keeps the fan.
+      // "Starts at 1 projectile. Every cast increases the count up to 10,
+      // then resets back to 1." The ramp IS the ability, and it was invisible:
+      // this handed out four to eight shots on the very first cast, so the
+      // climb the design is built around never happened. Survival ramps from
+      // `projectiles.first` (see cosmic_survival_game.dart), so one is exactly
+      // what it wants as a seed.
+      //
+      // Per-shot damage deliberately NOT multiplied up the way the other
+      // consolidated Manes were: survival multiplies the COUNT, so scaling the
+      // damage too would compound into a 3x cast at full stacks.
       return finalize(
         fanResult(
-          lanes: scaledCount(6, min: 4, max: 8),
-          arc: pi * 0.34,
+          lanes: 1,
+          arc: 0,
           damageMultiplier: 1.66,
-          life: 3.1,
-          speed: 0.82,
-          visualScale: 1.04,
+          life: 3.2,
+          speed: 0.62,
+          visualScale: 2.2,
           piercing: true,
+          radiusMultiplier: 2.6,
           basicHasteTimer: 2.0,
           basicHasteMultiplier: 0.76,
         ),
@@ -8998,71 +8994,70 @@ CosmicSpecialResult _maneSpecial(
         CosmicSpecialResult(
           basicHasteTimer: 1.5,
           basicHasteMultiplier: 0.82,
-          projectiles: [
-            ...forwardFan(
-              lanes: scaledCount(2, min: 2, max: 3),
-              arc: pi * 0.24,
-              damageMultiplier: 1.70,
-              life: 2.8,
-              speed: 1.05,
-              visualScale: 1.28,
-              piercing: true,
-              snareRadius: 78,
-              snareMoveMultiplier: 0.72,
-              radiusMultiplier: 1.24,
-            ),
-            ...forwardFan(
-              lanes: 1,
-              arc: 0,
-              damageMultiplier: 2.35,
-              life: 3.0,
-              speed: 0.76,
-              visualScale: 1.34,
-              piercing: true,
-              radiusMultiplier: 1.30,
-            ),
-          ],
+          // "For every enemy pierced, restore HP to the orb." One edge doing
+          // the piercing, so the heal tracks one clean line through a crowd.
+          projectiles: forwardFan(
+            lanes: 1,
+            arc: 0,
+            damageMultiplier: 2.7,
+            life: 3.4,
+            speed: 0.62,
+            visualScale: 3.2,
+            piercing: true,
+            snareRadius: 96,
+            snareMoveMultiplier: 0.72,
+            radiusMultiplier: 4.4,
+          ),
         ),
       );
     case 'Dust':
       return finalize(
         fanResult(
-          lanes: scaledCount(12, min: 9, max: 16),
-          arc: pi * 1.02,
-          damageMultiplier: 0.84,
-          life: 2.6,
-          speed: 0.92,
-          visualScale: 0.94,
+          // "Leaves a dust cloud trail ALONG ITS PATH." A path is something a
+          // single projectile has; sixteen lanes over a half-circle was a
+          // carpet, and the trail that is supposed to be the ability got lost
+          // inside it. The trail drops twice as often now that one shot lays
+          // the whole line.
+          lanes: 1,
+          arc: 0,
+          damageMultiplier: 3.6,
+          life: 3.4,
+          speed: 0.60,
+          visualScale: 3.4,
           piercing: true,
-          trailInterval: 0.24,
-          trailDamage: damage * 0.18,
-          trailLife: 2.4,
+          radiusMultiplier: 4.8,
+          trailInterval: 0.12,
+          trailDamage: damage * 0.34,
+          trailLife: 3.0,
           basicHasteTimer: 2.2,
           basicHasteMultiplier: 0.70,
         ),
       );
     case 'Light':
-      final orbCount = scaledManePowerCount();
+      // "Ball starts tiny and grows bigger each enemy it hits — does more
+      // damage with each hit."
+      //
+      // ONE ball. The growth machinery already exists and doubles radius,
+      // visual and damage per pierce (see the Light case in
+      // resolveAbilityPierce), but it was being handed four to ten balls that
+      // each grew on their own, so the cast opened as a wall rather than as
+      // the single seed the ramp is written for. Starting deliberately small —
+      // the ramp has no room to read if the ball begins large.
       return finalize(
         CosmicSpecialResult(
           basicHasteTimer: 1.4,
           basicHasteMultiplier: 0.84,
-          projectiles: List.generate(orbCount, (i) {
-            final t = orbCount > 1 ? (i / (orbCount - 1)) - 0.5 : 0.0;
-            final a = baseAngle + t * pi * 0.34;
-            final stagger = (i - orbCount / 2) * 5.0;
-            return Projectile(
+          projectiles: [
+            Projectile(
               position:
-                  origin +
-                  Offset(cos(a), sin(a)) * (12.0 + t.abs() * 8.0) -
-                  Offset(cos(baseAngle), sin(baseAngle)) * stagger,
-              angle: a,
+                  origin + Offset(cos(baseAngle), sin(baseAngle)) * 12.0,
+              angle: baseAngle,
               element: 'Light',
-              damage: damage * 1.35,
+              damage: damage * 2.2,
               life: 5.2,
-              speedMultiplier: 0.30,
-              radiusMultiplier: 0.74,
-              visualScale: 0.76,
+              speedMultiplier: 0.34,
+              radiusMultiplier: 0.9,
+              visualScale: 1.0,
               piercing: true,
               visualStyle: ProjectileVisualStyle.slash,
               abilityFamily: 'mane',
@@ -9070,8 +9065,8 @@ CosmicSpecialResult _maneSpecial(
               effectPower: damage * 0.34,
               effectRadius: 76,
               effectDuration: 1.2,
-            );
-          }),
+            ),
+          ],
         ),
       );
     default:

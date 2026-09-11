@@ -59,9 +59,17 @@ void main() {
     expect(mud.radiusMultiplier, greaterThan(1.3));
   });
 
-  test('other mane elements are untouched', () {
-    // Fire is authored as (3-8) fireballs and must stay a fan.
+  test('the authored multi-projectile manes still fan', () {
+    // Fire is "(3-8) fireballs shot out" and Lightning is "(5-10) lightning
+    // orbs placed on the map" — the only two elements the board writes in the
+    // plural, and the only two that should fan.
+    //
+    // Ice used to be checked here as a second example of a fan. It is not one
+    // any more and never should have been: the board says "BALL freezes
+    // anything it touches as it travels", singular, and the whole family was
+    // consolidated to one heavy piercing shot to match.
     expect(_cast('Fire').projectiles.length, greaterThan(1));
-    expect(_cast('Ice').projectiles.length, greaterThan(1));
+    expect(_cast('Lightning').projectiles.length, greaterThan(1));
+    expect(_cast('Ice').projectiles, hasLength(1));
   });
 }

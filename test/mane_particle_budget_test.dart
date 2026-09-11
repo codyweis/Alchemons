@@ -84,13 +84,16 @@ void main() {
   }
 
   test('a single Mane cast cannot monopolise the ambient particle pool', () async {
-    // Dust is the widest fan in the family, so it is the worst case.
+    // Dust was the widest fan in the family (9-16 lanes) when this test was
+    // written, which made it the worst case for a per-projectile emitter. The
+    // family has since been consolidated to single heavy shots, so the worst
+    // case now is simply "a cast is in flight" — which is the right thing to
+    // measure anyway, and the narrow-fan test below is what really pins it.
     final dust = await runOneCast('Dust');
     // ignore: avoid_print
     print(
       'mane Dust: ${dust.projectiles} projectiles, peak particles ${dust.peak}',
     );
-    expect(dust.projectiles, greaterThan(6), reason: 'Dust should fan wide');
     expect(
       dust.peak,
       lessThanOrEqualTo(kManeTrailParticleBudget),
@@ -102,15 +105,14 @@ void main() {
   });
 
   test('even the narrowest Mane cast leaves the pool free', () async {
-    // Blood fires three projectiles where Dust fans nine. Before the fix BOTH
-    // pinned the pool at its ceiling (137 and 136 respectively) — the trail
-    // had no budget, only a race against a hard-coded gate, so fan width was
-    // never the variable that mattered. Pinning the narrow case is what stops
-    // a future "just clamp the wide fans" fix from passing.
+    // Before the fix, Blood at three projectiles and Dust at nine BOTH pinned
+    // the pool at its ceiling (137 and 136) — the trail had no budget, only a
+    // race against a hard-coded gate, so projectile count was never the
+    // variable that mattered. Pinning a narrow cast is what stops a future
+    // "just clamp the wide ones" fix from passing.
     final blood = await runOneCast('Blood');
     // ignore: avoid_print
     print('mane Blood: ${blood.projectiles} proj / peak ${blood.peak}');
-    expect(blood.projectiles, lessThan(6), reason: 'Blood is a narrow fan');
     expect(
       blood.peak,
       lessThanOrEqualTo(kManeTrailParticleBudget),

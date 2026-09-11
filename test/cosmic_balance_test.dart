@@ -1015,52 +1015,58 @@ void main() {
       expect(steam.projectiles, hasLength(1));
       expect(steam.projectiles.single.piercing, isTrue);
       expect(steam.projectiles.single.turretInterval, greaterThan(0));
-      expect(plant.projectiles.length, inInclusiveRange(5, 8));
-      expect(plant.projectiles.any((p) => p.position.dy > 0), isTrue);
-      expect(plant.projectiles.any((p) => p.position.dy < 0), isTrue);
-      expect(plant.projectiles.any((p) => p.snareRadius > 0), isTrue);
-      expect(poison.projectiles.length, inInclusiveRange(4, 7));
-      expect(
-        poison.projectiles.map((p) => p.position.dy).toSet().length,
-        greaterThanOrEqualTo(4),
-      );
-      expect(poison.projectiles.any((p) => p.piercing), isTrue);
-      expect(air.projectiles.length, inInclusiveRange(5, 10));
-      expect(air.projectiles.any((p) => p.piercing), isTrue);
-      expect(light.projectiles.length, inInclusiveRange(4, 10));
-      expect(light.projectiles.every((p) => p.piercing), isTrue);
-      expect(light.projectiles.every((p) => p.speedMultiplier <= 0.38), isTrue);
-      expect(light.projectiles.every((p) => p.radiusMultiplier < 1.2), isTrue);
+      // Plant, Poison and Air were lane fans here — 5-8, 4-7 and 5-10 —
+      // asserted at exactly the widths the design board never asked for. The
+      // board writes all three in the singular ("every enemy passed through",
+      // "every enemy hit", "projectile travels at 2x speed"), and piercing
+      // only means something if there is one thing doing the piercing. They
+      // are single heavy shots now, and this test says so.
+      for (final single in [plant, poison, air, light]) {
+        expect(single.projectiles, hasLength(1));
+        expect(single.projectiles.single.piercing, isTrue);
+      }
+      expect(plant.projectiles.single.snareRadius, greaterThan(0));
+      // The consolidated shots carry a real hitbox — that is what replaces the
+      // coverage the fan used to get from spraying an arc.
+      for (final heavy in [plant, poison, air]) {
+        expect(heavy.projectiles.single.radiusMultiplier, greaterThan(3.0));
+      }
+      // Light is the exception to the size rule: "ball starts TINY and grows
+      // bigger each enemy it hits". It has to begin small or the ramp that is
+      // its whole identity has no room to read.
+      expect(light.projectiles.single.speedMultiplier, lessThanOrEqualTo(0.40));
+      expect(light.projectiles.single.radiusMultiplier, lessThan(1.4));
       // Design board: "(3–8) fireballs shot out and travel fast."
       expect(fire.projectiles.length, inInclusiveRange(3, 8));
       expect(fire.projectiles.every((p) => p.piercing), isTrue);
     });
 
-    test('light mane orb count scales from strength and beauty', () {
-      final low = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'mane',
-        element: 'Light',
-        damage: 10,
-        maxHp: 120,
-        casterStrength: 1,
-        casterBeauty: 1,
-      );
-      final high = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'mane',
-        element: 'Light',
-        damage: 10,
-        maxHp: 120,
-        casterStrength: 5,
-        casterBeauty: 5,
-      );
-
-      expect(low.projectiles, hasLength(4));
-      expect(high.projectiles, hasLength(10));
-      expect(high.projectiles.length, greaterThan(low.projectiles.length));
+    test('light mane is one small ball, not a wall of orbs', () {
+      // This used to assert the orb COUNT scaled 4->10 with strength and
+      // beauty. That scaling is gone, and it was never in the design: the
+      // board says "ball starts tiny and grows bigger each enemy it hits —
+      // does more damage with each hit". Singular, and the growth comes from
+      // piercing, not from the caster's stats.
+      //
+      // Handing the cast four to ten balls that each grew independently meant
+      // it opened as a wall, and the ramp it is built around never read. The
+      // growth machinery lives in the Light case of resolveAbilityPierce.
+      for (final stat in [1.0, 3.0, 5.0]) {
+        final cast = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'mane',
+          element: 'Light',
+          damage: 10,
+          maxHp: 120,
+          casterStrength: stat,
+          casterBeauty: stat,
+        );
+        expect(cast.projectiles, hasLength(1), reason: 'stat $stat');
+        // Small at birth, so there is somewhere to grow to.
+        expect(cast.projectiles.single.radiusMultiplier, lessThan(1.4));
+        expect(cast.projectiles.single.piercing, isTrue);
+      }
     });
 
     test('mane control reads larger and lasts long enough to notice', () {
