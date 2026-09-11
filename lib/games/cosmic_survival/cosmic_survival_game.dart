@@ -1049,16 +1049,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  static const Map<String, double> _companionSpeciesScale = {
-    'let': 1.0,
-    'pip': 1.0,
-    'mane': 1.2,
-    'horn': 1.7,
-    'mask': 1.5,
-    'wing': 2.0,
-    'kin': 2.0,
-    'mystic': 2.4,
-  };
+  /// Species-type scale factors for companion sprites. Shared with open cosmic
+  /// — see [kCompanionSpeciesScale] in cosmic_data.dart.
+  static const Map<String, double> _companionSpeciesScale =
+      kCompanionSpeciesScale;
 
   @override
   bool isLoaded = false;

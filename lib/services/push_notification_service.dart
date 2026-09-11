@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
+import 'package:alchemons/utils/section_router.dart';
+import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -108,6 +110,17 @@ class PushNotificationService {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
+    // A tap that launched the app from cold never reaches the callback
+    // above — the plugin has nothing to call it on yet. The payload is
+    // waiting here instead, and it is the only place it is ever offered.
+    final launchDetails = await _notifications
+        .getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp ?? false) {
+      final payload = launchDetails!.notificationResponse?.payload;
+      debugPrint('🔔 App launched by notification: $payload');
+      _routeForPayload(payload);
+    }
+
     // Request permissions for iOS/macOS
     if (Platform.isIOS || Platform.isMacOS) {
       await _notifications
@@ -139,7 +152,31 @@ class PushNotificationService {
   // Handle notification tap
   void _onNotificationTapped(NotificationResponse response) {
     debugPrint('🔔 Notification tapped: ${response.payload}');
-    // You can handle navigation here based on payload
+    _routeForPayload(response.payload);
+  }
+
+  /// Send the player where the notification said the thing was.
+  ///
+  /// Every payload in this file is `kind:detail`; only the kind is needed to
+  /// pick a destination. A kind with nowhere to go simply opens the app,
+  /// which is what all of them used to do.
+  void _routeForPayload(String? payload) {
+    if (payload == null || payload.isEmpty) return;
+    final kind = payload.split(':').first;
+
+    switch (kind) {
+      // Every flavour of "a cultivation finished" — the one egg, the
+      // consolidated window, and the immediate "X ready now" summary.
+      case 'egg_ready':
+      case 'eggs_ready':
+      case 'eggs_window_ready':
+        SectionRouter.instance.go(
+          NavSection.breed,
+          focus: SectionFocus.cultivations,
+        );
+      default:
+        debugPrint('🔔 No destination for notification payload kind "$kind"');
+    }
   }
 
   // Helper: normalize a DateTime to the minute (for grouping hatch windows)

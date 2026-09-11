@@ -448,6 +448,10 @@ class CosmicGame extends FlameGame with PanDetector {
   String? activeAmmoId;
   String? activeWeaponId; // 'equip_machinegun' or null (default)
   bool hasMissiles = false; // whether missile launcher is equipped
+
+  /// Whether the Matter Injector is fitted — the booster may burn cargo
+  /// once the fuel tank is dry.
+  bool hasMatterInjector = false;
   String? activeShipSkin; // 'skin_phantom', 'skin_solar', or null (default)
 
   // Power-up levels (0-5), each level adds 12% damage (60% at max)
@@ -465,6 +469,15 @@ class CosmicGame extends FlameGame with PanDetector {
   bool slowMode = false;
   static const double boostFuelPerSecond =
       8.0; // fuel consumed/sec while boosting
+
+  /// Raw matter burned per second when the tank is dry and the booster falls
+  /// back to the cargo meter. Deliberately steeper than refined fuel: the
+  /// meter is what the run is *for*, so flying on it should cost the trip.
+  static const double boostMeterPerSecond = 4.0;
+
+  /// True while the booster is running on cargo rather than refined fuel —
+  /// read by the HUD so the player can see what is being spent.
+  bool boostingOnMatter = false;
 
   // Orbital sentinels
   final List<OrbitalSentinel> orbitals = [];
@@ -978,17 +991,10 @@ class CosmicGame extends FlameGame with PanDetector {
 
   // ── Companion (party alchemon) ──
 
-  /// Species-type scale factors for companion sprites (from survival mode).
-  static const Map<String, double> _companionSpeciesScale = {
-    'let': 1.0,
-    'pip': 1.0,
-    'mane': 1.2,
-    'horn': 1.7,
-    'mask': 1.5,
-    'wing': 2.0,
-    'kin': 2.0,
-    'mystic': 2.4,
-  };
+  /// Species-type scale factors for companion sprites. Shared with survival —
+  /// see [kCompanionSpeciesScale] in cosmic_data.dart.
+  static const Map<String, double> _companionSpeciesScale =
+      kCompanionSpeciesScale;
 
   static double _clampDouble(double value, double minValue, double maxValue) {
     return value.clamp(minValue, maxValue).toDouble();
@@ -2498,8 +2504,16 @@ class CosmicGame extends FlameGame with PanDetector {
     // Apply boost if booster is equipped and player is holding boost
     final boostWasActive = isBoosting;
     isBoosting = false;
-    if (boosting && !_shipDead && !shipFuel.isEmpty) {
-      final fuelUsed = shipFuel.consume(boostFuelPerSecond * dt);
+    boostingOnMatter = false;
+    if (boosting && !_shipDead) {
+      var fuelUsed = shipFuel.consume(boostFuelPerSecond * dt);
+      if (fuelUsed <= 0 && hasMatterInjector) {
+        // Dry tank, injector fitted. Rather than the booster simply dying
+        // mid-hold, it feeds on the raw matter in the hold — the ship can
+        // always get home, it just arrives with less than it caught.
+        fuelUsed = meter.drain(boostMeterPerSecond * dt);
+        if (fuelUsed > 0) boostingOnMatter = true;
+      }
       if (fuelUsed > 0) {
         baseSpeed *= boostSpeedMultiplier;
         isBoosting = true;
@@ -2509,7 +2523,9 @@ class CosmicGame extends FlameGame with PanDetector {
     if (isBoosting && !_boostTrailWasActive) {
       _boostTrailVisual = 1.0;
     }
-    final boostTrailTarget = isBoosting ? shipFuel.fraction : 0.0;
+    final boostTrailTarget = isBoosting
+        ? (boostingOnMatter ? meter.fillPct : shipFuel.fraction)
+        : 0.0;
     final boostTrailStep = (isBoosting ? 0.9 : 1.8) * dt;
     if (_boostTrailVisual > boostTrailTarget) {
       _boostTrailVisual = max(

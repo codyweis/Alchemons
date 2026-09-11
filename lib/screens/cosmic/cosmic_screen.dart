@@ -716,6 +716,8 @@ class _CosmicScreenState extends State<CosmicScreen>
         : _customizationState.activeWeapon;
     game.hasMissiles =
         !widget.memoryTutorial && _customizationState.hasMissiles;
+    game.hasMatterInjector =
+        !widget.memoryTutorial && _customizationState.hasMatterInjector;
     game.activeShipSkin = _customizationState.activeShipSkin;
     // Restore power-up levels
     game.ammoUpgradeLevel = _customizationState.ammoUpgradeLevel;
@@ -5286,14 +5288,33 @@ class _CosmicScreenState extends State<CosmicScreen>
     await prefs.setBool(_autoFireMissilesPrefsKey, auto);
   }
 
+  /// Hold-to-boost versus tap-to-lock. Set from the ship console and from
+  /// the settings panel, so it lives here rather than in either of them.
+  Future<void> _setBoostToggleMode(bool v) async {
+    setState(() {
+      _boostToggleMode = v;
+      // Leaving toggle mode with the boost locked on would strand the thrust
+      // with no finger down to release it.
+      if (!v && _isBoosting) _stopBoosting();
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('cosmic_boost_toggle', v);
+  }
+
   void _startBoosting() {
     if (widget.memoryTutorial) return;
     if (!_customizationState.hasBooster) return;
     if (_isBoosting || _game == null) return;
     // An empty tank engages nothing, so it should also sound like nothing.
     // The kick used to fire on the press regardless, which announced a
-    // boost the ship was not going to give.
-    if (_game!.shipFuel.isEmpty) return;
+    // boost the ship was not going to give. With the Matter Injector fitted
+    // a dry tank is no longer the end of it — the booster burns raw matter
+    // out of the hold — so the press is refused only when the fallback has
+    // nothing left to burn either.
+    if (_game!.shipFuel.isEmpty &&
+        !(_customizationState.hasMatterInjector && _game!.meter.total > 0)) {
+      return;
+    }
     // Only the kick here. The engine underneath it follows the game's own
     // boost state — fuel can run dry mid-hold, and the sound has to stop
     // with the thrust rather than with the finger.
@@ -5490,6 +5511,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       _game?.activeAmmoId = _customizationState.activeAmmo?.id;
       _game?.activeWeaponId = _customizationState.activeWeapon;
       _game?.hasMissiles = _customizationState.hasMissiles;
+      _game?.hasMatterInjector = _customizationState.hasMatterInjector;
       _game?.activeShipSkin = _customizationState.activeShipSkin;
       // If orbitals were just crafted, add to stockpile
       if (recipeId == 'equip_orbitals' && _game != null) {
@@ -5520,6 +5542,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _game?.activeAmmoId = _customizationState.activeAmmo?.id;
     _game?.activeWeaponId = _customizationState.activeWeapon;
     _game?.hasMissiles = _customizationState.hasMissiles;
+    _game?.hasMatterInjector = _customizationState.hasMatterInjector;
     _game?.activeShipSkin = _customizationState.activeShipSkin;
     HapticFeedback.selectionClick();
     setState(() {});
@@ -5729,7 +5752,15 @@ class _CosmicScreenState extends State<CosmicScreen>
       cost: '$cost $element',
     );
     if (!confirmed || !mounted) return;
-    _elementStorage.stored[element] = have - cost;
+    // Re-read across the await rather than writing back the balance captured
+    // before the dialog: anything spent or collected while it was open would
+    // otherwise be silently overwritten by a stale figure.
+    final balance = _elementStorage.stored[element] ?? 0;
+    if (balance < cost) {
+      _showQuote('Need $cost $element elements! (have ${balance.floor()})');
+      return;
+    }
+    _elementStorage.stored[element] = balance - cost;
     _saveElementStorage();
     _homePlanet!.unlockedColors.add(element);
     _homePlanet!.activeColor = element;
@@ -7969,10 +8000,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                       _showHomeMenu = false;
                       _showCustomizationMenu = true;
                     }),
-                    onGarrison: () => _openSubPanel(_CosmicPanel.home, () {
-                      _showHomeMenu = false;
-                      _showGarrisonPicker = true;
-                    }),
                     onClose: () => setState(() => _showHomeMenu = false),
                   ),
                 ),
@@ -8008,6 +8035,14 @@ class _CosmicScreenState extends State<CosmicScreen>
                       _showChamberPicker = true;
                     }),
                     onUpgradePowerUp: _handleUpgradePowerUp,
+                    onGarrison: () => _openSubPanel(_CosmicPanel.lab, () {
+                      _showCustomizationMenu = false;
+                      _showGarrisonPicker = true;
+                    }),
+                    garrisonStationed: _garrisonMembers
+                        .whereType<CosmicPartyMember>()
+                        .length,
+                    garrisonSlots: _garrisonSlots,
                   ),
                 ),
 
@@ -9027,6 +9062,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                   orbitalStockpile: _game?.orbitalStockpile ?? 0,
                   orbitalActive: _game?.orbitals.length ?? 0,
                   hasBooster: _customizationState.hasBooster,
+                  hasMatterInjector: _customizationState.hasMatterInjectorBuilt,
+                  matterBoostEnabled: _customizationState.hasMatterInjector,
+                  onToggleMatterBoost: (_) =>
+                      _handleToggleRecipe('equip_matter_injector'),
                   hasOrbitals: _customizationState.hasOrbitals,
                   hasMissiles: _customizationState.hasMissiles,
                   missileAmmo: _game?.missileAmmo ?? 0,
@@ -9115,14 +9154,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   },
                   onToggleAutoFireGun: _setAutoFireGun,
                   onToggleAutoFireMissiles: _setAutoFireMissiles,
-                  onToggleBoostToggle: (v) async {
-                    setState(() {
-                      _boostToggleMode = v;
-                      if (!v && _isBoosting) _stopBoosting();
-                    });
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('cosmic_boost_toggle', v);
-                  },
+                  onToggleBoostToggle: _setBoostToggleMode,
                   onReplayPrologue: () {
                     setState(() => _showSettingsMenu = false);
                     unawaited(_debugReplayPrologue());

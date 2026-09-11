@@ -854,15 +854,19 @@ class _AlchemicalPowerupFeedingScreenState
   ) {
     final t = ForgeTokens(theme);
     final soulQty = inventory[InvKeys.potentialSoul] ?? 0;
-    // The soul tray is a second infusion system, and offering the way into it
-    // to a player holding none only advertises a thing they cannot do. It
-    // appears with the first soul.
+    // The soul tray is a second infusion system, so it waits until it means
+    // something. That moment is the Potential Analyzer: once a player can read
+    // Potential, raising it is a thing they understand and want, and the tray
+    // belongs on screen whether or not they are holding a soul — its empty
+    // state already says "No Potential Souls held", which teaches the system
+    // rather than hiding it. Holding a soul still opens the tray on its own,
+    // for anyone who picked one up before the unlock.
     if (soulQty > 0 && !_soulTrayEverSeen) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => unawaited(_rememberSoulTraySeen()),
       );
     }
-    final hasAnySoul = soulQty > 0 || _soulTrayEverSeen;
+    final hasAnySoul = soulQty > 0 || _soulTrayEverSeen || _canReadPotential;
 
     // Orbs earn their tray the same way. A row of four empty sockets over a
     // BUY prompt is the shop's job, not the forge's — until the player is

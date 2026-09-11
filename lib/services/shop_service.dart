@@ -423,7 +423,7 @@ class ShopService extends ChangeNotifier {
       description:
           'Fully restores an Alchemon\'s breeding stamina so it can use the Fusion Chamber again immediately.',
       icon: AppIcons.local_drink_rounded,
-      cost: const {'silver': 2500}, // tweak cost as desired
+      cost: const {'silver': 1200},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -493,7 +493,7 @@ class ShopService extends ChangeNotifier {
       description:
           'Capture wild Volcanic-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: AppIcons.local_fire_department_rounded,
-      cost: const {'silver': 999, 'res_volcanic': 100},
+      cost: const {'silver': 250, 'res_volcanic': 50},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -505,7 +505,7 @@ class ShopService extends ChangeNotifier {
       description:
           'Capture wild Oceanic-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: AppIcons.water_rounded,
-      cost: const {'silver': 999, 'res_oceanic': 100},
+      cost: const {'silver': 250, 'res_oceanic': 50},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -517,7 +517,7 @@ class ShopService extends ChangeNotifier {
       description:
           'Capture wild Verdant-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: AppIcons.eco_rounded,
-      cost: const {'silver': 999, 'res_verdant': 100},
+      cost: const {'silver': 250, 'res_verdant': 50},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -529,7 +529,7 @@ class ShopService extends ChangeNotifier {
       description:
           'Capture wild Earthen-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: AppIcons.terrain_rounded,
-      cost: const {'silver': 999, 'res_earthen': 100},
+      cost: const {'silver': 250, 'res_earthen': 50},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -541,7 +541,7 @@ class ShopService extends ChangeNotifier {
       description:
           'Capture wild Arcane-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: AppIcons.auto_awesome_rounded,
-      cost: const {'silver': 999, 'res_arcane': 500},
+      cost: const {'silver': 250, 'res_arcane': 100},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,

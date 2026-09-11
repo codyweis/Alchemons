@@ -25,10 +25,16 @@ class BreedScreen extends StatefulWidget {
     this.title = 'Alchemons',
     this.onGoToSection,
     this.isActive = false,
+    this.cultivationsFocusToken = 0,
   });
   final String title;
   final ValueChanged<NavSection>? onGoToSection;
   final bool isActive;
+
+  /// Changes whenever the shell is asked to land on the cultivations side —
+  /// a notification tap, say. The value itself means nothing; only that it
+  /// differs from the last one this screen saw.
+  final int cultivationsFocusToken;
 
   @override
   State<BreedScreen> createState() => _BreedScreenState();
@@ -47,6 +53,12 @@ class _BreedScreenState extends State<BreedScreen> {
   @override
   void didUpdateWidget(covariant BreedScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.cultivationsFocusToken != widget.cultivationsFocusToken) {
+      // Assigned rather than _setMode'd: the rebuild that brought the new
+      // token here is already on its way, so setState would only ask for a
+      // second one.
+      _mode = _BreedMode.cultivations;
+    }
     if (!oldWidget.isActive && widget.isActive) {
       _maybeShowColdStorageIntroIfEligible();
     }

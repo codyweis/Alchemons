@@ -1,5 +1,6 @@
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/utils/section_router.dart';
+import 'package:alchemons/widgets/exit_game_dialog.dart';
 import 'package:alchemons/widgets/half_cultivation_chip.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/audio/audio.dart';
@@ -97,6 +98,13 @@ class _MainShellState extends State<MainShell> {
   // NEW: guard so we only request once per launch
   bool _creaturesTutorialRequested = false;
 
+  /// Bumped every time something asks to land on the cultivations side of the
+  /// breed tab. The breed screen owns its own mode and remembers it, so
+  /// naming the section is not enough — a player who left it on Fusion would
+  /// arrive at Fusion. A counter rather than a flag so a second request
+  /// still registers as a change.
+  int _breedCultivationsFocus = 0;
+
   @override
   void initState() {
     super.initState();
@@ -104,11 +112,15 @@ class _MainShellState extends State<MainShell> {
       if (!mounted) return;
       _goToSection(section, withHaptic: false);
     };
-    SectionRouter.instance.onSwitchSection = (section) {
-      if (!mounted) return;
-      _goToSection(section, withHaptic: false);
-    };
+    SectionRouter.instance.onSwitchSection =
+        (section, {SectionFocus focus = SectionFocus.none}) {
+          if (!mounted) return;
+          _goToSection(section, withHaptic: false, focus: focus);
+        };
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // A notification tap can cold-start the app and be read before this
+      // shell exists; the request parks on the router until now.
+      SectionRouter.instance.drainPending();
       _warmNavigationScreens();
     });
   }
@@ -159,8 +171,20 @@ class _MainShellState extends State<MainShell> {
     NavSection section, {
     int? breedInitialTab,
     bool withHaptic = true,
+    SectionFocus focus = SectionFocus.none,
   }) {
-    if (section == _currentSection) return;
+    final wantsCultivations = focus == SectionFocus.cultivations;
+
+    // Already there and nothing to re-aim: nothing to do. The focus request
+    // is checked first so a tap that lands on the tab the player is already
+    // looking at still swings it to the cultivations side.
+    if (section == _currentSection && !wantsCultivations) return;
+
+    if (section == _currentSection) {
+      setState(() => _breedCultivationsFocus++);
+      return;
+    }
+
     if (withHaptic) HapticFeedback.selectionClick();
 
     // Unfocus the creatures search field when leaving that tab
@@ -170,6 +194,7 @@ class _MainShellState extends State<MainShell> {
 
     setState(() {
       _currentSection = section;
+      if (wantsCultivations) _breedCultivationsFocus++;
     });
     if (withHaptic) {
       HapticFeedback.mediumImpact();
@@ -237,6 +262,7 @@ class _MainShellState extends State<MainShell> {
         return BreedScreen(
           onGoToSection: _goToSection,
           isActive: _currentSection == NavSection.breed,
+          cultivationsFocusToken: _breedCultivationsFocus,
         );
       case 4:
         return const InventoryScreen();
@@ -251,48 +277,7 @@ class _MainShellState extends State<MainShell> {
       return;
     }
 
-    final shouldExit = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        final theme = context.read<FactionTheme>();
-        return AlertDialog(
-          backgroundColor: theme.surface,
-          title: Text(
-            'Exit Alchemons?',
-            style: GoogleFonts.cinzel(
-              color: theme.text,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: Text(
-            'Are you sure you want to leave the game?',
-            style: GoogleFonts.cinzel(
-              color: theme.text.withValues(alpha: 0.82),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: context.soundAction(
-                () => Navigator.of(context).pop(false),
-              ),
-              child: Text(
-                'Stay',
-                style: GoogleFonts.cinzel(color: theme.textMuted),
-              ),
-            ),
-            TextButton(
-              onPressed: context.soundAction(
-                () => Navigator.of(context).pop(true),
-              ),
-              child: Text(
-                'Exit',
-                style: GoogleFonts.cinzel(color: theme.accent),
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    final shouldExit = await showExitGameDialog(context);
 
     if (shouldExit == true) {
       await SystemNavigator.pop();

@@ -189,7 +189,7 @@ void main() {
       expect(find.text('ACTIVE'), findsOneWidget);
       expect(find.text('RESERVE'), findsOneWidget);
       expect(find.text('DOWN'), findsOneWidget);
-      expect(find.text('SP 3s'), findsOneWidget);
+      expect(find.text('SP 3'), findsOneWidget);
       expect(tester.takeException(), isNull);
       final out = Platform.environment['ENEMY_SHEET_OUT'];
       if (out != null) {

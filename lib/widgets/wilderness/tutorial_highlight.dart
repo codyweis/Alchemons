@@ -27,8 +27,7 @@ class TutorialHighlight extends StatefulWidget {
 class _TutorialHighlightState extends State<TutorialHighlight>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _pulseAnimation;
-  late Animation<double> _glowAnimation;
+  late Animation<double> _breathe;
 
   @override
   void initState() {
@@ -38,15 +37,7 @@ class _TutorialHighlightState extends State<TutorialHighlight>
       vsync: this,
     );
 
-    _pulseAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.05,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-
-    _glowAnimation = Tween<double>(
-      begin: 0.3,
-      end: 0.8,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _breathe = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
 
     if (widget.enabled) {
       _controller.repeat(reverse: true);
@@ -138,43 +129,52 @@ class _TutorialHighlightState extends State<TutorialHighlight>
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              // Clears the outer rule, which is laid outside the child's box
+              // and so reaches up into this gap.
+              const SizedBox(height: 13),
             ],
 
-            // Highlighted content
+            // Highlighted content.
+            //
+            // A ring around the thing, not a wash over it. This used to be a
+            // 20px saturated-amber box shadow at alpha 0.8 plus a 3px amber
+            // border plus a 1.05 scale — around a full-width analysis panel
+            // (sometimes three at once) that read as the whole sheet turning
+            // yellow rather than as a pointer at one panel. It is now two
+            // hairline rules stepped outward, breathing in opacity only:
+            // no blur in the paint path, no scale, and — because the rules
+            // are laid outside the child's box rather than around it — no
+            // layout shift in whatever is being pointed at.
             Stack(
               clipBehavior: Clip.none,
               children: [
-                // Glowing border effect
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.amber.withValues(
-                            alpha: _glowAnimation.value,
-                          ),
-                          blurRadius: 20 * _glowAnimation.value,
-                          spreadRadius: 4 * _glowAnimation.value,
-                        ),
-                      ],
+                // Isolated so the ring's per-frame repaint does not drag the
+                // highlighted panel's own painting along with it.
+                RepaintBoundary(child: child),
+                Positioned(
+                  left: -5,
+                  right: -5,
+                  top: -4,
+                  bottom: -4,
+                  child: IgnorePointer(
+                    child: _Rule(
+                      radius: 12,
+                      width: 1.3,
+                      alpha: 0.34 + 0.30 * _breathe.value,
                     ),
                   ),
                 ),
-
-                // Pulsing scale effect
-                Transform.scale(
-                  scale: _pulseAnimation.value,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.amber.withValues(alpha: 0.8),
-                        width: 3,
-                      ),
+                Positioned(
+                  left: -10,
+                  right: -10,
+                  top: -9,
+                  bottom: -9,
+                  child: IgnorePointer(
+                    child: _Rule(
+                      radius: 16,
+                      width: 1,
+                      alpha: 0.07 + 0.13 * _breathe.value,
                     ),
-                    child: child,
                   ),
                 ),
               ],
@@ -183,6 +183,32 @@ class _TutorialHighlightState extends State<TutorialHighlight>
         );
       },
       child: widget.child,
+    );
+  }
+}
+
+/// One hairline amber rule of the highlight ring.
+class _Rule extends StatelessWidget {
+  final double radius;
+  final double width;
+  final double alpha;
+
+  const _Rule({
+    required this.radius,
+    required this.width,
+    required this.alpha,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: _kLabelAccent.withValues(alpha: alpha),
+          width: width,
+        ),
+      ),
     );
   }
 }

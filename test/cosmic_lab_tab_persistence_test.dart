@@ -37,6 +37,7 @@ class _HostState extends State<_Host> {
                 onUpgradeCargo: () {},
                 onChambers: () {},
                 onUpgradePowerUp: (_) {},
+                onGarrison: () {},
                 initialTab: labTab,
                 onTabChanged: (i) => labTab = i,
                 canPreview: true,

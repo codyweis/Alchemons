@@ -30,6 +30,9 @@ class CustomizationMenuOverlay extends StatefulWidget {
     required this.onUpgradeCargo,
     required this.onChambers,
     required this.onUpgradePowerUp,
+    required this.onGarrison,
+    this.garrisonStationed = 0,
+    this.garrisonSlots = 0,
   });
 
   final HomeCustomizationState customizationState;
@@ -70,6 +73,13 @@ class CustomizationMenuOverlay extends StatefulWidget {
   final VoidCallback onUpgradeCargo;
   final VoidCallback onChambers;
   final void Function(String type) onUpgradePowerUp;
+
+  /// Opens the garrison picker. The garrison moved in here from the home
+  /// planet's dock: who is stationed on the planet is part of how the planet
+  /// is set up, not a separate errand alongside it.
+  final VoidCallback onGarrison;
+  final int garrisonStationed;
+  final int garrisonSlots;
 
   @override
   State<CustomizationMenuOverlay> createState() =>
@@ -162,7 +172,9 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
         .where(
           (r) =>
               r.category == HomeRecipeCategory.equipment &&
-              (r.id == 'equip_booster' || r.id == 'equip_orbitals'),
+              // The booster ships fitted; the sentinels and the injector
+              // are the systems still worth building.
+              (r.id == 'equip_orbitals' || r.id == 'equip_matter_injector'),
         )
         .toList();
     final ammos = kHomeRecipes
@@ -798,6 +810,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
       key: const PageStorageKey<String>('cosmic.lab.home'),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       children: [
+        // Who is stationed here. First, because it is the thing about the
+        // planet that changes most often.
+        _sectionHeader('GARRISON', accent: CosmicScreenStyles.teal),
+        _buildGarrisonCard(),
         // Planet size
         if (widget.homePlanet != null) ...[
           _sectionHeader('PLANET SIZE', accent: CosmicScreenStyles.teal),
@@ -1485,6 +1501,83 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGarrisonCard() {
+    final slots = widget.garrisonSlots;
+    final stationed = widget.garrisonStationed;
+    final full = slots > 0 && stationed >= slots;
+
+    return GestureDetector(
+      onTap: context.soundAction(widget.onGarrison),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: CosmicScreenStyles.bg2,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: CosmicScreenStyles.borderDim),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              AppIcons.shield,
+              color: CosmicScreenStyles.teal,
+              size: 14,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'STATIONED ALCHEMONS',
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
+                      color: CosmicScreenStyles.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    slots == 0
+                        ? 'Grow the planet to open garrison slots.'
+                        : 'Assign Alchemons to guard your home planet.',
+                    style: TextStyle(
+                      fontFamily: appFontFamily(context),
+                      color: CosmicScreenStyles.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$stationed/$slots',
+              style: TextStyle(
+                fontFamily: appFontFamily(context),
+                color: full
+                    ? CosmicScreenStyles.success
+                    : CosmicScreenStyles.teal,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(
+              AppIcons.chevron_right_rounded,
+              color: CosmicScreenStyles.textMuted,
+              size: 16,
+            ),
+          ],
+        ),
       ),
     );
   }

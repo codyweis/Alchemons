@@ -650,6 +650,19 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                         resourceBalances,
                       ),
 
+                      // A patrol slot is only legible once there is a ship to
+                      // patrol beside, so it appears with the ship, not before.
+                      if (context.watch<ShopService>().getPurchaseCount(
+                            'cosmic.ship',
+                          ) >
+                          0) ...[
+                        _buildSectionHeader(
+                          'PATROL SLOTS',
+                          AppIcons.groups_rounded,
+                        ),
+                        _buildPatrolSlotsGrid(theme, allCurrencies),
+                      ],
+
                       // Power Orbs raise Enhancement ranks, so they are
                       // stock for a screen the player cannot open yet. Hidden
                       // until Enhance is unlocked, the way Enhance itself is
@@ -943,6 +956,105 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
             childAspectRatio: 0.85,
+            children: cards,
+          ),
+        );
+      },
+    );
+  }
+
+  /// Patrol slots stand alone now that 'COSMIC EXPLORATION' is gone.
+  /// The slot card lived inside [buildExplorationGrid], so removing that
+  /// section took the only way to buy a third patrol slot with it — the
+  /// ship itself is discovered in-world, but the slot that fills it still
+  /// has to be sold somewhere.
+  Widget _buildPatrolSlotsGrid(
+    FactionTheme theme,
+    Map<String, int> allCurrencies,
+  ) {
+    return Consumer<ShopService>(
+      builder: (context, shopService, _) {
+        final cards = <Widget>[];
+
+        void addPartySlot(int slotNumber, Map<String, int> cost) {
+          if (_cosmicPartySlots >= slotNumber && !_showPurchased) return;
+          final enabled = _cosmicPartySlots < slotNumber;
+          final canAfford = cost.entries.every(
+            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+          );
+          final costWidgets = <Widget>[
+            for (final e in cost.entries)
+              CostChip(
+                currencyType: e.key,
+                amount: e.value,
+                available: allCurrencies[e.key] ?? 0,
+              ),
+          ];
+          final slotOffer = ShopOffer(
+            rewardType: 'Upgrade',
+            reward: <String, dynamic>{},
+            limit: PurchaseLimit.once,
+            id: 'unlock.cosmic_party_slot_$slotNumber',
+            name: 'Patrol Slot $slotNumber',
+            description:
+                'Unlock patrol slot $slotNumber. Assign an Alchemon to patrol space with your ship.',
+            icon: AppIcons.groups_rounded,
+            cost: cost,
+            inventoryKey: null,
+            assetName: null,
+          );
+          cards.add(
+            GestureDetector(
+              onTap: context.soundAction(
+                () => enabled
+                    ? _handleCosmicPartySlotPurchase(
+                        context,
+                        slotOffer,
+                        allCurrencies,
+                        canAfford,
+                        slotNumber,
+                      )
+                    : _showBubbleSlotDetails(
+                        context,
+                        slotOffer,
+                        allCurrencies,
+                        canAfford,
+                      ),
+              ),
+              child: GameShopCard(
+                key: ValueKey('cosmic-party-slot-$slotNumber'),
+                title: 'Patrol Slot $slotNumber',
+                offer: slotOffer,
+                theme: theme,
+                costWidgets: costWidgets,
+                enabled: enabled,
+                canAfford: canAfford,
+              ),
+            ),
+          );
+        }
+
+        addPartySlot(3, _partySlot3Cost);
+
+        if (cards.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: EmptySection(
+              message: 'All patrol slots unlocked',
+              icon: AppIcons.check_circle_outline_rounded,
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: responsiveCrossAxisCount(context),
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.75,
             children: cards,
           ),
         );

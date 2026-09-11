@@ -234,7 +234,7 @@ class SurvivalPartySlot extends StatelessWidget {
                     state.dead
                         ? 'DEFEATED'
                         : state.cooldown > 0.05
-                        ? 'SP ${state.cooldown.ceil()}s'
+                        ? 'SP ${state.cooldown.ceil()}'
                         : 'SP READY',
                     style: TextStyle(
                       color: state.dead ? downColor : Colors.white70,

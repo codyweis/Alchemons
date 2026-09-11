@@ -79,7 +79,6 @@ class HomePlanetMenuOverlay extends StatelessWidget {
     required this.elementStorage,
     required this.stats,
     required this.onCustomize,
-    required this.onGarrison,
     required this.onClose,
   });
 
@@ -87,7 +86,6 @@ class HomePlanetMenuOverlay extends StatelessWidget {
   final ElementStorage elementStorage;
   final HomeBaseStats stats;
   final VoidCallback onCustomize;
-  final VoidCallback onGarrison;
   final VoidCallback onClose;
 
   @override
@@ -615,28 +613,16 @@ class HomePlanetMenuOverlay extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // The two things you came here to do, side by side...
-            Row(
-              children: [
-                Expanded(
-                  child: _action(
-                    context: context,
-                    icon: AppIcons.auto_awesome,
-                    label: 'CUSTOMIZE',
-                    onTap: context.soundTap(onCustomize),
-                    primary: true,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _action(
-                    context: context,
-                    icon: AppIcons.shield,
-                    label: 'GARRISON',
-                    onTap: context.soundTap(onGarrison),
-                  ),
-                ),
-              ],
+            // The one thing you came here to do, across the whole dock.
+            // The garrison used to sit beside it competing for the row; it
+            // now lives inside the lab's HOME tab, where the rest of what
+            // the planet holds is already edited.
+            _action(
+              context: context,
+              icon: AppIcons.auto_awesome,
+              label: 'CUSTOMIZE',
+              onTap: context.soundTap(onCustomize),
+              primary: true,
             ),
             const SizedBox(height: 10),
             // ...and leaving, stacked underneath so it never competes with

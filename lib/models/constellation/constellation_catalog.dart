@@ -433,23 +433,23 @@ class ConstellationCatalog {
     tier: 1,
   );
 
-  static const resourceAlchemy = ConstellationSkill(
-    id: 'extraction_resource_alchemy',
-    name: 'Valuable Resources',
-    description: 'Elemental resources can be sold at the Black Market',
+  static const marketplaceInsight = ConstellationSkill(
+    id: 'extraction_marketplace_insight',
+    name: 'Marketplace Insight',
+    description: 'Decrease shop prices by 20%',
     tree: ConstellationTree.extraction,
     pointsCost: 4,
     prerequisites: ['extraction_alchemon_exchange'],
     tier: 2,
   );
 
-  static const marketplaceInsight = ConstellationSkill(
-    id: 'extraction_marketplace_insight',
-    name: 'Marketplace Insight',
-    description: 'Decrease shop prices by 20%',
+  static const resourceAlchemy = ConstellationSkill(
+    id: 'extraction_resource_alchemy',
+    name: 'Valuable Resources',
+    description: 'Elemental resources can be sold at the Black Market',
     tree: ConstellationTree.extraction,
     pointsCost: 6,
-    prerequisites: ['extraction_resource_alchemy'],
+    prerequisites: ['extraction_marketplace_insight'],
     tier: 3,
   );
 
@@ -460,7 +460,7 @@ class ConstellationCatalog {
         'Peek into the wilderness to see spawned creatures and reset spawns instantly',
     tree: ConstellationTree.extraction,
     pointsCost: 10,
-    prerequisites: ['extraction_marketplace_insight'],
+    prerequisites: ['extraction_resource_alchemy'],
     tier: 4,
   );
 
@@ -587,8 +587,8 @@ class ConstellationCatalog {
 
     // Extraction tree
     alchemonExchange,
-    resourceAlchemy,
     marketplaceInsight,
+    resourceAlchemy,
     wildernessPreview,
     instantReload,
     allDayBlackMarket,

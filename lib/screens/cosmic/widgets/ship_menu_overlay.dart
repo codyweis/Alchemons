@@ -47,8 +47,9 @@ class ShipMenuOverlay extends StatefulWidget {
     this.joystickEnabled = false,
     this.onToggleJoystick,
     this.onToggleTapToShoot,
-    this.boostToggleEnabled = false,
-    this.onToggleBoostToggle,
+    this.hasMatterInjector = false,
+    this.matterBoostEnabled = false,
+    this.onToggleMatterBoost,
   });
 
   final bool hasHomePlanet;
@@ -84,8 +85,14 @@ class ShipMenuOverlay extends StatefulWidget {
   final bool joystickEnabled;
   final ValueChanged<bool>? onToggleJoystick;
   final ValueChanged<bool>? onToggleTapToShoot;
-  final bool boostToggleEnabled;
-  final ValueChanged<bool>? onToggleBoostToggle;
+
+  /// The Matter Injector has been built. Shows the row whether or not the
+  /// injector is currently switched on.
+  final bool hasMatterInjector;
+
+  /// Whether the booster may fall back to burning cargo on a dry tank.
+  final bool matterBoostEnabled;
+  final ValueChanged<bool>? onToggleMatterBoost;
 
   @override
   State<ShipMenuOverlay> createState() => ShipMenuOverlayState();
@@ -453,6 +460,17 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                                   ],
                                 ),
                               ],
+                              if (widget.hasMatterInjector) ...[
+                                const SizedBox(height: 6),
+                                _pillToggleRow(
+                                  label: 'INJECTOR',
+                                  onText: 'MATTER BOOST ON',
+                                  offText: 'MATTER BOOST OFF',
+                                  on: widget.matterBoostEnabled,
+                                  accent: const Color(0xFFFF6F00),
+                                  onChanged: widget.onToggleMatterBoost,
+                                ),
+                              ],
                               if (widget.hasOrbitals) ...[
                                 const SizedBox(height: 6),
                                 Row(
@@ -670,51 +688,120 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
     );
   }
 
+  /// A readout row that is also a switch. The console has no Material
+  /// switches anywhere, so a settable state reads as the same pill as a
+  /// reported one — lit when on, muted when off.
+  Widget _pillToggleRow({
+    required String label,
+    required String onText,
+    required String offText,
+    required bool on,
+    required Color accent,
+    required ValueChanged<bool>? onChanged,
+  }) {
+    final tint = on ? accent : CosmicScreenStyles.textMuted;
+
+    return GestureDetector(
+      onTap: onChanged == null
+          ? null
+          : context.soundAction(() => onChanged(!on)),
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: appFontFamily(context),
+              color: CosmicScreenStyles.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.6,
+            ),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(2),
+              border: Border.all(
+                color: tint.withValues(alpha: 0.35),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  on
+                      ? AppIcons.check_circle_outline_rounded
+                      : AppIcons.close_rounded,
+                  color: tint,
+                  size: 12,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  on ? onText : offText,
+                  style: TextStyle(
+                    fontFamily: appFontFamily(context),
+                    color: tint,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Everything you press, pinned to the bottom of the console.
   ///
-  /// Laid out in rows rather than one stacked column — four full-width buttons
-  /// ate half the screen and squeezed the systems readout above them.
+  /// Party leads: it is what the console is opened for once a home exists, so
+  /// it takes the full-width primary slot and Inventory / Move Home stack
+  /// underneath it as secondary actions.
   Widget _bottomDock() {
     final showParty = widget.hasParty && widget.onParty != null;
     // Cosmic space is landscape, so the console has a few hundred logical
     // pixels of height to work with. The dock is the last child of a Column
     // and takes its intrinsic height, so once its stacked rows outgrow what
     // is left, the Column overflows and it is the bottom of the dock — the
-    // CLOSE button — that gets cut off. On a short viewport it folds into a
-    // single row instead of stacking.
+    // CLOSE button — that gets cut off. On a short viewport the secondaries
+    // fold into a single row beneath Party instead of stacking.
     final short = MediaQuery.of(context).size.height < 460;
     final gap = short ? 6.0 : 10.0;
 
-    final row = <Widget>[
-      if (showParty)
-        Expanded(
-          child: Opacity(
+    // Only dressed as primary when it is actually pressable — an amber slab
+    // that does nothing reads as a bug. Away from home it stays in the lead
+    // position, dimmed, saying where to go.
+    final partyIsPrimary = widget.isNearHome && !widget.tutorialBuildHomeMode;
+    final partyButton = showParty
+        ? Opacity(
             opacity: widget.isNearHome ? 1.0 : 0.35,
             child: _forgeAction(
               icon: AppIcons.groups_rounded,
-              label: widget.isNearHome
-                  ? 'PARTY'
-                  : (short ? 'PARTY' : 'PARTY (AT HOME)'),
+              label: widget.isNearHome ? 'PARTY' : 'PARTY (AT HOME)',
               onTap: widget.isNearHome ? widget.onParty! : () {},
+              primary: partyIsPrimary,
             ),
-          ),
-        ),
-      Expanded(
-        child: _forgeAction(
-          icon: AppIcons.inventory_rounded,
-          label: 'INVENTORY',
-          onTap: widget.tutorialBuildHomeMode
-              ? () {}
-              : () => setState(() => _showInventoryOverlay = true),
-        ),
+          )
+        : null;
+
+    final secondaries = <Widget>[
+      _forgeAction(
+        icon: AppIcons.inventory_rounded,
+        label: 'INVENTORY',
+        onTap: widget.tutorialBuildHomeMode
+            ? () {}
+            : () => setState(() => _showInventoryOverlay = true),
       ),
       if (widget.hasHomePlanet)
-        Expanded(
-          child: _forgeAction(
-            icon: AppIcons.my_location_rounded,
-            label: short ? 'MOVE HOME' : 'MOVE HOME (50)',
-            onTap: context.soundTap(widget.onRelocateHome),
-          ),
+        _forgeAction(
+          icon: AppIcons.my_location_rounded,
+          label: short ? 'MOVE HOME' : 'MOVE HOME (50)',
+          onTap: context.soundTap(widget.onRelocateHome),
         ),
     ];
 
@@ -743,7 +830,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
 
     // Folded in beside the others rather than onto its own line.
     if (short && !widget.tutorialBuildHomeMode) {
-      row.add(Expanded(child: closeButton));
+      secondaries.add(closeButton);
     }
 
     return Container(
@@ -793,14 +880,24 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
             ),
             SizedBox(height: gap),
           ],
-          Row(
-            children: [
-              for (var i = 0; i < row.length; i++) ...[
-                if (i > 0) SizedBox(width: gap),
-                row[i],
+          // Party first, at full width.
+          if (partyButton != null) ...[partyButton, SizedBox(height: gap)],
+          // Inventory and Move Home beneath it. Stacked when there is room;
+          // side by side on a short viewport so the dock still fits.
+          if (short)
+            Row(
+              children: [
+                for (var i = 0; i < secondaries.length; i++) ...[
+                  if (i > 0) SizedBox(width: gap),
+                  Expanded(child: secondaries[i]),
+                ],
               ],
+            )
+          else
+            for (var i = 0; i < secondaries.length; i++) ...[
+              if (i > 0) SizedBox(height: gap),
+              secondaries[i],
             ],
-          ),
           if (!short && !widget.tutorialBuildHomeMode) ...[
             SizedBox(height: gap),
             closeButton,

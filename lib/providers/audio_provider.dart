@@ -27,7 +27,7 @@ enum MusicCue {
 
 class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   static const double _defaultMusicVolume = 0.14;
-  static const double _homeMusicVolume = 0.105;
+  static const double _homeMusicVolume = 0.0525;
 
   static const String _kMasterEnabled = 'audio.master_enabled';
   static const String _kMusicEnabled = 'audio.music_enabled';

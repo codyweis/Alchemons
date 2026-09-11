@@ -124,6 +124,25 @@ bool isCosmicAbilityElement(String element) =>
 // Global damage multiplier to tune basic attacks and ship projectiles.
 const double kDamageScale = 1.5;
 
+/// Readability bump for the two smallest families. Lets and pips read as
+/// specks next to the bulkier families, so they get a flat +10% on screen.
+/// Purely visual: companion/garrison hit radii are fixed constants elsewhere.
+const double kSmallFamilyRenderBoost = 1.1;
+
+/// Per-family render scale for companion (party alchemon) sprites.
+/// Single source of truth shared by open cosmic and cosmic survival so a
+/// creature is drawn at the same size in both modes.
+const Map<String, double> kCompanionSpeciesScale = {
+  'let': 1.0 * kSmallFamilyRenderBoost,
+  'pip': 1.0 * kSmallFamilyRenderBoost,
+  'mane': 1.2,
+  'horn': 1.7,
+  'mask': 1.5,
+  'wing': 2.0,
+  'kin': 2.0,
+  'mystic': 2.4,
+};
+
 class CosmicBalance {
   /// Unique planet guardians unlock the open-space combat curve. Exploration
   /// and repeated space kills never increase this progression.
@@ -1372,6 +1391,27 @@ class ElementMeter {
   }
 
   void reset() => _collected.clear();
+
+  /// Burn raw matter straight out of the meter, drawn evenly across whatever
+  /// is in it so the mix the player is carrying home is not skewed by how
+  /// long they held the booster. Returns the amount actually drained, which
+  /// is less than [amount] once the meter runs dry.
+  double drain(double amount) {
+    if (amount <= 0) return 0;
+    final t = total;
+    if (t <= 0) return 0;
+    final taken = amount.clamp(0.0, t);
+    final scale = (t - taken) / t;
+    for (final k in _collected.keys.toList()) {
+      final left = _collected[k]! * scale;
+      if (left <= 0.0001) {
+        _collected.remove(k);
+      } else {
+        _collected[k] = left;
+      }
+    }
+    return taken;
+  }
 
   /// Resolve the dominant element. If a single element dominates (>50%), use
   /// it directly. Otherwise combine the top two elements to look up a recipe.
@@ -2635,7 +2675,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Flame Ring',
     description: 'A blazing ring of fire orbits your home planet.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Fire': 500},
+    ingredients: {'Fire': 100},
     iconName: 'local_fire_department',
   ),
   HomeRecipe(
@@ -2651,7 +2691,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Crystal Spires',
     description: 'Towering crystal formations erupt from the crust.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Crystal': 200, 'Earth': 100},
+    ingredients: {'Crystal': 100, 'Earth': 100},
     iconName: 'diamond',
   ),
   HomeRecipe(
@@ -2659,7 +2699,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Dark Void',
     description: 'An ominous dark-matter aura warps space around your planet.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Dark': 300, 'Spirit': 100},
+    ingredients: {'Dark': 100, 'Spirit': 100},
     iconName: 'brightness_3',
   ),
   HomeRecipe(
@@ -2667,7 +2707,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Radiant Halo',
     description: 'A golden halo of light crowns your world.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Light': 300, 'Air': 100},
+    ingredients: {'Light': 100, 'Air': 100},
     iconName: 'wb_sunny',
   ),
   HomeRecipe(
@@ -2675,7 +2715,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Ocean Mist',
     description: 'A fine water vapour shimmers around the planet.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Water': 200, 'Steam': 100},
+    ingredients: {'Water': 100, 'Steam': 100},
     iconName: 'water',
   ),
   HomeRecipe(
@@ -2683,7 +2723,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Blood Moon',
     description: 'The planet pulses with a deep crimson heartbeat.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Blood': 400},
+    ingredients: {'Blood': 100},
     iconName: 'nightlight',
   ),
   HomeRecipe(
@@ -2691,7 +2731,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Frozen Shell',
     description: 'An icy crystalline shell encases the planet.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Ice': 200, 'Crystal': 50},
+    ingredients: {'Ice': 100, 'Crystal': 50},
     iconName: 'ac_unit',
   ),
   HomeRecipe(
@@ -2699,7 +2739,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Poison Cloud',
     description: 'A toxic green miasma drifts around your world.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Poison': 150, 'Plant': 50},
+    ingredients: {'Poison': 100, 'Plant': 50},
     iconName: 'science',
   ),
   HomeRecipe(
@@ -2707,7 +2747,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Dust Storm',
     description: 'Orbiting dust particles form a swirling storm.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Dust': 300, 'Air': 100},
+    ingredients: {'Dust': 100, 'Air': 100},
     iconName: 'grain',
   ),
   HomeRecipe(
@@ -2715,7 +2755,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Steam Vents',
     description: 'Erupting geysers blast jets of steam skyward.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Steam': 150, 'Fire': 100},
+    ingredients: {'Steam': 100, 'Fire': 100},
     iconName: 'hot_tub',
   ),
   HomeRecipe(
@@ -2723,7 +2763,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Lightning Rod',
     description: 'Bolts of electricity arc down to the surface.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Lightning': 200, 'Crystal': 100},
+    ingredients: {'Lightning': 100, 'Crystal': 100},
     iconName: 'flash_on',
   ),
   HomeRecipe(
@@ -2731,7 +2771,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Lava Moat',
     description: 'A molten ring of lava guards your planet.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Lava': 300, 'Fire': 100},
+    ingredients: {'Lava': 100, 'Fire': 100},
     iconName: 'whatshot',
   ),
   HomeRecipe(
@@ -2739,7 +2779,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Spirit Wisps',
     description: 'Ethereal ghost-lights float around your world.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Spirit': 200, 'Light': 100},
+    ingredients: {'Spirit': 100, 'Light': 100},
     iconName: 'blur_on',
   ),
   HomeRecipe(
@@ -2747,7 +2787,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Mud Fortress',
     description: 'A thick protective shell of hardened mud.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Mud': 200, 'Earth': 200},
+    ingredients: {'Mud': 100, 'Earth': 100},
     iconName: 'fort',
   ),
   HomeRecipe(
@@ -2782,7 +2822,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Orbiting Moon',
     description: 'A small moon orbits your planet. Requires Big size tier.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Earth': 300, 'Crystal': 200, 'Dark': 100},
+    ingredients: {'Earth': 100, 'Crystal': 100, 'Dark': 100},
     iconName: 'nightlight_round',
   ),
   HomeRecipe(
@@ -2791,7 +2831,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'Your planet periodically fades into the spirit realm and back.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Spirit': 500, 'Light': 150},
+    ingredients: {'Spirit': 100, 'Light': 100},
     iconName: 'blur_on',
   ),
   HomeRecipe(
@@ -2800,7 +2840,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'Crackling bolts and sparks orbit your planet in a volatile electric field.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Lightning': 500, 'Fire': 100, 'Air': 100},
+    ingredients: {'Lightning': 100, 'Fire': 100, 'Air': 100},
     iconName: 'bolt',
   ),
   HomeRecipe(
@@ -2808,7 +2848,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Planetary Rings',
     description: 'Majestic rings orbit your home planet in a tilted disc.',
     category: HomeRecipeCategory.visual,
-    ingredients: {'Air': 100, 'Dust': 100, 'Crystal': 100, 'Spirit': 200},
+    ingredients: {'Air': 100, 'Dust': 100, 'Crystal': 100, 'Spirit': 100},
     iconName: 'trip_origin',
   ),
 
@@ -2821,7 +2861,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'Constructs a fuel depot at your home base. Refuel for free when docked at home.',
     category: HomeRecipeCategory.upgrade,
-    ingredients: {'Fire': 200, 'Crystal': 150, 'Lava': 100},
+    ingredients: {'Fire': 100, 'Crystal': 100, 'Lava': 100},
     iconName: 'local_gas_station',
   ),
   HomeRecipe(
@@ -2830,7 +2870,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'Constructs a missile fabricator at your home base. Reload missiles for free when docked at home.',
     category: HomeRecipeCategory.upgrade,
-    ingredients: {'Dark': 200, 'Fire': 150, 'Crystal': 100},
+    ingredients: {'Dark': 100, 'Fire': 100, 'Crystal': 100},
     iconName: 'rocket',
   ),
   HomeRecipe(
@@ -2839,7 +2879,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'Constructs a sentinel bay at your home base. Replenish orbital sentinels for free when docked at home.',
     category: HomeRecipeCategory.upgrade,
-    ingredients: {'Crystal': 250, 'Earth': 200, 'Dust': 150},
+    ingredients: {'Crystal': 100, 'Earth': 100, 'Dust': 100},
     iconName: 'shield',
   ),
 
@@ -2873,7 +2913,7 @@ const List<HomeRecipe> kHomeRecipes = [
     name: 'Void Cannon',
     description: 'Dark-energy projectiles that consume light.',
     category: HomeRecipeCategory.ammo,
-    ingredients: {'Dark': 200, 'Blood': 100},
+    ingredients: {'Dark': 100, 'Blood': 100},
     iconName: 'remove_circle',
   ),
 
@@ -2884,7 +2924,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'Enables afterburner boost. Consumes fuel from elemental particles.',
     category: HomeRecipeCategory.equipment,
-    ingredients: {'Fire': 300, 'Crystal': 100},
+    ingredients: {'Fire': 100, 'Crystal': 100},
     iconName: 'rocket_launch',
   ),
   HomeRecipe(
@@ -2893,7 +2933,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'Rapid-fire energy bolts. High fire rate, low damage per shot.',
     category: HomeRecipeCategory.equipment,
-    ingredients: {'Fire': 150, 'Lava': 100},
+    ingredients: {'Fire': 100, 'Lava': 100},
     iconName: 'flash_on',
   ),
   HomeRecipe(
@@ -2902,8 +2942,19 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'Homing projectiles that track the nearest enemy. Slower fire rate, devastating damage.',
     category: HomeRecipeCategory.equipment,
-    ingredients: {'Dark': 150, 'Fire': 100, 'Crystal': 50},
+    ingredients: {'Dark': 100, 'Fire': 100, 'Crystal': 50},
     iconName: 'gps_fixed',
+  ),
+  HomeRecipe(
+    id: 'equip_matter_injector',
+    name: 'Matter Injector',
+    description:
+        'Feeds the booster raw matter straight from the hold when the fuel '
+        'tank runs dry. You keep flying — you just get home with less than '
+        'you caught.',
+    category: HomeRecipeCategory.equipment,
+    ingredients: {'Fire': 100, 'Dust': 100, 'Crystal': 50},
+    iconName: 'rocket_launch',
   ),
   HomeRecipe(
     id: 'equip_orbitals',
@@ -2911,7 +2962,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'Shield drones orbit your ship and block enemies on contact. Up to 3 active; auto-replenish from stockpile of 50+.',
     category: HomeRecipeCategory.equipment,
-    ingredients: {'Crystal': 200, 'Earth': 150, 'Lava': 100},
+    ingredients: {'Crystal': 100, 'Earth': 100, 'Lava': 100},
     iconName: 'shield',
   ),
 
@@ -2922,7 +2973,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'A stealth-plated hull with a dark-matter exhaust trail. The ship becomes a slender, angular silhouette with violet engine glow.',
     category: HomeRecipeCategory.equipment,
-    ingredients: {'Dark': 250, 'Spirit': 150, 'Poison': 100},
+    ingredients: {'Dark': 100, 'Spirit': 100, 'Poison': 100},
     iconName: 'visibility_off',
   ),
   HomeRecipe(
@@ -2931,7 +2982,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'A blazing golden hull forged from concentrated light and fire. Trailing solar flares and a radiant amber cockpit.',
     category: HomeRecipeCategory.equipment,
-    ingredients: {'Fire': 200, 'Light': 300, 'Steam': 100},
+    ingredients: {'Fire': 100, 'Light': 100, 'Steam': 100},
     iconName: 'wb_sunny',
   ),
   HomeRecipe(
@@ -2940,7 +2991,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'An aggressive flame-carved striker with ember exhaust, molten plating, and wingtip fire tongues.',
     category: HomeRecipeCategory.equipment,
-    ingredients: {'Fire': 260, 'Lava': 180, 'Earth': 80},
+    ingredients: {'Fire': 100, 'Lava': 100, 'Earth': 80},
     iconName: 'local_fire_department',
   ),
   HomeRecipe(
@@ -2949,7 +3000,7 @@ const List<HomeRecipe> kHomeRecipes = [
     description:
         'A faceted shard frigate with icy prism engines, floating crystal motes, and a luminous crystalline core.',
     category: HomeRecipeCategory.equipment,
-    ingredients: {'Crystal': 260, 'Ice': 140, 'Water': 120},
+    ingredients: {'Crystal': 100, 'Ice': 100, 'Water': 100},
     iconName: 'diamond',
   ),
 ];
@@ -3179,13 +3230,32 @@ class HomeCustomizationState {
     return null; // default gun
   }
 
-  bool get hasBooster => activeIds.contains('equip_booster');
+  /// The booster and its tank are standard fit now, not a crafted system.
+  /// A ship that cannot refuel or boost until it has spent 300 Fire is a
+  /// ship whose fuel gauge is decoration for the whole early game; the
+  /// FUEL TANK upgrade still buys capacity, which is the part worth paying
+  /// for. The 'equip_booster' recipe stays in the catalog so existing saves
+  /// that list it deserialise unchanged.
+  bool get hasBooster => true;
   bool get hasMissiles =>
       unlockedIds.contains('equip_missiles') &&
       activeIds.contains('equip_missiles');
   bool get hasOrbitals =>
       unlockedIds.contains('equip_orbitals') &&
       activeIds.contains('equip_orbitals');
+
+  /// Lets the booster fall back to the cargo meter once the tank is dry.
+  /// Off until the injector is built and fitted, so a dry tank still means a
+  /// dead booster for a ship that has not paid for the alternative.
+  bool get hasMatterInjector =>
+      unlockedIds.contains('equip_matter_injector') &&
+      activeIds.contains('equip_matter_injector');
+
+  /// Built, whether or not it is currently switched on. The ship console
+  /// shows the toggle on this, so a player who paid for the injector can
+  /// still see it after switching it off.
+  bool get hasMatterInjectorBuilt =>
+      unlockedIds.contains('equip_matter_injector');
   bool get hasRefuelStation => unlockedIds.contains('refuel_station');
   bool get hasMissileStation => unlockedIds.contains('missile_station');
   bool get hasSentinelStation => unlockedIds.contains('sentinel_station');
@@ -3358,9 +3428,9 @@ class CargoUpgrade {
   /// Cost to upgrade TO the next level. Returns ingredient map.
   static Map<String, int> costForNextLevel(int currentLevel) =>
       switch (currentLevel) {
-        0 => {'Earth': 200, 'Crystal': 150, 'Mud': 100},
-        1 => {'Dark': 300, 'Spirit': 200, 'Crystal': 150},
-        2 => {'Spirit': 400, 'Light': 400, 'Dark': 300, 'Blood': 200},
+        0 => {'Earth': 100, 'Crystal': 100, 'Mud': 100},
+        1 => {'Dark': 100, 'Spirit': 100, 'Crystal': 100},
+        2 => {'Spirit': 100, 'Light': 100, 'Dark': 100, 'Blood': 100},
         _ => {}, // already maxed
       };
 }
