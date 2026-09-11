@@ -572,6 +572,41 @@ class _FlowerPickup {
 /// whole battlefield reads as transformed by the ultimate. Fade-in
 /// over the first ~0.6s and fade-out across the last ~1.2s keep
 /// the transitions smooth.
+/// One drifting ember from a Fire Mystic's field.
+///
+/// The field is not a timed effect. It exists for as long as its caster is
+/// alive and deployed, which is the whole point of the mechanic: a Mystic is
+/// the single-slot pick, so choosing one should mean choosing what the map IS
+/// rather than buying one big explosion. Embers make the player care whether a
+/// specific companion lives, which nothing else in the roster does.
+class _MysticEmber {
+  _MysticEmber({
+    required this.position,
+    required this.velocity,
+    required this.ownerSlot,
+    required this.seed,
+  });
+
+  Offset position;
+  Offset velocity;
+
+  /// Which companion's field this belongs to. When that companion is recalled
+  /// or dies, its embers fade.
+  final int ownerSlot;
+
+  /// Per-ember phase so the field shimmers instead of pulsing in unison.
+  final double seed;
+
+  /// Counts down after igniting something, so a single ember parked on an
+  /// enemy cannot set it alight every frame. The ember survives — the field is
+  /// meant to persist, not to be spent.
+  double reignite = 0;
+
+  /// 1 while the field is live; drains once the caster is gone, so the embers
+  /// visibly go out rather than vanishing between frames.
+  double fade = 1.0;
+}
+
 class _MysticEnvironment {
   final String element;
   final double maxLife;
@@ -1004,6 +1039,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // worth of "the world is now this element" — viewport tint +
   // ambient particle storm. Multiple casts stack visually.
   final List<_MysticEnvironment> _mysticEnvironments = [];
+
+  /// Live Fire-Mystic embers, across every caster. Deliberately its OWN list
+  /// and not part of companionProjectiles: that list is capped at 220 and
+  /// shared with every trap, ward and pool in the game, and a permanent field
+  /// of forty embers would quietly eat a fifth of it forever.
+  final List<_MysticEmber> _mysticEmbers = [];
+  static const int _maxMysticEmbers = 90;
+
+  /// Slots whose Mystic has already cast this deployment. A Mystic's world is
+  /// cast ONCE — the ability comes back only by recalling and redeploying it,
+  /// which costs the field.
+  final Set<int> _mysticSpentSlots = <int>{};
   // Tick gate for environment particle spawning so each environment
   // doesn't flood the vfx budget every frame.
   double _mysticEnvParticleTimer = 0;
@@ -1281,6 +1328,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateFlowerPickups(dt);
     _updateKinSupportTick(dt);
     _updateMysticEnvironments(dt);
+    _updateMysticEmbers(dt);
     _updateSpiritWisps(dt);
     if (_maskSpiritNukeFlash > 0) {
       _maskSpiritNukeFlash = max(0, _maskSpiritNukeFlash - dt * 1.2);
@@ -1727,6 +1775,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
     for (final slot in deadSlots) {
+      // A Mystic that dies loses its world. The embers fade over a couple of
+      // seconds rather than blinking out, so it is something the player sees
+      // happen and can read as a consequence.
+      _extinguishMysticField(slot);
       defeatedCompanionSlots.add(slot);
       if (tetheredCompanionSlot == slot) {
         tetheredCompanionSlot = null;
@@ -2563,6 +2615,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // simultaneous mystics stack their tints.
           if (comp.member.family.toLowerCase() == 'mystic') {
             _pushMysticEnvironment(comp.member.element);
+            // Fire's world is a drifting ember field that outlives the cast,
+            // so the cast is spent for this deployment. Recalling the Mystic
+            // (or losing it) is what gives the ability back — and costs the
+            // field.
+            if (comp.member.element == 'Fire') {
+              _igniteMysticEmberField(comp);
+              _mysticSpentSlots.add(slotIndex);
+              comp.specialCooldown = double.infinity;
+            }
           }
         }
         _activateWingBeamEffects(
@@ -3551,6 +3612,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (slotIndex != null) {
       final comp = activeCompanions[slotIndex];
       if (comp == null) return;
+      // A Mystic pulled out takes its world with it, and gets its cast back on
+      // a normal cooldown. That trade IS the mechanic: the ability is only
+      // available to someone who has not yet spent it here.
+      if (comp.member.family.toLowerCase() == 'mystic' &&
+          isMysticFieldSpent(slotIndex)) {
+        _extinguishMysticField(slotIndex);
+        comp.specialCooldown = comp.effectiveSpecialCooldown;
+      }
       companionHpFraction[slotIndex] = comp.hpPercent;
       companionSpecialCooldown[slotIndex] = comp.specialCooldown;
       if (tetheredCompanionSlot == slotIndex) {
@@ -6670,6 +6739,140 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Push an environment entry for a freshly-cast Mystic ultimate.
   /// The render pass then tints the viewport + spawns ambient
   /// element-specific particles for the entry's lifetime.
+  /// Lights a Fire Mystic's ember field. Count scales with the caster, per the
+  /// brief: roughly twenty at low stats up to fifty at high.
+  void _igniteMysticEmberField(CosmicSurvivalCompanion comp) {
+    final beauty = _effectiveBeauty(comp.slotIndex);
+    final intel = _effectiveIntelligence(comp.slotIndex);
+    final scale = _hornStatScale(
+      beauty * 0.5 + intel * 0.5,
+      perPoint: 0.16,
+      min: 0.62,
+      max: 1.45,
+    );
+    final target = (35 * scale).round().clamp(20, 50);
+
+    // Clear any field this caster already had, so a recall-and-redeploy
+    // replaces its world rather than stacking a second one.
+    _mysticEmbers.removeWhere((e) => e.ownerSlot == comp.slotIndex);
+
+    final centre = orb.position;
+    final spread = max(220.0, _arenaRadius * 0.85);
+    for (var i = 0; i < target; i++) {
+      if (_mysticEmbers.length >= _maxMysticEmbers) break;
+      // Scattered across the whole arena, not around the caster — the field is
+      // the map's new weather, not an aura the Mystic wears.
+      final a = _rng.nextDouble() * 2 * pi;
+      final r = spread * sqrt(_rng.nextDouble());
+      final drift = _rng.nextDouble() * 2 * pi;
+      _mysticEmbers.add(
+        _MysticEmber(
+          position: centre + Offset(cos(a), sin(a)) * r,
+          // Slow enough to read as floating rather than as projectiles that
+          // happen to be orange.
+          velocity: Offset(cos(drift), sin(drift)) * (10 + _rng.nextDouble() * 16),
+          ownerSlot: comp.slotIndex,
+          seed: _rng.nextDouble() * 6.28,
+        ),
+      );
+    }
+  }
+
+  /// Whether this companion's Mystic world is already out.
+  bool isMysticFieldSpent(int slotIndex) => _mysticSpentSlots.contains(slotIndex);
+
+  /// How many embers a slot currently has burning — drives the slot readout so
+  /// the disabled ability reads as "your world is out there" rather than as a
+  /// broken button.
+  int mysticEmberCount(int slotIndex) =>
+      _mysticEmbers.where((e) => e.ownerSlot == slotIndex && e.fade > 0).length;
+
+  /// How far this slot's embers reach from [from] — the distance to the
+  /// furthest one. Exposed so a test can assert the field covers the arena
+  /// rather than orbiting its caster.
+  @visibleForTesting
+  double mysticEmberSpreadFrom(int slotIndex, Offset from) {
+    var furthest = 0.0;
+    for (final ember in _mysticEmbers) {
+      if (ember.ownerSlot != slotIndex || ember.fade <= 0) continue;
+      final d = (ember.position - from).distance;
+      if (d > furthest) furthest = d;
+    }
+    return furthest;
+  }
+
+  /// Ends a slot's field and frees its cast. Called when the Mystic is recalled
+  /// or dies; the embers fade rather than blinking out, so losing the world is
+  /// something the player watches happen.
+  void _extinguishMysticField(int slotIndex) {
+    _mysticSpentSlots.remove(slotIndex);
+    for (final ember in _mysticEmbers) {
+      if (ember.ownerSlot == slotIndex) ember.fade = min(ember.fade, 0.999);
+    }
+  }
+
+  void _updateMysticEmbers(double dt) {
+    if (_mysticEmbers.isEmpty) return;
+    final centre = orb.position;
+    final bound = max(260.0, _arenaRadius);
+    for (final ember in _mysticEmbers) {
+      final owner = activeCompanions[ember.ownerSlot];
+      final alive = owner != null && !owner.isDead;
+      if (!alive) {
+        // Two seconds to go out.
+        ember.fade = max(0.0, ember.fade - dt * 0.5);
+        if (ember.fade <= 0) continue;
+      }
+
+      // Wander: the heading drifts so the field churns instead of every ember
+      // travelling in a straight line forever.
+      final wander = sin(stats.timeElapsed * 0.7 + ember.seed) * 0.6;
+      final v = ember.velocity;
+      final speed = v.distance.clamp(6.0, 34.0);
+      final heading = atan2(v.dy, v.dx) + wander * dt;
+      ember.velocity = Offset(cos(heading), sin(heading)) * speed;
+      ember.position += ember.velocity * dt;
+
+      // Stay in the arena — turn back rather than bouncing hard, so the drift
+      // keeps looking aimless.
+      final away = ember.position - centre;
+      if (away.distance > bound) {
+        final inward = -away / away.distance;
+        ember.velocity = inward * speed;
+        ember.position = centre + (away / away.distance) * bound;
+      }
+
+      if (ember.reignite > 0) {
+        ember.reignite = max(0.0, ember.reignite - dt);
+        continue;
+      }
+      if (!alive) continue;
+
+      // Anything that walks into an ember catches light.
+      _visitEnemiesNear(ember.position, 26.0, (enemy) {
+        if (enemy.isDead) return false;
+        if (!_withinRange(ember.position, enemy.position, enemy.radius + 9.0)) {
+          return false;
+        }
+        _applyAbilityEffectToEnemy(
+          AbilityEffectKind.burn,
+          enemy,
+          ember.position,
+          max(3.0, owner.elemAtk * 0.34),
+          60,
+          2.4,
+          sourceSlotIndex: ember.ownerSlot,
+          element: 'Fire',
+          family: 'mystic',
+        );
+        _spawnHitSpark(enemy.position, const Color(0xFFFF8A2B));
+        ember.reignite = 1.1;
+        return true;
+      });
+    }
+    _mysticEmbers.removeWhere((e) => e.fade <= 0);
+  }
+
   void _pushMysticEnvironment(String element) {
     if (_mysticEnvironments.length >= 6) {
       _mysticEnvironments.removeAt(0); // budget cap
@@ -13654,6 +13857,36 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         Rect.fromLTWH(cx, cy, viewW, viewH),
         Paint()..color = spirit.withValues(alpha: 0.18 * f),
       );
+    }
+
+    // Fire Mystic embers. Drawn under the craters and debris so they read as
+    // weather the fight happens inside, rather than as effects on top of it.
+    if (_mysticEmbers.isNotEmpty) {
+      for (final ember in _mysticEmbers) {
+        // Each breathes on its own phase, so a field of forty shimmers
+        // instead of pulsing as one.
+        final glow = 0.55 + 0.45 * sin(stats.timeElapsed * 2.1 + ember.seed);
+        final a = ember.fade;
+        final r = (2.0 + glow * 1.4);
+        canvas.drawCircle(
+          ember.position,
+          r * 3.0,
+          Paint()
+            ..color = const Color(0xFFFF6A1E).withValues(alpha: 0.10 * a * glow),
+        );
+        canvas.drawCircle(
+          ember.position,
+          r,
+          Paint()
+            ..color = const Color(0xFFFF8A2B).withValues(alpha: 0.85 * a),
+        );
+        canvas.drawCircle(
+          ember.position,
+          r * 0.45,
+          Paint()
+            ..color = const Color(0xFFFFE2A8).withValues(alpha: 0.95 * a * glow),
+        );
+      }
     }
 
     // Let meteor craters, under the particle debris the same landing threw.
