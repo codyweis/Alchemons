@@ -661,31 +661,24 @@ bool drawPipElementalProjectileVisual({
       drawDartHead();
   }
 
-  if (projectile.bounceCount > 0 || projectile.interceptCharges > 0) {
+  // Remaining bounces used to be told THREE ways at once: a stroked ring sized
+  // by the count, a set of dots orbiting the head, and (once the special frame
+  // added them) chevrons behind it. Stacked on top of the element accents,
+  // every dart ended up wearing a halo of circles and the shape underneath was
+  // lost — which is most of why the family read as beads rather than darts.
+  //
+  // The chevrons are kept because they are the only one of the three that has
+  // a direction: they sit behind the head and point the way it is going, so
+  // they say "travelling and spending itself" rather than "orbited by rings".
+  //
+  // Intercept charges keep a ring of their own, below: that one marks a real
+  // radius the dart defends, so a circle is the honest shape for it.
+  if (projectile.interceptCharges > 0) {
     strokePaint
-      ..color = white.withValues(
-        alpha: projectile.interceptCharges > 0 ? 0.46 : 0.26,
-      )
+      ..color = white.withValues(alpha: 0.46)
       ..strokeWidth = 0.9 * vs
       ..maskFilter = null;
-    canvas.drawCircle(
-      position,
-      (6.5 + projectile.bounceCount.clamp(0, 4)) * vs,
-      strokePaint,
-    );
-  }
-  if (projectile.abilityFamily == 'pip' && projectile.bounceCount > 0) {
-    final markerCount = projectile.bounceCount.clamp(1, 4);
-    for (var i = 0; i < markerCount; i++) {
-      final a = time * 5.0 + i * pi * 2 / markerCount;
-      final markerPos = position + ui.Offset(cos(a), sin(a)) * 8.5 * vs;
-      fillPaint
-        ..color = white.withValues(alpha: 0.55)
-        ..maskFilter = null;
-      canvas.drawCircle(markerPos, 1.2 * vs, fillPaint);
-      fillPaint.color = color.withValues(alpha: 0.22);
-      canvas.drawCircle(markerPos, 2.3 * vs, fillPaint);
-    }
+    canvas.drawCircle(position, 8.0 * vs, strokePaint);
   }
   if (projectile.snareRadius > 0) {
     strokePaint
