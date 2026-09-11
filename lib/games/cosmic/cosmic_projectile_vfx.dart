@@ -3844,10 +3844,22 @@ bool drawLetElementalProjectileVisual({
   final element = projectile.element;
   if (element == null) return false;
 
+  // The stationary catch-all below claims "any parked thing with a snare, a
+  // taunt or a trail", which was written when Let was the only family placing
+  // such things. It is not: Mystic parks orbitals carrying snare radii, and
+  // they were being drawn as Let fallout craters — the single-slot ultimate
+  // wearing another family's ground art, which is a large part of why Mystic
+  // read as the same undifferentiated area damage as everything else.
+  //
+  // Styles that belong to another family are never Let's to claim.
+  final claimedElsewhere =
+      projectile.visualStyle == ProjectileVisualStyle.mysticOrbital ||
+      projectile.visualStyle == ProjectileVisualStyle.kinOrbital;
   final isLetProjectile =
       projectile.visualStyle == ProjectileVisualStyle.meteor ||
       projectile.visualStyle == ProjectileVisualStyle.letShard ||
-      (projectile.stationary &&
+      (!claimedElsewhere &&
+          projectile.stationary &&
           !projectile.decoy &&
           (projectile.trailInterval > 0 ||
               projectile.snareRadius > 0 ||
@@ -6309,19 +6321,26 @@ void drawGenericProjectileVisual({
       canvas.drawCircle(position, radius * 0.42, _genericCorePaint);
 
     case ProjectileVisualStyle.mysticOrbital:
-      _genericCorePaint.color = color.withValues(alpha: 0.6);
-      canvas.drawCircle(
-        position,
-        3 * projectile.visualScale,
-        _genericCorePaint,
-      );
+      // One clamp for both, so the figure always leads.
+      //
+      // The glow used to take the raw visualScale while the sigil was capped,
+      // and Mystic casts run up to 5.4 — so the halo drew at nearly twice the
+      // figure's size and fifteen of them merged into an orange wall. That
+      // wall was most of why the family looked like undifferentiated area
+      // damage.
+      final mysticScale = projectile.visualScale.clamp(0.7, 3.2).toDouble();
       _genericGlowPaint
         ..color = color.withValues(alpha: 0.12)
         ..maskFilter = null;
-      canvas.drawCircle(
-        position,
-        6 * projectile.visualScale,
-        _genericGlowPaint,
+      canvas.drawCircle(position, 6 * mysticScale, _genericGlowPaint);
+      drawMysticSigil(
+        canvas: canvas,
+        position: position,
+        color: color,
+        scale: mysticScale,
+        time: time,
+        sides: mysticSigilSides(projectile.element),
+        seed: projectile.life,
       );
 
     case ProjectileVisualStyle.letShard:
@@ -6913,6 +6932,95 @@ void drawManeTrailWisps({
 /// This is the cap for the cast as a whole, deliberately not per projectile:
 /// what the trail costs must not depend on how wide the fan is.
 const int kManeTrailParticleBudget = 48;
+
+/// A Mystic orbital: a small turning sigil, not a bead.
+///
+/// This replaced two circles — a filled core and a soft glow, which was the
+/// entire painter for the family. Mystic is the single-slot pick, the longest
+/// cooldown in the game and the densest cast at four to twenty projectiles, so
+/// what the player saw for their one ultimate was a pile of identical soft
+/// circles. That is what makes the family read as generic area damage: not the
+/// mechanics (Pip chains single targets, Kin buffs and wards) but the fact
+/// that its showpiece had no shape.
+///
+/// Sigil geometry is a language nothing else in the roster uses — Let falls and
+/// craters, Mane cleaves, Pip darts, Kin grows ground cover — and it suits the
+/// game's alchemical dressing. Angular and constructed, so it reads as
+/// something deliberately invoked rather than something spilled.
+///
+/// [sides] varies the inner polygon per element, so a Fire cast and an Ice cast
+/// are different figures rather than the same circle in two colours.
+///
+/// Cost: two stroked paths, two short arcs and two small fills. A twenty-orb
+/// cast draws well under what the four concentric circles per Pip dart used to.
+void drawMysticSigil({
+  required ui.Canvas canvas,
+  required ui.Offset position,
+  required ui.Color color,
+  required double scale,
+  required double time,
+  required int sides,
+  double seed = 0.0,
+}) {
+  final r = 5.2 * scale;
+  final hot = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
+  // The two rings turn against each other, which reads as mechanism rather
+  // than as a sprite being spun.
+  final outerSpin = time * 0.9 + seed;
+  final innerSpin = -time * 1.4 - seed * 0.7;
+
+  _shapeStrokePaint
+    ..color = color.withValues(alpha: 0.55)
+    ..strokeWidth = 0.9 * scale;
+  canvas.drawCircle(position, r, _shapeStrokePaint);
+
+  // Three ticks riding the outer ring — the "struck rune" read.
+  for (var i = 0; i < 3; i++) {
+    final a = outerSpin + i * (pi * 2 / 3);
+    final d = ui.Offset(cos(a), sin(a));
+    canvas.drawLine(
+      position + d * (r * 0.82),
+      position + d * (r * 1.28),
+      _shapeStrokePaint,
+    );
+  }
+
+  // Inner polygon, counter-turning. Sides carry the element apart.
+  final n = sides.clamp(3, 7);
+  final poly = ui.Path();
+  for (var i = 0; i < n; i++) {
+    final a = innerSpin + i * (pi * 2 / n);
+    final p = position + ui.Offset(cos(a), sin(a)) * (r * 0.62);
+    if (i == 0) {
+      poly.moveTo(p.dx, p.dy);
+    } else {
+      poly.lineTo(p.dx, p.dy);
+    }
+  }
+  poly.close();
+  _shapeStrokePaint
+    ..color = hot.withValues(alpha: 0.70)
+    ..strokeWidth = 0.85 * scale;
+  canvas.drawPath(poly, _shapeStrokePaint);
+
+  // Core: the lit centre the figure is drawn around.
+  _shapePaint.color = color.withValues(alpha: 0.32);
+  canvas.drawCircle(position, r * 0.90, _shapePaint);
+  _shapePaint.color = hot.withValues(alpha: 0.95);
+  canvas.drawCircle(position, r * 0.26, _shapePaint);
+}
+
+/// How many sides a Mystic sigil's inner figure has, per element — so the
+/// seventeen ultimates are seventeen different figures and not one shape
+/// recoloured. Grouped by temperament rather than at random: the volatile
+/// elements get the tightest, sharpest figures.
+int mysticSigilSides(String? element) => switch (element) {
+  'Fire' || 'Lightning' || 'Spirit' => 3,
+  'Lava' || 'Poison' || 'Dark' => 4,
+  'Crystal' || 'Ice' || 'Light' => 6,
+  'Earth' || 'Mud' || 'Steam' => 5,
+  _ => 7,
+};
 
 /// One Let meteor landing, alive just long enough to show the crater open.
 ///
