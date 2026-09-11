@@ -6721,7 +6721,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final ec = elementColor(element);
     switch (element) {
       case 'Fire':
-      case 'Lava':
         // Embers drift upward + slightly outward.
         _vfx.add(
           _VfxParticle(
@@ -6737,23 +6736,72 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ),
         );
         break;
-      case 'Ice':
-      case 'Water':
-      case 'Steam':
-        // Falls / drifts downward — frost / droplets / mist.
+      case 'Lava':
+        // Lava does not float. Fire's embers rise because they are light;
+        // molten rock is heavy, so it lobs up and falls back — a spatter,
+        // not a drift. Sharing Fire's motion made the two the same weather
+        // in two oranges, and they are the pair most in need of telling
+        // apart.
         _vfx.add(
           _VfxParticle(
             x: x,
-            y: y - viewH * 0.4, // start above so it falls IN
-            vx: (_rng.nextDouble() - 0.5) * 14,
-            vy: 60 + _rng.nextDouble() * 50,
-            size: 1.3 + _rng.nextDouble() * 1.1,
-            life: 1.0 + _rng.nextDouble() * 0.6,
-            color: element == 'Steam'
-                ? Color.lerp(ec, const Color(0xFFFFFFFF), 0.55)!
-                : element == 'Ice'
-                ? const Color(0xFFEFFFFF)
-                : Color.lerp(ec, const Color(0xFFFFFFFF), 0.45)!,
+            y: y,
+            vx: (_rng.nextDouble() - 0.5) * 46,
+            // Thrown upward, but slow and heavy, and the pool's drag lets it
+            // sag back down over its life.
+            vy: -14 - _rng.nextDouble() * 16,
+            size: 2.2 + _rng.nextDouble() * 2.0,
+            life: 1.1 + _rng.nextDouble() * 0.6,
+            color: _rng.nextBool()
+                ? const Color(0xFFFF7A1E)
+                : const Color(0xFFC23A12),
+          ),
+        );
+        break;
+      case 'Steam':
+        // Steam RISES. It was grouped with frost and rain and made to fall,
+        // which is simply the wrong way up for the element — and it was the
+        // third member of a trio that already shared one motion.
+        _vfx.add(
+          _VfxParticle(
+            x: x,
+            // Enters from below, so the screen fills with vapour climbing.
+            y: y + viewH * 0.35,
+            vx: (_rng.nextDouble() - 0.5) * 26,
+            vy: -34 - _rng.nextDouble() * 26,
+            // Fat and soft: mist, not droplets.
+            size: 2.6 + _rng.nextDouble() * 2.4,
+            life: 1.3 + _rng.nextDouble() * 0.7,
+            color: Color.lerp(ec, const Color(0xFFFFFFFF), 0.62)!,
+          ),
+        );
+        break;
+      case 'Ice':
+        // Frost falls slowly and almost straight — crystalline, weightless.
+        _vfx.add(
+          _VfxParticle(
+            x: x,
+            y: y - viewH * 0.4,
+            vx: (_rng.nextDouble() - 0.5) * 8,
+            vy: 34 + _rng.nextDouble() * 24,
+            size: 1.1 + _rng.nextDouble() * 0.9,
+            life: 1.4 + _rng.nextDouble() * 0.7,
+            color: const Color(0xFFEFFFFF),
+          ),
+        );
+        break;
+      case 'Water':
+        // Rain falls fast and hard, and slants. Separated from frost so the
+        // two cold storms are not one storm in two blues.
+        _vfx.add(
+          _VfxParticle(
+            x: x,
+            y: y - viewH * 0.4,
+            vx: 18 + _rng.nextDouble() * 22,
+            vy: 96 + _rng.nextDouble() * 70,
+            size: 1.0 + _rng.nextDouble() * 0.8,
+            life: 0.7 + _rng.nextDouble() * 0.4,
+            color: Color.lerp(ec, const Color(0xFFFFFFFF), 0.45)!,
           ),
         );
         break;
@@ -6773,33 +6821,65 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
         break;
       case 'Earth':
-      case 'Mud':
-        // Falling pebbles/clods.
+        // Dry stone: small, fast, and it drops almost straight.
         _vfx.add(
           _VfxParticle(
             x: x,
             y: y - viewH * 0.3,
-            vx: (_rng.nextDouble() - 0.5) * 18,
-            vy: 80 + _rng.nextDouble() * 50,
-            size: 1.4 + _rng.nextDouble() * 1.2,
-            life: 0.7 + _rng.nextDouble() * 0.4,
+            vx: (_rng.nextDouble() - 0.5) * 14,
+            vy: 96 + _rng.nextDouble() * 54,
+            size: 1.3 + _rng.nextDouble() * 1.1,
+            life: 0.65 + _rng.nextDouble() * 0.35,
             color: Color.lerp(ec, const Color(0xFF2A1A0A), 0.45)!,
           ),
         );
         break;
+      case 'Mud':
+        // Wet earth: heavier, slower, wider-flung clods that sling sideways
+        // as they fall. Mud sharing Earth's motion made the muddy world and
+        // the stony one the same brown rain.
+        _vfx.add(
+          _VfxParticle(
+            x: x,
+            y: y - viewH * 0.3,
+            vx: (_rng.nextDouble() - 0.5) * 52,
+            vy: 46 + _rng.nextDouble() * 30,
+            size: 2.4 + _rng.nextDouble() * 2.2,
+            life: 1.0 + _rng.nextDouble() * 0.6,
+            color: Color.lerp(ec, const Color(0xFF3A2410), 0.55)!,
+          ),
+        );
+        break;
       case 'Dust':
-      case 'Air':
-        // Swirling motes tangential to the ship.
-        final a = _rng.nextDouble() * 2 * pi;
+        // Grit hanging in the air: slow, gritty, going nowhere in particular.
+        final dustAngle = _rng.nextDouble() * 2 * pi;
         _vfx.add(
           _VfxParticle(
             x: x,
             y: y,
-            vx: cos(a + pi / 2) * 40,
-            vy: sin(a + pi / 2) * 40,
-            size: 1.1 + _rng.nextDouble() * 1.0,
-            life: 0.55 + _rng.nextDouble() * 0.35,
-            color: Color.lerp(ec, const Color(0xFFFFFFFF), 0.55)!,
+            vx: cos(dustAngle) * 16,
+            vy: sin(dustAngle) * 16,
+            size: 0.9 + _rng.nextDouble() * 0.7,
+            life: 1.2 + _rng.nextDouble() * 0.6,
+            color: Color.lerp(ec, const Color(0xFF8A6A3A), 0.35)!,
+          ),
+        );
+        break;
+      case 'Air':
+        // Clean fast streaks sweeping ACROSS the field in one direction —
+        // wind has a bearing. Sharing Dust's aimless swirl made the windy
+        // world and the gritty one the same haze.
+        final gust = stats.timeElapsed * 0.35;
+        final bearing = gust - gust.floorToDouble() < 0.5 ? -0.35 : 0.35;
+        _vfx.add(
+          _VfxParticle(
+            x: x,
+            y: y,
+            vx: 92 + _rng.nextDouble() * 60,
+            vy: bearing * (30 + _rng.nextDouble() * 40),
+            size: 0.9 + _rng.nextDouble() * 0.8,
+            life: 0.5 + _rng.nextDouble() * 0.3,
+            color: Color.lerp(ec, const Color(0xFFFFFFFF), 0.70)!,
           ),
         );
         break;
