@@ -2164,7 +2164,25 @@ void _drawMaskGroundZone({
       }
       break;
     case 'Plant':
-      _paintPlantZone(canvas, position, zoneSize, color, time, pulse, vs);
+      _paintPlantZone(
+        canvas,
+        position,
+        zoneSize,
+        color,
+        time,
+        pulse,
+        vs,
+        // Only Mask's vine gets the writhing tendril overlay on top (see
+        // drawMaskPlantWormyTendrils, which the games call for mask+Plant
+        // alone). Every other family's Plant zone was being drawn as the
+        // deliberately-bare moss patch that overlay was designed to sit
+        // under, and then nothing arrived to sit on it.
+        //
+        // Kin's is a healing GARDEN that drops flowers to harvest — attack
+        // tendrils would be the wrong picture for it anyway. It gets growth
+        // of its own instead.
+        asBareGround: projectile.abilityFamily == 'mask',
+      );
       break;
     case 'Crystal':
       final crystalFlash = projectile.abilityGrowthTimer.clamp(0.0, 1.0);
@@ -2766,11 +2784,9 @@ void _paintPlantZone(
   ui.Color color,
   double time,
   double pulse,
-  double vs,
-) {
-  // Minimal root footprint — just one soft dark moss patch so the
-  // ground reads as "something is planted here" without competing
-  // with the wormy tendrils (which carry the entire dynamic visual).
+  double vs, {
+  bool asBareGround = true,
+}) {
   final dark = ui.Color.lerp(color, const ui.Color(0xFF1F4F22), 0.55)!;
   canvas.drawCircle(
     position,
@@ -2779,6 +2795,61 @@ void _paintPlantZone(
       ..color = dark.withValues(alpha: 0.22 * pulse)
       ..maskFilter = null,
   );
+  // Mask's vine has writhing tendrils drawn over the top of this, so the
+  // patch stays bare on purpose and lets them carry the movement.
+  if (asBareGround) return;
+
+  // Nothing is coming to fill this one in, so it grows its own.
+  //
+  // A garden, not a trap: shoots rising from the bed on their own cycles,
+  // each swelling to a bud at the top. Kin's Plant drops a collectible
+  // flower every few seconds, and the bed should look like something that
+  // is producing them rather than a flat patch of moss.
+  final leaf = ui.Color.lerp(color, const ui.Color(0xFF8FE07A), 0.45)!;
+  final bloom = ui.Color.lerp(color, const ui.Color(0xFFFFF0A8), 0.55)!;
+  final stalk = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round
+    ..maskFilter = null;
+  for (var i = 0; i < 7; i++) {
+    final h1 = sin((i + 1) * 12.9898) * 43758.5453;
+    final h2 = sin((i + 1) * 39.3468) * 24634.6345;
+    final u = h1 - h1.floorToDouble();
+    final v = h2 - h2.floorToDouble();
+    // Each shoot runs its own slow grow-and-reseed cycle.
+    final t = (time * 0.28 + u) % 1.0;
+    final grow = sin(t * pi).clamp(0.0, 1.0);
+    if (grow < 0.05) continue;
+    final a = u * pi * 2;
+    final root = position + ui.Offset(cos(a), sin(a)) * radius * 0.44 * v;
+    // Leans a little as it rises, so the bed does not read as a pincushion.
+    final lean = sin(time * 0.9 + i * 1.7) * radius * 0.07;
+    final tip = root + ui.Offset(lean, -radius * 0.42 * grow);
+    stalk
+      ..color = leaf.withValues(alpha: 0.55 * grow * pulse)
+      ..strokeWidth = 1.5 * vs;
+    canvas.drawPath(
+      ui.Path()
+        ..moveTo(root.dx, root.dy)
+        ..quadraticBezierTo(
+          root.dx + lean * 0.4,
+          (root.dy + tip.dy) * 0.5,
+          tip.dx,
+          tip.dy,
+        ),
+      stalk,
+    );
+    // The bud swells only near the top of the cycle, so a shoot visibly
+    // ripens rather than being born with a flower on it.
+    final ripe = ((grow - 0.55) / 0.45).clamp(0.0, 1.0);
+    if (ripe > 0) {
+      canvas.drawCircle(
+        tip,
+        (1.1 + 1.6 * ripe) * vs,
+        ui.Paint()..color = bloom.withValues(alpha: 0.75 * ripe * pulse),
+      );
+    }
+  }
 }
 
 void _paintCrystalCluster(
@@ -3194,9 +3265,45 @@ void _paintAirGust(
     radius * 0.38,
     ui.Paint()..color = faint.withValues(alpha: 0.20 * pulse),
   );
-  // Seed-placed twinkling motes around the cyclone "eye", each on
-  // its own sine phase so the whole field shimmers without rotating
-  // like a sprite.
+  // Air being LIFTED, not air sitting still.
+  //
+  // Three flat halos and five twinkling dots said "soft blue circle" and
+  // nothing else — the comment promised rising streamers from the particle
+  // pass, but a zone this size needs the lift in its own art or it reads as a
+  // puddle. This is an updraft column: enemies are supposed to be unable to
+  // walk through it because it picks them up.
+  final lift = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round
+    ..maskFilter = null;
+  for (var i = 0; i < 9; i++) {
+    final h1 = sin((i + 1) * 12.9898) * 43758.5453;
+    final u = h1 - h1.floorToDouble();
+    // Each streamer rises on its own loop and restarts at the floor.
+    final t = (time * 0.85 + u) % 1.0;
+    final a = u * pi * 2;
+    // Spirals inward as it climbs, so the column reads as drawing air up
+    // through itself rather than as parallel lines drifting.
+    final band = radius * (0.86 - 0.34 * t);
+    final swirl = a + t * 1.5;
+    final base = position + ui.Offset(cos(swirl), sin(swirl)) * band;
+    final rise = radius * 0.55 * t;
+    final fade = sin(t * pi).clamp(0.0, 1.0);
+    lift
+      ..color = faint.withValues(alpha: 0.42 * fade * pulse)
+      ..strokeWidth = (1.5 - 0.6 * t) * vs;
+    canvas.drawPath(
+      ui.Path()
+        ..moveTo(base.dx, base.dy)
+        ..quadraticBezierTo(
+          base.dx + cos(swirl + 0.6) * radius * 0.10,
+          base.dy - rise * 0.55,
+          base.dx,
+          base.dy - rise,
+        ),
+      lift,
+    );
+  }
   final seed = position.dx.floor() * 7919 + position.dy.floor() * 6113;
   for (var i = 0; i < 5; i++) {
     final h = (seed + i * 197) & 0xFFFF;
