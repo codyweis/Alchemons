@@ -508,6 +508,10 @@ class PlanetDungeonGame extends FlameGame {
 
   final List<Projectile> combatProjectiles = [];
 
+  // Let meteor craters. Shared struct + shared painter, so the dungeon's
+  // landings are pixel-identical to survival's.
+  final List<LetSkyfallImpact> _letSkyfallImpacts = [];
+
   /// Hard ceiling on live projectiles — survival's number (220), for the same
   /// reason. See [_trimProjectilePool].
   static const int kMaxCombatProjectiles = 220;
@@ -4028,6 +4032,7 @@ class PlanetDungeonGame extends FlameGame {
     _kinBeams.removeWhere((b) => b.dead);
     _updateCombatEnemies(dt);
     _updateCombatProjectiles(dt);
+    updateLetSkyfallImpacts(_letSkyfallImpacts, dt);
     _updateWingBeams(dt);
     _updateIdleCompanionAttacks();
     _updateIdleCompanionMovement(dt, currentRoom);
@@ -4417,9 +4422,103 @@ class PlanetDungeonGame extends FlameGame {
     return true;
   }
 
+  /// The live position a descending Let meteor should keep itself aimed at.
+  /// Leashed to the neighbourhood of the point it was already committed to —
+  /// see the survival implementation for why.
+  Offset? _liveSkyfallTarget(Projectile p) {
+    final leash = letSkyfallBlastRadius(p) + 140.0;
+    final centre = p.skyfallImpact;
+    var bestSq = leash * leash;
+    Offset? best;
+    for (final enemy in combatEnemies) {
+      if (enemy.isDead) continue;
+      final d = enemy.position - centre;
+      final dSq = d.dx * d.dx + d.dy * d.dy;
+      if (dSq < bestSq) {
+        bestSq = dSq;
+        best = enemy.position;
+      }
+    }
+    return best;
+  }
+
+  /// A Let meteor touching down. Mirrors survival exactly: full damage to the
+  /// body it lands on, a reduced share to everything else in the crater, and
+  /// the element's ground effects either way.
+  void _detonateLetSkyfall(Projectile p) {
+    final centre = p.skyfallImpact;
+    final blast = letSkyfallBlastRadius(p);
+    onSound?.call(SoundCue.combatHitHeavy);
+    pushLetSkyfallImpact(
+      _letSkyfallImpacts,
+      LetSkyfallImpact(
+        position: centre,
+        color: elementColor(p.element ?? 'Fire'),
+        radius: blast,
+      ),
+    );
+
+    CosmicSurvivalEnemy? primary;
+    var bestSq = blast * blast;
+    for (final enemy in combatEnemies) {
+      if (enemy.isDead) continue;
+      final d = enemy.position - centre;
+      final dSq = d.dx * d.dx + d.dy * d.dy;
+      if (dSq < bestSq) {
+        bestSq = dSq;
+        primary = enemy;
+      }
+    }
+
+    final struck = primary;
+    // The crater catches everything in it whether or not there was an ordinary
+    // body at the centre — see the survival implementation for why this cannot
+    // live inside the struck branch.
+    // Who is in the crater before it goes off, so the kill gate counts bodies
+    // finished by the splash as well as the direct hit.
+    final inBlast = <CosmicSurvivalEnemy>[
+      for (final enemy in combatEnemies)
+        if (!enemy.isDead && (enemy.position - centre).distance <= blast) enemy,
+    ];
+    _damageEnemiesNear(
+      centre,
+      blast,
+      p.damage * kLetSkyfallSplashShare,
+      sourceSlot: p.sourceSlotIndex,
+      exclude: struck,
+    );
+    if (struck != null) {
+      _damageEnemyDirect(struck, p.damage, sourceSlot: p.sourceSlotIndex);
+      _resolveLetMeteorHit(
+        p,
+        struck,
+        killed: inBlast.any((enemy) => enemy.isDead),
+      );
+    }
+    // No aftermath when nothing was struck — those behaviours are kill-gated
+    // by design. See the survival implementation.
+    p.life = 0;
+  }
+
   void _updateCombatProjectiles(double dt) {
     for (var i = combatProjectiles.length - 1; i >= 0; i--) {
       final p = combatProjectiles[i];
+
+      // Let meteors fall. Nothing about a descending meteor is in play — it
+      // takes no collisions, lays no trail and does not age — until it lands.
+      if (p.isDescending) {
+        final landed = CosmicAbilityRuntime.advanceSkyfall(
+          p,
+          dt,
+          p.skyfallTracks ? _liveSkyfallTarget(p) : null,
+        );
+        if (landed) {
+          _detonateLetSkyfall(p);
+          combatProjectiles.removeAt(i);
+        }
+        continue;
+      }
+
       // Sigil orbs own their motion until they bloom.
       if (_updateManeLightningOrbTransfer(p, dt)) {
         p.life -= dt;
@@ -7254,7 +7353,7 @@ class PlanetDungeonGame extends FlameGame {
     required bool killed,
   }) {
     if (projectile.abilityFamily == 'let') {
-      _resolveLetMeteorHit(projectile, enemy);
+      _resolveLetMeteorHit(projectile, enemy, killed: killed);
       return;
     }
     if (projectile.abilityFamily == 'mask') {
@@ -7274,6 +7373,7 @@ class PlanetDungeonGame extends FlameGame {
         projectile,
         enemy.position,
         primary: enemy,
+        killed: true,
       );
       return;
     }
@@ -7411,7 +7511,13 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   /// Let meteor per-element ON-HIT verbs (survival's dispatcher).
-  void _resolveLetMeteorHit(Projectile projectile, CosmicSurvivalEnemy enemy) {
+  /// Contact behaviour, plus the kill-gated aftermath only when the meteor
+  /// actually killed. See the survival implementation for why.
+  void _resolveLetMeteorHit(
+    Projectile projectile,
+    CosmicSurvivalEnemy enemy, {
+    required bool killed,
+  }) {
     final element = projectile.element ?? '';
     final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
     switch (element) {
@@ -7553,15 +7659,22 @@ class PlanetDungeonGame extends FlameGame {
       projectile,
       enemy.position,
       primary: enemy,
+      killed: killed || enemy.isDead,
     );
   }
 
   /// Let meteor per-element AFTERMATH (zones, follow-ups, drains).
+  ///
+  /// Kill-gated: every element here is authored "if the meteor kills". Air is
+  /// the one deliberate exception and fires on any hit, because its knockback
+  /// is the cast's crowd control. See the survival implementation.
   void _resolveLetMeteorImpactAftermath(
     Projectile projectile,
     Offset center, {
     CosmicSurvivalEnemy? primary,
+    required bool killed,
   }) {
+    if (!killed && projectile.element != 'Air') return;
     final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
     switch (projectile.element) {
       case 'Air':
@@ -7744,18 +7857,28 @@ class PlanetDungeonGame extends FlameGame {
       final a = target != null
           ? atan2(target.dy - center.dy, target.dx - center.dx)
           : source.angle + (i - 2) * 0.42;
+      // The follow-ups fall too — this is a bombardment, and a volley of
+      // sideways meteors beside a parent that dropped out of the sky would
+      // read as two different abilities. Staggered into a rolling barrage.
+      final aim = target ?? center + Offset(cos(a), sin(a)) * 180.0;
+      final drop = letSkyfallDrop(aim, a, timeScale: 0.72 + i * 0.16);
       combatProjectiles.add(
         Projectile(
-          position: center - Offset(cos(a), sin(a)) * (46.0 + i * 8.0),
-          angle: a,
+          position: drop.position,
+          angle: drop.angle,
           element: 'Dark',
           damage: source.damage * 0.7,
-          life: 1.8,
-          speedMultiplier: 0.82,
+          life: drop.duration + 0.4,
+          speedMultiplier: 0,
+          skyfallDuration: drop.duration,
+          skyfallImpact: aim,
+          skyfallDistance: drop.distance,
+          // Thrown at a place, not at a body — see Projectile.skyfallTracks.
+          skyfallTracks: false,
           radiusMultiplier: max(3.5, source.radiusMultiplier * 2.0),
           visualScale: max(3.5, source.visualScale * 2.0),
           visualStyle: ProjectileVisualStyle.meteor,
-          homing: target != null,
+          homing: false,
           homingStrength: 2.4,
           sourceSlotIndex: source.sourceSlotIndex,
           abilityFamily: 'let',
@@ -9460,7 +9583,9 @@ class PlanetDungeonGame extends FlameGame {
       _renderGlideTrail(canvas);
       _renderWingBeams(canvas);
       _renderKinBeams(canvas);
+      _renderLetSkyfallTelegraphs(canvas);
       _renderCombatProjectiles(canvas);
+      _renderLetSkyfallImpacts(canvas);
       _renderCombatEnemies(canvas);
       _renderRefusalPulse(canvas);
       _renderCreatures(canvas);
@@ -14072,6 +14197,34 @@ class PlanetDungeonGame extends FlameGame {
           ..color = Colors.white.withValues(alpha: 0.85 * fade)
           ..strokeWidth = 1.4
           ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
+  /// Ground marks under incoming Let meteors — drawn before the bodies that
+  /// are standing on them, because it is a mark on the floor.
+  void _renderLetSkyfallTelegraphs(Canvas canvas) {
+    for (final p in combatProjectiles) {
+      if (!p.isDescending) continue;
+      drawLetSkyfallTelegraph(
+        canvas: canvas,
+        centre: p.skyfallImpact,
+        color: elementColor(p.element ?? 'Fire'),
+        radius: letSkyfallBlastRadius(p),
+        progress: p.skyfallProgress,
+        time: _time,
+      );
+    }
+  }
+
+  void _renderLetSkyfallImpacts(Canvas canvas) {
+    for (final impact in _letSkyfallImpacts) {
+      drawLetSkyfallImpact(
+        canvas: canvas,
+        centre: impact.position,
+        color: impact.color,
+        radius: impact.radius,
+        age: impact.t,
       );
     }
   }

@@ -4487,6 +4487,55 @@ class Projectile {
   /// Whether the cluster split has already happened.
   bool clustered = false;
 
+  // ── Skyfall fields (Let meteors) ──
+  //
+  // A Let meteor is not thrown from the caster along the ground — it is
+  // delivered. It spawns off-screen above a committed impact point and
+  // descends onto it. This is the whole separation from Mane, whose verb is
+  // a flat piercing shot fired from the body: both families used to fire a
+  // projectile from the caster toward the target, and shared motion is what
+  // made them read as the same family however differently they were painted.
+  //
+  // The descent is parametric, not physical: position is derived from how
+  // much of [skyfallDuration] is left, so the meteor lands exactly on time
+  // at exactly [skyfallImpact]. That matters for feel — a physically
+  // simulated drop can miss, and a Let that misses turns a positioning
+  // decision into a timing test.
+
+  /// Total descent time in seconds. > 0 marks this projectile as a skyfall.
+  final double skyfallDuration;
+
+  /// Seconds left in the descent. At 0 the meteor lands and detonates.
+  double skyfallRemaining;
+
+  /// The point the meteor is committed to landing on. Re-aimed gently toward
+  /// the locked target while it falls, so a walking enemy cannot stroll out
+  /// from under it — the drop is a decision, never a reflex test.
+  Offset skyfallImpact;
+
+  /// How far above [skyfallImpact] the meteor starts, along -[angle].
+  final double skyfallDistance;
+
+  /// Whether the descent re-aims at whatever is standing near its impact
+  /// point. True for a cast Let: the player picked a target and should not
+  /// also have to lead it.
+  ///
+  /// False for Dark's follow-up bombardment, which is thrown AT a place, not
+  /// at a body. Those are aimed at where the surrounding enemies stood at the
+  /// moment of the kill and land there regardless — a barrage that can be
+  /// walked out of is area denial, where five self-guiding meteors would just
+  /// be five more guaranteed hits.
+  final bool skyfallTracks;
+
+  /// True while this projectile is still in the air on its way down. It takes
+  /// no collisions, lays no trail, and ignores homing during this window.
+  bool get isDescending => skyfallDuration > 0 && skyfallRemaining > 0;
+
+  /// 0 at the moment of the cast, 1 at the landing.
+  double get skyfallProgress => skyfallDuration <= 0
+      ? 1.0
+      : (1.0 - skyfallRemaining / skyfallDuration).clamp(0.0, 1.0);
+
   /// Per-projectile growth timer (Mask+Plant vine, etc.). Counts seconds
   /// since spawn; consumed by family-specific persistent-effect updaters.
   double abilityGrowthTimer = 0;
@@ -4593,6 +4642,11 @@ class Projectile {
     this.snareMoveMultiplier = 1.0,
     this.clusterCount = 0,
     this.clusterDamage = 0,
+    this.skyfallDuration = 0,
+    double? skyfallRemaining,
+    Offset? skyfallImpact,
+    this.skyfallDistance = 0,
+    this.skyfallTracks = true,
     this.sourceSlotIndex,
     this.attachedToSlot = -2,
     this.letCasterIntelligence = 4.0,
@@ -4612,7 +4666,9 @@ class Projectile {
     this.effectRequiresKill = false,
     this.effectOnBoss = true,
     Set<int>? effectHitIds,
-  }) : effectHitIds = effectHitIds ?? <int>{};
+  }) : effectHitIds = effectHitIds ?? <int>{},
+       skyfallRemaining = skyfallRemaining ?? skyfallDuration,
+       skyfallImpact = skyfallImpact ?? position;
 }
 
 enum ProjectileVisualStyle {
@@ -5270,6 +5326,11 @@ Projectile _copyProjectile(
   double? snareMoveMultiplier,
   int? clusterCount,
   double? clusterDamage,
+  double? skyfallDuration,
+  double? skyfallRemaining,
+  Offset? skyfallImpact,
+  double? skyfallDistance,
+  bool? skyfallTracks,
   double? letCasterIntelligence,
   int? sourceSlotIndex,
   int? attachedToSlot,
@@ -5337,6 +5398,11 @@ Projectile _copyProjectile(
     snareMoveMultiplier: snareMoveMultiplier ?? p.snareMoveMultiplier,
     clusterCount: clusterCount ?? p.clusterCount,
     clusterDamage: clusterDamage ?? p.clusterDamage,
+    skyfallDuration: skyfallDuration ?? p.skyfallDuration,
+    skyfallRemaining: skyfallRemaining ?? p.skyfallRemaining,
+    skyfallImpact: skyfallImpact ?? p.skyfallImpact,
+    skyfallDistance: skyfallDistance ?? p.skyfallDistance,
+    skyfallTracks: skyfallTracks ?? p.skyfallTracks,
     letCasterIntelligence: letCasterIntelligence ?? p.letCasterIntelligence,
     sourceSlotIndex: sourceSlotIndex ?? p.sourceSlotIndex,
     attachedToSlot: attachedToSlot ?? p.attachedToSlot,
@@ -7347,6 +7413,70 @@ double _wingElementRadius(String e) => switch (e) {
 // LET — Meteor Strike
 // Design: Impactful meteors, big AoE, element flavours matter
 // ─────────────────────────────────────────────────────────
+
+/// How long a Let meteor spends falling before it lands, in seconds.
+///
+/// Short on purpose. Long enough for the telegraph to register and for the
+/// meteor to be seen coming, short enough that the cast never feels like it
+/// was spent on a wait. Earth's moon drop takes longer — that is its weight.
+const double kLetSkyfallDuration = 0.52;
+
+/// How far above the impact point a meteor starts. Comfortably more than a
+/// screen height at every zoom level, so the meteor is always already in
+/// frame-space when it enters view rather than blinking into existence.
+const double kLetSkyfallDistance = 720.0;
+
+/// How far the descent leans off vertical, at most, in the direction of the
+/// cast. A dead-vertical drop reads as a UI element falling down the screen;
+/// a lean gives it a trajectory and ties it to the caster that threw it.
+const double kLetSkyfallLean = 0.46;
+
+/// Radius of the landing blast. The meteor no longer collides with the first
+/// body it touches — it lands, and everything standing at the impact is
+/// caught. Scaled by the projectile's own collision radius.
+///
+/// Generous, and it has to be. A flat-flying meteor swept a corridor the whole
+/// length of the field and hit whatever wandered into it; one that drops on a
+/// point only ever touches that point, so if the crater is small the ability
+/// is strictly weaker than what it replaced. This is roughly the width of the
+/// corridor the old one used to clear.
+double letSkyfallBlastRadius(Projectile p) =>
+    max(132.0, Projectile.radius * p.radiusMultiplier * 7.4);
+
+/// What fraction of the meteor's damage the rest of the crater takes. The body
+/// it actually lands on takes all of it.
+const double kLetSkyfallSplashShare = 0.55;
+
+/// Where a meteor aimed at [target] starts, which way it comes in, and how
+/// long it takes — the geometry of one drop.
+///
+/// Shared by every Let spawn site (the cast itself and Dark's follow-up
+/// bombardment, in all three game modes) so no meteor anywhere can end up
+/// flying flat while its siblings fall.
+///
+/// [castAngle] is the direction of the throw that produced it. The descent
+/// leans along it, so the drop reads as connected to the caster instead of
+/// appearing out of nowhere, and so repeated casts do not all come down the
+/// same dead-vertical line.
+({Offset position, double angle, double duration, double distance})
+letSkyfallDrop(
+  Offset target,
+  double castAngle, {
+  double timeScale = 1.0,
+  double distanceScale = 1.0,
+}) {
+  final lean = cos(castAngle) * kLetSkyfallLean;
+  final angle = atan2(1.0, lean);
+  final distance = kLetSkyfallDistance * distanceScale;
+  final dir = Offset(cos(angle), sin(angle));
+  return (
+    position: target - dir * distance,
+    angle: angle,
+    duration: kLetSkyfallDuration * timeScale,
+    distance: distance,
+  );
+}
+
 CosmicSpecialResult _letSpecial(
   Offset origin,
   double baseAngle,
@@ -7375,16 +7505,36 @@ CosmicSpecialResult _letSpecial(
   // Earth = "moon drop": same meteor visual, but heavier and slower so the
   // landing hits like a hammer. Every other element uses the standard core.
   final isEarth = element == 'Earth';
+
+  // The meteor falls onto the target from off-screen rather than being thrown
+  // at it. Earth's moon drop takes longer and starts higher — that is its
+  // weight.
+  final drop = letSkyfallDrop(
+    target,
+    angle,
+    timeScale: isEarth ? 1.35 : 1.0,
+    distanceScale: isEarth ? 1.15 : 1.0,
+  );
+  final descentTime = drop.duration;
+
   final meteor = Projectile(
-    position: Offset(origin.dx + cos(angle) * 22, origin.dy + sin(angle) * 22),
-    angle: angle,
+    // Starts a screen-height up the descent line; the runtime walks it down
+    // to the impact point over [descentTime].
+    position: drop.position,
+    angle: drop.angle,
     element: element,
     damage: damage * (isEarth ? 12.0 : 6.0),
-    life: isEarth ? 2.0 : 1.8,
-    speedMultiplier: isEarth ? 0.38 : 0.55,
+    // Long enough to cover the descent plus the landing frame. The meteor is
+    // resolved by touching down, not by timing out.
+    life: descentTime + 0.4,
+    // Unused while descending — the drop is parametric, not velocity-driven.
+    speedMultiplier: 0,
     radiusMultiplier: isEarth ? 10.0 : 7.0,
     visualScale: isEarth ? 8.0 : 6.0,
     visualStyle: ProjectileVisualStyle.meteor,
+    skyfallDuration: descentTime,
+    skyfallImpact: target,
+    skyfallDistance: drop.distance,
   );
 
   // Cast-time heal / blessing for Water, Blood, Light — applied to the

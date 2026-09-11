@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui' show Offset;
 
 import 'cosmic_data.dart';
 
@@ -10,6 +11,46 @@ class CosmicAbilityRuntime {
 
   static bool letMeteorCanSpawnPersistentZones(Projectile projectile) =>
       isLetMeteorCore(projectile);
+
+  /// Walks a descending Let meteor one frame down its drop line. Returns true
+  /// on the single frame it touches down, which is the caller's cue to
+  /// detonate it.
+  ///
+  /// The descent is parametric rather than simulated: the meteor's height
+  /// above the impact point is a function of how much of [Projectile
+  /// .skyfallDuration] is left, so it lands exactly on time at exactly
+  /// [Projectile.skyfallImpact]. A velocity-driven fall can overshoot or
+  /// arrive early, and a Let that lands somewhere other than where its
+  /// telegraph promised is worse than one that never moved.
+  ///
+  /// [liveTarget] is the locked enemy's current position, or null once that
+  /// enemy is gone. While it is supplied the impact point tracks it, tightly
+  /// enough that an enemy cannot walk out from under the drop. That is
+  /// deliberate: choosing where and when to drop a meteor is the decision,
+  /// and making the player also lead a moving target would turn it into a
+  /// reflex test.
+  static bool advanceSkyfall(Projectile p, double dt, Offset? liveTarget) {
+    if (p.skyfallDuration <= 0 || p.skyfallRemaining <= 0) return false;
+
+    if (liveTarget != null) {
+      // Tracking tightens as the meteor closes, so the trajectory reads as
+      // committed early and unmissable late. A constant rate either looks
+      // like the rock is steering itself, or lets a fast enemy escape.
+      final closing = 1.0 - p.skyfallRemaining / p.skyfallDuration;
+      final pull = ((0.18 + 0.82 * closing) * dt * 12.0).clamp(0.0, 1.0);
+      p.skyfallImpact = Offset.lerp(p.skyfallImpact, liveTarget, pull)!;
+    }
+
+    p.skyfallRemaining = max(0.0, p.skyfallRemaining - dt);
+    final remaining = p.skyfallRemaining / p.skyfallDuration;
+    // Height is the square of time-remaining, so the meteor creeps at the top
+    // of its arc and slams through the last stretch. Linear descent reads as
+    // a lift, not a fall.
+    final height = p.skyfallDistance * remaining * remaining;
+    p.position =
+        p.skyfallImpact - Offset(cos(p.angle), sin(p.angle)) * height;
+    return p.skyfallRemaining <= 0;
+  }
 
   static int darkLetFollowupCount(double casterIntelligence) {
     return (2 + ((casterIntelligence - 0.5) / 4.5) * 3)

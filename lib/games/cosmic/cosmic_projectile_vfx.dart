@@ -767,8 +767,6 @@ bool drawManeElementalProjectileVisual({
   // Heavier catapult shots — slash body bigger so the projectile feels
   // weighty in flight rather than a thin streak.
   final len = (projectile.stationary ? 32.0 : 26.0) * vs;
-  final start = position - dir * len;
-  final end = position + dir * len;
   final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.42)!;
   final pulse = 0.72 + 0.28 * sin(time * 5.5 + projectile.life * 2.0);
 
@@ -777,44 +775,50 @@ bool drawManeElementalProjectileVisual({
   // "motion blur" feel without any MaskFilter.blur (which is a
   // full-screen render pass per draw and expensive at scale).
   if (!projectile.stationary) {
-    final trailEnd = position - dir * (len * 2.6);
-    canvas.drawLine(
-      trailEnd,
-      position,
-      ui.Paint()
-        ..shader = ui.Gradient.linear(
-          trailEnd,
-          position,
-          [
-            color.withValues(alpha: 0.0),
-            color.withValues(alpha: 0.20),
-            color.withValues(alpha: 0.45),
-          ],
-          const [0.0, 0.55, 1.0],
-        )
-        ..strokeWidth = 6.0 * vs
-        ..strokeCap = ui.StrokeCap.round,
+    // The clump of wisps riding behind the blade. Drawn, not spawned into the
+    // shared particle pool — see [drawManeTrailWisps].
+    drawManeTrailWisps(
+      canvas: canvas,
+      position: position,
+      travelDir: dir,
+      color: color,
+      time: time,
+      scale: vs,
+      radiusMultiplier: projectile.radiusMultiplier,
+      seed: projectile.life,
     );
-    // Three afterimage discs along the trail. Solid translucent
-    // circles — alpha falls off and radius grows so they read as
-    // motion echoes rather than copies of the projectile.
-    final discPaint = ui.Paint();
-    for (var i = 1; i <= 3; i++) {
-      final fade = 1.0 - i * 0.30;
-      final back = position - dir * (len * 0.85 * i);
-      // Two stacked translucent discs per echo: outer wider + softer,
-      // inner tighter + brighter. Fakes the soft blur silhouette.
-      discPaint.color = color.withValues(alpha: 0.10 * fade);
-      canvas.drawCircle(back, (7.0 + i * 1.6) * vs, discPaint);
-      discPaint.color = color.withValues(alpha: 0.22 * fade);
-      canvas.drawCircle(back, (4.4 + i * 1.0) * vs, discPaint);
-    }
+    // The slipstream. Three afterimage discs used to stand in for motion, and
+    // a chain of concentric circles behind a fast object reads as a caterpillar
+    // — it has no direction and no edge.
+    //
+    // Reuses the Let meteor's wake painter at almost no waviness, which is
+    // exactly the contrast between the two families: a falling rock drags a
+    // turbulent, meandering plume, a blade fired flat leaves a tight clean
+    // slipstream. Same code, opposite end of the same dial.
+    final travelUnit = dir.distance > 0.01
+        ? dir / dir.distance
+        : const ui.Offset(1, 0);
+    drawPlumeWake(
+      canvas: canvas,
+      head: position,
+      travelDir: travelUnit,
+      length: len * 2.4,
+      headWidth: 7.0 * vs,
+      color: color,
+      time: time,
+      alpha: 0.34 * pulse,
+      hotColor: white,
+      layers: 2,
+      seed: projectile.life + projectile.angle,
+      waveAmplitude: 0.10,
+      waveFrequency: 0.7,
+    );
   }
+
   final fillPaint = ui.Paint();
   final strokePaint = ui.Paint()
     ..style = ui.PaintingStyle.stroke
     ..strokeCap = ui.StrokeCap.round;
-  final linePaint = ui.Paint()..strokeCap = ui.StrokeCap.round;
   final groundedRadius = projectile.snareRadius > 0
       ? (projectile.snareRadius * 0.36).clamp(26.0, 96.0) * vs
       : (24.0 * projectile.radiusMultiplier.clamp(1.0, 3.4) * vs);
@@ -847,47 +851,62 @@ bool drawManeElementalProjectileVisual({
       color: color,
       alpha: 0.26 * scaled * pulse,
     );
-    // The blade itself: an irregular body stretched hard along the travel
-    // axis, so it reads as something swung rather than something floating.
+    // The blade itself.
     //
-    // Length and phase vary per projectile off a hash of its own angle. The
-    // fan angles come from the ability's mechanics and are not ours to touch,
-    // but a fan of identical equal-length blades reads as a splayed hand;
-    // uneven ones read as a spray of cuts. Deterministic, so it does not
-    // shimmer frame to frame.
+    // Length and bank vary per projectile off a hash of its own angle. The fan
+    // angles come from the ability's mechanics and are not ours to touch, but a
+    // fan of identical blades reads as a splayed hand; uneven ones read as a
+    // spray of cuts. Deterministic, so it does not shimmer frame to frame.
     final jitter = (sin(projectile.angle * 12.9898) * 43758.5453);
     final vary = 0.72 + 0.56 * (jitter - jitter.floorToDouble());
-    final spin = time * 2.2 + projectile.life * 0.7 + vary * 2.0;
+    final bladeLen = coreR * 3.4 * vary * lengthScale;
+    final bladeWidth = coreR * 0.62;
+    // No spin term. The old core rolled on `time`, which is what made every
+    // Mane blade read as a tumbling stick rather than something thrown edge-on.
+    final blade = buildBladePath(
+      centre: position,
+      travelDir: travelDir,
+      length: bladeLen,
+      width: bladeWidth,
+      bank: (vary - 1.0) * 0.5,
+    );
+    // A wider, fainter echo of the same silhouette sitting under the blade, so
+    // the edge has some thickness to it without a second hard outline.
     canvas.drawPath(
-      buildTumblingShardPath(
+      buildBladePath(
         centre: position,
-        radius: coreR * 0.82,
         travelDir: travelDir,
-        spin: spin,
-        elongation: 2.45 * vary,
-        flatten: 0.30,
+        length: bladeLen * 1.16,
+        width: bladeWidth * 1.7,
+        bank: (vary - 1.0) * 0.5,
       ),
       fillPaint
-        ..color = white.withValues(alpha: 0.72 * scaled * pulse)
+        ..color = color.withValues(alpha: 0.20 * scaled * pulse)
         ..maskFilter = null,
     );
-    // Lit leading edge — the cutting side.
-    drawShardLeadingRim(
-      canvas: canvas,
-      centre: position,
-      radius: coreR * 0.8,
-      travelDir: travelDir,
-      spin: spin,
-      // A hard white outline round every blade turned a fan of them into a
-      // gloved hand; tint it toward the element and let it sit back.
-      color: ui.Color.lerp(
-        white,
-        const ui.Color(0xFFFFFFFF),
-        0.35,
-      )!.withValues(alpha: 0.42 * scaled),
-      width: width * 0.34 * vs,
-      elongation: 2.45 * vary,
-      flatten: 0.30,
+    // Element colour carries the body. The old fill was `white` — the element
+    // hue lerped 42% toward white and then laid down at 0.72 — which washed
+    // Lava, Dust and Plant out to the same cream and left hue doing all the
+    // work of telling them apart.
+    canvas.drawPath(
+      blade,
+      fillPaint
+        ..color = color.withValues(alpha: 0.80 * scaled)
+        ..maskFilter = null,
+    );
+    // A hot spine down the middle, tapering with the blade: the light along the
+    // edge, rather than an outline drawn round the whole shape.
+    canvas.drawPath(
+      buildBladePath(
+        centre: position + travelDir * bladeLen * 0.06,
+        travelDir: travelDir,
+        length: bladeLen * 0.74,
+        width: bladeWidth * 0.34,
+        bank: (vary - 1.0) * 0.5,
+      ),
+      fillPaint
+        ..color = white.withValues(alpha: 0.85 * scaled * pulse)
+        ..maskFilter = null,
     );
   }
 
@@ -1001,72 +1020,100 @@ bool drawManeElementalProjectileVisual({
   switch (element) {
     case 'Fire':
       drawGroundPatch();
-      for (var i = 1; i <= 3; i++) {
-        final fade = 1.0 - i * 0.24;
+      // A fireball with a burning wake, not a ring with a dot in it.
+      //
+      // This was a filled disc, an off-centre highlight, and a stroked circle
+      // pulsing around the outside — which is the exact recipe for a targeting
+      // reticle, and it read as UI chrome sitting on the battlefield rather
+      // than as the fastest shot in the family.
+      drawCoreSlash(width: 3.4, glowWidth: 9.0, alpha: 0.80);
+      // Embers shedding off the back, on their own cycles.
+      for (var i = 0; i < 4; i++) {
+        final t = (time * 1.5 + i * 0.25 + projectile.angle) % 1.0;
         canvas.drawCircle(
-          position - dir * (5.2 * i * vs) + perp * sin(time * 5.0 + i) * vs,
-          (5.0 - i * 0.45) * vs,
+          position -
+              dir * (len * 0.4 + len * 1.0 * t) +
+              perp * sin(time * 3.0 + i * 1.7) * 3.0 * vs * t,
+          (2.0 - 1.2 * t) * vs,
           fillPaint
-            ..color = color.withValues(alpha: 0.18 * fade)
+            ..color = const ui.Color(
+              0xFFFFB050,
+            ).withValues(alpha: (1 - t) * 0.85)
             ..maskFilter = null,
         );
       }
-      canvas.drawCircle(
-        position,
-        7.2 * vs,
-        fillPaint
-          ..color = color.withValues(alpha: 0.92)
-          ..maskFilter = null,
-      );
-      canvas.drawCircle(
-        position - dir * 1.8 * vs - perp * 1.2 * vs,
-        3.0 * vs,
-        fillPaint
-          ..color = const ui.Color(0xFFFFE4A8).withValues(alpha: 0.86)
-          ..maskFilter = null,
-      );
-      canvas.drawCircle(
-        position,
-        11.0 * vs * pulse,
-        strokePaint
-          ..color = const ui.Color(0xFFFFD28A).withValues(alpha: 0.38)
-          ..strokeWidth = max(1.0, 1.1 * vs)
-          ..maskFilter = null,
+      drawSparkleGlints(
+        canvas: canvas,
+        centre: position,
+        travelDir: dir.distance > 0.01
+            ? dir / dir.distance
+            : const ui.Offset(1, 0),
+        spread: 22.0 * vs,
+        size: 2.0 * vs,
+        color: const ui.Color(0xFFFFC46A),
+        time: time,
+        count: 4,
+        seed: projectile.angle * 5.0,
+        alpha: 0.8,
       );
       drawControlRead(scale: 1.05);
       break;
     case 'Lightning':
-      final bolt = ui.Path()
-        ..moveTo(start.dx, start.dy)
-        ..lineTo(
-          position.dx - dir.dx * 7 * vs + perp.dx * 5 * vs,
-          position.dy - dir.dy * 7 * vs + perp.dy * 5 * vs,
-        )
-        ..lineTo(
-          position.dx + dir.dx * 2 * vs - perp.dx * 4 * vs,
-          position.dy + dir.dy * 2 * vs - perp.dy * 4 * vs,
-        )
-        ..lineTo(end.dx, end.dy);
-      canvas.drawPath(
-        bolt,
-        strokePaint
-          ..color = white.withValues(alpha: 0.92)
-          ..strokeWidth = 2.4 * vs
-          ..maskFilter = null,
+      // The shared bolt, the same one the Let meteor and every other discharge
+      // in the game use. This was a hand-rolled three-segment polyline stroked
+      // hard white — a drawn zigzag with fixed corners, so it never flickered,
+      // never branched, and read as a lightning ICON rather than a discharge.
+      drawCoreSlash(width: 2.4, glowWidth: 7.2, alpha: 0.62);
+      final boltGlow = ui.Color.lerp(color, kLightningBoltGlow, 0.55)!;
+      drawLightningBolt(
+        canvas,
+        position - dir * len * 1.5,
+        position + dir * len * 0.6,
+        time: time,
+        width: 1.1 * vs,
+        jitter: 1.9 * vs,
+        segmentLength: 5.5 * vs,
+        core: kLightningBoltCore,
+        glow: boltGlow,
+        alpha: 0.92,
+        branches: 1,
+        glowPasses: 2,
+        seed: projectile.angle * 7.0,
+      );
+      drawLightningCrackle(
+        canvas,
+        position,
+        7.0 * vs,
+        time: time,
+        count: 2,
+        width: 0.9 * vs,
+        glow: boltGlow,
+        glowPasses: 1,
+        seed: projectile.angle * 3.1,
       );
       break;
     case 'Water':
-      // Wall of water — soft layered halos sized big horizontally
-      // (perpendicular to travel) so it reads as a wide moving
-      // wall instead of two stroked bezier ribbons. Trailing
-      // droplet particles handled survival-side.
-      final wallW = 22.0 * vs;
-      final wallH = 11.0 * vs;
+      // A wall, broadside to the direction it is sweeping.
+      //
+      // These were axis-aligned ovals — wide in screen-x regardless of where
+      // the shot was going. The comment claimed "perpendicular to travel", but
+      // Rect.fromCenter has no idea what travel is, so the only time the wall
+      // read as a wall was when it happened to be moving vertically. Fired
+      // sideways, which is most of the time, it was a bright pip inside
+      // concentric rings: an eye.
+      //
+      // Rotated into the travel frame it is broad ACROSS the direction of
+      // motion and thin along it, which is the sweep the design asks for.
+      final wallW = 11.0 * vs;
+      final wallH = 24.0 * vs;
+      canvas.save();
+      canvas.translate(position.dx, position.dy);
+      canvas.rotate(atan2(dir.dy, dir.dx));
       for (var i = 3; i >= 1; i--) {
         final r = (i / 3.0);
         canvas.drawOval(
           ui.Rect.fromCenter(
-            center: position,
+            center: ui.Offset.zero,
             width: wallW * (0.7 + r * 0.6),
             height: wallH * (0.7 + r * 0.6),
           ),
@@ -1075,46 +1122,96 @@ bool drawManeElementalProjectileVisual({
             ..maskFilter = null,
         );
       }
-      // Bright translucent body.
-      canvas.drawOval(
-        ui.Rect.fromCenter(
-          center: position,
-          width: wallW * 0.85,
-          height: wallH * 0.85,
-        ),
+      // The crest: a curved front face bulging the way it is travelling, so
+      // the wall has a leading edge carrying the water rather than a centre.
+      final crest = ui.Path()
+        ..moveTo(0, -wallH * 0.46)
+        ..quadraticBezierTo(wallW * 0.95, 0, 0, wallH * 0.46)
+        ..quadraticBezierTo(wallW * 0.30, 0, 0, -wallH * 0.46)
+        ..close();
+      canvas.drawPath(
+        crest,
         ui.Paint()
-          ..color = white.withValues(alpha: 0.45 * pulse)
+          ..color = white.withValues(alpha: 0.50 * pulse)
           ..maskFilter = null,
       );
-      // White-hot center pip for visibility.
-      canvas.drawCircle(
-        position,
-        wallH * 0.30,
-        ui.Paint()
-          ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.78)
-          ..maskFilter = null,
-      );
+      canvas.restore();
+      // No white centre pip. A bright dot in the middle of concentric rings is
+      // what made this read as a pupil; the crest is the bright part of a wave,
+      // and it belongs on the leading face.
       drawControlRead(scale: 1.0);
       break;
     case 'Ice':
       drawCoreSlash(width: 3.1, glowWidth: 8.4, alpha: 0.76);
-      _drawFrostStar(canvas, position, white, 11.0 * vs, vs, time);
-      drawControlRead(scale: 1.08);
-      break;
-    case 'Steam':
-      drawCoreSlash(width: 2.8, glowWidth: 7.0, alpha: 0.72);
-      for (var i = 0; i < 4; i++) {
-        final drift = i.toDouble();
+      // Frost as light catching on crystal, not a drawn snowflake. The six
+      // even spokes of _drawFrostStar read as a winter-holiday sticker pinned
+      // to the blade — symmetrical, axis-less, and the last hard asterisk in
+      // the family after the Let meteors dropped theirs for the same reason.
+      drawSparkleGlints(
+        canvas: canvas,
+        centre: position,
+        travelDir: dir.distance > 0.01
+            ? dir / dir.distance
+            : const ui.Offset(1, 0),
+        spread: 20.0 * vs,
+        size: 2.6 * vs,
+        color: const ui.Color(0xFFCFEAFF),
+        time: time,
+        count: 6,
+        seed: projectile.angle * 3.0,
+        alpha: 0.85,
+      );
+      // Rime shearing off the trailing edge as it freezes the air behind it.
+      for (var i = 0; i < 3; i++) {
+        final t = (time * 0.85 + i * 0.34 + projectile.angle) % 1.0;
         canvas.drawCircle(
           position -
-              dir * (10.0 - drift * 4.0) * vs +
-              perp * sin(time * 2.5 + drift) * 8.0 * vs,
-          (5.0 + drift) * vs,
+              dir * (len * 0.5 + len * 0.7 * t) +
+              perp * sin(time * 2.0 + i) * 3.0 * vs,
+          (1.6 + 2.4 * t) * vs,
           fillPaint
-            ..color = color.withValues(alpha: 0.13)
+            ..color = const ui.Color(
+              0xFFCFEAFF,
+            ).withValues(alpha: (1 - t) * 0.24)
             ..maskFilter = null,
         );
       }
+      drawControlRead(scale: 1.08);
+      break;
+    case 'Steam':
+      // Pressure Vent Cuts — scalding vapour venting off the cleave.
+      //
+      // This was four flat circles at alpha 0.13 drifting behind the blade:
+      // grey on a dark field, no edge, no heat, and the only thing separating
+      // it from the other soft elements was hue it barely had. The design has
+      // it laying down steam damage zones as it travels, so the blade should
+      // look like it is venting, not fogging.
+      drawCoreSlash(width: 2.8, glowWidth: 7.0, alpha: 0.80);
+      final vapour = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.60)!;
+      for (var i = 0; i < 4; i++) {
+        // Each puff boils off, expands and thins on its own cycle, so the
+        // vapour billows instead of sitting there as a static smear.
+        final t = (time * 1.3 + i * 0.25 + projectile.angle) % 1.0;
+        final p =
+            position -
+            dir * (len * 0.35 + len * 1.5 * t) +
+            perp * sin(time * 1.9 + i * 2.0) * 6.0 * vs * t;
+        canvas.drawCircle(
+          p,
+          (2.6 + 6.5 * t) * vs,
+          fillPaint
+            ..color = vapour.withValues(alpha: (1 - t) * (1 - t) * 0.30)
+            ..maskFilter = null,
+        );
+      }
+      // A bright vent at the trailing edge — the point the pressure escapes.
+      canvas.drawCircle(
+        position - dir * len * 0.45,
+        2.2 * vs * (0.8 + 0.2 * sin(time * 8.0)),
+        fillPaint
+          ..color = vapour.withValues(alpha: 0.62 * pulse)
+          ..maskFilter = null,
+      );
       drawControlRead(scale: 1.05);
       break;
     case 'Earth':
@@ -1123,14 +1220,26 @@ bool drawManeElementalProjectileVisual({
       break;
     case 'Lava':
       drawCoreSlash(width: 5.6, glowWidth: 13.0, alpha: 0.88);
-      canvas.drawLine(
-        start + perp * 4.0 * vs,
-        end - perp * 4.0 * vs,
-        linePaint
-          ..color = const ui.Color(0xFFFFE0A0).withValues(alpha: 0.58)
-          ..strokeWidth = 1.7 * vs
-          ..maskFilter = null,
-      );
+      // Molten shed off the cleave. This was a straight cream rod drawn the
+      // full length of the blade and out past both ends — the single most
+      // stick-like thing in the family, and it sat on the element whose whole
+      // read is that it is liquid.
+      for (var i = 0; i < 3; i++) {
+        final t = (time * 0.9 + i * 0.34 + projectile.angle) % 1.0;
+        final drip =
+            position -
+            dir * (len * 0.3 + len * 0.9 * t) +
+            perp * sin(time * 2.0 + i * 2.1) * 3.4 * vs * t;
+        canvas.drawCircle(
+          drip,
+          (2.4 - 1.5 * t) * vs,
+          fillPaint
+            ..color = const ui.Color(
+              0xFFFF8A2B,
+            ).withValues(alpha: (1 - t) * 0.80)
+            ..maskFilter = null,
+        );
+      }
       drawControlRead(scale: 1.08);
       break;
     case 'Mud':
@@ -1166,8 +1275,37 @@ bool drawManeElementalProjectileVisual({
       _drawCrystalSigil(canvas, position, color, 12.0 * vs, vs, time);
       break;
     case 'Air':
-      _drawAirSwirl(canvas, position, color, 18.0 * vs, vs, time);
-      drawCoreSlash(width: 2.2, glowWidth: 7.5, alpha: 0.64);
+      // Windblade Sweep — the fastest thing in the family, at twice the speed
+      // of everything else.
+      //
+      // It used to wear _drawAirSwirl: two thin stroked spirals centred on the
+      // body, at alpha 0.30. Curls drawn around a point say nothing about
+      // direction, and on the one element defined by how fast it is going,
+      // that left the whole cast reading as a faint smudge.
+      //
+      // Air is shown by what it drags along: motes streaming past the blade,
+      // stretched back down the travel line. The helper is left alone — three
+      // other abilities still use it as intended.
+      drawCoreSlash(width: 2.2, glowWidth: 7.5, alpha: 0.78);
+      for (var i = 0; i < 7; i++) {
+        final t = (time * 2.6 + i * 0.143 + projectile.angle) % 1.0;
+        final h = sin((i + 1) * 12.9898 + projectile.angle * 78.233) * 43758.5;
+        final lateral = ((h - h.floorToDouble()) - 0.5) * 2.0;
+        final p =
+            position -
+            dir * (len * 0.3 + len * 2.1 * t) +
+            perp * lateral * 6.0 * vs * (0.3 + t);
+        // Drawn as short streaks rather than dots: at this speed a round mote
+        // reads as standing still.
+        canvas.drawLine(
+          p,
+          p - dir * (5.0 + 7.0 * (1 - t)) * vs,
+          strokePaint
+            ..color = white.withValues(alpha: (1 - t) * 0.55)
+            ..strokeWidth = 1.0 * vs
+            ..maskFilter = null,
+        );
+      }
       break;
     case 'Plant':
       drawGroundPatch();
@@ -1194,14 +1332,49 @@ bool drawManeElementalProjectileVisual({
       _drawSpiritHalo(canvas, position, color, 14.0 * vs, vs, time);
       break;
     case 'Dark':
+      // A void that swallows, shown by what is falling into it.
+      //
+      // This was a near-black disc laid over the blade: on a black starfield it
+      // subtracted the artwork and put nothing back, so the slowest, heaviest
+      // shot in the family was also the hardest one to see. The design has it
+      // dragging enemies inward the whole way, so draw the drag — motes hauled
+      // in from around it, winking out at the horizon — and give the horizon a
+      // lit rim so the sphere has an edge against the dark.
       drawCoreSlash(width: 4.1, glowWidth: 11.0, alpha: 0.76);
+      final voidR = 13.0 * vs;
       canvas.drawCircle(
         position,
-        17.0 * vs,
+        voidR,
         fillPaint
-          ..color = const ui.Color(0xFF05020A).withValues(alpha: 0.52)
+          ..color = const ui.Color(0xFF05020A).withValues(alpha: 0.88)
           ..maskFilter = null,
       );
+      canvas.drawCircle(
+        position,
+        voidR,
+        strokePaint
+          ..color = ui.Color.lerp(
+            color,
+            const ui.Color(0xFFFFFFFF),
+            0.35,
+          )!.withValues(alpha: 0.55 * pulse)
+          ..strokeWidth = 1.4 * vs
+          ..maskFilter = null,
+      );
+      for (var i = 0; i < 6; i++) {
+        final t = (time * 0.8 + i * 0.167 + projectile.angle) % 1.0;
+        final a = i * (pi * 2 / 6) + t * 2.6;
+        final rr = voidR * (2.5 - 1.7 * t);
+        canvas.drawCircle(
+          position + ui.Offset(cos(a), sin(a)) * rr,
+          1.5 * vs * (1 - t * 0.8),
+          fillPaint
+            ..color = const ui.Color(
+              0xFFB06BE8,
+            ).withValues(alpha: (1 - t) * 0.70 * pulse)
+            ..maskFilter = null,
+        );
+      }
       drawControlRead(scale: 1.06);
       break;
     case 'Light':
@@ -3503,6 +3676,34 @@ const Map<String, (double, double, double, double, double)> _kLetPhysique = {
   'Lightning': (0.80, 1.92, 0.52, 1.38, 0.70),
 };
 
+/// How each element's wake moves, as (wave amplitude, wave frequency).
+///
+/// Without this every Let dragged an identically-shaped plume and the family
+/// separated on hue alone. Heavy wet elements billow slowly in big lazy
+/// curves; light fast ones chop in a tight ripple; Earth barely moves at all,
+/// because a boulder does not trail smoke so much as shove air.
+///
+/// (waveAmplitude, waveFrequency)
+const Map<String, (double, double)> _kLetPlumeFlow = {
+  'Earth': (0.30, 0.55),
+  'Crystal': (0.38, 0.75),
+  'Ice': (0.44, 0.80),
+  'Mud': (1.14, 0.50),
+  'Water': (1.18, 0.62),
+  'Steam': (1.26, 0.58),
+  'Blood': (0.98, 0.70),
+  'Lava': (1.02, 0.66),
+  'Poison': (1.08, 0.78),
+  'Plant': (0.90, 0.86),
+  'Fire': (0.94, 1.05),
+  'Dust': (1.06, 1.15),
+  'Dark': (0.82, 0.68),
+  'Spirit': (1.12, 0.92),
+  'Light': (0.64, 1.10),
+  'Air': (1.20, 1.35),
+  'Lightning': (0.72, 1.80),
+};
+
 void _drawSkyfallMeteor(
   ui.Canvas canvas,
   Projectile projectile,
@@ -3511,7 +3712,17 @@ void _drawSkyfallMeteor(
   double time, {
   bool reduceAmbient = false,
 }) {
-  final vs = projectile.visualScale.clamp(1.2, 4.8).toDouble();
+  // A falling meteor is far away when it enters the frame and close when it
+  // lands, and distance is the one cue that makes a drop read as a drop. The
+  // rock swells through the descent while its wake stretches — approach and
+  // acceleration, from one number the runtime is already tracking.
+  final fall = projectile.skyfallDuration > 0
+      ? projectile.skyfallProgress
+      : 1.0;
+  final approach = 0.62 + 0.38 * fall;
+  final wakeStretch = 0.70 + 0.62 * fall;
+
+  final vs = projectile.visualScale.clamp(1.2, 4.8).toDouble() * approach;
   final phys =
       _kLetPhysique[projectile.element ?? ''] ?? (1.0, 1.24, 0.88, 1.0, 1.0);
   final elong = phys.$2;
@@ -3522,27 +3733,30 @@ void _drawSkyfallMeteor(
   final dirLen = dir.distance;
   final travelDir = dirLen > 0.01 ? dir / dirLen : const ui.Offset(1, 0);
   final perp = ui.Offset(-travelDir.dy, travelDir.dx);
-  final descent = 62.0 * vs * phys.$4;
+  final descent = 62.0 * vs * phys.$4 * wakeStretch;
   final trailStart = position - travelDir * descent;
   final pulse = 0.78 + 0.22 * sin(time * 6.0 + projectile.life * 1.5);
   final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
   final ember = ui.Color.lerp(color, const ui.Color(0xFF000000), 0.55)!;
 
-  // Comet wake. Two stroked lines of constant width read as a highlighter mark;
-  // these are filled wedges that come to a point and bow gently off-axis, so
-  // the trail has a direction of travel and a tip.
-  final bow = sin(time * 1.7 + projectile.life) * 3.0 * vs;
-  drawTaperedTrail(
+  // The wake. A flowing plume rather than a wedge — see [drawPlumeWake] for
+  // why the straight-sided version had to go. Each element meanders on its own
+  // amplitude and frequency so the family stops sharing one trail shape.
+  final flow = _kLetPlumeFlow[projectile.element ?? ''] ?? (1.0, 0.9);
+  drawPlumeWake(
     canvas: canvas,
     head: position,
     travelDir: travelDir,
     length: descent,
     headWidth: 10.0 * vs,
     color: color,
+    time: time,
     alpha: 0.40 * pulse,
-    bow: bow,
     hotColor: white,
     layers: reduceAmbient ? 1 : 3,
+    seed: projectile.life,
+    waveAmplitude: flow.$1,
+    waveFrequency: flow.$2,
   );
 
   // Heat bloom. Was a plain disc bigger than the rock itself, which pooled
@@ -3598,7 +3812,6 @@ void _drawSkyfallMeteor(
       ..strokeWidth = 0.8 * vs
       ..color = ember.withValues(alpha: 0.42),
   );
-  final lead = atan2(travelDir.dy, travelDir.dx);
   // No white leading rim. A near-opaque bright stroke along the leading edge
   // outlined every meteor like cel shading and was the single worst-looking
   // thing on the family; only Lightning survived it, because its bolt drew
@@ -3744,12 +3957,15 @@ void _drawSkyfallMeteor(
         position,
         time: time,
         width: 1.15 * vs,
-        jitter: 2.1 * vs,
+        jitter: 1.5 * vs,
         segmentLength: 6.0 * vs,
         core: kLightningBoltCore,
         glow: boltGlow,
         alpha: 0.62 + 0.38 * pulse,
-        branches: 2,
+        // One branch, not two. At two the strays wandered clear of the
+        // plume and crossed open space as detached white polylines, which
+        // read as a drawn zigzag rather than as this meteor discharging.
+        branches: 1,
         glowPasses: reduceAmbient ? 0 : 2,
         seed: projectile.life * 3.0,
       );
@@ -3758,7 +3974,7 @@ void _drawSkyfallMeteor(
         position,
         8.5 * vs,
         time: time,
-        count: 3,
+        count: 2,
         width: 1.0 * vs,
         glow: boltGlow,
         glowPasses: reduceAmbient ? 0 : 1,
@@ -3822,46 +4038,65 @@ void _drawSkyfallMeteor(
       }
       break;
     case 'Spirit':
-      // Ghost flicker — small wisps orbiting.
-      for (var i = 0; i < 3; i++) {
-        final a = time * 1.3 + i * (pi * 2 / 3);
-        final p = position + ui.Offset(cos(a), sin(a)) * 8.0 * vs;
+      // Soul Harvest — the execute, made visible.
+      //
+      // This was three flat circles on a slow orbit: the least-considered
+      // decoration in the family, and it said nothing about what the cast
+      // does. Spirit's whole identity is a chance to simply delete what it
+      // lands on, scaling with the caster.
+      //
+      // So: a pale halo that breathes, and wisps that stream INTO the rock
+      // rather than circling it — something being collected, not escorted.
+      // A breathing aura, filled and soft. Stroking it made a hoop, which is
+      // the drawn-ring motif every other Let had removed; a haunt has no
+      // outline.
+      final breath = 1.7 + 0.35 * sin(time * 2.4 + projectile.life);
+      for (var i = 3; i >= 1; i--) {
         canvas.drawCircle(
-          p,
-          1.6 * vs,
+          position,
+          bodyR * breath * (0.5 + i * 0.24),
           ui.Paint()
-            ..color = const ui.Color(0xFFE6CCFF).withValues(alpha: 0.52),
+            ..color = const ui.Color(
+              0xFFE6CCFF,
+            ).withValues(alpha: (0.09 - i * 0.018) * pulse),
+        );
+      }
+      for (var i = 0; i < 5; i++) {
+        // t = 0 far out, t = 1 absorbed. Inward, so the meteor reads as
+        // taking something rather than trailing it.
+        final t = (time * 1.1 + i * 0.2 + projectile.life) % 1.0;
+        final a = i * (pi * 2 / 5) + t * 1.8;
+        final rr = bodyR * (3.0 - 2.2 * t);
+        canvas.drawCircle(
+          position + ui.Offset(cos(a), sin(a)) * rr,
+          (1.7 - 0.9 * t) * vs,
+          ui.Paint()
+            ..color = const ui.Color(
+              0xFFE6CCFF,
+            ).withValues(alpha: (1 - t * 0.7) * 0.62 * pulse),
         );
       }
       break;
     case 'Light':
-      // Celestial Rain — light thrown FORWARD by something falling fast. Four
-      // rays on a slowly turning wheel was a halo parked on top of the rock;
-      // it looked identical whichever way the meteor travelled.
-      // Nested narrowing wedges rather than one hard-edged triangle: a single
-      // flat cone read as a grey paper party hat stuck on the front.
+      // Celestial Rain — radiance, not a cone.
+      //
+      // Three nested wedges used to sit on the nose. However many layers they
+      // had and however soft the alpha, a triangle is a triangle: it read as a
+      // grey paper party hat taped to the front of the rock, and it was the
+      // worst-looking thing in the family.
+      //
+      // Light is shown by what it does to everything around it — a bloom that
+      // outreaches the body, and hard points of glint. No drawn geometry.
       for (var i = 3; i >= 1; i--) {
-        final spreadA = 0.15 + i * 0.11;
-        final reach = (7.0 + i * 3.6) * vs;
-        canvas.drawPath(
-          ui.Path()
-            ..moveTo(position.dx, position.dy)
-            ..lineTo(
-              position.dx + cos(lead - spreadA) * reach,
-              position.dy + sin(lead - spreadA) * reach,
-            )
-            ..lineTo(
-              position.dx + cos(lead + spreadA) * reach,
-              position.dy + sin(lead + spreadA) * reach,
-            )
-            ..close(),
+        canvas.drawCircle(
+          position,
+          bodyR * (1.5 + i * 0.75) * pulse,
           ui.Paint()
             ..color = const ui.Color(
               0xFFFFE9A8,
-            ).withValues(alpha: (0.20 - i * 0.045) * pulse),
+            ).withValues(alpha: (0.10 - i * 0.022) * pulse),
         );
       }
-      // No drawn flare bar through the middle — glow plus glints carry it.
       drawSparkleGlints(
         canvas: canvas,
         centre: position,
@@ -3870,36 +4105,63 @@ void _drawSkyfallMeteor(
         size: 2.8 * vs,
         color: const ui.Color(0xFFFFF3C4),
         time: time,
-        count: 6,
+        count: 7,
         seed: projectile.life + 2.0,
         alpha: 0.9,
       );
       break;
     case 'Crystal':
-      // Starfall — faceted plates growing OUT of the rock at uneven angles. A
-      // regular hexagon outline ringing the body read as a UI icon laid over
-      // the artwork rather than crystal on a falling stone.
-      final facet = ui.Paint()
-        ..color = ui.Color.lerp(
-          color,
-          const ui.Color(0xFFFFFFFF),
-          0.45,
-        )!.withValues(alpha: 0.58);
-      const plateAngles = [-0.9, 0.3, 1.7];
-      for (var i = 0; i < plateAngles.length; i++) {
-        final a = lead + plateAngles[i] + spin * 0.2;
-        final dirA = ui.Offset(cos(a), sin(a));
-        final perpA = ui.Offset(-dirA.dy, dirA.dx);
-        final baseP = position + dirA * bodyR * 0.6;
-        final tipP = position + dirA * (bodyR * (1.34 + i * 0.16));
-        final wdt = perpA * 2.3 * vs;
-        canvas.drawPath(
-          ui.Path()
-            ..moveTo(baseP.dx + wdt.dx, baseP.dy + wdt.dy)
-            ..lineTo(tipP.dx, tipP.dy)
-            ..lineTo(baseP.dx - wdt.dx, baseP.dy - wdt.dy)
-            ..close(),
-          facet,
+      // Starfall — light refracting, not plates bolted on.
+      //
+      // Three hard triangular facets used to jut out of the rock at fixed
+      // angles. They read as origami taped to a stone, and they were the same
+      // blade vocabulary Mane is built from — the last place the two families
+      // still shared a shape.
+      //
+      // A crystal in flight is known by how it splits light: a cold rim on the
+      // body and a scatter of prismatic glints, no drawn facets.
+      // A lit core rather than a rim. A stroked circle round the body is the
+      // same monocle Mud just lost — the glints carry "crystal", and the body
+      // itself reads faceted because it is already an irregular tumbling
+      // shard underneath.
+      canvas.drawPath(
+        buildTumblingShardPath(
+          centre: position,
+          radius: bodyR * 0.62,
+          travelDir: travelDir,
+          spin: spin * 1.4,
+          elongation: elong,
+          flatten: flat,
+        ),
+        ui.Paint()
+          ..color = ui.Color.lerp(
+            color,
+            const ui.Color(0xFFFFFFFF),
+            0.70,
+          )!.withValues(alpha: 0.72 * pulse),
+      );
+      for (var i = 0; i < 3; i++) {
+        drawSparkleGlints(
+          canvas: canvas,
+          centre: position,
+          travelDir: travelDir,
+          spread: descent * (0.22 + i * 0.14),
+          size: (2.6 - i * 0.5) * vs,
+          // Each pass tinted a little differently so the scatter splits colour
+          // the way a prism does rather than repeating one white spark.
+          color: ui.Color.lerp(
+            const ui.Color(0xFFFFFFFF),
+            [
+              const ui.Color(0xFF9FFFE0),
+              const ui.Color(0xFFCFE6FF),
+              const ui.Color(0xFFFFE6F5),
+            ][i],
+            0.65,
+          )!,
+          time: time,
+          count: 4,
+          seed: projectile.life + 3.0 + i * 5.0,
+          alpha: 0.85,
         );
       }
       break;
@@ -3922,20 +4184,38 @@ void _drawSkyfallMeteor(
       }
       break;
     case 'Steam':
-      // Geyser Strike — scalding vapour boiling off the rock and shearing
-      // backwards. Soft round puffs, no hard edges.
-      for (var i = 0; i < 4; i++) {
-        final t = (time * 1.1 + i * 0.25) % 1.0;
-        final p =
-            position -
-            travelDir * (bodyR + descent * 0.45 * t) +
-            perp * sin(time * 1.7 + i * 2.0) * 5.0 * vs * t;
-        canvas.drawCircle(
-          p,
-          (2.2 + 4.0 * t) * vs,
-          ui.Paint()..color = white.withValues(alpha: (1 - t) * 0.34 * pulse),
-        );
+      // Geyser Strike — pressurised, about to burst.
+      //
+      // Grey puffs on a grey rock inside a grey plume: the row very nearly
+      // vanished. The impact leaves a geyser that stands for twelve seconds,
+      // so the meteor should read as something holding pressure on the way
+      // down rather than as something quietly steaming.
+      //
+      // Jets vent in bursts on staggered cycles — brief, bright, directional —
+      // instead of a steady drift of soft circles.
+      final vent = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.72)!;
+      for (var i = 0; i < 3; i++) {
+        final cycle = (time * 1.6 + i * 0.37 + projectile.life) % 1.0;
+        // Each jet is silent for most of its cycle, then blows.
+        if (cycle > 0.45) continue;
+        final t = cycle / 0.45;
+        final a = spin * 0.4 + i * (pi * 2 / 3);
+        final outDir = ui.Offset(cos(a), sin(a));
+        for (var j = 0; j < 3; j++) {
+          final reach = bodyR * (0.8 + j * 0.7) + descent * 0.12 * t;
+          canvas.drawCircle(
+            position + outDir * reach,
+            (2.2 + j * 1.1) * vs * (1 - t * 0.6),
+            ui.Paint()..color = vent.withValues(alpha: (1 - t) * 0.30),
+          );
+        }
       }
+      // A hot core showing the pressure still inside it.
+      canvas.drawCircle(
+        position,
+        bodyR * 0.55 * (0.85 + 0.15 * sin(time * 7.0)),
+        ui.Paint()..color = vent.withValues(alpha: 0.55 * pulse),
+      );
       break;
     case 'Earth':
       // Moon Drop — a genuine boulder: a heavy stone ring and a shed of
@@ -3963,18 +4243,26 @@ void _drawSkyfallMeteor(
       }
       break;
     case 'Mud':
-      // Quagmire Meteor — a sodden clod flinging fat globs. Mud's element
-      // colour is nearly black, so the accents carry a lifted tone or the
-      // whole cast disappears against space.
+      // Quagmire Meteor — a sodden clod flinging fat globs.
+      //
+      // The stroked circle round the body has gone. A drawn ring is the exact
+      // motif every other Let had already had removed for looking like a UI
+      // element, and on this one it read as a monocle.
+      //
+      // Mud's element colour is nearly black, so the globs carry a lifted tone
+      // or the whole cast disappears against space.
       final glob = ui.Color.lerp(color, const ui.Color(0xFFC79A6B), 0.55)!;
-      canvas.drawCircle(
-        position,
-        bodyR * 1.2,
-        ui.Paint()
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 1.1 * vs
-          ..color = glob.withValues(alpha: 0.6 * pulse),
-      );
+      // Wet mass clinging to the rock, lumpy and off-centre rather than a
+      // concentric outline.
+      for (var i = 0; i < 4; i++) {
+        final a = spin * 0.5 + i * (pi * 2 / 4);
+        final wobble = 0.75 + 0.25 * sin(time * 2.2 + i * 1.9);
+        canvas.drawCircle(
+          position + ui.Offset(cos(a), sin(a)) * bodyR * 0.72 * wobble,
+          bodyR * 0.52 * wobble,
+          ui.Paint()..color = glob.withValues(alpha: 0.42 * pulse),
+        );
+      }
       for (var i = 0; i < 4; i++) {
         final t = (time * 0.95 + i * 0.27) % 1.0;
         final p =
@@ -6030,51 +6318,139 @@ void drawDirectionalBloom({
   canvas.restore();
 }
 
-/// A wake that tapers, bows, and — critically — dissolves.
+/// A wake that flows.
 ///
-/// A single flat-alpha wedge ending in a hard point reads as cut paper: the
-/// eye sees a shape with an outline instead of hot gas thinning out. Three
-/// nested wedges, each filled with a head-to-tail alpha ramp that also runs
-/// white-hot at the head toward element colour at the tail, give the edge
-/// softness and the length a heat gradient.
-void drawTaperedTrail({
+/// The wedge this replaces was three nested triangles: straight sides, a blunt
+/// cut across the head and a hard point at the tail. Whatever colour went into
+/// it, the eye read cut paper — and because every Let wore the same wedge at
+/// the same angle, the family had one silhouette seventeen times over, and
+/// that silhouette was a slipstream, which is Mane's.
+///
+/// This is a ribbon instead. Its centreline meanders, its width bulges and
+/// pinches on the way down, and each layer carries its own phase so the
+/// stacked edges never agree on where the boundary is. Nothing in it is
+/// straight, which is the whole point: a falling mass drags a turbulent plume,
+/// and turbulence is what tells the eye this is smoke and not a shape.
+///
+/// Cost is the same class as the wedge — three filled paths and three linear
+/// gradients, no MaskFilter, no saveLayer, no Paint allocation. The samples
+/// are recomputed rather than buffered so nothing allocates per frame either.
+void drawPlumeWake({
   required ui.Canvas canvas,
   required ui.Offset head,
   required ui.Offset travelDir,
   required double length,
   required double headWidth,
   required ui.Color color,
+  required double time,
   double alpha = 0.34,
-  double bow = 0.0,
   ui.Color? hotColor,
   int layers = 3,
+  double seed = 0.0,
+  double waveAmplitude = 1.0,
+  double waveFrequency = 1.0,
 }) {
+  if (length <= 0.5 || headWidth <= 0.2) return;
   final perp = ui.Offset(-travelDir.dy, travelDir.dx);
   final hot =
       hotColor ?? ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.6)!;
+  // Sampled coarsely and then smoothed: the points are joined through their
+  // own midpoints with quadratic segments, so the outline is a continuous
+  // curve rather than a polyline. Straight segments between samples were
+  // visible as folds and corners on plumes this long, which put the hard
+  // edges straight back after all the work of bending the centreline.
+  const samples = 12;
+
   for (var l = 0; l < layers; l++) {
-    final f = 1.0 - l * 0.42;
-    final w = headWidth * (1.0 - l * 0.44);
-    final len = length * (1.0 - l * 0.22);
+    final layerAlpha = 1.0 - l * 0.34;
+    final w0 = headWidth * (1.0 - l * 0.30);
+    final len = length * (1.0 - l * 0.14);
+    // Each layer drifts on its own phase and swings a little wider than the
+    // one inside it, so the composite edge is broken instead of a single
+    // agreed-upon line. The time term makes the plume crawl.
+    final phase = seed * 1.7 + l * 2.3 - time * (1.6 + l * 0.35);
+    // Sway is a fraction of the plume's LENGTH, not its width. Scaling it off
+    // headWidth was the bug in the first pass: these wakes run five times
+    // longer than they are wide, so a width-derived wander was a couple of
+    // pixels over several hundred and the ribbon stayed visually straight.
+    // The per-layer spread is small on purpose. Widening it pushes the outer
+    // layers clear of the inner one and the wake stops being one plume with a
+    // broken edge and becomes two or three separate ribbons crossing.
+    final amp = len * 0.085 * waveAmplitude * (1.0 + l * 0.14);
     final tail = head - travelDir * len;
-    final mid = head - travelDir * (len * 0.5) + perp * bow;
-    final a = head + perp * w * 0.5;
-    final b = head - perp * w * 0.5;
-    final path = ui.Path()
-      ..moveTo(a.dx, a.dy)
-      ..quadraticBezierTo(
-        mid.dx + perp.dx * w * 0.25,
-        mid.dy + perp.dy * w * 0.25,
-        tail.dx,
-        tail.dy,
-      )
-      ..quadraticBezierTo(
-        mid.dx - perp.dx * w * 0.25,
-        mid.dy - perp.dy * w * 0.25,
-        b.dx,
-        b.dy,
-      )
-      ..close();
+
+    // Half-width and lateral offset at position [u] along the plume, where 0
+    // is the head and 1 the far tail.
+    double swayAt(double u) =>
+        sin(u * pi * 1.6 * waveFrequency + phase) * amp * u;
+    double halfWidthAt(double u) {
+      // Narrow where it meets the rock, widest a little way behind it, then
+      // falling away to nothing. Peaking at the head made an arrowhead — the
+      // plume has to look like it is pouring out from under the body, not
+      // like the body is the point of a dart.
+      final swell = sin(pi * (u * 0.62 + 0.10).clamp(0.0, 1.0));
+      final taper = swell * (1.0 - u * 0.55);
+      // Two harmonics that do not divide into each other, so the plume bulges
+      // and pinches at irregular intervals instead of scalloping evenly.
+      final lump =
+          1.0 +
+          0.34 * sin(u * pi * 2.4 * waveFrequency + phase * 1.3) +
+          0.18 * sin(u * pi * 5.3 * waveFrequency - phase * 0.7);
+      return w0 * 0.62 * taper * lump;
+    }
+
+    ui.Offset edge(double u, double side) {
+      final centre = head - travelDir * (len * u) + perp * swayAt(u);
+      return centre + perp * (halfWidthAt(u) * side);
+    }
+
+    // Walks one side of the plume as a smooth curve: each sampled point
+    // becomes the control handle for a quadratic that lands on the midpoint
+    // to the next one, which is the cheap standard way to round a polyline
+    // without fitting real splines.
+    void traceSide(ui.Path path, double side, bool forward) {
+      ui.Offset at(int i) => edge(i / samples, side);
+      if (forward) {
+        for (var i = 1; i < samples; i++) {
+          final c = at(i);
+          final n = at(i + 1);
+          path.quadraticBezierTo(
+            c.dx,
+            c.dy,
+            (c.dx + n.dx) * 0.5,
+            (c.dy + n.dy) * 0.5,
+          );
+        }
+        final last = at(samples);
+        path.lineTo(last.dx, last.dy);
+      } else {
+        for (var i = samples - 1; i > 0; i--) {
+          final c = at(i);
+          final n = at(i - 1);
+          path.quadraticBezierTo(
+            c.dx,
+            c.dy,
+            (c.dx + n.dx) * 0.5,
+            (c.dy + n.dy) * 0.5,
+          );
+        }
+        final last = at(0);
+        path.lineTo(last.dx, last.dy);
+      }
+    }
+
+    final path = ui.Path();
+    final first = edge(0, 1);
+    path.moveTo(first.dx, first.dy);
+    traceSide(path, 1, true);
+    traceSide(path, -1, false);
+    // The reverse trace ended on the far edge of the head; curve from there
+    // back to where it started, bulging slightly forward, so the plume closes
+    // under the body instead of butting into it with a straight cut.
+    final domeCtl = head + travelDir * w0 * 0.12;
+    path.quadraticBezierTo(domeCtl.dx, domeCtl.dy, first.dx, first.dy);
+    path.close();
+
     // Alpha ramps to nothing at the tail so the wake ends by dissolving, and
     // the colour cools from white-hot at the head to element at the far end.
     _shapePaint
@@ -6084,8 +6460,8 @@ void drawTaperedTrail({
         head,
         [
           color.withValues(alpha: 0.0),
-          color.withValues(alpha: alpha * f * 0.5),
-          hot.withValues(alpha: alpha * f),
+          color.withValues(alpha: alpha * layerAlpha * 0.5),
+          hot.withValues(alpha: alpha * layerAlpha),
         ],
         const [0.0, 0.6, 1.0],
       );
@@ -6141,3 +6517,350 @@ void drawSparkleGlints({
     canvas.drawPath(path, _shapePaint);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LET SKYFALL — the telegraph and the landing
+//
+// A Let meteor arrives from off-screen, so for most of its descent there is
+// nothing on screen to look at. The telegraph is what makes the cast readable:
+// it marks the committed impact point from the instant of the cast, tightens
+// as the rock closes, and is the only thing in any family that does this.
+//
+// Both painters are plain fills and strokes with at most one gradient each —
+// no MaskFilter, no saveLayer, no per-frame Paint allocation. Cost sits in the
+// same class as the meteor's own wake, and only one meteor is usually falling.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A blade: sharp at the nose, bellied forward, drawn out to a point at the
+/// tail. Curved sides, no straight edges anywhere.
+///
+/// The Mane core used to be [buildTumblingShardPath] squashed to a third of its
+/// width and spun on `time` — a long lumpy stick, rolling. That is the right
+/// treatment for a meteor, which genuinely tumbles, and exactly wrong for a
+/// shot whose whole identity is piercing: a blade that rolls in flight reads as
+/// a thrown chopstick, and a fan of them reads as a handful of them.
+///
+/// The belly sits forward of centre so the widest part of the shape is the part
+/// doing the cutting, and the tail runs long behind it. That asymmetry is what
+/// makes the silhouette point somewhere.
+ui.Path buildBladePath({
+  required ui.Offset centre,
+  required ui.Offset travelDir,
+  required double length,
+  required double width,
+  double bellyBias = 0.30,
+  double bank = 0.0,
+}) {
+  final len = travelDir.distance;
+  final dir = len > 0.01 ? travelDir / len : const ui.Offset(1, 0);
+  final perp = ui.Offset(-dir.dy, dir.dx);
+  final half = length * 0.5;
+  final nose = centre + dir * half;
+  final tail = centre - dir * half;
+  // Bank leans the blade off its travel axis a little, so a fan of them does
+  // not look like a set of identical parts stamped from one mould.
+  final lean = perp * (width * bank);
+  // Control points ride at the belly, forward of centre. A cubic rather than a
+  // quadratic so the nose can stay sharp while the tail still runs out long.
+  final c1Along = half * (1.0 - bellyBias * 0.6);
+  final c2Along = -half * bellyBias;
+
+  ui.Offset ctl(double along, double side) =>
+      centre + dir * along + perp * (width * side) + lean;
+
+  return ui.Path()
+    ..moveTo(nose.dx, nose.dy)
+    ..cubicTo(
+      ctl(c1Along, 1).dx,
+      ctl(c1Along, 1).dy,
+      ctl(c2Along, 1).dx,
+      ctl(c2Along, 1).dy,
+      tail.dx,
+      tail.dy,
+    )
+    ..cubicTo(
+      ctl(c2Along, -1).dx,
+      ctl(c2Along, -1).dy,
+      ctl(c1Along, -1).dx,
+      ctl(c1Along, -1).dy,
+      nose.dx,
+      nose.dy,
+    )
+    ..close();
+}
+
+/// The clump of energy wisps that rides behind a moving Mane blade.
+///
+/// This used to be real particles pushed into the shared ambient pool — two or
+/// three per projectile per frame. A Mane cast fans several projectiles at
+/// once, each living a second or more, so the emission rate outran the pool's
+/// drain rate and any cast at all pinned it at its ceiling for the whole
+/// flight. Everything else that wanted a particle and gated below that ceiling
+/// — hit sparks, kill bursts, zone wisps, meteor craters — silently got
+/// nothing for as long as a Mane was in the air.
+///
+/// Drawing the wisps instead fixes that at the root: the pool is untouched, so
+/// there is no budget to blow and nothing to starve. It also costs less than
+/// what it replaces (a handful of circles per blade, no allocation, no update
+/// step, no list churn), it is deterministic rather than random per frame, and
+/// because it lives in the projectile painter all three games get it — cosmic
+/// and the dungeon never had this trail at all.
+///
+/// Positions are hashed off [seed] and swept along a phase so the wisps appear
+/// to shed backwards and fade, the same read the particles gave.
+void drawManeTrailWisps({
+  required ui.Canvas canvas,
+  required ui.Offset position,
+  required ui.Offset travelDir,
+  required ui.Color color,
+  required double time,
+  required double scale,
+  double radiusMultiplier = 1.0,
+  double seed = 0.0,
+  int count = 7,
+}) {
+  final len = travelDir.distance;
+  final dir = len > 0.01 ? travelDir / len : const ui.Offset(1, 0);
+  final perp = ui.Offset(-dir.dy, dir.dx);
+  final whiteMix = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
+  // Same clump width the particle version used, so the trail reads at the
+  // size it always did.
+  final clumpR = (4.0 + scale * 4.0 + radiusMultiplier * 6.0).clamp(4.0, 28.0);
+
+  for (var i = 0; i < count; i++) {
+    // Deterministic scatter — no per-frame Random, so the clump does not
+    // shimmer between frames the way randomly respawned particles did.
+    final h1 = sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453;
+    final h2 = sin((i + 1) * 39.3468 + seed * 11.135) * 24634.6345;
+    final u = h1 - h1.floorToDouble();
+    final v = h2 - h2.floorToDouble();
+    // Each wisp runs its own shed cycle: born at the blade, drifting back and
+    // fading out, then recycling. Staggered so they do not pulse in unison.
+    final t = (time * (1.5 + u * 0.9) + u * 3.1 + seed) % 1.0;
+    final fade = 1.0 - t;
+    if (fade <= 0.05) continue;
+    final lateral = (v - 0.5) * 2.0;
+    final centre =
+        position -
+        dir * (clumpR * 1.2 * t * 2.2) +
+        perp * lateral * clumpR * (0.35 + t * 0.9);
+    final r = (1.3 + v * 1.4) * fade;
+    if (r < 0.2) continue;
+    _shapePaint.color = (i.isEven ? color : whiteMix).withValues(
+      alpha: fade * 0.62,
+    );
+    canvas.drawCircle(centre, r, _shapePaint);
+  }
+}
+
+/// How many ambient particles ONE Mane cast's trail may hold at a time.
+///
+/// The pool the trail draws from tops out around 150 and is shared with every
+/// other effect in the game. A Mane cast fans up to sixteen projectiles, and
+/// the trail used to emit two or three particles per projectile per frame —
+/// so a single wide cast claimed the entire pool within a few frames and held
+/// it for the projectiles' whole flight, leaving nothing for hit sparks, kill
+/// bursts, zone wisps or meteor craters.
+///
+/// This is the cap for the cast as a whole, deliberately not per projectile:
+/// what the trail costs must not depend on how wide the fan is.
+const int kManeTrailParticleBudget = 48;
+
+/// One Let meteor landing, alive just long enough to show the crater open.
+///
+/// Lives here rather than in any one game so all three hold the identical
+/// struct and hand it to the identical painter — the same arrangement the
+/// ability particle pool uses, and the reason the three modes stopped drifting
+/// apart on ability art in the first place.
+class LetSkyfallImpact {
+  LetSkyfallImpact({
+    required this.position,
+    required this.color,
+    required this.radius,
+    this.duration = 0.42,
+  }) : age = 0;
+
+  final ui.Offset position;
+  final ui.Color color;
+  final double radius;
+  final double duration;
+  double age;
+
+  /// 0 at touchdown, 1 when the flash is spent.
+  double get t => (age / duration).clamp(0.0, 1.0);
+  bool get dead => age >= duration;
+}
+
+/// Advances a game's list of craters and drops the spent ones. Each game owns
+/// the list; the stepping and the painting are shared.
+void updateLetSkyfallImpacts(List<LetSkyfallImpact> impacts, double dt) {
+  if (impacts.isEmpty) return;
+  for (final impact in impacts) {
+    impact.age += dt;
+  }
+  impacts.removeWhere((impact) => impact.dead);
+}
+
+/// Adds one crater, evicting the oldest if the (deliberately small) cap is hit.
+void pushLetSkyfallImpact(
+  List<LetSkyfallImpact> impacts,
+  LetSkyfallImpact impact, {
+  int cap = 6,
+}) {
+  if (impacts.length >= cap) impacts.removeAt(0);
+  impacts.add(impact);
+}
+
+/// The ground mark under an incoming meteor.
+///
+/// [progress] runs 0 at the cast to 1 at the landing. The outer ring contracts
+/// onto the impact point over that span, which is the "incoming" read — a
+/// static ring says "something is here", a closing one says "something is
+/// arriving, and this is when".
+///
+/// Deliberately quiet. This is a mark the player reads at a glance in the
+/// middle of a fight, not a light show: a wide bright telegraph competes with
+/// the meteor it is announcing and washes out the arena underneath it.
+void drawLetSkyfallTelegraph({
+  required ui.Canvas canvas,
+  required ui.Offset centre,
+  required ui.Color color,
+  required double radius,
+  required double progress,
+  required double time,
+  bool reduceAmbient = false,
+}) {
+  final t = progress.clamp(0.0, 1.0);
+  // Fades up quickly at the start so the cast registers immediately, then
+  // holds. A telegraph that eases in over the whole descent is invisible for
+  // exactly the window in which it is useful.
+  final presence = (t * 4.2).clamp(0.0, 1.0);
+  final hot = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.45)!;
+
+  // A stain on the ground, no wider than the crater it predicts. One radial
+  // gradient rather than a stack of flat discs, so the edge dissolves instead
+  // of banding.
+  final stainR = radius * (1.20 - 0.22 * t);
+  _shapePaint
+    ..color = const ui.Color(0xFFFFFFFF)
+    ..shader = ui.Gradient.radial(centre, stainR, [
+      color.withValues(alpha: (0.16 + 0.14 * t) * presence),
+      color.withValues(alpha: (0.07 + 0.08 * t) * presence),
+      color.withValues(alpha: 0.0),
+    ], const [0.0, 0.62, 1.0]);
+  canvas.drawCircle(centre, stainR, _shapePaint);
+  _shapePaint.shader = null;
+
+  // The closing ring. Starts just wide of the crater and settles onto its rim
+  // — close enough that it always reads as belonging to this mark, rather
+  // than as a loose arc drawn somewhere near it.
+  final ringR = radius * (1.24 - 0.26 * t);
+  _shapeStrokePaint
+    ..color = hot.withValues(alpha: (0.18 + 0.38 * t) * presence)
+    ..strokeWidth = 1.0 + 1.2 * t;
+  canvas.drawCircle(centre, ringR, _shapeStrokePaint);
+
+  // Three short marks riding the ring, turning slowly. Enough to read as a
+  // struck sigil rather than a targeting reticle, and the rotation keeps the
+  // mark alive while the ring is still far out and barely moving.
+  if (!reduceAmbient) {
+    final spin = time * 0.9 + t * 1.6;
+    _shapeStrokePaint
+      ..color = hot.withValues(alpha: (0.26 + 0.38 * t) * presence)
+      ..strokeWidth = 1.3 + 0.9 * t;
+    for (var i = 0; i < 3; i++) {
+      final a = spin + i * (pi * 2 / 3);
+      final d = ui.Offset(cos(a), sin(a));
+      canvas.drawLine(
+        centre + d * (ringR - radius * 0.10),
+        centre + d * (ringR + radius * 0.10),
+        _shapeStrokePaint,
+      );
+    }
+  }
+
+  // The rock's own shadow, swelling as it drops. This is the part that sells
+  // height: the ring says where, the shadow says how close.
+  final shadowR = radius * (0.08 + 0.28 * t * t);
+  _shapePaint.color = const ui.Color(
+    0xFF000000,
+  ).withValues(alpha: 0.34 * presence * t);
+  canvas.drawCircle(centre, shadowR, _shapePaint);
+  _shapePaint.color = hot.withValues(alpha: 0.30 * presence * t * t);
+  canvas.drawCircle(centre, shadowR * 0.5, _shapePaint);
+}
+
+/// The landing. [age] runs 0 at touchdown to 1 when the flash is spent.
+///
+/// Round, not squashed. The arena is seen from directly overhead, so a crater
+/// is a circle — an oval reads as an eye staring up out of the floor, which is
+/// what the first pass at this looked like.
+///
+/// Kept thin and brief on purpose. The debris particles the same landing
+/// throws carry most of the punch; what is drawn here is the flash and the
+/// shock leaving it, and anything heavier turns every impact into a sticker.
+void drawLetSkyfallImpact({
+  required ui.Canvas canvas,
+  required ui.Offset centre,
+  required ui.Color color,
+  required double radius,
+  required double age,
+  bool reduceAmbient = false,
+}) {
+  final t = age.clamp(0.0, 1.0);
+  final fade = 1.0 - t;
+  if (fade <= 0.01) return;
+  final hot = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.72)!;
+
+  // White core, gone almost at once. The punch.
+  final flash = fade * fade * fade;
+  final coreR = radius * (0.55 - 0.34 * t);
+  if (coreR > 0.5 && flash > 0.01) {
+    _shapePaint
+      ..color = const ui.Color(0xFFFFFFFF)
+      ..shader = ui.Gradient.radial(centre, coreR, [
+        const ui.Color(0xFFFFFFFF).withValues(alpha: 0.95 * flash),
+        hot.withValues(alpha: 0.50 * flash),
+        color.withValues(alpha: 0.0),
+      ], const [0.0, 0.40, 1.0]);
+    canvas.drawCircle(centre, coreR, _shapePaint);
+    _shapePaint.shader = null;
+  }
+
+  // The shock leaving the crater: one thin ring, out fast and gone. Kept
+  // mostly element-coloured — mixing it hot turned every neutral element's
+  // ring into the same grey hoop, which read as a UI pulse rather than fire,
+  // water or stone leaving a crater.
+  final rim = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.25)!;
+  final shockR = radius * (0.38 + 0.78 * _easeOutFast(t));
+  _shapeStrokePaint
+    ..color = rim.withValues(alpha: 0.55 * fade * fade)
+    ..strokeWidth = (radius * 0.05 + 0.8) * fade;
+  canvas.drawCircle(centre, shockR, _shapeStrokePaint);
+
+  if (!reduceAmbient) {
+    // A fainter second front trailing the first, so the shock has depth
+    // rather than being one travelling hoop.
+    final innerR = radius * (0.24 + 0.54 * _easeOutFast(t));
+    _shapeStrokePaint
+      ..color = color.withValues(alpha: 0.32 * fade * fade)
+      ..strokeWidth = (radius * 0.035 + 0.6) * fade;
+    canvas.drawCircle(centre, innerR, _shapeStrokePaint);
+  }
+
+  // Scorch on the ground under it all. Faint — the element's own zone art is
+  // what marks the crater from here on, and doubling up muddies both.
+  _shapePaint
+    ..color = const ui.Color(0xFFFFFFFF)
+    ..shader = ui.Gradient.radial(centre, radius * 0.86, [
+      color.withValues(alpha: 0.22 * fade),
+      color.withValues(alpha: 0.07 * fade),
+      color.withValues(alpha: 0.0),
+    ], const [0.0, 0.55, 1.0]);
+  canvas.drawCircle(centre, radius * 0.86, _shapePaint);
+  _shapePaint.shader = null;
+}
+
+/// Fast out of the gate, long tail. Impacts read wrong on a linear ramp — the
+/// energy has to be spent almost immediately and then coast.
+double _easeOutFast(double t) => 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t);

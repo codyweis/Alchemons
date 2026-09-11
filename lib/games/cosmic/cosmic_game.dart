@@ -506,6 +506,10 @@ class CosmicGame extends FlameGame with PanDetector {
   int? get _primaryCompanionSlot =>
       activeCompanions.isEmpty ? null : activeCompanions.keys.first;
   final List<Projectile> companionProjectiles = [];
+
+  // Let meteor craters. Shared struct + shared painter, so open space draws
+  // the identical landing survival and the dungeon do.
+  final List<LetSkyfallImpact> _letSkyfallImpacts = [];
   final List<_BeamFx> _beamFx = [];
   final List<_ActiveWingBeam> _activeWingBeams = [];
   final List<_ActiveWingBeam> _pendingWingBeams = [];
@@ -2478,6 +2482,7 @@ class CosmicGame extends FlameGame with PanDetector {
     super.update(dt);
     _elapsed += dt;
     _updateOpenWingBeams(dt);
+    updateLetSkyfallImpacts(_letSkyfallImpacts, dt);
 
     // ── zoom animation ──
     if (!_zoomAnimComplete) {
@@ -4445,18 +4450,29 @@ class CosmicGame extends FlameGame with PanDetector {
         final a = target != null
             ? atan2(target.dy - center.dy, target.dx - center.dx)
             : source.angle + (mi - 2) * 0.42;
+        // The follow-ups fall too. Per design this is a bombardment, and a
+        // volley of sideways meteors next to a parent that dropped from the
+        // sky would look like two different abilities. Staggered so they
+        // arrive as a rolling barrage rather than one simultaneous thud.
+        final aim = target ?? center + Offset(cos(a), sin(a)) * 180.0;
+        final drop = letSkyfallDrop(aim, a, timeScale: 0.72 + mi * 0.16);
         companionProjectiles.add(
           Projectile(
-            position: center - Offset(cos(a), sin(a)) * (46.0 + mi * 8.0),
-            angle: a,
+            position: drop.position,
+            angle: drop.angle,
             element: 'Dark',
             damage: source.damage * 0.62,
-            life: 1.6,
-            speedMultiplier: 0.82,
+            life: drop.duration + 0.4,
+            speedMultiplier: 0,
+            skyfallDuration: drop.duration,
+            skyfallImpact: aim,
+            skyfallDistance: drop.distance,
+            // Thrown at a place, not a body — see Projectile.skyfallTracks.
+            skyfallTracks: false,
             radiusMultiplier: max(2.8, source.radiusMultiplier * 1.45),
             visualScale: max(2.8, source.visualScale * 1.35),
             visualStyle: ProjectileVisualStyle.meteor,
-            homing: target != null,
+            homing: false,
             homingStrength: 2.4,
             sourceSlotIndex: source.sourceSlotIndex,
             abilityFamily: 'let',
@@ -4598,11 +4614,16 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
+    /// Kill-gated: every element here is authored "if the meteor kills". Air
+    /// is the one deliberate exception and fires on any hit, because its
+    /// knockback is the cast's crowd control. See the survival implementation.
     void resolveLetMeteorImpactAftermath(
       Projectile projectile,
       Offset center, {
       CosmicEnemy? primary,
+      required bool killed,
     }) {
+      if (!killed && projectile.element != 'Air') return;
       final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
       switch (projectile.element) {
         case 'Air':
@@ -4715,7 +4736,11 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    void resolveLetMeteorHit(Projectile projectile, CosmicEnemy enemy) {
+    void resolveLetMeteorHit(
+      Projectile projectile,
+      CosmicEnemy enemy, {
+      required bool killed,
+    }) {
       final isMeteorCore = CosmicAbilityRuntime.isLetMeteorCore(projectile);
       switch (projectile.element) {
         case 'Dust':
@@ -4829,6 +4854,7 @@ class CosmicGame extends FlameGame with PanDetector {
         projectile,
         enemy.position,
         primary: enemy,
+        killed: killed || enemy.dead || enemy.health <= 0,
       );
     }
 
@@ -4838,6 +4864,7 @@ class CosmicGame extends FlameGame with PanDetector {
           projectile,
           enemy.position,
           primary: enemy,
+          killed: true,
         );
         return;
       }
@@ -4851,7 +4878,7 @@ class CosmicGame extends FlameGame with PanDetector {
       required bool killed,
     }) {
       if (projectile.abilityFamily == 'let') {
-        resolveLetMeteorHit(projectile, enemy);
+        resolveLetMeteorHit(projectile, enemy, killed: killed);
         return;
       }
       resolveAbilityEffect(projectile.hitEffect, projectile, enemy);
@@ -4951,9 +4978,102 @@ class CosmicGame extends FlameGame with PanDetector {
       resolveAbilityEffect(projectile.pierceEffect, projectile, enemy);
     }
 
+    /// The live position a descending Let meteor keeps itself aimed at,
+    /// leashed to the neighbourhood of the point it was committed to.
+    Offset? liveSkyfallTarget(Projectile p) {
+      final leash = letSkyfallBlastRadius(p) + 140.0;
+      final centre = p.skyfallImpact;
+      var bestSq = leash * leash;
+      Offset? best;
+      for (final enemy in enemies) {
+        if (enemy.dead || enemy.health <= 0) continue;
+        final d = enemy.position - centre;
+        final dSq = d.dx * d.dx + d.dy * d.dy;
+        if (dSq < bestSq) {
+          bestSq = dSq;
+          best = enemy.position;
+        }
+      }
+      return best;
+    }
+
+    /// A Let meteor touching down. Full damage to the body it lands on, a
+    /// reduced share to everything else in the crater, and the element's
+    /// ground effects whether or not anything was standing there.
+    void detonateLetSkyfall(Projectile p) {
+      final centre = p.skyfallImpact;
+      final blast = letSkyfallBlastRadius(p);
+      pushLetSkyfallImpact(
+        _letSkyfallImpacts,
+        LetSkyfallImpact(
+          position: centre,
+          color: elementColor(p.element ?? 'Fire'),
+          radius: blast,
+        ),
+      );
+
+      CosmicEnemy? primary;
+      var bestSq = blast * blast;
+      for (final enemy in enemies) {
+        if (enemy.dead || enemy.health <= 0) continue;
+        final d = enemy.position - centre;
+        final dSq = d.dx * d.dx + d.dy * d.dy;
+        if (dSq < bestSq) {
+          bestSq = dSq;
+          primary = enemy;
+        }
+      }
+
+      final struck = primary;
+      // The crater catches everything in it whether or not there was a body at
+      // the centre. Routed through damageEnemiesNear so kills keep running the
+      // loot and vfx that lives inside it.
+      // Who is in the crater before it goes off, so the kill gate counts
+      // bodies finished by the splash as well as by the direct hit.
+      final inBlast = <CosmicEnemy>[
+        for (final enemy in enemies)
+          if (!enemy.dead &&
+              enemy.health > 0 &&
+              (enemy.position - centre).distance <= blast)
+            enemy,
+      ];
+      damageEnemiesNear(
+        centre,
+        blast,
+        p.damage * kLetSkyfallSplashShare,
+        exclude: struck,
+      );
+      if (struck != null) {
+        damageEnemiesNear(struck.position, 0.5, p.damage);
+        resolveLetMeteorHit(
+          p,
+          struck,
+          killed: inBlast.any((enemy) => enemy.dead || enemy.health <= 0),
+        );
+      }
+      // No aftermath when nothing was struck — those behaviours are kill-gated
+      // by design. See the survival implementation.
+      p.life = 0;
+    }
+
     for (var i = companionProjectiles.length - 1; i >= 0; i--) {
       final p = companionProjectiles[i];
       var transferringToShip = false;
+
+      // Let meteors fall. A descending meteor takes no collisions, lays no
+      // trail and does not age — everything it does happens when it lands.
+      if (p.isDescending) {
+        final landed = CosmicAbilityRuntime.advanceSkyfall(
+          p,
+          dt,
+          p.skyfallTracks ? liveSkyfallTarget(p) : null,
+        );
+        if (landed) {
+          detonateLetSkyfall(p);
+          companionProjectiles.removeAt(i);
+        }
+        continue;
+      }
 
       if (p.transferToShipOrbit && !p.followShipOrbit) {
         if (p.shipOrbitDelay > 0) {
@@ -9294,6 +9414,36 @@ class CosmicGame extends FlameGame with PanDetector {
         op,
         3,
         Paint()..color = const Color(0xFFBBDEFB).withValues(alpha: a),
+      );
+    }
+
+    // ── incoming Let meteors: the ground they are committed to ──
+    // Before the projectiles themselves, so the mark sits under everything.
+    for (final cp in companionProjectiles) {
+      if (!cp.isDescending) continue;
+      final mark = cp.skyfallImpact;
+      if ((mark.dx - cx - screenW / 2).abs() > screenW ||
+          (mark.dy - cy - screenH / 2).abs() > screenH) {
+        continue;
+      }
+      drawLetSkyfallTelegraph(
+        canvas: canvas,
+        centre: mark,
+        color: elementColor(cp.element ?? 'Fire'),
+        radius: letSkyfallBlastRadius(cp),
+        progress: cp.skyfallProgress,
+        time: _elapsed,
+      );
+    }
+
+    // ── Let meteor craters ──
+    for (final impact in _letSkyfallImpacts) {
+      drawLetSkyfallImpact(
+        canvas: canvas,
+        centre: impact.position,
+        color: impact.color,
+        radius: impact.radius,
+        age: impact.t,
       );
     }
 

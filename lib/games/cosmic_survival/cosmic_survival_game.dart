@@ -957,6 +957,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // VFX particles
   final List<_VfxParticle> _vfx = [];
   final List<_BeamFx> _beamFx = [];
+
+  /// Live ambient-particle count. Exposed so the particle budget can be
+  /// asserted in tests — the pool is a shared resource every effect competes
+  /// for, and the competition is invisible from outside without this.
+  @visibleForTesting
+  int get vfxParticleCount => _vfx.length;
+
+  // Let meteor craters. One entry per landing, alive for a fraction of a
+  // second. Kept as plain state rather than projectiles because nothing about
+  // them interacts — they are purely the punch at the end of a descent. The
+  // painter lives in the shared vfx module so cosmic and the dungeon draw the
+  // identical landing.
+  final List<LetSkyfallImpact> _letSkyfallImpacts = [];
   int _timeDilationWave = 0;
   double _timeDilationTimer = 0;
   double _timeDilationSlowFactor = 1.0;
@@ -1082,6 +1095,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     (world.dx - camX) * _currentZoom,
     (world.dy - camY) * _currentZoom,
   );
+
+  /// Whether a world point is inside the visible area, with [margin] world
+  /// units of slack. Used to skip ambient work for things off camera.
+  bool _isOnScreen(Offset world, double margin) {
+    final viewW = size.x / _currentZoom;
+    final viewH = size.y / _currentZoom;
+    return world.dx >= camX - margin &&
+        world.dx <= camX + viewW + margin &&
+        world.dy >= camY - margin &&
+        world.dy <= camY + viewH + margin;
+  }
 
   void _emitMysticSpecialCast({
     required CosmicSurvivalCompanion companion,
@@ -5969,7 +5993,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     required bool killed,
   }) {
     if (projectile.abilityFamily == 'let') {
-      _resolveLetMeteorHit(projectile, enemy);
+      _resolveLetMeteorHit(projectile, enemy, killed: killed);
       return;
     }
     if (projectile.abilityFamily == 'mask') {
@@ -7368,6 +7392,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         projectile,
         enemy.position,
         primary: enemy,
+        killed: true,
       );
       return;
     }
@@ -7382,7 +7407,177 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
   }
 
-  void _resolveLetMeteorHit(Projectile projectile, CosmicSurvivalEnemy enemy) {
+  /// The live position the descending meteor should keep itself aimed at, or
+  /// null to let it land where it was already committed.
+  ///
+  /// Leashed on purpose: the drop tracks whatever is standing near the point
+  /// it was aimed at, and nothing else. Without the leash a meteor whose
+  /// original target died mid-fall would swing across the field to whoever
+  /// happened to be nearest, which looks like a guided missile and makes the
+  /// telegraph a lie.
+  Offset? _liveSkyfallTarget(Projectile p) {
+    final leash = letSkyfallBlastRadius(p) + 140.0;
+    final centre = p.skyfallImpact;
+    double bestSq = leash * leash;
+    Offset? best;
+    _visitEnemiesNear(centre, leash, (enemy) {
+      if (enemy.isDead) return false;
+      final dSq = _distanceSquared(enemy.position, centre);
+      if (dSq < bestSq) {
+        bestSq = dSq;
+        best = enemy.position;
+      }
+      return false;
+    });
+    for (final boss in allLivingBosses) {
+      final dSq = _distanceSquared(boss.position, centre);
+      if (dSq < bestSq) {
+        bestSq = dSq;
+        best = boss.position;
+      }
+    }
+    return best;
+  }
+
+  /// A few sparks shed off the meteor on the way down, so the descent has
+  /// something moving in it before the impact does the talking. Bounded and
+  /// skipped entirely when the particle pool is busy.
+  void _spawnLetDescentEmbers(Projectile p) {
+    if (_reduceAmbientVfx || _vfx.length >= 120) return;
+    // Only once the meteor is most of the way down and actually on screen —
+    // shedding embers from off-screen is pure cost.
+    if (p.skyfallProgress < 0.35) return;
+    if (!_isOnScreen(p.position, 80)) return;
+    final ec = elementColor(p.element ?? 'Fire');
+    final dir = Offset(cos(p.angle), sin(p.angle));
+    final a = p.angle + pi + (_rng.nextDouble() - 0.5) * 0.8;
+    final spd = 30 + _rng.nextDouble() * 70;
+    _vfx.add(
+      _VfxParticle(
+        x: p.position.dx - dir.dx * 6,
+        y: p.position.dy - dir.dy * 6,
+        vx: cos(a) * spd,
+        vy: sin(a) * spd,
+        size: 1.6 + _rng.nextDouble() * 2.0,
+        life: 0.22 + _rng.nextDouble() * 0.26,
+        color: ec.withValues(alpha: 0.85),
+      ),
+    );
+  }
+
+  /// The crater, the debris and the sound of a meteor arriving.
+  void _spawnLetSkyfallImpactVfx(Projectile p, Offset centre, double blast) {
+    onSound?.call(SoundCue.combatHitHeavy);
+    pushLetSkyfallImpact(
+      _letSkyfallImpacts,
+      LetSkyfallImpact(
+        position: centre,
+        color: elementColor(p.element ?? 'Fire'),
+        radius: blast,
+      ),
+    );
+    _spawnDetonationBurst(centre, elementColor(p.element ?? 'Fire'), blast);
+  }
+
+  /// The landing. Everything a Let does happens here.
+  ///
+  /// The old meteor was consumed by the first body it flew into, so a cast
+  /// that reached nobody did nothing at all. A meteor that falls always
+  /// arrives: it cracks the ground it lands on, catches whatever is standing
+  /// in the crater, and leaves the element's mark either way.
+  void _detonateLetSkyfall(Projectile p) {
+    final centre = p.skyfallImpact;
+    final blast = letSkyfallBlastRadius(p);
+    _spawnLetSkyfallImpactVfx(p, centre, blast);
+
+    // The body nearest the point of impact takes the meteor itself; it is the
+    // one the element's on-collide behaviour resolves against.
+    CosmicSurvivalEnemy? primary;
+    double bestSq = blast * blast;
+    _visitEnemiesNear(centre, blast, (enemy) {
+      if (enemy.isDead) return false;
+      final dSq = _distanceSquared(enemy.position, centre);
+      if (dSq < bestSq) {
+        bestSq = dSq;
+        primary = enemy;
+      }
+      return false;
+    });
+
+    // A boss standing in the crater eats the impact too — it just is not
+    // eligible to be the "primary" body, since the per-element contact
+    // switch is written against ordinary enemies.
+    for (final boss in allLivingBosses) {
+      if (_distanceSquared(boss.position, centre) > blast * blast) continue;
+      damageBoss(
+        p.damage,
+        attackElement: p.element,
+        sourceSlotIndex: p.sourceSlotIndex,
+        target: boss,
+      );
+    }
+
+    final struck = primary;
+    // Everything in the crater is caught at a reduced share — including when
+    // the meteor came down on a boss and there is no ordinary "primary" body.
+    // Leaving this inside the struck branch was a real loss of power: a Let
+    // dropped onto a boss surrounded by adds touched none of them, where the
+    // old flat-flying meteor at least clipped whatever it passed through.
+    // Snapshot who is standing in the crater before anything detonates, so the
+    // kill-gated aftermath can be judged on what the METEOR killed — including
+    // bodies finished by the splash rather than by the direct hit. "The meteor
+    // killed something" is the design's condition, and the splash is the
+    // meteor.
+    final inBlast = <CosmicSurvivalEnemy>[];
+    _visitEnemiesNear(centre, blast, (enemy) {
+      if (enemy.isDead) return false;
+      if (_distanceSquared(enemy.position, centre) <= blast * blast) {
+        inBlast.add(enemy);
+      }
+      return false;
+    });
+
+    _damageEnemiesNear(
+      centre,
+      blast,
+      p.damage * kLetSkyfallSplashShare,
+      sourceSlotIndex: p.sourceSlotIndex,
+      exclude: struck,
+    );
+    if (struck != null) {
+      _damageEnemy(struck, p.damage, sourceSlotIndex: p.sourceSlotIndex);
+      final killedInCrater = inBlast.any((enemy) => enemy.isDead);
+      // Runs the per-element contact behaviour, and the kill-gated aftermath
+      // only if the crater actually claimed someone.
+      _resolveLetMeteorHit(p, struck, killed: killedInCrater);
+    }
+    // Nothing underneath it: nothing collided and nothing died, so no
+    // per-element effect fires. An earlier version of this ran the aftermath
+    // here so a Let on open ground "still left its mark" — but the aftermath
+    // is where the KILL-gated behaviours live, and the design gates every one
+    // of them on the meteor killing something. It handed a Dark Let landing on
+    // empty ground a free bombardment of five follow-up meteors, Fire a free
+    // 555-radius explosion, and Light a free healing pool. The splash above
+    // still lands on anything caught in the crater; the rest has to be earned.
+
+    p.life = 0;
+  }
+
+  /// The meteor's per-element contact behaviour, plus — only when it actually
+  /// killed — the kill-gated aftermath.
+  ///
+  /// [killed] used to be ignored entirely: `resolveAbilityHit` took the flag
+  /// and the `let` branch returned before ever reading it, so the aftermath
+  /// ran on every hit. Eight of the seventeen Lets have their whole identity
+  /// in there and every one of them is written "if the meteor kills" — Dark
+  /// most consequentially, since it throws five more meteors. Firing those on
+  /// a graze rather than a kill was the difference between a finisher and a
+  /// damage engine.
+  void _resolveLetMeteorHit(
+    Projectile projectile,
+    CosmicSurvivalEnemy enemy, {
+    required bool killed,
+  }) {
     final element = projectile.element ?? '';
     // Only the meteor core leaves a persistent elemental pool. The
     // spread secondaries (haboob grains, lances, shards) are piercing /
@@ -7529,18 +7724,33 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       default:
         break;
     }
+    // Re-read the enemy rather than trusting the flag alone: a few contact
+    // behaviours deal damage of their own (Spirit's execute above all), so the
+    // impact can finish something the initial hit did not.
     _resolveLetMeteorImpactAftermath(
       projectile,
       enemy.position,
       primary: enemy,
+      killed: killed || enemy.isDead,
     );
   }
 
+  /// The kill-gated half of a Let impact.
+  ///
+  /// Every element in this switch is authored "if the meteor kills" — vines,
+  /// geysers, healing pools, Dark's bombardment. [killed] enforces that.
+  ///
+  /// Air is the one deliberate exception and does NOT require a kill: its
+  /// knockback is the cast's crowd control, and a shove that only lands when
+  /// the meteor also happens to finish something is not something a player can
+  /// plan around. Authored choice, not an oversight — do not "fix" it.
   void _resolveLetMeteorImpactAftermath(
     Projectile projectile,
     Offset center, {
     CosmicSurvivalEnemy? primary,
+    required bool killed,
   }) {
+    if (!killed && projectile.element != 'Air') return;
     // Only the meteor core leaves persistent zones. Without this,
     // a piercing/bouncing spread secondary that kills several enemies
     // would stack one full set of zones per hit.
@@ -7954,20 +8164,30 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final a = target != null
           ? atan2(target.dy - center.dy, target.dx - center.dx)
           : source.angle + (i - 2) * 0.42;
-      final spawn = center - Offset(cos(a), sin(a)) * (46.0 + i * 8.0);
+      // The follow-ups fall too. Per design this is a bombardment, and a
+      // volley of sideways meteors beside a parent that dropped out of the
+      // sky would read as two different abilities. Staggered so they land as
+      // a rolling barrage rather than one simultaneous thud.
+      final aim = target ?? center + Offset(cos(a), sin(a)) * 180.0;
+      final drop = letSkyfallDrop(aim, a, timeScale: 0.72 + i * 0.16);
       _appendCompanionProjectile(
         Projectile(
-          position: spawn,
-          angle: a,
+          position: drop.position,
+          angle: drop.angle,
           element: 'Dark',
           damage: source.damage * 0.7,
-          life: 1.8,
-          speedMultiplier: 0.82,
+          life: drop.duration + 0.4,
+          speedMultiplier: 0,
+          skyfallDuration: drop.duration,
+          skyfallImpact: aim,
+          skyfallDistance: drop.distance,
+          // Thrown at a place, not at a body — see Projectile.skyfallTracks.
+          skyfallTracks: false,
           // "Twice as big" per design.
           radiusMultiplier: max(3.5, source.radiusMultiplier * 2.0),
           visualScale: max(3.5, source.visualScale * 2.0),
           visualStyle: ProjectileVisualStyle.meteor,
-          homing: target != null,
+          homing: false,
           homingStrength: 2.4,
           sourceSlotIndex: source.sourceSlotIndex,
           abilityFamily: 'let',
@@ -10396,50 +10616,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final p = companionProjectiles[i];
       var transferringToOrbit = false;
 
-      // Moving Mane projectiles — trailing particle clump so they
-      // read as a flying cluster of energy instead of a drawn
-      // missile shape. Element-colored wisps drift slightly back
-      // along the projectile's path. Spawn rate scales with the
-      // projectile's visual size.
-      if (p.abilityFamily == 'mane' &&
-          !p.stationary &&
-          p.visualStyle == ProjectileVisualStyle.slash &&
-          _vfx.length < 135) {
-        final ec = elementColor(p.element ?? 'Fire');
-        final whiteMix = Color.lerp(ec, const Color(0xFFFFFFFF), 0.55)!;
-        // Travel direction so wisps trail behind.
-        final dirVec = Offset(cos(p.angle), sin(p.angle));
-        final perpVec = Offset(-dirVec.dy, dirVec.dx);
-        // Spawn radius scales with the projectile's visual scale +
-        // radius multiplier (bigger projectile = bigger clump).
-        final clumpR = (4.0 + p.visualScale * 4.0 + p.radiusMultiplier * 6.0)
-            .clamp(4.0, 28.0);
-        // 2 wisps per frame for normal-size, 3 for big projectiles.
-        final spawnN = p.visualScale > 1.6 ? 3 : 2;
-        for (var i = 0; i < spawnN; i++) {
-          // Random offset within the clump (slight perpendicular bias).
-          final t = _rng.nextDouble() * 2 - 1; // -1..1
-          final back = _rng.nextDouble() * 0.9; // 0..0.9
-          final spawn =
-              p.position + perpVec * t * clumpR - dirVec * back * clumpR * 1.2;
-          // Velocity drifts mostly backward + small lateral wander.
-          final vx =
-              -dirVec.dx * (20 + _rng.nextDouble() * 30) + perpVec.dx * t * 22;
-          final vy =
-              -dirVec.dy * (20 + _rng.nextDouble() * 30) + perpVec.dy * t * 22;
-          _vfx.add(
-            _VfxParticle(
-              x: spawn.dx,
-              y: spawn.dy,
-              vx: vx,
-              vy: vy,
-              size: 1.3 + _rng.nextDouble() * 1.4,
-              life: 0.30 + _rng.nextDouble() * 0.30,
-              color: i.isEven ? ec : whiteMix,
-            ),
-          );
-        }
+      // Let meteors fall. A descending meteor is not in play yet: it takes no
+      // collisions, lays no trail, does no homing, and does not age. It is
+      // somewhere above the field on its way to a committed impact point, and
+      // everything it does happens when it lands.
+      if (p.isDescending) {
+        _spawnLetDescentEmbers(p);
+        final landed = CosmicAbilityRuntime.advanceSkyfall(
+          p,
+          dt,
+          p.skyfallTracks ? _liveSkyfallTarget(p) : null,
+        );
+        if (landed) _detonateLetSkyfall(p);
+        continue;
       }
+
+      // The Mane blade's trailing wisp clump used to be spawned here, two or
+      // three real particles per projectile per frame. It is drawn by the
+      // shared projectile painter now (drawManeTrailWisps) — the emission rate
+      // outran the ambient pool's drain rate, so any Mane cast in flight held
+      // the pool at its ceiling and starved every other effect in the game.
 
       // Mane+Dark: the slow void bolt constantly pulls nearby enemies
       // toward its position as it travels. Per design: "constantly
@@ -12161,6 +12357,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       p.update(dt);
     }
     _vfx.removeWhere((p) => p.dead);
+    updateLetSkyfallImpacts(_letSkyfallImpacts, dt);
     for (final beam in _beamFx) {
       beam.update(dt);
     }
@@ -12669,6 +12866,33 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     _renderOrb(canvas);
 
+    // Incoming Let meteors mark the ground they are committed to. Drawn under
+    // the bodies standing on it, because it is a mark on the arena floor and
+    // not an overlay — and drawn before anything else so a player reading the
+    // field sees "something is about to land there" at a glance.
+    for (final proj in companionProjectiles) {
+      if (!proj.isDescending) continue;
+      if (!_isWithinViewport(
+        proj.skyfallImpact,
+        letSkyfallBlastRadius(proj) * 2.4,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+      )) {
+        continue;
+      }
+      drawLetSkyfallTelegraph(
+        canvas: canvas,
+        centre: proj.skyfallImpact,
+        color: elementColor(proj.element ?? 'Fire'),
+        radius: letSkyfallBlastRadius(proj),
+        progress: proj.skyfallProgress,
+        time: stats.timeElapsed,
+        reduceAmbient: _reduceAmbientVfx,
+      );
+    }
+
     for (final enemy in enemies) {
       if (enemy.isDead) continue;
       if (!_isWithinViewport(
@@ -13046,6 +13270,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       canvas.drawRect(
         Rect.fromLTWH(cx, cy, viewW, viewH),
         Paint()..color = spirit.withValues(alpha: 0.18 * f),
+      );
+    }
+
+    // Let meteor craters, under the particle debris the same landing threw.
+    for (final impact in _letSkyfallImpacts) {
+      drawLetSkyfallImpact(
+        canvas: canvas,
+        centre: impact.position,
+        color: impact.color,
+        radius: impact.radius,
+        age: impact.t,
+        reduceAmbient: _reduceAmbientVfx,
       );
     }
 
