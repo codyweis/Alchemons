@@ -642,36 +642,24 @@ class _MapScreenState extends State<MapScreen>
       // Arriving is what the hunt asks for, so arriving is what opens the
       // next one — recorded here rather than on the way out, so backing
       // straight out still counts as having been.
-      await OpeningWildernessService.markSceneVisited(db.settingsDao, biomeId);
-
-      // The biome that just opened needs something in it. Spawns are only
-      // placed in scenes the hunt allows, so the next one was ineligible
-      // until this moment and would otherwise read as an empty region — the
-      // player would finish here, walk to the region they were sent to, and
-      // be told nothing lives there.
-      final nextScene = await OpeningWildernessService.openShipHuntScene(
+      //
+      // What comes back is whatever the hunt just made eligible and so has
+      // nothing in it: the region it now points at, or all four on the visit
+      // that ends it. It is empty for every visit after that, which is the
+      // only thing keeping the opening's timer out of the whole game.
+      final toStir = await OpeningWildernessService.registerVisitForShipHunt(
         db.settingsDao,
+        biomeId,
       );
-      // Forced, because this is a transition: whatever the previous state
-      // said about that region, it is the next stop now and its clock
-      // starts here.
-      Future<void> startClock(String scene) => spawnService
-          .scheduleNextSpawnTime(
-            scene,
-            windowMin: OpeningWildernessService.huntSpawnDelay,
-            windowMax: OpeningWildernessService.huntSpawnDelay,
-            force: true,
-          );
-
-      if (nextScene != null) {
-        await startClock(nextScene);
-      } else {
-        // Or the hunt just ended on this visit, in which case every core
-        // biome became eligible at once and the map should not open onto
-        // four regions that are all empty with nothing counting down.
-        for (final scene in OpeningWildernessService.coreScenes) {
-          await startClock(scene);
-        }
+      for (final scene in toStir) {
+        // Forced, because each of these has just changed status: whatever
+        // an earlier state left on its clock, it starts counting from here.
+        await spawnService.scheduleNextSpawnTime(
+          scene,
+          windowMin: OpeningWildernessService.huntSpawnDelay,
+          windowMax: OpeningWildernessService.huntSpawnDelay,
+          force: true,
+        );
       }
     }
 

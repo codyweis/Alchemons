@@ -100,6 +100,111 @@ void main() {
     });
   }
 
+  test('each visit stirs only what it just opened', () async {
+    final hunt = await finishTutorial(FactionId.volcanic);
+    final settings = db.settingsDao;
+
+    expect(
+      await OpeningWildernessService.registerVisitForShipHunt(
+        settings,
+        hunt.first,
+      ),
+      [hunt.last],
+      reason: 'the next stop has been ineligible, so nothing lives there yet',
+    );
+
+    expect(
+      await OpeningWildernessService.registerVisitForShipHunt(
+        settings,
+        hunt.last,
+      ),
+      unorderedEquals(OpeningWildernessService.coreScenes),
+      reason: 'the hunt ended here; all four opened at once and are empty',
+    );
+  });
+
+  test('the end-of-hunt seeding happens once and never again', () async {
+    final hunt = await finishTutorial(FactionId.oceanic);
+    final settings = db.settingsDao;
+
+    for (final scene in hunt) {
+      await OpeningWildernessService.registerVisitForShipHunt(settings, scene);
+    }
+
+    // The bug: the seeding used to be inferred from "no next stop", which is
+    // true forever once the hunt is done, so every later biome entry reset
+    // all four to the one-minute timer.
+    for (var visit = 0; visit < 3; visit++) {
+      for (final scene in OpeningWildernessService.coreScenes) {
+        expect(
+          await OpeningWildernessService.registerVisitForShipHunt(
+            settings,
+            scene,
+          ),
+          isEmpty,
+          reason: 'visiting $scene after the hunt must not touch scheduling',
+        );
+      }
+    }
+  });
+
+  test('nothing is stirred once the ship is found', () async {
+    final hunt = await finishTutorial(FactionId.verdant);
+    final settings = db.settingsDao;
+
+    // Mid-hunt, so the queue still holds entries the unlock has to override.
+    await settings.setSetting(OpeningWildernessService.shipUnlockedKey, '1');
+
+    for (final scene in {...OpeningWildernessService.coreScenes, ...hunt}) {
+      expect(
+        await OpeningWildernessService.registerVisitForShipHunt(
+          settings,
+          scene,
+        ),
+        isEmpty,
+      );
+    }
+  });
+
+  test('a visit that does not move the hunt stirs nothing', () async {
+    final hunt = await finishTutorial(FactionId.earthen);
+    final settings = db.settingsDao;
+
+    // Otherwise a detour would keep forcing the open region's clock back to
+    // a full minute, and the region the player was sent to would never fill.
+    expect(
+      await OpeningWildernessService.registerVisitForShipHunt(
+        settings,
+        'arcane',
+      ),
+      isEmpty,
+    );
+    expect(
+      await OpeningWildernessService.registerVisitForShipHunt(
+        settings,
+        hunt.last,
+      ),
+      isEmpty,
+    );
+    expect(
+      await OpeningWildernessService.openShipHuntScene(settings),
+      hunt.first,
+    );
+  });
+
+  test('a save with no hunt at all stirs nothing', () async {
+    final settings = db.settingsDao;
+    for (final scene in OpeningWildernessService.coreScenes) {
+      expect(
+        await OpeningWildernessService.registerVisitForShipHunt(
+          settings,
+          scene,
+        ),
+        isEmpty,
+      );
+    }
+  });
+
   test('visiting the wrong biome does not advance the hunt', () async {
     final hunt = await finishTutorial(FactionId.volcanic);
     final settings = db.settingsDao;

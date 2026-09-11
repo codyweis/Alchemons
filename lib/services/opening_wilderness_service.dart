@@ -209,6 +209,33 @@ class OpeningWildernessService {
     }
   }
 
+  /// Record a visit to [sceneId] and report which biomes the hunt wants
+  /// stirred at [huntSpawnDelay] as a result.
+  ///
+  /// The short timer belongs to the hunt and to nothing else, so the decision
+  /// lives here rather than at the call site. A visit only asks for anything
+  /// if it actually moved the hunt on:
+  ///
+  /// * moved to the next stop — that one region, which has been ineligible
+  ///   until now and so has nothing in it and no clock running;
+  /// * ended the hunt — all four, because they all become eligible in the
+  ///   same instant and the map should not open onto four empty regions;
+  /// * anything else, the hunt already over among them — nothing, which is
+  ///   what keeps the opening's one minute out of the rest of the game.
+  static Future<List<String>> registerVisitForShipHunt(
+    SettingsDao settings,
+    String sceneId,
+  ) async {
+    final before = await openShipHuntScene(settings);
+    if (before == null) return const [];
+
+    await markSceneVisited(settings, sceneId);
+
+    final after = await openShipHuntScene(settings);
+    if (after == before) return const [];
+    return after != null ? [after] : coreScenes.toList(growable: false);
+  }
+
   static Future<void> advanceToCaptureTutorial(
     SettingsDao settings, {
     required String firstScene,
