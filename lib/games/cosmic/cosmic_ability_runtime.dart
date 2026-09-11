@@ -98,6 +98,33 @@ class CosmicAbilityRuntime {
     };
   }
 
+  /// Whether an effect still means something when its target is already dead.
+  ///
+  /// A KILL effect resolves against an enemy that has just died — that is what
+  /// makes it a kill effect. The survival handler opened with a blanket
+  /// `if (enemy.isDead) return`, so every kill effect routed through it was
+  /// dropped on arrival: Pip+Blood and Pip+Light's heals, Plant's alchemy
+  /// bonus, Water's splash, Crystal's taunt.
+  ///
+  /// Effects that change the enemy's own STATE — slowing it, freezing it,
+  /// burning it — genuinely have nothing to do on a corpse and stay blocked.
+  /// Effects that heal the caster, feed the orb, or act on the world around
+  /// the kill do not care whether the body is still standing.
+  static bool resolvesOnDeadTarget(AbilityEffectKind effect) {
+    return switch (effect) {
+      AbilityEffectKind.leech ||
+      AbilityEffectKind.zoneHeal ||
+      AbilityEffectKind.buff ||
+      AbilityEffectKind.cooldownRefund ||
+      AbilityEffectKind.alchemyBonus ||
+      AbilityEffectKind.flower ||
+      AbilityEffectKind.splash ||
+      AbilityEffectKind.blackHole ||
+      AbilityEffectKind.taunt => true,
+      _ => false,
+    };
+  }
+
   static bool isDirectDamage(AbilityEffectKind effect) {
     return switch (effect) {
       AbilityEffectKind.burn ||

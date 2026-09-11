@@ -1620,14 +1620,14 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Crystal' =>
           'Auto/Special kills: Create a taunting crystal. Special darts also pierce and ricochet.',
         'Light' =>
-          'Darts can intercept threats, and special kills heal allies or the ship.',
+          'Darts can intercept threats. Enemies killed heal the orb.',
         'Water' =>
           'Auto/Special kills: Splash nearby enemies. The special\'s final ricochet creates a larger splash.',
         'Ice' => 'Darts freeze and slow enemies they hit.',
         'Mud' =>
-          'Auto hits mark enemies to leave mud trails. Special darts slow enemies.',
+          'Auto hits mark enemies permanently; marked enemies leave mud trails behind them that slow anything walking through. Special darts slow on hit.',
         'Plant' =>
-          'Auto/Special kills: Grant extra alchemy meter in Cosmic Survival.',
+          'Auto/Special kills: Grant 50% extra alchemy meter in Cosmic Survival.',
         'Poison' =>
           'Auto hits draw poison lines between hit enemies. Special darts poison and slow enemies.',
         'Earth' =>
@@ -1635,11 +1635,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Lava' => 'Darts pierce and burn enemies they hit.',
         'Dark' =>
           'Passive: Auto-attack kills create a black hole that pulls enemies inward.',
-        'Blood' => 'Enemies killed heal allies or the ship.',
+        'Blood' => 'Enemies killed heal this Pip itself.',
         'Spirit' =>
           'Auto/Special kills: Build Spirit stacks; enough stacks give a temporary attack-speed boost.',
         'Steam' =>
-          'Passive: This Pip cycles through a ramping attack-speed window. Special kills can trigger extra haste.',
+          'Passive: A steam cloud gathers around this Pip and its attack speed ramps for a window. Special kills can trigger extra haste.',
         _ => 'Element changes the dart effect.',
       };
       if (element == 'Dark') {

@@ -3,7 +3,6 @@ library;
 
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -12,8 +11,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Renders Mane casts with the projectiles actually FLOWN rather than posed at
-/// their spawn offsets.
+/// Renders a family's casts with the projectiles actually FLOWN rather than
+/// posed at their spawn offsets.
 ///
 /// The static contact sheet draws every projectile of a cast on top of itself
 /// at t=0, which makes a four-projectile fan look like a bundle of sticks and a
@@ -21,11 +20,12 @@ import 'package:flutter_test/flutter_test.dart';
 /// once the things separate. Judging the art off that sheet would be redesigning
 /// an artifact of the preview.
 ///
-///   MANE_FLIGHT_OUT=/tmp flutter test test/mane_flight_preview_test.dart \
-///     --tags preview
+///   FLIGHT_OUT=/tmp FLIGHT_FAMILY=pip \
+///     flutter test test/family_flight_preview_test.dart --tags preview
 void main() {
-  final outDir = Platform.environment['MANE_FLIGHT_OUT'];
-  final only = Platform.environment['MANE_FLIGHT_ELEMENTS'];
+  final outDir = Platform.environment['FLIGHT_OUT'];
+  final only = Platform.environment['FLIGHT_ELEMENTS'];
+  final family = (Platform.environment['FLIGHT_FAMILY'] ?? 'mane').toLowerCase();
 
   String? labelFont;
   setUpAll(() async {
@@ -45,7 +45,7 @@ void main() {
     }
   });
 
-  testWidgets('mane flight preview', (tester) async {
+  testWidgets('family flight preview', (tester) async {
     final elements = only != null && only.isNotEmpty
         ? only.split(',')
         : List<String>.from(kCosmicAbilityElements);
@@ -84,7 +84,8 @@ void main() {
     }
 
     label(
-      'MANE  —  in flight (projectiles actually moved, not posed at spawn)',
+      '${family.toUpperCase()}  —  in flight '
+      '(projectiles actually moved, not posed at spawn)',
       const Offset(10, 12),
       const Color(0xFFE8E2D6),
       size: 15,
@@ -110,7 +111,7 @@ void main() {
       }
       label(element, Offset(10, top + cellH / 2 - 14), color, size: 13);
       label(
-        cosmicSpecialAbilityName('mane', element),
+        cosmicSpecialAbilityName(family, element),
         Offset(10, top + cellH / 2 + 2),
         const Color(0xFF7C8798),
         size: 9,
@@ -129,7 +130,7 @@ void main() {
         final result = createCosmicSpecialAbility(
           origin: origin,
           baseAngle: 0,
-          family: 'mane',
+          family: family,
           element: element,
           damage: 40,
           maxHp: 400,
@@ -150,13 +151,30 @@ void main() {
         }
 
         for (final p in result.projectiles) {
-          final drawn = drawManeElementalProjectileVisual(
-            canvas: canvas,
-            projectile: p,
-            position: p.position,
-            color: color,
-            time: 1.0 + moments[c],
-          );
+          // Same renderer chain the games use, so whichever family owns this
+          // projectile claims it.
+          final drawn =
+              drawManeElementalProjectileVisual(
+                canvas: canvas,
+                projectile: p,
+                position: p.position,
+                color: color,
+                time: 1.0 + moments[c],
+              ) ||
+              drawPipElementalProjectileVisual(
+                canvas: canvas,
+                projectile: p,
+                position: p.position,
+                color: color,
+                time: 1.0 + moments[c],
+              ) ||
+              drawLetElementalProjectileVisual(
+                canvas: canvas,
+                projectile: p,
+                position: p.position,
+                color: color,
+                time: 1.0 + moments[c],
+              );
           if (!drawn) {
             drawGenericProjectileVisual(
               canvas: canvas,
@@ -186,7 +204,7 @@ void main() {
       bytes = await img.toByteData(format: ui.ImageByteFormat.png);
     });
     File(
-      '$outDir/mane_flight_preview.png',
+      '$outDir/${family}_flight_preview.png',
     ).writeAsBytesSync(bytes!.buffer.asUint8List());
   }, skip: outDir == null);
 }

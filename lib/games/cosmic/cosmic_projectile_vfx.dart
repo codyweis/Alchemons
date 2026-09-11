@@ -43,17 +43,37 @@ bool drawPipElementalProjectileVisual({
   }
 
   void drawDartHead({double length = 6.0, double width = 4.0}) {
-    final tip = position + dir * length * 0.55 * vs;
-    final back = position - dir * length * 0.45 * vs;
+    // Longer and keener than the call sites ask for.
+    //
+    // Every element passes a length between 4.8 and 7.0, which built a stubby
+    // little wedge — and it used to sit inside a soft halo several times its
+    // size, so the shape may as well not have been there. Stretched here
+    // rather than at thirteen call sites, and swept back into a barb instead
+    // of a flat-based triangle, so the thing reads as a dart at the size it
+    // actually draws at.
+    final reach = length * 1.45;
+    final tip = position + dir * reach * 0.62 * vs;
+    final back = position - dir * reach * 0.48 * vs;
+    final barb = position - dir * reach * 0.18 * vs;
+    final span = perp * width * vs;
     final path = ui.Path()
       ..moveTo(tip.dx, tip.dy)
-      ..lineTo(back.dx + perp.dx * width * vs, back.dy + perp.dy * width * vs)
-      ..lineTo(back.dx - perp.dx * width * vs, back.dy - perp.dy * width * vs)
+      // Out to the barb, back to the swept tail, and mirrored — a flat base
+      // reads as a triangle, a swept one reads as a point that is travelling.
+      ..lineTo(barb.dx + span.dx, barb.dy + span.dy)
+      ..lineTo(back.dx + span.dx * 0.30, back.dy + span.dy * 0.30)
+      ..lineTo(back.dx - span.dx * 0.30, back.dy - span.dy * 0.30)
+      ..lineTo(barb.dx - span.dx, barb.dy - span.dy)
       ..close();
     fillPaint.color = color.withValues(alpha: 0.92);
     canvas.drawPath(path, fillPaint);
-    fillPaint.color = white.withValues(alpha: 0.82);
-    canvas.drawCircle(tip, 1.3 * vs, fillPaint);
+    // A hot spine down the middle rather than a blob on the nose, so the
+    // brightest part of the dart is its edge.
+    linePaint
+      ..color = white.withValues(alpha: 0.80)
+      ..strokeWidth = 1.15 * vs
+      ..maskFilter = null;
+    canvas.drawLine(barb, tip, linePaint);
   }
 
   if (projectile.abilityFamily == 'pip') {
@@ -61,16 +81,27 @@ bool drawPipElementalProjectileVisual({
     // basics. Basics share the dart silhouette below but skip this block.
     // Layered translucent circles fake a soft halo without MaskFilter.blur.
     final specialPulse = 0.78 + 0.22 * sin(time * 6.5 + projectile.life * 2.5);
-    for (var i = 3; i >= 1; i--) {
-      fillPaint
-        ..color = color.withValues(alpha: (0.05 + i * 0.045) * specialPulse)
-        ..maskFilter = null;
-      canvas.drawCircle(position, (6.0 + i * 5.0) * vs, fillPaint);
-    }
-    fillPaint
-      ..color = white.withValues(alpha: 0.22 * specialPulse)
-      ..maskFilter = null;
-    canvas.drawCircle(position, 5.0 * vs, fillPaint);
+
+    // A glow with a direction, not a ball.
+    //
+    // This used to be four concentric translucent circles out to twenty-one
+    // times scale, which is several times the dart inside them. Whatever the
+    // dart was doing, a pip special read as a soft glowing bead: no axis, no
+    // point, and identical across all seventeen elements but for hue. On the
+    // one family whose whole identity is a small fast thing that ricochets,
+    // the silhouette said "slow floating orb".
+    //
+    // Stretched along travel instead, so the glow says which way the dart is
+    // going and stays out of the way of its shape.
+    drawDirectionalBloom(
+      canvas: canvas,
+      centre: position,
+      travelDir: dir,
+      length: 13.0 * vs,
+      width: 4.6 * vs,
+      color: color,
+      alpha: 0.30 * specialPulse,
+    );
 
     // Long comet ribbon — visually stretches the projectile so a moving
     // salvo reads as guided missiles, not basic-attack sprinkle.
@@ -89,9 +120,36 @@ bool drawPipElementalProjectileVisual({
           ],
           const [0.0, 0.55, 1.0],
         )
-        ..strokeWidth = 5.0 * vs
+        ..strokeWidth = 3.4 * vs
         ..strokeCap = ui.StrokeCap.round,
     );
+
+    // How much ricochet is left, drawn on the dart.
+    //
+    // Bouncing is the family's entire premise and nothing on screen said
+    // anything about it — a dart with five bounces banked looked exactly like
+    // one on its last. Chevrons stacked behind the head, one per remaining
+    // bounce, so a Lightning salvo visibly carries more than a Lava one and
+    // every dart visibly spends itself as it chains.
+    final banked = projectile.bounceCount.clamp(0, 5);
+    for (var i = 0; i < banked; i++) {
+      final back = position - dir * (7.0 + i * 4.2) * vs;
+      final spanV = perp * (3.0 - i * 0.28) * vs;
+      final tipV = dir * 2.6 * vs;
+      strokePaint
+        ..color = white.withValues(
+          alpha: (0.66 - i * 0.09).clamp(0.0, 1.0) * specialPulse,
+        )
+        ..strokeWidth = 1.25 * vs
+        ..maskFilter = null;
+      canvas.drawPath(
+        ui.Path()
+          ..moveTo(back.dx + spanV.dx, back.dy + spanV.dy)
+          ..lineTo(back.dx + tipV.dx, back.dy + tipV.dy)
+          ..lineTo(back.dx - spanV.dx, back.dy - spanV.dy),
+        strokePaint,
+      );
+    }
 
     // Element-specific special accent telegraphs the kill/hit identity.
     // Each accent is intentionally cheap (handful of draws, no blur)

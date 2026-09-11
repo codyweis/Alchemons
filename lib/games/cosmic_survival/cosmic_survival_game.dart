@@ -6202,6 +6202,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       projectile.effectRadius,
       projectile.effectDuration,
       sourceSlotIndex: projectile.sourceSlotIndex,
+      element: projectile.element,
+      family: projectile.abilityFamily,
     );
     if (killed) resolveAbilityKill(projectile, enemy);
   }
@@ -7590,6 +7592,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       projectile.effectRadius,
       projectile.effectDuration,
       sourceSlotIndex: projectile.sourceSlotIndex,
+      element: projectile.element,
+      family: projectile.abilityFamily,
     );
   }
 
@@ -8650,8 +8654,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     double radius,
     double duration, {
     int? sourceSlotIndex,
+    // Two elements share the leech effect but are authored to heal different
+    // things, so the handler has to know which cast it is resolving.
+    String? element,
+    String? family,
   }) {
-    if (effect == AbilityEffectKind.none || enemy.isDead) return;
+    if (effect == AbilityEffectKind.none) return;
+    // A kill effect arrives with its target already dead — that is what makes
+    // it a kill effect — so a blanket isDead guard silently dropped every one
+    // of them that came through here. Only the behaviours that act on the
+    // enemy's own state need it alive.
+    if (enemy.isDead && !CosmicAbilityRuntime.resolvesOnDeadTarget(effect)) {
+      return;
+    }
     final effectPower = power > 0 ? power : 4.0;
     final effectRadius = radius > 0 ? radius : 80.0;
     final effectDuration = duration > 0 ? duration : 1.5;
@@ -8771,17 +8786,30 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         break;
       case AbilityEffectKind.leech:
       case AbilityEffectKind.zoneHeal:
-        _healOrb(effectPower * 0.45);
+        // Pip+Blood and Pip+Light both resolve to leech, and both used to heal
+        // the orb AND the caster — which made them mechanically the same
+        // ability. The design board gives them different targets, and that
+        // difference is the only thing separating the two: Blood feeds itself,
+        // Light feeds the orb.
         final comp = sourceSlotIndex != null
             ? activeCompanions[sourceSlotIndex]
             : null;
-        if (comp != null && !comp.isDead) {
-          comp.currentHp = min(
-            comp.maxHp,
-            comp.currentHp + effectPower.round(),
-          );
-        } else if (!ship.isDead) {
-          ship.currentHp = min(ship.maxHp, ship.currentHp + effectPower);
+        final isPip = family == 'pip';
+        final healsCasterOnly = isPip && element == 'Blood';
+        final healsOrbOnly = isPip && element == 'Light';
+
+        if (!healsCasterOnly) {
+          _healOrb(effectPower * (healsOrbOnly ? 1.0 : 0.45));
+        }
+        if (!healsOrbOnly) {
+          if (comp != null && !comp.isDead) {
+            comp.currentHp = min(
+              comp.maxHp,
+              comp.currentHp + effectPower.round(),
+            );
+          } else if (!ship.isDead) {
+            ship.currentHp = min(ship.maxHp, ship.currentHp + effectPower);
+          }
         }
         break;
       case AbilityEffectKind.buff:
