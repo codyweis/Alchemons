@@ -1,3 +1,4 @@
+import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
@@ -257,18 +258,35 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    // The badge counts open tasks as well as claimable rewards — a task
+    // nobody is told about is a task nobody does — so a fresh save is
+    // already showing the ungated ones before any achievement lands.
+    final openTasks = kOnboardingTasks
+        .where((t) => t.gate == TaskGate.always)
+        .length;
     await settleProgress();
-    expect(find.byTooltip('Achievements'), findsOneWidget);
+    expect(
+      find.byTooltip('Achievements · $openTasks waiting'),
+      findsOneWidget,
+    );
     await tester.runAsync(
       () => db.settingsDao.setSetting('first_extraction_done', '1'),
     );
     await settleProgress();
-    expect(find.byTooltip('Achievements · 1 rewards ready'), findsOneWidget);
+    expect(
+      find.byTooltip('Achievements · ${openTasks + 1} waiting'),
+      findsOneWidget,
+      reason: 'the earned reward is added to the open tasks',
+    );
     await tester.runAsync(
       () => CampaignJournalService(db).claim('first_extraction'),
     );
     await settleProgress();
-    expect(find.byTooltip('Achievements'), findsOneWidget);
+    expect(
+      find.byTooltip('Achievements · $openTasks waiting'),
+      findsOneWidget,
+      reason: 'claiming removes the reward and leaves the tasks',
+    );
     await tester.runAsync(() => tester.pumpWidget(const SizedBox.shrink()));
     await tester.pump();
   });

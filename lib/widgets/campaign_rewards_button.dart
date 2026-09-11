@@ -1,3 +1,4 @@
+import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
@@ -84,8 +85,14 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
     if (state == AppLifecycleState.resumed) scheduleRefresh();
   }
 
-  /// Uncollected task rewards, counted alongside the achievement ones.
-  int _tasksReady = 0;
+  /// Everything still sitting in the tasks list — places not yet visited as
+  /// well as rewards not yet taken.
+  ///
+  /// Both belong on the badge: a task the player has not done is the whole
+  /// reason the list exists, and a list nobody is told about is a list
+  /// nobody opens. It empties itself as they are done, so the badge is not
+  /// permanent furniture.
+  int _tasksOutstanding = 0;
 
   Future<void> refresh() async {
     if (!mounted || _route?.isCurrent == false) return;
@@ -102,14 +109,23 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
       // Tasks are collected on this same screen, so the badge has to count
       // them too — otherwise the reward the player was told to come back for
       // is the one thing the button does not mention.
-      final tasksReady = await OnboardingTaskService(
+      // Read defensively: this button sits on screens that may not provide
+      // the shop, and the forge task's gate asks it whether the Elemental
+      // Creator is owned. Without it that one task simply is not counted.
+      ShopService? shop;
+      try {
+        shop = context.read<ShopService>();
+      } on ProviderNotFoundException {
+        shop = null;
+      }
+      final tasksOutstanding = (await OnboardingTaskService(
         context.read<AlchemonsDatabase>(),
-      ).readyCount();
+      ).outstanding(shop: shop)).length;
       if (!mounted) return;
       final previous = _snapshot;
       setState(() {
         _snapshot = next;
-        _tasksReady = tasksReady;
+        _tasksOutstanding = tasksOutstanding;
       });
       if (widget.enabled && (_route?.isCurrent ?? false)) {
         final fresh = next.ready
@@ -290,7 +306,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
   @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
-    final count = (_snapshot?.ready.length ?? 0) + _tasksReady;
+    final count = (_snapshot?.ready.length ?? 0) + _tasksOutstanding;
     final badgeColor = fc.rewardGold;
     final icon = Badge(
       isLabelVisible: count > 0,
@@ -309,7 +325,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
         title: const Text('ACHIEVEMENTS'),
         subtitle: Text(
           count > 0
-              ? '$count rewards ready to collect'
+              ? '$count waiting'
               : 'Main story, rewards, and memories',
         ),
         trailing: const Icon(Icons.chevron_right),
@@ -317,9 +333,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
       );
     }
     return IconButton(
-      tooltip: count > 0
-          ? 'Achievements · $count rewards ready'
-          : 'Achievements',
+      tooltip: count > 0 ? 'Achievements · $count waiting' : 'Achievements',
       onPressed: context.soundAction(widget.enabled ? open : null),
       icon: icon,
     );

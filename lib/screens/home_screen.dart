@@ -1,3 +1,4 @@
+import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/utils/section_router.dart';
 import 'package:alchemons/widgets/half_cultivation_chip.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
@@ -172,6 +173,20 @@ class _MainShellState extends State<MainShell> {
     });
     if (withHaptic) {
       HapticFeedback.mediumImpact();
+    }
+
+    // The tab destinations record their task here rather than in their own
+    // initState, because the shell MOUNTS them at startup to warm them —
+    // so initState fires for the shop and the inventory on a save that has
+    // never opened either, and both tasks completed themselves. Being
+    // built is not being visited.
+    final arrived = switch (section) {
+      NavSection.shop => 'shop',
+      NavSection.inventory => 'inventory',
+      _ => null,
+    };
+    if (arrived != null) {
+      OnboardingTaskService.recordArrival(context, arrived);
     }
 
     // Trigger tutorials when user actually visits these sections:

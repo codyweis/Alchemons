@@ -7,7 +7,6 @@
 // All logic, routing, purchase flows, and service calls unchanged.
 //
 
-import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/models/faction.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -97,15 +96,14 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   late final Map<String, int> _slot3Cost;
 
   // Cosmic party slot costs.
-  static const Map<String, int> _partySlot1Cost = {'silver': 10000};
-  static const Map<String, int> _partySlot2Cost = {'gold': 25};
-  static const Map<String, int> _partySlot3Cost = {'gold': 100};
+  /// The only patrol slot for sale. The first two come with the ship, so
+  /// there is nothing to buy until the player already knows what a
+  /// companion does for them.
+  static const Map<String, int> _partySlot3Cost = {'gold': 25};
 
   @override
   void initState() {
     super.initState();
-    // Arriving earns the task; collecting it happens in the journal.
-    OnboardingTaskService.recordArrival(context, 'shop');
     _slot2Cost = UnlockCosts.bubbleSlot(2);
     _slot3Cost = UnlockCosts.bubbleSlot(3);
 
@@ -1128,8 +1126,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
           );
         }
 
-        addPartySlot(1, _partySlot1Cost);
-        addPartySlot(2, _partySlot2Cost);
         addPartySlot(3, _partySlot3Cost);
 
         if (cards.isEmpty) {
@@ -1182,8 +1178,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
   Future<void> _purchaseCosmicPartySlot(int target) async {
     final db = context.read<AlchemonsDatabase>();
-    final costs = [_partySlot1Cost, _partySlot2Cost, _partySlot3Cost];
-    final cost = costs[target - 1];
+    final cost = _partySlot3Cost;
 
     if (_cosmicPartySlots >= target) {
       _toast('Already unlocked');
