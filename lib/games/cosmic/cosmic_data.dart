@@ -5479,8 +5479,16 @@ double elementalSpecialCooldownMultiplierSurvival(
       'Air' || 'Dust' || 'Lightning' || 'Earth' || 'Plant' => 1.05,
       _ => 1.10,
     },
+    // Mane cadence cut 30% across the family. The consolidation to single
+    // heavy shots left them landing noticeably less often than Lets for
+    // comparable weight; one throw every N seconds needs N to be shorter than
+    // it was when the same cast sprayed nine lanes.
+    //
+    // Lightning is exempt and keeps its old figure: it places 5-10 orbs that
+    // persist and shock on their own, so its cadence was never the fan's.
     'mane' => switch (element) {
-      'Dark' || 'Light' || 'Spirit' || 'Crystal' => 1.62,
+      'Lightning' => 1.10,
+      'Dark' || 'Light' || 'Spirit' || 'Crystal' => 1.13,
       'Lava' ||
       'Blood' ||
       'Earth' ||
@@ -5488,8 +5496,8 @@ double elementalSpecialCooldownMultiplierSurvival(
       'Steam' ||
       'Water' ||
       'Mud' ||
-      'Ice' => 1.30,
-      _ => 1.10,
+      'Ice' => 0.91,
+      _ => 0.77,
     },
     'wing' => switch (element) {
       'Blood' || 'Light' || 'Lightning' => 1.62,
@@ -5557,8 +5565,10 @@ double elementalSpecialCooldownMultiplier(String family, String element) {
       'Air' || 'Dust' || 'Lightning' || 'Earth' || 'Plant' => 0.95,
       _ => 1.00,
     },
+    // 30% faster across the family, Lightning exempt — see the survival table.
     'mane' => switch (element) {
-      'Dark' || 'Light' || 'Spirit' || 'Crystal' => 1.55,
+      'Lightning' => 1.05,
+      'Dark' || 'Light' || 'Spirit' || 'Crystal' => 1.09,
       'Lava' ||
       'Blood' ||
       'Earth' ||
@@ -5566,8 +5576,8 @@ double elementalSpecialCooldownMultiplier(String family, String element) {
       'Steam' ||
       'Water' ||
       'Mud' ||
-      'Ice' => 1.25,
-      _ => 1.05,
+      'Ice' => 0.88,
+      _ => 0.74,
     },
     'wing' => switch (element) {
       'Blood' || 'Light' || 'Lightning' => 1.55,
@@ -7414,6 +7424,48 @@ double _wingElementRadius(String e) => switch (e) {
 // Design: Impactful meteors, big AoE, element flavours matter
 // ─────────────────────────────────────────────────────────
 
+/// How much of its speed a boss keeps at full crowd control, and how much of
+/// an ordinary enemy's CC duration it suffers.
+///
+/// Bosses are freezable now — before this every slow in the game checked the
+/// enemy type and quietly did nothing to them — but resisted, not stoppable:
+/// a boss held still is a boss that is not a fight.
+const double kBossChillFloor = 0.35;
+const double kBossChillDurationScale = 0.45;
+
+/// Mane+Light: the three orbit rings, outermost first.
+///
+/// The cast no longer throws anything. It sets a ward turning around the
+/// caster: the first cast hangs the outer ring, the second the middle, the
+/// third the inner, and every cast after that feeds one of them — outer,
+/// middle, inner, in that order — up to [kManeLightMaxGrowth] times.
+const List<double> kManeLightOrbitRadii = [96.0, 66.0, 38.0];
+
+/// Angular speed per ring. The inner ring turns fastest, so the three never
+/// line up into a single rotating spoke.
+const List<double> kManeLightOrbitSpeeds = [0.85, 1.15, 1.55];
+
+/// Total feedings available across all three rings.
+const int kManeLightMaxGrowth = 10;
+
+/// Per-ring size ladder. Level 0 is a freshly hung ring; the top of the ladder
+/// is half again the size of Earth's opening catapult (visualScale 4.0,
+/// radiusMultiplier 4.9), which is the ceiling the design asks for.
+///
+/// Ten feedings spread over three rings land as 4/3/3, so the outer ring tops
+/// out and the other two finish one rung short — the eldest ring reads as the
+/// biggest, which is the right shape for something you have been feeding
+/// longest.
+const List<double> kManeLightVisualByLevel = [1.3, 2.4, 3.6, 5.2, 6.0];
+const List<double> kManeLightRadiusByLevel = [1.4, 2.6, 3.9, 5.6, 7.35];
+
+/// Ceilings for the Mane+Plant vine as it thickens on every enemy it passes
+/// through. Lower than the old Light ball's 28/24 because the vine grows on a
+/// gentler multiplier over more bites, and because it also drags a snare field
+/// that scales with it.
+const double kManePlantMaxRadius = 18.0;
+const double kManePlantMaxVisual = 15.0;
+
 /// How long a Let meteor spends falling before it lands, in seconds.
 ///
 /// Short on purpose. Long enough for the telegraph to register and for the
@@ -8472,7 +8524,11 @@ CosmicSpecialResult _maneSpecial(
     // Air's identity is a 2× gale that shoves enemies along the shot path,
     // and Fire is "(3–8) fireballs shot out and travel FAST" per the design
     // board — both are exempt from the catapult crawl.
-    final catapultSpeed = p.stationary
+    // An orbit-held ward is not a catapult and has no travel speed to clamp:
+    // its position comes from the orbit each frame. Without this it picked up
+    // the family's 0.24 floor, which is dead weight on a projectile that never
+    // reads speedMultiplier.
+    final catapultSpeed = p.stationary || p.holdOrbit
         ? 0.0
         : p.element == 'Air'
         ? rawSpeed.clamp(1.5, 2.8).toDouble()
@@ -8847,7 +8903,9 @@ CosmicSpecialResult _maneSpecial(
               pierceEffect: _manePierceEffect('Steam'),
               effectPower: damage * 0.32,
               effectRadius: 90,
-              effectDuration: 1.6,
+              // Geysers hold for twice as long — they are the zones the design
+              // has this cast laying down, and at 1.6s they barely registered.
+              effectDuration: 3.2,
               // Drop a steam pulse every 0.35s along its path.
               turretInterval: 0.35,
               turretDamage: damage * 0.42,
@@ -8856,20 +8914,23 @@ CosmicSpecialResult _maneSpecial(
         ),
       );
     case 'Plant':
-      // "Every enemy passed through is temporarily rooted." One vine passing
-      // through them.
+      // "Every enemy passed through is temporarily rooted" — one vine doing
+      // the passing through, and it THICKENS on every one it catches (see the
+      // Plant case in resolveAbilityPierce). It therefore starts slimmer than
+      // the other consolidated Manes: a vine that launches at full size has
+      // nowhere to grow, and the growth is the point.
       return finalize(
         fanResult(
           lanes: 1,
           arc: 0,
-          damageMultiplier: 3.6,
-          life: 3.6,
-          speed: 0.66,
-          visualScale: 3.4,
+          damageMultiplier: 2.2,
+          life: 4.2,
+          speed: 0.60,
+          visualScale: 1.8,
           piercing: true,
-          snareRadius: 138,
+          snareRadius: 110,
           snareMoveMultiplier: 0.60,
-          radiusMultiplier: 4.6,
+          radiusMultiplier: 2.2,
           basicHasteTimer: 1.5,
           basicHasteMultiplier: 0.84,
         ),
@@ -9028,21 +9089,22 @@ CosmicSpecialResult _maneSpecial(
           radiusMultiplier: 4.8,
           trailInterval: 0.12,
           trailDamage: damage * 0.34,
-          trailLife: 3.0,
+          // Twice the dwell: the trail IS the ability, so it wants to be a
+          // hazard the field has to route around, not a fading smear.
+          trailLife: 6.0,
           basicHasteTimer: 2.2,
           basicHasteMultiplier: 0.70,
         ),
       );
     case 'Light':
-      // "Ball starts tiny and grows bigger each enemy it hits — does more
-      // damage with each hit."
+      // A ward, not a throw.
       //
-      // ONE ball. The growth machinery already exists and doubles radius,
-      // visual and damage per pierce (see the Light case in
-      // resolveAbilityPierce), but it was being handed four to ten balls that
-      // each grew on their own, so the cast opened as a wall rather than as
-      // the single seed the ramp is written for. Starting deliberately small —
-      // the ramp has no room to read if the ball begins large.
+      // Light used to fire a wall of four to ten small balls that each grew on
+      // their own. It hangs ONE ring turning around the caster now; survival
+      // adds the second and third on later casts and feeds them after that
+      // (see the Mane+Light block in cosmic_survival_game.dart). Outside
+      // survival there is no cast history to draw on, so a cast simply renews
+      // the outer ring, which is the honest single-shot reading of it.
       return finalize(
         CosmicSpecialResult(
           basicHasteTimer: 1.4,
@@ -9050,17 +9112,27 @@ CosmicSpecialResult _maneSpecial(
           projectiles: [
             Projectile(
               position:
-                  origin + Offset(cos(baseAngle), sin(baseAngle)) * 12.0,
+                  origin +
+                  Offset(cos(baseAngle), sin(baseAngle)) *
+                      kManeLightOrbitRadii.first,
               angle: baseAngle,
               element: 'Light',
-              damage: damage * 2.2,
-              life: 5.2,
-              speedMultiplier: 0.34,
-              radiusMultiplier: 0.9,
-              visualScale: 1.0,
+              damage: damage * 1.9,
+              // Long-lived on purpose: the ring is the ability, and a ward
+              // that expires before the next cast can never be built on.
+              life: 26.0,
+              speedMultiplier: 0,
+              radiusMultiplier: kManeLightRadiusByLevel.first,
+              visualScale: kManeLightVisualByLevel.first,
               piercing: true,
               visualStyle: ProjectileVisualStyle.slash,
               abilityFamily: 'mane',
+              orbitCenter: origin,
+              orbitAngle: baseAngle,
+              orbitRadius: kManeLightOrbitRadii.first,
+              orbitSpeed: kManeLightOrbitSpeeds.first,
+              holdOrbit: true,
+              followSourceCompanion: true,
               pierceEffect: _manePierceEffect('Light'),
               effectPower: damage * 0.34,
               effectRadius: 76,
@@ -11694,7 +11766,7 @@ String cosmicSpecialAbilityName(String family, String element) {
         'Poison' => 'Venom Edge',
         'Spirit' => 'Phaseblade Rush',
         'Dark' => 'Voidcut Drive',
-        'Light' => 'Radiant Parry',
+        'Light' => 'Radiant Ward',
         'Blood' => 'Bloodedge Rush',
         _ => 'Barrage Volley',
       };

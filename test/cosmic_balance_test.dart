@@ -1028,20 +1028,28 @@ void main() {
       expect(plant.projectiles.single.snareRadius, greaterThan(0));
       // The consolidated shots carry a real hitbox — that is what replaces the
       // coverage the fan used to get from spraying an arc.
-      for (final heavy in [plant, poison, air]) {
+      for (final heavy in [poison, air]) {
         expect(heavy.projectiles.single.radiusMultiplier, greaterThan(3.0));
       }
-      // Light is the exception to the size rule: "ball starts TINY and grows
-      // bigger each enemy it hits". It has to begin small or the ramp that is
-      // its whole identity has no room to read.
-      expect(light.projectiles.single.speedMultiplier, lessThanOrEqualTo(0.40));
-      expect(light.projectiles.single.radiusMultiplier, lessThan(1.4));
+      // Two elements are deliberate exceptions to the size rule, because both
+      // GROW and a shot launched at full size has nowhere to go.
+      //
+      // Plant thickens on every enemy its vine passes through, and Light no
+      // longer throws at all — it hangs a ring that later casts feed. Both
+      // start small on purpose; the ceilings they climb to are asserted where
+      // the growth itself lives.
+      expect(plant.projectiles.single.radiusMultiplier, lessThan(3.0));
+      expect(plant.projectiles.single.snareRadius, greaterThan(0));
+      expect(light.projectiles.single.speedMultiplier, isZero);
+      expect(light.projectiles.single.holdOrbit, isTrue);
+      expect(light.projectiles.single.orbitRadius, greaterThan(0));
+      expect(light.projectiles.single.radiusMultiplier, lessThan(2.0));
       // Design board: "(3–8) fireballs shot out and travel fast."
       expect(fire.projectiles.length, inInclusiveRange(3, 8));
       expect(fire.projectiles.every((p) => p.piercing), isTrue);
     });
 
-    test('light mane is one small ball, not a wall of orbs', () {
+    test('light mane is one small orbiting ring, not a wall of orbs', () {
       // This used to assert the orb COUNT scaled 4->10 with strength and
       // beauty. That scaling is gone, and it was never in the design: the
       // board says "ball starts tiny and grows bigger each enemy it hits —
@@ -1064,8 +1072,10 @@ void main() {
         );
         expect(cast.projectiles, hasLength(1), reason: 'stat $stat');
         // Small at birth, so there is somewhere to grow to.
-        expect(cast.projectiles.single.radiusMultiplier, lessThan(1.4));
+        expect(cast.projectiles.single.radiusMultiplier, lessThan(2.0));
         expect(cast.projectiles.single.piercing, isTrue);
+        // And it orbits rather than travelling — the cast leaves a ward.
+        expect(cast.projectiles.single.holdOrbit, isTrue);
       }
     });
 

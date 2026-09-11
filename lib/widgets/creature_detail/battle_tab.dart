@@ -1690,8 +1690,8 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           AppIcons.terrain,
         ),
         'Light' => (
-          'Radiant Growth • Scaling pierce',
-          'Ball starts tiny. Each enemy it pierces makes it bigger and hits harder — ramps the longer the line.',
+          'Radiant Ward • Orbiting rings',
+          'Casts hang light in orbit instead of throwing it. The first three set an outer, middle and inner ring turning around you; every cast after that feeds one of them in that order, up to ten times, until each is half again the size of an Earth catapult.',
           AppIcons.wb_sunny,
         ),
         'Spirit' => (
@@ -1735,8 +1735,8 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           AppIcons.grain,
         ),
         'Plant' => (
-          'Vine Lariat • Root bloom',
-          'Every enemy passed through is temporarily rooted. If a rooted enemy dies, it explodes into plant AOE damage.',
+          'Vine Lariat • Feeding growth',
+          'One vine, thrown thin. Every enemy it passes through roots them and thickens the vine — bigger, harder hitting and holding wider the more it feeds. A rooted enemy that dies explodes into plant AOE.',
           AppIcons.local_florist,
         ),
         'Water' => (

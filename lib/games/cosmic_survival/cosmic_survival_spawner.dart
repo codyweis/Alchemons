@@ -204,6 +204,17 @@ class SurvivalBoss {
   final double maxHp;
   double speed;
   final double baseSpeed;
+
+  /// Crowd control. While [chillTimer] is running, everything the boss's AI
+  /// does to its position in a frame is scaled by [chillMultiplier].
+  ///
+  /// Deliberately NOT a modifier on [speed]: the discipline AIs write that
+  /// field themselves (the warden sets it to baseSpeed * 1.5 on enrage), so a
+  /// scalar wrapped around them would clobber their own changes. Scaling the
+  /// resulting displacement instead works for every AI, including charge
+  /// dashes and strafes, and cannot fight anything.
+  double chillTimer = 0;
+  double chillMultiplier = 1.0;
   final double radius;
   final Color color;
   bool isDead;

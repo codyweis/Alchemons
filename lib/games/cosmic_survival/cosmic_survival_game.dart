@@ -2366,6 +2366,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           }
         }
         var specialProjectiles = result.projectiles;
+        // Mane+Light: hang a ring, then another, then a third, then feed them.
+        //
+        // Casts 1-3 add the outer, middle and inner rings. Every cast after
+        // that feeds one ring a rung up its size ladder, cycling outer ->
+        // middle -> inner, for up to kManeLightMaxGrowth feedings. Nothing is
+        // thrown: the cast's whole output is the ward it leaves turning.
+        if (comp.member.family.toLowerCase() == 'mane' &&
+            comp.member.element == 'Light' &&
+            specialProjectiles.isNotEmpty) {
+          _castManeLightWard(slotIndex, comp, specialProjectiles.first);
+          specialProjectiles = const <Projectile>[];
+        }
         // Mane+Spirit: each cast adds another shot to a tight machine-gun
         // stream up to 10, then resets. abilityKillStacks doubles as the
         // cast counter for this companion.
@@ -4693,6 +4705,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     boss.phaseTimer += dt;
 
+    // A chilled boss crawls. Captured before the AI runs and scaled after, so
+    // whatever the discipline did to its position this frame is slowed by the
+    // same factor without touching boss.speed, which the AIs write themselves.
+    final positionBeforeAi = boss.position;
+    final chilled = boss.chillTimer > 0;
+    if (chilled) {
+      boss.chillTimer = max(0.0, boss.chillTimer - dt);
+      if (boss.chillTimer <= 0) boss.chillMultiplier = 1.0;
+    }
+
     switch (boss.discipline) {
       case SurvivalBossDiscipline.riftcaller:
         _updateBossRiftcaller(dt, boss);
@@ -4725,7 +4747,139 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     _updateTitanicBossTraits(dt, boss);
 
+    // Scale whatever ground the AI just covered. Done here rather than inside
+    // each discipline so charge dashes, strafes and approach all slow by the
+    // same factor, and so nothing has to know about the chill.
+    if (chilled) {
+      boss.position =
+          Offset.lerp(positionBeforeAi, boss.position, boss.chillMultiplier) ??
+          boss.position;
+    }
+
     _applyBossContactDamage(boss, dt);
+  }
+
+  /// The live Mane+Light rings belonging to one companion, outermost first.
+  List<Projectile> _maneLightRings(int slotIndex) {
+    final rings = companionProjectiles
+        .where(
+          (p) =>
+              p.abilityFamily == 'mane' &&
+              p.element == 'Light' &&
+              p.sourceSlotIndex == slotIndex &&
+              p.holdOrbit &&
+              p.life > 0,
+        )
+        .toList();
+    rings.sort((a, b) => b.orbitRadius.compareTo(a.orbitRadius));
+    return rings;
+  }
+
+  /// One Mane+Light cast: hang the next ring, or feed the next one in the
+  /// cycle if all three are already turning.
+  ///
+  /// The growth counter lives on the companion so it survives the individual
+  /// rings — feeding is a property of how long this alchemon has been building
+  /// the ward, not of any one orb.
+  void _castManeLightWard(
+    int slotIndex,
+    CosmicSurvivalCompanion comp,
+    Projectile template,
+  ) {
+    final rings = _maneLightRings(slotIndex);
+
+    if (rings.length < kManeLightOrbitRadii.length) {
+      // Hang the next ring inward. Every ring is born at level 0 however far
+      // along the ward is — a new ring is new, and it earns its size the same
+      // way the others did.
+      final index = rings.length;
+      _appendCompanionProjectile(
+        Projectile(
+          position:
+              comp.position +
+              Offset(cos(comp.angle), sin(comp.angle)) *
+                  kManeLightOrbitRadii[index],
+          angle: comp.angle,
+          element: 'Light',
+          // Damage, effect power and the rest come from the authored cast, so
+          // stat scaling still reaches the ward.
+          damage: template.damage,
+          life: template.life,
+          speedMultiplier: 0,
+          radiusMultiplier: kManeLightRadiusByLevel.first,
+          visualScale: kManeLightVisualByLevel.first,
+          piercing: true,
+          visualStyle: ProjectileVisualStyle.slash,
+          sourceSlotIndex: slotIndex,
+          abilityFamily: 'mane',
+          orbitCenter: comp.position,
+          orbitAngle: comp.angle,
+          orbitRadius: kManeLightOrbitRadii[index],
+          orbitSpeed: kManeLightOrbitSpeeds[index],
+          holdOrbit: true,
+          followSourceCompanion: true,
+          pierceEffect: template.pierceEffect,
+          effectPower: template.effectPower,
+          effectRadius: template.effectRadius,
+          effectDuration: template.effectDuration,
+        ),
+      );
+      _spawnHitSpark(comp.position, elementColor('Light'));
+      return;
+    }
+
+    if (comp.abilityKillStacks >= kManeLightMaxGrowth) return;
+    // Which ring eats this cast: outer, middle, inner, outer, ...
+    final turn = comp.abilityKillStacks % kManeLightOrbitRadii.length;
+    comp.abilityKillStacks++;
+    final ring = rings[turn];
+    // effectStacks carries this ring's own rung on the ladder.
+    final level = (ring.effectStacks + 1).clamp(
+      0,
+      kManeLightVisualByLevel.length - 1,
+    );
+    ring.effectStacks = level;
+    ring.visualScale = kManeLightVisualByLevel[level];
+    ring.radiusMultiplier = kManeLightRadiusByLevel[level];
+    ring.damage *= 1.42;
+    ring.effectRadius = min(ring.effectRadius * 1.24, 300);
+    // Feeding renews the ward as well as growing it, so a player who keeps
+    // casting never watches their oldest ring lapse.
+    ring.life = max(ring.life, 26.0);
+    _spawnDetonationBurst(
+      ring.position,
+      elementColor('Light'),
+      28.0 + level * 10.0,
+    );
+  }
+
+  /// Lands a crowd-control effect on a boss.
+  ///
+  /// Bosses had no CC state at all before this — every slow, root and freeze in
+  /// the game checked `CosmicSurvivalEnemy` and silently did nothing to a boss,
+  /// which is why Mane+Ice froze everything on the field except the one target
+  /// the player most wanted stopped.
+  ///
+  /// Resisted rather than immune: a boss keeps [kBossChillFloor] of its speed
+  /// and holds the chill for a fraction of the duration an ordinary enemy
+  /// would. A fully frozen boss would trivialise the fight it is the centre of.
+  void _applyBossCrowdControl(
+    SurvivalBoss boss,
+    AbilityEffectKind effect,
+    double duration,
+  ) {
+    if (boss.isDead || boss.isSpawning) return;
+    if (!CosmicAbilityRuntime.isCrowdControl(effect)) return;
+    final slow = CosmicAbilityRuntime.survivalSlowMultiplier(effect);
+    boss.chillMultiplier = min(
+      boss.chillMultiplier,
+      max(kBossChillFloor, slow),
+    );
+    boss.chillTimer = max(
+      boss.chillTimer,
+      CosmicAbilityRuntime.survivalCrowdControlDuration(effect, duration) *
+          kBossChillDurationScale,
+    );
   }
 
   void _beginBossEntrance(SurvivalBoss boss, double angle) {
@@ -8256,30 +8410,33 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (projectile.abilityFamily == 'mane') {
       switch (projectile.element) {
         case 'Plant':
-          // Tag the enemy so a kill-while-rooted detonates AOE.
+          // The vine THICKENS as it passes through things — growth by feeding,
+          // which is what a plant does. This is the growth mechanic Light used
+          // to carry; Light has become an orbiting cast and no longer wants
+          // it, and it suits a vine far better than it ever suited a ball of
+          // light. The root tag stays: a kill while rooted still detonates.
           enemy.maneRootSlot = projectile.sourceSlotIndex;
           enemy.maneRootTimer = max(enemy.maneRootTimer, 2.6);
           enemy.slowTimer = max(enemy.slowTimer, 2.6);
           enemy.slowMultiplier = 0;
-          _spawnHitSpark(enemy.position, elementColor('Plant'));
-          break;
-        case 'Light':
-          // Ball gets bigger and hits harder per pierce.
-          const maxLightManeRadius = 28.0;
-          const maxLightManeVisual = 24.0;
-          if (projectile.radiusMultiplier < maxLightManeRadius) {
-            projectile.damage *= 2.0;
+          if (projectile.radiusMultiplier < kManePlantMaxRadius) {
+            // Growth per bite is gentler than the doubling Light used, and
+            // compounds over more hits — a vine creeps outward, it does not
+            // erupt. Damage climbs with the thickness.
+            projectile.damage *= 1.55;
             projectile.radiusMultiplier = min(
-              projectile.radiusMultiplier * 2.0,
-              maxLightManeRadius,
+              projectile.radiusMultiplier * 1.42,
+              kManePlantMaxRadius,
             );
             projectile.visualScale = min(
-              projectile.visualScale * 2.0,
-              maxLightManeVisual,
+              projectile.visualScale * 1.42,
+              kManePlantMaxVisual,
             );
-            projectile.effectRadius = min(projectile.effectRadius * 2.0, 360);
+            projectile.effectRadius = min(projectile.effectRadius * 1.30, 320);
+            // A thicker vine holds what it catches for longer.
+            projectile.snareRadius = min(projectile.snareRadius * 1.18, 300);
           }
-          _spawnHitSpark(enemy.position, elementColor('Light'));
+          _spawnHitSpark(enemy.position, elementColor('Plant'));
           break;
         case 'Lava':
           // Drop a lava blob (DoT zone) at the pierce point.
@@ -11585,6 +11742,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             sourceSlotIndex: p.sourceSlotIndex,
             target: boss,
           );
+          // Crowd control lands on bosses too. This branch used to deal damage
+          // and nothing else, so Mane+Ice — whose whole line is "freezes
+          // anything it touches as it travels" — froze every trash mob it
+          // passed and left the boss walking.
+          for (final effect in [p.pierceEffect, p.hitEffect]) {
+            _applyBossCrowdControl(
+              boss,
+              effect,
+              p.effectDuration > 0 ? p.effectDuration : 1.5,
+            );
+          }
           p.hitBoss = true;
           _spawnProjectileHitSpark(p);
           if (!p.piercing || p.abilityFamily == 'pip') {
