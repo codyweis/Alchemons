@@ -243,8 +243,10 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
 
     await _bootstrapFuture;
 
+    // Same asset check as playMusic, and for the same reason: a cue left
+    // behind by a load that never succeeded must not short circuit this.
     if (_currentCue == MusicCue.cosmicExploration &&
-        _currentMusicAsset != null) {
+        _isAssetForCue(_currentMusicAsset, MusicCue.cosmicExploration)) {
       await _applyMusicState();
       return;
     }
@@ -253,7 +255,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
         _lastCosmicMusicAsset ??
         _musicAssetsByCue[MusicCue.cosmicExploration]!.first;
 
-    _currentCue = MusicCue.cosmicExploration;
+    final request = ++_musicRequest;
 
     final ordered = <String>[
       asset,
@@ -262,31 +264,34 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
       ),
     ];
 
-    var loaded = false;
+    String? loaded;
     for (final candidate in ordered) {
       if (_currentMusicAsset == candidate) {
-        loaded = true;
+        loaded = candidate;
         break;
       }
       try {
         await _musicPlayer.setAsset(candidate);
-        _currentMusicAsset = candidate;
-        loaded = true;
+        if (request != _musicRequest) return;
+        loaded = candidate;
         break;
       } catch (e) {
         debugPrint(
           'AudioController failed to set cosmic music candidate "$candidate": $e',
         );
+        if (request != _musicRequest) return;
       }
     }
 
-    if (!loaded) {
+    if (loaded == null) {
       debugPrint(
         'AudioController: failed to restore cosmic exploration music.',
       );
       return;
     }
 
+    _currentCue = MusicCue.cosmicExploration;
+    _currentMusicAsset = loaded;
     await _applyMusicState();
   }
 
@@ -359,41 +364,75 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     _ambience.setEnabled(enabled);
   }
 
+  /// Bumped by every music request, so a request that is overtaken while
+  /// awaiting can tell and stand down.
+  ///
+  /// Two requests can be in flight at once — `playHomeMusic` from a screen
+  /// being disposed and `playCosmicExplorationMusic` from the one replacing
+  /// it, both unawaited, both racing through a ~700ms route transition. The
+  /// cue was assigned synchronously while the asset was assigned after an
+  /// await, so the loser could finish last and leave the controller
+  /// believing it was on one cue while the player held the other's file.
+  /// AmbiencePlayer has guarded against exactly this for its own player.
+  int _musicRequest = 0;
+
   Future<void> playMusic(MusicCue cue) async {
     await _bootstrapFuture;
 
-    if (_currentCue == cue && _currentMusicAsset != null) {
+    // Already here AND actually holding one of this cue's files. The asset
+    // check matters: without it a cue recorded by a failed load short
+    // circuits every later request, and the wrong track plays for the rest
+    // of the session with nothing able to correct it.
+    if (_currentCue == cue && _isAssetForCue(_currentMusicAsset, cue)) {
       await _applyMusicState();
       return;
     }
 
-    _currentCue = cue;
+    final request = ++_musicRequest;
 
     final candidates = await _resolveAssetCandidatesForCue(cue);
-    var loaded = false;
+    if (request != _musicRequest) return;
 
+    String? loaded;
     for (final asset in candidates) {
       if (_currentMusicAsset == asset) {
-        loaded = true;
+        loaded = asset;
         break;
       }
       try {
         await _musicPlayer.setAsset(asset);
-        _currentMusicAsset = asset;
-        loaded = true;
+        if (request != _musicRequest) return;
+        loaded = asset;
         break;
       } catch (e) {
         debugPrint('AudioController failed to load "$asset": $e');
+        if (request != _musicRequest) return;
       }
     }
 
-    if (!loaded) {
+    if (loaded == null) {
+      // Committed nothing. Leaving _currentCue pointing at a cue whose file
+      // never loaded is what pinned the stale track permanently.
       debugPrint('AudioController: no playable assets for cue $cue');
       return;
     }
 
+    _currentCue = cue;
+    _currentMusicAsset = loaded;
     await _applyMusicState();
   }
+
+  /// Whether [asset] is one of [cue]'s own files.
+  bool _isAssetForCue(String? asset, MusicCue cue) =>
+      assetBelongsToCue(asset, cue);
+
+  /// The files [cue] may play. Exposed so the ownership invariant the short
+  /// circuit depends on can be tested without a player.
+  static List<String> assetsForCue(MusicCue cue) =>
+      _musicAssetsByCue[cue] ?? const [];
+
+  static bool assetBelongsToCue(String? asset, MusicCue cue) =>
+      asset != null && assetsForCue(cue).contains(asset);
 
   Future<void> _applyMusicState() async {
     if (_currentMusicAsset == null) return;
