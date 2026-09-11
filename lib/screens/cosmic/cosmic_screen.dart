@@ -399,6 +399,14 @@ class _CosmicScreenState extends State<CosmicScreen>
       duration: const Duration(milliseconds: 600),
     );
 
+    // An empty patrol slot is the only control on the HUD that is asking
+    // for something rather than reporting something, so it is the only one
+    // that moves on its own. It stops the moment a companion is assigned.
+    _emptySlotPulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+
     _quoteFade = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -5016,6 +5024,38 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   /// Builds a single party-slot button for slot index [i].
+  late final AnimationController _emptySlotPulse;
+
+  /// Marks an empty slot as something to act on: a slow breath and a
+  /// brightening edge, no blur — this paints every frame and BoxShadow
+  /// blur in a per-frame paint is this app's main jank source.
+  Widget _maybePulse(bool pulsing, Widget child) =>
+      pulsing ? _pulseEmptySlot(child) : child;
+
+  Widget _pulseEmptySlot(Widget child) {
+    const accent = Color(0xFF7BE1E8);
+    return AnimatedBuilder(
+      animation: _emptySlotPulse,
+      builder: (context, inner) {
+        final t = Curves.easeInOut.transform(_emptySlotPulse.value);
+        return Transform.scale(
+          scale: 1 + 0.055 * t,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.35 + 0.5 * t),
+                width: 1 + t,
+              ),
+            ),
+            child: inner,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+
   Widget _buildPartySlotButton(int i) {
     final member = i < _partyMembers.length ? _partyMembers[i] : null;
     final isActive = _activeCompanionSlots.contains(i);
@@ -5036,7 +5076,11 @@ class _CosmicScreenState extends State<CosmicScreen>
     return GestureDetector(
       onTap: context.soundAction(
         isDisabled
-            ? (isDead && _isNearHome
+            ? (member == null
+                  // An empty slot used to answer taps with nothing at all,
+                  // which reads as a broken button rather than an offer.
+                  ? _openPartyPickerFromSlotButton
+                  : isDead && _isNearHome
                   ? _openPartyPickerFromSlotButton
                   : isDead
                   ? () => _showQuote(
@@ -5048,142 +5092,145 @@ class _CosmicScreenState extends State<CosmicScreen>
             : () => _handleSummonCompanion(i),
       ),
       onLongPress: () => _handlePartySlotLongPress(i),
-      child: _buildPartyHudSlotFrame(
-        active: isActive,
-        disabled: isDisabled,
-        dead: isDead,
-        child: member != null
-            ? Opacity(
-                opacity: isDisabled ? 0.25 : 1.0,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Creature image as silhouette
-                    if (member.imagePath != null)
-                      ColorFiltered(
-                        colorFilter: isActive
-                            ? const ColorFilter.mode(
-                                Colors.transparent,
-                                BlendMode.dst,
-                              )
-                            : const ColorFilter.matrix(<double>[
-                                0,
-                                0,
-                                0,
-                                0,
-                                80,
-                                0,
-                                0,
-                                0,
-                                0,
-                                80,
-                                0,
-                                0,
-                                0,
-                                0,
-                                80,
-                                0,
-                                0,
-                                0,
-                                1,
-                                0,
-                              ]),
-                        child: Image.asset(
+      child: _maybePulse(
+        member == null,
+        _buildPartyHudSlotFrame(
+          active: isActive,
+          disabled: isDisabled,
+          dead: isDead,
+          child: member != null
+              ? Opacity(
+                  opacity: isDisabled ? 0.25 : 1.0,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Creature image as silhouette
+                      if (member.imagePath != null)
+                        ColorFiltered(
+                          colorFilter: isActive
+                              ? const ColorFilter.mode(
+                                  Colors.transparent,
+                                  BlendMode.dst,
+                                )
+                              : const ColorFilter.matrix(<double>[
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  80,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  80,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  80,
+                                  0,
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                ]),
+                          child: Image.asset(
+                            member.imagePath!,
+                            width: 32,
+                            height: 32,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => Icon(
+                              AppIcons.catching_pokemon,
+                              color: isActive
+                                  ? const Color(0xFFE53935)
+                                  : const Color(0xFF00E676),
+                              size: 20,
+                            ),
+                          ),
+                        )
+                      else
+                        Icon(
+                          AppIcons.catching_pokemon,
+                          color: isActive
+                              ? const Color(0xFFE53935)
+                              : const Color(0xFF00E676),
+                          size: 20,
+                        ),
+                      // Show actual image when active
+                      if (isActive && member.imagePath != null)
+                        Image.asset(
                           member.imagePath!,
                           width: 32,
                           height: 32,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => Icon(
-                            AppIcons.catching_pokemon,
-                            color: isActive
-                                ? const Color(0xFFE53935)
-                                : const Color(0xFF00E676),
-                            size: 20,
-                          ),
                         ),
-                      )
-                    else
-                      Icon(
-                        AppIcons.catching_pokemon,
-                        color: isActive
-                            ? const Color(0xFFE53935)
-                            : const Color(0xFF00E676),
-                        size: 20,
-                      ),
-                    // Show actual image when active
-                    if (isActive && member.imagePath != null)
-                      Image.asset(
-                        member.imagePath!,
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.contain,
-                      ),
-                    // "RET" label when active
-                    if (isActive)
-                      Positioned(
-                        bottom: 1,
-                        child: Text(
-                          'RET',
-                          style: TextStyle(
-                            fontFamily: appFontFamily(context),
-                            color: const Color(
-                              0xFFE53935,
-                            ).withValues(alpha: 0.9),
-                            fontSize: 6,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                    if (showCooldown)
-                      Positioned(
-                        bottom: -2,
-                        left: -2,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.82),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: isActive
-                                  ? const Color(
-                                      0xFFE53935,
-                                    ).withValues(alpha: 0.8)
-                                  : const Color(
-                                      0xFF00E676,
-                                    ).withValues(alpha: 0.75),
-                              width: 1,
-                            ),
-                          ),
+                      // "RET" label when active
+                      if (isActive)
+                        Positioned(
+                          bottom: 1,
                           child: Text(
-                            specialCooldown.ceil().toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
+                            'RET',
+                            style: TextStyle(
+                              fontFamily: appFontFamily(context),
+                              color: const Color(
+                                0xFFE53935,
+                              ).withValues(alpha: 0.9),
+                              fontSize: 6,
                               fontWeight: FontWeight.w800,
-                              height: 1,
+                              letterSpacing: 1,
                             ),
                           ),
                         ),
-                      ),
-                    // Dead "X" overlay
-                    if (isDead)
-                      const Icon(
-                        AppIcons.close_rounded,
-                        color: Color(0xFFE53935),
-                        size: 28,
-                      ),
-                  ],
+                      if (showCooldown)
+                        Positioned(
+                          bottom: -2,
+                          left: -2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.82),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: isActive
+                                    ? const Color(
+                                        0xFFE53935,
+                                      ).withValues(alpha: 0.8)
+                                    : const Color(
+                                        0xFF00E676,
+                                      ).withValues(alpha: 0.75),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              specialCooldown.ceil().toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      // Dead "X" overlay
+                      if (isDead)
+                        const Icon(
+                          AppIcons.close_rounded,
+                          color: Color(0xFFE53935),
+                          size: 28,
+                        ),
+                    ],
+                  ),
+                )
+              : Icon(
+                  AppIcons.add_circle_outline,
+                  color: Colors.white.withValues(alpha: 0.15),
+                  size: 18,
                 ),
-              )
-            : Icon(
-                AppIcons.add_circle_outline,
-                color: Colors.white.withValues(alpha: 0.15),
-                size: 18,
-              ),
+        ),
       ),
     );
   }
@@ -6558,7 +6605,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// The planet's hard family gates, declared UP FRONT.
   ///
 
-
   /// The persistent descent placard, shown whenever the player stands at an
   /// unsealed dungeon gate. It carries the planet's name, stars, the carried
   /// element trio and the whisper riddle — and, once the party is complete,
@@ -7045,6 +7091,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _companionCooldownUiTimer?.cancel();
     _raidTimer?.cancel();
     _meterPulse.dispose();
+    _emptySlotPulse.dispose();
     _quoteFade.dispose();
     _miniMapCtrl.dispose();
     _bloodRitualCtrl.dispose();
@@ -7159,7 +7206,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-
   @override
   Widget build(BuildContext context) => SceneAmbience(
     cue: widget.memoryTutorial ? null : AmbienceCue.cosmicSpace,
@@ -7193,7 +7239,6 @@ class _CosmicScreenState extends State<CosmicScreen>
         ),
       );
     }
-
 
     // Recipes are no longer pinnable, so the strip is always about the planet
     // you are standing at — which is what the gate override already forced
