@@ -7433,6 +7433,15 @@ double _wingElementRadius(String e) => switch (e) {
 const double kBossChillFloor = 0.35;
 const double kBossChillDurationScale = 0.45;
 
+/// How many Pip+Mud trail puffs may exist at once, across every tagged enemy.
+///
+/// The tag is permanent by design, and each tagged enemy drops a 5.5s puff
+/// every 0.42s — about thirteen live puffs per enemy. Twenty tagged enemies
+/// would therefore want 260 placements from a `companionProjectiles` list that
+/// holds 220 for the whole game, so a long fight let one element quietly own
+/// every trap, ward and pool slot on the field.
+const int kPipMudTrailBudget = 48;
+
 /// Mane+Light: the three orbit rings, outermost first.
 ///
 /// The cast no longer throws anything. It sets a ward turning around the

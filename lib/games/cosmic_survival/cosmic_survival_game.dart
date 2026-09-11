@@ -958,6 +958,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final List<_VfxParticle> _vfx = [];
   final List<_BeamFx> _beamFx = [];
 
+  /// Running count of Pip+Mud trail puffs, refreshed on [_pipMudPuffScanTimer]
+  /// rather than every emission — the budget only needs to be roughly right,
+  /// and a full scan per puff per enemy would cost more than the puffs do.
+  int _pipMudPuffCount = 0;
+  double _pipMudPuffScanTimer = 0;
+
   /// Live ambient-particle count. Exposed so the particle budget can be
   /// asserted in tests — the pool is a shared resource every effect competes
   /// for, and the competition is invisible from outside without this.
@@ -3670,7 +3676,32 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         enemy.pipMudTrailTimer -= dt;
         if (enemy.pipMudTrailTimer <= 0) {
           enemy.pipMudTrailTimer = 0.42;
-          _appendCompanionProjectile(
+          // The tag is permanent and every tagged enemy emits, so this is the
+          // one effect in the game whose output scales with the size of the
+          // WAVE rather than with what the player did. Thirteen live puffs per
+          // enemy against a 220-slot list shared with every trap, ward and
+          // pool means a long fight could quietly leave no room for anything
+          // else. Budgeted so the trail can never own the field.
+          //
+          // (Until the pip-dart narrowing above, this never came up: the puffs
+          // were being consumed on spawn, so the trail did not exist at all.)
+          _pipMudPuffScanTimer -= dt;
+          if (_pipMudPuffScanTimer <= 0) {
+            _pipMudPuffScanTimer = 0.25;
+            _pipMudPuffCount = companionProjectiles
+                .where(
+                  (p) =>
+                      p.abilityFamily == 'pip' &&
+                      p.element == 'Mud' &&
+                      p.stationary,
+                )
+                .length;
+          }
+          // Guarded rather than `continue`d: the rest of this enemy's frame
+          // (Mask+Blood drain and the like) still has to run.
+          if (_pipMudPuffCount < kPipMudTrailBudget) {
+            _pipMudPuffCount++;
+            _appendCompanionProjectile(
             Projectile(
               position: enemy.position,
               angle: 0,
@@ -3689,7 +3720,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               effectRadius: 38,
               effectDuration: 1.2,
             ),
-          );
+            );
+          }
         }
       }
 
@@ -11669,7 +11701,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // enemies that are off-screen or behind cover. Each bounce sheds
         // ~30% damage so a single dart can't full-damage 5 enemies. Speed
         // also drops slightly so chains read more clearly.
-        final isPipSpecialProjectile = p.abilityFamily == 'pip';
+        // Only the MOVING dart ricochets and is spent by it. Pip also places
+        // stationary things — Mud's trail puffs, Fire's pools, Poison's line —
+        // and this test used to catch those too, so they were consumed after
+        // kPipMaxPierceHits contacts like a dart that had run out of bounces.
+        //
+        // Since a puff is dropped directly on top of the enemy that is
+        // trailing it, both contacts land within a frame or two and the puff
+        // dies effectively on spawn. Mud's whole line on the design board is
+        // "affected enemies PERMANENTLY leave mud trails that slow other
+        // enemies", and the trails were never surviving long enough to slow
+        // anything: measured at 665 puffs emitted over 900 frames, of which
+        // at most 11 were alive at any moment and none at the end.
+        //
+        // Same narrowing the damage-attribution check a few lines up already
+        // uses.
+        final isPipSpecialProjectile =
+            p.abilityFamily == 'pip' &&
+            p.visualStyle == ProjectileVisualStyle.dart;
         if (p.bounceCount > 0) {
           p.bounceCount--;
           if (isPipSpecialProjectile) p.pierceCount++;
