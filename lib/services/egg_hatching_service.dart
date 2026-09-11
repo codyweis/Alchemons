@@ -41,6 +41,7 @@ import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/delay_type_widget.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/pure_breeding_intro_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -1762,75 +1763,21 @@ class EggHatching {
     dismissOverlay();
     final int version = ++_overlayVersion;
 
+    // Resolved from the caller, not the overlay builder: the root overlay can
+    // sit above the faction provider depending on where the hatch was started.
+    final fc = FC.of(context);
+
     late final OverlayEntry entry;
     entry = OverlayEntry(
-      builder: (overlayContext) {
-        final top = MediaQuery.of(overlayContext).padding.top + 10;
-        return Positioned(
-          top: top,
-          left: 14,
-          right: 14,
-          child: Material(
-            color: Colors.transparent,
-            child: GestureDetector(
-              onTap: context.soundAction(openEncyclopedia),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF2B1711), Color(0xFF4B2317)],
-                  ),
-                  border: Border.all(
-                    color: const Color(0xFFE26A3D).withValues(alpha: .7),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFE26A3D).withValues(alpha: .2),
-                      blurRadius: 16,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFFE26A3D).withValues(alpha: .2),
-                        border: Border.all(
-                          color: const Color(0xFFE26A3D).withValues(alpha: .6),
-                        ),
-                      ),
-                      child: const Icon(
-                        AppIcons.menu_book_rounded,
-                        color: Color(0xFFFFB188),
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '$title • Tap to open encyclopedia',
-                        style: const TextStyle(
-                          color: Color(0xFFFFD4C1),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+      builder: (_) => _ForgeTapToast(
+        fc: fc,
+        // Amber, because that is what the encyclopedia it opens is dressed in.
+        tint: fc.amberBright,
+        icon: AppIcons.menu_book_rounded,
+        title: title,
+        hint: 'Tap to open encyclopedia',
+        onTap: context.soundAction(openEncyclopedia),
+      ),
     );
 
     _activeDiscoveryOverlay = entry;
@@ -1939,75 +1886,19 @@ class EggHatching {
     dismissOverlay();
     final int version = ++_overlayVersion;
 
+    final fc = FC.of(context);
+
     late final OverlayEntry entry;
     entry = OverlayEntry(
-      builder: (overlayContext) {
-        final top = MediaQuery.of(overlayContext).padding.top + 10;
-        return Positioned(
-          top: top,
-          left: 14,
-          right: 14,
-          child: Material(
-            color: Colors.transparent,
-            child: GestureDetector(
-              onTap: context.soundAction(openProgress),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF14192D), Color(0xFF223057)],
-                  ),
-                  border: Border.all(
-                    color: const Color(0xFF7AA7FF).withValues(alpha: .72),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF7AA7FF).withValues(alpha: .22),
-                      blurRadius: 18,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF7AA7FF).withValues(alpha: .16),
-                        border: Border.all(
-                          color: const Color(0xFF7AA7FF).withValues(alpha: .55),
-                        ),
-                      ),
-                      child: const Icon(
-                        AppIcons.auto_awesome_rounded,
-                        color: Color(0xFFDDE8FF),
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '$speciesName reached ${showcase.milestoneCount} bred  •  +${showcase.pointsAwarded} constellation points  •  Tap to open progress',
-                        style: const TextStyle(
-                          color: Color(0xFFE2ECFF),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+      builder: (_) => _ForgeTapToast(
+        fc: fc,
+        tint: FC.blue,
+        icon: AppIcons.auto_awesome_rounded,
+        title:
+            '$speciesName reached ${showcase.milestoneCount} bred  •  +${showcase.pointsAwarded} constellation points',
+        hint: 'Tap to open progress',
+        onTap: context.soundAction(openProgress),
+      ),
     );
 
     _activeDiscoveryOverlay = entry;
@@ -2290,4 +2181,146 @@ class EggHatching {
 
   static String _getTintName(Creature c) =>
       tintLabels[c.genetics?.get('tinting') ?? 'normal'] ?? 'Standard';
+}
+
+/// Top-of-screen tap-through notice for the post-hatch results (a new
+/// encyclopedia entry, a constellation milestone).
+///
+/// These were rounded gradient pills with white sans text — the last two
+/// notifications in the game that did not look like [showGameSnack]. This is
+/// that same plate: flat surface, 4px radius, accent spine, monospace chrome.
+/// They are not routed through GameSnack itself because they keep their own
+/// bookkeeping (one at a time, versioned against a 4s timer) and the whole
+/// plate is the tap target rather than a trailing action label.
+class _ForgeTapToast extends StatefulWidget {
+  const _ForgeTapToast({
+    required this.fc,
+    required this.tint,
+    required this.icon,
+    required this.title,
+    required this.hint,
+    required this.onTap,
+  });
+
+  final FC fc;
+  final Color tint;
+  final IconData icon;
+  final String title;
+  final String hint;
+  final VoidCallback? onTap;
+
+  @override
+  State<_ForgeTapToast> createState() => _ForgeTapToastState();
+}
+
+class _ForgeTapToastState extends State<_ForgeTapToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  )..forward();
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = widget.fc;
+    // Off the view rather than the nearest MediaQuery: a SafeArea between
+    // here and the top zeroes the inset for everything below it.
+    final inset = MediaQueryData.fromView(View.of(context)).viewPadding.top;
+
+    return Positioned(
+      top: inset + kSnackTopGap,
+      left: 14,
+      right: 14,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, -0.6),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: _ctl, curve: Curves.easeOutCubic)),
+        child: FadeTransition(
+          opacity: _ctl,
+          child: Material(
+            color: Colors.transparent,
+            child: GestureDetector(
+              onTap: widget.onTap,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 560),
+                decoration: BoxDecoration(
+                  color: fc.bg1,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: widget.tint.withValues(alpha: 0.5)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x66000000),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.fromLTRB(0, 10, 11, 10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 30,
+                      color: widget.tint,
+                      margin: const EdgeInsets.only(right: 11),
+                    ),
+                    Icon(widget.icon, size: 16, color: widget.tint),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.title.toUpperCase(),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: fc.textPrimary,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                              height: 1.3,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            widget.hint.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: fc.textMuted,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      AppIcons.chevron_right_rounded,
+                      size: 14,
+                      color: fc.textMuted,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

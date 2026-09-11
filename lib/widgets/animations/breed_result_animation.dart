@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 
 class CreatureScanAnimation extends StatefulWidget {
   final Widget child;
@@ -290,48 +292,7 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
                     right: 0,
                     child: Opacity(
                       opacity: _discoveryFlash.value,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade600,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.orange.shade300,
-                            width: 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.orange.shade400,
-                              blurRadius: 12,
-                              spreadRadius: 3,
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              AppIcons.auto_awesome_rounded,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              'NEW DISCOVERY',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: const Center(child: _DiscoveryFlashPlate()),
                     ),
                   ),
 
@@ -345,6 +306,43 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
           },
         );
       },
+    );
+  }
+}
+
+/// The flash that fires over the specimen the first time a species is
+/// identified. Same teal bracket plate the extraction panel then pins to the
+/// docked sprite, so the two read as one announcement rather than a Material
+/// chip followed by a forge badge.
+class _DiscoveryFlashPlate extends StatelessWidget {
+  const _DiscoveryFlashPlate();
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    return BracketCard(
+      frameColor: fc.teal,
+      fillColor: fc.bg0.withValues(alpha: 0.94),
+      bracketSize: 9,
+      strokeWidth: 1.2,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(AppIcons.auto_awesome_rounded, color: fc.teal, size: 13),
+          const SizedBox(width: 8),
+          Text(
+            'NEW DISCOVERY',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: fc.teal,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
