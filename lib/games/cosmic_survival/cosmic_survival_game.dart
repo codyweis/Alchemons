@@ -1,4 +1,5 @@
 import 'package:alchemons/audio/sound_cue.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 // lib/games/cosmic_survival/cosmic_survival_game.dart
 //
 // COSMIC SURVIVAL FLAME GAME — REDESIGNED
@@ -2390,7 +2391,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             comp.effectiveSpecialCooldown *
             _specialCooldownReductionMultiplier(slotIndex, comp.member.family) *
             (isDarkWing ? 0.5 : 1.0);
-        comp.specialCooldown = cooldown;
+        comp.specialCooldown = _mysticCastCooldown(comp, cooldown);
 
         // Pip+Poison: design says the poison-line web persists "until
         // next usage". Despawn the previous cast's line zones and reset
@@ -2622,7 +2623,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             if (comp.member.element == 'Fire') {
               _igniteMysticEmberField(comp);
               _mysticSpentSlots.add(slotIndex);
-              comp.specialCooldown = double.infinity;
+              // Developer tools re-arm the cast instead of locking it to the
+              // deployment, so the field can be re-lit over and over while its
+              // numbers are being judged. This DOES bypass the once-per-
+              // deployment rule — turn the switch off to feel that rule.
+              comp.specialCooldown = DebugSettingsService.toolsVisible
+                  ? kDebugMysticCooldown
+                  : double.infinity;
             }
           }
         }
@@ -3561,6 +3568,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         slotIndex,
         member.family,
       ),
+    );
+    // Same shortcut on the opening wait, or the first cast of a run still
+    // costs the full Mystic cadence before anything can be judged.
+    companion.specialCooldown = _mysticCastCooldown(
+      companion,
+      companion.specialCooldown,
     );
     activeCompanions[slotIndex] = companion;
     companionSpecialCooldown[slotIndex] = companion.specialCooldown;
@@ -6739,6 +6752,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Push an environment entry for a freshly-cast Mystic ultimate.
   /// The render pass then tints the viewport + spawns ambient
   /// element-specific particles for the entry's lifetime.
+  /// Seconds a Mystic waits between casts while developer tools are on.
+  ///
+  /// Mystic carries the longest cadence in the game on purpose, which is
+  /// correct for play and miserable for tuning: judging whether an ember field
+  /// reads as a hazard means seeing it dozens of times, not twice a run.
+  static const double kDebugMysticCooldown = 5.0;
+
+  /// Collapses a Mystic's cadence to [kDebugMysticCooldown] while the
+  /// developer-tools switch is on, and leaves every other family alone.
+  ///
+  /// Gated on DebugSettingsService rather than kDebugMode deliberately: that
+  /// constant is compile-time and false in profile, which is the build you
+  /// actually want to feel this in. The switch is persisted, so it works in
+  /// any build type — the same reasoning that file already documents.
+  double _mysticCastCooldown(CosmicSurvivalCompanion comp, double normal) {
+    if (!DebugSettingsService.toolsVisible) return normal;
+    if (comp.member.family.toLowerCase() != 'mystic') return normal;
+    return min(normal, kDebugMysticCooldown);
+  }
+
   /// Lights a Fire Mystic's ember field. Count scales with the caster, per the
   /// brief: roughly twenty at low stats up to fifty at high.
   void _igniteMysticEmberField(CosmicSurvivalCompanion comp) {
