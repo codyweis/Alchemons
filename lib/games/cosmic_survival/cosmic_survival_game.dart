@@ -6920,14 +6920,36 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final cx = ship.position.dx - vw / 2;
     final cy = ship.position.dy - vh / 2;
     final viewportRect = Rect.fromLTWH(cx, cy, vw, vh);
+    // A vignette, not a wash.
+    //
+    // This was one flat rectangle of colour over the whole viewport — for the
+    // single-slot ultimate, "the world is now this element" was a solid tint.
+    // At the alphas these elements carry (up to 0x40) that is a quarter-opacity
+    // sheet across everything, which manages to be both unspectacular and
+    // actively harmful: it flattens the contrast on the enemies and projectiles
+    // the player is reading.
+    //
+    // Concentrated at the edges and clearing toward the middle, it frames the
+    // fight instead of covering it — the world visibly changes while the part
+    // being played stays legible. The breathing keeps it from reading as a
+    // static filter someone left on.
+    final centre = ship.position;
+    final reach = sqrt(vw * vw + vh * vh) * 0.5;
     for (final env in _mysticEnvironments) {
       final env01 = env.envelope;
       if (env01 <= 0.01) continue;
       final tint = _mysticEnvTintColor(env.element);
       if (tint == null) continue;
+      final breath = 0.88 + 0.12 * sin(stats.timeElapsed * 1.3 + env.life);
+      final edge = tint.withValues(alpha: tint.a * env01 * breath);
       canvas.drawRect(
         viewportRect,
-        Paint()..color = tint.withValues(alpha: tint.a * env01),
+        Paint()
+          ..shader = ui.Gradient.radial(centre, reach, [
+            tint.withValues(alpha: 0.0),
+            tint.withValues(alpha: tint.a * env01 * 0.35 * breath),
+            edge,
+          ], const [0.0, 0.55, 1.0]),
       );
     }
   }
