@@ -748,6 +748,17 @@ bool shouldUseReducedCompanionProjectileRendering({
 
 class CosmicSurvivalGame extends FlameGame with PanDetector {
   static const int _maxCompanionProjectiles = 220;
+
+  /// Trails stop being laid at this many live companion projectiles. Slightly
+  /// lower than the turret ceiling because trails are the denser of the two
+  /// self-generating sources.
+  static const int _trailProjectileCeiling =
+      (_maxCompanionProjectiles * 0.60) ~/ 1;
+
+  /// Turrets stop firing at this many live companion projectiles, leaving the
+  /// rest of the list free for casts the player actually triggered.
+  static const int _turretFireProjectileCeiling =
+      (_maxCompanionProjectiles * 0.72) ~/ 1;
   static const int _maxEnemyProjectiles = 90;
   static const int _maxBossProjectiles = 110;
   static const double _survivalShipSpeedMultiplier = 1.10;
@@ -11538,7 +11549,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
 
       // Trail
-      if (p.trailInterval > 0 && !p.stationary && p.orbitCenter == null) {
+      //
+      // Budgeted for the same reason turret fire is: this is a
+      // self-generating source feeding a capped list that every placement in
+      // the game shares. Cost scales with the number of trailing projectiles,
+      // which no single emitter knows — a Mystic+Plant cast puts twelve
+      // trailing thorns on the field at once, each dropping a puff every fifth
+      // of a second with a three-second life, and the twelve together held
+      // ~204 of the 220 slots. Everything else silently stopped placing.
+      if (p.trailInterval > 0 &&
+          !p.stationary &&
+          p.orbitCenter == null &&
+          companionProjectiles.length < _trailProjectileCeiling) {
         p.trailTimer += dt;
         if (p.trailTimer >= p.trailInterval) {
           p.trailTimer -= p.trailInterval;
@@ -11847,6 +11869,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _maybeFireProjectileTurret(Projectile projectile, double dt) {
     if (projectile.turretInterval <= 0 || projectile.turretDamage <= 0) return;
+    // Turret fire yields to authored casts.
+    //
+    // companionProjectiles is one capped list shared by every placement in the
+    // game, and _appendCompanionProjectile simply fails once it is full — so
+    // whoever fills it first wins and everyone else silently stops placing
+    // anything. Turret shots are the one source that generates itself: a
+    // Mystic+Plant cast plants several turrets, each firing every 0.56s for
+    // nine seconds, and against a wave that is out-living the damage the chain
+    // filled all 220 slots from a single cast.
+    //
+    // Authored casts are what the player actually pressed a button for, so the
+    // self-generating source is the one that has to give way. Stopping at a
+    // fraction of the cap leaves that headroom.
+    if (companionProjectiles.length >= _turretFireProjectileCeiling) return;
     projectile.turretTimer += dt;
     while (projectile.turretTimer >= projectile.turretInterval) {
       projectile.turretTimer -= projectile.turretInterval;
