@@ -751,7 +751,17 @@ bool drawManeElementalProjectileVisual({
         );
         return true;
       case 'Plant':
-        _paintPlantZone(canvas, position, radius, color, time, pulse, visScale);
+        // Mane's rooted residue is damaging growth, not a bed.
+        _paintPlantZone(
+          canvas,
+          position,
+          radius,
+          color,
+          time,
+          pulse,
+          visScale,
+          style: PlantZoneStyle.vines,
+        );
         return true;
       case 'Lightning':
         _paintLightningField(
@@ -2181,7 +2191,11 @@ void _drawMaskGroundZone({
         // Kin's is a healing GARDEN that drops flowers to harvest — attack
         // tendrils would be the wrong picture for it anyway. It gets growth
         // of its own instead.
-        asBareGround: projectile.abilityFamily == 'mask',
+        style: switch (projectile.abilityFamily) {
+          'mask' => PlantZoneStyle.bare,
+          'kin' => PlantZoneStyle.garden,
+          _ => PlantZoneStyle.vines,
+        },
       );
       break;
     case 'Crystal':
@@ -2777,6 +2791,26 @@ void _paintFireZone(
   }
 }
 
+/// What a Plant ground zone is a picture OF.
+///
+/// All three used to render as the same bare moss patch, because that patch
+/// was authored to sit under Mask's writhing tendril overlay and stay out of
+/// its way — and that overlay is drawn for Mask alone. Every other family's
+/// Plant zone was the empty bed of a picture whose subject never arrived.
+enum PlantZoneStyle {
+  /// Mask: the tendrils are drawn over the top, so the bed stays bare.
+  bare,
+
+  /// Kin: a healing garden that drops collectible flowers. Shoots rise and
+  /// ripen into buds, so the bed looks like something producing them.
+  garden,
+
+  /// Let and Mane: damaging growth. Creeping thorned vines that spread from
+  /// where they took root — the board's "vines grow from the ground and remain
+  /// until an enemy collides with them".
+  vines,
+}
+
 void _paintPlantZone(
   ui.Canvas canvas,
   ui.Offset position,
@@ -2785,7 +2819,7 @@ void _paintPlantZone(
   double time,
   double pulse,
   double vs, {
-  bool asBareGround = true,
+  PlantZoneStyle style = PlantZoneStyle.bare,
 }) {
   final dark = ui.Color.lerp(color, const ui.Color(0xFF1F4F22), 0.55)!;
   canvas.drawCircle(
@@ -2797,9 +2831,53 @@ void _paintPlantZone(
   );
   // Mask's vine has writhing tendrils drawn over the top of this, so the
   // patch stays bare on purpose and lets them carry the movement.
-  if (asBareGround) return;
+  if (style == PlantZoneStyle.bare) return;
 
-  // Nothing is coming to fill this one in, so it grows its own.
+  if (style == PlantZoneStyle.vines) {
+    // Thorned creepers spreading out from where they rooted. Slower and
+    // heavier than the garden's shoots, and barbed rather than budding,
+    // because these exist to hurt whatever walks into them.
+    final vine = ui.Color.lerp(color, const ui.Color(0xFF2E7D32), 0.40)!;
+    final creeper = ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeCap = ui.StrokeCap.round
+      ..maskFilter = null;
+    for (var i = 0; i < 6; i++) {
+      final a = i * (pi * 2 / 6) + sin(time * 0.35 + i) * 0.22;
+      final dir = ui.Offset(cos(a), sin(a));
+      final perp = ui.Offset(-dir.dy, dir.dx);
+      // Creeps out and back on a long slow cycle, so the patch looks alive
+      // without ever reading as a spinning asterisk.
+      final reach = radius * (0.62 + 0.26 * sin(time * 0.5 + i * 1.3));
+      final mid = position + dir * reach * 0.55 + perp * reach * 0.26;
+      final tip = position + dir * reach;
+      creeper
+        ..color = vine.withValues(alpha: 0.60 * pulse)
+        ..strokeWidth = 2.0 * vs;
+      canvas.drawPath(
+        ui.Path()
+          ..moveTo(position.dx, position.dy)
+          ..quadraticBezierTo(mid.dx, mid.dy, tip.dx, tip.dy),
+        creeper,
+      );
+      // Thorns along the outer half — what makes this a hazard and not a bed.
+      for (var j = 1; j <= 2; j++) {
+        final t = 0.55 + j * 0.2;
+        final on =
+            position +
+            dir * reach * t +
+            perp * reach * 0.26 * sin(t * pi);
+        final barb = perp * (j.isEven ? 3.0 : -3.0) * vs;
+        creeper
+          ..color = vine.withValues(alpha: 0.70 * pulse)
+          ..strokeWidth = 1.2 * vs;
+        canvas.drawLine(on, on + barb - dir * 1.5 * vs, creeper);
+      }
+    }
+    return;
+  }
+
+  // Garden: nothing is coming to fill this one in, so it grows its own.
   //
   // A garden, not a trap: shoots rising from the bed on their own cycles,
   // each swelling to a bud at the top. Kin's Plant drops a collectible
@@ -4714,7 +4792,19 @@ void _drawLetFallout(
       _paintFireZone(canvas, position, radius, color, white, time, pulse, vs);
       return;
     case 'Plant':
-      _paintPlantZone(canvas, position, radius, color, time, pulse, vs);
+      // Let+Plant leaves four of these standing for thirty seconds each —
+      // the longest-lived placements in the game, and the board calls them
+      // vines that remain until an enemy collides with them.
+      _paintPlantZone(
+        canvas,
+        position,
+        radius,
+        color,
+        time,
+        pulse,
+        vs,
+        style: PlantZoneStyle.vines,
+      );
       return;
     case 'Crystal':
       _paintCrystalCluster(
