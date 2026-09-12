@@ -450,16 +450,19 @@ void main() {
     final partyHit = live.last..hp = 1e9;
 
     game.debugShipAttackDamage(shipHit, 5);
+    // The floor of the range is 70%, rising to 90% with stats and further with
+    // surges. Pinned rather than checked loosely, because the whole pitch of a
+    // Mud world is a specific number: nothing crosses the field.
     expect(
       shipHit.effectiveSpeed,
-      lessThan(shipHit.speed * 0.45),
+      lessThanOrEqualTo(shipHit.speed * 0.30 + 0.001),
       reason: "the ship's guns are supposed to be the brake",
     );
 
     game.debugAutoAttackDamage(partyHit, 5);
     expect(
       partyHit.effectiveSpeed,
-      greaterThan(partyHit.speed * 0.45),
+      greaterThan(partyHit.speed * 0.30),
       reason:
           'a companion basic must not carry the mire — this world hands the '
           "PLAYER a tool, which is what keeps it distinct from Blood's tithe",

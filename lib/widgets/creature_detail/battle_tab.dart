@@ -1856,7 +1856,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Lightning' => (
           'The Storm • Intelligence scales the bolt',
-          'The sky turns over. Every five seconds a bolt falls on someone at '
+          'The sky turns over. Every ten seconds a bolt falls on someone at '
               'random; one that lands on a boss stuns it for a second. Holds '
               'while this Mystic is alive and deployed.',
           ['WORLD', 'STRIKE', 'BOSS STUN'],
@@ -1878,16 +1878,16 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Earth' => (
           'The Quaking • Strength scales the shock',
-          'The ground will not hold still. Every ten seconds a quake runs the '
-              'whole arena, hurting every enemy and knocking them off their '
-              'feet. Holds while this Mystic is alive and deployed.',
+          'The ground will not hold still. Every fifteen seconds a quake runs '
+              'the whole arena, hurting every enemy and knocking them off '
+              'their feet. Holds while this Mystic is alive and deployed.',
           ['WORLD', 'ARENA-WIDE', 'STUN'],
         ),
         'Mud' => (
           'The Mire • Strength and Intelligence scale the drag',
           'The field turns to mud under the ship\'s guns: anything the SHIP '
-              'hits bogs down, up to 90% slower. Holds while this Mystic is '
-              'alive and deployed.',
+              'hits bogs down 70% to 90%, further with surges. Holds while '
+              'this Mystic is alive and deployed.',
           ['WORLD', 'SHIP', 'SLOW'],
         ),
         'Dust' => (

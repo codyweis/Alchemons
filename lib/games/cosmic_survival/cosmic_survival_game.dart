@@ -7316,8 +7316,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// quakes. Fixed rather than stat-scaled: these are the weather's rhythm, and
   /// a player has to be able to count on it to play around it. Stats move the
   /// damage instead.
-  static const double kMysticStrikeInterval = 5.0;
-  static const double kMysticQuakeInterval = 10.0;
+  static const double kMysticStrikeInterval = 10.0;
+  static const double kMysticQuakeInterval = 15.0;
 
   /// The slot hosting a live world of [element], or null. Deliberately checks
   /// the caster rather than the leftover entities: a world belongs to a Mystic
@@ -7908,11 +7908,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       min: 0.0,
       max: 1.0,
     );
-    // 60% slow at the bottom of the range up to the brief's 90% at the top.
-    // The surge pushes past 90% and holds it longer — the one thing a Mud
-    // world has to sell is that nothing crosses the field.
+    // 70% slow at the bottom of the stat range up to 90% at the top. The
+    // surge pushes past 90% and holds it longer — the one thing a Mud world
+    // has to sell is that nothing crosses the field.
     final surge = _mysticWorldPower(slot);
-    final multiplier = max(0.02, (0.40 - 0.30 * scale) / surge);
+    final multiplier = max(0.02, (0.30 - 0.20 * scale) / surge);
     enemy.slowTimer = max(enemy.slowTimer, 1.4 * surge);
     enemy.slowMultiplier = min(enemy.slowMultiplier, multiplier);
   }
