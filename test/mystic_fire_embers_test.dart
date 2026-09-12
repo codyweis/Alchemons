@@ -123,6 +123,39 @@ void main() {
     );
   });
 
+  test('the world holds as long as the caster does, then closes', () async {
+    final game = await boot();
+    await castOnce(game);
+    expect(game.mysticWorldStrength(0), greaterThan(0));
+
+    // Far past the eighteen-second timer the world used to run on. The world
+    // is the point of the family — it should not expire while its caster is
+    // still standing in it.
+    for (var f = 0; f < 2400; f++) {
+      game.orb.currentHp = game.orb.maxHp;
+      if (game.showingPowerUpSelection) {
+        game.alchemicalMeter = 0;
+        game.dismissPowerUpSelection();
+      }
+      game.update(1 / 60);
+    }
+    expect(
+      game.mysticWorldStrength(0),
+      greaterThan(0.9),
+      reason: 'the world expired while its Mystic was alive and deployed',
+    );
+
+    // Pulled out, it closes — and closes visibly rather than blinking off.
+    game.returnCompanion(0);
+    game.update(1 / 60);
+    final midClose = game.mysticWorldStrength(0);
+    expect(midClose, greaterThan(0), reason: 'it should fade, not vanish');
+    for (var f = 0; f < 180; f++) {
+      game.update(1 / 60);
+    }
+    expect(game.mysticWorldStrength(0), isZero);
+  });
+
   test('embers never touch the shared projectile budget', () async {
     final game = await boot();
     final before = game.companionProjectiles.length;

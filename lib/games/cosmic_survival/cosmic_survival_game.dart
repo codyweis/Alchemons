@@ -608,23 +608,45 @@ class _MysticEmber {
   double fade = 1.0;
 }
 
+/// The world a Mystic makes: viewport tint plus an ambient particle storm.
+///
+/// It used to run on a fixed eighteen-second timer, which made the world a
+/// long buff. It lasts as long as its caster is alive and deployed now — the
+/// same rule the Fire ember field follows, and the point of the family: a
+/// Mystic is the single-slot pick, so choosing one means choosing what the map
+/// IS, not buying eighteen seconds of weather.
 class _MysticEnvironment {
-  final String element;
-  final double maxLife;
-  double life;
-  _MysticEnvironment({required this.element, required this.maxLife})
-    : life = maxLife;
-  bool get dead => life <= 0;
+  _MysticEnvironment({required this.element, required this.ownerSlot});
 
-  /// 0 → 1 → 0 envelope: ramps up at start, holds, fades at end.
+  final String element;
+
+  /// Whose world this is. It holds while that companion is alive and out.
+  final int ownerSlot;
+
+  /// Seconds since the cast — drives the ramp in.
+  double age = 0;
+
+  /// Counts down once the caster is gone, so the world visibly closes rather
+  /// than being switched off.
+  double closing = -1;
+
+  static const double fadeIn = 0.6;
+  static const double fadeOut = 1.8;
+
+  bool get dead => closing >= 0 && closing <= 0;
+
+  /// Ramps up at the cast, holds for as long as the caster stands, then closes.
   double get envelope {
-    if (maxLife <= 0) return 0;
-    const fadeIn = 0.6;
-    const fadeOut = 1.2;
-    final elapsed = maxLife - life;
-    if (elapsed < fadeIn) return (elapsed / fadeIn).clamp(0.0, 1.0).toDouble();
-    if (life < fadeOut) return (life / fadeOut).clamp(0.0, 1.0).toDouble();
+    if (closing >= 0) {
+      return (closing / fadeOut).clamp(0.0, 1.0).toDouble();
+    }
+    if (age < fadeIn) return (age / fadeIn).clamp(0.0, 1.0).toDouble();
     return 1.0;
+  }
+
+  /// Begins the close. Harmless to call repeatedly.
+  void beginClosing() {
+    if (closing < 0) closing = fadeOut * envelope;
   }
 }
 
@@ -1780,6 +1802,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // seconds rather than blinking out, so it is something the player sees
       // happen and can read as a consequence.
       _extinguishMysticField(slot);
+      _closeMysticEnvironment(slot);
       defeatedCompanionSlots.add(slot);
       if (tetheredCompanionSlot == slot) {
         tetheredCompanionSlot = null;
@@ -2615,7 +2638,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // for the cast's duration. Pushes a new entry; multiple
           // simultaneous mystics stack their tints.
           if (comp.member.family.toLowerCase() == 'mystic') {
-            _pushMysticEnvironment(comp.member.element);
+            _pushMysticEnvironment(comp.member.element, slotIndex);
             // Fire's world is a drifting ember field that outlives the cast,
             // so the cast is spent for this deployment. Recalling the Mystic
             // (or losing it) is what gives the ability back — and costs the
@@ -3628,10 +3651,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // A Mystic pulled out takes its world with it, and gets its cast back on
       // a normal cooldown. That trade IS the mechanic: the ability is only
       // available to someone who has not yet spent it here.
-      if (comp.member.family.toLowerCase() == 'mystic' &&
-          isMysticFieldSpent(slotIndex)) {
-        _extinguishMysticField(slotIndex);
-        comp.specialCooldown = comp.effectiveSpecialCooldown;
+      if (comp.member.family.toLowerCase() == 'mystic') {
+        _closeMysticEnvironment(slotIndex);
+        if (isMysticFieldSpent(slotIndex)) {
+          _extinguishMysticField(slotIndex);
+          comp.specialCooldown = comp.effectiveSpecialCooldown;
+        }
       }
       companionHpFraction[slotIndex] = comp.hpPercent;
       companionSpecialCooldown[slotIndex] = comp.specialCooldown;
@@ -6820,6 +6845,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   int mysticEmberCount(int slotIndex) =>
       _mysticEmbers.where((e) => e.ownerSlot == slotIndex && e.fade > 0).length;
 
+  /// How strong this slot's Mystic world currently is, 0 when there is none.
+  /// Exposed so a test can assert the world outlives the cast and closes with
+  /// its caster rather than on a timer.
+  @visibleForTesting
+  double mysticWorldStrength(int slotIndex) {
+    var strongest = 0.0;
+    for (final env in _mysticEnvironments) {
+      if (env.ownerSlot != slotIndex) continue;
+      final e = env.envelope;
+      if (e > strongest) strongest = e;
+    }
+    return strongest;
+  }
+
   /// How far this slot's embers reach from [from] — the distance to the
   /// furthest one. Exposed so a test can assert the field covers the arena
   /// rather than orbiting its caster.
@@ -6906,15 +6945,25 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticEmbers.removeWhere((e) => e.fade <= 0);
   }
 
-  void _pushMysticEnvironment(String element) {
+  void _pushMysticEnvironment(String element, int ownerSlot) {
+    // One world per caster. Recasting replaces it rather than stacking a
+    // second copy of the same weather on top of itself.
+    for (final env in _mysticEnvironments) {
+      if (env.ownerSlot == ownerSlot) env.beginClosing();
+    }
     if (_mysticEnvironments.length >= 6) {
       _mysticEnvironments.removeAt(0); // budget cap
     }
-    // 18s base — short enough to feel like a "moment", long enough
-    // to overlap the Mystic's projectile lifetimes (15-30s stretched).
     _mysticEnvironments.add(
-      _MysticEnvironment(element: element, maxLife: 18.0),
+      _MysticEnvironment(element: element, ownerSlot: ownerSlot),
     );
+  }
+
+  /// Closes a slot's world. Called when its Mystic is recalled or dies.
+  void _closeMysticEnvironment(int ownerSlot) {
+    for (final env in _mysticEnvironments) {
+      if (env.ownerSlot == ownerSlot) env.beginClosing();
+    }
   }
 
   /// Per-frame tick for active environment overlays — decays life
@@ -6923,7 +6972,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _updateMysticEnvironments(double dt) {
     if (_mysticEnvironments.isEmpty) return;
     for (final env in _mysticEnvironments) {
-      env.life -= dt;
+      env.age += dt;
+      // The world holds while its caster is alive and out. A Mystic that dies
+      // or gets recalled takes its weather with it — and it closes over a
+      // second and a half rather than blinking off, so losing it is something
+      // the player watches rather than something that simply stops.
+      final owner = activeCompanions[env.ownerSlot];
+      final standing = owner != null && !owner.isDead;
+      if (!standing) env.beginClosing();
+      if (env.closing >= 0) env.closing = max(0.0, env.closing - dt);
     }
     _mysticEnvironments.removeWhere((e) => e.dead);
     if (_mysticEnvironments.isEmpty) return;
@@ -7256,7 +7313,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (env01 <= 0.01) continue;
       final tint = _mysticEnvTintColor(env.element);
       if (tint == null) continue;
-      final breath = 0.88 + 0.12 * sin(stats.timeElapsed * 1.3 + env.life);
+      // Phase off the owning slot so two worlds never breathe in lockstep.
+      final breath =
+          0.88 + 0.12 * sin(stats.timeElapsed * 1.3 + env.ownerSlot * 1.7);
       final edge = tint.withValues(alpha: tint.a * env01 * breath);
       canvas.drawRect(
         viewportRect,
