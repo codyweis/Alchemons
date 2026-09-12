@@ -20,11 +20,8 @@ class _C {
   static const bg2 = Color(0xFF14141B);
   static const bg3 = Color(0xFF1A1A22);
   static const amber = Color(0xFFE0B65F);
-  static const teal = Color(0xFF5BC8E8);
   static const textPrimary = Color(0xFFF4EEDF);
-  static const textSecondary = Color(0xFFB5A98A);
   static const textMuted = Color(0xFF7A7488);
-  static const borderDim = Color(0xFF2E2A23);
 }
 
 /// A card's accent: what the player's eye is supposed to sort on.
@@ -38,9 +35,23 @@ class _C {
 ///
 /// A Mystic world surge is coloured by its ELEMENT: it upgrades one specific
 /// world standing on the map, and it should look like that world.
+/// Lifts a colour until it can carry white text beside it and hold its own
+/// against the brighter elements.
+///
+/// The element palette is tuned for creatures on a light card, so the earthy
+/// ones — Earth, Mud, Dust — land near the panel's own background and read as
+/// washed out next to Poison's violet sitting right below them.
+Color _legible(Color c) {
+  final hsl = HSLColor.fromColor(c);
+  return hsl
+      .withSaturation(hsl.saturation.clamp(0.45, 1.0))
+      .withLightness(hsl.lightness.clamp(0.58, 0.78))
+      .toColor();
+}
+
 Color powerUpAccentColor(PowerUpDef def) {
   final element = def.mysticElement;
-  if (element != null) return elementColor(element);
+  if (element != null) return _legible(elementColor(element));
   if (def.isKeystone) return const Color(0xFFE4C16A);
   return switch (def.category) {
     PowerUpCategory.shipWeapon => const Color(0xFFFF7A45),
@@ -236,8 +247,10 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const _EtchedDivider(label: 'FORGE OFFERINGS'),
-                              const SizedBox(height: 10),
+                              // One title, not two stacked: "FORGE OFFERINGS"
+                              // over "ALCHEMICAL SURGE" said the same thing
+                              // twice and pushed the cards down the screen.
+                              const SizedBox(height: 2),
                               Text(
                                 showingKeystones
                                     ? 'WAVE ${widget.currentWave} KEYSTONE'
@@ -301,35 +314,6 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
           },
         ),
       ),
-    );
-  }
-}
-
-class _EtchedDivider extends StatelessWidget {
-  final String label;
-
-  const _EtchedDivider({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: Container(height: 1, color: _C.borderDim)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              color: _C.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.6,
-            ),
-          ),
-        ),
-        Expanded(child: Container(height: 1, color: _C.borderDim)),
-      ],
     );
   }
 }
@@ -465,11 +449,43 @@ class _PowerUpCard extends StatelessWidget {
                                   ),
                                 ),
                               ],
+                              // WHO IT IS FOR, on its own line.
+                              //
+                              // This shared a row with two tags and the level
+                              // pips, so on a real phone with real creature
+                              // names it ellipsized to "NO...", "BLIGH...",
+                              // "TERRA..." — which is worse than omitting it,
+                              // because the player can see that a name exists
+                              // and still cannot read which of their party it
+                              // names.
+                              if (hasTarget) ...[
+                                const SizedBox(height: 7),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      AppIcons.arrow_forward_rounded,
+                                      color: accent,
+                                      size: 13,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Expanded(
+                                      child: Text(
+                                        offeredName.toUpperCase(),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: _C.textPrimary,
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               const SizedBox(height: 9),
-                              // One footer row carrying everything that used
-                              // to be scattered through nested boxes: who it
-                              // is for, what kind of thing it is, and how far
-                              // along it already is.
+                              // What kind of thing it is, and how far along.
                               Row(
                                 children: [
                                   _MiniTag(
@@ -484,21 +500,6 @@ class _PowerUpCard extends StatelessWidget {
                                     label: _rarityLabel(rarity),
                                     color: _rarityColor(rarity),
                                   ),
-                                  if (hasTarget) ...[
-                                    const SizedBox(width: 7),
-                                    Flexible(
-                                      child: Text(
-                                        offeredName.toUpperCase(),
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: _C.teal,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
                                   const Spacer(),
                                   if (showPips)
                                     _LevelPips(

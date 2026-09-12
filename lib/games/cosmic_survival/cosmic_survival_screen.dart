@@ -1753,6 +1753,41 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
     String n(num v) => v.round().toString();
 
+    final accent = elementColor(member.element);
+    final comp = game.activeCompanions[slotIndex];
+    final down =
+        game.defeatedCompanionSlots.contains(slotIndex) ||
+        (comp?.isDead ?? false);
+    final statusLabel = down
+        ? 'DOWN'
+        : comp == null
+        ? 'RESERVE'
+        : game.tetheredCompanionSlot == slotIndex
+        ? 'FOLLOWING'
+        : 'DEPLOYED';
+    final statusColor = down
+        ? _C.danger
+        : comp == null
+        ? _C.textMuted
+        : _C.success;
+    final world = game.mysticWorldReadout(slotIndex);
+    // An infinite cooldown means a world is out and the cast is spent until
+    // recall — not "999 seconds", and never `.ceil()`, which throws.
+    final cd = comp?.specialCooldown ?? 0;
+    final full = comp?.effectiveSpecialCooldown ?? 1;
+    final specialReady = !cd.isFinite
+        ? 1.0
+        : cd <= 0.05
+        ? 1.0
+        : full <= 0
+        ? 1.0
+        : (1.0 - cd / full).clamp(0.0, 1.0);
+    final specialReadout = !cd.isFinite
+        ? 'WORLD OUT'
+        : cd <= 0.05
+        ? 'READY'
+        : '${cd.ceil()}s';
+
     showDialog<void>(
       context: context,
       builder: (_) => Dialog(
@@ -1760,7 +1795,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: _C.teal.withValues(alpha: 0.5)),
+          side: BorderSide(color: accent.withValues(alpha: 0.55)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(18),
@@ -1768,37 +1803,85 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // The creature's own element carries the dialog, so which
+              // alchemon you opened is readable before you read the name. It
+              // was a generic teal frame for all seventeen.
               Row(
                 children: [
-                  const Icon(
-                    AppIcons.insights_rounded,
-                    color: _C.teal,
-                    size: 20,
+                  Container(
+                    width: 4,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      member.displayName,
-                      style: const TextStyle(
-                        color: _C.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          member.displayName,
+                          style: TextStyle(
+                            color: Color.lerp(_C.textPrimary, accent, 0.22),
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          '${fam.toUpperCase()} · ${member.element.toUpperCase()}',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: accent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const Text(
-                    'RUN STATS',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: _C.textMuted,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.4,
-                    ),
+                  _PauseStatusPill(
+                    label: statusLabel,
+                    color: statusColor,
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
+              // LIVE STATE. The dialog used to open on lore and career totals
+              // with no word on the creature standing in the fight right now —
+              // whether it is hurt, whether its ability is ready, whether its
+              // world is out. That is what the player paused to find out.
+              if (comp != null) ...[
+                _PauseVitalBar(
+                  label: 'HP',
+                  value: comp.hpPercent,
+                  readout: '${(comp.hpPercent * 100).round()}%',
+                  tint: accent,
+                  critical: comp.hpPercent < 0.34,
+                ),
+                const SizedBox(height: 7),
+                _PauseVitalBar(
+                  label: 'SPECIAL',
+                  value: specialReady,
+                  readout: specialReadout,
+                  tint: _C.teal,
+                  critical: false,
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (world != null) ...[
+                _PauseWorldPanel(
+                  name: cosmicSpecialAbilityName('mystic', world.element),
+                  element: world.element,
+                  noun: world.noun,
+                  standing: world.standing,
+                  casterName: member.displayName,
+                  fading: world.strength < 0.999,
+                ),
+                const SizedBox(height: 12),
+              ],
               Flexible(
                 child: SingleChildScrollView(
                   child: Column(
@@ -4023,6 +4106,35 @@ class _PauseStatRow extends StatelessWidget {
           if (i < 2) const SizedBox(width: 8),
         ],
       ],
+    );
+  }
+}
+
+/// Deployed / following / reserve / down, as one filled pill.
+class _PauseStatusPill extends StatelessWidget {
+  const _PauseStatusPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: _C.bg0,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.1,
+        ),
+      ),
     );
   }
 }
