@@ -1865,9 +1865,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['WORLD', 'STRIKE', 'BOSS STUN'],
         ),
         'Water' => (
-          'Tidal Crescent • Beauty scales count',
-          'Sweeps crescent waves from both flanks that home inward and leave water trails.',
-          ['HOMING', 'TRAIL', 'PINCER'],
+          'The Maelstrom • Beauty and Intelligence scale the pull',
+          'A vast whirlpool turns on the orb. Everything caught in it stops '
+              'advancing and is carried slowly around the eye, grinding as it '
+              'goes. Holds while this Mystic is alive and deployed.',
+          ['WORLD', 'HOLD', 'GRIND'],
         ),
         'Ice' => (
           'The Blizzard • Intelligence scales the cold',

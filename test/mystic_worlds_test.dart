@@ -107,6 +107,7 @@ void main() {
     'Dust',
     'Steam',
     'Lava',
+    'Water',
   ]) {
     test('$element lights a world once per deployment', () async {
       final game = await boot(element);
@@ -820,6 +821,61 @@ void main() {
       game.mysticMeteorCount,
       greaterThan(0),
       reason: 'a boss stood on a crack and nothing came down',
+    );
+  });
+
+  test('Water holds what it catches and carries it round the eye', () async {
+    final game = await boot('Water');
+    await castOnce(game);
+    final radius = game.mysticMaelstromRadius(0)!;
+
+    // Put a body in the water, off to one side of the eye.
+    final caught = game.enemies.firstWhere((e) => !e.isDead)
+      ..hp = 1e9
+      ..isDead = false
+      ..position = game.orb.position + Offset(radius * 0.5, 0);
+    run(game, 2);
+
+    final start = caught.position - game.orb.position;
+    final startAngle = atan2(start.dy, start.dx);
+    run(game, 60);
+    final now = caught.position - game.orb.position;
+    final nowAngle = atan2(now.dy, now.dx);
+
+    // Held: it cannot advance under its own power.
+    expect(
+      caught.effectiveSpeed,
+      isZero,
+      reason: 'the water is supposed to stop things, not just slow them',
+    );
+    // And carried: a stun with no motion looks like a bug, where sliding
+    // around a centre reads instantly as being caught in something.
+    var swept = (nowAngle - startAngle).abs();
+    if (swept > pi) swept = 2 * pi - swept;
+    expect(
+      swept,
+      greaterThan(0.15),
+      reason: 'nothing was carried around the eye',
+    );
+    // Drawn inward as it goes, so the crowd gathers rather than orbiting at a
+    // fixed distance forever.
+    expect(now.distance, lessThan(start.distance));
+
+    // Not the whole arena: outside the rim, bodies still come on. A maelstrom
+    // that covered the floor would end the run's pressure outright.
+    final free = game.enemies.lastWhere(
+      (e) => !e.isDead && !identical(e, caught),
+    )
+      ..hp = 1e9
+      ..isDead = false
+      ..position = game.orb.position + Offset(radius * 2.2, 0)
+      ..slowTimer = 0
+      ..slowMultiplier = 1.0;
+    run(game, 2);
+    expect(
+      free.effectiveSpeed,
+      greaterThan(0),
+      reason: 'the hold reached past its own rim',
     );
   });
 }

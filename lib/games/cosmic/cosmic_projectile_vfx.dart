@@ -8385,3 +8385,101 @@ void drawMysticScorch({
       ..color = const ui.Color(0xFFFFB060).withValues(alpha: 0.55 * heat * a),
   );
 }
+
+/// A Water world's maelstrom: the whole surface turning around one eye.
+///
+/// Spiral arms rather than concentric rings. Rings would only say "a circular
+/// thing is here" — arms say which WAY the water is going, which is the thing
+/// the player reads the crowd's motion against, and it is what keeps this from
+/// looking like Dark's accretion disc in blue.
+void drawMysticMaelstrom({
+  required ui.Canvas canvas,
+  required ui.Offset centre,
+  required double radius,
+  required double phase,
+  required double alpha,
+  required double time,
+}) {
+  if (alpha <= 0.01) return;
+  final water = const ui.Color(0xFF3FC8E8);
+  final pale = const ui.Color(0xFFDFF6FF);
+
+  // The body of the water, darkening toward the eye.
+  canvas.drawCircle(
+    centre,
+    radius,
+    ui.Paint()..color = water.withValues(alpha: 0.055 * alpha),
+  );
+  canvas.drawCircle(
+    centre,
+    radius * 0.58,
+    ui.Paint()..color = water.withValues(alpha: 0.06 * alpha),
+  );
+
+  // Arms. Logarithmic sweeps from the eye out to the rim, all turning together.
+  final arm = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round;
+  const arms = 5;
+  for (var a = 0; a < arms; a++) {
+    final base = phase + a * (pi * 2 / arms);
+    final path = ui.Path();
+    for (var i = 0; i <= 26; i++) {
+      final f = i / 26;
+      // Wraps harder near the eye, the way a real vortex tightens.
+      final ang = base + f * 3.1 - (1.0 - f) * 1.6;
+      final r = radius * (0.10 + 0.90 * f);
+      final p = centre + ui.Offset(cos(ang), sin(ang)) * r;
+      if (i == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        path.lineTo(p.dx, p.dy);
+      }
+    }
+    arm
+      ..strokeWidth = 9.0
+      ..color = water.withValues(alpha: 0.16 * alpha);
+    canvas.drawPath(path, arm);
+    arm
+      ..strokeWidth = 2.4
+      ..color = pale.withValues(alpha: 0.26 * alpha);
+    canvas.drawPath(path, arm);
+  }
+
+  // Foam scattered along the current, so the surface has texture between arms.
+  final foam = ui.Paint()..color = pale.withValues(alpha: 0.30 * alpha);
+  for (var i = 0; i < 22; i++) {
+    final f = 0.18 + (i % 7) / 7.0 * 0.78;
+    final ang = phase * (0.5 + f) + i * 1.47;
+    final r = radius * f;
+    canvas.drawCircle(
+      centre + ui.Offset(cos(ang), sin(ang)) * r,
+      1.6 + 1.4 * sin(time * 3.0 + i),
+      foam,
+    );
+  }
+
+  // The eye: dark, still, and ringed by the fastest water on the field.
+  canvas.drawCircle(
+    centre,
+    radius * 0.10,
+    ui.Paint()..color = const ui.Color(0xFF04121C).withValues(alpha: 0.62 * alpha),
+  );
+  canvas.drawCircle(
+    centre,
+    radius * 0.10,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..color = pale.withValues(alpha: 0.50 * alpha),
+  );
+  // Rim, so the edge of the hold is unambiguous — everything inside it stops.
+  canvas.drawCircle(
+    centre,
+    radius,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..color = water.withValues(alpha: 0.30 * alpha),
+  );
+}

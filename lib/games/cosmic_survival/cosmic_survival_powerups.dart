@@ -694,6 +694,19 @@ const kMysticWorldPowerUps = [
     favoredFamilies: ['mystic'],
     mysticElement: 'Lava',
   ),
+  PowerUpDef(
+    id: 'world_water',
+    name: 'Widening Maelstrom',
+    description: 'The whirlpool reaches further and grinds harder',
+    icon: '🌀',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.control],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Water',
+  ),
 ];
 
 const kAllPowerUps = [

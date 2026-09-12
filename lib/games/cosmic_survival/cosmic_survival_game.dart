@@ -689,6 +689,37 @@ class _MysticFlora {
   bool get dead => age >= life;
 }
 
+/// A Water world's whirlpool, turning on the orb.
+class _MysticMaelstrom {
+  _MysticMaelstrom({
+    required this.ownerSlot,
+    required this.radius,
+    required this.damage,
+  });
+
+  final int ownerSlot;
+  final double radius;
+
+  /// Per-grind damage, applied twice a second to everything in the water.
+  final double damage;
+
+  Offset centre = Offset.zero;
+
+  /// Radians per second at the eye. Slow on purpose — the brief is that bodies
+  /// drift around, and a fast spin would read as a blender rather than as a
+  /// current.
+  final double spinRate = 0.55;
+
+  /// Drawing phase, and the frame delta the carry step works from.
+  double phase = 0;
+  double dt = 0;
+
+  /// Countdown between grinds.
+  double grind = 0;
+
+  double fade = 1.0;
+}
+
 /// A crack a Lava world has opened across the arena.
 ///
 /// A jagged polyline rather than a zone: the player has to be able to see
@@ -1480,6 +1511,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final List<_MysticMeteor> _mysticMeteors = [];
   static const int _maxMysticMeteors = 48;
   final List<_MysticScorch> _mysticScorches = [];
+  final List<_MysticMaelstrom> _mysticMaelstroms = [];
   final List<_MysticQuake> _mysticQuakes = [];
   final List<_MysticPool> _mysticPools = [];
   static const int _maxMysticPools = 26;
@@ -1517,6 +1549,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     'Dust',
     'Steam',
     'Lava',
+    'Water',
   };
 
 
@@ -7380,6 +7413,22 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       'Lightning' => ('bolts fallen', mysticStrikeCount(slotIndex)),
       'Earth' => ('quakes run', mysticStrikeCount(slotIndex)),
       'Steam' => ('vents blown', mysticStrikeCount(slotIndex)),
+      'Water' => (
+        'held in the water',
+        (() {
+          for (final storm in _mysticMaelstroms) {
+            if (storm.ownerSlot != slotIndex) continue;
+            return enemies
+                .where(
+                  (e) =>
+                      !e.isDead &&
+                      (e.position - storm.centre).distance <= storm.radius,
+                )
+                .length;
+          }
+          return 0;
+        })(),
+      ),
       'Lava' => (
         'cracks open',
         _mysticFissures
@@ -7607,6 +7656,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         fissure.fade = min(fissure.fade, 0.999);
       }
     }
+    for (final storm in _mysticMaelstroms) {
+      if (storm.ownerSlot == slotIndex) storm.fade = min(storm.fade, 0.999);
+    }
     // A blizzard has to LIFT. It writes to every enemy on the field, so a
     // world that ended without thawing would leave the arena slowed for the
     // rest of the run by a Mystic that is no longer there.
@@ -7687,6 +7739,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         _mysticClock[slotIndex] = kMysticVentInterval;
       case 'Lava':
         _openMysticFissures(comp);
+      case 'Water':
+        _openMysticMaelstrom(comp);
       case 'Light':
         _raiseMysticStar(comp);
     }
@@ -8172,6 +8226,97 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
 
+  // ── WATER: the maelstrom ────────────────────────────────────────────────
+
+  void _openMysticMaelstrom(CosmicSurvivalCompanion comp) {
+    _mysticMaelstroms.removeWhere((m) => m.ownerSlot == comp.slotIndex);
+    final beauty = _effectiveBeauty(comp.slotIndex);
+    final intel = _effectiveIntelligence(comp.slotIndex);
+    final scale = _hornStatScale(
+      beauty * 0.5 + intel * 0.5,
+      perPoint: 0.10,
+      min: 0.82,
+      max: 1.45,
+    );
+    _mysticMaelstroms.add(
+      _MysticMaelstrom(
+        ownerSlot: comp.slotIndex,
+        // Big, but deliberately NOT the whole arena. Everything caught in it
+        // stops advancing, so a maelstrom that covered the floor would end the
+        // run's pressure outright; enemies outside the rim still come on, and
+        // the player still has a fight to hold.
+        radius: 520.0 * scale * _mysticWorldPower(comp.slotIndex),
+        damage: max(2.0, comp.elemAtk * 0.42 * scale),
+      ),
+    );
+  }
+
+  /// Turns the water. Everything inside is held and carried around the eye.
+  ///
+  /// The hold is the point and the spin is what makes it readable: a stun with
+  /// no motion looks like a bug, where bodies sliding slowly around a centre
+  /// reads instantly as being caught in something. Unlike Dark's maw this never
+  /// lets go and never throws anything anywhere — it keeps them, grinding.
+  void _turnMysticMaelstrom(int slotIndex, CosmicSurvivalCompanion owner) {
+    for (final storm in _mysticMaelstroms) {
+      if (storm.ownerSlot != slotIndex) continue;
+      final centre = orb.position;
+      storm.centre = centre;
+
+      for (final enemy in enemies) {
+        if (enemy.isDead) continue;
+        final delta = enemy.position - centre;
+        final dist = delta.distance;
+        if (dist > storm.radius || dist < 0.01) continue;
+
+        // Held: no advance of its own for as long as it is in the water.
+        enemy.slowTimer = max(enemy.slowTimer, 0.25);
+        enemy.slowMultiplier = 0;
+        enemy.knockbackVelocity = Offset.zero;
+
+        // Carried. Faster near the eye, so the shape of the current is legible
+        // from how the crowd moves rather than from the painting alone.
+        final closeness = 1.0 - (dist / storm.radius);
+        final omega = storm.spinRate * (0.35 + 0.85 * closeness);
+        final angle = atan2(delta.dy, delta.dx) + omega * storm.dt;
+        // Drawn slowly inward as well as around, so the crowd gathers rather
+        // than orbiting at a fixed distance forever.
+        final pull = dist - (14.0 + 26.0 * closeness) * storm.dt;
+        enemy.position = centre + Offset(cos(angle), sin(angle)) * max(26.0, pull);
+      }
+
+      // A boss is too heavy to be carried, but the water still drags on it.
+      for (final boss in allLivingBosses) {
+        if (!_withinRange(centre, boss.position, storm.radius)) continue;
+        _applyBossCrowdControl(boss, AbilityEffectKind.slow, 0.4);
+      }
+
+      storm.grind -= storm.dt;
+      if (storm.grind > 0) continue;
+      storm.grind = 0.5;
+      _visitEnemiesNear(centre, storm.radius, (enemy) {
+        if (enemy.isDead) return false;
+        if (!_withinRange(centre, enemy.position, storm.radius)) return false;
+        _damageEnemy(enemy, storm.damage, sourceSlotIndex: slotIndex);
+        return false;
+      });
+    }
+  }
+
+  void _updateMysticMaelstroms(double dt) {
+    if (_mysticMaelstroms.isEmpty) return;
+    for (final storm in _mysticMaelstroms) {
+      storm.dt = dt;
+      storm.phase += dt * storm.spinRate;
+      final owner = activeCompanions[storm.ownerSlot];
+      final standing = owner != null && !owner.isDead;
+      if (!standing) {
+        storm.fade = max(0.0, storm.fade - dt * 0.7);
+      }
+    }
+    _mysticMaelstroms.removeWhere((m) => m.fade <= 0);
+  }
+
   // ── LAVA: the fissures ──────────────────────────────────────────────────
 
   /// Cracks the arena open. Their number scales with the caster; their layout
@@ -8490,6 +8635,32 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   @visibleForTesting
   int get mysticMisfireCount => _mysticMisfires;
+
+  /// How many bodies a Water world currently has in its grip. Exposed so a
+  /// test can assert the hold, which is otherwise only visible as enemies
+  /// failing to arrive somewhere.
+  @visibleForTesting
+  int mysticMaelstromHeld(int slotIndex) {
+    for (final storm in _mysticMaelstroms) {
+      if (storm.ownerSlot != slotIndex) continue;
+      return enemies
+          .where(
+            (e) =>
+                !e.isDead &&
+                (e.position - storm.centre).distance <= storm.radius,
+          )
+          .length;
+    }
+    return 0;
+  }
+
+  @visibleForTesting
+  double? mysticMaelstromRadius(int slotIndex) {
+    for (final storm in _mysticMaelstroms) {
+      if (storm.ownerSlot == slotIndex && storm.fade > 0) return storm.radius;
+    }
+    return null;
+  }
 
   @visibleForTesting
   int mysticFissureCount(int slotIndex) => _mysticFissures
@@ -9022,6 +9193,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateMysticCharges(dt);
     _updateMysticCrystals(dt);
     _updateMysticStars(dt);
+    _updateMysticMaelstroms(dt);
     _updateMysticFissures(dt);
     _updateMysticMeteors(dt);
     _updateMysticScorches(dt);
@@ -9088,6 +9260,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           } else {
             _mysticClock[slot] = next;
           }
+        case 'Water':
+          _turnMysticMaelstrom(slot, comp);
         case 'Ice':
           // Reapplied every frame rather than on a timer: bodies spawn into
           // the blizzard mid-run, and a world that only caught what was
@@ -16273,6 +16447,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         seed: pool.seed,
         time: stats.timeElapsed,
         poison: elementColor('Poison'),
+      );
+    }
+
+    // Water Mystic's maelstrom, beneath everything: it is the surface the
+    // fight is happening on.
+    for (final storm in _mysticMaelstroms) {
+      if (storm.fade <= 0.01) continue;
+      drawMysticMaelstrom(
+        canvas: canvas,
+        centre: storm.centre,
+        radius: storm.radius,
+        phase: storm.phase,
+        alpha: storm.fade,
+        time: stats.timeElapsed,
       );
     }
 

@@ -10736,82 +10736,13 @@ CosmicSpecialResult _mysticSpecial(
       break;
     case 'Lightning':
       break;
-    case 'Water':
-      final waveTarget = Offset(
-        origin.dx + cos(baseAngle) * 110,
-        origin.dy + sin(baseAngle) * 110,
-      );
-      // Persistent tidepool at convergence point.
-      projs.add(
-        Projectile(
-          position: waveTarget,
-          angle: 0,
-          element: element,
-          damage: damage * 1.05,
-          life: 11.0,
-          stationary: true,
-          radiusMultiplier: 3.2,
-          visualScale: 2.8,
-          visualStyle: ProjectileVisualStyle.mysticOrbital,
-          piercing: true,
-          snareRadius: 145.0,
-          snareMoveMultiplier: 0.45,
-          tickEffect: AbilityEffectKind.splash,
-          effectPower: damage * 0.42,
-          effectRadius: 145,
-          effectDuration: 1.2,
-        ),
-      );
-      // Crescent wave sets — homing arcs that converge on target.
-      final waveCount = scaledCount(casterBeauty, 4, min: 3, max: 6);
-      for (var side = -1; side <= 1; side += 2) {
-        for (var i = 0; i < waveCount; i++) {
-          final sweep = side * (0.6 + i * 0.12);
-          final a = baseAngle + sweep;
-          projs.add(
-            Projectile(
-              position: Offset(
-                origin.dx + cos(a) * (20 + i * 8),
-                origin.dy + sin(a) * (20 + i * 8),
-              ),
-              angle: a - side * 0.3,
-              element: element,
-              damage: damage * 1.6,
-              life: 6.0,
-              speedMultiplier: 1.15,
-              radiusMultiplier: 1.9,
-              visualScale: 1.4,
-              visualStyle: ProjectileVisualStyle.mysticOrbital,
-              homing: true,
-              homingStrength: 3.8,
-              trailInterval: 0.16,
-              trailDamage: damage * 0.6,
-              trailLife: 2.0,
-            ),
-          );
-        }
-      }
-      // Tidepool heals allies via small ship-blessing.
-      shipHeal = max(
-        shipHeal,
-        max(1, (CosmicBalance.shipMaxHealth * 0.025).round()),
-      );
-      blessingTimer = max(blessingTimer, 5.0);
-      blessingHealPerTick = max(blessingHealPerTick, damage * 0.04);
-      break;
-
-    // ── ICE: Glacier Crown ──
-    // Persistent glacier formation. Inner pillars stay planted as a
-    // permanent ice fortification (snare + freeze tick). Outer
-    // pillars launch outward as piercing lances after a brief hold.
-    // The fortification is the environment commitment; the lances
-    // are the spectacle.
-    // Intelligence drives pillar count (crystalline geometry).
-    // ── ICE: The Blizzard ──
+    // ── WATER: The Maelstrom ──
     // A world, not a salvo — implemented where worlds can exist, in
     // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
     // Mystic is bespoke, and a shared projectile table for them is a second
     // implementation of the same ability that only some modes ever run.
+    case 'Water':
+      break;
     case 'Ice':
       break;
     // ── STEAM: The Pressure ──
@@ -11103,7 +11034,7 @@ String cosmicSpecialAbilityName(String family, String element) {
         'Fire' => 'The Ember Season',
         'Lava' => 'The Fissures',
         'Lightning' => 'The Storm',
-        'Water' => 'Tidal Crescent Rite',
+        'Water' => 'The Maelstrom',
         'Ice' => 'The Blizzard',
         'Steam' => 'The Pressure',
         'Earth' => 'The Quaking',
