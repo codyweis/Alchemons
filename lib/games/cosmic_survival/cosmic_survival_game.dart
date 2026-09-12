@@ -689,6 +689,38 @@ class _MysticFlora {
   bool get dead => age >= life;
 }
 
+/// An Air world's tornado, walking a circuit around the arena.
+class _MysticTornado {
+  _MysticTornado({
+    required this.ownerSlot,
+    required this.orbitRadius,
+    required this.funnelRadius,
+    required this.damage,
+    required this.angle,
+  });
+
+  final int ownerSlot;
+
+  /// How far out its circuit runs from the orb.
+  final double orbitRadius;
+  final double funnelRadius;
+  final double damage;
+
+  /// Where it currently is on that circuit, in radians.
+  double angle;
+
+  /// Radians per second around the circuit. Slow enough to be tracked and
+  /// planned around — the whole difference between this and a static hold is
+  /// that the player can know where it will be.
+  final double travelSpeed = 0.34;
+
+  Offset position = Offset.zero;
+  double phase = 0;
+  double dt = 0;
+  double grind = 0;
+  double fade = 1.0;
+}
+
 /// A Water world's whirlpool, turning on the orb.
 class _MysticMaelstrom {
   _MysticMaelstrom({
@@ -1512,6 +1544,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   static const int _maxMysticMeteors = 48;
   final List<_MysticScorch> _mysticScorches = [];
   final List<_MysticMaelstrom> _mysticMaelstroms = [];
+  final List<_MysticTornado> _mysticTornados = [];
   final List<_MysticQuake> _mysticQuakes = [];
   final List<_MysticPool> _mysticPools = [];
   static const int _maxMysticPools = 26;
@@ -1550,6 +1583,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     'Steam',
     'Lava',
     'Water',
+    'Air',
   };
 
 
@@ -7413,6 +7447,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       'Lightning' => ('bolts fallen', mysticStrikeCount(slotIndex)),
       'Earth' => ('quakes run', mysticStrikeCount(slotIndex)),
       'Steam' => ('vents blown', mysticStrikeCount(slotIndex)),
+      'Air' => (
+        'caught in the funnel',
+        (() {
+          for (final twister in _mysticTornados) {
+            if (twister.ownerSlot != slotIndex) continue;
+            return enemies
+                .where(
+                  (e) =>
+                      !e.isDead &&
+                      (e.position - twister.position).distance <=
+                          twister.funnelRadius,
+                )
+                .length;
+          }
+          return 0;
+        })(),
+      ),
       'Water' => (
         'held in the water',
         (() {
@@ -7659,6 +7710,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     for (final storm in _mysticMaelstroms) {
       if (storm.ownerSlot == slotIndex) storm.fade = min(storm.fade, 0.999);
     }
+    for (final twister in _mysticTornados) {
+      if (twister.ownerSlot == slotIndex) {
+        twister.fade = min(twister.fade, 0.999);
+      }
+    }
     // A blizzard has to LIFT. It writes to every enemy on the field, so a
     // world that ended without thawing would leave the arena slowed for the
     // rest of the run by a Mystic that is no longer there.
@@ -7741,6 +7797,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         _openMysticFissures(comp);
       case 'Water':
         _openMysticMaelstrom(comp);
+      case 'Air':
+        _raiseMysticTornado(comp);
       case 'Light':
         _raiseMysticStar(comp);
     }
@@ -8226,6 +8284,99 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
 
+  // ── AIR: the tornado ────────────────────────────────────────────────────
+
+  void _raiseMysticTornado(CosmicSurvivalCompanion comp) {
+    _mysticTornados.removeWhere((t) => t.ownerSlot == comp.slotIndex);
+    final speedStat = _effectiveIntelligence(comp.slotIndex);
+    final scale =
+        _hornStatScale(speedStat, perPoint: 0.10, min: 0.82, max: 1.45) *
+        _mysticWorldPower(comp.slotIndex);
+    _mysticTornados.add(
+      _MysticTornado(
+        ownerSlot: comp.slotIndex,
+        // Walks a circuit out where the fight comes from, not around the orb's
+        // doorstep: a tornado parked on the thing being defended would be a
+        // second maelstrom, and the point of this one is that it MOVES and the
+        // player has to keep track of where it is.
+        orbitRadius: _arenaRadius * 0.46,
+        funnelRadius: 190.0 * scale,
+        damage: max(2.0, comp.elemAtk * 0.5 * scale),
+        angle: _rng.nextDouble() * 2 * pi,
+      ),
+    );
+  }
+
+  /// Walks the tornado round its circuit and drags in whatever it passes.
+  ///
+  /// Anything inside the funnel is off the ground: it cannot advance, it is
+  /// pulled toward the core and turned around it, and it is ground down while
+  /// it is in there. When the tornado moves on it simply leaves them wherever
+  /// they ended up — it never throws them anywhere, which is what keeps it
+  /// clear of Steam's vent and Dark's maw.
+  void _walkMysticTornado(int slotIndex, CosmicSurvivalCompanion owner) {
+    for (final twister in _mysticTornados) {
+      if (twister.ownerSlot != slotIndex) continue;
+      twister.angle += twister.travelSpeed * twister.dt;
+      twister.position =
+          orb.position +
+          Offset(cos(twister.angle), sin(twister.angle)) * twister.orbitRadius;
+      twister.phase += twister.dt * 3.1;
+
+      final centre = twister.position;
+      final reach = twister.funnelRadius;
+      _visitEnemiesNear(centre, reach, (enemy) {
+        if (enemy.isDead) return false;
+        final delta = enemy.position - centre;
+        final dist = delta.distance;
+        if (dist > reach || dist < 0.01) return false;
+
+        enemy.slowTimer = max(enemy.slowTimer, 0.2);
+        enemy.slowMultiplier = 0;
+        enemy.knockbackVelocity = Offset.zero;
+
+        // Hauled inward and turned. Tighter and faster the closer to the core,
+        // so the funnel's shape is readable from the way the crowd moves.
+        final closeness = 1.0 - (dist / reach);
+        final omega = 2.6 * (0.4 + 1.2 * closeness);
+        final angle = atan2(delta.dy, delta.dx) + omega * twister.dt;
+        final pulled = dist - (70.0 + 150.0 * closeness) * twister.dt;
+        enemy.position =
+            centre + Offset(cos(angle), sin(angle)) * max(18.0, pulled);
+        return false;
+      });
+
+      // Too heavy to lift, but it still has to fight the wind.
+      for (final boss in allLivingBosses) {
+        if (!_withinRange(centre, boss.position, reach)) continue;
+        _applyBossCrowdControl(boss, AbilityEffectKind.slow, 0.4);
+      }
+
+      twister.grind -= twister.dt;
+      if (twister.grind > 0) continue;
+      twister.grind = 0.4;
+      _visitEnemiesNear(centre, reach, (enemy) {
+        if (enemy.isDead) return false;
+        if (!_withinRange(centre, enemy.position, reach)) return false;
+        _damageEnemy(enemy, twister.damage, sourceSlotIndex: slotIndex);
+        return false;
+      });
+    }
+  }
+
+  void _updateMysticTornados(double dt) {
+    if (_mysticTornados.isEmpty) return;
+    for (final twister in _mysticTornados) {
+      twister.dt = dt;
+      final owner = activeCompanions[twister.ownerSlot];
+      final standing = owner != null && !owner.isDead;
+      if (!standing) {
+        twister.fade = max(0.0, twister.fade - dt * 0.7);
+      }
+    }
+    _mysticTornados.removeWhere((t) => t.fade <= 0);
+  }
+
   // ── WATER: the maelstrom ────────────────────────────────────────────────
 
   void _openMysticMaelstrom(CosmicSurvivalCompanion comp) {
@@ -8635,6 +8786,22 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   @visibleForTesting
   int get mysticMisfireCount => _mysticMisfires;
+
+  @visibleForTesting
+  Offset? mysticTornadoPosition(int slotIndex) {
+    for (final t in _mysticTornados) {
+      if (t.ownerSlot == slotIndex && t.fade > 0) return t.position;
+    }
+    return null;
+  }
+
+  @visibleForTesting
+  double? mysticTornadoFunnelRadius(int slotIndex) {
+    for (final t in _mysticTornados) {
+      if (t.ownerSlot == slotIndex && t.fade > 0) return t.funnelRadius;
+    }
+    return null;
+  }
 
   /// How many bodies a Water world currently has in its grip. Exposed so a
   /// test can assert the hold, which is otherwise only visible as enemies
@@ -9194,6 +9361,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateMysticCrystals(dt);
     _updateMysticStars(dt);
     _updateMysticMaelstroms(dt);
+    _updateMysticTornados(dt);
     _updateMysticFissures(dt);
     _updateMysticMeteors(dt);
     _updateMysticScorches(dt);
@@ -9262,6 +9430,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           }
         case 'Water':
           _turnMysticMaelstrom(slot, comp);
+        case 'Air':
+          _walkMysticTornado(slot, comp);
         case 'Ice':
           // Reapplied every frame rather than on a timer: bodies spawn into
           // the blizzard mid-run, and a world that only caught what was
@@ -16447,6 +16617,32 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         seed: pool.seed,
         time: stats.timeElapsed,
         poison: elementColor('Poison'),
+      );
+    }
+
+    // Air Mystic's tornado. Over the floor rather than under it: the funnel is
+    // in the air, and what it has picked up is in the air with it.
+    for (final twister in _mysticTornados) {
+      if (twister.fade <= 0.01) continue;
+      if (!_isWithinViewport(
+        twister.position,
+        twister.funnelRadius * 1.6,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 60,
+      )) {
+        continue;
+      }
+      drawMysticTornado(
+        canvas: canvas,
+        at: twister.position,
+        radius: twister.funnelRadius,
+        phase: twister.phase,
+        travelAngle: twister.angle + pi / 2,
+        alpha: twister.fade,
+        time: stats.timeElapsed,
       );
     }
 

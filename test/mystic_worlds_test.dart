@@ -108,6 +108,7 @@ void main() {
     'Steam',
     'Lava',
     'Water',
+    'Air',
   ]) {
     test('$element lights a world once per deployment', () async {
       final game = await boot(element);
@@ -877,5 +878,48 @@ void main() {
       greaterThan(0),
       reason: 'the hold reached past its own rim',
     );
+  });
+
+  test('Air walks a tornado round the arena and lifts what it passes', () async {
+    final game = await boot('Air');
+    await castOnce(game);
+
+    final first = game.mysticTornadoPosition(0)!;
+    final funnel = game.mysticTornadoFunnelRadius(0)!;
+    // It travels. That is the whole difference between this and Water's
+    // maelstrom, which holds one spot: the player has to track where it is.
+    run(game, 180);
+    final later = game.mysticTornadoPosition(0)!;
+    expect(
+      (later - first).distance,
+      greaterThan(60),
+      reason: 'the tornado sat still',
+    );
+    // And it stays on its circuit rather than wandering into the orb.
+    expect(
+      (later - game.orb.position).distance,
+      closeTo((first - game.orb.position).distance, 1.0),
+      reason: 'it left its circuit',
+    );
+
+    // Anything it passes over is off the ground: held, hauled in, and ground.
+    final caught = game.enemies.firstWhere((e) => !e.isDead)
+      ..hp = 1e9
+      ..isDead = false
+      ..position = later + Offset(funnel * 0.6, 0);
+    run(game, 2);
+    final startDist = (caught.position - game.mysticTornadoPosition(0)!).distance;
+    expect(
+      caught.effectiveSpeed,
+      isZero,
+      reason: 'the funnel is supposed to lift, not just slow',
+    );
+    run(game, 40);
+    expect(
+      (caught.position - game.mysticTornadoPosition(0)!).distance,
+      lessThan(startDist),
+      reason: 'nothing was hauled toward the core',
+    );
+    expect(caught.hp, lessThan(1e9), reason: 'the funnel ground nothing down');
   });
 }

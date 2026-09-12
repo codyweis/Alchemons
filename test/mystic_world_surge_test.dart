@@ -47,6 +47,7 @@ void main() {
       'Steam',
       'Lava',
       'Water',
+      'Air',
     };
     expect(
       kMysticWorldPowerUps.map((d) => d.mysticElement).toSet(),

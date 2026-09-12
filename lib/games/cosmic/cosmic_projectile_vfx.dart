@@ -8483,3 +8483,88 @@ void drawMysticMaelstrom({
       ..color = water.withValues(alpha: 0.30 * alpha),
   );
 }
+
+/// An Air world's tornado, seen from above.
+///
+/// A funnel is a vertical thing and this arena is not, so it is drawn as a set
+/// of OFFSET rings — each one further from the base than the last, leaning the
+/// way the tornado is travelling. That lean is what sells height on a top-down
+/// field, and it is also what keeps this from reading as another whirlpool:
+/// the maelstrom is flat and concentric, this one is stacked and skewed.
+void drawMysticTornado({
+  required ui.Canvas canvas,
+  required ui.Offset at,
+  required double radius,
+  required double phase,
+  required double travelAngle,
+  required double alpha,
+  required double time,
+}) {
+  if (alpha <= 0.01) return;
+  final pale = const ui.Color(0xFFDCF0FF);
+  final lean = ui.Offset(cos(travelAngle), sin(travelAngle));
+
+  // Dust skirt where it meets the ground: widest, faintest, and it stays put.
+  canvas.drawCircle(
+    at,
+    radius,
+    ui.Paint()..color = pale.withValues(alpha: 0.05 * alpha),
+  );
+  canvas.drawCircle(
+    at,
+    radius * 0.72,
+    ui.Paint()..color = pale.withValues(alpha: 0.05 * alpha),
+  );
+
+  // The funnel: rings climbing away from the base, narrowing then flaring.
+  final ring = ui.Paint()..style = ui.PaintingStyle.stroke;
+  const bands = 7;
+  for (var i = 0; i < bands; i++) {
+    final f = i / (bands - 1);
+    // Narrow at the waist, flared at the top — an hourglass read as height.
+    final width = radius * (0.62 - 0.34 * sin(f * pi) + 0.42 * f);
+    final centre = at - lean * (radius * 0.30 * f) - ui.Offset(0, radius * 0.52 * f);
+    final wobble = sin(phase + f * 3.4) * radius * 0.06;
+    ring
+      ..strokeWidth = 2.6 - f * 1.1
+      ..color = pale.withValues(alpha: (0.34 - f * 0.035) * alpha);
+    canvas.drawOval(
+      ui.Rect.fromCenter(
+        center: centre + ui.Offset(wobble, 0),
+        width: width * 2,
+        height: width * 1.05,
+      ),
+      ring,
+    );
+  }
+
+  // Debris carried round the waist, so the direction of spin is unmistakable.
+  final debris = ui.Paint()..color = pale.withValues(alpha: 0.55 * alpha);
+  for (var i = 0; i < 14; i++) {
+    final f = (i % 5) / 5.0;
+    final ang = phase * (1.4 + f) + i * 1.32;
+    final r = radius * (0.26 + 0.46 * f);
+    final centre = at - lean * (radius * 0.30 * f) - ui.Offset(0, radius * 0.52 * f);
+    canvas.drawCircle(
+      centre + ui.Offset(cos(ang) * r, sin(ang) * r * 0.52),
+      1.5 + 1.5 * (1.0 - f),
+      debris,
+    );
+  }
+
+  // Core, so the middle of the pull is obvious to aim around.
+  canvas.drawCircle(
+    at,
+    radius * 0.16,
+    ui.Paint()..color = pale.withValues(alpha: 0.20 * alpha),
+  );
+  // Rim: the edge of the lift.
+  canvas.drawCircle(
+    at,
+    radius,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = pale.withValues(alpha: 0.26 * alpha),
+  );
+}

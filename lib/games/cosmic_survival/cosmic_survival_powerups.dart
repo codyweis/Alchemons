@@ -707,6 +707,19 @@ const kMysticWorldPowerUps = [
     favoredFamilies: ['mystic'],
     mysticElement: 'Water',
   ),
+  PowerUpDef(
+    id: 'world_air',
+    name: 'Widening Funnel',
+    description: 'The tornado reaches further and grinds harder',
+    icon: '🌪️',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.control, PowerUpTag.tempo],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Air',
+  ),
 ];
 
 const kAllPowerUps = [

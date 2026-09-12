@@ -1915,9 +1915,12 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['WORLD', 'PICKUP', 'SURGE'],
         ),
         'Air' => (
-          'Cyclone Halo • Intelligence scales count',
-          'Deploys ship-following interceptor orbs that block enemy projectiles and deal contact damage.',
-          ['INTERCEPT', 'ORBITAL', 'DEFENSE'],
+          'The Tornado • Intelligence scales the funnel',
+          'A tornado walks a circuit around the arena. Anything it passes over '
+              'is lifted off the ground, hauled into the funnel and ground '
+              'down — then left wherever it ends up. Holds while this Mystic '
+              'is alive and deployed.',
+          ['WORLD', 'ROAMING', 'LIFT'],
         ),
         'Plant' => (
           'The Grove • Strength scales reach',

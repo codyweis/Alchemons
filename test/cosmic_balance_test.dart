@@ -1598,68 +1598,20 @@ void main() {
       expect(air.single.tickEffect, AbilityEffectKind.knockback);
     });
 
-    test('mystic elements diverge into premium guardian ultimates', () {
-      // Fire against Air — the last two Mystics that author projectiles at
-      // all. Every other element is a WORLD, implemented in
-      // CosmicSurvivalGame rather than in this table, and this test has
-      // followed them out one at a time: Crystal, then Lava, then Water.
-      final fire = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'mystic',
-        element: 'Fire',
-        damage: 10,
-        maxHp: 120,
-      );
-      final air = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'mystic',
-        element: 'Air',
-        damage: 10,
-        maxHp: 120,
-      );
-
-      expect(fire.projectiles, isNotEmpty);
-      expect(air.projectiles, isNotEmpty);
-      expect(
-        fire.projectiles.every(
-          (p) => p.visualStyle == ProjectileVisualStyle.mysticOrbital,
-        ),
-        isTrue,
-      );
-      expect(
-        air.projectiles.every(
-          (p) => p.visualStyle == ProjectileVisualStyle.mysticOrbital,
-        ),
-        isTrue,
-      );
-      // Fire commits to ground: stationary zones that stay where they land.
-      expect(fire.projectiles.any((p) => p.stationary), isTrue);
-      // Air stays with the ship and answers what is incoming.
-      expect(
-        air.projectiles.any((p) => p.followShipOrbit || p.reflectsProjectiles),
-        isTrue,
-      );
-      // And they must not be the same cast in two colours.
-      expect(
-        fire.projectiles.map((p) => p.orbitRadius).toSet(),
-        isNot(air.projectiles.map((p) => p.orbitRadius).toSet()),
-      );
-    });
-
-    test('mystic elements now produce unique ultimate payload signatures', () {
-      // The world Mystics are absent on purpose: their ability is not a
-      // payload, it is a change to the map, so they author nothing here and
-      // would all share the empty signature. They are unique by construction —
-      // raising the dead, a passive tithe, a hole in the arena, two vines, a
-      // storm, a ship-drawn spill, a brake on the ship's guns, a quake — and
-      // are checked in mystic_worlds_test.dart. What this guards is the two
-      // that ARE still projectile ultimates.
-      const elements = ['Fire', 'Air'];
-
-      final signatures = <String>{};
-      for (final element in elements) {
+    test('Fire is the last Mystic that authors a payload here', () {
+      // This pair of tests used to guard that seventeen Mystic ultimates had
+      // distinct projectile payloads. Sixteen of them are WORLDS now —
+      // implemented in CosmicSurvivalGame, where a thing that changes the map
+      // can actually exist — and author nothing in this table at all. Fire is
+      // the one that kept its cast, because its collapse is what lights the
+      // ember field it leaves behind.
+      //
+      // So the invariant worth holding is no longer "all seventeen differ": it
+      // is that exactly one still speaks here, and a salvo reappearing for any
+      // of the other sixteen means a world has quietly grown a second, older
+      // implementation of itself.
+      final authoring = <String>[];
+      for (final element in kCosmicAbilityElements) {
         final result = createCosmicSpecialAbility(
           origin: const Offset(0, 0),
           baseAngle: 0,
@@ -1668,31 +1620,27 @@ void main() {
           damage: 10,
           maxHp: 120,
         );
-        final signatureParts =
-            result.projectiles
-                .map(
-                  (p) => [
-                    p.orbitRadius.round(),
-                    (p.damage * 10).round(),
-                    (p.orbitTime * 100).round(),
-                    (p.orbitSpeed * 10).round(),
-                    (p.speedMultiplier * 100).round(),
-                    (p.homingStrength * 10).round(),
-                    (p.visualScale * 100).round(),
-                    p.bounceCount,
-                    p.clusterCount,
-                    p.piercing ? 1 : 0,
-                    (p.trailInterval * 100).round(),
-                  ].join(':'),
-                )
-                .toList()
-              ..sort();
-        signatures.add(
-          '${result.projectiles.length}|${signatureParts.join("|")}',
-        );
+        if (result.projectiles.isNotEmpty) authoring.add(element);
       }
+      expect(authoring, ['Fire']);
 
-      expect(signatures.length, elements.length);
+      final fire = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mystic',
+        element: 'Fire',
+        damage: 10,
+        maxHp: 120,
+      );
+      expect(
+        fire.projectiles.every(
+          (p) => p.visualStyle == ProjectileVisualStyle.mysticOrbital,
+        ),
+        isTrue,
+      );
+      // Fire commits to ground: stationary zones that stay where they land.
+      expect(fire.projectiles.any((p) => p.stationary), isTrue);
+      expect(fire.projectiles.any((p) => p.trailInterval > 0), isTrue);
     });
 
     test('mystic output budgets stay bounded after the authored pass', () {

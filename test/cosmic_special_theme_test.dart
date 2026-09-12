@@ -268,6 +268,7 @@ void main() {
             'mystic:Steam',
             'mystic:Lava',
             'mystic:Water',
+            'mystic:Air',
           };
           if (!passiveCasts.contains('$family:$element')) {
             expect(
@@ -355,6 +356,7 @@ void main() {
         'Steam',
         'Lava',
         'Water',
+        'Air',
       ]) {
         final result = createCosmicSpecialAbility(
           origin: const Offset(0, 0),

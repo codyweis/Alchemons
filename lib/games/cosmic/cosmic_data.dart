@@ -10770,52 +10770,13 @@ CosmicSpecialResult _mysticSpecial(
       break;
     case 'Crystal':
       break;
-    case 'Air':
-      final ringCount = scaledCount(casterIntelligence, 6, min: 4, max: 9);
-      for (var i = 0; i < ringCount; i++) {
-        final a = baseAngle + i * (pi * 2 / ringCount);
-        projs.add(
-          Projectile(
-            position: Offset(origin.dx + cos(a) * 38, origin.dy + sin(a) * 38),
-            angle: a,
-            element: element,
-            damage: damage * 1.45,
-            life: 9.0,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            visualScale: 1.35,
-            radiusMultiplier: 1.7,
-            orbitCenter: origin,
-            orbitAngle: a,
-            orbitRadius: 38,
-            orbitSpeed: 6.5,
-            holdOrbit: true,
-            followShipOrbit: true,
-            interceptRadius: 55.0,
-            interceptCharges: 5,
-            snareRadius: 72.0,
-            snareMoveMultiplier: 0.62,
-            // Auto-fire wind gusts at nearby enemies — turns the ring
-            // from a passive shield into active defense.
-            turretInterval: 0.85,
-            turretDamage: damage * 1.10,
-            turretHomingStrength: 3.5,
-            turretSpeedMultiplier: 1.4,
-            // Knockback aura ticks on enemies that close inside the
-            // ring radius — keeps them pushed back.
-            tickEffect: AbilityEffectKind.knockback,
-            effectPower: damage * 0.30,
-            effectRadius: 90,
-            effectDuration: 0.20,
-          ),
-        );
-      }
-      break;
-
-    // ── PLANT: The Grove ──
+    // ── AIR: The Tornado ──
     // A world, not a salvo — implemented where worlds can exist, in
     // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
     // Mystic is bespoke, and a shared projectile table for them is a second
     // implementation of the same ability that only some modes ever run.
+    case 'Air':
+      break;
     case 'Plant':
       break;
     // ── POISON: The Miasma ──
@@ -11041,7 +11002,7 @@ String cosmicSpecialAbilityName(String family, String element) {
         'Mud' => 'The Mire',
         'Dust' => 'The Haze',
         'Crystal' => 'The Vein',
-        'Air' => 'Cyclone Halo',
+        'Air' => 'The Tornado',
         'Plant' => 'The Grove',
         'Poison' => 'The Miasma',
         'Spirit' => 'The Turning',
