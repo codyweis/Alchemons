@@ -257,6 +257,10 @@ void main() {
             'mystic:Blood',
             'mystic:Dark',
             'mystic:Plant',
+            'mystic:Lightning',
+            'mystic:Poison',
+            'mystic:Mud',
+            'mystic:Earth',
           };
           if (!passiveCasts.contains('$family:$element')) {
             expect(
@@ -328,7 +332,16 @@ void main() {
       // table AND change the map from inside the game — two implementations of
       // one ability, where whichever mode read the table got the wrong one.
       // The table is the copy that went away.
-      for (final element in ['Spirit', 'Blood', 'Dark', 'Plant']) {
+      for (final element in [
+        'Spirit',
+        'Blood',
+        'Dark',
+        'Plant',
+        'Lightning',
+        'Poison',
+        'Mud',
+        'Earth',
+      ]) {
         final result = createCosmicSpecialAbility(
           origin: const Offset(0, 0),
           baseAngle: 0,

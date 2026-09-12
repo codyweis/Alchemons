@@ -17,7 +17,11 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final outDir = Platform.environment['MYSTIC_WORLD_OUT'];
 
-  testWidgets('mystic world preview', (tester) async {
+  // A plain test, not testWidgets: this draws to a PictureRecorder and never
+  // builds a widget, and the widget binding's settle machinery was leaving the
+  // test alive for its full ten-minute timeout after the PNG was already
+  // written — which failed the whole suite for a preview harness.
+  test('mystic world preview', () async {
     const cellW = 460.0;
     const cellH = 520.0;
     const cols = 5;
@@ -112,5 +116,6 @@ void main() {
       // ignore: avoid_print
       print('MYSTIC_WORLD_PREVIEW ${file.path}');
     }
-  });
+    img.dispose();
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }

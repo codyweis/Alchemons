@@ -10767,72 +10767,13 @@ CosmicSpecialResult _mysticSpecial(
     // lightning at the nearest enemy. The whole lattice arcs together
     // for the storm's duration. Plus initial salvo of bouncing bolts.
     // Intelligence drives rod count (storm pattern).
+    // ── LIGHTNING: The Storm ──
+    // A world, not a salvo — implemented where worlds can exist, in
+    // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
+    // Mystic is bespoke, and a shared projectile table for them is a second
+    // implementation of the same ability that only some modes ever run.
     case 'Lightning':
-      final stormCenter = Offset(
-        origin.dx + cos(baseAngle) * 100,
-        origin.dy + sin(baseAngle) * 100,
-      );
-      final rodCount = scaledCount(casterIntelligence, 6, min: 4, max: 9);
-      for (var i = 0; i < rodCount; i++) {
-        final a = i * (pi * 2 / rodCount);
-        final pos = Offset(
-          stormCenter.dx + cos(a) * 120,
-          stormCenter.dy + sin(a) * 120,
-        );
-        projs.add(
-          Projectile(
-            position: pos,
-            angle: a,
-            element: element,
-            damage: damage * 1.0,
-            life: 11.0,
-            stationary: true,
-            radiusMultiplier: 1.7,
-            visualScale: 1.7,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            piercing: true,
-            // Each rod fires a chain-lightning shot every ~0.8s.
-            turretInterval: 0.80,
-            turretDamage: damage * 1.55,
-            turretHomingStrength: 5.0,
-            turretSpeedMultiplier: 1.55,
-            tickEffect: AbilityEffectKind.chain,
-            effectPower: damage * 0.45,
-            effectRadius: 120,
-            effectDuration: 0.6,
-            effectCount: 3,
-          ),
-        );
-      }
-      // Initial bounce salvo — opens the storm with a flash of bolts.
-      final boltCount = scaledCount(casterIntelligence, 6, min: 4, max: 9);
-      for (var i = 0; i < boltCount; i++) {
-        final a = baseAngle + (i - (boltCount - 1) / 2) * 0.16;
-        projs.add(
-          Projectile(
-            position: Offset(origin.dx + cos(a) * 14, origin.dy + sin(a) * 14),
-            angle: a,
-            element: element,
-            damage: damage * 1.25,
-            life: 3.0,
-            speedMultiplier: 2.8,
-            radiusMultiplier: 1.1,
-            visualScale: 1.08,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            homing: true,
-            homingStrength: 3.2,
-            bounceCount: 5,
-          ),
-        );
-      }
       break;
-
-    // ── WATER: Tidal Crescent Rite ──
-    // Two crescent waves converge on target, leaving a persistent
-    // tidepool at the meeting point that heals allies, slows enemies,
-    // and ticks splash damage across its full life. The waves are
-    // the spectacle; the tidepool is the environment commitment.
-    // Beauty drives wave density (elegant spectacle).
     case 'Water':
       final waveTarget = Offset(
         origin.dx + cos(baseAngle) * 110,
@@ -11027,121 +10968,20 @@ CosmicSpecialResult _mysticSpecial(
     // 4 massive orbiting decoy pillars that taunt enemies. When destroyed
     // they explode into shrapnel. Defensive powerhouse.
     // Strength drives pillar count (massive stone constructs).
+    // ── EARTH: The Quaking ──
+    // A world, not a salvo — implemented where worlds can exist, in
+    // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
+    // Mystic is bespoke, and a shared projectile table for them is a second
+    // implementation of the same ability that only some modes ever run.
     case 'Earth':
-      final monolithCount = scaledCount(casterStrength, 3, min: 2, max: 5);
-      for (var i = 0; i < monolithCount; i++) {
-        final a = baseAngle + i * (pi * 2 / monolithCount);
-        projs.add(
-          orb(
-            angle: a,
-            orbitRadius: 55,
-            damageMultiplier: 1.5,
-            life: 11.0,
-            orbitSpeed: 2.2,
-            orbitTime: 99, // permanent orbit (holdOrbit)
-            homingStrength: 0,
-            speedMultiplier: 0,
-            radiusMultiplier: 3.0,
-            visualScale: 2.5,
-          ),
-        );
-        // Override with decoy properties (can't use orb helper for these)
-        final last = projs.removeLast();
-        projs.add(
-          Projectile(
-            position: last.position,
-            angle: last.angle,
-            element: element,
-            damage: last.damage,
-            life: 11.0,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            visualScale: 2.5,
-            radiusMultiplier: 3.0,
-            orbitCenter: origin,
-            orbitAngle: a,
-            orbitRadius: 55,
-            orbitSpeed: 2.2,
-            holdOrbit: true,
-            // Monoliths follow the ship as it moves so they protect
-            // the player's live position, not the cast point.
-            followShipOrbit: true,
-            decoy: true,
-            decoyHp: 26,
-            deathExplosionCount: 8,
-            deathExplosionDamage: damage * 2.0,
-            deathExplosionRadius: 2.0,
-            tauntRadius: 440.0,
-            tauntStrength: 4.3,
-          ),
-        );
-      }
       break;
-
-    // ── MUD: Mire Eclipse ──
-    // Sticky snare zone at target + aggressive homing chasers that leave
-    // persistent slowing trails behind them. Locks down an area.
-    // Strength drives slug count (brute force chasers).
+    // ── MUD: The Mire ──
+    // A world, not a salvo — implemented where worlds can exist, in
+    // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
+    // Mystic is bespoke, and a shared projectile table for them is a second
+    // implementation of the same ability that only some modes ever run.
     case 'Mud':
-      final mireCenter = Offset(
-        origin.dx + cos(baseAngle) * 90,
-        origin.dy + sin(baseAngle) * 90,
-      );
-      // Central mire — massive stationary snare
-      projs.add(
-        Projectile(
-          position: mireCenter,
-          angle: 0,
-          element: element,
-          damage: damage * 0.9,
-          life: 9.0,
-          stationary: true,
-          radiusMultiplier: 3.5,
-          visualScale: 3.0,
-          visualStyle: ProjectileVisualStyle.mysticOrbital,
-          snareRadius: 160.0,
-          snareMoveMultiplier: 0.12,
-        ),
-      );
-      // Pursuing mud slugs — heavy homing with snare trails. Life
-      // shortened so they detonate close instead of leashing off the
-      // map. Speed bumped + bounce cap so they zig back into combat.
-      final slugCount = scaledCount(casterStrength, 4, min: 2, max: 6);
-      for (var i = 0; i < slugCount; i++) {
-        final a = baseAngle + (i - (slugCount - 1) / 2) * 0.35;
-        projs.add(
-          Projectile(
-            position: Offset(
-              mireCenter.dx + cos(a) * 20,
-              mireCenter.dy + sin(a) * 20,
-            ),
-            angle: a,
-            element: element,
-            damage: damage * 1.7,
-            life: 3.8,
-            speedMultiplier: 0.80,
-            radiusMultiplier: 2.0,
-            visualScale: 1.6,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            homing: true,
-            homingStrength: 5.5,
-            piercing: true,
-            bounceCount: 2,
-            trailInterval: 0.20,
-            trailDamage: damage * 0.5,
-            trailLife: 4.0,
-            snareRadius: 90.0,
-            snareMoveMultiplier: 0.30,
-          ),
-        );
-      }
       break;
-
-    // ── DUST: Sirocco Halo ──
-    // A wide sandstorm zone — central vortex that pulls enemies and
-    // disorients shooters, plus golden-spiral swarm of stinging dust
-    // motes. The storm zone IS the environment change; the swarm is
-    // the spectacle layer that cleans up survivors.
-    // Beauty drives swarm density, Intelligence drives storm radius.
     case 'Dust':
       final stormCenter = Offset(
         origin.dx + cos(baseAngle) * 80,
@@ -11299,73 +11139,13 @@ CosmicSpecialResult _mysticSpecial(
     // implementation of the same ability that only some modes ever run.
     case 'Plant':
       break;
-    case 'Poison':
-      final venomTarget = Offset(
-        origin.dx + cos(baseAngle) * 110,
-        origin.dy + sin(baseAngle) * 110,
-      );
-      final cloudCount = scaledCount(casterIntelligence, 5, min: 4, max: 8);
-      // Central super-cloud — heavy snare + DoT
-      projs.add(
-        Projectile(
-          position: venomTarget,
-          angle: 0,
-          element: element,
-          damage: damage * 1.1,
-          life: 9.5,
-          stationary: true,
-          radiusMultiplier: 3.3,
-          visualScale: 2.7,
-          visualStyle: ProjectileVisualStyle.mysticOrbital,
-          snareRadius: 150.0,
-          snareMoveMultiplier: 0.30,
-          tickEffect: AbilityEffectKind.poison,
-          effectPower: damage * 0.45,
-          effectRadius: 150,
-          effectDuration: 2.0,
-        ),
-      );
-      // Surrounding satellite clouds
-      for (var i = 0; i < cloudCount; i++) {
-        final a = i * (pi * 2 / cloudCount);
-        final pos = Offset(
-          venomTarget.dx + cos(a) * 78,
-          venomTarget.dy + sin(a) * 78,
-        );
-        projs.add(
-          Projectile(
-            position: pos,
-            angle: a,
-            element: element,
-            damage: damage * 0.9,
-            life: 9.0,
-            stationary: true,
-            radiusMultiplier: 1.9,
-            visualScale: 1.7,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            snareRadius: 95.0,
-            snareMoveMultiplier: 0.45,
-            tickEffect: AbilityEffectKind.poison,
-            effectPower: damage * 0.32,
-            effectRadius: 95,
-            effectDuration: 1.6,
-          ),
-        );
-      }
-      break;
-
-    // ── SPIRIT: Wraith Chorus ──
-    // Slow ghost bolts that hunt the WEAKEST enemy on the field (via
-    // execute hit-effect). They phase through everything else,
-    // executing low-HP targets one by one. This is the reaper
-    // identity — vs Lightning's chain bolts and Crystal's prismatic
-    // explosions, Spirit picks off survivors from the wave.
-    // Intelligence drives wraith count (spiritual attunement).
-    // ── SPIRIT: The Turning ──
+    // ── POISON: The Miasma ──
     // A world, not a salvo — implemented where worlds can exist, in
     // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
     // Mystic is bespoke, and a shared projectile table for them is a second
     // implementation of the same ability that only some modes ever run.
+    case 'Poison':
+      break;
     case 'Spirit':
       break;
     // ── DARK: The Maw ──
@@ -11621,17 +11401,17 @@ String cosmicSpecialAbilityName(String family, String element) {
       return switch (element) {
         'Fire' => 'The Ember Season',
         'Lava' => 'Cataclysm Moons',
-        'Lightning' => 'Storm Lattice',
+        'Lightning' => 'The Storm',
         'Water' => 'Tidal Crescent Rite',
         'Ice' => 'Glacier Crown',
         'Steam' => 'Whiteout Veil',
-        'Earth' => 'Monolith Constellation',
-        'Mud' => 'Mire Eclipse',
+        'Earth' => 'The Quaking',
+        'Mud' => 'The Mire',
         'Dust' => 'Sirocco Halo',
         'Crystal' => 'Prism Cathedral',
         'Air' => 'Cyclone Halo',
         'Plant' => 'The Grove',
-        'Poison' => 'Venom Halo',
+        'Poison' => 'The Miasma',
         'Spirit' => 'The Turning',
         'Dark' => 'The Maw',
         'Light' => 'Radiant Crown',

@@ -7597,3 +7597,165 @@ void drawMysticRevenant({
     );
   }
 }
+
+/// One bolt from a Lightning Mystic's storm: a jagged fall out of the dark
+/// onto a body, plus the flash it leaves on the ground.
+///
+/// Drawn from well above the strike and clipped by the viewport, so it reads
+/// as coming out of the sky rather than as a beam between two points on the
+/// floor.
+void drawMysticLightningBolt({
+  required ui.Canvas canvas,
+  required ui.Offset strike,
+  required double progress,
+  required double seed,
+  required bool onBoss,
+}) {
+  // Fast, bright, gone. A bolt that fades linearly reads as a flare.
+  final t = (1.0 - progress).clamp(0.0, 1.0);
+  final a = t * t;
+  if (a <= 0.01) return;
+
+  const fallHeight = 620.0;
+  const segments = 11;
+  final spine = <ui.Offset>[];
+  for (var i = 0; i <= segments; i++) {
+    final f = i / segments;
+    // The jag narrows toward the ground, so the strike point stays precise
+    // while the upper run wanders.
+    final wobble =
+        sin(f * 9.4 + seed * 5.1) * 34.0 * (1.0 - f) +
+        sin(f * 21.0 + seed * 2.3) * 11.0 * (1.0 - f);
+    spine.add(
+      ui.Offset(strike.dx + wobble, strike.dy - fallHeight * (1.0 - f)),
+    );
+  }
+
+  final glow = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round
+    ..strokeJoin = ui.StrokeJoin.round;
+  final path = ui.Path()..moveTo(spine.first.dx, spine.first.dy);
+  for (final p in spine.skip(1)) {
+    path.lineTo(p.dx, p.dy);
+  }
+
+  glow
+    ..strokeWidth = (onBoss ? 15.0 : 10.0)
+    ..color = const ui.Color(0xFF7FB6FF).withValues(alpha: 0.22 * a);
+  canvas.drawPath(path, glow);
+  glow
+    ..strokeWidth = (onBoss ? 6.0 : 4.0)
+    ..color = const ui.Color(0xFFBFE0FF).withValues(alpha: 0.72 * a);
+  canvas.drawPath(path, glow);
+  glow
+    ..strokeWidth = (onBoss ? 2.4 : 1.6)
+    ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.95 * a);
+  canvas.drawPath(path, glow);
+
+  // Ground flash, spreading as it dies.
+  final flash = (onBoss ? 58.0 : 38.0) * (1.0 + (1.0 - t) * 1.6);
+  canvas.drawCircle(
+    strike,
+    flash,
+    ui.Paint()
+      ..color = const ui.Color(0xFF9FCCFF).withValues(alpha: 0.20 * a),
+  );
+  canvas.drawCircle(
+    strike,
+    flash * 0.34,
+    ui.Paint()
+      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.55 * a),
+  );
+}
+
+/// An Earth Mystic's quake, as a shock ring running out across the arena with
+/// cracks opening behind it.
+///
+/// Expanding rings are wrong for a thing that stays (they read as an effect
+/// re-firing), and exactly right for a thing that happens — this one lives
+/// about a second and is gone.
+void drawMysticQuake({
+  required ui.Canvas canvas,
+  required ui.Offset centre,
+  required double radius,
+  required double progress,
+  required ui.Color earth,
+}) {
+  final t = progress.clamp(0.0, 1.0);
+  if (t >= 1) return;
+  // Races out and slows, the way a front loses energy.
+  final eased = 1.0 - (1.0 - t) * (1.0 - t);
+  final a = (1.0 - t) * (1.0 - t);
+  final r = radius * eased;
+
+  final ring = ui.Paint()..style = ui.PaintingStyle.stroke;
+  ring
+    ..strokeWidth = 16.0 * a + 2.0
+    ..color = earth.withValues(alpha: 0.30 * a);
+  canvas.drawCircle(centre, r, ring);
+  ring
+    ..strokeWidth = 5.0 * a + 1.0
+    ..color = ui.Color.lerp(earth, const ui.Color(0xFFFFE2A8), 0.5)!
+        .withValues(alpha: 0.55 * a);
+  canvas.drawCircle(centre, r * 0.97, ring);
+
+  // Cracks: short radial splits trailing the front.
+  final crack = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeWidth = 2.2
+    ..strokeCap = ui.StrokeCap.round
+    ..color = earth.withValues(alpha: 0.38 * a);
+  for (var i = 0; i < 14; i++) {
+    final ang = i * (pi * 2 / 14) + 0.21;
+    final dir = ui.Offset(cos(ang), sin(ang));
+    final inner = r * 0.72;
+    final jag = ui.Path()
+      ..moveTo(centre.dx + dir.dx * inner, centre.dy + dir.dy * inner);
+    for (var k = 1; k <= 3; k++) {
+      final f = inner + (r - inner) * (k / 3);
+      final off = ui.Offset(-dir.dy, dir.dx) * (sin(i * 2.7 + k) * 12.0);
+      jag.lineTo(centre.dx + dir.dx * f + off.dx, centre.dy + dir.dy * f + off.dy);
+    }
+    canvas.drawPath(jag, crack);
+  }
+}
+
+/// One patch of a Poison Mystic's trail.
+///
+/// Built from overlapping offset blobs rather than one circle: a spill has an
+/// edge that wanders, and a ring of perfect circles down the ship's flight path
+/// reads as a row of placed objects.
+void drawMysticPoisonPatch({
+  required ui.Canvas canvas,
+  required ui.Offset centre,
+  required double radius,
+  required double alpha,
+  required double seed,
+  required double time,
+  required ui.Color poison,
+}) {
+  if (alpha <= 0.01) return;
+  final body = ui.Paint()..color = poison.withValues(alpha: 0.20 * alpha);
+  for (var i = 0; i < 5; i++) {
+    final ang = seed + i * 1.27;
+    final off = ui.Offset(cos(ang), sin(ang)) * (radius * 0.30);
+    canvas.drawCircle(centre + off, radius * (0.62 + 0.16 * sin(seed + i)), body);
+  }
+  canvas.drawCircle(
+    centre,
+    radius * 0.58,
+    ui.Paint()..color = poison.withValues(alpha: 0.26 * alpha),
+  );
+
+  // Bubbles surfacing and popping, so the patch is alive rather than a stain.
+  final bubble = ui.Paint()
+    ..color = ui.Color.lerp(poison, const ui.Color(0xFFEAFFD0), 0.6)!
+        .withValues(alpha: 0.55 * alpha);
+  for (var i = 0; i < 3; i++) {
+    final phase = (time * 0.7 + seed + i * 0.41) % 1.0;
+    final ang = seed * 2.1 + i * 2.09;
+    final at = centre + ui.Offset(cos(ang), sin(ang)) * (radius * 0.42);
+    canvas.drawCircle(at, (1.4 + 2.6 * phase) * (1.0 - phase), bubble);
+  }
+}

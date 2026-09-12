@@ -1855,9 +1855,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['PIERCING', 'TRAIL', 'CLUSTER'],
         ),
         'Lightning' => (
-          'Storm Lattice • Intelligence scales count',
-          'Fires rapid zigzag bolts with high bounce counts.',
-          ['BOUNCE', 'CHAIN', 'HOMING'],
+          'The Storm • Intelligence scales the bolt',
+          'The sky turns over. Every five seconds a bolt falls on someone at '
+              'random; one that lands on a boss stuns it for a second. Holds '
+              'while this Mystic is alive and deployed.',
+          ['WORLD', 'STRIKE', 'BOSS STUN'],
         ),
         'Water' => (
           'Tidal Crescent • Beauty scales count',
@@ -1875,14 +1877,18 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['SNARE', 'TURRET', 'AREA DENIAL'],
         ),
         'Earth' => (
-          'Monolith Constellation • Strength scales count',
-          'Summons stone decoy pillars that taunt enemies and explode into shrapnel when destroyed.',
-          ['DECOY', 'TAUNT', 'EXPLODES'],
+          'The Quaking • Strength scales the shock',
+          'The ground will not hold still. Every ten seconds a quake runs the '
+              'whole arena, hurting every enemy and knocking them off their '
+              'feet. Holds while this Mystic is alive and deployed.',
+          ['WORLD', 'ARENA-WIDE', 'STUN'],
         ),
         'Mud' => (
-          'Mire Eclipse • Strength scales count',
-          'Creates a snare zone, then launches homing mud slugs that pierce and leave slowing trails.',
-          ['SNARE', 'PIERCING', 'TRAIL'],
+          'The Mire • Strength and Intelligence scale the drag',
+          'The field turns to mud under the ship\'s guns: anything the SHIP '
+              'hits bogs down, up to 90% slower. Holds while this Mystic is '
+              'alive and deployed.',
+          ['WORLD', 'SHIP', 'SLOW'],
         ),
         'Dust' => (
           'Sirocco Halo • Beauty scales count',
@@ -1907,9 +1913,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['WORLD', 'MELEE', 'TURRET'],
         ),
         'Poison' => (
-          'Venom Halo • Intelligence scales count',
-          'Deploys ship-following poison clouds that snare enemies and leave toxic trails.',
-          ['SNARE', 'TRAIL', 'AREA DENIAL'],
+          'The Miasma • Intelligence and Beauty scale the spill',
+          'The ship leaves poison wherever it flies, so the shape of the world '
+              'is whatever the player draws with it. Holds while this Mystic '
+              'is alive and deployed.',
+          ['WORLD', 'SHIP TRAIL', 'POISON'],
         ),
         'Spirit' => (
           'The Turning • Intelligence scales the host',

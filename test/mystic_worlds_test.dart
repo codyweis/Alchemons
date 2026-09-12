@@ -8,12 +8,15 @@ import 'package:flame/components.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// The four Mystic worlds that are not Fire: Spirit, Blood, Dark, Plant.
+/// The Mystic worlds that are not Fire: Spirit, Blood, Dark, Plant, Lightning,
+/// Poison, Mud and Earth. (Fire's ember field has its own file.)
 ///
-/// Each one is a rule that only exists across a sequence — cast, hold, recall —
-/// so a single-frame assertion would catch none of them breaking. What is
-/// tested here is the shape they share: a world is lit once, holds while its
-/// caster stands, and goes out when that caster leaves.
+/// Each is a rule that only exists across a sequence — cast, hold, recall — so
+/// a single-frame assertion would catch none of them breaking. What is tested
+/// first is the shape they all share: a world is lit once, holds while its
+/// caster stands, and goes out when that caster leaves. The per-element tests
+/// below then cover what makes each one different, which is the whole point of
+/// the family.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -89,7 +92,16 @@ void main() {
     }
   }
 
-  for (final element in ['Spirit', 'Blood', 'Dark', 'Plant']) {
+  for (final element in [
+    'Spirit',
+    'Blood',
+    'Dark',
+    'Plant',
+    'Lightning',
+    'Poison',
+    'Mud',
+    'Earth',
+  ]) {
     test('$element lights a world once per deployment', () async {
       final game = await boot(element);
       expect(game.mysticWorldStrength(0), isZero);
@@ -304,7 +316,16 @@ void main() {
   });
 
   test('a world never leaks into the shared projectile budget', () async {
-    for (final element in ['Spirit', 'Blood', 'Dark', 'Plant']) {
+    for (final element in [
+      'Spirit',
+        'Blood',
+        'Dark',
+        'Plant',
+        'Lightning',
+        'Poison',
+        'Mud',
+        'Earth',
+    ]) {
       final game = await boot(element);
       final before = game.companionProjectiles.length;
       await castOnce(game);
@@ -317,5 +338,114 @@ void main() {
             'holding slots in the 220-slot list shared with every trap and ward',
       );
     }
+  });
+
+  test('Lightning strikes on its own clock, not on the players', () async {
+    final game = await boot('Lightning');
+    await castOnce(game);
+    expect(
+      game.mysticStrikeCount(0),
+      isZero,
+      reason: 'the cast is the sky changing, not a bolt thrown',
+    );
+
+    // Just under one interval: nothing yet.
+    run(game, (CosmicSurvivalGame.kMysticStrikeInterval * 60).round() - 20);
+    expect(game.mysticStrikeCount(0), isZero);
+
+    // Three intervals in, three bolts — a fixed rhythm the player can count on
+    // and play around, which is why the interval does not scale with stats.
+    run(game, (CosmicSurvivalGame.kMysticStrikeInterval * 60 * 3).round());
+    expect(game.mysticStrikeCount(0), inInclusiveRange(3, 4));
+
+    // It stops with its caster, though it left nothing standing to fade — a
+    // world on a clock has to end the same way a world made of things does.
+    game.returnCompanion(0);
+    final settled = game.mysticStrikeCount(0);
+    run(game, 900);
+    expect(
+      game.mysticStrikeCount(0),
+      settled,
+      reason: 'the storm kept striking after its Mystic was pulled out',
+    );
+  });
+
+  test('Earth quakes put every enemy on the floor at once', () async {
+    final game = await boot('Earth');
+    await castOnce(game);
+
+    for (var f = 0;
+        f < (CosmicSurvivalGame.kMysticQuakeInterval * 60).round() + 60;
+        f++) {
+      for (final e in game.enemies) {
+        e.hp = 1e9;
+      }
+      keepAlive(game);
+      game.update(1 / 60);
+    }
+    expect(game.mysticStrikeCount(0), greaterThanOrEqualTo(1));
+
+    final live = game.enemies.where((e) => !e.isDead).toList();
+    expect(live, isNotEmpty);
+    expect(
+      live.every((e) => e.effectiveSpeed == 0),
+      isTrue,
+      reason:
+          'a quake takes the whole arena off its feet; a radius would just be '
+          'another big explosion, which the roster is not short of',
+    );
+  });
+
+  test('Poison lays its trail where the ship has actually flown', () async {
+    final game = await boot('Poison');
+    await castOnce(game);
+    run(game, 420);
+    expect(game.mysticPoolCount(0), greaterThan(1), reason: 'no trail was laid');
+
+    // Spaced by distance flown, so a parked ship does not stack a tower of
+    // patches on one spot.
+    final parked = game.ship.position;
+    for (var f = 0; f < 300; f++) {
+      game.ship.position = parked;
+      keepAlive(game);
+      game.update(1 / 60);
+    }
+    final held = game.mysticPoolCount(0);
+    for (var f = 0; f < 120; f++) {
+      game.ship.position = parked;
+      keepAlive(game);
+      game.update(1 / 60);
+    }
+    expect(
+      game.mysticPoolCount(0),
+      lessThanOrEqualTo(held),
+      reason: 'a stationary ship kept spawning patches where it sat',
+    );
+  });
+
+  test('Mud bogs down what the ship hits, and nothing else', () async {
+    final game = await boot('Mud');
+    await castOnce(game);
+
+    final live = game.enemies.where((e) => !e.isDead).toList();
+    expect(live.length, greaterThan(1));
+    final shipHit = live.first..hp = 1e9;
+    final partyHit = live.last..hp = 1e9;
+
+    game.debugShipAttackDamage(shipHit, 5);
+    expect(
+      shipHit.effectiveSpeed,
+      lessThan(shipHit.speed * 0.45),
+      reason: "the ship's guns are supposed to be the brake",
+    );
+
+    game.debugAutoAttackDamage(partyHit, 5);
+    expect(
+      partyHit.effectiveSpeed,
+      greaterThan(partyHit.speed * 0.45),
+      reason:
+          'a companion basic must not carry the mire — this world hands the '
+          "PLAYER a tool, which is what keeps it distinct from Blood's tithe",
+    );
   });
 }

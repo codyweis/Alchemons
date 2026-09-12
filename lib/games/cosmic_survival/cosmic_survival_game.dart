@@ -651,6 +651,66 @@ class _MysticRevenant {
   bool get dead => life <= 0 || fade <= 0;
 }
 
+/// One bolt out of a Lightning Mystic's storm — a visual only; the damage is
+/// dealt the instant it falls.
+class _MysticBolt {
+  _MysticBolt({required this.strike, required this.seed, required this.onBoss});
+
+  final Offset strike;
+  final double seed;
+
+  /// Bolts that land on a boss flash harder, because that is the one that
+  /// bought the player a second of stillness.
+  final bool onBoss;
+
+  double life = maxLife;
+  static const double maxLife = 0.36;
+
+  bool get dead => life <= 0;
+}
+
+/// The ring an Earth Mystic's quake throws out. Visual only.
+class _MysticQuake {
+  _MysticQuake({required this.centre, required this.radius});
+
+  final Offset centre;
+  final double radius;
+  double age = 0;
+  static const double maxAge = 1.05;
+
+  bool get dead => age >= maxAge;
+}
+
+/// A patch of the trail a Poison Mystic's world lays under the ship.
+///
+/// The ship is the one thing on the field the player steers directly, so this
+/// is the only world whose shape they author themselves — where the poison
+/// goes is wherever they chose to fly.
+class _MysticPool {
+  _MysticPool({
+    required this.position,
+    required this.ownerSlot,
+    required this.radius,
+    required this.damage,
+    required this.seed,
+    required this.life,
+  });
+
+  final Offset position;
+  final int ownerSlot;
+  final double radius;
+  final double damage;
+  final double seed;
+
+  double life;
+  double fade = 1.0;
+
+  /// Per-pool tick gate so a patch does not damage every frame.
+  double tick = 0;
+
+  bool get dead => life <= 0 || fade <= 0;
+}
+
 /// The hole a Dark Mystic tears in the north of the arena.
 ///
 /// It does not kill: it drags, swallows, and spits whatever it swallowed back
@@ -1186,6 +1246,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   final List<_MysticVine> _mysticVines = [];
   final List<_MysticMaw> _mysticMaws = [];
+  final List<_MysticBolt> _mysticBolts = [];
+  final List<_MysticQuake> _mysticQuakes = [];
+  final List<_MysticPool> _mysticPools = [];
+  static const int _maxMysticPools = 26;
+
+  /// Cadence for the worlds that happen on a clock rather than on contact —
+  /// Lightning's strikes and Earth's quakes. Keyed by the slot that owns them.
+  final Map<int, double> _mysticClock = {};
+
+  /// Where the ship was when a Poison world last laid a patch, so the trail is
+  /// spaced by distance flown rather than by frames elapsed.
+  final Map<int, Offset> _mysticPoisonLastDrop = {};
 
   /// Elements whose Mystic cast stops being a spell and becomes the map.
   ///
@@ -1198,6 +1270,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     'Blood',
     'Dark',
     'Plant',
+    'Lightning',
+    'Poison',
+    'Mud',
+    'Earth',
   };
 
 
@@ -1888,6 +1964,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             life: 0.08,
           );
           _damageEnemy(target, beamDamage, autoAttack: true);
+          _applyMysticMudSlow(target);
         } else {
           SurvivalBoss? best;
           double bestDist = 560;
@@ -7014,7 +7091,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       mysticEmberCount(slotIndex) +
       mysticRevenantCount(slotIndex) +
       mysticVineCount(slotIndex) +
-      _mysticMaws.where((m) => m.ownerSlot == slotIndex && m.fade > 0).length;
+      _mysticMaws.where((m) => m.ownerSlot == slotIndex && m.fade > 0).length +
+      _mysticPools.where((p) => p.ownerSlot == slotIndex && p.fade > 0).length;
+
+  /// How many poison patches this slot's world has laid down.
+  @visibleForTesting
+  int mysticPoolCount(int slotIndex) =>
+      _mysticPools.where((p) => p.ownerSlot == slotIndex && p.fade > 0).length;
+
+  /// How many bolts a Lightning world has thrown this run, and quakes an Earth
+  /// world has shaken. Counted so a test can assert the clock actually runs and
+  /// stops with its caster.
+  @visibleForTesting
+  int mysticStrikeCount(int slotIndex) => _mysticStrikes[slotIndex] ?? 0;
 
   @visibleForTesting
   int mysticRevenantCount(int slotIndex) =>
@@ -7052,6 +7141,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void debugAbilityDamage(CosmicSurvivalEnemy enemy, double damage) =>
       _damageEnemy(enemy, damage);
 
+  /// Damage the way the SHIP deals it — an auto attack that also carries a Mud
+  /// world's brake, which a companion's basic deliberately does not.
+  @visibleForTesting
+  void debugShipAttackDamage(CosmicSurvivalEnemy enemy, double damage) {
+    _damageEnemy(enemy, damage, autoAttack: true);
+    _applyMysticMudSlow(enemy);
+  }
+
   /// How far this slot's embers reach from [from] — the distance to the
   /// furthest one. Exposed so a test can assert the field covers the arena
   /// rather than orbiting its caster.
@@ -7085,6 +7182,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     for (final m in _mysticMaws) {
       if (m.ownerSlot == slotIndex) m.fade = min(m.fade, 0.999);
     }
+    for (final pool in _mysticPools) {
+      if (pool.ownerSlot == slotIndex) pool.fade = min(pool.fade, 0.999);
+    }
+    _mysticClock.remove(slotIndex);
+    _mysticPoisonLastDrop.remove(slotIndex);
   }
 
   /// How many times each slot has lit a world this run. A world is meant to be
@@ -7129,8 +7231,27 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         _openMysticMaw(comp);
       case 'Plant':
         _growMysticGrove(comp);
+      case 'Lightning':
+        // The storm's first bolt comes on the clock like every other, so the
+        // cast is the sky changing rather than a bolt being thrown.
+        _mysticClock[slotIndex] = kMysticStrikeInterval;
+      case 'Earth':
+        _mysticClock[slotIndex] = kMysticQuakeInterval;
+      case 'Poison':
+        _mysticPools.removeWhere((p) => p.ownerSlot == slotIndex);
+        _mysticPoisonLastDrop[slotIndex] = ship.position;
+      case 'Mud':
+        // A rule on the ship's guns; nothing to place.
+        break;
     }
   }
+
+  /// Seconds between a Lightning world's strikes, and between an Earth world's
+  /// quakes. Fixed rather than stat-scaled: these are the weather's rhythm, and
+  /// a player has to be able to count on it to play around it. Stats move the
+  /// damage instead.
+  static const double kMysticStrikeInterval = 5.0;
+  static const double kMysticQuakeInterval = 10.0;
 
   /// The slot hosting a live world of [element], or null. Deliberately checks
   /// the caster rather than the leftover entities: a world belongs to a Mystic
@@ -7502,6 +7623,200 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
 
+  // ── LIGHTNING: the storm ────────────────────────────────────────────────
+
+  /// One strike, on the clock. Picks a body at random rather than the biggest
+  /// or the nearest: a storm is not aiming, and a bolt the player cannot
+  /// predict is the thing that makes the sky feel like weather instead of a
+  /// turret they own.
+  /// Strikes and quakes delivered per slot — the clock's odometer.
+  final Map<int, int> _mysticStrikes = {};
+
+  void _strikeMysticLightning(int slotIndex, CosmicSurvivalCompanion owner) {
+    _mysticStrikes[slotIndex] = (_mysticStrikes[slotIndex] ?? 0) + 1;
+    final intel = _effectiveIntelligence(slotIndex);
+    final scale = _hornStatScale(intel, perPoint: 0.15, min: 0.8, max: 2.0);
+    final damage = max(8.0, owner.elemAtk * 5.5 * scale);
+
+    // Bosses stand in the same pool as everything else, so whether a strike
+    // lands on one is luck — which is what makes it land.
+    final live = [for (final e in enemies) if (!e.isDead) e];
+    final bosses = allLivingBosses.toList();
+    final total = live.length + bosses.length;
+    if (total == 0) return;
+
+    final pick = _rng.nextInt(total);
+    if (pick < live.length) {
+      final target = live[pick];
+      _mysticBolts.add(
+        _MysticBolt(
+          strike: target.position,
+          seed: _rng.nextDouble() * 6.28,
+          onBoss: false,
+        ),
+      );
+      _damageEnemy(target, damage, sourceSlotIndex: slotIndex);
+      _spawnHitSpark(target.position, const Color(0xFFE8F4FF));
+    } else {
+      final boss = bosses[pick - live.length];
+      _mysticBolts.add(
+        _MysticBolt(
+          strike: boss.position,
+          seed: _rng.nextDouble() * 6.28,
+          onBoss: true,
+        ),
+      );
+      damageBoss(damage, attackElement: 'Lightning', sourceSlotIndex: slotIndex, target: boss);
+      _stunBoss(boss, 1.0);
+      _spawnHitSpark(boss.position, const Color(0xFFFFFFFF));
+    }
+  }
+
+  /// A hard stop, unlike the ordinary chill.
+  ///
+  /// `_applyBossCrowdControl` floors a boss's slow at [kBossChillFloor] so no
+  /// combination of abilities can lock one down forever. A Mystic world is the
+  /// deliberate exception: one second, once every five, bought by spending the
+  /// single Mystic slot on it. Attack timers are held too — a boss that keeps
+  /// firing while frozen in place has not been stunned, it has been slowed.
+  void _stunBoss(SurvivalBoss boss, double seconds) {
+    if (boss.isDead || boss.isSpawning) return;
+    boss.chillMultiplier = 0;
+    boss.chillTimer = max(boss.chillTimer, seconds);
+    boss.shootTimer = max(boss.shootTimer, seconds);
+    boss.spreadTimer = max(boss.spreadTimer, seconds);
+    boss.summonTimer = max(boss.summonTimer, seconds);
+  }
+
+  // ── EARTH: the quake ────────────────────────────────────────────────────
+
+  void _shakeMysticEarth(int slotIndex, CosmicSurvivalCompanion owner) {
+    _mysticStrikes[slotIndex] = (_mysticStrikes[slotIndex] ?? 0) + 1;
+    final strength = _effectiveStrength(slotIndex);
+    final scale = _hornStatScale(strength, perPoint: 0.12, min: 0.8, max: 1.8);
+    final damage = max(5.0, owner.elemAtk * 2.0 * scale);
+    // Arena-wide: the ground is the ground. A radius would make it a big
+    // explosion, which every other family already has several of.
+    _mysticQuakes.add(
+      _MysticQuake(centre: orb.position, radius: _arenaRadius * 0.95),
+    );
+    for (final enemy in enemies) {
+      if (enemy.isDead) continue;
+      _damageEnemy(enemy, damage, sourceSlotIndex: slotIndex);
+      if (enemy.isDead) continue;
+      // Off its feet, not merely slowed.
+      enemy.slowTimer = max(enemy.slowTimer, 1.2);
+      enemy.slowMultiplier = 0;
+      enemy.knockbackVelocity = Offset.zero;
+    }
+    for (final boss in allLivingBosses) {
+      damageBoss(damage, attackElement: 'Earth', sourceSlotIndex: slotIndex, target: boss);
+      _stunBoss(boss, 0.7);
+    }
+    onSound?.call(SoundCue.combatHitHeavy);
+  }
+
+  // ── POISON: the ship's wake ─────────────────────────────────────────────
+
+  void _trailMysticPoison(int slotIndex, CosmicSurvivalCompanion owner, double dt) {
+    if (ship.isDead) return;
+    final last = _mysticPoisonLastDrop[slotIndex];
+    if (last == null) {
+      _mysticPoisonLastDrop[slotIndex] = ship.position;
+      return;
+    }
+    // Spaced by distance flown, not by time: a parked ship should not stack a
+    // tower of patches on one spot, and a fast one should not leave gaps.
+    const spacing = 46.0;
+    if ((ship.position - last).distance < spacing) return;
+    _mysticPoisonLastDrop[slotIndex] = ship.position;
+
+    final intel = _effectiveIntelligence(slotIndex);
+    final beauty = _effectiveBeauty(slotIndex);
+    final scale = _hornStatScale(
+      intel * 0.5 + beauty * 0.5,
+      perPoint: 0.12,
+      min: 0.8,
+      max: 1.6,
+    );
+    if (_mysticPools.length >= _maxMysticPools) {
+      // Oldest patch goes first, so the trail behaves like a trail.
+      _mysticPools.removeAt(0);
+    }
+    _mysticPools.add(
+      _MysticPool(
+        position: ship.position,
+        ownerSlot: slotIndex,
+        radius: 44.0 * scale,
+        damage: max(2.0, owner.elemAtk * 0.55 * scale),
+        seed: _rng.nextDouble() * 6.28,
+        life: 6.0 * scale,
+      ),
+    );
+  }
+
+  void _updateMysticPools(double dt) {
+    if (_mysticPools.isEmpty) return;
+    for (final pool in _mysticPools) {
+      final owner = activeCompanions[pool.ownerSlot];
+      final standing = owner != null && !owner.isDead;
+      if (!standing) {
+        pool.fade = max(0.0, pool.fade - dt * 0.9);
+        if (pool.fade <= 0) continue;
+      }
+      pool.life -= dt;
+      if (pool.life <= 0 || !standing) continue;
+      pool.tick -= dt;
+      if (pool.tick > 0) continue;
+      pool.tick = 0.45;
+      _visitEnemiesNear(pool.position, pool.radius, (enemy) {
+        if (enemy.isDead) return false;
+        if (!_withinRange(pool.position, enemy.position, pool.radius + enemy.radius)) {
+          return false;
+        }
+        _applyAbilityEffectToEnemy(
+          AbilityEffectKind.poison,
+          enemy,
+          pool.position,
+          pool.damage,
+          pool.radius,
+          2.0,
+          sourceSlotIndex: pool.ownerSlot,
+          element: 'Poison',
+          family: 'mystic',
+        );
+        return false;
+      });
+    }
+    _mysticPools.removeWhere((p) => p.dead);
+  }
+
+  // ── MUD: the ship's guns ────────────────────────────────────────────────
+
+  /// A Mud world turns the ship's own fire into a brake.
+  ///
+  /// Ship attacks ONLY, not the party's: the ship is the thing the player
+  /// aims, so the world hands them a tool rather than a passive that happens
+  /// around them, and it keeps this distinct from Blood's tithe, which
+  /// deliberately counts everybody's fire.
+  void _applyMysticMudSlow(CosmicSurvivalEnemy enemy) {
+    if (enemy.isDead) return;
+    final slot = _activeMysticWorldSlot('Mud');
+    if (slot == null) return;
+    final comp = activeCompanions[slot];
+    if (comp == null || comp.isDead) return;
+    final scale = _hornStatScale(
+      _effectiveStrength(slot) * 0.5 + _effectiveIntelligence(slot) * 0.5,
+      perPoint: 0.12,
+      min: 0.0,
+      max: 1.0,
+    );
+    // 60% slow at the bottom of the range up to the brief's 90% at the top.
+    final multiplier = 0.40 - 0.30 * scale;
+    enemy.slowTimer = max(enemy.slowTimer, 1.4);
+    enemy.slowMultiplier = min(enemy.slowMultiplier, multiplier);
+  }
+
   /// Per-frame tick for every Mystic world except the ember field, which has
   /// its own pass.
   void _updateMysticWorlds(double dt) {
@@ -7511,6 +7826,51 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateMysticRevenants(dt);
     _updateMysticMaws(dt);
     _updateMysticVines(dt);
+    _updateMysticPools(dt);
+    _updateMysticWeatherClocks(dt);
+
+    for (final bolt in _mysticBolts) {
+      bolt.life -= dt;
+    }
+    _mysticBolts.removeWhere((b) => b.dead);
+    for (final quake in _mysticQuakes) {
+      quake.age += dt;
+    }
+    _mysticQuakes.removeWhere((q) => q.dead);
+  }
+
+  /// Drives the worlds that happen on a clock — Lightning's strikes, Earth's
+  /// quakes — and the one that happens wherever the ship has been.
+  ///
+  /// The clock runs off the CASTER, not off a standing entity, so a world that
+  /// leaves nothing on the field behaves like the ones that do: it stops the
+  /// moment its Mystic is recalled or falls.
+  void _updateMysticWeatherClocks(double dt) {
+    if (_mysticSpentSlots.isEmpty) return;
+    for (final slot in _mysticSpentSlots.toList()) {
+      final comp = activeCompanions[slot];
+      if (comp == null || comp.isDead) continue;
+      switch (comp.member.element) {
+        case 'Lightning':
+          final next = (_mysticClock[slot] ?? kMysticStrikeInterval) - dt;
+          if (next <= 0) {
+            _mysticClock[slot] = kMysticStrikeInterval;
+            _strikeMysticLightning(slot, comp);
+          } else {
+            _mysticClock[slot] = next;
+          }
+        case 'Earth':
+          final next = (_mysticClock[slot] ?? kMysticQuakeInterval) - dt;
+          if (next <= 0) {
+            _mysticClock[slot] = kMysticQuakeInterval;
+            _shakeMysticEarth(slot, comp);
+          } else {
+            _mysticClock[slot] = next;
+          }
+        case 'Poison':
+          _trailMysticPoison(slot, comp, dt);
+      }
+    }
   }
 
   void _updateMysticEmbers(double dt) {
@@ -13165,6 +13525,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           return false;
         }
         _damageEnemy(enemy, proj.damage, autoAttack: true);
+        _applyMysticMudSlow(enemy);
         // Rocket splash AoE
         if (proj.splashRadius > 0) {
           _visitEnemiesNear(proj.position, proj.splashRadius, (other) {
@@ -13175,6 +13536,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               proj.splashRadius,
             )) {
               _damageEnemy(other, proj.damage * 0.55, autoAttack: true);
+              _applyMysticMudSlow(other);
             }
             return false;
           });
@@ -13201,6 +13563,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                   proj.splashRadius,
                 )) {
                   _damageEnemy(other, proj.damage * 0.55, autoAttack: true);
+              _applyMysticMudSlow(other);
                 }
                 return false;
               });
@@ -14586,6 +14949,45 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
 
+    // Poison Mystic's trail, under everything: it is on the floor, and the
+    // ship that laid it has to be readable while flying back over it.
+    for (final pool in _mysticPools) {
+      if (pool.fade <= 0.01) continue;
+      if (!_isWithinViewport(
+        pool.position,
+        pool.radius,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 40,
+      )) {
+        continue;
+      }
+      // Thins out over its last second rather than vanishing on a frame.
+      final ebb = pool.life < 1.0 ? pool.life.clamp(0.0, 1.0) : 1.0;
+      drawMysticPoisonPatch(
+        canvas: canvas,
+        centre: pool.position,
+        radius: pool.radius,
+        alpha: pool.fade * ebb,
+        seed: pool.seed,
+        time: stats.timeElapsed,
+        poison: elementColor('Poison'),
+      );
+    }
+
+    // Earth Mystic's quakes, also on the floor.
+    for (final quake in _mysticQuakes) {
+      drawMysticQuake(
+        canvas: canvas,
+        centre: quake.centre,
+        radius: quake.radius,
+        progress: quake.age / _MysticQuake.maxAge,
+        earth: elementColor('Earth'),
+      );
+    }
+
     // Dark Mystic's maw. Drawn before everything else in this pass because it
     // is a hole in the floor, not an effect sitting on top of one — bodies
     // being dragged across it have to pass OVER it.
@@ -14668,6 +15070,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         alpha: r.fade,
         time: stats.timeElapsed,
         seed: r.seed,
+      );
+    }
+
+    // Lightning Mystic's strikes, over the field: a bolt falls in front of
+    // whatever it hits.
+    for (final bolt in _mysticBolts) {
+      drawMysticLightningBolt(
+        canvas: canvas,
+        strike: bolt.strike,
+        progress: 1.0 - bolt.life / _MysticBolt.maxLife,
+        seed: bolt.seed,
+        onBoss: bolt.onBoss,
       );
     }
 
