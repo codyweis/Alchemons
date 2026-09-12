@@ -3,31 +3,37 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
 class CosmicScreenStyles {
-  // Black, not brown.
+  // Black, not brown — and now with the contrast to match.
   //
-  // bg2 and bg3 carried a warm cast — 171511 and 201D17 are brown, not grey —
-  // so every panel in cosmic space and the customization lab sat on a muddy
-  // yellow ground. Amber ink on brown is the lowest-contrast pairing in the
-  // app; the same ink on black is the highest. The accents are untouched:
-  // the gold is the identity, the ground it sat on was the problem.
-  static const bg0 = Color(0xFF060606);
-  static const bg1 = Color(0xFF0D0D0D);
-  static const bg2 = Color(0xFF121212);
-  static const bg3 = Color(0xFF1A1A1A);
-  static const amber = Color(0xFFC4A35A);
-  static const amberBright = Color(0xFFE4C16A);
-  static const amberGlow = Color(0xFFF1D78A);
+  // The first pass fixed the ground: bg2/bg3 carried a warm cast (171511 and
+  // 201D17 are brown, not grey), so every panel sat on a muddy yellow and
+  // amber ink on brown is the lowest-contrast pairing in the app. That was
+  // right, but it left the INK alone, and the ink was the other half of the
+  // problem: body copy at B5A98A over a 121212 ground is parchment a few
+  // stops above its own background, which reads as faded rather than as
+  // atmospheric, and borders ended up doing the work contrast should do.
+  //
+  // These now match the survival surge panel, which is where the treatment was
+  // worked out — one set of tokens across nineteen files, so the dialogs
+  // cannot drift apart again.
+  static const bg0 = Color(0xFF050507);
+  static const bg1 = Color(0xFF0B0B10);
+  static const bg2 = Color(0xFF14141B);
+  static const bg3 = Color(0xFF1F1F28);
+  static const amber = Color(0xFFD9B368);
+  static const amberBright = Color(0xFFF2C96F);
+  static const amberGlow = Color(0xFFFBE4A4);
   static const teal = Color(0xFF5BC8E8);
   static const astralShardIcon = AppIcons.diamond_rounded;
   static const astralShardColor = Color(0xFFAB47BC);
-  static const textPrimary = Color(0xFFE8DFC8);
-  static const textSecondary = Color(0xFFB5A98A);
-  static const textMuted = Color(0xFF6B6050);
-  static const danger = Color(0xFFC0392B);
-  static const success = Color(0xFF22C55E);
-  static const borderDim = Color(0xFF2E2A23);
-  static const borderMid = Color(0xFF4A4032);
-  static const borderAccent = Color(0xFF74613A);
+  static const textPrimary = Color(0xFFF4EEDF);
+  static const textSecondary = Color(0xFFC8BFA8);
+  static const textMuted = Color(0xFF8A8296);
+  static const danger = Color(0xFFFF5A57);
+  static const success = Color(0xFF3FDE8A);
+  static const borderDim = Color(0xFF2B2B36);
+  static const borderMid = Color(0xFF4A4658);
+  static const borderAccent = Color(0xFF8A7345);
 }
 
 // ─────────────────────────────────────────────────────────
@@ -40,8 +46,17 @@ class CosmicScreenStyles {
 /// near-black. Lift toward white before using an element colour as UI ink.
 ///
 /// The portal painter does the same thing for the same reason.
-Color elementInk(String element) =>
-    Color.lerp(elementColor(element), Colors.white, 0.32)!;
+Color elementInk(String element) {
+  // Lerping toward white washes a saturated element out while still leaving a
+  // dark one dark — Dark (#4A148C) at 32% white is still too dim to read as
+  // small text. Raising lightness with the hue intact fixes both ends: the
+  // vivid elements keep their colour and the murky ones actually lift.
+  final hsl = HSLColor.fromColor(elementColor(element));
+  return hsl
+      .withSaturation(hsl.saturation.clamp(0.42, 1.0))
+      .withLightness(hsl.lightness.clamp(0.62, 0.82))
+      .toColor();
+}
 
 /// Whether a stored key is an element the game still knows about.
 ///
