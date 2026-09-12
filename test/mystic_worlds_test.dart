@@ -405,16 +405,28 @@ void main() {
     final game = await boot('Earth');
     await castOnce(game);
 
+    // Stop on the frame the quake lands. Shake decays in well under a second,
+    // so running a fixed number of frames past the interval and then asserting
+    // catches nothing — it had already settled.
     for (var f = 0;
-        f < (CosmicSurvivalGame.kMysticQuakeInterval * 60).round() + 60;
+        f < (CosmicSurvivalGame.kMysticQuakeInterval * 60).round() + 120;
         f++) {
       for (final e in game.enemies) {
         e.hp = 1e9;
       }
       keepAlive(game);
       game.update(1 / 60);
+      if (game.mysticStrikeCount(0) >= 1) break;
     }
     expect(game.mysticStrikeCount(0), greaterThanOrEqualTo(1));
+
+    // The quake shakes the view. A ring on the floor can only say a quake
+    // happened; moving the screen is what makes the player feel one.
+    expect(
+      game.screenShakeTrauma,
+      greaterThan(0),
+      reason: 'the ground shook and the camera did not move',
+    );
 
     final live = game.enemies.where((e) => !e.isDead).toList();
     expect(live, isNotEmpty);
@@ -425,6 +437,10 @@ void main() {
           'a quake takes the whole arena off its feet; a radius would just be '
           'another big explosion, which the roster is not short of',
     );
+
+    // And it settles, rather than leaving the camera trembling all run.
+    run(game, 180);
+    expect(game.screenShakeTrauma, isZero);
   });
 
   test('Poison lays its trail where the ship has actually flown', () async {

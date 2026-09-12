@@ -7216,6 +7216,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     return 0;
   }
 
+  /// Current screen-shake trauma, 0 when still. Exposed so a test can assert a
+  /// quake actually moves the view and then settles — shake is invisible to
+  /// every other kind of assertion.
+  @visibleForTesting
+  double get screenShakeTrauma => _shakeTrauma;
+
   /// Distance from [from] to the closest piece of ground cover. Exposed so a
   /// test can assert the scenery stays out at the rim.
   @visibleForTesting
@@ -7943,6 +7949,36 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     boss.summonTimer = max(boss.summonTimer, seconds);
   }
 
+  /// Screen shake, as a decaying trauma value rather than a countdown.
+  ///
+  /// Trauma squared drives the amplitude, which is what makes a shake feel
+  /// like an impact instead of a vibration: it hits hard and lets go fast,
+  /// and two shakes overlapping add rather than replacing one another.
+  double _shakeTrauma = 0;
+  double _shakeClock = 0;
+
+  void _addShake(double amount) {
+    _shakeTrauma = min(1.0, _shakeTrauma + amount);
+  }
+
+  void _updateShake(double dt) {
+    _shakeClock += dt;
+    if (_shakeTrauma > 0) {
+      _shakeTrauma = max(0.0, _shakeTrauma - dt * 1.35);
+    }
+  }
+
+  Offset _screenShakeOffset() {
+    if (_shakeTrauma <= 0.001) return Offset.zero;
+    final power = _shakeTrauma * _shakeTrauma;
+    final amplitude = 26.0 * power;
+    // Two different frequencies so the motion never looks like a clean orbit.
+    return Offset(
+      sin(_shakeClock * 43.0) * amplitude,
+      cos(_shakeClock * 37.0) * amplitude * 0.8,
+    );
+  }
+
   // ── EARTH: the quake ────────────────────────────────────────────────────
 
   void _shakeMysticEarth(int slotIndex, CosmicSurvivalCompanion owner) {
@@ -7969,6 +8005,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       damageBoss(damage, attackElement: 'Earth', sourceSlotIndex: slotIndex, target: boss);
       _stunBoss(boss, 0.7);
     }
+    // The quake is the whole arena moving. A ring drawn on the floor can only
+    // ever say that; shaking the view is the thing that makes the player feel
+    // it, and it is why the ring itself can now be subtle.
+    _addShake(0.85);
     onSound?.call(SoundCue.combatHitHeavy);
   }
 
@@ -8147,7 +8187,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     'Poison',
     'Spirit',
     'Lightning',
-    'Earth',
     'Mud',
   };
 
@@ -8167,6 +8206,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateMysticPools(dt);
     _updateMysticWeatherClocks(dt);
     _updateMysticFlora(dt);
+    _updateShake(dt);
 
     for (final bolt in _mysticBolts) {
       bolt.life -= dt;
@@ -8654,17 +8694,31 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final breath =
           0.88 + 0.12 * sin(stats.timeElapsed * 1.3 + env.ownerSlot * 1.7);
       final edge = tint.withValues(alpha: tint.a * env01 * breath);
+      // Some worlds are two colours rather than one. Earth is green ground
+      // over brown earth, and a single muted brown was the only thing telling
+      // it apart from Mud — which read as the screen simply being dirty.
+      final under = _mysticEnvUnderTintColor(env.element);
       canvas.drawRect(
         viewportRect,
         Paint()
           ..shader = ui.Gradient.radial(centre, reach, [
             tint.withValues(alpha: 0.0),
-            tint.withValues(alpha: tint.a * env01 * 0.35 * breath),
+            (under ?? tint).withValues(
+              alpha: (under ?? tint).a * env01 * 0.45 * breath,
+            ),
             edge,
           ], const [0.0, 0.55, 1.0]),
       );
     }
   }
+
+  /// The inner half of a two-tone world, or null for the elements that are one
+  /// colour. Sits between the clear middle and the edge tint.
+  Color? _mysticEnvUnderTintColor(String element) => switch (element) {
+    // Brown earth beneath the green growing on it.
+    'Earth' => const Color(0x3A6B4A28),
+    _ => null,
+  };
 
   /// Per-element ambient tint applied to the viewport. Alpha lives
   /// inside the colour so each element can pick its own intensity.
@@ -8683,7 +8737,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       case 'Steam':
         return const Color(0x30E0EEFF);
       case 'Earth':
-        return const Color(0x387A6040);
+        // Green over brown — living ground, not a dirt filter. A single muted
+        // brown was the only thing separating an Earth world from a Mud one
+        // and it read as the screen being dirty.
+        return const Color(0x4A5E7A38);
       case 'Mud':
         return const Color(0x404A2A10);
       case 'Dust':
@@ -14864,7 +14921,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     canvas.save();
     canvas.scale(_currentZoom, _currentZoom);
-    canvas.translate(-cx, -cy);
+    // Screen shake rides the world transform, so the arena moves under the
+    // HUD rather than the HUD moving with it.
+    final shake = _screenShakeOffset();
+    canvas.translate(-cx + shake.dx, -cy + shake.dy);
 
     _renderStars(
       canvas,

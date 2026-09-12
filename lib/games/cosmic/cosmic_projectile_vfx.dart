@@ -7718,15 +7718,19 @@ void drawMysticQuake({
   final a = (1.0 - t) * (1.0 - t);
   final r = radius * eased;
 
+  // Subtler than it was. The screen itself shakes for a quake now, so the ring
+  // only has to say WHERE the front is — a heavy ring with bright cracks was
+  // doing all the work of conveying force on its own, and looked like a decal
+  // for it.
   final ring = ui.Paint()..style = ui.PaintingStyle.stroke;
   ring
-    ..strokeWidth = 16.0 * a + 2.0
-    ..color = earth.withValues(alpha: 0.30 * a);
+    ..strokeWidth = 10.0 * a + 1.5
+    ..color = earth.withValues(alpha: 0.20 * a);
   canvas.drawCircle(centre, r, ring);
   ring
-    ..strokeWidth = 5.0 * a + 1.0
+    ..strokeWidth = 3.0 * a + 0.8
     ..color = ui.Color.lerp(earth, const ui.Color(0xFFFFE2A8), 0.5)!
-        .withValues(alpha: 0.55 * a);
+        .withValues(alpha: 0.34 * a);
   canvas.drawCircle(centre, r * 0.97, ring);
 
   // Cracks: short radial splits trailing the front.
@@ -7734,9 +7738,9 @@ void drawMysticQuake({
     ..style = ui.PaintingStyle.stroke
     ..strokeWidth = 2.2
     ..strokeCap = ui.StrokeCap.round
-    ..color = earth.withValues(alpha: 0.38 * a);
-  for (var i = 0; i < 14; i++) {
-    final ang = i * (pi * 2 / 14) + 0.21;
+    ..color = earth.withValues(alpha: 0.24 * a);
+  for (var i = 0; i < 8; i++) {
+    final ang = i * (pi * 2 / 8) + 0.21;
     final dir = ui.Offset(cos(ang), sin(ang));
     final inner = r * 0.72;
     final jag = ui.Path()
