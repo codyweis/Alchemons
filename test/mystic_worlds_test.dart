@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -157,11 +158,30 @@ void main() {
       ..isDead = false
       ..position = maw;
     run(game, 30);
-    expect(victim.isDead, isFalse, reason: 'the maw displaces, it does not execute');
+    expect(
+      victim.isDead,
+      isFalse,
+      reason: 'the maw displaces, it does not execute',
+    );
+
+    // Clear of the mouth, or it is eaten again on landing and spends the rest
+    // of the run in a loop at the top of the screen.
     expect(
       (victim.position - maw).distance,
-      greaterThan(400),
-      reason: 'a swallowed body comes back out at the rim',
+      greaterThan(game.mysticMawRadius(0)!),
+      reason: 'it landed back inside the pull',
+    );
+
+    // And put back where bodies come IN from, not at the arena's outer edge.
+    // Thrown to the rim it was off-screen for an age, which reads as deletion
+    // rather than as displacement.
+    final walkBack = (victim.position - game.orb.position).distance;
+    expect(
+      walkBack,
+      lessThan(900),
+      reason:
+          'ejected far outside the lane enemies actually approach through — '
+          'the player never sees it come back',
     );
   });
 
@@ -174,6 +194,45 @@ void main() {
       1,
       reason: 'one lashes and one spits — two ranges, not one turret twice',
     );
+
+    // One north of the caster and one south, bracketing the lane rather than
+    // standing shoulder to shoulder in it.
+    final roots = game.mysticVineRoots(0);
+    expect(roots, hasLength(2));
+    final caster = game.activeCompanions[0]!.position;
+    expect(
+      roots.any((r) => r.dy < caster.dy - 50),
+      isTrue,
+      reason: 'no vine above the caster',
+    );
+    expect(
+      roots.any((r) => r.dy > caster.dy + 50),
+      isTrue,
+      reason: 'no vine below the caster',
+    );
+  });
+
+  test('a world is lit once even with developer tools re-arming', () async {
+    // The switch collapses the FIRST cast's wait so a world can be judged
+    // without waiting out the longest cadence in the game. It used to re-arm
+    // the cast as well, which meant the world tore itself down and rebuilt
+    // every five seconds — the one thing none of these abilities are.
+    DebugSettingsService.enabledNotifier.value = true;
+    addTearDown(() => DebugSettingsService.enabledNotifier.value = false);
+
+    final game = await boot('Dark');
+    await castOnce(game);
+    expect(game.mysticWorldIgnitions(0), 1);
+    final maw = game.mysticMawPosition(0);
+
+    // Well past several debug cooldowns.
+    run(game, 1800);
+    expect(
+      game.mysticWorldIgnitions(0),
+      1,
+      reason: 'the world re-lit itself while its caster just stood there',
+    );
+    expect(game.mysticMawPosition(0), maw);
   });
 
   test('Spirit raises the small dead and only the small dead', () async {

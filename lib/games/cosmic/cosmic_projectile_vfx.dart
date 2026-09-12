@@ -7220,3 +7220,380 @@ void drawLetSkyfallImpact({
 /// Fast out of the gate, long tail. Impacts read wrong on a linear ramp — the
 /// energy has to be spent almost immediately and then coast.
 double _easeOutFast(double t) => 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t);
+
+/// Builds a closed, smoothly curved ribbon that follows [spine] and tapers
+/// from [baseWidth] at the first point to [tipWidth] at the last.
+///
+/// Strokes cannot taper, and a plant has no constant thickness anywhere on it,
+/// so anything organic has to be a filled shape swept along a curve. Corners
+/// are rounded by running quadratics through the midpoints of the offset
+/// samples rather than joining them with straight segments — a polyline reads
+/// as folded paper no matter how many points it has.
+ui.Path _tapered(List<ui.Offset> spine, double baseWidth, double tipWidth) {
+  final path = ui.Path();
+  if (spine.length < 2) return path;
+
+  final left = <ui.Offset>[];
+  final right = <ui.Offset>[];
+  for (var i = 0; i < spine.length; i++) {
+    final prev = spine[i == 0 ? 0 : i - 1];
+    final next = spine[i == spine.length - 1 ? i : i + 1];
+    var tangent = next - prev;
+    final len = tangent.distance;
+    if (len < 0.0001) {
+      tangent = const ui.Offset(0, -1);
+    } else {
+      tangent = tangent / len;
+    }
+    final normal = ui.Offset(-tangent.dy, tangent.dx);
+    final f = i / (spine.length - 1);
+    final half = (baseWidth + (tipWidth - baseWidth) * f) * 0.5;
+    left.add(spine[i] + normal * half);
+    right.add(spine[i] - normal * half);
+  }
+
+  void trace(List<ui.Offset> side) {
+    for (var i = 1; i < side.length - 1; i++) {
+      final mid = ui.Offset(
+        (side[i].dx + side[i + 1].dx) * 0.5,
+        (side[i].dy + side[i + 1].dy) * 0.5,
+      );
+      path.quadraticBezierTo(side[i].dx, side[i].dy, mid.dx, mid.dy);
+    }
+    path.lineTo(side.last.dx, side.last.dy);
+  }
+
+  path.moveTo(left.first.dx, left.first.dy);
+  trace(left);
+  final reversed = right.reversed.toList();
+  path.lineTo(reversed.first.dx, reversed.first.dy);
+  trace(reversed);
+  path.close();
+  return path;
+}
+
+
+/// Dark Mystic's maw: the hole it tears in the arena.
+///
+/// A world feature, not a cast — it holds open for as long as its Mystic
+/// stands, so it breathes slowly and keeps a constant boundary rather than
+/// throwing expanding rings, which read as an effect going off over and over.
+void drawMysticMaw({
+  required ui.Canvas canvas,
+  required ui.Offset centre,
+  required double pullRadius,
+  required double horizonRadius,
+  required double open,
+  required double spin,
+  required double alpha,
+  required double time,
+}) {
+  final a = alpha;
+  final pull = pullRadius * open;
+  final horizon = horizonRadius * open;
+  final violet = const ui.Color(0xFFB89AFF);
+  final deep = const ui.Color(0xFF12061F);
+  // A slow breath, not a strobe. The hole is a permanent feature of the
+  // map for as long as the Mystic stands, so it should read as something
+  // alive and steady rather than something firing.
+  final pulse = 1.0 + 0.045 * sin(time * 0.85);
+
+  // ONE boundary line for the pull, held at a constant radius. This used
+  // to be three rings at different radii, which read as expanding shock
+  // rings — an effect going off, repeatedly, instead of a hole staying
+  // open.
+  canvas.drawCircle(
+    centre,
+    pull * 0.94,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = violet.withValues(alpha: 0.09 * a),
+  );
+
+  // Accretion: two arcs close to the mouth, shearing against each other.
+  final arcPaint = ui.Paint()..style = ui.PaintingStyle.stroke;
+  for (var ring = 0; ring < 2; ring++) {
+    final rr = horizon * (1.9 + ring * 0.75) * pulse;
+    final turn = spin * (1.0 + ring * 0.5) + ring * 2.1;
+    arcPaint
+      ..strokeWidth = 2.8 - ring * 0.8
+      ..color = ui.Color.lerp(violet, const ui.Color(0xFFFFFFFF), ring * 0.25)!
+          .withValues(alpha: (0.32 - ring * 0.10) * a);
+    canvas.drawArc(
+      ui.Rect.fromCircle(center: centre, radius: rr),
+      turn,
+      2.4 - ring * 0.5,
+      false,
+      arcPaint,
+    );
+  }
+
+  // The hole itself: a hard black disc with a bright rim, so it reads as
+  // an absence rather than as a dark sphere.
+  canvas.drawCircle(
+    centre,
+    horizon * 1.35 * pulse,
+    ui.Paint()..color = deep.withValues(alpha: 0.55 * a),
+  );
+  canvas.drawCircle(
+    centre,
+    horizon * pulse,
+    ui.Paint()..color = const ui.Color(0xFF000000).withValues(alpha: 0.96 * a),
+  );
+  canvas.drawCircle(
+    centre,
+    horizon * pulse,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..color = violet.withValues(alpha: 0.85 * a),
+  );
+  // Light bending round the rim.
+  canvas.drawArc(
+    ui.Rect.fromCircle(center: centre, radius: horizon * 1.12 * pulse),
+    -spin * 0.8,
+    1.5,
+    false,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.55 * a),
+  );
+}
+
+/// One of a Plant Mystic's two grove vines.
+///
+/// Built from tapered ribbons swept along curved spines rather than stroked
+/// polylines with circles for leaves: a plant has no straight edges and no
+/// constant thickness anywhere on it, and a constant-width stroke reads as
+/// folded paper however many points it has.
+void drawMysticGroveVine({
+  required ui.Canvas canvas,
+  required ui.Offset root,
+  required bool lashes,
+  required double growth,
+  required double swing,
+  required double aimAngle,
+  required double reach,
+  required double seed,
+  required double alpha,
+  required double time,
+  required ui.Color plant,
+}) {
+  final a = alpha;
+  final grow = growth;
+  final bright = ui.Color.lerp(plant, const ui.Color(0xFFFFFFFF), 0.45)!;
+
+  // Grows away from the caster: the northern vine reaches north, the
+  // southern one south, so the pair brackets the lane instead of leaning the
+  // same way.
+  final away = lashes ? -1.0 : 1.0;
+  // Slender, not chunky. A thick trunk with broad leaves read as a cartoon
+  // beanstalk; the plant wants to be a big WIRY thing. Every length here is
+  // the slender build scaled up as one, so it gets the size the brief asks
+  // for without getting heavy.
+  final height = 207.0 * grow;
+
+  // Serpentine spine — two lazy waves along its length, drifting with time so
+  // the whole plant breathes.
+  final spine = <ui.Offset>[];
+  const samples = 16;
+  for (var i = 0; i <= samples; i++) {
+    final f = i / samples;
+    final wave =
+        sin(f * 3.1 + time * 0.9 + seed) * 22.5 * f +
+        sin(f * 6.4 + time * 0.55 + seed * 1.7) * 9.0 * f;
+    spine.add(ui.Offset(root.dx + wave, root.dy + away * height * f));
+  }
+
+  canvas.drawPath(
+    _tapered(spine, 22.5 * grow, 3.6 * grow),
+    ui.Paint()..color = plant.withValues(alpha: 0.32 * a),
+  );
+  canvas.drawPath(
+    _tapered(spine, 14.2 * grow, 2.2 * grow),
+    ui.Paint()..color = plant.withValues(alpha: 0.90 * a),
+  );
+  // A highlight running up one side so the stem reads as round.
+  canvas.drawPath(
+    _tapered(
+      [for (final p in spine) p.translate(-3.0 * grow, 0)],
+      5.1 * grow,
+      1.2 * grow,
+    ),
+    ui.Paint()..color = bright.withValues(alpha: 0.30 * a),
+  );
+
+  final head = spine.last;
+
+  // Leaves peel off the stem, alternating sides and curling back toward the
+  // tip — narrow blades rather than broad ones, to match the stem.
+  for (var i = 2; i < samples - 1; i += 3) {
+    final f = i / samples;
+    final at = spine[i];
+    final side = i % 6 == 2 ? 1.0 : -1.0;
+    final droop = sin(time * 1.1 + i + seed) * 0.18;
+    final len = (51.0 - f * 21.0) * grow;
+    final leaf = <ui.Offset>[];
+    for (var k = 0; k <= 5; k++) {
+      final lf = k / 5;
+      leaf.add(
+        at +
+            ui.Offset(
+              side * len * lf * (1.0 - 0.25 * lf),
+              away * len * 0.42 * lf * lf + droop * len * lf,
+            ),
+      );
+    }
+    canvas.drawPath(
+      _tapered(leaf, (10.5 - f * 3.6) * grow, 0.9),
+      ui.Paint()..color = plant.withValues(alpha: 0.58 * a),
+    );
+  }
+
+  if (lashes) {
+    // The arm. At rest it curls back on itself; through a swing it
+    // straightens along the aim and drags a tip across the arc.
+    final extend = 0.34 + 0.66 * swing;
+    final armLength = reach * 0.92 * extend * grow;
+    final dir = ui.Offset(cos(aimAngle), sin(aimAngle));
+    final perp = ui.Offset(-dir.dy, dir.dx);
+    // Curl amount falls away as the whip lands, so the snap reads.
+    final curl = armLength * 0.50 * (1.0 - swing);
+    final whip = <ui.Offset>[];
+    const ws = 14;
+    for (var i = 0; i <= ws; i++) {
+      final f = i / ws;
+      whip.add(
+        head +
+            dir * (armLength * f) +
+            perp * (curl * sin(f * pi) + sin(f * 4.0 + time * 3.0) * 6.0 * f),
+      );
+    }
+    canvas.drawPath(
+      _tapered(whip, 13.5 * grow, 1.5),
+      ui.Paint()..color = plant.withValues(alpha: (0.48 + 0.42 * swing) * a),
+    );
+    canvas.drawPath(
+      _tapered(whip, 5.4 * grow, 0.75),
+      ui.Paint()..color = bright.withValues(alpha: (0.28 + 0.55 * swing) * a),
+    );
+    // The arc it just swept, trailing the tip.
+    if (swing > 0.05) {
+      canvas.drawArc(
+        ui.Rect.fromCircle(center: head, radius: armLength),
+        aimAngle - 1.15,
+        2.30,
+        false,
+        ui.Paint()
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = 2.0
+          ..color = bright.withValues(alpha: 0.20 * swing * a),
+      );
+    }
+  } else {
+    // The spitter's flower: curved petals that peel open as it fires and fold
+    // back after, around a throat that brightens with the shot.
+    final fire = swing;
+    const petals = 6;
+    for (var i = 0; i < petals; i++) {
+      final pa =
+          aimAngle +
+          (i - (petals - 1) / 2) * 0.40 +
+          sin(time * 1.3 + i + seed) * 0.06;
+      final len = (39.0 + 13.5 * fire) * grow;
+      final bend = 0.55 - 0.40 * fire;
+      final petal = <ui.Offset>[];
+      for (var k = 0; k <= 5; k++) {
+        final f = k / 5;
+        final ang = pa + bend * f;
+        petal.add(head + ui.Offset(cos(ang), sin(ang)) * (len * f));
+      }
+      canvas.drawPath(
+        _tapered(petal, (12.0 + 3.0 * fire) * grow, 0.9),
+        ui.Paint()..color = plant.withValues(alpha: 0.62 * a),
+      );
+    }
+    final throat = (16.5 + 6.0 * fire) * grow;
+    canvas.drawCircle(
+      head,
+      throat,
+      ui.Paint()..color = plant.withValues(alpha: 0.92 * a),
+    );
+    canvas.drawCircle(
+      head,
+      throat * (0.34 + 0.30 * fire),
+      ui.Paint()
+        ..color = bright.withValues(alpha: (0.60 + 0.35 * fire) * a),
+    );
+  }
+}
+
+/// A Spirit Mystic's revenant: an enemy that died inside the world and came
+/// back on our side. White and lit from within, deliberately not the purple of
+/// Mask+Spirit's collectible wisps — those are picked up, these fight.
+void drawMysticRevenant({
+  required ui.Canvas canvas,
+  required ui.Offset position,
+  required ui.Offset velocity,
+  required double radius,
+  required double rise,
+  required double life,
+  required double alpha,
+  required double time,
+  required double seed,
+}) {
+  final a = alpha * (life < 1.5 ? (life / 1.5).clamp(0.0, 1.0) : 1.0);
+  final pulse = 0.72 + 0.28 * sin(time * 4.2 + seed);
+  final rr = radius * (0.55 + 0.45 * rise);
+
+  // A short wake behind the heading, so it reads as something moving
+  // under its own will rather than a floating pickup.
+  final v = velocity;
+  if (v.distance > 1) {
+    final back = -v / v.distance;
+    for (var i = 1; i <= 3; i++) {
+      canvas.drawCircle(
+        position + back * (rr * 1.25 * i),
+        rr * (0.72 - i * 0.16),
+        ui.Paint()
+          ..color = const ui.Color(
+            0xFFAFC4FF,
+          ).withValues(alpha: 0.16 * a / i),
+      );
+    }
+  }
+
+  canvas.drawCircle(
+    position,
+    rr * 2.1,
+    ui.Paint()
+      ..color = const ui.Color(0xFF8FA8FF).withValues(alpha: 0.14 * a * pulse),
+  );
+  canvas.drawCircle(
+    position,
+    rr,
+    ui.Paint()
+      ..color = const ui.Color(0xFFE8EEFF).withValues(alpha: 0.82 * a),
+  );
+  canvas.drawCircle(
+    position,
+    rr * 0.46,
+    ui.Paint()
+      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.95 * a * pulse),
+  );
+  // The turn itself: a ring that expands once as the body changes sides.
+  if (rise < 1) {
+    canvas.drawCircle(
+      position,
+      rr * (1.4 + rise * 3.2),
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1.8
+        ..color = const ui.Color(
+          0xFFFFFFFF,
+        ).withValues(alpha: 0.55 * (1.0 - rise) * a),
+    );
+  }
+}

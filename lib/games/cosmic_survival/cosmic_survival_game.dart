@@ -2779,13 +2779,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             if (_mysticWorldElements.contains(comp.member.element)) {
               _igniteMysticWorld(comp, slotIndex);
               _mysticSpentSlots.add(slotIndex);
-              // Developer tools re-arm the cast instead of locking it to the
-              // deployment, so the field can be re-lit over and over while its
-              // numbers are being judged. This DOES bypass the once-per-
-              // deployment rule — turn the switch off to feel that rule.
-              comp.specialCooldown = DebugSettingsService.toolsVisible
-                  ? kDebugMysticCooldown
-                  : double.infinity;
+              // A world registers once and the button goes dark. Developer
+              // tools used to re-arm it at five seconds so a field could be
+              // re-lit while its numbers were judged, and that was wrong: the
+              // world tore itself down and rebuilt every five seconds, which
+              // is not what any of these abilities are. The switch still
+              // shortens the wait for the FIRST cast after a deployment (see
+              // _mysticCastCooldown), which is the part that was worth having.
+              comp.specialCooldown = double.infinity;
             }
           }
         }
@@ -7086,8 +7087,34 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  /// How many times each slot has lit a world this run. A world is meant to be
+  /// lit ONCE per deployment; developer tools re-arming the cast used to tear
+  /// it down and rebuild it every five seconds, so this is counted rather than
+  /// assumed.
+  final Map<int, int> _mysticWorldIgnitions = {};
+
+  @visibleForTesting
+  int mysticWorldIgnitions(int slotIndex) => _mysticWorldIgnitions[slotIndex] ?? 0;
+
+  @visibleForTesting
+  double? mysticMawRadius(int slotIndex) {
+    for (final maw in _mysticMaws) {
+      if (maw.ownerSlot == slotIndex && maw.fade > 0) return maw.radius;
+    }
+    return null;
+  }
+
+  /// Where a slot's two vines are rooted, in the order they were grown.
+  @visibleForTesting
+  List<Offset> mysticVineRoots(int slotIndex) => [
+    for (final v in _mysticVines)
+      if (v.ownerSlot == slotIndex && v.fade > 0) v.root,
+  ];
+
   /// Lights whichever world this Mystic makes.
   void _igniteMysticWorld(CosmicSurvivalCompanion comp, int slotIndex) {
+    _mysticWorldIgnitions[slotIndex] =
+        (_mysticWorldIgnitions[slotIndex] ?? 0) + 1;
     switch (comp.member.element) {
       case 'Fire':
         _igniteMysticEmberField(comp);
@@ -7338,11 +7365,33 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _spawnHitSpark(enemy.position, const Color(0xFFB89AFF));
       return;
     }
-    // Back out at the rim, well away from the hole so it is not immediately
-    // re-eaten, and reeling for a moment when it lands.
-    final a = _rng.nextDouble() * 2 * pi;
-    final rim = _arenaRadius * 0.92;
-    enemy.position = orb.position + Offset(cos(a), sin(a)) * rim;
+    // Put it back where enemies come IN from, not at the arena's outer edge.
+    //
+    // The rim at 0.92 of the arena radius is more than twice the spawner's own
+    // distance, so a swallowed body was thrown somewhere the player could not
+    // see and spent an age walking back — it read as deletion, not as
+    // displacement, which is the whole point of the hole.
+    // Same formula the spawner uses to place a fresh body (see _spawnEnemy).
+    final ring = max(size.x / _currentZoom, size.y / _currentZoom) * 0.55;
+
+    // And not back into the mouth. The maw's pull reaches further than that
+    // ring, so a body landing on the maw's own bearing would be eaten again
+    // immediately and never get anywhere — an enemy stuck in a loop at the top
+    // of the screen forever.
+    var landing = orb.position;
+    for (var attempt = 0; attempt < 10; attempt++) {
+      final a = _rng.nextDouble() * 2 * pi;
+      landing = orb.position + Offset(cos(a), sin(a)) * ring;
+      if ((landing - maw.position).distance > maw.radius * 1.2) break;
+      if (attempt == 9) {
+        // Fallback: straight across from the hole.
+        final away = orb.position - maw.position;
+        final d = away.distance;
+        final norm = d > 1 ? away / d : const Offset(0, 1);
+        landing = orb.position + norm * ring;
+      }
+    }
+    enemy.position = landing;
     enemy.knockbackVelocity = Offset.zero;
     enemy.slowTimer = max(enemy.slowTimer, 1.5);
     enemy.slowMultiplier = min(enemy.slowMultiplier, 0.4);
@@ -7357,14 +7406,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticVines.removeWhere((v) => v.ownerSlot == comp.slotIndex);
     final strength = _effectiveStrength(comp.slotIndex);
     final scale = _hornStatScale(strength, perPoint: 0.11, min: 0.82, max: 1.5);
-    // Flanking the caster, far enough apart that the two jobs read as two
-    // plants rather than one bush with two behaviours.
-    const spacing = 132.0;
+    // One north of the caster and one south, so the grove brackets the lane
+    // the fight comes down rather than standing shoulder to shoulder in it.
+    const spacing = 150.0;
     for (var i = 0; i < 2; i++) {
       final lashes = i == 0;
       _mysticVines.add(
         _MysticVine(
-          root: comp.position + Offset(lashes ? -spacing : spacing, 18),
+          root: comp.position + Offset(0, lashes ? -spacing : spacing),
           ownerSlot: comp.slotIndex,
           lashes: lashes,
           damage: max(5.0, comp.elemAtk * (lashes ? 1.5 : 1.15)),
@@ -14538,17 +14587,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     // Dark Mystic's maw. Drawn before everything else in this pass because it
-    // is a hole in the floor, not an effect sitting on top of one — enemies
+    // is a hole in the floor, not an effect sitting on top of one — bodies
     // being dragged across it have to pass OVER it.
     for (final maw in _mysticMaws) {
       if (maw.fade <= 0.01) continue;
-      final a = maw.fade;
-      final open = maw.open;
-      final pull = maw.radius * open;
-      final horizon = maw.horizon * open;
       if (!_isWithinViewport(
         maw.position,
-        pull,
+        maw.radius * maw.open,
         cx,
         cy,
         cx + viewW,
@@ -14557,76 +14602,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
-      final violet = const Color(0xFFB89AFF);
-      final deep = const Color(0xFF12061F);
-
-      // The reach, as three faint rings rather than a filled disc: the player
-      // needs to read where the pull starts without losing sight of what is
-      // standing inside it.
-      final reachPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..color = violet.withValues(alpha: 0.10 * a);
-      for (var i = 0; i < 3; i++) {
-        reachPaint.strokeWidth = 1.2 + i * 0.5;
-        canvas.drawCircle(maw.position, pull * (0.5 + i * 0.25), reachPaint);
-      }
-
-      // Accretion: arcs at several radii turning at different rates, so the
-      // whole thing shears instead of spinning as one plate.
-      final arcPaint = Paint()..style = PaintingStyle.stroke;
-      for (var ring = 0; ring < 5; ring++) {
-        final rr = horizon * (1.7 + ring * 0.85);
-        final turn = maw.spin * (1.0 + ring * 0.42) + ring * 1.3;
-        arcPaint
-          ..strokeWidth = 2.6 - ring * 0.35
-          ..color = Color.lerp(violet, const Color(0xFFFFFFFF), ring * 0.12)!
-              .withValues(alpha: (0.34 - ring * 0.05) * a);
-        canvas.drawArc(
-          Rect.fromCircle(center: maw.position, radius: rr),
-          turn,
-          2.1 - ring * 0.22,
-          false,
-          arcPaint,
-        );
-      }
-
-      // The hole itself: a hard black disc with a bright rim, so it reads as
-      // an absence rather than as a dark sphere.
-      canvas.drawCircle(
-        maw.position,
-        horizon * 1.35,
-        Paint()..color = deep.withValues(alpha: 0.55 * a),
-      );
-      canvas.drawCircle(
-        maw.position,
-        horizon,
-        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.96 * a),
-      );
-      canvas.drawCircle(
-        maw.position,
-        horizon,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.2
-          ..color = violet.withValues(alpha: 0.85 * a),
-      );
-      // Light bending round the rim.
-      final rimPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.55 * a);
-      canvas.drawArc(
-        Rect.fromCircle(center: maw.position, radius: horizon * 1.12),
-        -maw.spin * 0.8,
-        1.5,
-        false,
-        rimPaint,
+      drawMysticMaw(
+        canvas: canvas,
+        centre: maw.position,
+        pullRadius: maw.radius,
+        horizonRadius: maw.horizon,
+        open: maw.open,
+        spin: maw.spin,
+        alpha: maw.fade,
+        time: stats.timeElapsed,
       );
     }
 
-    // Plant Mystic's grove. Two trunks: the one that lashes and the one that
-    // spits. Drawn as stroked spines rather than filled bodies so they stay
-    // legible with a crowd standing in front of them.
+    // Plant Mystic's grove: the vine that lashes what closes, and the one that
+    // spits at what does not.
     for (final vine in _mysticVines) {
       if (vine.fade <= 0.01) continue;
       if (!_isWithinViewport(
@@ -14640,132 +14629,22 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
-      final a = vine.fade;
-      final grow = vine.growth;
-      final t = stats.timeElapsed;
-      final plant = elementColor('Plant');
-      final bright = Color.lerp(plant, const Color(0xFFFFFFFF), 0.45)!;
-      // Tall: these are supposed to be the two biggest things on the field
-      // that are not a boss.
-      final height = 128.0 * grow;
-      final sway = sin(t * 1.15 + vine.seed) * 9.0;
-
-      // Trunk, as a swaying spine with the width tapering toward the head.
-      final trunk = Path()..moveTo(vine.root.dx, vine.root.dy);
-      const steps = 7;
-      var head = vine.root;
-      for (var i = 1; i <= steps; i++) {
-        final f = i / steps;
-        final p = Offset(
-          vine.root.dx + sway * f * f,
-          vine.root.dy - height * f,
-        );
-        trunk.lineTo(p.dx, p.dy);
-        head = p;
-      }
-      final trunkPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round;
-      trunkPaint
-        ..strokeWidth = 13.0 * grow
-        ..color = plant.withValues(alpha: 0.30 * a);
-      canvas.drawPath(trunk, trunkPaint);
-      trunkPaint
-        ..strokeWidth = 7.0 * grow
-        ..color = plant.withValues(alpha: 0.88 * a);
-      canvas.drawPath(trunk, trunkPaint);
-
-      // Leaves down the stem, alternating sides.
-      final leafPaint = Paint()..color = plant.withValues(alpha: 0.55 * a);
-      for (var i = 1; i < steps; i++) {
-        final f = i / steps;
-        final at = Offset(
-          vine.root.dx + sway * f * f,
-          vine.root.dy - height * f,
-        );
-        final side = i.isEven ? 1.0 : -1.0;
-        final leaf = Offset(at.dx + side * (16.0 - f * 7) * grow, at.dy + 4);
-        canvas.drawCircle(leaf, (4.4 - f * 1.6) * grow, leafPaint);
-      }
-
-      if (vine.lashes) {
-        // The arm. At rest it curls; through a swing it snaps out along the
-        // aim and drags a barbed tip across the arc it just cleared.
-        final swing = vine.swing;
-        final extend = 0.30 + 0.70 * swing;
-        final reach = vine.reach * 0.92 * extend * grow;
-        final dir = Offset(cos(vine.aimAngle), sin(vine.aimAngle));
-        // Curl the whip to one side, straightening as it lands.
-        final perp = Offset(-dir.dy, dir.dx) * (reach * 0.42 * (1.0 - swing));
-        final tip = head + dir * reach;
-        final whip = Path()
-          ..moveTo(head.dx, head.dy)
-          ..quadraticBezierTo(
-            head.dx + dir.dx * reach * 0.5 + perp.dx,
-            head.dy + dir.dy * reach * 0.5 + perp.dy,
-            tip.dx,
-            tip.dy,
-          );
-        final whipPaint = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = 6.5 * grow
-          ..color = plant.withValues(alpha: (0.45 + 0.45 * swing) * a);
-        canvas.drawPath(whip, whipPaint);
-        whipPaint
-          ..strokeWidth = 2.6 * grow
-          ..color = bright.withValues(alpha: (0.30 + 0.60 * swing) * a);
-        canvas.drawPath(whip, whipPaint);
-        canvas.drawCircle(
-          tip,
-          (3.5 + 3.0 * swing) * grow,
-          Paint()..color = bright.withValues(alpha: (0.55 + 0.40 * swing) * a),
-        );
-        // The arc it just swept, fading out behind the tip.
-        if (swing > 0.05) {
-          canvas.drawArc(
-            Rect.fromCircle(center: head, radius: reach),
-            vine.aimAngle - 1.15,
-            2.30,
-            false,
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.0
-              ..color = bright.withValues(alpha: 0.22 * swing * a),
-          );
-        }
-      } else {
-        // The spitter's head: petals that flare open as it fires and settle
-        // back closed, with a bright throat in the middle.
-        final fire = vine.swing;
-        final headR = (13.0 + 5.0 * fire) * grow;
-        final petalPaint = Paint()..color = plant.withValues(alpha: 0.62 * a);
-        for (var i = 0; i < 6; i++) {
-          final pa = vine.aimAngle + (i - 2.5) * 0.42 + sin(t * 1.4 + i) * 0.05;
-          final spread = headR * (0.85 + 0.55 * fire);
-          canvas.drawCircle(
-            head + Offset(cos(pa), sin(pa)) * spread,
-            (4.6 - fire * 0.8) * grow,
-            petalPaint,
-          );
-        }
-        canvas.drawCircle(
-          head,
-          headR * 0.72,
-          Paint()..color = plant.withValues(alpha: 0.90 * a),
-        );
-        canvas.drawCircle(
-          head,
-          headR * (0.30 + 0.26 * fire),
-          Paint()
-            ..color = bright.withValues(alpha: (0.60 + 0.35 * fire) * a),
-        );
-      }
+      drawMysticGroveVine(
+        canvas: canvas,
+        root: vine.root,
+        lashes: vine.lashes,
+        growth: vine.growth,
+        swing: vine.swing,
+        aimAngle: vine.aimAngle,
+        reach: vine.reach,
+        seed: vine.seed,
+        alpha: vine.fade,
+        time: stats.timeElapsed,
+        plant: elementColor('Plant'),
+      );
     }
 
-    // Spirit Mystic's revenants: the fight's own dead, white and lit from
-    // inside. Deliberately NOT the purple of Mask+Spirit's collectible wisps —
-    // those are something the ship picks up, these are something that fights.
+    // Spirit Mystic's revenants: the fight's own dead, turned.
     for (final r in _mysticRevenants) {
       if (r.fade <= 0.01) continue;
       if (!_isWithinViewport(
@@ -14779,58 +14658,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
-      final a = r.fade * (r.life < 1.5 ? (r.life / 1.5).clamp(0.0, 1.0) : 1.0);
-      final pulse = 0.72 + 0.28 * sin(stats.timeElapsed * 4.2 + r.seed);
-      final rr = r.radius * (0.55 + 0.45 * r.rise);
-
-      // A short wake behind the heading, so it reads as something moving
-      // under its own will rather than a floating pickup.
-      final v = r.velocity;
-      if (v.distance > 1) {
-        final back = -v / v.distance;
-        for (var i = 1; i <= 3; i++) {
-          canvas.drawCircle(
-            r.position + back * (rr * 1.25 * i),
-            rr * (0.72 - i * 0.16),
-            Paint()
-              ..color = const Color(
-                0xFFAFC4FF,
-              ).withValues(alpha: 0.16 * a / i),
-          );
-        }
-      }
-
-      canvas.drawCircle(
-        r.position,
-        rr * 2.1,
-        Paint()
-          ..color = const Color(0xFF8FA8FF).withValues(alpha: 0.14 * a * pulse),
+      drawMysticRevenant(
+        canvas: canvas,
+        position: r.position,
+        velocity: r.velocity,
+        radius: r.radius,
+        rise: r.rise,
+        life: r.life,
+        alpha: r.fade,
+        time: stats.timeElapsed,
+        seed: r.seed,
       );
-      canvas.drawCircle(
-        r.position,
-        rr,
-        Paint()
-          ..color = const Color(0xFFE8EEFF).withValues(alpha: 0.82 * a),
-      );
-      canvas.drawCircle(
-        r.position,
-        rr * 0.46,
-        Paint()
-          ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.95 * a * pulse),
-      );
-      // The turn itself: a ring that expands once as the body changes sides.
-      if (r.rise < 1) {
-        canvas.drawCircle(
-          r.position,
-          rr * (1.4 + r.rise * 3.2),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.8
-            ..color = const Color(
-              0xFFFFFFFF,
-            ).withValues(alpha: 0.55 * (1.0 - r.rise) * a),
-        );
-      }
     }
 
     // Fire Mystic embers. Drawn under the craters and debris so they read as
