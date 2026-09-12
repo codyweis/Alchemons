@@ -12,24 +12,52 @@ import 'package:alchemons/widgets/app_icons.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _C {
-  // Matches CosmicScreenStyles: black rather than the browns these were.
-  static const bg0 = Color(0xFF060606);
-  static const bg1 = Color(0xFF0D0D0D);
-  static const bg2 = Color(0xFF121212);
-  static const bg3 = Color(0xFF1A1A1A);
-  static const amber = Color(0xFFC4A35A);
+  // Near-black ground so a saturated accent on top of it actually reads. The
+  // previous set was parchment on parchment at low alpha throughout, which is
+  // where "faded" came from: no element on the card was ever at full strength.
+  static const bg0 = Color(0xFF050507);
+  static const bg1 = Color(0xFF0B0B10);
+  static const bg2 = Color(0xFF14141B);
+  static const bg3 = Color(0xFF1A1A22);
+  static const amber = Color(0xFFE0B65F);
   static const teal = Color(0xFF5BC8E8);
-  static const textPrimary = Color(0xFFE8DFC8);
+  static const textPrimary = Color(0xFFF4EEDF);
   static const textSecondary = Color(0xFFB5A98A);
-  static const textMuted = Color(0xFF6B6050);
+  static const textMuted = Color(0xFF7A7488);
   static const borderDim = Color(0xFF2E2A23);
 }
 
+/// A card's accent: what the player's eye is supposed to sort on.
+///
+/// CATEGORY, not rarity. Rarity was doing this job and could not: most offers
+/// are common, so two of the three cards on screen were the same beige almost
+/// every time, and the one thing the player most needs to tell apart at a
+/// glance — is this a ship gun, a companion stat, my Mystic's world — carried
+/// no colour at all. Rarity keeps its own chip, where being occasionally
+/// identical does no harm.
+///
+/// A Mystic world surge is coloured by its ELEMENT: it upgrades one specific
+/// world standing on the map, and it should look like that world.
+Color _cardAccent(PowerUpDef def) {
+  final element = def.mysticElement;
+  if (element != null) return elementColor(element);
+  if (def.isKeystone) return const Color(0xFFE4C16A);
+  return switch (def.category) {
+    PowerUpCategory.shipWeapon => const Color(0xFFFF7A45),
+    PowerUpCategory.orbDefense => const Color(0xFF4FA8FF),
+    PowerUpCategory.statBoost => def.scope == PowerUpScope.companion
+        ? const Color(0xFF5BE0B0)
+        : const Color(0xFF9B8CFF),
+    PowerUpCategory.rarePerk => const Color(0xFFE86BB0),
+    PowerUpCategory.mysticWorld => const Color(0xFFE4C16A),
+  };
+}
+
 class _BracketFramePainter extends CustomPainter {
-  const _BracketFramePainter({required this.color, this.bracketSize = 12});
+  const _BracketFramePainter({required this.color});
+  static const double bracketSize = 12;
 
   final Color color;
-  final double bracketSize;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -58,7 +86,7 @@ class _BracketFramePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BracketFramePainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.bracketSize != bracketSize;
+      oldDelegate.color != color;
 }
 
 class PowerUpSelectionOverlay extends StatefulWidget {
@@ -184,19 +212,24 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
                           ),
                         ),
                         child: Container(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+                          padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
                           decoration: BoxDecoration(
-                            color: _C.bg1.withValues(
-                              alpha: 0.96 * _panelOpacity.value,
+                            // Darker and more opaque than the cards sitting on
+                            // it, so there is real separation between the panel
+                            // and its contents. The old version was one dim
+                            // box inside another inside another, which is
+                            // where "nested and boxy" came from.
+                            color: _C.bg0.withValues(
+                              alpha: 0.97 * _panelOpacity.value,
                             ),
-                            border: Border.all(color: _C.borderDim),
+                            border: Border.all(
+                              color: _C.amber.withValues(alpha: 0.30),
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: _C.amber.withValues(
-                                  alpha: 0.10 + 0.10 * _panelOpacity.value,
-                                ),
-                                blurRadius: 18 + 8 * _panelOpacity.value,
-                                spreadRadius: 1,
+                                color: Colors.black.withValues(alpha: 0.6),
+                                blurRadius: 28,
+                                spreadRadius: 4,
                               ),
                             ],
                           ),
@@ -311,7 +344,7 @@ class _PowerUpCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final def = choice.def;
     final rarity = def.rarity;
-    final accent = _rarityColor(rarity);
+    final accent = _cardAccent(def);
     final systemLabel = _powerUpSystemLabel(def);
     final systemIcon = _powerUpSystemIcon(def);
     final isCompanion = def.scope == PowerUpScope.companion;
@@ -327,232 +360,164 @@ class _PowerUpCard extends StatelessWidget {
         : const <String>[];
     final showPips = def.showLevel && def.maxStacks > 1;
     final hasTarget = isCompanion && offeredName != null;
-    final hasSystemTag = !isCompanion && !def.isKeystone;
 
     return GestureDetector(
       onTap: context.soundAction(onTap),
-      child: CustomPaint(
-        painter: _BracketFramePainter(
-          color: accent.withValues(alpha: 0.6),
-          bracketSize: 9,
-        ),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(13, 12, 13, 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: DecoratedBox(
           decoration: BoxDecoration(
-            color: _C.bg2.withValues(alpha: 0.92),
-            border: Border.all(color: accent.withValues(alpha: 0.34)),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: 0.07),
-                blurRadius: 16,
-                spreadRadius: 0.5,
-              ),
-            ],
+            // The accent is IN the card, not just around it: a wash that is
+            // strongest at the spine and clears by the middle, so the eye
+            // sorts the three offers by colour before reading a word of them.
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Color.lerp(_C.bg2, accent, 0.34)!,
+                Color.lerp(_C.bg2, accent, 0.08)!,
+                _C.bg1,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+            border: Border.all(color: accent.withValues(alpha: 0.55)),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.10),
-                  border: Border.all(color: accent.withValues(alpha: 0.32)),
-                ),
-                child: Icon(systemIcon, color: accent, size: 16),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // A solid spine at full strength. One saturated element per
+                // card is what stops the whole panel reading as washed out.
+                Container(width: 5, color: accent),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(11, 11, 12, 11),
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            def.name,
-                            style: const TextStyle(
-                              color: _C.textPrimary,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              height: 1.1,
-                            ),
+                        // Filled medallion rather than a 10%-alpha outline box.
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Icon(
+                            systemIcon,
+                            color: _C.bg0,
+                            size: 18,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        _MiniTag(label: _rarityLabel(rarity), color: accent),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (def.isKeystone)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final effect in keystoneEffects)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 3),
-                              child: Text(
-                                '+ $effect',
-                                style: const TextStyle(
-                                  color: _C.textPrimary,
-                                  fontSize: 14,
-                                  height: 1.3,
-                                  fontWeight: FontWeight.w800,
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                def.name.toUpperCase(),
+                                style: TextStyle(
+                                  color: Color.lerp(
+                                    _C.textPrimary,
+                                    accent,
+                                    0.25,
+                                  ),
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.4,
+                                  height: 1.12,
                                 ),
                               ),
-                            ),
-                        ],
-                      )
-                    else
-                      Text(
-                        incrementLabel,
-                        style: const TextStyle(
-                          color: _C.textPrimary,
-                          fontSize: 14,
-                          height: 1.3,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    if (totalLabel != null) ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        totalLabel,
-                        style: const TextStyle(
-                          color: _C.textMuted,
-                          fontSize: 12,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                    if (showPips || hasTarget || hasSystemTag) ...[
-                      const SizedBox(height: 9),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: hasTarget
-                                ? Row(
-                                    children: [
-                                      const Icon(
-                                        AppIcons.arrow_forward_rounded,
-                                        color: _C.teal,
-                                        size: 15,
+                              const SizedBox(height: 6),
+                              if (def.isKeystone)
+                                for (final effect in keystoneEffects)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 3),
+                                    child: Text(
+                                      '+ $effect',
+                                      style: const TextStyle(
+                                        color: _C.textPrimary,
+                                        fontSize: 13.5,
+                                        height: 1.3,
+                                        fontWeight: FontWeight.w700,
                                       ),
-                                      const SizedBox(width: 5),
-                                      Flexible(
-                                        child: Text(
-                                          offeredName.toUpperCase(),
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: _C.teal,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w900,
-                                            letterSpacing: 0.6,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : hasSystemTag
-                                ? Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: _MiniTag(
-                                      label: systemLabel,
-                                      color: _C.textSecondary,
                                     ),
                                   )
-                                : const SizedBox.shrink(),
+                              else
+                                Text(
+                                  incrementLabel,
+                                  style: const TextStyle(
+                                    color: _C.textPrimary,
+                                    fontSize: 13.5,
+                                    height: 1.3,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              if (totalLabel != null) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  totalLabel,
+                                  style: const TextStyle(
+                                    color: _C.textMuted,
+                                    fontSize: 11.5,
+                                    height: 1.25,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 9),
+                              // One footer row carrying everything that used
+                              // to be scattered through nested boxes: who it
+                              // is for, what kind of thing it is, and how far
+                              // along it already is.
+                              Row(
+                                children: [
+                                  _MiniTag(
+                                    label: def.isKeystone
+                                        ? 'DOCTRINE'
+                                        : systemLabel,
+                                    color: accent,
+                                    filled: true,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _MiniTag(
+                                    label: _rarityLabel(rarity),
+                                    color: _rarityColor(rarity),
+                                  ),
+                                  if (hasTarget) ...[
+                                    const SizedBox(width: 7),
+                                    Flexible(
+                                      child: Text(
+                                        offeredName.toUpperCase(),
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: _C.teal,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  const Spacer(),
+                                  if (showPips)
+                                    _LevelPips(
+                                      level: choice.currentLevel,
+                                      maxStacks: def.maxStacks,
+                                      tint: accent,
+                                    ),
+                                ],
+                              ),
+                            ],
                           ),
-                          if (showPips) ...[
-                            const SizedBox(width: 10),
-                            _LevelPips(
-                              level: choice.currentLevel,
-                              maxStacks: def.maxStacks,
-                              tint: _C.teal,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LevelPips extends StatelessWidget {
-  final int level;
-  final int maxStacks;
-  final Color tint;
-
-  const _LevelPips({
-    required this.level,
-    required this.maxStacks,
-    required this.tint,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(maxStacks, (index) {
-        final filled = index < level;
-        return Container(
-          width: 9,
-          height: 9,
-          margin: EdgeInsets.only(left: index == 0 ? 0 : 5),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: filled ? tint : Colors.transparent,
-            border: Border.all(
-              color: filled ? tint : tint.withValues(alpha: 0.3),
-              width: 1.1,
-            ),
-            boxShadow: filled
-                ? [
-                    BoxShadow(
-                      color: tint.withValues(alpha: 0.55),
-                      blurRadius: 6,
-                      spreadRadius: 0.5,
+                        ),
+                      ],
                     ),
-                  ]
-                : null,
+                  ),
+                ),
+              ],
+            ),
           ),
-        );
-      }),
-    );
-  }
-}
-
-class _MiniTag extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _MiniTag({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
         ),
       ),
     );
@@ -572,6 +537,7 @@ IconData _powerUpSystemIcon(PowerUpDef def) {
       def.scope == PowerUpScope.companion
           ? AppIcons.person_rounded
           : AppIcons.auto_awesome_rounded,
+    PowerUpCategory.mysticWorld => AppIcons.public_rounded,
   };
 }
 
@@ -584,6 +550,9 @@ String _powerUpSystemLabel(PowerUpDef def) {
       def.scope == PowerUpScope.companion ? 'COMPANION' : 'GLOBAL',
     PowerUpCategory.rarePerk =>
       def.scope == PowerUpScope.companion ? 'COMPANION' : 'GLOBAL',
+    // Its own banner: a world surge is not a companion buff, it deepens the
+    // map the fight is happening on.
+    PowerUpCategory.mysticWorld => 'WORLD',
   };
 }
 
@@ -600,3 +569,70 @@ String _rarityLabel(PowerUpRarity rarity) => switch (rarity) {
   PowerUpRarity.rare => 'RARE',
   PowerUpRarity.legendary => 'LEGENDARY',
 };
+
+class _LevelPips extends StatelessWidget {
+  final int level;
+  final int maxStacks;
+  final Color tint;
+
+  const _LevelPips({
+    required this.level,
+    required this.maxStacks,
+    required this.tint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Bars, not dots: a row of glowing circles reads as decoration, where a
+    // segmented bar reads as "two of three taken" at a glance.
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(maxStacks, (index) {
+        final filled = index < level;
+        return Container(
+          width: 12,
+          height: 5,
+          margin: EdgeInsets.only(left: index == 0 ? 0 : 3),
+          decoration: BoxDecoration(
+            color: filled ? tint : tint.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _MiniTag extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool filled;
+
+  const _MiniTag({
+    required this.label,
+    required this.color,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: filled ? color : color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(3),
+        border: filled ? null : Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: filled ? _C.bg0 : color,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}

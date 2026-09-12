@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 
-enum PowerUpCategory { statBoost, shipWeapon, orbDefense, rarePerk }
+enum PowerUpCategory { statBoost, shipWeapon, orbDefense, rarePerk, mysticWorld }
 
 enum PowerUpRarity { common, uncommon, rare, legendary }
 
@@ -39,6 +39,12 @@ class PowerUpDef {
   final bool isKeystone;
   final String? choiceGroup;
 
+  /// Set on the surges that upgrade a Mystic's WORLD. Such a surge is only
+  /// ever offered while a Mystic of this element is actually in the party —
+  /// it upgrades a specific thing standing on the map, so offering it to a
+  /// party that cannot field it would be a dead pick in a three-way draft.
+  final String? mysticElement;
+
   const PowerUpDef({
     required this.id,
     required this.name,
@@ -56,6 +62,7 @@ class PowerUpDef {
     this.favoredStats = const [],
     this.isKeystone = false,
     this.choiceGroup,
+    this.mysticElement,
   });
 }
 
@@ -479,7 +486,140 @@ const kKeystonePowerUps = [
   ),
 ];
 
+
+/// One surge per reworked Mystic world, three levels each.
+///
+/// These exist because a Mystic is the single-slot pick: the player gave up
+/// every other option in that slot, and until now nothing in the draft could
+/// make that choice pay off any harder. A world surge upgrades the specific
+/// thing standing on the map rather than the companion's stats, so it reads as
+/// the world deepening rather than as another generic buff.
+///
+/// Only the nine reworked worlds are here. The other eight Mystics are still
+/// projectile ultimates and have nothing on the map to deepen; they get their
+/// surges when they get their worlds.
+const kMysticWorldPowerUps = [
+  PowerUpDef(
+    id: 'world_fire',
+    name: 'Deepening Ember Season',
+    description: 'More embers drift the map, and they burn hotter',
+    icon: '🔥',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.specialCast, PowerUpTag.control],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Fire',
+  ),
+  PowerUpDef(
+    id: 'world_spirit',
+    name: 'Deepening Turning',
+    description: 'More of the dead get back up, and they stand longer',
+    icon: '👻',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.summonOrbit, PowerUpTag.chainExecute],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Spirit',
+  ),
+  PowerUpDef(
+    id: 'world_blood',
+    name: 'Deepening Tithe',
+    description: 'Every auto attack draws more life back',
+    icon: '🩸',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.sustain, PowerUpTag.basicAttack],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Blood',
+  ),
+  PowerUpDef(
+    id: 'world_dark',
+    name: 'Widening Maw',
+    description: 'The hole pulls from further out and bites harder',
+    icon: '🕳️',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.control],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Dark',
+  ),
+  PowerUpDef(
+    id: 'world_plant',
+    name: 'Deepening Grove',
+    description: 'The vines reach further and hit harder',
+    icon: '🌿',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.summonOrbit, PowerUpTag.control],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Plant',
+  ),
+  PowerUpDef(
+    id: 'world_lightning',
+    name: 'Gathering Storm',
+    description: 'Bolts fall more often and land heavier',
+    icon: '⚡',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.tempo, PowerUpTag.chainExecute],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Lightning',
+  ),
+  PowerUpDef(
+    id: 'world_poison',
+    name: 'Thickening Miasma',
+    description: 'The ship spills wider, longer-lasting poison',
+    icon: '☠️',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.control, PowerUpTag.tempo],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Poison',
+  ),
+  PowerUpDef(
+    id: 'world_mud',
+    name: 'Deepening Mire',
+    description: "The ship's guns bog enemies down harder and for longer",
+    icon: '🟤',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.control, PowerUpTag.basicAttack],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Mud',
+  ),
+  PowerUpDef(
+    id: 'world_earth',
+    name: 'Quickening Quake',
+    description: 'The ground shakes sooner and shakes harder',
+    icon: '⛰️',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.control, PowerUpTag.tempo],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Earth',
+  ),
+];
+
 const kAllPowerUps = [
+  ...kMysticWorldPowerUps,
   ...kCompanionStatBoosts,
   ...kGlobalStatBoosts,
   ...kShipWeapons,
@@ -610,6 +750,17 @@ class PowerUpState {
       getGlobalStacks('command_speed') * 0.10 +
       (hasChronoSurge ? 0.45 : 0.0) +
       (hasSpellbloomEngine ? 0.15 : 0.0);
+
+  /// How far this slot's Mystic world has been deepened, 0-3.
+  int mysticWorldLevel(int slotIndex, String element) =>
+      getCompanionStacks(slotIndex, 'world_${element.toLowerCase()}');
+
+  /// The world surge as a plain multiplier: 1.0 with no picks, 1.75 at three.
+  /// A single number so every world scales at the same rate and the surge is
+  /// worth the same wherever it lands — what each world SPENDS it on is what
+  /// differs.
+  double mysticWorldPower(int slotIndex, String element) =>
+      1.0 + 0.25 * mysticWorldLevel(slotIndex, element);
 
   double companionBloodPactHealPercent(int slotIndex) =>
       switch (getCompanionStacks(slotIndex, 'lifesteal')) {
@@ -923,11 +1074,13 @@ List<OfferedPowerUpChoice> generatePowerUpChoices(
 
   final available = kAllPowerUps
       .where(
-        (def) => state.canApply(
-          def,
-          companionCount: companionCount,
-          defeatedCompanionSlots: defeatedCompanionSlots,
-        ),
+        (def) =>
+            _mysticWorldIsFielded(def, party) &&
+            state.canApply(
+              def,
+              companionCount: companionCount,
+              defeatedCompanionSlots: defeatedCompanionSlots,
+            ),
       )
       .toList();
   final chosen = <OfferedPowerUpChoice>[];
@@ -1045,6 +1198,19 @@ List<OfferedPowerUpChoice> _buildExclusiveThisOrThatChoice(
   return picks;
 }
 
+/// Whether this surge has something in the party to upgrade.
+///
+/// A world surge names a specific Mystic element. Offering "Deepening Grove"
+/// to a party with no Plant Mystic would burn one of the three draft slots on
+/// a pick that does nothing, which is worse than offering nothing at all.
+bool _mysticWorldIsFielded(PowerUpDef def, List<CosmicPartyMember> party) {
+  final element = def.mysticElement;
+  if (element == null) return true;
+  return party.any(
+    (m) => m.family.toLowerCase() == 'mystic' && m.element == element,
+  );
+}
+
 OfferedPowerUpChoice _buildOfferedChoice(
   PowerUpDef def,
   PowerUpState state,
@@ -1071,6 +1237,14 @@ OfferedPowerUpChoice _buildOfferedChoice(
     }
     final level = state.getCompanionStacks(i, def.id);
     final member = party[i];
+    // A world surge belongs to the Mystic whose world it is. Without this the
+    // weighting could hand "Deepening Grove" to the Horn standing next to the
+    // Plant Mystic, and the pick would do nothing.
+    if (def.mysticElement != null &&
+        (member.family.toLowerCase() != 'mystic' ||
+            member.element != def.mysticElement)) {
+      continue;
+    }
     final weight = def.requiresDefeatedTarget
         ? 2.0 + rng.nextDouble() * 0.5
         : level > 0

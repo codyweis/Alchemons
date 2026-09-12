@@ -7074,7 +7074,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       min: 0.62,
       max: 1.45,
     );
-    final target = (35 * scale).round().clamp(20, 50);
+    // The surge buys embers first: a field is its density.
+    final surge = _mysticWorldPower(comp.slotIndex);
+    final target = (35 * scale * surge).round().clamp(20, 70);
 
     // Clear any field this caster already had, so a recall-and-redeploy
     // replaces its world rather than stacking a second one.
@@ -7268,6 +7270,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (v.ownerSlot == slotIndex && v.fade > 0) v.root,
   ];
 
+  /// How far a slot's world surge has deepened it — 1.0 with no picks, 1.75 at
+  /// three. Every world reads the same number and spends it on whatever that
+  /// world is made of, so a surge is worth about the same wherever it lands.
+  double _mysticWorldPower(int slotIndex) {
+    final comp = activeCompanions[slotIndex];
+    if (comp == null) return 1.0;
+    return powerUps.mysticWorldPower(slotIndex, comp.member.element);
+  }
+
   /// Lights whichever world this Mystic makes.
   void _igniteMysticWorld(CosmicSurvivalCompanion comp, int slotIndex) {
     _mysticWorldIgnitions[slotIndex] =
@@ -7339,12 +7350,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (owner == null || owner.isDead) return;
 
     final intel = _effectiveIntelligence(slot);
-    final cap = (_maxMysticRevenants * _hornStatScale(
-      intel,
-      perPoint: 0.09,
-      min: 0.5,
-      max: 1.0,
-    )).round().clamp(5, _maxMysticRevenants);
+    final surge = _mysticWorldPower(slot);
+    final cap =
+        (_maxMysticRevenants *
+                _hornStatScale(intel, perPoint: 0.09, min: 0.5, max: 1.0) *
+                surge)
+            .round()
+            .clamp(5, _maxMysticRevenants);
     var standing = 0;
     for (final r in _mysticRevenants) {
       if (r.ownerSlot == slot && !r.dead) standing++;
@@ -7355,12 +7367,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _MysticRevenant(
         position: enemy.position,
         ownerSlot: slot,
-        damage: max(4.0, owner.elemAtk * 0.85),
+        damage: max(4.0, owner.elemAtk * 0.85 * surge),
         radius: max(9.0, enemy.radius * 0.82),
         // A shade is lighter than the body was.
         speed: max(70.0, enemy.speed * 1.45),
         seed: _rng.nextDouble() * 6.28,
-        life: 9.0 + _hornStatScale(intel, perPoint: 0.16, min: 0.8, max: 1.9) * 4.0,
+        life:
+            (9.0 +
+                _hornStatScale(intel, perPoint: 0.16, min: 0.8, max: 1.9) *
+                    4.0) *
+            surge,
       ),
     );
     _spawnHitSpark(enemy.position, const Color(0xFFEAF2FF));
@@ -7428,7 +7444,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final comp = activeCompanions[slot];
     if (comp == null || comp.isDead) return;
 
-    final share = 0.10 * _hornStatScale(
+    final share = 0.10 * _mysticWorldPower(slot) * _hornStatScale(
       _effectiveStrength(slot) * 0.5 + _effectiveBeauty(slot) * 0.5,
       perPoint: 0.14,
       min: 0.75,
@@ -7483,6 +7499,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticMaws.removeWhere((m) => m.ownerSlot == comp.slotIndex);
     final strength = _effectiveStrength(comp.slotIndex);
     final scale = _hornStatScale(strength, perPoint: 0.10, min: 0.8, max: 1.45);
+    final surge = _mysticWorldPower(comp.slotIndex);
     _mysticMaws.add(
       _MysticMaw(
         // Fixed at the top of the arena, above the orb. A landmark, not a
@@ -7490,8 +7507,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // it, which is something no other ability in the game asks of them.
         position: orb.position + Offset(0, -_arenaRadius * 0.34),
         ownerSlot: comp.slotIndex,
-        radius: 430.0 * scale,
-        damage: max(6.0, comp.elemAtk * 1.25),
+        radius: 430.0 * scale * surge,
+        damage: max(6.0, comp.elemAtk * 1.25 * surge),
       ),
     );
   }
@@ -7581,7 +7598,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _growMysticGrove(CosmicSurvivalCompanion comp) {
     _mysticVines.removeWhere((v) => v.ownerSlot == comp.slotIndex);
     final strength = _effectiveStrength(comp.slotIndex);
-    final scale = _hornStatScale(strength, perPoint: 0.11, min: 0.82, max: 1.5);
+    final scale =
+        _hornStatScale(strength, perPoint: 0.11, min: 0.82, max: 1.5) *
+        _mysticWorldPower(comp.slotIndex);
     // Rooted north and south of the ORB, evenly. Anchoring to the caster put
     // the grove wherever that companion happened to be drifting at cast time,
     // which is not a place the player chose and not a place they fight; the orb
@@ -7710,7 +7729,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticStrikes[slotIndex] = (_mysticStrikes[slotIndex] ?? 0) + 1;
     final intel = _effectiveIntelligence(slotIndex);
     final scale = _hornStatScale(intel, perPoint: 0.15, min: 0.8, max: 2.0);
-    final damage = max(8.0, owner.elemAtk * 5.5 * scale);
+    final damage =
+        max(8.0, owner.elemAtk * 5.5 * scale * _mysticWorldPower(slotIndex));
 
     // Bosses stand in the same pool as everything else, so whether a strike
     // lands on one is luck — which is what makes it land.
@@ -7768,7 +7788,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticStrikes[slotIndex] = (_mysticStrikes[slotIndex] ?? 0) + 1;
     final strength = _effectiveStrength(slotIndex);
     final scale = _hornStatScale(strength, perPoint: 0.12, min: 0.8, max: 1.8);
-    final damage = max(5.0, owner.elemAtk * 2.0 * scale);
+    final damage =
+        max(5.0, owner.elemAtk * 2.0 * scale * _mysticWorldPower(slotIndex));
     // Arena-wide: the ground is the ground. A radius would make it a big
     // explosion, which every other family already has several of.
     _mysticQuakes.add(
@@ -7807,12 +7828,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     final intel = _effectiveIntelligence(slotIndex);
     final beauty = _effectiveBeauty(slotIndex);
-    final scale = _hornStatScale(
-      intel * 0.5 + beauty * 0.5,
-      perPoint: 0.12,
-      min: 0.8,
-      max: 1.6,
-    );
+    final scale =
+        _hornStatScale(
+          intel * 0.5 + beauty * 0.5,
+          perPoint: 0.12,
+          min: 0.8,
+          max: 1.6,
+        ) *
+        _mysticWorldPower(slotIndex);
     if (_mysticPools.length >= _maxMysticPools) {
       // Oldest patch goes first, so the trail behaves like a trail.
       _mysticPools.removeAt(0);
@@ -7886,8 +7909,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       max: 1.0,
     );
     // 60% slow at the bottom of the range up to the brief's 90% at the top.
-    final multiplier = 0.40 - 0.30 * scale;
-    enemy.slowTimer = max(enemy.slowTimer, 1.4);
+    // The surge pushes past 90% and holds it longer — the one thing a Mud
+    // world has to sell is that nothing crosses the field.
+    final surge = _mysticWorldPower(slot);
+    final multiplier = max(0.02, (0.40 - 0.30 * scale) / surge);
+    enemy.slowTimer = max(enemy.slowTimer, 1.4 * surge);
     enemy.slowMultiplier = min(enemy.slowMultiplier, multiplier);
   }
 
@@ -7980,18 +8006,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final comp = activeCompanions[slot];
       if (comp == null || comp.isDead) continue;
       switch (comp.member.element) {
+        // The surge shortens the wait as well as raising the damage. Divided
+        // rather than subtracted so three picks can never drive an interval to
+        // zero and turn the weather into a continuous beam.
         case 'Lightning':
-          final next = (_mysticClock[slot] ?? kMysticStrikeInterval) - dt;
+          final beat = kMysticStrikeInterval / _mysticWorldPower(slot);
+          final next = (_mysticClock[slot] ?? beat) - dt;
           if (next <= 0) {
-            _mysticClock[slot] = kMysticStrikeInterval;
+            _mysticClock[slot] = beat;
             _strikeMysticLightning(slot, comp);
           } else {
             _mysticClock[slot] = next;
           }
         case 'Earth':
-          final next = (_mysticClock[slot] ?? kMysticQuakeInterval) - dt;
+          final beat = kMysticQuakeInterval / _mysticWorldPower(slot);
+          final next = (_mysticClock[slot] ?? beat) - dt;
           if (next <= 0) {
-            _mysticClock[slot] = kMysticQuakeInterval;
+            _mysticClock[slot] = beat;
             _shakeMysticEarth(slot, comp);
           } else {
             _mysticClock[slot] = next;
@@ -8049,7 +8080,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           AbilityEffectKind.burn,
           enemy,
           ember.position,
-          max(3.0, owner.elemAtk * 0.34),
+          max(3.0, owner.elemAtk * 0.34 * _mysticWorldPower(ember.ownerSlot)),
           60,
           2.4,
           sourceSlotIndex: ember.ownerSlot,
