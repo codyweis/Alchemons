@@ -5207,7 +5207,13 @@ class _CosmicScreenState extends State<CosmicScreen>
                               ),
                             ),
                             child: Text(
-                              specialCooldown.ceil().toString(),
+                              // Infinity means a Mystic's world is out and the
+                              // cast is spent until it is recalled. `.ceil()`
+                              // throws on it, and a throw here paints a grey
+                              // error box over the HUD.
+                              specialCooldown.isFinite
+                                  ? specialCooldown.ceil().toString()
+                                  : '∞',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,

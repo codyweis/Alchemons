@@ -7362,6 +7362,49 @@ void drawMysticMaw({
   );
 }
 
+/// The curved spine of a grove vine, root first and head last.
+///
+/// Shared with the game rather than kept inside the painter, because the
+/// spitter has to fire its thorns FROM its flower — and the flower is wherever
+/// the swaying stem has carried it this frame. Spawning at the root instead
+/// meant the shots appeared out of the ground under the plant.
+List<ui.Offset> mysticGroveVineSpine({
+  required ui.Offset root,
+  required double growth,
+  required double seed,
+  required double time,
+}) {
+  // Both vines grow UPWARD. Which side of the caster a vine is rooted on is
+  // about where it stands, not which way it points: mirroring the growth
+  // direction hung the southern one downward with its flower at the bottom,
+  // which just reads as a plant printed upside down.
+  final height = 207.0 * growth;
+  const samples = 16;
+  return [
+    for (var i = 0; i <= samples; i++)
+      () {
+        final f = i / samples;
+        final wave =
+            sin(f * 3.1 + time * 0.9 + seed) * 22.5 * f +
+            sin(f * 6.4 + time * 0.55 + seed * 1.7) * 9.0 * f;
+        return ui.Offset(root.dx + wave, root.dy - height * f);
+      }(),
+  ];
+}
+
+/// Where a grove vine's head — its whip root, or its flower — is right now.
+ui.Offset mysticGroveVineHead({
+  required ui.Offset root,
+  required double growth,
+  required double seed,
+  required double time,
+}) => mysticGroveVineSpine(
+  root: root,
+  growth: growth,
+  seed: seed,
+  time: time,
+).last;
+
 /// One of a Plant Mystic's two grove vines.
 ///
 /// Built from tapered ribbons swept along curved spines rather than stroked
@@ -7385,27 +7428,12 @@ void drawMysticGroveVine({
   final grow = growth;
   final bright = ui.Color.lerp(plant, const ui.Color(0xFFFFFFFF), 0.45)!;
 
-  // Grows away from the caster: the northern vine reaches north, the
-  // southern one south, so the pair brackets the lane instead of leaning the
-  // same way.
-  final away = lashes ? -1.0 : 1.0;
-  // Slender, not chunky. A thick trunk with broad leaves read as a cartoon
-  // beanstalk; the plant wants to be a big WIRY thing. Every length here is
-  // the slender build scaled up as one, so it gets the size the brief asks
-  // for without getting heavy.
-  final height = 207.0 * grow;
-
-  // Serpentine spine — two lazy waves along its length, drifting with time so
-  // the whole plant breathes.
-  final spine = <ui.Offset>[];
-  const samples = 16;
-  for (var i = 0; i <= samples; i++) {
-    final f = i / samples;
-    final wave =
-        sin(f * 3.1 + time * 0.9 + seed) * 22.5 * f +
-        sin(f * 6.4 + time * 0.55 + seed * 1.7) * 9.0 * f;
-    spine.add(ui.Offset(root.dx + wave, root.dy + away * height * f));
-  }
+  final spine = mysticGroveVineSpine(
+    root: root,
+    growth: grow,
+    seed: seed,
+    time: time,
+  );
 
   canvas.drawPath(
     _tapered(spine, 22.5 * grow, 3.6 * grow),
@@ -7425,10 +7453,9 @@ void drawMysticGroveVine({
     ui.Paint()..color = bright.withValues(alpha: 0.30 * a),
   );
 
-  final head = spine.last;
-
   // Leaves peel off the stem, alternating sides and curling back toward the
   // tip — narrow blades rather than broad ones, to match the stem.
+  final samples = spine.length - 1;
   for (var i = 2; i < samples - 1; i += 3) {
     final f = i / samples;
     final at = spine[i];
@@ -7442,7 +7469,7 @@ void drawMysticGroveVine({
         at +
             ui.Offset(
               side * len * lf * (1.0 - 0.25 * lf),
-              away * len * 0.42 * lf * lf + droop * len * lf,
+              -len * 0.42 * lf * lf + droop * len * lf,
             ),
       );
     }
@@ -7451,6 +7478,8 @@ void drawMysticGroveVine({
       ui.Paint()..color = plant.withValues(alpha: 0.58 * a),
     );
   }
+
+  final head = spine.last;
 
   if (lashes) {
     // The arm. At rest it curls back on itself; through a swing it
@@ -7757,5 +7786,173 @@ void drawMysticPoisonPatch({
     final ang = seed * 2.1 + i * 2.09;
     final at = centre + ui.Offset(cos(ang), sin(ang)) * (radius * 0.42);
     canvas.drawCircle(at, (1.4 + 2.6 * phase) * (1.0 - phase), bubble);
+  }
+}
+
+/// Ground cover a Mystic world grows on the map — small, per-element, and
+/// scaled by [bloom], which carries it up out of the floor and back down.
+///
+/// Deliberately a different SHAPE per element rather than one sprout in
+/// seventeen colours: a world the player cannot identify from the ground at a
+/// glance is not really changing the map, it is tinting it.
+void drawMysticFlora({
+  required ui.Canvas canvas,
+  required ui.Offset at,
+  required String element,
+  required double size,
+  required double bloom,
+  required double seed,
+  required double time,
+  required ui.Color tint,
+}) {
+  if (bloom <= 0.02) return;
+  final grow = bloom * size;
+  final sway = sin(time * 1.4 + seed) * 0.16;
+  final bright = ui.Color.lerp(tint, const ui.Color(0xFFFFFFFF), 0.45)!;
+
+  switch (element) {
+    case 'Plant':
+      // A sprout: a curling stem with a couple of leaves and a flower on top.
+      final h = 26.0 * grow;
+      final stem = <ui.Offset>[
+        for (var i = 0; i <= 6; i++)
+          () {
+            final f = i / 6;
+            return ui.Offset(
+              at.dx + sin(f * 2.2 + seed) * 6.0 * f + sway * 10 * f,
+              at.dy - h * f,
+            );
+          }(),
+      ];
+      canvas.drawPath(
+        _tapered(stem, 3.4 * grow, 1.0 * grow),
+        ui.Paint()..color = tint.withValues(alpha: 0.80 * bloom),
+      );
+      for (var i = 0; i < 2; i++) {
+        final at2 = stem[2 + i * 2];
+        final side = i.isEven ? 1.0 : -1.0;
+        final len = (11.0 - i * 2.0) * grow;
+        final leaf = <ui.Offset>[
+          for (var k = 0; k <= 4; k++)
+            () {
+              final lf = k / 4;
+              return at2 +
+                  ui.Offset(side * len * lf, -len * 0.34 * lf * lf);
+            }(),
+        ];
+        canvas.drawPath(
+          _tapered(leaf, 4.2 * grow, 0.6),
+          ui.Paint()..color = tint.withValues(alpha: 0.62 * bloom),
+        );
+      }
+      // The flower, opening with the bloom.
+      final crown = stem.last;
+      for (var i = 0; i < 5; i++) {
+        final pa = seed + i * (pi * 2 / 5) + sway;
+        canvas.drawCircle(
+          crown + ui.Offset(cos(pa), sin(pa)) * (4.4 * grow),
+          2.6 * grow,
+          ui.Paint()..color = bright.withValues(alpha: 0.82 * bloom),
+        );
+      }
+      canvas.drawCircle(
+        crown,
+        2.4 * grow,
+        ui.Paint()
+          ..color = const ui.Color(0xFFFFE9A8).withValues(alpha: 0.92 * bloom),
+      );
+
+    case 'Fire':
+      // A cinder guttering on the ground.
+      final flick = 0.7 + 0.3 * sin(time * 6.0 + seed);
+      canvas.drawCircle(
+        at,
+        7.0 * grow * flick,
+        ui.Paint()
+          ..color = const ui.Color(0xFFFF6A1E).withValues(alpha: 0.16 * bloom),
+      );
+      final flame = ui.Path()
+        ..moveTo(at.dx - 3.0 * grow, at.dy)
+        ..quadraticBezierTo(
+          at.dx + sway * 8,
+          at.dy - 11.0 * grow * flick,
+          at.dx + 3.0 * grow,
+          at.dy,
+        )
+        ..close();
+      canvas.drawPath(
+        flame,
+        ui.Paint()
+          ..color = const ui.Color(0xFFFFB060).withValues(alpha: 0.80 * bloom),
+      );
+
+    case 'Poison':
+      // A blister swelling and going down.
+      final swell = 0.75 + 0.25 * sin(time * 2.2 + seed);
+      canvas.drawCircle(
+        at,
+        8.0 * grow * swell,
+        ui.Paint()..color = tint.withValues(alpha: 0.26 * bloom),
+      );
+      canvas.drawCircle(
+        at + ui.Offset(sway * 4, -2.0 * grow),
+        3.2 * grow * swell,
+        ui.Paint()..color = bright.withValues(alpha: 0.55 * bloom),
+      );
+
+    case 'Spirit':
+      // A grave-light: a pale ring standing over nothing.
+      canvas.drawCircle(
+        at,
+        9.0 * grow,
+        ui.Paint()
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = const ui.Color(0xFFDCE8FF).withValues(alpha: 0.34 * bloom),
+      );
+      canvas.drawCircle(
+        at + ui.Offset(sway * 6, -6.0 * grow),
+        2.2 * grow,
+        ui.Paint()
+          ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.70 * bloom),
+      );
+
+    case 'Lightning':
+      // Static crawling on the floor between two points.
+      final arc = ui.Path()..moveTo(at.dx - 9.0 * grow, at.dy);
+      for (var i = 1; i <= 4; i++) {
+        final f = i / 4;
+        arc.lineTo(
+          at.dx + (-9.0 + 18.0 * f) * grow,
+          at.dy + sin(seed + i * 2.1 + time * 9) * 4.0 * grow,
+        );
+      }
+      canvas.drawPath(
+        arc,
+        ui.Paint()
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = const ui.Color(0xFFBFE0FF).withValues(alpha: 0.62 * bloom),
+      );
+
+    case 'Earth':
+      // A stone pushed up out of the floor.
+      final stone = ui.Path()
+        ..moveTo(at.dx - 8.0 * grow, at.dy + 3.0 * grow)
+        ..lineTo(at.dx - 4.0 * grow, at.dy - 7.0 * grow)
+        ..lineTo(at.dx + 5.0 * grow, at.dy - 5.0 * grow)
+        ..lineTo(at.dx + 8.0 * grow, at.dy + 3.0 * grow)
+        ..close();
+      canvas.drawPath(
+        stone,
+        ui.Paint()..color = tint.withValues(alpha: 0.70 * bloom),
+      );
+      canvas.drawPath(
+        stone,
+        ui.Paint()
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = 1.0
+          ..color = bright.withValues(alpha: 0.30 * bloom),
+      );
   }
 }

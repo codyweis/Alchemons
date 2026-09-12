@@ -207,21 +207,38 @@ void main() {
       reason: 'one lashes and one spits — two ranges, not one turret twice',
     );
 
-    // One north of the caster and one south, bracketing the lane rather than
-    // standing shoulder to shoulder in it.
+    // Rooted north and south of the ORB, evenly. Anchoring to the caster put
+    // the grove wherever that companion happened to have drifted at cast time.
     final roots = game.mysticVineRoots(0);
     expect(roots, hasLength(2));
-    final caster = game.activeCompanions[0]!.position;
+    final orb = game.orb.position;
+    final north = roots.firstWhere((r) => r.dy < orb.dy);
+    final south = roots.firstWhere((r) => r.dy > orb.dy);
+    expect(north.dx, closeTo(orb.dx, 0.001));
+    expect(south.dx, closeTo(orb.dx, 0.001));
     expect(
-      roots.any((r) => r.dy < caster.dy - 50),
-      isTrue,
-      reason: 'no vine above the caster',
+      (orb.dy - north.dy),
+      closeTo(south.dy - orb.dy, 0.001),
+      reason: 'the two vines are not evenly spaced around the orb',
     );
+  });
+
+  test('a Plant world dresses the ground, and stops when it ends', () async {
+    final game = await boot('Plant');
+    await castOnce(game);
+    run(game, 240);
     expect(
-      roots.any((r) => r.dy > caster.dy + 50),
-      isTrue,
-      reason: 'no vine below the caster',
+      game.mysticFloraCount(0),
+      greaterThan(0),
+      reason:
+          'a tint and a particle storm sit in FRONT of the fight; the ground '
+          'has to change too or the map is the same map',
     );
+
+    // Withers rather than blinking out, then the map is back to normal.
+    game.returnCompanion(0);
+    run(game, 600);
+    expect(game.mysticFloraCount(0), isZero);
   });
 
   test('a world is lit once even with developer tools re-arming', () async {

@@ -233,6 +233,15 @@ class SurvivalPartySlot extends StatelessWidget {
                   child: Text(
                     state.dead
                         ? 'DEFEATED'
+                        : !state.cooldown.isFinite
+                        // A Mystic whose world is out carries an INFINITE
+                        // cooldown: the cast is spent for the deployment and
+                        // only a recall gives it back. `.ceil()` on infinity
+                        // throws in Dart, which crashed this widget's build —
+                        // and a crashed build paints a grey error box over the
+                        // party HUD in profile, where there is no red screen to
+                        // explain it.
+                        ? 'WORLD OUT'
                         : state.cooldown > 0.05
                         ? 'SP ${state.cooldown.ceil()}'
                         : 'SP READY',

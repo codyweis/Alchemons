@@ -651,6 +651,44 @@ class _MysticRevenant {
   bool get dead => life <= 0 || fade <= 0;
 }
 
+/// One piece of ground cover a world grows on the map: a sprout under a Plant
+/// world, a cinder under Fire, a rime shard under Ice.
+///
+/// The tint and the particle storm were never enough on their own — they sit
+/// in FRONT of the fight rather than in it, so a world could be running and the
+/// ground underneath still looked like every other map. These come up out of
+/// the floor, stand a few seconds and go back down.
+class _MysticFlora {
+  _MysticFlora({
+    required this.position,
+    required this.ownerSlot,
+    required this.element,
+    required this.size,
+    required this.seed,
+    required this.life,
+  });
+
+  final Offset position;
+  final int ownerSlot;
+  final String element;
+  final double size;
+  final double seed;
+
+  final double life;
+  double age = 0;
+
+  /// 0 → 1 → 0 across its life: sprouts, stands, withers. Nothing belonging to
+  /// a world should pop in or blink out.
+  double get bloom {
+    final f = (age / life).clamp(0.0, 1.0);
+    if (f < 0.18) return f / 0.18;
+    if (f > 0.76) return ((1.0 - f) / 0.24).clamp(0.0, 1.0);
+    return 1.0;
+  }
+
+  bool get dead => age >= life;
+}
+
 /// One bolt out of a Lightning Mystic's storm — a visual only; the damage is
 /// dealt the instant it falls.
 class _MysticBolt {
@@ -1250,6 +1288,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final List<_MysticQuake> _mysticQuakes = [];
   final List<_MysticPool> _mysticPools = [];
   static const int _maxMysticPools = 26;
+
+  final List<_MysticFlora> _mysticFlora = [];
+  static const int _maxMysticFlora = 22;
+  double _mysticFloraTimer = 0;
 
   /// Cadence for the worlds that happen on a clock rather than on contact —
   /// Lightning's strikes and Earth's quakes. Keyed by the slot that owns them.
@@ -7099,6 +7141,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   int mysticPoolCount(int slotIndex) =>
       _mysticPools.where((p) => p.ownerSlot == slotIndex && p.fade > 0).length;
 
+  /// How much ground cover this slot's world currently has standing.
+  @visibleForTesting
+  int mysticFloraCount(int slotIndex) =>
+      _mysticFlora.where((f) => f.ownerSlot == slotIndex && !f.dead).length;
+
   /// How many bolts a Lightning world has thrown this run, and quakes an Earth
   /// world has shaken. Counted so a test can assert the clock actually runs and
   /// stops with its caster.
@@ -7184,6 +7231,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     for (final pool in _mysticPools) {
       if (pool.ownerSlot == slotIndex) pool.fade = min(pool.fade, 0.999);
+    }
+    // Ground cover withers on its own schedule; stopping the seeding is what
+    // ends it, so the map goes back to normal over a few seconds rather than
+    // between two frames.
+    for (final f in _mysticFlora) {
+      if (f.ownerSlot == slotIndex) {
+        f.age = max(f.age, f.life * 0.80);
+      }
     }
     _mysticClock.remove(slotIndex);
     _mysticPoisonLastDrop.remove(slotIndex);
@@ -7527,14 +7582,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticVines.removeWhere((v) => v.ownerSlot == comp.slotIndex);
     final strength = _effectiveStrength(comp.slotIndex);
     final scale = _hornStatScale(strength, perPoint: 0.11, min: 0.82, max: 1.5);
-    // One north of the caster and one south, so the grove brackets the lane
-    // the fight comes down rather than standing shoulder to shoulder in it.
-    const spacing = 150.0;
+    // Rooted north and south of the ORB, evenly. Anchoring to the caster put
+    // the grove wherever that companion happened to be drifting at cast time,
+    // which is not a place the player chose and not a place they fight; the orb
+    // is the thing being defended and the fixed point everyone reads from.
+    const spacing = 190.0;
     for (var i = 0; i < 2; i++) {
       final lashes = i == 0;
       _mysticVines.add(
         _MysticVine(
-          root: comp.position + Offset(0, lashes ? -spacing : spacing),
+          root: orb.position + Offset(0, lashes ? -spacing : spacing),
           ownerSlot: comp.slotIndex,
           lashes: lashes,
           damage: max(5.0, comp.elemAtk * (lashes ? 1.5 : 1.15)),
@@ -7544,6 +7601,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
   }
+
+  /// Where a vine's head is this frame. Reads the same spine the painter draws,
+  /// so what shoots and what is drawn shooting are the same point.
+  Offset _mysticVineHead(_MysticVine vine) => mysticGroveVineHead(
+    root: vine.root,
+    growth: vine.growth,
+    seed: vine.seed,
+    time: stats.timeElapsed,
+  );
 
   void _updateMysticVines(double dt) {
     if (_mysticVines.isEmpty) return;
@@ -7559,11 +7625,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (vine.cooldown > 0) vine.cooldown = max(0.0, vine.cooldown - dt);
       if (!standing || vine.growth < 1) continue;
 
-      final prey = _nearestEnemyTo(vine.root, vine.reach);
+      // Everything this plant does, it does from its head — the whip's root or
+      // the flower — and the head is wherever the swaying stem has carried it
+      // this frame. Working off `vine.root` meant a flower fired thorns that
+      // came out of the ground underneath it.
+      final head = _mysticVineHead(vine);
+      final prey = _nearestEnemyTo(head, vine.reach);
       if (prey == null) continue;
       vine.aimAngle = atan2(
-        prey.position.dy - vine.root.dy,
-        prey.position.dx - vine.root.dx,
+        prey.position.dy - head.dy,
+        prey.position.dx - head.dx,
       );
       if (vine.cooldown > 0) continue;
 
@@ -7572,8 +7643,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // flying. This is the half that punishes anything that closed.
         vine.cooldown = 0.9;
         vine.swing = 1.0;
-        _visitEnemiesNear(vine.root, vine.reach, (enemy) {
-          final delta = enemy.position - vine.root;
+        _visitEnemiesNear(head, vine.reach, (enemy) {
+          final delta = enemy.position - head;
           final dist = delta.distance;
           if (dist > vine.reach) return false;
           var diff = atan2(delta.dy, delta.dx) - vine.aimAngle;
@@ -7591,7 +7662,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           return false;
         });
         _spawnHitSpark(
-          vine.root + Offset(cos(vine.aimAngle), sin(vine.aimAngle)) * (vine.reach * 0.6),
+          head +
+              Offset(cos(vine.aimAngle), sin(vine.aimAngle)) *
+                  (vine.reach * 0.6),
           const Color(0xFF7CE07C),
         );
       } else {
@@ -7601,7 +7674,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (companionProjectiles.length >= 210) continue;
         companionProjectiles.add(
           Projectile(
-            position: vine.root + Offset(cos(vine.aimAngle), sin(vine.aimAngle)) * 34,
+            position:
+                head + Offset(cos(vine.aimAngle), sin(vine.aimAngle)) * 26,
             angle: vine.aimAngle,
             element: 'Plant',
             damage: vine.damage,
@@ -7817,6 +7891,60 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     enemy.slowMultiplier = min(enemy.slowMultiplier, multiplier);
   }
 
+  // ── GROUND COVER: what a world does to the map itself ───────────────────
+
+  /// Seeds ground cover around the arena for whichever world is standing.
+  ///
+  /// Spawned in the ring the fight actually happens in rather than uniformly
+  /// across the arena, which is mostly empty space the player never visits —
+  /// scattering evenly put nearly all of it where nobody would ever see it.
+  void _updateMysticFlora(double dt) {
+    for (final f in _mysticFlora) {
+      f.age += dt;
+    }
+    _mysticFlora.removeWhere((f) => f.dead);
+
+    _mysticFloraTimer -= dt;
+    if (_mysticFloraTimer > 0) return;
+    _mysticFloraTimer = 0.28;
+    if (_mysticFlora.length >= _maxMysticFlora) return;
+    if (_mysticSpentSlots.isEmpty) return;
+
+    for (final slot in _mysticSpentSlots) {
+      final comp = activeCompanions[slot];
+      if (comp == null || comp.isDead) continue;
+      if (!_mysticFloraElements.contains(comp.member.element)) continue;
+      if (_mysticFlora.length >= _maxMysticFlora) break;
+
+      // Around the ship, where the player is looking, but not under it.
+      final a = _rng.nextDouble() * 2 * pi;
+      final r = 90.0 + _rng.nextDouble() * 420.0;
+      _mysticFlora.add(
+        _MysticFlora(
+          position: ship.position + Offset(cos(a), sin(a)) * r,
+          ownerSlot: slot,
+          element: comp.member.element,
+          size: 0.7 + _rng.nextDouble() * 0.7,
+          seed: _rng.nextDouble() * 6.28,
+          life: 4.0 + _rng.nextDouble() * 4.0,
+        ),
+      );
+    }
+  }
+
+  /// Worlds that dress the ground. Not every one should: Dark's map is defined
+  /// by the hole in it, and Blood's and Mud's are rules on somebody's guns —
+  /// growing scenery for those would be decoration that lies about what is
+  /// happening.
+  static const Set<String> _mysticFloraElements = {
+    'Plant',
+    'Fire',
+    'Poison',
+    'Spirit',
+    'Lightning',
+    'Earth',
+  };
+
   /// Per-frame tick for every Mystic world except the ember field, which has
   /// its own pass.
   void _updateMysticWorlds(double dt) {
@@ -7828,6 +7956,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateMysticVines(dt);
     _updateMysticPools(dt);
     _updateMysticWeatherClocks(dt);
+    _updateMysticFlora(dt);
 
     for (final bolt in _mysticBolts) {
       bolt.life -= dt;
@@ -14946,6 +15075,32 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       canvas.drawRect(
         Rect.fromLTWH(cx, cy, viewW, viewH),
         Paint()..color = spirit.withValues(alpha: 0.18 * f),
+      );
+    }
+
+    // Ground cover, under everything else a world puts on the map: it is the
+    // floor, and the fight happens on top of it.
+    for (final f in _mysticFlora) {
+      if (!_isWithinViewport(
+        f.position,
+        30,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 36,
+      )) {
+        continue;
+      }
+      drawMysticFlora(
+        canvas: canvas,
+        at: f.position,
+        element: f.element,
+        size: f.size,
+        bloom: f.bloom,
+        seed: f.seed,
+        time: stats.timeElapsed,
+        tint: elementColor(f.element),
       );
     }
 
