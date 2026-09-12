@@ -106,6 +106,7 @@ void main() {
     'Light',
     'Dust',
     'Steam',
+    'Lava',
   ]) {
     test('$element lights a world once per deployment', () async {
       final game = await boot(element);
@@ -761,6 +762,64 @@ void main() {
       greaterThan(far.knockbackVelocity.distance),
       reason: 'a uniform shove moves the far ranks as much as the ones on top '
           'of the thing being defended',
+    );
+  });
+
+  test('Lava cracks the arena, and only something heavy breaks it', () async {
+    final game = await boot('Lava');
+    await castOnce(game);
+    expect(
+      game.mysticFissureCount(0),
+      inInclusiveRange(4, 8),
+      reason: 'a Lava world is a broken floor, not one line someone placed',
+    );
+
+    final crack = game.mysticFissurePointNear(0)!;
+
+    // Ordinary bodies walk over a crack and nothing happens. The brief is
+    // explicit that it opens for a BOSS, and that gate is the whole balance of
+    // the world — every enemy triggering it would be a permanent meteor storm.
+    final grunt = game.enemies.firstWhere((e) => !e.isDead)
+      ..hp = 1e9
+      ..isDead = false;
+    for (var f = 0; f < 180; f++) {
+      grunt.position = crack;
+      keepAlive(game);
+      game.update(1 / 60);
+    }
+    expect(
+      game.mysticMeteorCount,
+      isZero,
+      reason: 'the rank and file broke the floor open',
+    );
+
+    // A boss does. Bosses live outside `enemies`, so the run has to actually
+    // produce one — waited for rather than skipped past, because a gate that
+    // silently never gets exercised is the half of this test that matters.
+    for (var f = 0; f < 24000 && game.allLivingBosses.isEmpty; f++) {
+      keepAlive(game);
+      game.update(1 / 60);
+    }
+    expect(
+      game.allLivingBosses,
+      isNotEmpty,
+      reason: 'no boss ever arrived to test the crack against',
+    );
+
+    final boss = game.allLivingBosses.first;
+    // Held on the crack across several seconds rather than a handful of
+    // frames: a boss has an entrance animation during which it is untouchable,
+    // and its AI moves it every frame, so it has to be put back each time.
+    for (var f = 0; f < 600 && game.mysticMeteorCount == 0; f++) {
+      final onCrack = game.mysticFissurePointNear(0);
+      if (onCrack != null) boss.position = onCrack;
+      keepAlive(game);
+      game.update(1 / 60);
+    }
+    expect(
+      game.mysticMeteorCount,
+      greaterThan(0),
+      reason: 'a boss stood on a crack and nothing came down',
     );
   });
 }

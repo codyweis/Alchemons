@@ -689,6 +689,87 @@ class _MysticFlora {
   bool get dead => age >= life;
 }
 
+/// A crack a Lava world has opened across the arena.
+///
+/// A jagged polyline rather than a zone: the player has to be able to see
+/// exactly where the edge is, because the whole mechanic is whether something
+/// heavy steps over it.
+class _MysticFissure {
+  _MysticFissure({
+    required this.ownerSlot,
+    required this.points,
+    required this.seed,
+  });
+
+  final int ownerSlot;
+  final List<Offset> points;
+  final double seed;
+
+  /// Per-crack recovery, so a boss parked on one does not call meteors every
+  /// frame it stands there.
+  double cooldown = 0;
+
+  /// Counts down after a crossing, brightening the crack that just broke.
+  double flare = 0;
+
+  double fade = 1.0;
+
+  /// Whether [at] is within [slack] of any segment of the crack.
+  bool touches(Offset at, double slack) {
+    final slackSq = slack * slack;
+    for (var i = 0; i < points.length - 1; i++) {
+      final a = points[i];
+      final b = points[i + 1];
+      final ab = b - a;
+      final lenSq = ab.dx * ab.dx + ab.dy * ab.dy;
+      if (lenSq < 0.0001) continue;
+      final ap = at - a;
+      // Projection clamped to the segment, so the ends of a crack do not
+      // reach on forever the way an infinite line would.
+      final t = ((ap.dx * ab.dx + ap.dy * ab.dy) / lenSq).clamp(0.0, 1.0);
+      final closest = a + ab * t;
+      final d = at - closest;
+      if (d.dx * d.dx + d.dy * d.dy <= slackSq) return true;
+    }
+    return false;
+  }
+}
+
+/// One of the meteors a broken crack throws up. Aimed at a place, not a body.
+class _MysticMeteor {
+  _MysticMeteor({
+    required this.impact,
+    required this.ownerSlot,
+    required this.damage,
+    required this.seed,
+    required this.remaining,
+  });
+
+  final Offset impact;
+  final int ownerSlot;
+  final double damage;
+  final double seed;
+
+  double remaining;
+  static const double fallTime = 0.85;
+
+  /// 0 → 1 as it comes down.
+  double get progress =>
+      (1.0 - (remaining / fallTime)).clamp(0.0, 1.0).toDouble();
+}
+
+/// The mark a meteor leaves, cooling.
+class _MysticScorch {
+  _MysticScorch({required this.at, required this.seed});
+
+  final Offset at;
+  final double seed;
+  double age = 0;
+  static const double maxAge = 4.5;
+
+  bool get dead => age >= maxAge;
+}
+
 /// The ring a Steam world's vent throws out. Visual only — the shove itself is
 /// applied the instant it blows.
 class _MysticVent {
@@ -1395,6 +1476,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   static const int _maxMysticCrystals = 30;
   final List<_MysticStar> _mysticStars = [];
   final List<_MysticVent> _mysticVents = [];
+  final List<_MysticFissure> _mysticFissures = [];
+  final List<_MysticMeteor> _mysticMeteors = [];
+  static const int _maxMysticMeteors = 48;
+  final List<_MysticScorch> _mysticScorches = [];
   final List<_MysticQuake> _mysticQuakes = [];
   final List<_MysticPool> _mysticPools = [];
   static const int _maxMysticPools = 26;
@@ -1431,6 +1516,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     'Light',
     'Dust',
     'Steam',
+    'Lava',
   };
 
 
@@ -7294,6 +7380,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       'Lightning' => ('bolts fallen', mysticStrikeCount(slotIndex)),
       'Earth' => ('quakes run', mysticStrikeCount(slotIndex)),
       'Steam' => ('vents blown', mysticStrikeCount(slotIndex)),
+      'Lava' => (
+        'cracks open',
+        _mysticFissures
+            .where((f) => f.ownerSlot == slotIndex && f.fade > 0)
+            .length,
+      ),
       'Crystal' => (
         'shards waiting',
         _mysticCrystals.where((c) => c.ownerSlot == slotIndex && !c.dead).length,
@@ -7510,6 +7602,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     for (final star in _mysticStars) {
       if (star.ownerSlot == slotIndex) star.fade = min(star.fade, 0.999);
     }
+    for (final fissure in _mysticFissures) {
+      if (fissure.ownerSlot == slotIndex) {
+        fissure.fade = min(fissure.fade, 0.999);
+      }
+    }
     // A blizzard has to LIFT. It writes to every enemy on the field, so a
     // world that ended without thawing would leave the arena slowed for the
     // rest of the run by a Mystic that is no longer there.
@@ -7588,6 +7685,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         break;
       case 'Steam':
         _mysticClock[slotIndex] = kMysticVentInterval;
+      case 'Lava':
+        _openMysticFissures(comp);
       case 'Light':
         _raiseMysticStar(comp);
     }
@@ -8073,6 +8172,169 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
 
+  // ── LAVA: the fissures ──────────────────────────────────────────────────
+
+  /// Cracks the arena open. Their number scales with the caster; their layout
+  /// does not, so a Lava world always reads as a broken floor rather than as a
+  /// few lines someone placed.
+  void _openMysticFissures(CosmicSurvivalCompanion comp) {
+    _mysticFissures.removeWhere((f) => f.ownerSlot == comp.slotIndex);
+    final strength = _effectiveStrength(comp.slotIndex);
+    final count = (4 + _hornStatScale(strength, perPoint: 0.11, min: 0.0, max: 1.0) * 4)
+        .round()
+        .clamp(4, 8);
+    final centre = orb.position;
+    final span = _arenaRadius * 0.86;
+
+    for (var i = 0; i < count; i++) {
+      // Chords across the arena rather than spokes from the middle: spokes all
+      // meet at the orb, which would put every crack exactly where the player
+      // is standing and none of them anywhere else.
+      final bearing = _rng.nextDouble() * pi;
+      final offset = (_rng.nextDouble() - 0.5) * span * 1.1;
+      final dir = Offset(cos(bearing), sin(bearing));
+      final normal = Offset(-dir.dy, dir.dx);
+      final mid = centre + normal * offset;
+
+      final points = <Offset>[];
+      const steps = 9;
+      final wander = _rng.nextDouble() * 6.28;
+      for (var k = 0; k <= steps; k++) {
+        final f = k / steps - 0.5;
+        final jag = sin(f * 7.0 + wander) * 46.0 + sin(f * 17.0 + wander) * 16.0;
+        points.add(mid + dir * (span * f * 2.0) + normal * jag);
+      }
+      _mysticFissures.add(
+        _MysticFissure(
+          ownerSlot: comp.slotIndex,
+          points: points,
+          seed: _rng.nextDouble() * 6.28,
+        ),
+      );
+    }
+  }
+
+  /// Watches for a boss stepping over a crack.
+  ///
+  /// Bosses only, per the brief. A crack does not care about the rank and file
+  /// walking over it — it opens for something heavy enough to break it further,
+  /// which makes a Lava world a thing that punishes the one body on the field
+  /// the player cannot simply out-position.
+  void _updateMysticFissures(double dt) {
+    if (_mysticFissures.isEmpty) return;
+    for (final fissure in _mysticFissures) {
+      final owner = activeCompanions[fissure.ownerSlot];
+      final standing = owner != null && !owner.isDead;
+      if (!standing) {
+        fissure.fade = max(0.0, fissure.fade - dt * 0.7);
+        continue;
+      }
+      if (fissure.flare > 0) {
+        fissure.flare = max(0.0, fissure.flare - dt * 1.1);
+      }
+      if (fissure.cooldown > 0) {
+        fissure.cooldown = max(0.0, fissure.cooldown - dt);
+        continue;
+      }
+      for (final boss in allLivingBosses) {
+        if (boss.isSpawning) continue;
+        if (!fissure.touches(boss.position, boss.radius + 26.0)) continue;
+        fissure.cooldown = 4.0;
+        fissure.flare = 1.0;
+        _rainMysticMeteors(fissure, boss.position, owner);
+        break;
+      }
+    }
+    _mysticFissures.removeWhere((f) => f.fade <= 0);
+  }
+
+  /// Meteors, aimed at nothing.
+  ///
+  /// Scattered across the area the crack was broken open at, not at the boss
+  /// that broke it: an untargeted fall means the boss can walk out of it, the
+  /// player can steer it back in, and anything else standing nearby eats one
+  /// too. Homing them would make this a big single-target hit, which the
+  /// roster already has several of.
+  void _rainMysticMeteors(
+    _MysticFissure fissure,
+    Offset at,
+    CosmicSurvivalCompanion owner,
+  ) {
+    final strength = _effectiveStrength(fissure.ownerSlot);
+    final scale =
+        _hornStatScale(strength, perPoint: 0.12, min: 0.8, max: 1.7) *
+        _mysticWorldPower(fissure.ownerSlot);
+    final count = (5 * scale).round().clamp(4, 12);
+    final damage = max(6.0, owner.elemAtk * 1.9 * scale);
+
+    for (var i = 0; i < count; i++) {
+      if (_mysticMeteors.length >= _maxMysticMeteors) break;
+      final a = _rng.nextDouble() * 2 * pi;
+      final r = 150.0 * sqrt(_rng.nextDouble());
+      _mysticMeteors.add(
+        _MysticMeteor(
+          impact: at + Offset(cos(a), sin(a)) * r,
+          ownerSlot: fissure.ownerSlot,
+          damage: damage,
+          seed: _rng.nextDouble() * 6.28,
+          // Staggered, so they come down as a fall rather than all at once.
+          remaining: _MysticMeteor.fallTime + _rng.nextDouble() * 0.85,
+        ),
+      );
+    }
+    onSound?.call(SoundCue.combatHitHeavy);
+  }
+
+  void _updateMysticMeteors(double dt) {
+    if (_mysticMeteors.isEmpty) return;
+    for (var i = _mysticMeteors.length - 1; i >= 0; i--) {
+      final meteor = _mysticMeteors[i];
+      final owner = activeCompanions[meteor.ownerSlot];
+      if (owner == null || owner.isDead) {
+        _mysticMeteors.removeAt(i);
+        continue;
+      }
+      meteor.remaining -= dt;
+      if (meteor.remaining > 0) continue;
+      _landMysticMeteor(meteor);
+      _mysticMeteors.removeAt(i);
+    }
+  }
+
+  void _landMysticMeteor(_MysticMeteor meteor) {
+    const blast = 96.0;
+    _visitEnemiesNear(meteor.impact, blast, (enemy) {
+      if (enemy.isDead) return false;
+      if (!_withinRange(meteor.impact, enemy.position, blast + enemy.radius)) {
+        return false;
+      }
+      _damageEnemy(enemy, meteor.damage, sourceSlotIndex: meteor.ownerSlot);
+      return false;
+    });
+    for (final boss in allLivingBosses) {
+      if (!_withinRange(meteor.impact, boss.position, blast + boss.radius)) {
+        continue;
+      }
+      damageBoss(
+        meteor.damage,
+        attackElement: 'Lava',
+        sourceSlotIndex: meteor.ownerSlot,
+        target: boss,
+      );
+    }
+    _mysticScorches.add(_MysticScorch(at: meteor.impact, seed: meteor.seed));
+    _spawnHitSpark(meteor.impact, const Color(0xFFFF7A1E));
+    _addShake(0.14);
+  }
+
+  void _updateMysticScorches(double dt) {
+    if (_mysticScorches.isEmpty) return;
+    for (final scorch in _mysticScorches) {
+      scorch.age += dt;
+    }
+    _mysticScorches.removeWhere((s) => s.dead);
+  }
+
   // ── STEAM: the pressure ─────────────────────────────────────────────────
 
   /// Seconds between vents. The world's whole shape is the build and the
@@ -8228,6 +8490,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   @visibleForTesting
   int get mysticMisfireCount => _mysticMisfires;
+
+  @visibleForTesting
+  int mysticFissureCount(int slotIndex) => _mysticFissures
+      .where((f) => f.ownerSlot == slotIndex && f.fade > 0)
+      .length;
+
+  @visibleForTesting
+  int get mysticMeteorCount => _mysticMeteors.length;
+
+  /// Whether any of this slot's cracks runs within [slack] of [at]. Exposed so
+  /// a test can put a boss on a crack without knowing where the cracks are.
+  @visibleForTesting
+  Offset? mysticFissurePointNear(int slotIndex) {
+    for (final f in _mysticFissures) {
+      if (f.ownerSlot == slotIndex && f.fade > 0) {
+        return f.points[f.points.length ~/ 2];
+      }
+    }
+    return null;
+  }
 
   /// Blows a Steam world's vent now, exactly as the clock does.
   ///
@@ -8740,6 +9022,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateMysticCharges(dt);
     _updateMysticCrystals(dt);
     _updateMysticStars(dt);
+    _updateMysticFissures(dt);
+    _updateMysticMeteors(dt);
+    _updateMysticScorches(dt);
     _updateShake(dt);
     if (_mysticSkyFlash > 0) {
       _mysticSkyFlash = max(0.0, _mysticSkyFlash - dt * 3.4);
@@ -15991,6 +16276,29 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
 
+    // Lava Mystic's fissures and the scorches its meteors leave, on the floor
+    // under everything that walks over them.
+    for (final fissure in _mysticFissures) {
+      if (fissure.fade <= 0.01) continue;
+      drawMysticFissure(
+        canvas: canvas,
+        points: fissure.points,
+        alpha: fissure.fade,
+        flare: fissure.flare,
+        seed: fissure.seed,
+        time: stats.timeElapsed,
+      );
+    }
+    for (final scorch in _mysticScorches) {
+      drawMysticScorch(
+        canvas: canvas,
+        at: scorch.at,
+        age: scorch.age,
+        maxAge: _MysticScorch.maxAge,
+        seed: scorch.seed,
+      );
+    }
+
     // Steam Mystic's vents, on the floor with the quakes.
     for (final vent in _mysticVents) {
       drawMysticVent(
@@ -16154,6 +16462,28 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         seed: shard.seed,
         time: stats.timeElapsed,
         tint: elementColor('Crystal'),
+      );
+    }
+
+    // Falling lava, over the field: the rock has to pass in front of whatever
+    // it is about to land on.
+    for (final meteor in _mysticMeteors) {
+      if (!_isWithinViewport(
+        meteor.impact,
+        120,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 80,
+      )) {
+        continue;
+      }
+      drawMysticLavaMeteor(
+        canvas: canvas,
+        impact: meteor.impact,
+        progress: meteor.progress,
+        seed: meteor.seed,
       );
     }
 

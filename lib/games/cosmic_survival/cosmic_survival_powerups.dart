@@ -681,6 +681,19 @@ const kMysticWorldPowerUps = [
     favoredFamilies: ['mystic'],
     mysticElement: 'Steam',
   ),
+  PowerUpDef(
+    id: 'world_lava',
+    name: 'Widening Fissures',
+    description: 'More cracks, and heavier falls when they break',
+    icon: '🌋',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.control, PowerUpTag.chainExecute],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Lava',
+  ),
 ];
 
 const kAllPowerUps = [

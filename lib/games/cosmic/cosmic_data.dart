@@ -10727,51 +10727,13 @@ CosmicSpecialResult _mysticSpecial(
     // boulder paints a long lava furrow across the field that lasts
     // ~30s after the boulders are gone.
     // Strength drives boulder count (brute force).
-    case 'Lava':
-      final boulderCount = scaledCount(casterStrength, 3, min: 2, max: 4);
-      for (var i = 0; i < boulderCount; i++) {
-        final a = baseAngle + (i - (boulderCount - 1) / 2) * 0.4;
-        projs.add(
-          Projectile(
-            position: Offset(origin.dx + cos(a) * 20, origin.dy + sin(a) * 20),
-            angle: a,
-            element: element,
-            damage: damage * 3.2,
-            life: 8.0,
-            speedMultiplier: 0.35,
-            radiusMultiplier: 3.5,
-            visualScale: 3.0,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            piercing: true,
-            // Drop persistent magma pools along the boulder's path
-            // every 0.75s (slowed from 0.45s so the field isn't
-            // drowned in dozens of overlapping pools).
-            turretInterval: 0.75,
-            turretDamage: damage * 1.05,
-            // Cluster on impact so the boulder also explodes when it
-            // finally hits a wall of enemies.
-            clusterCount: 4,
-            clusterDamage: damage * 1.0,
-            // Heavy trail for visual continuity between drops.
-            trailInterval: 0.10,
-            trailDamage: damage * 0.8,
-            trailLife: 2.0,
-          ),
-        );
-      }
-      break;
-
-    // ── LIGHTNING: Storm Lattice ──
-    // Persistent thunderstorm. Stationary lightning rods planted in a
-    // ring around the target — each rod periodically fires chain
-    // lightning at the nearest enemy. The whole lattice arcs together
-    // for the storm's duration. Plus initial salvo of bouncing bolts.
-    // Intelligence drives rod count (storm pattern).
-    // ── LIGHTNING: The Storm ──
+    // ── LAVA: The Fissures ──
     // A world, not a salvo — implemented where worlds can exist, in
     // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
     // Mystic is bespoke, and a shared projectile table for them is a second
     // implementation of the same ability that only some modes ever run.
+    case 'Lava':
+      break;
     case 'Lightning':
       break;
     case 'Water':
@@ -11139,7 +11101,7 @@ String cosmicSpecialAbilityName(String family, String element) {
     case 'mystic':
       return switch (element) {
         'Fire' => 'The Ember Season',
-        'Lava' => 'Cataclysm Moons',
+        'Lava' => 'The Fissures',
         'Lightning' => 'The Storm',
         'Water' => 'Tidal Crescent Rite',
         'Ice' => 'The Blizzard',

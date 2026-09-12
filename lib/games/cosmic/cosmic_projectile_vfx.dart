@@ -8233,3 +8233,155 @@ void drawMysticVent({
     );
   }
 }
+
+/// A Lava world's fissure: a crack in the arena floor with molten light in it.
+///
+/// Drawn as a dark split with a glowing seam INSIDE it rather than a bright
+/// line on top of the floor — a glowing line reads as a laser or a boundary
+/// marker, where a crack has to read as depth the player is looking into.
+void drawMysticFissure({
+  required ui.Canvas canvas,
+  required List<ui.Offset> points,
+  required double alpha,
+  required double flare,
+  required double seed,
+  required double time,
+}) {
+  if (alpha <= 0.01 || points.length < 2) return;
+  final breath = 0.78 + 0.22 * sin(time * 1.5 + seed);
+  final heat = (breath + flare * 1.4).clamp(0.0, 2.0);
+
+  final path = ui.Path()..moveTo(points.first.dx, points.first.dy);
+  for (var i = 1; i < points.length - 1; i++) {
+    final mid = ui.Offset(
+      (points[i].dx + points[i + 1].dx) * 0.5,
+      (points[i].dy + points[i + 1].dy) * 0.5,
+    );
+    path.quadraticBezierTo(points[i].dx, points[i].dy, mid.dx, mid.dy);
+  }
+  path.lineTo(points.last.dx, points.last.dy);
+
+  final stroke = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round
+    ..strokeJoin = ui.StrokeJoin.round;
+
+  // Heat bleeding onto the ground either side of the split.
+  stroke
+    ..strokeWidth = 26.0 + 10.0 * flare
+    ..color = const ui.Color(0xFFFF6A1E).withValues(alpha: 0.07 * alpha * heat);
+  canvas.drawPath(path, stroke);
+  // The split itself: dark, so the seam inside it has something to glow out of.
+  stroke
+    ..strokeWidth = 11.0
+    ..color = const ui.Color(0xFF180703).withValues(alpha: 0.92 * alpha);
+  canvas.drawPath(path, stroke);
+  // Molten seam.
+  stroke
+    ..strokeWidth = 5.0 + 2.5 * flare
+    ..color = const ui.Color(0xFFFF7A1E).withValues(alpha: (0.55 * heat).clamp(0.0, 0.95) * alpha);
+  canvas.drawPath(path, stroke);
+  stroke
+    ..strokeWidth = 1.8 + 1.6 * flare
+    ..color = const ui.Color(0xFFFFD9A0).withValues(alpha: (0.60 * heat).clamp(0.0, 0.98) * alpha);
+  canvas.drawPath(path, stroke);
+}
+
+/// A meteor a broken fissure threw up, on its way back down.
+///
+/// Falls into its impact point from off the top of the frame, with the shadow
+/// on the ground tightening as it closes — that shadow is the only warning the
+/// player gets, so it is drawn before the rock is anywhere near.
+void drawMysticLavaMeteor({
+  required ui.Canvas canvas,
+  required ui.Offset impact,
+  required double progress,
+  required double seed,
+}) {
+  final t = progress.clamp(0.0, 1.0);
+  const height = 560.0;
+  // Accelerating, so it reads as falling rather than sliding down a wire.
+  final drop = t * t;
+  final at = impact - ui.Offset(0, height * (1.0 - drop));
+
+  // Ground shadow: wide and faint at range, tight and dark on arrival.
+  canvas.drawCircle(
+    impact,
+    46.0 - 28.0 * t,
+    ui.Paint()
+      ..color = const ui.Color(0xFF000000).withValues(alpha: 0.18 + 0.34 * t),
+  );
+  canvas.drawCircle(
+    impact,
+    (46.0 - 28.0 * t) * 0.62,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = const ui.Color(0xFFFF7A1E).withValues(alpha: 0.30 + 0.45 * t),
+  );
+
+  // The rock, with a tail of what is burning off it.
+  final tail = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round
+    ..strokeWidth = 7.0
+    ..color = const ui.Color(0xFFFF7A1E).withValues(alpha: 0.45);
+  canvas.drawLine(at, at - const ui.Offset(0, 58), tail);
+  tail
+    ..strokeWidth = 2.6
+    ..color = const ui.Color(0xFFFFD9A0).withValues(alpha: 0.62);
+  canvas.drawLine(at, at - const ui.Offset(0, 40), tail);
+
+  canvas.drawCircle(
+    at,
+    12.0,
+    ui.Paint()..color = const ui.Color(0xFFFF7A1E).withValues(alpha: 0.20),
+  );
+  canvas.drawCircle(
+    at,
+    7.0,
+    ui.Paint()..color = const ui.Color(0xFF3A1408),
+  );
+  canvas.drawCircle(
+    at + ui.Offset(cos(seed) * 2.0, sin(seed) * 2.0 - 1.5),
+    3.2,
+    ui.Paint()..color = const ui.Color(0xFFFFB060),
+  );
+}
+
+/// The mark a lava meteor leaves, cooling from molten to ash.
+void drawMysticScorch({
+  required ui.Canvas canvas,
+  required ui.Offset at,
+  required double age,
+  required double maxAge,
+  required double seed,
+}) {
+  final t = (age / maxAge).clamp(0.0, 1.0);
+  final a = t > 0.72 ? ((1.0 - t) / 0.28).clamp(0.0, 1.0) : 1.0;
+  // Cools through its life: bright at the moment of landing, ash by the end.
+  final heat = (1.0 - t) * (1.0 - t);
+  final r = 34.0 + 14.0 * t;
+
+  canvas.drawCircle(
+    at,
+    r,
+    ui.Paint()
+      ..color = const ui.Color(0xFF1C0B04).withValues(alpha: 0.55 * a),
+  );
+  for (var i = 0; i < 5; i++) {
+    final ang = seed + i * 1.26;
+    canvas.drawCircle(
+      at + ui.Offset(cos(ang), sin(ang)) * (r * 0.42),
+      r * 0.34,
+      ui.Paint()
+        ..color = const ui.Color(0xFFFF6A1E).withValues(alpha: 0.30 * heat * a),
+    );
+  }
+  canvas.drawCircle(
+    at,
+    r * 0.30,
+    ui.Paint()
+      ..color = const ui.Color(0xFFFFB060).withValues(alpha: 0.55 * heat * a),
+  );
+}

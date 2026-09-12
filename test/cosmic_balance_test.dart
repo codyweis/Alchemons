@@ -1599,11 +1599,10 @@ void main() {
     });
 
     test('mystic elements diverge into premium guardian ultimates', () {
-      // Fire against Lava rather than Fire against Crystal: Crystal is a WORLD
-      // now — the dead crystallise and the ship collects the shards — so it
-      // authors no projectiles at all and there is nothing here to compare.
-      // Lava is still a projectile ultimate, and the two are the pair most at
-      // risk of collapsing into one another.
+      // Fire against Water. Only three Mystics still author projectiles at all
+      // — Fire, Water and Air — because the rest are WORLDS, implemented in
+      // CosmicSurvivalGame rather than in this table. Crystal and then Lava
+      // were the previous subjects here and both moved.
       final fire = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
@@ -1612,15 +1611,17 @@ void main() {
         damage: 10,
         maxHp: 120,
       );
-      final lava = createCosmicSpecialAbility(
+      final water = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
         family: 'mystic',
-        element: 'Lava',
+        element: 'Water',
         damage: 10,
         maxHp: 120,
       );
 
+      expect(fire.projectiles, isNotEmpty);
+      expect(water.projectiles, isNotEmpty);
       expect(
         fire.projectiles.every(
           (p) => p.visualStyle == ProjectileVisualStyle.mysticOrbital,
@@ -1628,20 +1629,20 @@ void main() {
         isTrue,
       );
       expect(
-        lava.projectiles.every(
+        water.projectiles.every(
           (p) => p.visualStyle == ProjectileVisualStyle.mysticOrbital,
         ),
         isTrue,
       );
-      // Fire's spectacle signal is its trail-leaving blast orbs.
-      expect(fire.projectiles.any((p) => p.trailInterval > 0), isTrue);
-      // Lava's is heavy piercing boulders that split into clusters.
-      expect(lava.projectiles.any((p) => p.piercing), isTrue);
-      expect(lava.projectiles.any((p) => p.clusterCount > 0), isTrue);
-      // And they must not be the same cast in two oranges.
+      // Fire commits to ground: stationary zones that stay where they land.
+      expect(fire.projectiles.any((p) => p.stationary), isTrue);
+      // Water sweeps: homing crescents that leave trails behind them.
+      expect(water.projectiles.any((p) => p.homing), isTrue);
+      expect(water.projectiles.any((p) => p.trailInterval > 0), isTrue);
+      // And they must not be the same cast in two colours.
       expect(
         fire.projectiles.map((p) => p.orbitRadius).toSet(),
-        isNot(lava.projectiles.map((p) => p.orbitRadius).toSet()),
+        isNot(water.projectiles.map((p) => p.orbitRadius).toSet()),
       );
     });
 
@@ -1651,9 +1652,9 @@ void main() {
       // would all share the empty signature. They are unique by construction —
       // raising the dead, a passive tithe, a hole in the arena, two vines, a
       // storm, a ship-drawn spill, a brake on the ship's guns, a quake — and
-      // are checked in mystic_worlds_test.dart. What this guards is the four
+      // are checked in mystic_worlds_test.dart. What this guards is the three
       // that ARE still projectile ultimates.
-      const elements = ['Fire', 'Lava', 'Water', 'Air'];
+      const elements = ['Fire', 'Water', 'Air'];
 
       final signatures = <String>{};
       for (final element in elements) {

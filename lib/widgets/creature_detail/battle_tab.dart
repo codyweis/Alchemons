@@ -1850,9 +1850,12 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['WORLD', 'PERSISTENT', 'BURN'],
         ),
         'Lava' => (
-          'Cataclysm Moons • Strength scales count',
-          'Launches slow piercing boulders that leave lava trails and split into cluster detonations.',
-          ['PIERCING', 'TRAIL', 'CLUSTER'],
+          'The Fissures • Strength scales the break',
+          'Glowing cracks split the arena. When something as heavy as a BOSS '
+              'steps over one it breaks further, and untargeted meteors rain '
+              'across that ground. Holds while this Mystic is alive and '
+              'deployed.',
+          ['WORLD', 'TERRAIN', 'ANTI-BOSS'],
         ),
         'Lightning' => (
           'The Storm • Intelligence scales the bolt',
