@@ -11292,75 +11292,13 @@ CosmicSpecialResult _mysticSpecial(
       }
       break;
 
-    // ── PLANT: Verdant Procession ──
-    // Line of vine turrets planted toward target. Each fires homing
-    // thorns for the duration, AND on cast each turret hurls a heavy
-    // thorn salvo in a forward fan as the opening spectacle.
-    // Strength drives turret count (vine growth force).
+    // ── PLANT: The Grove ──
+    // A world, not a salvo — implemented where worlds can exist, in
+    // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
+    // Mystic is bespoke, and a shared projectile table for them is a second
+    // implementation of the same ability that only some modes ever run.
     case 'Plant':
-      final vineCount = scaledCount(casterStrength, 4, min: 2, max: 6);
-      for (var i = 0; i < vineCount; i++) {
-        final dist = 40.0 + i * 35.0;
-        final pos = Offset(
-          origin.dx + cos(baseAngle) * dist,
-          origin.dy + sin(baseAngle) * dist,
-        );
-        projs.add(
-          Projectile(
-            position: pos,
-            angle: baseAngle,
-            element: element,
-            damage: damage * 1.1,
-            life: 9.0,
-            stationary: true,
-            radiusMultiplier: 1.8,
-            visualScale: 1.75,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            turretInterval: 0.56,
-            turretDamage: damage * 1.9,
-            turretHomingStrength: 4.5,
-            turretSpeedMultiplier: 1.3,
-          ),
-        );
-        // Opening salvo: each turret hurls 3 heavy homing thorns in a
-        // forward fan — gives the cast a satisfying spectacle layer
-        // beyond just "static turrets planted".
-        for (var j = -1; j <= 1; j++) {
-          final a = baseAngle + j * 0.35;
-          projs.add(
-            Projectile(
-              position: pos,
-              angle: a,
-              element: element,
-              damage: damage * 2.2,
-              life: 3.5,
-              speedMultiplier: 1.55,
-              radiusMultiplier: 1.4,
-              visualScale: 1.2,
-              visualStyle: ProjectileVisualStyle.mysticOrbital,
-              homing: true,
-              homingStrength: 4.0,
-              piercing: true,
-              trailInterval: 0.15,
-              trailDamage: damage * 0.4,
-              trailLife: 1.4,
-            ),
-          );
-        }
-      }
-      shipHeal = max(
-        shipHeal,
-        max(1, (CosmicBalance.shipMaxHealth * 0.035).round()),
-      );
-      blessingTimer = max(blessingTimer, 4.5);
-      blessingHealPerTick = max(blessingHealPerTick, damage * 0.10);
       break;
-
-    // ── POISON: Venom Bloom ──
-    // Stationary toxic crater at TARGET position with multiple
-    // poison clouds anchored around it. Permanent area denial that
-    // distinguishes Poison from the ship-following Air/Light/Dust
-    // orbital rings — Poison commits to a chokepoint.
     case 'Poison':
       final venomTarget = Offset(
         origin.dx + cos(baseAngle) * 110,
@@ -11423,92 +11361,20 @@ CosmicSpecialResult _mysticSpecial(
     // identity — vs Lightning's chain bolts and Crystal's prismatic
     // explosions, Spirit picks off survivors from the wave.
     // Intelligence drives wraith count (spiritual attunement).
+    // ── SPIRIT: The Turning ──
+    // A world, not a salvo — implemented where worlds can exist, in
+    // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
+    // Mystic is bespoke, and a shared projectile table for them is a second
+    // implementation of the same ability that only some modes ever run.
     case 'Spirit':
-      final wraithCount = scaledCount(casterIntelligence, 5, min: 3, max: 7);
-      for (var i = 0; i < wraithCount; i++) {
-        final a = baseAngle + (i - (wraithCount - 1) / 2) * 0.22;
-        projs.add(
-          Projectile(
-            position: Offset(origin.dx + cos(a) * 16, origin.dy + sin(a) * 16),
-            angle: a,
-            element: element,
-            // Cleanup damage bumped — wraiths still hit hard even
-            // when no low-HP target is in range to execute.
-            damage: damage * 2.4,
-            life: 8.5,
-            speedMultiplier: 0.85,
-            radiusMultiplier: 1.3,
-            visualScale: 1.2,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            orbitCenter: origin,
-            orbitAngle: a,
-            orbitRadius: 30,
-            orbitSpeed: 3.4,
-            orbitTime: 1.2,
-            homing: true,
-            homingStrength: 7.0,
-            piercing: true,
-            // Reaper identity — execute low-HP enemies on contact.
-            hitEffect: AbilityEffectKind.execute,
-            effectPower: damage * 0.6,
-            effectRadius: 30,
-            effectChance: 1.0,
-            trailInterval: 0.14,
-            trailDamage: damage * 0.45,
-            trailLife: 2.0,
-          ),
-        );
-      }
       break;
-
-    // ── DARK: Eclipse Procession ──
-    // Void wells that actively *pull* enemies inward (vs Earth's
-    // stationary taunt-decoys), then execute low-HP enemies caught in
-    // their gravity. The pull tick is what makes Dark distinct.
-    // Strength drives void well count (dark force).
+    // ── DARK: The Maw ──
+    // A world, not a salvo — implemented where worlds can exist, in
+    // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
+    // Mystic is bespoke, and a shared projectile table for them is a second
+    // implementation of the same ability that only some modes ever run.
     case 'Dark':
-      final wellCount = scaledCount(casterStrength, 3, min: 2, max: 4);
-      for (var i = 0; i < wellCount; i++) {
-        final a = baseAngle + (i - (wellCount - 1) / 2) * 0.55;
-        final dist = 70.0 + i * 25.0;
-        final pos = Offset(
-          origin.dx + cos(a) * dist,
-          origin.dy + sin(a) * dist,
-        );
-        projs.add(
-          Projectile(
-            position: pos,
-            angle: a,
-            element: element,
-            damage: damage * 1.6,
-            life: 8.0,
-            stationary: true,
-            radiusMultiplier: 2.6,
-            visualScale: 2.2,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            piercing: true,
-            // Smaller taunt + active pull tick = enemies dragged in
-            // and consumed, not just "lured". This is the gravity-well
-            // identity vs Earth's monoliths.
-            tauntRadius: 220.0,
-            tauntStrength: 2.5,
-            snareRadius: 130.0,
-            snareMoveMultiplier: 0.18,
-            tickEffect: AbilityEffectKind.blackHole,
-            effectPower: damage * 0.55,
-            effectRadius: 180,
-            effectDuration: 1.2,
-            clusterCount: 6,
-            clusterDamage: damage * 0.9,
-          ),
-        );
-      }
       break;
-
-    // ── LIGHT: Radiant Crown ──
-    // Ship-orbiting turret sentinels that auto-fire homing bolts AND
-    // intercept incoming projectiles. Ultimate defense + offense.
-    // Beauty drives sentinel count (radiant spectacle).
     case 'Light':
       final sentinelCount = scaledCount(casterBeauty, 5, min: 3, max: 7);
       for (var i = 0; i < sentinelCount; i++) {
@@ -11558,83 +11424,13 @@ CosmicSpecialResult _mysticSpecial(
     // Strength drives pool count (vital force); pools last 12s, which
     // the survival lifetime stretch pushes to a sustained 25–30s of
     // field commitment.
+    // ── BLOOD: The Crimson Tithe ──
+    // A world, not a salvo — implemented where worlds can exist, in
+    // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
+    // Mystic is bespoke, and a shared projectile table for them is a second
+    // implementation of the same ability that only some modes ever run.
     case 'Blood':
-      final bloodTarget = Offset(
-        origin.dx + cos(baseAngle) * 90,
-        origin.dy + sin(baseAngle) * 90,
-      );
-      final poolCount = scaledCount(casterStrength, 5, min: 4, max: 7);
-      // Central crimson font — bigger pool that summons thralls faster.
-      projs.add(
-        Projectile(
-          position: bloodTarget,
-          angle: 0,
-          element: element,
-          damage: damage * 1.6,
-          life: 13.0,
-          stationary: true,
-          radiusMultiplier: 3.4,
-          visualScale: 3.0,
-          visualStyle: ProjectileVisualStyle.mysticOrbital,
-          piercing: true,
-          snareRadius: 130.0,
-          snareMoveMultiplier: 0.45,
-          // Periodically spawns a Blood Thrall summon that hunts.
-          turretInterval: 1.10,
-          turretDamage: damage * 1.85,
-          turretHomingStrength: 5.5,
-          turretSpeedMultiplier: 1.35,
-          // Standing in the pool drains enemy HP -> heals orb/allies.
-          tickEffect: AbilityEffectKind.leech,
-          effectPower: damage * 0.55,
-          effectRadius: 110,
-          effectDuration: 1.4,
-        ),
-      );
-      // Surrounding blood pools — same identity, smaller scale,
-      // each contributes its own thrall summon.
-      for (var i = 0; i < poolCount; i++) {
-        final a = i * (pi * 2 / poolCount);
-        final pos = Offset(
-          bloodTarget.dx + cos(a) * 105,
-          bloodTarget.dy + sin(a) * 105,
-        );
-        projs.add(
-          Projectile(
-            position: pos,
-            angle: a,
-            element: element,
-            damage: damage * 1.1,
-            life: 12.0,
-            stationary: true,
-            radiusMultiplier: 2.2,
-            visualScale: 2.0,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            piercing: true,
-            snareRadius: 95.0,
-            snareMoveMultiplier: 0.55,
-            // Each pool spawns its own thrall summon.
-            turretInterval: 1.55,
-            turretDamage: damage * 1.45,
-            turretHomingStrength: 4.8,
-            turretSpeedMultiplier: 1.20,
-            tickEffect: AbilityEffectKind.leech,
-            effectPower: damage * 0.40,
-            effectRadius: 95,
-            effectDuration: 1.4,
-          ),
-        );
-      }
-      // Cast-time burst heal — the ritual draws blood from the field.
-      selfHeal = max(selfHeal, (damage * 4.0).round());
-      shipHeal = max(
-        shipHeal,
-        max(1, (CosmicBalance.shipMaxHealth * 0.05).round()),
-      );
-      blessingTimer = max(blessingTimer, 6.0);
-      blessingHealPerTick = max(blessingHealPerTick, damage * 0.06);
       break;
-
     default:
       projs.addAll(
         sequence(

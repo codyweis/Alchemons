@@ -243,7 +243,21 @@ void main() {
           // docs/cosmic_ability_families.md — Air and Mud horn are passives.
           // Dark pip is passive-only too — there is a dedicated test for it
           // in cosmic_balance_test.
-          const passiveCasts = {'horn:Air', 'horn:Mud', 'pip:Dark'};
+          //
+          // The world Mystics are here for a different reason: their ability
+          // is not a payload at all. They change the map, which is a thing
+          // only a running game can hold, so the shared ability table has
+          // nothing to author for them by design. test/mystic_worlds_test.dart
+          // is where they are actually checked.
+          const passiveCasts = {
+            'horn:Air',
+            'horn:Mud',
+            'pip:Dark',
+            'mystic:Spirit',
+            'mystic:Blood',
+            'mystic:Dark',
+            'mystic:Plant',
+          };
           if (!passiveCasts.contains('$family:$element')) {
             expect(
               result.projectiles.isNotEmpty || hasSupportPayload,
@@ -309,19 +323,29 @@ void main() {
       expect(highWard.life, greaterThan(lowWard.life));
     });
 
-    test('mystic spirit now stages a brief chorus orbit before release', () {
-      final result = createCosmicSpecialAbility(
-        origin: const Offset(0, 0),
-        baseAngle: 0,
-        family: 'mystic',
-        element: 'Spirit',
-        damage: 10,
-        maxHp: 100,
-        targetPos: const Offset(120, 0),
-      );
-
-      expect(result.projectiles.any((p) => p.orbitTime > 0), isTrue);
-      expect(result.projectiles.any((p) => p.homing && p.piercing), isTrue);
+    test('the world mystics author nothing here, on purpose', () {
+      // Spirit, Blood, Dark and Plant used to each hand back a salvo from this
+      // table AND change the map from inside the game — two implementations of
+      // one ability, where whichever mode read the table got the wrong one.
+      // The table is the copy that went away.
+      for (final element in ['Spirit', 'Blood', 'Dark', 'Plant']) {
+        final result = createCosmicSpecialAbility(
+          origin: const Offset(0, 0),
+          baseAngle: 0,
+          family: 'mystic',
+          element: element,
+          damage: 10,
+          maxHp: 100,
+          targetPos: const Offset(120, 0),
+        );
+        expect(
+          result.projectiles,
+          isEmpty,
+          reason:
+              'mystic $element is a world; a salvo here is a second ability '
+              'wearing its name',
+        );
+      }
     });
 
     test('mystic control zones gain extra uptime from intelligence', () {

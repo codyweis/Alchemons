@@ -1200,18 +1200,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     'Plant',
   };
 
-  /// Worlds that ARE the whole ability, so survival drops the salvo the shared
-  /// table generated for them. Only Fire keeps its cast: the collapse is what
-  /// lights the field it leaves behind. Blood is passive by design, Dark's hole
-  /// and Plant's grove replace what they used to throw, and Spirit's old wraith
-  /// chorus held about eighty of the 220 shared projectile slots on its trails
-  /// alone — the revenants are the ability now.
-  static const Set<String> _mysticWorldReplacesCast = {
-    'Spirit',
-    'Blood',
-    'Dark',
-    'Plant',
-  };
 
   /// Slots whose Mystic has already cast this deployment. A Mystic's world is
   /// cast ONCE — the ability comes back only by recalling and redeploying it,
@@ -2767,12 +2755,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             _feedOrSpawnMaskPlantVine(slotIndex, specialProjectiles);
           } else if (isMaskDustSpecial) {
             _spawnMaskDustShields(slotIndex, specialProjectiles);
-          } else if (_mysticCastReplacesSalvo(comp)) {
-            // The world IS the ability for these. Appending the shared table's
-            // salvo on top would hand them a free ultimate every deployment
-            // AND make them read as "a big cast that also does something",
-            // which is the thing the redesign is getting away from.
           } else {
+            // World Mystics come back from the ability table with nothing to
+            // append — the world IS the ability, and it is built below.
             _appendCompanionProjectiles(specialProjectiles);
           }
           // Kin support-path cast intercepts. Most kin supports don't
@@ -7100,12 +7085,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (m.ownerSlot == slotIndex) m.fade = min(m.fade, 0.999);
     }
   }
-
-  /// True when this Mystic's world takes the place of the salvo the shared
-  /// ability table built for it.
-  bool _mysticCastReplacesSalvo(CosmicSurvivalCompanion comp) =>
-      comp.member.family.toLowerCase() == 'mystic' &&
-      _mysticWorldReplacesCast.contains(comp.member.element);
 
   /// Lights whichever world this Mystic makes.
   void _igniteMysticWorld(CosmicSurvivalCompanion comp, int slotIndex) {

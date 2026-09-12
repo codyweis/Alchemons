@@ -1653,6 +1653,12 @@ void main() {
     });
 
     test('mystic elements now produce unique ultimate payload signatures', () {
+      // The four world Mystics — Spirit, Blood, Dark, Plant — are absent on
+      // purpose: their ability is not a payload, it is a change to the map, so
+      // they author nothing here and would all share the empty signature. They
+      // are unique by construction (raising the dead, a passive tithe, a hole
+      // in the arena, two vines) and are checked in mystic_worlds_test.dart.
+      // What this guards is the thirteen that ARE projectile ultimates.
       const elements = [
         'Fire',
         'Lava',
@@ -1665,12 +1671,8 @@ void main() {
         'Dust',
         'Crystal',
         'Air',
-        'Plant',
         'Poison',
-        'Spirit',
-        'Dark',
         'Light',
-        'Blood',
       ];
 
       final signatures = <String>{};
