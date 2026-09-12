@@ -207,19 +207,25 @@ void main() {
       reason: 'one lashes and one spits — two ranges, not one turret twice',
     );
 
-    // Rooted north and south of the ORB, evenly. Anchoring to the caster put
-    // the grove wherever that companion happened to have drifted at cast time.
+    // Rooted east and west of the ORB, evenly, and set well back. Anchoring to
+    // the caster put the grove wherever that companion had drifted to at cast
+    // time; stacking them north and south hung a canopy over the orb.
     final roots = game.mysticVineRoots(0);
     expect(roots, hasLength(2));
     final orb = game.orb.position;
-    final north = roots.firstWhere((r) => r.dy < orb.dy);
-    final south = roots.firstWhere((r) => r.dy > orb.dy);
-    expect(north.dx, closeTo(orb.dx, 0.001));
-    expect(south.dx, closeTo(orb.dx, 0.001));
+    final west = roots.firstWhere((r) => r.dx < orb.dx);
+    final east = roots.firstWhere((r) => r.dx > orb.dx);
+    expect(west.dy, closeTo(orb.dy, 0.001));
+    expect(east.dy, closeTo(orb.dy, 0.001));
     expect(
-      (orb.dy - north.dy),
-      closeTo(south.dy - orb.dy, 0.001),
+      orb.dx - west.dx,
+      closeTo(east.dx - orb.dx, 0.001),
       reason: 'the two vines are not evenly spaced around the orb',
+    );
+    expect(
+      orb.dx - west.dx,
+      greaterThanOrEqualTo(250),
+      reason: 'the grove should stand well back from the orb, not on top of it',
     );
   });
 

@@ -7638,16 +7638,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final scale =
         _hornStatScale(strength, perPoint: 0.11, min: 0.82, max: 1.5) *
         _mysticWorldPower(comp.slotIndex);
-    // Rooted north and south of the ORB, evenly. Anchoring to the caster put
-    // the grove wherever that companion happened to be drifting at cast time,
-    // which is not a place the player chose and not a place they fight; the orb
-    // is the thing being defended and the fixed point everyone reads from.
-    const spacing = 190.0;
+    // Rooted east and west of the ORB, evenly, and set well back from it.
+    //
+    // Anchoring to the caster put the grove wherever that companion happened to
+    // be drifting at cast time, which is neither a place the player chose nor a
+    // place they fight; the orb is what is being defended and the fixed point
+    // everyone reads from. Flanking rather than bracketing because the vines
+    // grow upward: stacked north and south, the northern one's canopy hung over
+    // the orb and the southern one's over the fight.
+    const spacing = 300.0;
     for (var i = 0; i < 2; i++) {
       final lashes = i == 0;
       _mysticVines.add(
         _MysticVine(
-          root: orb.position + Offset(0, lashes ? -spacing : spacing),
+          root: orb.position + Offset(lashes ? -spacing : spacing, 0),
           ownerSlot: comp.slotIndex,
           lashes: lashes,
           damage: max(5.0, comp.elemAtk * (lashes ? 1.5 : 1.15)),

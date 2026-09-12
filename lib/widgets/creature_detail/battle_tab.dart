@@ -1907,7 +1907,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Plant' => (
           'The Grove • Strength scales reach',
-          'Grows two huge vines beside the caster: one lashes everything that '
+          'Grows two huge vines flanking the orb: one lashes everything that '
               'closes, one spits homing thorns at everything that does not. '
               'They stand while this Mystic is alive and deployed.',
           ['WORLD', 'MELEE', 'TURRET'],
