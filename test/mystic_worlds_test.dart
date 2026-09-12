@@ -401,6 +401,51 @@ void main() {
     );
   });
 
+  test('Lightning gathers before it strikes, and hits the ground it marked',
+      () async {
+    final game = await boot('Lightning');
+    await castOnce(game);
+
+    // Run to the moment the sky marks a spot.
+    for (var f = 0;
+        f < (CosmicSurvivalGame.kMysticStrikeInterval * 60).round() + 120;
+        f++) {
+      keepAlive(game);
+      game.update(1 / 60);
+      if (game.mysticStormChargeCount(0) > 0) break;
+    }
+    expect(
+      game.mysticStormChargeCount(0),
+      1,
+      reason: 'the storm struck with no warning at all',
+    );
+    final marked = game.mysticStormChargeAt(0)!;
+    expect(
+      game.mysticStrikeCount(0),
+      isZero,
+      reason: 'damage landed during the wind-up',
+    );
+
+    // Walk something onto the mark. The bolt commits to a PLACE, so what is
+    // standing there when it lands is what it hits — that is the whole point
+    // of showing the player where it will fall.
+    final victim = game.enemies.firstWhere((e) => !e.isDead)
+      ..hp = 1e9
+      ..isDead = false;
+    for (var f = 0; f < 120 && game.mysticStrikeCount(0) == 0; f++) {
+      victim.position = marked;
+      keepAlive(game);
+      game.update(1 / 60);
+    }
+    expect(game.mysticStrikeCount(0), 1);
+    expect(
+      victim.hp,
+      lessThan(1e9),
+      reason: 'the bolt missed what was standing on its own mark',
+    );
+    expect(game.screenShakeTrauma, greaterThan(0), reason: 'no thunder');
+  });
+
   test('Earth quakes put every enemy on the floor at once', () async {
     final game = await boot('Earth');
     await castOnce(game);

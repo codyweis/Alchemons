@@ -8022,3 +8022,61 @@ void drawMysticFlora({
       );
   }
 }
+
+/// The sky gathering over the spot a Lightning Mystic is about to strike.
+///
+/// Drawn on the ground rather than in the air: the player needs to read WHERE,
+/// and a glow up in the sky tells them nothing they can act on. It tightens as
+/// it charges, so the shrinking ring is the countdown.
+void drawMysticStormCharge({
+  required ui.Canvas canvas,
+  required ui.Offset at,
+  required double progress,
+  required double seed,
+  required double time,
+}) {
+  final t = progress.clamp(0.0, 1.0);
+  // Comes up fast and holds, so the mark is legible for most of the wind-up
+  // rather than only at the end.
+  final a = (t * 3.2).clamp(0.0, 1.0);
+  const outer = 96.0;
+  final ring = outer * (1.0 - 0.62 * t);
+  final pale = const ui.Color(0xFFBFE0FF);
+
+  canvas.drawCircle(
+    at,
+    ring,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 1.4 + 2.2 * t
+      ..color = pale.withValues(alpha: 0.34 * a),
+  );
+  // Sparks running inward along the ring, converging on the point.
+  final spark = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round
+    ..strokeWidth = 1.6
+    ..color = pale.withValues(alpha: 0.55 * a);
+  for (var i = 0; i < 6; i++) {
+    final ang = seed + i * (pi * 2 / 6) + time * 2.4;
+    final dir = ui.Offset(cos(ang), sin(ang));
+    canvas.drawLine(at + dir * ring, at + dir * (ring * 0.62), spark);
+  }
+  // The ground under it brightening as the charge builds.
+  canvas.drawCircle(
+    at,
+    ring * 0.30,
+    ui.Paint()
+      ..color = pale.withValues(alpha: 0.10 + 0.45 * t * t),
+  );
+  // A last hard pip at the moment before it lands.
+  if (t > 0.82) {
+    final snap = (t - 0.82) / 0.18;
+    canvas.drawCircle(
+      at,
+      4.0 + 10.0 * snap,
+      ui.Paint()
+        ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.8 * snap),
+    );
+  }
+}

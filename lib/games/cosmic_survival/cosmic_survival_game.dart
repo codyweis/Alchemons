@@ -689,6 +689,31 @@ class _MysticFlora {
   bool get dead => age >= life;
 }
 
+/// The sky gathering over a spot before it strikes it.
+///
+/// The mark commits to a PLACE, not a body: the roll picks somewhere, and
+/// whatever is standing there when the bolt lands is what it hits. That is
+/// what turns a fixed cadence into something the player can play around,
+/// rather than a turret that fires on a timer.
+class _MysticCharge {
+  _MysticCharge({
+    required this.at,
+    required this.ownerSlot,
+    required this.seed,
+  });
+
+  final Offset at;
+  final int ownerSlot;
+  final double seed;
+
+  double remaining = windUp;
+  static const double windUp = 0.62;
+
+  /// 0 → 1 across the wind-up.
+  double get progress =>
+      (1.0 - (remaining / windUp)).clamp(0.0, 1.0).toDouble();
+}
+
 /// One bolt out of a Lightning Mystic's storm — a visual only; the damage is
 /// dealt the instant it falls.
 class _MysticBolt {
@@ -1303,6 +1328,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final List<_MysticVine> _mysticVines = [];
   final List<_MysticMaw> _mysticMaws = [];
   final List<_MysticBolt> _mysticBolts = [];
+  final List<_MysticCharge> _mysticCharges = [];
   final List<_MysticQuake> _mysticQuakes = [];
   final List<_MysticPool> _mysticPools = [];
   static const int _maxMysticPools = 26;
@@ -7216,6 +7242,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     return 0;
   }
 
+  /// Spots the sky is currently gathering over. Exposed so a test can assert
+  /// the storm telegraphs before it lands rather than simply appearing.
+  @visibleForTesting
+  int mysticStormChargeCount(int slotIndex) =>
+      _mysticCharges.where((c) => c.ownerSlot == slotIndex).length;
+
+  @visibleForTesting
+  Offset? mysticStormChargeAt(int slotIndex) {
+    for (final c in _mysticCharges) {
+      if (c.ownerSlot == slotIndex) return c.at;
+    }
+    return null;
+  }
+
   /// Current screen-shake trauma, 0 when still. Exposed so a test can assert a
   /// quake actually moves the view and then settles — shake is invisible to
   /// every other kind of assertion.
@@ -7333,6 +7373,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         f.age = max(f.age, f.life * 0.80);
       }
     }
+    _mysticCharges.removeWhere((c) => c.ownerSlot == slotIndex);
     _mysticClock.remove(slotIndex);
     _mysticPoisonLastDrop.remove(slotIndex);
   }
@@ -7893,12 +7934,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final Map<int, int> _mysticStrikes = {};
 
   void _strikeMysticLightning(int slotIndex, CosmicSurvivalCompanion owner) {
-    _mysticStrikes[slotIndex] = (_mysticStrikes[slotIndex] ?? 0) + 1;
-    final intel = _effectiveIntelligence(slotIndex);
-    final scale = _hornStatScale(intel, perPoint: 0.15, min: 0.8, max: 2.0);
-    final damage =
-        max(8.0, owner.elemAtk * 5.5 * scale * _mysticWorldPower(slotIndex));
-
     // Bosses stand in the same pool as everything else, so whether a strike
     // lands on one is luck — which is what makes it land.
     final live = [for (final e in enemies) if (!e.isDead) e];
@@ -7907,31 +7942,94 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (total == 0) return;
 
     final pick = _rng.nextInt(total);
-    if (pick < live.length) {
-      final target = live[pick];
-      _mysticBolts.add(
-        _MysticBolt(
-          strike: target.position,
-          seed: _rng.nextDouble() * 6.28,
-          onBoss: false,
-        ),
+    final at = pick < live.length
+        ? live[pick].position
+        : bosses[pick - live.length].position;
+
+    // The sky charges before it strikes.
+    //
+    // A bolt that simply appeared was over before the player could register
+    // it, and there was nothing to play around — a fixed rhythm is only worth
+    // having if you can see the beat coming. The mark commits to a PLACE, so
+    // in the window the player can walk something into it, or pull a boss out.
+    _mysticCharges.add(
+      _MysticCharge(
+        at: at,
+        ownerSlot: slotIndex,
+        seed: _rng.nextDouble() * 6.28,
+      ),
+    );
+  }
+
+  /// Resolves a strike on the spot the sky marked.
+  ///
+  /// Damages the GROUND rather than the body originally rolled: the target may
+  /// have moved, died, or been replaced by something that wandered in, and
+  /// "whatever is standing there when it lands" is both fairer and the thing
+  /// that makes the telegraph worth watching.
+  void _landMysticLightning(_MysticCharge charge) {
+    _mysticStrikes[charge.ownerSlot] =
+        (_mysticStrikes[charge.ownerSlot] ?? 0) + 1;
+    final owner = activeCompanions[charge.ownerSlot];
+    if (owner == null || owner.isDead) return;
+
+    final intel = _effectiveIntelligence(charge.ownerSlot);
+    final scale = _hornStatScale(intel, perPoint: 0.15, min: 0.8, max: 2.0);
+    final damage =
+        max(8.0, owner.elemAtk * 5.5 * scale * _mysticWorldPower(charge.ownerSlot));
+    const splash = 78.0;
+
+    var hitBoss = false;
+    for (final boss in allLivingBosses) {
+      if (!_withinRange(charge.at, boss.position, splash + boss.radius)) {
+        continue;
+      }
+      damageBoss(
+        damage,
+        attackElement: 'Lightning',
+        sourceSlotIndex: charge.ownerSlot,
+        target: boss,
       );
-      _damageEnemy(target, damage, sourceSlotIndex: slotIndex);
-      _spawnHitSpark(target.position, const Color(0xFFE8F4FF));
-    } else {
-      final boss = bosses[pick - live.length];
-      _mysticBolts.add(
-        _MysticBolt(
-          strike: boss.position,
-          seed: _rng.nextDouble() * 6.28,
-          onBoss: true,
-        ),
-      );
-      damageBoss(damage, attackElement: 'Lightning', sourceSlotIndex: slotIndex, target: boss);
       _stunBoss(boss, 1.0);
-      _spawnHitSpark(boss.position, const Color(0xFFFFFFFF));
+      hitBoss = true;
+    }
+    _visitEnemiesNear(charge.at, splash, (enemy) {
+      if (enemy.isDead) return false;
+      if (!_withinRange(charge.at, enemy.position, splash + enemy.radius)) {
+        return false;
+      }
+      _damageEnemy(enemy, damage, sourceSlotIndex: charge.ownerSlot);
+      return false;
+    });
+
+    _mysticBolts.add(
+      _MysticBolt(strike: charge.at, seed: charge.seed, onBoss: hitBoss),
+    );
+    _spawnHitSpark(charge.at, const Color(0xFFE8F4FF));
+    // Lightning lights the whole sky, and the thunder is felt. A boss taking
+    // one earns more of both — that strike bought the player a second.
+    _mysticSkyFlash = max(_mysticSkyFlash, hitBoss ? 1.0 : 0.62);
+    _addShake(hitBoss ? 0.55 : 0.24);
+  }
+
+  void _updateMysticCharges(double dt) {
+    if (_mysticCharges.isEmpty) return;
+    for (var i = _mysticCharges.length - 1; i >= 0; i--) {
+      final charge = _mysticCharges[i];
+      final owner = activeCompanions[charge.ownerSlot];
+      if (owner == null || owner.isDead) {
+        _mysticCharges.removeAt(i);
+        continue;
+      }
+      charge.remaining -= dt;
+      if (charge.remaining > 0) continue;
+      _landMysticLightning(charge);
+      _mysticCharges.removeAt(i);
     }
   }
+
+  /// The sky's flash, decaying. Drawn over the whole viewport.
+  double _mysticSkyFlash = 0;
 
   /// A hard stop, unlike the ordinary chill.
   ///
@@ -8206,7 +8304,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateMysticPools(dt);
     _updateMysticWeatherClocks(dt);
     _updateMysticFlora(dt);
+    _updateMysticCharges(dt);
     _updateShake(dt);
+    if (_mysticSkyFlash > 0) {
+      _mysticSkyFlash = max(0.0, _mysticSkyFlash - dt * 3.4);
+    }
 
     for (final bolt in _mysticBolts) {
       bolt.life -= dt;
@@ -8664,6 +8766,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Drawn in screen space (no world transform) so the tint always
   /// fills the visible camera area. Stacked entries blend additively.
   void _renderMysticEnvironmentOverlay(Canvas canvas) {
+    _renderMysticSkyFlash(canvas);
     if (_mysticEnvironments.isEmpty) return;
     final vw = size.x / _currentZoom;
     final vh = size.y / _currentZoom;
@@ -8712,11 +8815,31 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  /// Lightning lighting the whole sky for an instant.
+  ///
+  /// A bolt is a thin figure on a big dark screen, and on a busy field it was
+  /// easy to miss entirely — the flash is what makes a strike an event rather
+  /// than a decoration that happened somewhere. Kept brief and well under a
+  /// wash, since the player still has to read the fight through it.
+  void _renderMysticSkyFlash(Canvas canvas) {
+    if (_mysticSkyFlash <= 0.01) return;
+    final vw = size.x / _currentZoom;
+    final vh = size.y / _currentZoom;
+    final f = _mysticSkyFlash.clamp(0.0, 1.0);
+    canvas.drawRect(
+      Rect.fromLTWH(ship.position.dx - vw / 2, ship.position.dy - vh / 2, vw, vh),
+      Paint()
+        ..color = const Color(0xFFBFE0FF).withValues(alpha: 0.20 * f * f),
+    );
+  }
+
   /// The inner half of a two-tone world, or null for the elements that are one
   /// colour. Sits between the clear middle and the edge tint.
   Color? _mysticEnvUnderTintColor(String element) => switch (element) {
     // Brown earth beneath the green growing on it.
     'Earth' => const Color(0x3A6B4A28),
+    // Charged air under the storm's dark edge.
+    'Lightning' => const Color(0x2E4A6AC0),
     _ => null,
   };
 
@@ -8729,7 +8852,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       case 'Lava':
         return const Color(0x40C84020);
       case 'Lightning':
-        return const Color(0x28D0E8FF);
+        // A storm sky is dark and charged. A pale blue film read as weather on
+        // a bright day; the bruised violet-blue at the edges is what makes the
+        // white of a strike land against it.
+        return const Color(0x4A2A3A78);
       case 'Water':
         return const Color(0x3010E0FF);
       case 'Ice':
@@ -15505,6 +15631,29 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         alpha: r.fade,
         time: stats.timeElapsed,
         seed: r.seed,
+      );
+    }
+
+    // The sky gathering, under the bodies it is about to hit — it marks the
+    // ground, so anything standing on that ground has to read on top of it.
+    for (final charge in _mysticCharges) {
+      if (!_isWithinViewport(
+        charge.at,
+        110,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 40,
+      )) {
+        continue;
+      }
+      drawMysticStormCharge(
+        canvas: canvas,
+        at: charge.at,
+        progress: charge.progress,
+        seed: charge.seed,
+        time: stats.timeElapsed,
       );
     }
 
