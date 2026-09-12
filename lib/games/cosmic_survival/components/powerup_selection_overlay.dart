@@ -38,7 +38,7 @@ class _C {
 ///
 /// A Mystic world surge is coloured by its ELEMENT: it upgrades one specific
 /// world standing on the map, and it should look like that world.
-Color _cardAccent(PowerUpDef def) {
+Color powerUpAccentColor(PowerUpDef def) {
   final element = def.mysticElement;
   if (element != null) return elementColor(element);
   if (def.isKeystone) return const Color(0xFFE4C16A);
@@ -344,7 +344,7 @@ class _PowerUpCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final def = choice.def;
     final rarity = def.rarity;
-    final accent = _cardAccent(def);
+    final accent = powerUpAccentColor(def);
     final systemLabel = _powerUpSystemLabel(def);
     final systemIcon = _powerUpSystemIcon(def);
     final isCompanion = def.scope == PowerUpScope.companion;

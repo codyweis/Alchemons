@@ -7143,6 +7143,43 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   int mysticPoolCount(int slotIndex) =>
       _mysticPools.where((p) => p.ownerSlot == slotIndex && p.fade > 0).length;
 
+  /// What a slot's Mystic world is doing right now, for the pause readout.
+  ///
+  /// Returns null when that slot is not a Mystic, or has not cast yet. The
+  /// count is whatever that world is MADE of — embers, revenants, vines,
+  /// patches, or the hole itself — so the player can see their world rather
+  /// than being told it exists.
+  ({String element, String noun, int standing, double strength})?
+  mysticWorldReadout(int slotIndex) {
+    final comp = activeCompanions[slotIndex];
+    if (comp == null || comp.member.family.toLowerCase() != 'mystic') {
+      return null;
+    }
+    if (!isMysticFieldSpent(slotIndex)) return null;
+    final element = comp.member.element;
+    final (noun, standing) = switch (element) {
+      'Fire' => ('embers adrift', mysticEmberCount(slotIndex)),
+      'Spirit' => ('revenants risen', mysticRevenantCount(slotIndex)),
+      'Plant' => ('vines standing', mysticVineCount(slotIndex)),
+      'Poison' => ('patches spilled', mysticPoolCount(slotIndex)),
+      'Dark' => (
+        'maw open',
+        _mysticMaws.where((m) => m.ownerSlot == slotIndex && m.fade > 0).length,
+      ),
+      'Lightning' => ('bolts fallen', mysticStrikeCount(slotIndex)),
+      'Earth' => ('quakes run', mysticStrikeCount(slotIndex)),
+      // Blood and Mud place nothing: they are rules on somebody's guns, so
+      // there is no count to give and the readout says so with a zero.
+      _ => ('passive', 0),
+    };
+    return (
+      element: element,
+      noun: noun,
+      standing: standing,
+      strength: mysticWorldStrength(slotIndex),
+    );
+  }
+
   /// How much ground cover this slot's world currently has standing.
   @visibleForTesting
   int mysticFloraCount(int slotIndex) =>

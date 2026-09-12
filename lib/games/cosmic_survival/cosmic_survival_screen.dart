@@ -54,23 +54,27 @@ import 'package:alchemons/widgets/app_icons.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _C {
-  // Matches CosmicScreenStyles: black rather than the browns these were.
-  static const bg0 = Color(0xFF060606);
-  static const bg1 = Color(0xFF0D0D0D);
-  static const bg2 = Color(0xFF121212);
-  static const bg3 = Color(0xFF1A1A1A);
+  // Kept in step with the surge panel's palette. Text was parchment on a
+  // near-identical dark brown-grey, which is where "hard to read" came from:
+  // body copy sat about three stops above its own background. The ground is
+  // cooler and darker now and the text is brighter, so the contrast does the
+  // work instead of the borders.
+  static const bg0 = Color(0xFF050507);
+  static const bg1 = Color(0xFF0B0B10);
+  static const bg2 = Color(0xFF14141B);
+  static const bg3 = Color(0xFF1F1F28);
   static const bg = bg0;
-  static const amber = Color(0xFFC4A35A);
-  static const amberBright = Color(0xFFE4C16A);
+  static const amber = Color(0xFFD9B368);
+  static const amberBright = Color(0xFFF2C96F);
   static const accent = amber;
   static const teal = Color(0xFF5BC8E8);
-  static const textPrimary = Color(0xFFE8DFC8);
-  static const textSecondary = Color(0xFFB5A98A);
-  static const textMuted = Color(0xFF6B6050);
-  static const danger = Color(0xFFC0392B);
-  static const success = Color(0xFF22C55E);
-  static const borderDim = Color(0xFF2E2A23);
-  static const borderAccent = Color(0xFF74613A);
+  static const textPrimary = Color(0xFFF4EEDF);
+  static const textSecondary = Color(0xFFC8BFA8);
+  static const textMuted = Color(0xFF8A8296);
+  static const danger = Color(0xFFFF5A57);
+  static const success = Color(0xFF3FDE8A);
+  static const borderDim = Color(0xFF2B2B36);
+  static const borderAccent = Color(0xFF8A7345);
 }
 
 class _T {
@@ -3058,11 +3062,80 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // VITALS FIRST. The orb is the lose condition and
+                            // it used to be a twelve-point chip sitting beside
+                            // "Kills", weighted exactly the same as a number
+                            // that cannot end your run. A paused player is
+                            // usually paused because something is going wrong,
+                            // and this is the thing they came here to check.
+                            _PauseVitalBar(
+                              label: 'ORB',
+                              value: game.orb.hpPercent,
+                              readout:
+                                  '${(game.orb.hpPercent * 100).round()}%',
+                              tint: _C.amberBright,
+                              critical: game.orb.hpPercent < 0.34,
+                            ),
+                            const SizedBox(height: 8),
+                            _PauseVitalBar(
+                              label: 'SHIP',
+                              value: game.ship.isDead
+                                  ? 0
+                                  : game.ship.hpPercent,
+                              readout: game.ship.isDead
+                                  ? 'DOWN'
+                                  : '${(game.ship.hpPercent * 100).round()}%',
+                              tint: _C.teal,
+                              critical:
+                                  game.ship.isDead || game.ship.hpPercent < 0.34,
+                            ),
+                            const SizedBox(height: 8),
+                            _PauseVitalBar(
+                              label: 'SURGE',
+                              value: game.alchemicalMeterMax > 0
+                                  ? (game.alchemicalMeter /
+                                            game.alchemicalMeterMax)
+                                        .clamp(0.0, 1.0)
+                                  : 0,
+                              readout:
+                                  '${game.alchemicalMeter.round()}/${game.alchemicalMeterMax.round()}',
+                              tint: _C.success,
+                              critical: false,
+                            ),
+                            const SizedBox(height: 16),
+
+                            // THE WORLD. A Mystic's world is the largest thing
+                            // on the map and, until now, the only run state
+                            // with no readout anywhere — the player could not
+                            // see which world was theirs, what it had standing,
+                            // or that pulling the Mystic out would end it.
+                            for (var i = 0; i < party.length; i++)
+                              if (game.mysticWorldReadout(i) case final w?) ...[
+                                _PauseWorldPanel(
+                                  name: cosmicSpecialAbilityName(
+                                    'mystic',
+                                    w.element,
+                                  ),
+                                  element: w.element,
+                                  noun: w.noun,
+                                  standing: w.standing,
+                                  casterName: party[i].displayName,
+                                  fading: w.strength < 0.999,
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
+                            // RUN. Secondary by design: interesting, but never
+                            // the reason anybody opened this screen mid-fight.
                             _PauseStatRow(
                               children: [
                                 _PauseStatChip(
                                   label: 'Wave',
                                   value: '${game.spawner.currentWave}',
+                                ),
+                                _PauseStatChip(
+                                  label: 'Time',
+                                  value: game.stats.formattedTime,
                                 ),
                                 _PauseStatChip(
                                   label: 'Kills',
@@ -3071,36 +3144,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                 _PauseStatChip(
                                   label: 'Score',
                                   value: '${game.stats.score}',
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            _PauseStatRow(
-                              children: [
-                                _PauseStatChip(
-                                  label: 'Time',
-                                  value: game.stats.formattedTime,
-                                ),
-                                _PauseStatChip(
-                                  label: 'Ship',
-                                  value: game.ship.isDead
-                                      ? 'Down'
-                                      : '${(game.ship.hpPercent * 100).round()}%',
-                                ),
-                                _PauseStatChip(
-                                  label: 'Orb',
-                                  value:
-                                      '${(game.orb.hpPercent * 100).round()}%',
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            _PauseStatRow(
-                              children: [
-                                _PauseStatChip(
-                                  label: 'Alchemy',
-                                  value:
-                                      '${game.alchemicalMeter.round()}/${game.alchemicalMeterMax.round()}',
                                 ),
                               ],
                             ),
@@ -3222,15 +3265,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                           decoration: BoxDecoration(
                                             color: _C.bg1,
                                             border: Border.all(
-                                              color: _rarityColor(
-                                                entry.def.rarity,
-                                              ).withValues(alpha: 0.45),
+                                              color: powerUpAccentColor(
+                                              entry.def,
+                                            ).withValues(alpha: 0.55),
                                             ),
                                           ),
                                           child: _PausePowerUpChipContent(
                                             name: entry.def.name,
-                                            tint: _rarityColor(
-                                              entry.def.rarity,
+                                            tint: powerUpAccentColor(
+                                              entry.def,
                                             ),
                                             level: level,
                                             maxStacks: entry.def.maxStacks,
@@ -3984,6 +4027,209 @@ class _PauseStatRow extends StatelessWidget {
   }
 }
 
+/// A vital, as a labelled bar rather than a number in a chip.
+///
+/// A bar answers "how bad is it" before the eye reaches the digits, which is
+/// the question a paused player is actually asking. Chips made orb health,
+/// ship health and kill count all look like the same kind of fact.
+class _PauseVitalBar extends StatelessWidget {
+  const _PauseVitalBar({
+    required this.label,
+    required this.value,
+    required this.readout,
+    required this.tint,
+    required this.critical,
+  });
+
+  final String label;
+  final double value;
+  final String readout;
+  final Color tint;
+  final bool critical;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = critical ? _C.danger : tint;
+    return Row(
+      children: [
+        SizedBox(
+          width: 46,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: _C.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: Stack(
+              children: [
+                Container(height: 14, color: _C.bg3),
+                FractionallySizedBox(
+                  widthFactor: value.clamp(0.0, 1.0),
+                  child: Container(
+                    height: 14,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          color.withValues(alpha: 0.75),
+                          color,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 64,
+          child: Text(
+            readout,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: critical ? _C.danger : _C.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The world a fielded Mystic has made, and the trade that holds it.
+///
+/// Coloured by element and given the widest banner on the screen, because it
+/// is the largest thing on the map and the only run state a player cannot see
+/// the edges of from inside the fight.
+class _PauseWorldPanel extends StatelessWidget {
+  const _PauseWorldPanel({
+    required this.name,
+    required this.element,
+    required this.noun,
+    required this.standing,
+    required this.casterName,
+    required this.fading,
+  });
+
+  final String name;
+  final String element;
+  final String noun;
+  final int standing;
+  final String casterName;
+  final bool fading;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = elementColor(element);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              Color.lerp(_C.bg2, accent, 0.34)!,
+              Color.lerp(_C.bg2, accent, 0.07)!,
+              _C.bg1,
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ),
+          border: Border.all(color: accent.withValues(alpha: 0.55)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 5, color: accent),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(11, 10, 12, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'YOUR WORLD',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: accent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.6,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (fading)
+                            const Text(
+                              'CLOSING',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: _C.danger,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.4,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        name.toUpperCase(),
+                        style: TextStyle(
+                          color: Color.lerp(_C.textPrimary, accent, 0.25),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        standing > 0 ? '$standing $noun' : noun,
+                        style: const TextStyle(
+                          color: _C.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      // The trade, stated plainly. It is the whole mechanic and
+                      // nothing in the game says it out loud anywhere else.
+                      Text(
+                        'Holds while ${casterName.toUpperCase()} is alive and '
+                        'deployed. Recalling ends it and returns the cast.',
+                        style: const TextStyle(
+                          color: _C.textSecondary,
+                          fontSize: 11.5,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PauseStatChip extends StatelessWidget {
   final String label;
   final String value;
@@ -4009,23 +4255,34 @@ class _PauseStatChip extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label.toUpperCase(),
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                color: _C.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
+            // The run row carries four chips rather than three now, so each is
+            // a quarter of the width instead of a third. A long score has to
+            // shrink rather than overflow.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                label.toUpperCase(),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: _C.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              value,
-              style: TextStyle(
-                color: accent,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],
