@@ -425,6 +425,25 @@ void main() {
     run(game, 420);
     expect(game.mysticPoolCount(0), greaterThan(1), reason: 'no trail was laid');
 
+    // A fresh patch arrives unfinished and spreads. Forced by moving the ship
+    // far enough to guarantee a drop on the next frame, rather than hoping the
+    // most recent patch happens to be young — spacing is by distance flown, so
+    // a slow-moving ship can leave the newest patch already fully spread.
+    game.ship.position = game.ship.position + const Offset(400, 0);
+    keepAlive(game);
+    game.update(1 / 60);
+    expect(
+      game.mysticNewestPoolSpread(0),
+      lessThan(0.5),
+      reason: 'the patch laid this instant arrived already spread',
+    );
+    run(game, 60);
+    expect(
+      game.mysticOldestPoolSpread(0),
+      1.0,
+      reason: 'a patch never finished spreading',
+    );
+
     // Spaced by distance flown, so a parked ship does not stack a tower of
     // patches on one spot.
     final parked = game.ship.position;

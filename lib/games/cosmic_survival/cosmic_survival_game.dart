@@ -743,8 +743,26 @@ class _MysticPool {
   double life;
   double fade = 1.0;
 
+  /// Seconds since the ship laid it, so a patch can spread into existence.
+  double age = 0;
+
   /// Per-pool tick gate so a patch does not damage every frame.
   double tick = 0;
+
+  /// How far this patch has spread, 0 → 1 over [spreadTime].
+  ///
+  /// A spill does not arrive finished. Patches used to appear at full size and
+  /// full opacity the instant the ship passed, which read as objects being
+  /// dropped behind it rather than as something running out across the floor.
+  static const double spreadTime = 0.55;
+  double get spread =>
+      spreadTime <= 0 ? 1.0 : (age / spreadTime).clamp(0.0, 1.0);
+
+  /// Eased so it rushes out and settles, the way a liquid does.
+  double get spreadEase {
+    final t = spread;
+    return 1.0 - (1.0 - t) * (1.0 - t);
+  }
 
   bool get dead => life <= 0 || fade <= 0;
 }
@@ -7180,6 +7198,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
   }
 
+  /// How far the most recently laid patch has spread, and the oldest. Exposed
+  /// so a test can assert a spill arrives unfinished and finishes.
+  @visibleForTesting
+  double mysticNewestPoolSpread(int slotIndex) {
+    for (final pool in _mysticPools.reversed) {
+      if (pool.ownerSlot == slotIndex && pool.fade > 0) return pool.spread;
+    }
+    return 0;
+  }
+
+  @visibleForTesting
+  double mysticOldestPoolSpread(int slotIndex) {
+    for (final pool in _mysticPools) {
+      if (pool.ownerSlot == slotIndex && pool.fade > 0) return pool.spread;
+    }
+    return 0;
+  }
+
   /// How much ground cover this slot's world currently has standing.
   @visibleForTesting
   int mysticFloraCount(int slotIndex) =>
@@ -7881,9 +7917,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // Oldest patch goes first, so the trail behaves like a trail.
       _mysticPools.removeAt(0);
     }
+    // Laid from behind the hull rather than under it, so it comes off the
+    // ship's wake instead of materialising beneath the thing the player is
+    // looking at.
+    final trailing =
+        ship.position - Offset(cos(ship.angle), sin(ship.angle)) * 20.0;
     _mysticPools.add(
       _MysticPool(
-        position: ship.position,
+        position: trailing,
         ownerSlot: slotIndex,
         radius: 44.0 * scale,
         damage: max(2.0, owner.elemAtk * 0.55 * scale),
@@ -7902,14 +7943,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         pool.fade = max(0.0, pool.fade - dt * 0.9);
         if (pool.fade <= 0) continue;
       }
+      pool.age += dt;
       pool.life -= dt;
       if (pool.life <= 0 || !standing) continue;
       pool.tick -= dt;
       if (pool.tick > 0) continue;
       pool.tick = 0.45;
-      _visitEnemiesNear(pool.position, pool.radius, (enemy) {
+      // Bites only as far as it has actually spread, so a patch never damages
+      // ground it has not visibly covered yet.
+      final reach = pool.radius * pool.spreadEase;
+      _visitEnemiesNear(pool.position, reach, (enemy) {
         if (enemy.isDead) return false;
-        if (!_withinRange(pool.position, enemy.position, pool.radius + enemy.radius)) {
+        if (!_withinRange(pool.position, enemy.position, reach + enemy.radius)) {
           return false;
         }
         _applyAbilityEffectToEnemy(
@@ -7917,7 +7962,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           enemy,
           pool.position,
           pool.damage,
-          pool.radius,
+          reach,
           2.0,
           sourceSlotIndex: pool.ownerSlot,
           element: 'Poison',
@@ -15191,13 +15236,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
-      // Thins out over its last second rather than vanishing on a frame.
+      // Thins out over its last second rather than vanishing on a frame, and
+      // spreads into existence rather than appearing finished.
       final ebb = pool.life < 1.0 ? pool.life.clamp(0.0, 1.0) : 1.0;
+      final spread = pool.spreadEase;
       drawMysticPoisonPatch(
         canvas: canvas,
         centre: pool.position,
-        radius: pool.radius,
-        alpha: pool.fade * ebb,
+        radius: pool.radius * (0.28 + 0.72 * spread),
+        alpha: pool.fade * ebb * spread,
         seed: pool.seed,
         time: stats.timeElapsed,
         poison: elementColor('Poison'),
