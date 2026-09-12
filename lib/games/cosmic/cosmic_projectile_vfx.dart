@@ -7795,6 +7795,24 @@ void drawMysticPoisonPatch({
 /// Deliberately a different SHAPE per element rather than one sprout in
 /// seventeen colours: a world the player cannot identify from the ground at a
 /// glance is not really changing the map, it is tinting it.
+/// Element colours are tuned for creatures on a light card; several are so
+/// dark they vanish as ground cover on a near-black floor. Lift lightness with
+/// the hue intact — lerping toward white would wash out the vivid ones.
+ui.Color _floraInk(ui.Color c) {
+  // Scaled up by its own brightest channel rather than lerped toward white:
+  // that keeps the hue and the saturation exactly where they were and only
+  // raises the level, so Mud stays brown and Poison stays violet.
+  final peak = [c.r, c.g, c.b].reduce((a, b) => a > b ? a : b);
+  if (peak >= 0.62 || peak <= 0.001) return c;
+  final gain = 0.62 / peak;
+  return ui.Color.from(
+    alpha: c.a,
+    red: (c.r * gain).clamp(0.0, 1.0),
+    green: (c.g * gain).clamp(0.0, 1.0),
+    blue: (c.b * gain).clamp(0.0, 1.0),
+  );
+}
+
 void drawMysticFlora({
   required ui.Canvas canvas,
   required ui.Offset at,
@@ -7807,6 +7825,10 @@ void drawMysticFlora({
 }) {
   if (bloom <= 0.02) return;
   final grow = bloom * size;
+  // Every element's ground cover was built against Plant's sprout and came out
+  // half its size, so on a dark floor only Plant read as anything. The rest are
+  // scaled to match it.
+  final lift = _floraInk(tint);
   final sway = sin(time * 1.4 + seed) * 0.16;
   final bright = ui.Color.lerp(tint, const ui.Color(0xFFFFFFFF), 0.45)!;
 
@@ -7867,16 +7889,16 @@ void drawMysticFlora({
       final flick = 0.7 + 0.3 * sin(time * 6.0 + seed);
       canvas.drawCircle(
         at,
-        7.0 * grow * flick,
+        13.0 * grow * flick,
         ui.Paint()
           ..color = const ui.Color(0xFFFF6A1E).withValues(alpha: 0.16 * bloom),
       );
       final flame = ui.Path()
-        ..moveTo(at.dx - 3.0 * grow, at.dy)
+        ..moveTo(at.dx - 6.0 * grow, at.dy)
         ..quadraticBezierTo(
-          at.dx + sway * 8,
-          at.dy - 11.0 * grow * flick,
-          at.dx + 3.0 * grow,
+          at.dx + sway * 10,
+          at.dy - 24.0 * grow * flick,
+          at.dx + 6.0 * grow,
           at.dy,
         )
         ..close();
@@ -7891,61 +7913,101 @@ void drawMysticFlora({
       final swell = 0.75 + 0.25 * sin(time * 2.2 + seed);
       canvas.drawCircle(
         at,
-        8.0 * grow * swell,
-        ui.Paint()..color = tint.withValues(alpha: 0.26 * bloom),
+        15.0 * grow * swell,
+        ui.Paint()..color = lift.withValues(alpha: 0.30 * bloom),
       );
       canvas.drawCircle(
-        at + ui.Offset(sway * 4, -2.0 * grow),
-        3.2 * grow * swell,
-        ui.Paint()..color = bright.withValues(alpha: 0.55 * bloom),
+        at + ui.Offset(sway * 5, -3.0 * grow),
+        6.4 * grow * swell,
+        ui.Paint()..color = bright.withValues(alpha: 0.62 * bloom),
       );
 
     case 'Spirit':
       // A grave-light: a pale ring standing over nothing.
       canvas.drawCircle(
         at,
-        9.0 * grow,
+        16.0 * grow,
         ui.Paint()
           ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 1.2
+          ..strokeWidth = 1.6
           ..color = const ui.Color(0xFFDCE8FF).withValues(alpha: 0.34 * bloom),
       );
       canvas.drawCircle(
-        at + ui.Offset(sway * 6, -6.0 * grow),
-        2.2 * grow,
+        at + ui.Offset(sway * 7, -11.0 * grow),
+        4.0 * grow,
         ui.Paint()
           ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.70 * bloom),
       );
 
     case 'Lightning':
       // Static crawling on the floor between two points.
-      final arc = ui.Path()..moveTo(at.dx - 9.0 * grow, at.dy);
+      final arc = ui.Path()..moveTo(at.dx - 17.0 * grow, at.dy);
       for (var i = 1; i <= 4; i++) {
         final f = i / 4;
         arc.lineTo(
-          at.dx + (-9.0 + 18.0 * f) * grow,
-          at.dy + sin(seed + i * 2.1 + time * 9) * 4.0 * grow,
+          at.dx + (-17.0 + 34.0 * f) * grow,
+          at.dy + sin(seed + i * 2.1 + time * 9) * 7.0 * grow,
         );
       }
       canvas.drawPath(
         arc,
         ui.Paint()
           ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = const ui.Color(0xFFBFE0FF).withValues(alpha: 0.62 * bloom),
+          ..strokeWidth = 2.0
+          ..color = const ui.Color(0xFFBFE0FF).withValues(alpha: 0.72 * bloom),
+      );
+
+    case 'Mud':
+      // A mire pit: a wet, uneven hole in the floor with a skin that bulges
+      // and pops. Deliberately sunk INTO the ground where Earth's stone is
+      // pushed out of it, so the two brown worlds are not one texture twice.
+      final churn = 0.82 + 0.18 * sin(time * 1.6 + seed);
+      // Mud's element colour is the darkest in the palette and this was
+      // darkening it further, so a mire pit on a near-black floor was almost
+      // nothing at all. Lifted, and the rim catches light like wet ground.
+      for (var i = 0; i < 4; i++) {
+        final ang = seed + i * 1.57;
+        final off = ui.Offset(cos(ang), sin(ang)) * (9.0 * grow);
+        canvas.drawCircle(
+          at + off,
+          (16.0 - i * 1.6) * grow * churn,
+          ui.Paint()..color = lift.withValues(alpha: 0.44 * bloom),
+        );
+      }
+      canvas.drawCircle(
+        at,
+        11.0 * grow * churn,
+        ui.Paint()
+          ..color = ui.Color.lerp(lift, const ui.Color(0xFF2A1608), 0.45)!
+              .withValues(alpha: 0.85 * bloom),
+      );
+      canvas.drawCircle(
+        at + ui.Offset(-2.5 * grow, -3.0 * grow),
+        4.5 * grow * churn,
+        ui.Paint()..color = bright.withValues(alpha: 0.28 * bloom),
+      );
+      // A bubble surfacing and bursting.
+      final burst = (time * 0.9 + seed) % 1.0;
+      canvas.drawCircle(
+        at + ui.Offset(sway * 5, -1.5 * grow),
+        (1.2 + 3.4 * burst) * grow * (1.0 - burst),
+        ui.Paint()
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..color = bright.withValues(alpha: 0.50 * bloom * (1.0 - burst)),
       );
 
     case 'Earth':
       // A stone pushed up out of the floor.
       final stone = ui.Path()
-        ..moveTo(at.dx - 8.0 * grow, at.dy + 3.0 * grow)
-        ..lineTo(at.dx - 4.0 * grow, at.dy - 7.0 * grow)
-        ..lineTo(at.dx + 5.0 * grow, at.dy - 5.0 * grow)
-        ..lineTo(at.dx + 8.0 * grow, at.dy + 3.0 * grow)
+        ..moveTo(at.dx - 15.0 * grow, at.dy + 5.0 * grow)
+        ..lineTo(at.dx - 8.0 * grow, at.dy - 15.0 * grow)
+        ..lineTo(at.dx + 9.0 * grow, at.dy - 11.0 * grow)
+        ..lineTo(at.dx + 15.0 * grow, at.dy + 5.0 * grow)
         ..close();
       canvas.drawPath(
         stone,
-        ui.Paint()..color = tint.withValues(alpha: 0.70 * bloom),
+        ui.Paint()..color = lift.withValues(alpha: 0.82 * bloom),
       );
       canvas.drawPath(
         stone,

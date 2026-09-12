@@ -7578,6 +7578,78 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  double _mysticMireSplatTimer = 0;
+  double _mysticMireDripTimer = 0;
+
+  /// Mud thrown up where a shot lands.
+  ///
+  /// A Mud world is the only one whose mechanic has no shape of its own — the
+  /// enemy simply moves slower, which is almost impossible to see in a crowd.
+  /// This is what makes the brake visible at the moment it is applied.
+  void _splatterMire(Offset at) {
+    if (_mysticMireSplatTimer > 0) return;
+    if (_vfx.length >= 138) return;
+    _mysticMireSplatTimer = 0.07;
+    final mud = elementColor('Mud');
+    final dark = Color.lerp(mud, const Color(0xFF2A1608), 0.55)!;
+    for (var i = 0; i < 7; i++) {
+      if (_vfx.length >= 150) break;
+      final a = _rng.nextDouble() * 2 * pi;
+      final spd = 40 + _rng.nextDouble() * 110;
+      _vfx.add(
+        _VfxParticle(
+          x: at.dx,
+          y: at.dy,
+          vx: cos(a) * spd,
+          vy: sin(a) * spd - 20,
+          size: 1.8 + _rng.nextDouble() * 2.4,
+          life: 0.35 + _rng.nextDouble() * 0.35,
+          color: i.isEven ? mud : dark,
+        ),
+      );
+    }
+  }
+
+  /// Mud sliding off whatever the mire is currently holding.
+  ///
+  /// The splatter marks the hit; this marks the STATE, so a bogged enemy keeps
+  /// looking bogged for as long as it is. Throttled hard and budget-capped —
+  /// a Mud world can have the whole screen slowed at once.
+  void _dripMire(double dt) {
+    final slot = _activeMysticWorldSlot('Mud');
+    if (slot == null) return;
+    final comp = activeCompanions[slot];
+    if (comp == null || comp.isDead) return;
+    _mysticMireDripTimer -= dt;
+    if (_mysticMireDripTimer > 0) return;
+    _mysticMireDripTimer = 0.09;
+    if (_vfx.length >= 132) return;
+
+    final mud = elementColor('Mud');
+    final dark = Color.lerp(mud, const Color(0xFF2A1608), 0.5)!;
+    var dripped = 0;
+    for (final enemy in enemies) {
+      if (dripped >= 3) break;
+      if (enemy.isDead || enemy.slowTimer <= 0) continue;
+      if (enemy.slowMultiplier > 0.45) continue;
+      if (!_isOnScreen(enemy.position, 40)) continue;
+      if (_vfx.length >= 148) break;
+      dripped++;
+      final a = _rng.nextDouble() * 2 * pi;
+      _vfx.add(
+        _VfxParticle(
+          x: enemy.position.dx + cos(a) * enemy.radius * 0.8,
+          y: enemy.position.dy + sin(a) * enemy.radius * 0.8,
+          vx: (_rng.nextDouble() - 0.5) * 14,
+          vy: 34 + _rng.nextDouble() * 26,
+          size: 1.5 + _rng.nextDouble() * 1.6,
+          life: 0.45 + _rng.nextDouble() * 0.3,
+          color: _rng.nextBool() ? mud : dark,
+        ),
+      );
+    }
+  }
+
   // ── DARK: the maw ───────────────────────────────────────────────────────
 
   void _openMysticMaw(CosmicSurvivalCompanion comp) {
@@ -8013,6 +8085,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final multiplier = max(0.02, (0.30 - 0.20 * scale) / surge);
     enemy.slowTimer = max(enemy.slowTimer, 1.4 * surge);
     enemy.slowMultiplier = min(enemy.slowMultiplier, multiplier);
+    _splatterMire(enemy.position);
   }
 
   // ── GROUND COVER: what a world does to the map itself ───────────────────
@@ -8058,10 +8131,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
-  /// Worlds that dress the ground. Not every one should: Dark's map is defined
-  /// by the hole in it, and Blood's and Mud's are rules on somebody's guns —
-  /// growing scenery for those would be decoration that lies about what is
-  /// happening.
+  /// Worlds that dress the ground.
+  ///
+  /// Mud was excluded on the reasoning that a rule on the ship's guns has no
+  /// scenery to justify — which was wrong twice over. Its fiction is that the
+  /// FIELD turns to mud, so mire on the ground is the literal claim, not
+  /// decoration around it; and without any, a Mud world was a brown tint and
+  /// nothing else, by far the thinnest of the nine.
+  ///
+  /// Blood and Dark stay out. Blood genuinely happens on the party's guns and
+  /// nowhere else, and Dark's map is defined by the hole in it.
   static const Set<String> _mysticFloraElements = {
     'Plant',
     'Fire',
@@ -8069,6 +8148,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     'Spirit',
     'Lightning',
     'Earth',
+    'Mud',
   };
 
   /// Per-frame tick for every Mystic world except the ember field, which has
@@ -8077,6 +8157,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (_mysticBloodMoteTimer > 0) {
       _mysticBloodMoteTimer = max(0.0, _mysticBloodMoteTimer - dt);
     }
+    if (_mysticMireSplatTimer > 0) {
+      _mysticMireSplatTimer = max(0.0, _mysticMireSplatTimer - dt);
+    }
+    _dripMire(dt);
     _updateMysticRevenants(dt);
     _updateMysticMaws(dt);
     _updateMysticVines(dt);
@@ -8378,17 +8462,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
         break;
       case 'Mud':
-        // Wet earth: heavier, slower, wider-flung clods that sling sideways
-        // as they fall. Mud sharing Earth's motion made the muddy world and
-        // the stony one the same brown rain.
+        // Mud does not FALL. Earth's world rains stone from above and Mud was
+        // doing the same thing in a wetter brown, which is both the wrong
+        // physics and the pair most needing to be told apart. A mire churns:
+        // it wells up off the floor, rises a little, and sags back.
+        final churn = _rng.nextDouble() * 2 * pi;
         _vfx.add(
           _VfxParticle(
             x: x,
-            y: y - viewH * 0.3,
-            vx: (_rng.nextDouble() - 0.5) * 52,
-            vy: 46 + _rng.nextDouble() * 30,
-            size: 2.4 + _rng.nextDouble() * 2.2,
-            life: 1.0 + _rng.nextDouble() * 0.6,
+            y: y,
+            vx: cos(churn) * (10 + _rng.nextDouble() * 18),
+            // Barely lifts — heavy, wet, and the pool's drag drops it back.
+            vy: -8 - _rng.nextDouble() * 14,
+            size: 2.8 + _rng.nextDouble() * 2.6,
+            life: 1.2 + _rng.nextDouble() * 0.7,
             color: Color.lerp(ec, const Color(0xFF3A2410), 0.55)!,
           ),
         );

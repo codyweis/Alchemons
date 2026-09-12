@@ -79,6 +79,23 @@ void main() {
       );
     }
 
+    // Row 2a — ground cover per element, so two brown worlds can be compared.
+    const cover = ['Plant', 'Mud', 'Earth', 'Fire', 'Poison'];
+    for (var i = 0; i < cover.length; i++) {
+      for (var k = 0; k < 3; k++) {
+        drawMysticFlora(
+          canvas: canvas,
+          at: cell(i, 2) + Offset(-70.0 + k * 70, -150),
+          element: cover[i],
+          size: 1.4,
+          bloom: [0.4, 1.0, 1.0][k],
+          seed: k * 2.1,
+          time: k * 1.7,
+          tint: elementColor(cover[i]),
+        );
+      }
+    }
+
     // Row 2 — the maw opening and holding, and a pair of revenants.
     for (var i = 0; i < 4; i++) {
       final open = [0.3, 0.65, 1.0, 1.0][i];
