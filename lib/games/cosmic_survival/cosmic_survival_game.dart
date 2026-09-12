@@ -689,6 +689,55 @@ class _MysticFlora {
   bool get dead => age >= life;
 }
 
+/// A shard dropped by something that died inside a Crystal world.
+class _MysticCrystal {
+  _MysticCrystal({
+    required this.position,
+    required this.ownerSlot,
+    required this.seed,
+    required this.value,
+  });
+
+  Offset position;
+  final int ownerSlot;
+  final double seed;
+
+  /// How much alchemical meter collecting it is worth.
+  final double value;
+
+  double life = 14.0;
+  double fade = 1.0;
+
+  bool get dead => life <= 0 || fade <= 0;
+}
+
+/// A Light Mystic's star, hanging outside the arena and getting closer to
+/// going off. When it does, everything the player owns goes back to full.
+class _MysticStar {
+  _MysticStar({
+    required this.ownerSlot,
+    required this.position,
+    required this.period,
+  });
+
+  final int ownerSlot;
+  final Offset position;
+
+  /// Seconds from dark to dawn.
+  final double period;
+
+  /// 0 → 1 across [period]. The whole ability is watching this fill.
+  double charge = 0;
+
+  /// Counts down through the flare, so dawn is something that happens rather
+  /// than a number quietly changing.
+  double flare = 0;
+
+  double fade = 1.0;
+
+  bool get dead => fade <= 0;
+}
+
 /// The sky gathering over a spot before it strikes it.
 ///
 /// The mark commits to a PLACE, not a body: the roll picks somewhere, and
@@ -1329,6 +1378,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final List<_MysticMaw> _mysticMaws = [];
   final List<_MysticBolt> _mysticBolts = [];
   final List<_MysticCharge> _mysticCharges = [];
+  final List<_MysticCrystal> _mysticCrystals = [];
+  static const int _maxMysticCrystals = 30;
+  final List<_MysticStar> _mysticStars = [];
   final List<_MysticQuake> _mysticQuakes = [];
   final List<_MysticPool> _mysticPools = [];
   static const int _maxMysticPools = 26;
@@ -1360,6 +1412,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     'Poison',
     'Mud',
     'Earth',
+    'Ice',
+    'Crystal',
+    'Light',
+    'Dust',
   };
 
 
@@ -4369,6 +4425,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           }
         }
         final isSiegeShooter = enemy.conduct == EnemyConduct.standoff;
+        // Inside a Dust world the round may go off in its own face. Checked
+        // here, before the projectile exists, so the shot is spent — a haze
+        // that redirected the shot instead would be Wing+Dust at a larger
+        // size, and that ability already turns shooters on each other.
+        final misfired = _mysticHazeMisfire(enemy);
         enemy.attackCooldown =
             (1.7 - min(enemy.tier.index * 0.12, 0.5)) *
             (isSiegeShooter ? 1.12 : 1.0) *
@@ -4378,32 +4439,36 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                         SurvivalWaveMutator.shatteredSpace)
                 ? 0.82
                 : 1.0);
-        enemyProjectiles.add(
-          SurvivalEnemyProjectile(
-            position: enemy.position,
-            angle: shotAngle,
-            element: enemy.element,
-            friendlyFire: enemy.disorientTimer > 0,
-            damage:
-                enemy.damage *
-                (isSiegeShooter ? 0.95 : 0.8) *
-                ((spawner.currentMutator == SurvivalWaveMutator.arcStorm ||
-                        spawner.currentMutator ==
-                            SurvivalWaveMutator.shatteredSpace)
-                    ? 1.08
-                    : 1.0),
-            target: enemy.target,
-            speed:
-                (210 + enemy.tier.index * 18) *
-                (isSiegeShooter ? 0.9 : 1.0) *
-                ((spawner.currentMutator == SurvivalWaveMutator.arcStorm ||
-                        spawner.currentMutator ==
-                            SurvivalWaveMutator.shatteredSpace)
-                    ? 1.10
-                    : 1.0),
-            radius: isSiegeShooter ? 5.3 : 4.0,
-          ),
-        );
+        // A round that never leaves the barrel is its own failure: the
+        // shot is spent and nothing flies.
+        if (!misfired) {
+          enemyProjectiles.add(
+            SurvivalEnemyProjectile(
+              position: enemy.position,
+              angle: shotAngle,
+              element: enemy.element,
+              friendlyFire: enemy.disorientTimer > 0,
+              damage:
+                  enemy.damage *
+                  (isSiegeShooter ? 0.95 : 0.8) *
+                  ((spawner.currentMutator == SurvivalWaveMutator.arcStorm ||
+                          spawner.currentMutator ==
+                              SurvivalWaveMutator.shatteredSpace)
+                      ? 1.08
+                      : 1.0),
+              target: enemy.target,
+              speed:
+                  (210 + enemy.tier.index * 18) *
+                  (isSiegeShooter ? 0.9 : 1.0) *
+                  ((spawner.currentMutator == SurvivalWaveMutator.arcStorm ||
+                          spawner.currentMutator ==
+                              SurvivalWaveMutator.shatteredSpace)
+                      ? 1.10
+                      : 1.0),
+              radius: isSiegeShooter ? 5.3 : 4.0,
+            ),
+          );
+        }
       }
 
       _applyEnemyContactDamage(enemy, dt);
@@ -4799,6 +4864,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // death — a companion, the ship, a trap, a burn tick — rather than only
     // for whatever path happened to be wired up.
     _raiseMysticRevenant(enemy);
+    _dropMysticCrystal(enemy);
     stats.kills++;
     if (sourceSlotIndex != null) _runStatsFor(sourceSlotIndex).kills++;
     final baseReward = tierShardReward(enemy.tier);
@@ -7212,6 +7278,25 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       ),
       'Lightning' => ('bolts fallen', mysticStrikeCount(slotIndex)),
       'Earth' => ('quakes run', mysticStrikeCount(slotIndex)),
+      'Crystal' => (
+        'shards waiting',
+        _mysticCrystals.where((c) => c.ownerSlot == slotIndex && !c.dead).length,
+      ),
+      'Ice' => (
+        'caught in the blizzard',
+        enemies.where((e) => !e.isDead && e.blizzardMultiplier < 1.0).length,
+      ),
+      'Light' => (
+        'toward dawn',
+        (() {
+          for (final star in _mysticStars) {
+            if (star.ownerSlot == slotIndex) {
+              return (star.charge * 100).round();
+            }
+          }
+          return 0;
+        })(),
+      ),
       // Blood and Mud place nothing: they are rules on somebody's guns, so
       // there is no count to give and the readout says so with a zero.
       _ => ('passive', 0),
@@ -7240,6 +7325,35 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (pool.ownerSlot == slotIndex && pool.fade > 0) return pool.spread;
     }
     return 0;
+  }
+
+  @visibleForTesting
+  int mysticCrystalCount(int slotIndex) =>
+      _mysticCrystals.where((c) => c.ownerSlot == slotIndex && !c.dead).length;
+
+  @visibleForTesting
+  double mysticStarCharge(int slotIndex) {
+    for (final star in _mysticStars) {
+      if (star.ownerSlot == slotIndex) return star.charge;
+    }
+    return -1;
+  }
+
+  @visibleForTesting
+  double? mysticStarPeriod(int slotIndex) {
+    for (final star in _mysticStars) {
+      if (star.ownerSlot == slotIndex) return star.period;
+    }
+    return null;
+  }
+
+  /// Forces the star to the brink, so a test can watch dawn break without
+  /// simulating the better part of a minute.
+  @visibleForTesting
+  void debugRushMysticDawn(int slotIndex) {
+    for (final star in _mysticStars) {
+      if (star.ownerSlot == slotIndex) star.charge = 0.999;
+    }
   }
 
   /// Spots the sky is currently gathering over. Exposed so a test can assert
@@ -7374,6 +7488,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
     _mysticCharges.removeWhere((c) => c.ownerSlot == slotIndex);
+    for (final shard in _mysticCrystals) {
+      if (shard.ownerSlot == slotIndex) shard.fade = min(shard.fade, 0.999);
+    }
+    for (final star in _mysticStars) {
+      if (star.ownerSlot == slotIndex) star.fade = min(star.fade, 0.999);
+    }
+    // A blizzard has to LIFT. It writes to every enemy on the field, so a
+    // world that ended without thawing would leave the arena slowed for the
+    // rest of the run by a Mystic that is no longer there.
+    _thawMysticBlizzard();
     _mysticClock.remove(slotIndex);
     _mysticPoisonLastDrop.remove(slotIndex);
   }
@@ -7441,6 +7565,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       case 'Mud':
         // A rule on the ship's guns; nothing to place.
         break;
+      case 'Ice':
+      case 'Crystal':
+      case 'Dust':
+        // Rules on the whole field; nothing to place.
+        break;
+      case 'Light':
+        _raiseMysticStar(comp);
     }
   }
 
@@ -7924,6 +8055,229 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
 
+  // ── ICE: the blizzard ───────────────────────────────────────────────────
+
+  /// Everything on the field is slowed, always, for as long as the world holds.
+  ///
+  /// Written to a dedicated multiplier rather than the shared slow so it STACKS
+  /// with everything else: the ordinary slow field carries the single strongest
+  /// effect, so a blizzard put there would either be swallowed by a Mud world
+  /// or swallow a frost hit. Weather multiplies what is already happening.
+  void _breatheMysticBlizzard(int slotIndex, CosmicSurvivalCompanion owner) {
+    final intel = _effectiveIntelligence(slotIndex);
+    final scale = _hornStatScale(intel, perPoint: 0.10, min: 0.0, max: 1.0);
+    // 30% slower at the bottom of the stat range, 55% at the top, further with
+    // the surge — and all of it on top of any other slow in play.
+    final surge = _mysticWorldPower(slotIndex);
+    final factor = max(0.22, (0.70 - 0.25 * scale) / surge);
+    for (final enemy in enemies) {
+      if (enemy.isDead) continue;
+      enemy.blizzardMultiplier = factor;
+    }
+  }
+
+  /// Lifts the blizzard off everything. Called when an Ice world ends, so the
+  /// field is not left permanently slowed by a Mystic that is no longer there.
+  void _thawMysticBlizzard() {
+    for (final enemy in enemies) {
+      enemy.blizzardMultiplier = 1.0;
+    }
+  }
+
+  // ── CRYSTAL: the vein ───────────────────────────────────────────────────
+
+  /// A body that dies inside a Crystal world may leave a shard behind.
+  ///
+  /// Called from [_killEnemy], like Spirit's revenants, so it works for every
+  /// source of death rather than only the paths that were wired up.
+  void _dropMysticCrystal(CosmicSurvivalEnemy enemy) {
+    final slot = _activeMysticWorldSlot('Crystal');
+    if (slot == null) return;
+    final owner = activeCompanions[slot];
+    if (owner == null || owner.isDead) return;
+    if (_mysticCrystals.length >= _maxMysticCrystals) return;
+
+    final beauty = _effectiveBeauty(slot);
+    final chance =
+        (0.16 * _hornStatScale(beauty, perPoint: 0.10, min: 0.7, max: 1.8) *
+                _mysticWorldPower(slot))
+            .clamp(0.05, 0.55);
+    if (_rng.nextDouble() > chance) return;
+
+    _mysticCrystals.add(
+      _MysticCrystal(
+        position: enemy.position,
+        ownerSlot: slot,
+        seed: _rng.nextDouble() * 6.28,
+        // Bigger bodies leave more worth picking up.
+        value: 9.0 + enemy.tier.index * 4.0,
+      ),
+    );
+  }
+
+  void _updateMysticCrystals(double dt) {
+    if (_mysticCrystals.isEmpty) return;
+    // Same magnet feel as the Plant flowers, so collecting is a reward rather
+    // than a precision task in the middle of a fight.
+    const collectRadius = 54.0;
+    const magnetRadius = 210.0;
+    for (final shard in _mysticCrystals) {
+      final owner = activeCompanions[shard.ownerSlot];
+      final standing = owner != null && !owner.isDead;
+      if (!standing) {
+        shard.fade = max(0.0, shard.fade - dt * 0.9);
+        if (shard.fade <= 0) continue;
+      }
+      shard.life -= dt;
+      if (shard.life <= 0 || ship.isDead) continue;
+
+      final delta = ship.position - shard.position;
+      final dist = delta.distance;
+      if (dist <= collectRadius) {
+        shard.life = 0;
+        _grantAlchemy(shard.value * _alchemyMeterGainMultiplier);
+        _spawnHitSpark(ship.position, elementColor('Crystal'));
+        continue;
+      }
+      if (dist <= magnetRadius && dist > 0.01) {
+        final t = 1.0 - (dist / magnetRadius);
+        shard.position += (delta / dist) * (380.0 * t * t) * dt;
+      }
+    }
+    _mysticCrystals.removeWhere((c) => c.dead);
+  }
+
+  // ── DUST: the haze ──────────────────────────────────────────────────────
+
+  /// Whether a shooter's round goes off in its own face this time.
+  ///
+  /// Checked where the shot is fired rather than by redirecting the projectile:
+  /// Wing+Dust already turns shooters on each other, and a Dust WORLD doing the
+  /// same thing would be that ability at a larger size. A round that never
+  /// leaves the barrel is its own failure.
+  /// Rounds a Dust world has turned back on their owners. Counted because the
+  /// failure is a shot that never happens, which leaves nothing behind to look
+  /// for afterwards.
+  int _mysticMisfires = 0;
+
+  @visibleForTesting
+  int get mysticMisfireCount => _mysticMisfires;
+
+  /// Rolls the haze against one enemy, as the fire path does.
+  ///
+  /// Exposed because shooter-conduct enemies do not appear until deep waves —
+  /// a test that waited for one to fire naturally would run for minutes and
+  /// still be at the mercy of the spawn table.
+  @visibleForTesting
+  bool debugRollHaze(CosmicSurvivalEnemy enemy) => _mysticHazeMisfire(enemy);
+
+  bool _mysticHazeMisfire(CosmicSurvivalEnemy enemy) {
+    final slot = _activeMysticWorldSlot('Dust');
+    if (slot == null) return false;
+    final owner = activeCompanions[slot];
+    if (owner == null || owner.isDead) return false;
+
+    final intel = _effectiveIntelligence(slot);
+    final chance =
+        (0.22 * _hornStatScale(intel, perPoint: 0.09, min: 0.7, max: 1.7) *
+                _mysticWorldPower(slot))
+            .clamp(0.08, 0.60);
+    if (_rng.nextDouble() > chance) return false;
+
+    _mysticMisfires++;
+    _damageEnemy(enemy, enemy.damage * 1.35, sourceSlotIndex: slot);
+    _spawnHitSpark(enemy.position, elementColor('Dust'));
+    if (_vfx.length < 142) {
+      final dust = elementColor('Dust');
+      for (var i = 0; i < 6; i++) {
+        if (_vfx.length >= 150) break;
+        final a = _rng.nextDouble() * 2 * pi;
+        _vfx.add(
+          _VfxParticle(
+            x: enemy.position.dx,
+            y: enemy.position.dy,
+            vx: cos(a) * (50 + _rng.nextDouble() * 70),
+            vy: sin(a) * (50 + _rng.nextDouble() * 70),
+            size: 1.4 + _rng.nextDouble() * 1.8,
+            life: 0.4 + _rng.nextDouble() * 0.3,
+            color: i.isEven ? dust : const Color(0xFFD6B080),
+          ),
+        );
+      }
+    }
+    return true;
+  }
+
+  // ── LIGHT: the dawn ─────────────────────────────────────────────────────
+
+  void _raiseMysticStar(CosmicSurvivalCompanion comp) {
+    _mysticStars.removeWhere((s) => s.ownerSlot == comp.slotIndex);
+    final beauty = _effectiveBeauty(comp.slotIndex);
+    final scale = _hornStatScale(beauty, perPoint: 0.09, min: 0.75, max: 1.5);
+    _mysticStars.add(
+      _MysticStar(
+        ownerSlot: comp.slotIndex,
+        // Outside the arena entirely, up and to one side. It is a thing on the
+        // horizon rather than a thing in the fight, and the player watches it
+        // get closer to going off.
+        position: orb.position + Offset(_arenaRadius * 0.62, -_arenaRadius * 0.78),
+        // Faster with beauty and with the surge: the whole ability is the wait.
+        period: max(18.0, 46.0 / (scale * _mysticWorldPower(comp.slotIndex))),
+      ),
+    );
+  }
+
+  void _updateMysticStars(double dt) {
+    if (_mysticStars.isEmpty) return;
+    for (final star in _mysticStars) {
+      final owner = activeCompanions[star.ownerSlot];
+      final standing = owner != null && !owner.isDead;
+      if (!standing) {
+        star.fade = max(0.0, star.fade - dt * 0.7);
+        if (star.fade <= 0) continue;
+      }
+      if (star.flare > 0) {
+        star.flare = max(0.0, star.flare - dt * 1.6);
+        continue;
+      }
+      if (!standing) continue;
+      star.charge += dt / star.period;
+      if (star.charge < 1.0) continue;
+      star.charge = 0;
+      star.flare = 1.0;
+      _breakMysticDawn(star.ownerSlot);
+    }
+    _mysticStars.removeWhere((s) => s.dead);
+  }
+
+  /// Dawn. Everything the player owns goes back to full.
+  ///
+  /// A full heal rather than a big one: the ability is the WAIT, and a number
+  /// the player has to compare against their current health is a worse thing to
+  /// watch a countdown for than a promise they already understand.
+  void _breakMysticDawn(int slotIndex) {
+    final before = orb.currentHp;
+    orb.currentHp = orb.maxHp;
+    _recordHeal(orb.currentHp - before, target: 2, sourceSlot: slotIndex);
+    if (!ship.isDead) {
+      final shipBefore = ship.currentHp;
+      ship.currentHp = ship.maxHp;
+      _recordHeal(ship.currentHp - shipBefore, target: 1, sourceSlot: slotIndex);
+    }
+    for (final comp in activeCompanions.values) {
+      if (comp.isDead) continue;
+      final compBefore = comp.currentHp;
+      comp.currentHp = comp.maxHp;
+      _recordHeal(
+        (comp.currentHp - compBefore).toDouble(),
+        target: 0,
+        sourceSlot: slotIndex,
+      );
+    }
+    _mysticSkyFlash = max(_mysticSkyFlash, 1.0);
+    onSound?.call(SoundCue.combatHeal);
+  }
+
   // ── LIGHTNING: the storm ────────────────────────────────────────────────
 
   /// One strike, on the clock. Picks a body at random rather than the biggest
@@ -8305,6 +8659,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateMysticWeatherClocks(dt);
     _updateMysticFlora(dt);
     _updateMysticCharges(dt);
+    _updateMysticCrystals(dt);
+    _updateMysticStars(dt);
     _updateShake(dt);
     if (_mysticSkyFlash > 0) {
       _mysticSkyFlash = max(0.0, _mysticSkyFlash - dt * 3.4);
@@ -8355,6 +8711,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           }
         case 'Poison':
           _trailMysticPoison(slot, comp, dt);
+        case 'Ice':
+          // Reapplied every frame rather than on a timer: bodies spawn into
+          // the blizzard mid-run, and a world that only caught what was
+          // already standing there would thin out as the wave went on.
+          _breatheMysticBlizzard(slot, comp);
       }
     }
   }
@@ -15634,6 +15995,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
 
+    // A Light world's star, behind everything: it hangs outside the arena.
+    for (final star in _mysticStars) {
+      drawMysticDawnStar(
+        canvas: canvas,
+        at: star.position,
+        charge: star.charge,
+        flare: star.flare,
+        alpha: star.fade,
+        time: stats.timeElapsed,
+      );
+    }
+
     // The sky gathering, under the bodies it is about to hit — it marks the
     // ground, so anything standing on that ground has to read on top of it.
     for (final charge in _mysticCharges) {
@@ -15654,6 +16027,30 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         progress: charge.progress,
         seed: charge.seed,
         time: stats.timeElapsed,
+      );
+    }
+
+    // Crystal shards, over the floor so they are never lost under debris.
+    for (final shard in _mysticCrystals) {
+      if (!_isWithinViewport(
+        shard.position,
+        20,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 30,
+      )) {
+        continue;
+      }
+      final ebb = shard.life < 1.5 ? (shard.life / 1.5).clamp(0.0, 1.0) : 1.0;
+      drawMysticCrystalShard(
+        canvas: canvas,
+        at: shard.position,
+        alpha: shard.fade * ebb,
+        seed: shard.seed,
+        time: stats.timeElapsed,
+        tint: elementColor('Crystal'),
       );
     }
 

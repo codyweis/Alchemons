@@ -8080,3 +8080,108 @@ void drawMysticStormCharge({
     );
   }
 }
+
+/// A Crystal world's shard, waiting to be collected.
+void drawMysticCrystalShard({
+  required ui.Canvas canvas,
+  required ui.Offset at,
+  required double alpha,
+  required double seed,
+  required double time,
+  required ui.Color tint,
+}) {
+  if (alpha <= 0.01) return;
+  // Turns slowly and catches the light, so it reads as something valuable
+  // rather than as another projectile lying on the floor.
+  final spin = time * 1.1 + seed;
+  final facet = 0.72 + 0.28 * sin(time * 2.6 + seed);
+  final bob = sin(time * 2.2 + seed) * 2.0;
+  final c = at + ui.Offset(0, bob);
+  final bright = ui.Color.lerp(tint, const ui.Color(0xFFFFFFFF), 0.55)!;
+
+  canvas.drawCircle(
+    c,
+    13.0,
+    ui.Paint()..color = tint.withValues(alpha: 0.14 * alpha * facet),
+  );
+  // A cut gem: two mirrored tapers meeting at the waist.
+  final h = 9.0;
+  final w = 5.4;
+  final dir = ui.Offset(cos(spin), sin(spin));
+  final side = ui.Offset(-dir.dy, dir.dx);
+  final body = ui.Path()
+    ..moveTo(c.dx + dir.dx * h, c.dy + dir.dy * h)
+    ..lineTo(c.dx + side.dx * w, c.dy + side.dy * w)
+    ..lineTo(c.dx - dir.dx * h, c.dy - dir.dy * h)
+    ..lineTo(c.dx - side.dx * w, c.dy - side.dy * w)
+    ..close();
+  canvas.drawPath(body, ui.Paint()..color = tint.withValues(alpha: 0.88 * alpha));
+  canvas.drawPath(
+    body,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..color = bright.withValues(alpha: 0.75 * alpha),
+  );
+  canvas.drawCircle(
+    c,
+    2.0 * facet,
+    ui.Paint()..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.9 * alpha),
+  );
+}
+
+/// A Light world's star, hanging outside the arena and brightening toward dawn.
+///
+/// Drawn huge and far off, because the ability IS the wait: the player needs to
+/// be able to glance at it from anywhere on the field and know how close it is.
+void drawMysticDawnStar({
+  required ui.Canvas canvas,
+  required ui.Offset at,
+  required double charge,
+  required double flare,
+  required double alpha,
+  required double time,
+}) {
+  if (alpha <= 0.01) return;
+  final t = charge.clamp(0.0, 1.0);
+  // Grows through the wait and blows out at the break.
+  final core = 120.0 * (0.32 + 0.68 * t) + 260.0 * flare;
+  final gold = const ui.Color(0xFFFFD98A);
+  final white = const ui.Color(0xFFFFFFFF);
+  final breath = 0.9 + 0.1 * sin(time * 1.4);
+
+  // Corona, as a few nested discs rather than a blur.
+  for (var i = 4; i >= 1; i--) {
+    canvas.drawCircle(
+      at,
+      core * (1.0 + i * 0.55) * breath,
+      ui.Paint()
+        ..color = gold.withValues(alpha: (0.055 - i * 0.008) * alpha * (0.4 + t)),
+    );
+  }
+  canvas.drawCircle(
+    at,
+    core * breath,
+    ui.Paint()..color = gold.withValues(alpha: (0.30 + 0.55 * t) * alpha),
+  );
+  canvas.drawCircle(
+    at,
+    core * 0.58 * breath,
+    ui.Paint()..color = white.withValues(alpha: (0.35 + 0.60 * t) * alpha),
+  );
+
+  // Rays reaching further as it fills, so the progress is readable from across
+  // the arena without a bar.
+  final ray = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round
+    ..strokeWidth = 3.0 + 6.0 * t
+    ..color = gold.withValues(alpha: (0.16 + 0.34 * t) * alpha);
+  for (var i = 0; i < 12; i++) {
+    final ang = i * (pi * 2 / 12) + time * 0.12;
+    final dir = ui.Offset(cos(ang), sin(ang));
+    final inner = core * 1.1;
+    final outer = inner + (60.0 + 220.0 * t) * (i.isEven ? 1.0 : 0.62);
+    canvas.drawLine(at + dir * inner, at + dir * outer, ray);
+  }
+}

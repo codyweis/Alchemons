@@ -114,6 +114,13 @@ class CosmicSurvivalEnemy {
   // HP from them and splits it as healing across all allies until the
   // enemy dies. Cleared on death.
   int? maskBloodDrainSlot;
+  /// Ice Mystic's blizzard. A separate multiplier from [slowMultiplier] on
+  /// purpose: that field holds the single strongest slow currently applied, so
+  /// a blizzard written into it would either be swallowed by a stronger slow or
+  /// swallow one. The world is weather, not an effect competing with effects —
+  /// it multiplies whatever else is already happening.
+  double blizzardMultiplier = 1.0;
+
   // Shared hover/dive steering state (lazily created by whichever mode is
   // driving this enemy). See games/shared/enemy_flight_steering.dart.
   FlightSteeringState? flightSteering;
@@ -169,15 +176,17 @@ class CosmicSurvivalEnemy {
     if (maneRootTimer > 0 || hornPlantRootTimer > 0 || slowMultiplier <= 0) {
       return 0;
     }
+    final blizzard = blizzardMultiplier;
     // The crusher's old `* 1.08` lived in the direction vector, which made a
     // stat look like a steering rule. It is an explicit speed term now.
     final conductBonus = conductSpeedMultiplier(
       conduct,
       heavyBody: hasHeavyBody,
     );
-    if (slowTimer <= 0) return speed * conductBonus;
+    if (slowTimer <= 0) return speed * conductBonus * blizzard;
     return speed *
         conductBonus *
+        blizzard *
         (isRelentless ? max(0.78, slowMultiplier) : slowMultiplier);
   }
 

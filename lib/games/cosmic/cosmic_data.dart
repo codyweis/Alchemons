@@ -10845,66 +10845,13 @@ CosmicSpecialResult _mysticSpecial(
     // The fortification is the environment commitment; the lances
     // are the spectacle.
     // Intelligence drives pillar count (crystalline geometry).
+    // ── ICE: The Blizzard ──
+    // A world, not a salvo — implemented where worlds can exist, in
+    // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
+    // Mystic is bespoke, and a shared projectile table for them is a second
+    // implementation of the same ability that only some modes ever run.
     case 'Ice':
-      final innerPillarCount = scaledCount(
-        casterIntelligence,
-        5,
-        min: 4,
-        max: 7,
-      );
-      // Inner permanent pillars — stationary frost field.
-      for (var i = 0; i < innerPillarCount; i++) {
-        final a = i * (pi * 2 / innerPillarCount);
-        final pos = Offset(origin.dx + cos(a) * 60, origin.dy + sin(a) * 60);
-        projs.add(
-          Projectile(
-            position: pos,
-            angle: a,
-            element: element,
-            damage: damage * 1.2,
-            life: 11.0,
-            stationary: true,
-            radiusMultiplier: 2.6,
-            visualScale: 2.4,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            piercing: true,
-            snareRadius: 100.0,
-            snareMoveMultiplier: 0.18,
-            tickEffect: AbilityEffectKind.freeze,
-            effectPower: damage * 0.30,
-            effectRadius: 100,
-            effectDuration: 1.2,
-          ),
-        );
-      }
-      // Outer launching lances — the spectacle layer.
-      final lanceCount = scaledCount(casterIntelligence, 4, min: 3, max: 6);
-      for (var i = 0; i < lanceCount; i++) {
-        final a = baseAngle + i * (pi * 2 / lanceCount);
-        projs.add(
-          orb(
-            angle: a,
-            orbitRadius: 44,
-            damageMultiplier: 2.2,
-            life: 7.0,
-            orbitSpeed: 1.2,
-            orbitTime: 2.8,
-            homingStrength: 4.5,
-            speedMultiplier: 1.8,
-            radiusMultiplier: 2.0,
-            visualScale: 1.8,
-            piercing: true,
-            clusterCount: 3,
-            clusterDamageMultiplier: 0.7,
-          ),
-        );
-      }
       break;
-
-    // ── STEAM: Whiteout Veil ──
-    // Dense fog zone: stationary snare cloud at target + turret orbs that
-    // fire from within the fog. Area denial + sustained damage.
-    // Intelligence drives fog node + turret count (control mastery).
     case 'Steam':
       final fogCenter = Offset(
         origin.dx + cos(baseAngle) * 100,
@@ -10982,115 +10929,15 @@ CosmicSpecialResult _mysticSpecial(
     // implementation of the same ability that only some modes ever run.
     case 'Mud':
       break;
+    // ── DUST: The Haze ──
+    // A world, not a salvo — implemented where worlds can exist, in
+    // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
+    // Mystic is bespoke, and a shared projectile table for them is a second
+    // implementation of the same ability that only some modes ever run.
     case 'Dust':
-      final stormCenter = Offset(
-        origin.dx + cos(baseAngle) * 80,
-        origin.dy + sin(baseAngle) * 80,
-      );
-      // Central sandstorm zone — disorient + slow, persistent.
-      projs.add(
-        Projectile(
-          position: stormCenter,
-          angle: 0,
-          element: element,
-          damage: damage * 0.85,
-          life: 11.0,
-          stationary: true,
-          radiusMultiplier: 4.0,
-          visualScale: 3.4,
-          visualStyle: ProjectileVisualStyle.mysticOrbital,
-          piercing: true,
-          snareRadius: 175.0,
-          snareMoveMultiplier: 0.45,
-          tickEffect: AbilityEffectKind.suppressShooting,
-          effectPower: damage * 0.30,
-          effectRadius: 175,
-          effectDuration: 1.4,
-        ),
-      );
-      // Golden-spiral mote swarm sweeping outward across the storm.
-      final swarmCount = scaledCount(
-        casterBeauty,
-        14,
-        min: 10,
-        max: 22,
-        perPoint: 2.0,
-      );
-      for (var i = 0; i < swarmCount; i++) {
-        final a = baseAngle + i * (pi * 2 / swarmCount) * 1.618;
-        final r = 12.0 + i * 3.0;
-        projs.add(
-          Projectile(
-            position: Offset(origin.dx + cos(a) * r, origin.dy + sin(a) * r),
-            angle: a,
-            element: element,
-            damage: damage * 0.75,
-            life: 4.0,
-            speedMultiplier: 2.2,
-            radiusMultiplier: 1.0,
-            visualScale: 0.9,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            homing: true,
-            homingStrength: 2.5,
-            bounceCount: 2,
-          ),
-        );
-      }
       break;
-
-    // ── CRYSTAL: Prism Cathedral ──
-    // A crystalline cathedral grows from the field. 5–8 stationary
-    // prism towers form a ring; each tower fires homing crystal
-    // shards that split on impact (cluster). Splash damage radiates
-    // between towers. The whole formation is the environment change.
-    // Beauty drives tower count (prismatic architecture).
     case 'Crystal':
-      final cathedralCenter = Offset(
-        origin.dx + cos(baseAngle) * 90,
-        origin.dy + sin(baseAngle) * 90,
-      );
-      final towerCount = scaledCount(casterBeauty, 6, min: 5, max: 8);
-      for (var i = 0; i < towerCount; i++) {
-        final a = i * (pi * 2 / towerCount);
-        final pos = Offset(
-          cathedralCenter.dx + cos(a) * 110,
-          cathedralCenter.dy + sin(a) * 110,
-        );
-        projs.add(
-          Projectile(
-            position: pos,
-            angle: a,
-            element: element,
-            damage: damage * 1.1,
-            life: 11.0,
-            stationary: true,
-            radiusMultiplier: 2.4,
-            visualScale: 2.2,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            piercing: true,
-            // Towers fire a splitting prism shard every ~0.95s.
-            turretInterval: 0.95,
-            turretDamage: damage * 1.65,
-            turretHomingStrength: 4.5,
-            turretSpeedMultiplier: 1.45,
-            // Per-tower splash radiates between towers when an enemy
-            // is within range — the cathedral "rings" together.
-            tickEffect: AbilityEffectKind.splash,
-            effectPower: damage * 0.55,
-            effectRadius: 130,
-            effectDuration: 0.8,
-            // Towers are INDESTRUCTIBLE — they time out only. At
-            // ultimate cost they shouldn't be killable mid-cast.
-          ),
-        );
-      }
       break;
-
-    // ── AIR: Cyclone Halo ──
-    // Ship-following orbital shield ring that intercepts enemy
-    // projectiles, deals high damage on contact, AND auto-fires wind
-    // gusts at nearby enemies. The cyclone protects + attacks.
-    // Intelligence drives interceptor count (precision defense).
     case 'Air':
       final ringCount = scaledCount(casterIntelligence, 6, min: 4, max: 9);
       for (var i = 0; i < ringCount; i++) {
@@ -11155,60 +11002,13 @@ CosmicSpecialResult _mysticSpecial(
     // implementation of the same ability that only some modes ever run.
     case 'Dark':
       break;
-    case 'Light':
-      final sentinelCount = scaledCount(casterBeauty, 5, min: 3, max: 7);
-      for (var i = 0; i < sentinelCount; i++) {
-        final a = baseAngle + i * (pi * 2 / sentinelCount);
-        projs.add(
-          Projectile(
-            position: Offset(origin.dx + cos(a) * 42, origin.dy + sin(a) * 42),
-            angle: a,
-            element: element,
-            damage: damage * 1.15,
-            life: 10.0,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            visualScale: 1.35,
-            radiusMultiplier: 1.5,
-            orbitCenter: origin,
-            orbitAngle: a,
-            orbitRadius: 42,
-            orbitSpeed: 4.0,
-            holdOrbit: true,
-            followShipOrbit: true,
-            turretInterval: 0.65,
-            turretDamage: damage * 1.4,
-            turretHomingStrength: 4.5,
-            turretSpeedMultiplier: 1.5,
-            interceptRadius: 50.0,
-            interceptCharges: 3,
-          ),
-        );
-      }
-      shipHeal = max(
-        shipHeal,
-        max(1, (CosmicBalance.shipMaxHealth * 0.05).round()),
-      );
-      blessingTimer = max(blessingTimer, 3.8);
-      blessingHealPerTick = max(blessingHealPerTick, damage * 0.07);
-      break;
-
-    // ── BLOOD: Crimson Coronation ──
-    // Orbs materialize AT the target and orbit it briefly before hunting —
-    // a "marking" effect. Trails leave persistent blood pools.
-    // ── BLOOD: Crimson Sanguine ──
-    // Environment-rewriting summon ultimate. A central crimson font
-    // erupts at the target, surrounded by satellite blood pools.
-    // Each pool persistently summons a Blood Thrall — a fast homing
-    // summon that hunts enemies and explodes on contact. Pools also
-    // leech-heal allies and the orb when standing in them.
-    // Strength drives pool count (vital force); pools last 12s, which
-    // the survival lifetime stretch pushes to a sustained 25–30s of
-    // field commitment.
-    // ── BLOOD: The Crimson Tithe ──
+    // ── LIGHT: The Dawn ──
     // A world, not a salvo — implemented where worlds can exist, in
     // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
     // Mystic is bespoke, and a shared projectile table for them is a second
     // implementation of the same ability that only some modes ever run.
+    case 'Light':
+      break;
     case 'Blood':
       break;
     default:
@@ -11403,18 +11203,18 @@ String cosmicSpecialAbilityName(String family, String element) {
         'Lava' => 'Cataclysm Moons',
         'Lightning' => 'The Storm',
         'Water' => 'Tidal Crescent Rite',
-        'Ice' => 'Glacier Crown',
+        'Ice' => 'The Blizzard',
         'Steam' => 'Whiteout Veil',
         'Earth' => 'The Quaking',
         'Mud' => 'The Mire',
-        'Dust' => 'Sirocco Halo',
-        'Crystal' => 'Prism Cathedral',
+        'Dust' => 'The Haze',
+        'Crystal' => 'The Vein',
         'Air' => 'Cyclone Halo',
         'Plant' => 'The Grove',
         'Poison' => 'The Miasma',
         'Spirit' => 'The Turning',
         'Dark' => 'The Maw',
-        'Light' => 'Radiant Crown',
+        'Light' => 'The Dawn',
         'Blood' => 'The Crimson Tithe',
         _ => 'Guardian Ultimate',
       };

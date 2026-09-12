@@ -1599,6 +1599,11 @@ void main() {
     });
 
     test('mystic elements diverge into premium guardian ultimates', () {
+      // Fire against Lava rather than Fire against Crystal: Crystal is a WORLD
+      // now — the dead crystallise and the ship collects the shards — so it
+      // authors no projectiles at all and there is nothing here to compare.
+      // Lava is still a projectile ultimate, and the two are the pair most at
+      // risk of collapsing into one another.
       final fire = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
@@ -1607,11 +1612,11 @@ void main() {
         damage: 10,
         maxHp: 120,
       );
-      final crystal = createCosmicSpecialAbility(
+      final lava = createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
         family: 'mystic',
-        element: 'Crystal',
+        element: 'Lava',
         damage: 10,
         maxHp: 120,
       );
@@ -1623,32 +1628,20 @@ void main() {
         isTrue,
       );
       expect(
-        crystal.projectiles.every(
+        lava.projectiles.every(
           (p) => p.visualStyle == ProjectileVisualStyle.mysticOrbital,
         ),
         isTrue,
       );
-      // Fire mystic redesigned: persistent fire pillars + blast orbs.
-      // Spectacle signals are the trail-leaving blast orbs (any of them
-      // having a trail counts), not the leading pillar in the list.
+      // Fire's spectacle signal is its trail-leaving blast orbs.
       expect(fire.projectiles.any((p) => p.trailInterval > 0), isTrue);
-      // Crystal mystic redesigned to a stationary "Prism Cathedral" of
-      // turret towers that explode into shrapnel. Premium-feel signals
-      // are the persistent turret + the on-destroy burst, not bounce
-      // counts on a flying projectile.
-      expect(
-        crystal.projectiles.any(
-          (p) => p.turretInterval > 0 || p.deathExplosionCount > 0,
-        ),
-        isTrue,
-      );
+      // Lava's is heavy piercing boulders that split into clusters.
+      expect(lava.projectiles.any((p) => p.piercing), isTrue);
+      expect(lava.projectiles.any((p) => p.clusterCount > 0), isTrue);
+      // And they must not be the same cast in two oranges.
       expect(
         fire.projectiles.map((p) => p.orbitRadius).toSet(),
-        isNot(crystal.projectiles.map((p) => p.orbitRadius).toSet()),
-      );
-      expect(
-        fire.projectiles.map((p) => p.damage).reduce(max),
-        isNot(crystal.projectiles.map((p) => p.damage).reduce(max)),
+        isNot(lava.projectiles.map((p) => p.orbitRadius).toSet()),
       );
     });
 
@@ -1658,19 +1651,9 @@ void main() {
       // would all share the empty signature. They are unique by construction —
       // raising the dead, a passive tithe, a hole in the arena, two vines, a
       // storm, a ship-drawn spill, a brake on the ship's guns, a quake — and
-      // are checked in mystic_worlds_test.dart. What this guards is the nine
+      // are checked in mystic_worlds_test.dart. What this guards is the five
       // that ARE still projectile ultimates.
-      const elements = [
-        'Fire',
-        'Lava',
-        'Water',
-        'Ice',
-        'Steam',
-        'Dust',
-        'Crystal',
-        'Air',
-        'Light',
-      ];
+      const elements = ['Fire', 'Lava', 'Water', 'Steam', 'Air'];
 
       final signatures = <String>{};
       for (final element in elements) {

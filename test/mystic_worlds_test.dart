@@ -101,6 +101,10 @@ void main() {
     'Poison',
     'Mud',
     'Earth',
+    'Ice',
+    'Crystal',
+    'Light',
+    'Dust',
   ]) {
     test('$element lights a world once per deployment', () async {
       final game = await boot(element);
@@ -560,6 +564,146 @@ void main() {
       reason:
           'a companion basic must not carry the mire — this world hands the '
           "PLAYER a tool, which is what keeps it distinct from Blood's tithe",
+    );
+  });
+
+  test('Ice slows everything, and the cold lifts when the world ends', () async {
+    final game = await boot('Ice');
+    await castOnce(game);
+    run(game, 60);
+
+    final chilled = game.enemies.where((e) => !e.isDead).toList();
+    expect(chilled, isNotEmpty);
+    expect(
+      chilled.every((e) => e.effectiveSpeed < e.speed),
+      isTrue,
+      reason: 'a blizzard slows the whole field, not a radius of it',
+    );
+
+    // It multiplies whatever else is happening rather than competing with it.
+    // The ordinary slow field holds one value — the single strongest effect —
+    // so a blizzard written there would either swallow another slow or be
+    // swallowed by one.
+    final victim = chilled.first;
+    final blizzardOnly = victim.effectiveSpeed;
+    victim
+      ..slowTimer = 3
+      ..slowMultiplier = 0.5;
+    expect(
+      victim.effectiveSpeed,
+      lessThan(blizzardOnly),
+      reason: 'a second slow did not stack on top of the blizzard',
+    );
+
+    // And it has to LIFT: a field left permanently slowed by a Mystic that is
+    // no longer there would be the bug nobody notices.
+    game.returnCompanion(0);
+    run(game, 30);
+    for (final e in game.enemies) {
+      e
+        ..slowTimer = 0
+        ..slowMultiplier = 1.0;
+    }
+    expect(
+      game.enemies.where((e) => !e.isDead).every(
+        (e) => e.effectiveSpeed >= e.speed * 0.99,
+      ),
+      isTrue,
+      reason: 'the blizzard outlived its Mystic',
+    );
+  });
+
+  test('Crystal leaves shards the ship can draw in', () async {
+    final game = await boot('Crystal');
+    await castOnce(game);
+
+    // Kill enough bodies that the drop chance has to land at least once.
+    for (var i = 0; i < 120 && game.mysticCrystalCount(0) == 0; i++) {
+      final live = game.enemies.where((e) => !e.isDead).toList();
+      if (live.isEmpty) {
+        keepAlive(game);
+        game.update(1 / 60);
+        continue;
+      }
+      game.debugKillEnemy(live.first);
+    }
+    expect(
+      game.mysticCrystalCount(0),
+      greaterThan(0),
+      reason: 'nothing ever crystallised in a hundred and twenty deaths',
+    );
+
+    // Collecting feeds the meter — that is the whole point of the world.
+    game.alchemicalMeter = 0;
+    final shardsBefore = game.mysticCrystalCount(0);
+    for (var f = 0; f < 240 && game.mysticCrystalCount(0) >= shardsBefore; f++) {
+      keepAlive(game);
+      game.update(1 / 60);
+    }
+    expect(
+      game.alchemicalMeter,
+      greaterThan(0),
+      reason: 'a shard was collected and the meter did not move',
+    );
+  });
+
+  test('Light rises, breaks, and puts everything back to full', () async {
+    final game = await boot('Light');
+    await castOnce(game);
+    expect(
+      game.mysticStarCharge(0),
+      inInclusiveRange(0.0, 0.2),
+      reason: 'the star should rise from dark, not arrive nearly full',
+    );
+
+    // Hurt everything, then let dawn break.
+    game.orb.currentHp = game.orb.maxHp * 0.2;
+    game.ship.currentHp = game.ship.maxHp * 0.2;
+    game.debugRushMysticDawn(0);
+    run(game, 6);
+
+    expect(game.orb.currentHp, game.orb.maxHp, reason: 'the orb was not healed');
+    expect(game.ship.currentHp, game.ship.maxHp, reason: 'the ship was not healed');
+    // And it rises again rather than being a one-off.
+    expect(game.mysticStarCharge(0), lessThan(0.2));
+  });
+
+  test('Dust turns rounds back on the enemy that fired them', () async {
+    final game = await boot('Dust');
+    await castOnce(game);
+
+    // Rolled directly rather than waiting for a shooter to fire.
+    // Shooter-conduct enemies do not appear until deep waves — a probe run of
+    // ninety seconds saw ZERO of them, so a test that waited would have been
+    // slow and still at the mercy of the spawn table. What this covers is the
+    // rule; that the rule is wired into the fire path is not covered here.
+    final victim = game.enemies.firstWhere((e) => !e.isDead)..hp = 1e9;
+    var misfires = 0;
+    for (var i = 0; i < 200; i++) {
+      if (game.debugRollHaze(victim)) misfires++;
+    }
+    expect(
+      misfires,
+      greaterThan(0),
+      reason: 'the haze never turned a single round in two hundred rolls',
+    );
+    expect(game.mysticMisfireCount, misfires);
+    expect(
+      victim.hp,
+      lessThan(1e9),
+      reason: 'a round went off in its own face and cost it nothing',
+    );
+
+    // And it does nothing at all without a Dust world standing.
+    game.returnCompanion(0);
+    final settled = game.mysticMisfireCount;
+    for (var i = 0; i < 200; i++) {
+      game.debugRollHaze(victim);
+    }
+    expect(
+      game.mysticMisfireCount,
+      settled,
+      reason: 'the haze outlived its Mystic',
     );
   });
 }

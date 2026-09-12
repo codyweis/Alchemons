@@ -40,12 +40,16 @@ void main() {
       'Poison',
       'Mud',
       'Earth',
+      'Ice',
+      'Crystal',
+      'Light',
+      'Dust',
     };
     expect(
       kMysticWorldPowerUps.map((d) => d.mysticElement).toSet(),
       worlds,
       reason:
-          'the eight Mystics that are still projectile ultimates have nothing '
+          'the Mystics that are still projectile ultimates have nothing '
           'standing on the map to deepen — they get surges when they get worlds',
     );
     expect(

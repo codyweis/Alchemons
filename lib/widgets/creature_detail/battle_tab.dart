@@ -1867,9 +1867,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['HOMING', 'TRAIL', 'PINCER'],
         ),
         'Ice' => (
-          'Glacier Crown • Intelligence scales count',
-          'Forms orbiting ice pillars, then launches them as piercing lances that split into frost clusters.',
-          ['PIERCING', 'CLUSTER', 'BARRIER'],
+          'The Blizzard • Intelligence scales the cold',
+          'The whole arena freezes over: every enemy on the field is slowed for '
+              'as long as the world holds, and it stacks on top of any other '
+              'slow in play. Holds while this Mystic is alive and deployed.',
+          ['WORLD', 'ARENA-WIDE', 'STACKS'],
         ),
         'Steam' => (
           'Whiteout Veil • Intelligence scales count',
@@ -1891,14 +1893,18 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['WORLD', 'SHIP', 'SLOW'],
         ),
         'Dust' => (
-          'Sirocco Halo • Beauty scales count',
-          'Unleashes a spiral swarm of fast projectiles that bounce between enemies.',
-          ['SWARM', 'BOUNCE', 'HOMING'],
+          'The Haze • Intelligence scales the grit',
+          'The air fills with grit. Enemy shooters choke on it — their rounds '
+              'go off in their own faces instead of leaving the barrel. Holds '
+              'while this Mystic is alive and deployed.',
+          ['WORLD', 'MISFIRE', 'SELF-HARM'],
         ),
         'Crystal' => (
-          'Prism Cathedral • Beauty scales count',
-          'Fires prismatic shards that pierce, bounce, and split into fragments on hit.',
-          ['PIERCING', 'BOUNCE', 'CLUSTER'],
+          'The Vein • Beauty scales the yield',
+          'The dead crystallise. Enemies may leave shards behind; the ship '
+              'draws them in, and each one feeds the alchemical meter. Holds '
+              'while this Mystic is alive and deployed.',
+          ['WORLD', 'PICKUP', 'SURGE'],
         ),
         'Air' => (
           'Cyclone Halo • Intelligence scales count',
@@ -1934,9 +1940,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['WORLD', 'DISPLACE', 'CONTROL'],
         ),
         'Light' => (
-          'Radiant Crown • Beauty scales count',
-          'Deploys ship-orbiting sentinels that fire homing light bolts and intercept enemy projectiles.',
-          ['TURRET', 'INTERCEPT', 'ORBITAL'],
+          'The Dawn • Beauty scales the rising',
+          'A star rises outside the arena and slowly brightens. When it breaks, '
+              'everything you own — orb, ship and alchemons — is restored to '
+              'full. Then it rises again. Holds while this Mystic is alive.',
+          ['WORLD', 'FULL HEAL', 'SLOW BURN'],
         ),
         'Blood' => (
           'The Crimson Tithe • Strength and Beauty scale the draw',
