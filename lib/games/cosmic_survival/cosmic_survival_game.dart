@@ -7216,6 +7216,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     return 0;
   }
 
+  /// Distance from [from] to the closest piece of ground cover. Exposed so a
+  /// test can assert the scenery stays out at the rim.
+  @visibleForTesting
+  double mysticFloraNearestTo(Offset from) {
+    var nearest = double.infinity;
+    for (final f in _mysticFlora) {
+      final d = (f.position - from).distance;
+      if (d < nearest) nearest = d;
+    }
+    return nearest;
+  }
+
   /// How much ground cover this slot's world currently has standing.
   @visibleForTesting
   int mysticFloraCount(int slotIndex) =>
@@ -7682,7 +7694,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // everyone reads from. Flanking rather than bracketing because the vines
     // grow upward: stacked north and south, the northern one's canopy hung over
     // the orb and the southern one's over the fight.
-    const spacing = 300.0;
+    const spacing = 430.0;
     for (var i = 0; i < 2; i++) {
       final lashes = i == 0;
       _mysticVines.add(
@@ -8005,11 +8017,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   // ── GROUND COVER: what a world does to the map itself ───────────────────
 
-  /// Seeds ground cover around the arena for whichever world is standing.
+  /// Seeds ground cover for whichever world is standing.
   ///
-  /// Spawned in the ring the fight actually happens in rather than uniformly
-  /// across the arena, which is mostly empty space the player never visits —
-  /// scattering evenly put nearly all of it where nobody would ever see it.
+  /// On the arena's OUTER RING, around the orb — not around the ship. Ground
+  /// cover is scenery: it says what the map is, and it should frame the fight
+  /// from the border rather than grow up through the middle of it, where it
+  /// competes with the enemies and effects the player is actually reading.
   void _updateMysticFlora(double dt) {
     for (final f in _mysticFlora) {
       f.age += dt;
@@ -8028,12 +8041,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (!_mysticFloraElements.contains(comp.member.element)) continue;
       if (_mysticFlora.length >= _maxMysticFlora) break;
 
-      // Around the ship, where the player is looking, but not under it.
+      // A band at the arena's edge — the outer third, the same ring the
+      // outermost families patrol.
       final a = _rng.nextDouble() * 2 * pi;
-      final r = 90.0 + _rng.nextDouble() * 420.0;
+      final r = _arenaRadius * (0.74 + _rng.nextDouble() * 0.22);
       _mysticFlora.add(
         _MysticFlora(
-          position: ship.position + Offset(cos(a), sin(a)) * r,
+          position: orb.position + Offset(cos(a), sin(a)) * r,
           ownerSlot: slot,
           element: comp.member.element,
           size: 0.7 + _rng.nextDouble() * 0.7,

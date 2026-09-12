@@ -224,7 +224,7 @@ void main() {
     );
     expect(
       orb.dx - west.dx,
-      greaterThanOrEqualTo(250),
+      greaterThanOrEqualTo(400),
       reason: 'the grove should stand well back from the orb, not on top of it',
     );
   });
@@ -239,6 +239,14 @@ void main() {
       reason:
           'a tint and a particle storm sit in FRONT of the fight; the ground '
           'has to change too or the map is the same map',
+    );
+
+    // Out at the arena's edge, framing the fight rather than growing up
+    // through the middle of it where it competes with what the player reads.
+    expect(
+      game.mysticFloraNearestTo(game.orb.position),
+      greaterThan(600),
+      reason: 'ground cover sprouted inside the play area',
     );
 
     // Withers rather than blinking out, then the map is back to normal.
