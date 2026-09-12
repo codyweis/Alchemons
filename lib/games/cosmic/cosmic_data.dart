@@ -10852,74 +10852,13 @@ CosmicSpecialResult _mysticSpecial(
     // implementation of the same ability that only some modes ever run.
     case 'Ice':
       break;
-    case 'Steam':
-      final fogCenter = Offset(
-        origin.dx + cos(baseAngle) * 100,
-        origin.dy + sin(baseAngle) * 100,
-      );
-      // Fog cloud nodes — stationary snare zones
-      final fogNodeCount = scaledCount(casterIntelligence, 3, min: 2, max: 5);
-      for (var i = 0; i < fogNodeCount; i++) {
-        final a = i * (pi * 2 / fogNodeCount);
-        projs.add(
-          Projectile(
-            position: Offset(
-              fogCenter.dx + cos(a) * 30,
-              fogCenter.dy + sin(a) * 30,
-            ),
-            angle: a,
-            element: element,
-            damage: damage * 0.95,
-            life: 9.0,
-            stationary: true,
-            radiusMultiplier: 2.8,
-            visualScale: 2.35,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            snareRadius: 152.0,
-            snareMoveMultiplier: 0.18,
-          ),
-        );
-      }
-      // Turret orbs — orbit inside the fog, firing at enemies
-      final turretCount = scaledCount(casterIntelligence, 2, min: 1, max: 4);
-      for (var i = 0; i < turretCount; i++) {
-        final a = baseAngle + i * (pi * 2 / turretCount);
-        projs.add(
-          Projectile(
-            position: fogCenter,
-            angle: a,
-            element: element,
-            damage: damage * 1.35,
-            life: 9.0,
-            visualStyle: ProjectileVisualStyle.mysticOrbital,
-            visualScale: 1.2,
-            radiusMultiplier: 1.4,
-            orbitCenter: fogCenter,
-            orbitAngle: a,
-            orbitRadius: 36,
-            orbitSpeed: 3.5,
-            holdOrbit: true,
-            turretInterval: 0.65,
-            turretDamage: damage * 1.75,
-            turretHomingStrength: 4.0,
-            turretSpeedMultiplier: 1.4,
-          ),
-        );
-      }
-      shipHeal = max(1, (CosmicBalance.shipMaxHealth * 0.03).round());
-      blessingTimer = 2.8;
-      blessingHealPerTick = 0.08;
-      break;
-
-    // ── EARTH: Monolith Constellation ──
-    // 4 massive orbiting decoy pillars that taunt enemies. When destroyed
-    // they explode into shrapnel. Defensive powerhouse.
-    // Strength drives pillar count (massive stone constructs).
-    // ── EARTH: The Quaking ──
+    // ── STEAM: The Pressure ──
     // A world, not a salvo — implemented where worlds can exist, in
     // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
     // Mystic is bespoke, and a shared projectile table for them is a second
     // implementation of the same ability that only some modes ever run.
+    case 'Steam':
+      break;
     case 'Earth':
       break;
     // ── MUD: The Mire ──
@@ -11204,7 +11143,7 @@ String cosmicSpecialAbilityName(String family, String element) {
         'Lightning' => 'The Storm',
         'Water' => 'Tidal Crescent Rite',
         'Ice' => 'The Blizzard',
-        'Steam' => 'Whiteout Veil',
+        'Steam' => 'The Pressure',
         'Earth' => 'The Quaking',
         'Mud' => 'The Mire',
         'Dust' => 'The Haze',

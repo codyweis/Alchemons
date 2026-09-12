@@ -1874,9 +1874,12 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['WORLD', 'ARENA-WIDE', 'STACKS'],
         ),
         'Steam' => (
-          'Whiteout Veil • Intelligence scales count',
-          'Deploys snare clouds plus turret orbs that fire homing shots.',
-          ['SNARE', 'TURRET', 'AREA DENIAL'],
+          'The Pressure • Intelligence scales the blast',
+          'The arena builds pressure and vents it every eight seconds, throwing '
+              'every enemy outward from the orb — hardest on whatever had got '
+              'closest. It hurts nothing; it buys room. Holds while this Mystic '
+              'is alive and deployed.',
+          ['WORLD', 'DISPLACE', 'NO DAMAGE'],
         ),
         'Earth' => (
           'The Quaking • Strength scales the shock',

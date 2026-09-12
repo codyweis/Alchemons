@@ -105,6 +105,7 @@ void main() {
     'Crystal',
     'Light',
     'Dust',
+    'Steam',
   ]) {
     test('$element lights a world once per deployment', () async {
       final game = await boot(element);
@@ -704,6 +705,62 @@ void main() {
       game.mysticMisfireCount,
       settled,
       reason: 'the haze outlived its Mystic',
+    );
+  });
+
+  test('Steam vents throw everything away from the orb, and hurt nothing',
+      () async {
+    final game = await boot('Steam');
+    await castOnce(game);
+
+    // Blown directly rather than waited for. Across eight seconds of clock the
+    // party is shooting the whole time, and that chip damage is
+    // indistinguishable from damage the vent might have done — which is the
+    // one thing this test exists to rule out.
+    final victim = game.enemies.firstWhere((e) => !e.isDead)
+      ..hp = 1e9
+      ..isDead = false
+      ..knockbackVelocity = Offset.zero
+      ..position = game.orb.position + const Offset(40, 0);
+
+    game.debugVentSteam(0);
+
+    // Displacement with no damage is the whole identity: every other world
+    // that clears a crowd does it by hurting one.
+    expect(
+      victim.hp,
+      1e9,
+      reason: 'the vent dealt damage; it is meant to buy room, not kills',
+    );
+    expect(
+      victim.knockbackVelocity.distance,
+      greaterThan(100),
+      reason: 'nothing was thrown',
+    );
+    final away = victim.position - game.orb.position;
+    expect(
+      victim.knockbackVelocity.dx * away.dx +
+          victim.knockbackVelocity.dy * away.dy,
+      greaterThan(0),
+      reason: 'the shove pointed somewhere other than away from the orb',
+    );
+    expect(game.screenShakeTrauma, greaterThan(0));
+
+    // Hardest on whatever is closest to the orb — the thing the vent is for.
+    final far = game.enemies.lastWhere((e) => !e.isDead && !identical(e, victim))
+      ..hp = 1e9
+      ..isDead = false
+      ..knockbackVelocity = Offset.zero
+      ..position = game.orb.position + const Offset(900, 0);
+    victim
+      ..knockbackVelocity = Offset.zero
+      ..position = game.orb.position + const Offset(40, 0);
+    game.debugVentSteam(0);
+    expect(
+      victim.knockbackVelocity.distance,
+      greaterThan(far.knockbackVelocity.distance),
+      reason: 'a uniform shove moves the far ranks as much as the ones on top '
+          'of the thing being defended',
     );
   });
 }

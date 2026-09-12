@@ -689,6 +689,19 @@ class _MysticFlora {
   bool get dead => age >= life;
 }
 
+/// The ring a Steam world's vent throws out. Visual only — the shove itself is
+/// applied the instant it blows.
+class _MysticVent {
+  _MysticVent({required this.centre, required this.radius});
+
+  final Offset centre;
+  final double radius;
+  double age = 0;
+  static const double maxAge = 1.15;
+
+  bool get dead => age >= maxAge;
+}
+
 /// A shard dropped by something that died inside a Crystal world.
 class _MysticCrystal {
   _MysticCrystal({
@@ -1381,6 +1394,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final List<_MysticCrystal> _mysticCrystals = [];
   static const int _maxMysticCrystals = 30;
   final List<_MysticStar> _mysticStars = [];
+  final List<_MysticVent> _mysticVents = [];
   final List<_MysticQuake> _mysticQuakes = [];
   final List<_MysticPool> _mysticPools = [];
   static const int _maxMysticPools = 26;
@@ -1416,6 +1430,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     'Crystal',
     'Light',
     'Dust',
+    'Steam',
   };
 
 
@@ -7278,6 +7293,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       ),
       'Lightning' => ('bolts fallen', mysticStrikeCount(slotIndex)),
       'Earth' => ('quakes run', mysticStrikeCount(slotIndex)),
+      'Steam' => ('vents blown', mysticStrikeCount(slotIndex)),
       'Crystal' => (
         'shards waiting',
         _mysticCrystals.where((c) => c.ownerSlot == slotIndex && !c.dead).length,
@@ -7570,6 +7586,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       case 'Dust':
         // Rules on the whole field; nothing to place.
         break;
+      case 'Steam':
+        _mysticClock[slotIndex] = kMysticVentInterval;
       case 'Light':
         _raiseMysticStar(comp);
     }
@@ -8055,6 +8073,54 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
 
+  // ── STEAM: the pressure ─────────────────────────────────────────────────
+
+  /// Seconds between vents. The world's whole shape is the build and the
+  /// release, so the wait is fixed and readable rather than stat-scaled.
+  static const double kMysticVentInterval = 8.0;
+
+  /// The arena exhales, and everything standing in it is thrown outward.
+  ///
+  /// Pure displacement, no damage. That is the point: it is the exact inverse
+  /// of Dark's maw, which pulls bodies to one fixed place, and it is what
+  /// keeps Steam clear of Ice (slow), Earth (stun) and every other world that
+  /// resolves a crowd by hurting it. A Steam world buys the orb room, over and
+  /// over, and never kills anything for you.
+  void _ventMysticSteam(int slotIndex, CosmicSurvivalCompanion owner) {
+    _mysticStrikes[slotIndex] = (_mysticStrikes[slotIndex] ?? 0) + 1;
+    final intel = _effectiveIntelligence(slotIndex);
+    final scale =
+        _hornStatScale(intel, perPoint: 0.11, min: 0.8, max: 1.7) *
+        _mysticWorldPower(slotIndex);
+    final centre = orb.position;
+    final reach = _arenaRadius * 0.92;
+
+    for (final enemy in enemies) {
+      if (enemy.isDead) continue;
+      final delta = enemy.position - centre;
+      final dist = delta.distance;
+      if (dist > reach) continue;
+      final dir = dist > 0.01
+          ? delta / dist
+          : Offset(cos(_rng.nextDouble() * 2 * pi), sin(_rng.nextDouble() * 2 * pi));
+      // Hardest on whatever is closest to the orb, which is the thing the vent
+      // is for. A uniform shove would move the far ranks as much as the ones
+      // actually on top of what is being defended.
+      final closeness = 1.0 - (dist / reach);
+      final push = (300.0 + 620.0 * closeness * closeness) * scale;
+      enemy.knockbackVelocity += dir * push;
+    }
+    // A boss is too heavy to throw, so the pressure staggers it instead — a
+    // world that did nothing at all on boss waves would be a dead pick there.
+    for (final boss in allLivingBosses) {
+      _stunBoss(boss, 0.45);
+    }
+
+    _mysticVents.add(_MysticVent(centre: centre, radius: reach));
+    _addShake(0.45);
+    onSound?.call(SoundCue.combatHitHeavy);
+  }
+
   // ── ICE: the blizzard ───────────────────────────────────────────────────
 
   /// Everything on the field is slowed, always, for as long as the world holds.
@@ -8162,6 +8228,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   @visibleForTesting
   int get mysticMisfireCount => _mysticMisfires;
+
+  /// Blows a Steam world's vent now, exactly as the clock does.
+  ///
+  /// Exposed so a test can assert the vent itself deals no damage: waiting for
+  /// the clock means the party spends those eight seconds shooting, and the
+  /// chip damage from that is indistinguishable from damage the vent might
+  /// have done.
+  @visibleForTesting
+  void debugVentSteam(int slotIndex) {
+    final comp = activeCompanions[slotIndex];
+    if (comp == null) return;
+    _ventMysticSteam(slotIndex, comp);
+  }
 
   /// Rolls the haze against one enemy, as the fire path does.
   ///
@@ -8674,6 +8753,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       quake.age += dt;
     }
     _mysticQuakes.removeWhere((q) => q.dead);
+    for (final vent in _mysticVents) {
+      vent.age += dt;
+    }
+    _mysticVents.removeWhere((v) => v.dead);
   }
 
   /// Drives the worlds that happen on a clock — Lightning's strikes, Earth's
@@ -8711,6 +8794,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           }
         case 'Poison':
           _trailMysticPoison(slot, comp, dt);
+        case 'Steam':
+          final beat = kMysticVentInterval / _mysticWorldPower(slot);
+          final next = (_mysticClock[slot] ?? beat) - dt;
+          if (next <= 0) {
+            _mysticClock[slot] = beat;
+            _ventMysticSteam(slot, comp);
+          } else {
+            _mysticClock[slot] = next;
+          }
         case 'Ice':
           // Reapplied every frame rather than on a timer: bodies spawn into
           // the blizzard mid-run, and a world that only caught what was
@@ -15896,6 +15988,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         seed: pool.seed,
         time: stats.timeElapsed,
         poison: elementColor('Poison'),
+      );
+    }
+
+    // Steam Mystic's vents, on the floor with the quakes.
+    for (final vent in _mysticVents) {
+      drawMysticVent(
+        canvas: canvas,
+        centre: vent.centre,
+        radius: vent.radius,
+        progress: vent.age / _MysticVent.maxAge,
+        time: stats.timeElapsed,
       );
     }
 

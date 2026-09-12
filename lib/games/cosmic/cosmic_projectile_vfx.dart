@@ -8185,3 +8185,51 @@ void drawMysticDawnStar({
     canvas.drawLine(at + dir * inner, at + dir * outer, ray);
   }
 }
+
+/// A Steam world venting: the arena exhaling, and the front of that exhale
+/// running outward past everything it just threw.
+///
+/// Deliberately unlike Earth's quake ring, which is a hard crack with dust
+/// trailing it. This is soft, billowing and pale — pressure, not fracture —
+/// because the two are the only worlds that resolve as an arena-wide ring and
+/// they have to be told apart at a glance.
+void drawMysticVent({
+  required ui.Canvas canvas,
+  required ui.Offset centre,
+  required double radius,
+  required double progress,
+  required double time,
+}) {
+  final t = progress.clamp(0.0, 1.0);
+  if (t >= 1) return;
+  final eased = 1.0 - (1.0 - t) * (1.0 - t);
+  final a = (1.0 - t) * (1.0 - t);
+  final r = radius * eased;
+  final pale = const ui.Color(0xFFE6F2FF);
+
+  // The front, as a soft band rather than a line.
+  final band = ui.Paint()..style = ui.PaintingStyle.stroke;
+  for (var i = 0; i < 3; i++) {
+    band
+      ..strokeWidth = (34.0 - i * 10.0) * a + 2.0
+      ..color = pale.withValues(alpha: (0.10 - i * 0.025) * a);
+    canvas.drawCircle(centre, r * (1.0 - i * 0.03), band);
+  }
+  band
+    ..strokeWidth = 3.0 * a + 1.0
+    ..color = pale.withValues(alpha: 0.42 * a);
+  canvas.drawCircle(centre, r, band);
+
+  // Billows rolling along the front — the thing that makes it read as vapour
+  // rather than as a shockwave.
+  final puff = ui.Paint()..color = pale.withValues(alpha: 0.13 * a);
+  for (var i = 0; i < 18; i++) {
+    final ang = i * (pi * 2 / 18) + sin(time * 0.8 + i) * 0.08;
+    final wobble = 1.0 + sin(i * 2.3 + time * 3.0) * 0.05;
+    canvas.drawCircle(
+      centre + ui.Offset(cos(ang), sin(ang)) * (r * wobble),
+      (20.0 + 26.0 * t) * a + 4.0,
+      puff,
+    );
+  }
+}

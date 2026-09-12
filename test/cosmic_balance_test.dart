@@ -1651,9 +1651,9 @@ void main() {
       // would all share the empty signature. They are unique by construction —
       // raising the dead, a passive tithe, a hole in the arena, two vines, a
       // storm, a ship-drawn spill, a brake on the ship's guns, a quake — and
-      // are checked in mystic_worlds_test.dart. What this guards is the five
+      // are checked in mystic_worlds_test.dart. What this guards is the four
       // that ARE still projectile ultimates.
-      const elements = ['Fire', 'Lava', 'Water', 'Steam', 'Air'];
+      const elements = ['Fire', 'Lava', 'Water', 'Air'];
 
       final signatures = <String>{};
       for (final element in elements) {

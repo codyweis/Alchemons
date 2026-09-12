@@ -668,6 +668,19 @@ const kMysticWorldPowerUps = [
     favoredFamilies: ['mystic'],
     mysticElement: 'Dust',
   ),
+  PowerUpDef(
+    id: 'world_steam',
+    name: 'Rising Pressure',
+    description: 'The arena vents sooner and throws harder',
+    icon: '♨️',
+    category: PowerUpCategory.mysticWorld,
+    rarity: PowerUpRarity.rare,
+    scope: PowerUpScope.companion,
+    maxStacks: 3,
+    tags: [PowerUpTag.control, PowerUpTag.tempo],
+    favoredFamilies: ['mystic'],
+    mysticElement: 'Steam',
+  ),
 ];
 
 const kAllPowerUps = [
