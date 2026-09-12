@@ -6,7 +6,6 @@ import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:flame/components.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// What a Mystic cast costs per frame, and how many projectiles it leaves on

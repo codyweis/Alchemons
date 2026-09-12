@@ -11823,7 +11823,7 @@ String cosmicSpecialAbilityName(String family, String element) {
       };
     case 'mystic':
       return switch (element) {
-        'Fire' => 'Solar Flare Procession',
+        'Fire' => 'The Ember Season',
         'Lava' => 'Cataclysm Moons',
         'Lightning' => 'Storm Lattice',
         'Water' => 'Tidal Crescent Rite',
@@ -11834,12 +11834,12 @@ String cosmicSpecialAbilityName(String family, String element) {
         'Dust' => 'Sirocco Halo',
         'Crystal' => 'Prism Cathedral',
         'Air' => 'Cyclone Halo',
-        'Plant' => 'Verdant Procession',
+        'Plant' => 'The Grove',
         'Poison' => 'Venom Halo',
-        'Spirit' => 'Wraith Chorus',
-        'Dark' => 'Eclipse Procession',
+        'Spirit' => 'The Turning',
+        'Dark' => 'The Maw',
         'Light' => 'Radiant Crown',
-        'Blood' => 'Crimson Coronation',
+        'Blood' => 'The Crimson Tithe',
         _ => 'Guardian Ultimate',
       };
     default:

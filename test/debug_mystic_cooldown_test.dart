@@ -4,7 +4,6 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:flame/components.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The developer-tools switch collapses Mystic's cadence to five seconds so a

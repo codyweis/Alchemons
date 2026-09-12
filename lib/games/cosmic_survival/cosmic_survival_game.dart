@@ -608,6 +608,117 @@ class _MysticEmber {
   double fade = 1.0;
 }
 
+/// A small enemy that died inside a Spirit Mystic's world and came back on our
+/// side: white, lit from within, hunting whatever it used to fight beside.
+///
+/// It is not a summon the cast pays for — it is the fight's own dead. A Spirit
+/// world therefore gets stronger exactly when the screen is worst, which is the
+/// opposite of how every other ability in the game scales.
+class _MysticRevenant {
+  _MysticRevenant({
+    required this.position,
+    required this.ownerSlot,
+    required this.damage,
+    required this.radius,
+    required this.speed,
+    required this.seed,
+    required this.life,
+  });
+
+  Offset position;
+  Offset velocity = Offset.zero;
+  final int ownerSlot;
+  final double damage;
+  final double radius;
+  final double speed;
+  final double seed;
+
+  /// Seconds left before it goes back to being dead.
+  double life;
+
+  /// Ramps 0 → 1 as the body turns over: the colour drains out of it and the
+  /// glow comes up. The turn is the whole point of the mechanic, so it is
+  /// animated rather than instant.
+  double rise = 0;
+
+  /// Per-strike recovery so a revenant parked on something does not grind it
+  /// down every frame.
+  double strikeCooldown = 0;
+
+  /// 1 while the world holds; drains once the caster is gone.
+  double fade = 1.0;
+
+  bool get dead => life <= 0 || fade <= 0;
+}
+
+/// The hole a Dark Mystic tears in the north of the arena.
+///
+/// It does not kill: it drags, swallows, and spits whatever it swallowed back
+/// out at the rim. That makes Dark the one Mystic that buys distance rather
+/// than damage — the northern approach stops existing while it is open.
+class _MysticMaw {
+  _MysticMaw({
+    required this.position,
+    required this.ownerSlot,
+    required this.radius,
+    required this.damage,
+  });
+
+  final Offset position;
+  final int ownerSlot;
+
+  /// How far the pull reaches. The event horizon is a small fraction of it.
+  final double radius;
+  final double damage;
+
+  double spin = 0;
+
+  /// Ramps 0 → 1 as it opens, so the hole tears rather than appearing.
+  double open = 0;
+
+  double fade = 1.0;
+
+  bool get dead => fade <= 0;
+
+  double get horizon => radius * 0.17;
+}
+
+/// One of the two vines a Plant Mystic grows. They are the cast: one lashes
+/// what comes close, one spits thorns at what does not.
+class _MysticVine {
+  _MysticVine({
+    required this.root,
+    required this.ownerSlot,
+    required this.lashes,
+    required this.damage,
+    required this.reach,
+    required this.seed,
+  });
+
+  final Offset root;
+  final int ownerSlot;
+
+  /// true = the lasher, false = the spitter. Two jobs so a grove covers both
+  /// ranges instead of being one turret twice.
+  final bool lashes;
+  final double damage;
+
+  /// Melee sweep radius for the lasher; firing range for the spitter.
+  final double reach;
+  final double seed;
+
+  /// 0 → 1 while it grows out of the ground.
+  double growth = 0;
+  double cooldown = 0;
+
+  /// Counts 1 → 0 through a lash, driving the whip in the renderer.
+  double swing = 0;
+  double aimAngle = -pi / 2;
+  double fade = 1.0;
+
+  bool get dead => fade <= 0;
+}
+
 /// The world a Mystic makes: viewport tint plus an ambient particle storm.
 ///
 /// It used to run on a fixed eighteen-second timer, which made the world a
@@ -1070,6 +1181,38 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final List<_MysticEmber> _mysticEmbers = [];
   static const int _maxMysticEmbers = 90;
 
+  final List<_MysticRevenant> _mysticRevenants = [];
+  static const int _maxMysticRevenants = 16;
+
+  final List<_MysticVine> _mysticVines = [];
+  final List<_MysticMaw> _mysticMaws = [];
+
+  /// Elements whose Mystic cast stops being a spell and becomes the map.
+  ///
+  /// A world is lit once per deployment, holds for as long as its caster is
+  /// alive and out, and dies with it. The rest of the roster still throws the
+  /// projectile ultimate from the shared ability table.
+  static const Set<String> _mysticWorldElements = {
+    'Fire',
+    'Spirit',
+    'Blood',
+    'Dark',
+    'Plant',
+  };
+
+  /// Worlds that ARE the whole ability, so survival drops the salvo the shared
+  /// table generated for them. Only Fire keeps its cast: the collapse is what
+  /// lights the field it leaves behind. Blood is passive by design, Dark's hole
+  /// and Plant's grove replace what they used to throw, and Spirit's old wraith
+  /// chorus held about eighty of the 220 shared projectile slots on its trails
+  /// alone — the revenants are the ability now.
+  static const Set<String> _mysticWorldReplacesCast = {
+    'Spirit',
+    'Blood',
+    'Dark',
+    'Plant',
+  };
+
   /// Slots whose Mystic has already cast this deployment. A Mystic's world is
   /// cast ONCE — the ability comes back only by recalling and redeploying it,
   /// which costs the field.
@@ -1352,6 +1495,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateKinSupportTick(dt);
     _updateMysticEnvironments(dt);
     _updateMysticEmbers(dt);
+    _updateMysticWorlds(dt);
     _updateSpiritWisps(dt);
     if (_maskSpiritNukeFlash > 0) {
       _maskSpiritNukeFlash = max(0, _maskSpiritNukeFlash - dt * 1.2);
@@ -1755,7 +1899,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             width: 2.1 + turretLevel * 0.35,
             life: 0.08,
           );
-          _damageEnemy(target, beamDamage);
+          _damageEnemy(target, beamDamage, autoAttack: true);
         } else {
           SurvivalBoss? best;
           double bestDist = 560;
@@ -1776,7 +1920,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               width: 2.1 + turretLevel * 0.35,
               life: 0.08,
             );
-            damageBoss(beamDamage, target: best);
+            damageBoss(beamDamage, target: best, autoAttack: true);
           }
         }
       }
@@ -2623,6 +2767,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             _feedOrSpawnMaskPlantVine(slotIndex, specialProjectiles);
           } else if (isMaskDustSpecial) {
             _spawnMaskDustShields(slotIndex, specialProjectiles);
+          } else if (_mysticCastReplacesSalvo(comp)) {
+            // The world IS the ability for these. Appending the shared table's
+            // salvo on top would hand them a free ultimate every deployment
+            // AND make them read as "a big cast that also does something",
+            // which is the thing the redesign is getting away from.
           } else {
             _appendCompanionProjectiles(specialProjectiles);
           }
@@ -2639,12 +2788,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // simultaneous mystics stack their tints.
           if (comp.member.family.toLowerCase() == 'mystic') {
             _pushMysticEnvironment(comp.member.element, slotIndex);
-            // Fire's world is a drifting ember field that outlives the cast,
-            // so the cast is spent for this deployment. Recalling the Mystic
-            // (or losing it) is what gives the ability back — and costs the
-            // field.
-            if (comp.member.element == 'Fire') {
-              _igniteMysticEmberField(comp);
+            // A world outlives its cast, so the cast is spent for this
+            // deployment. Recalling the Mystic (or losing it) is what gives the
+            // ability back — and costs the world.
+            if (_mysticWorldElements.contains(comp.member.element)) {
+              _igniteMysticWorld(comp, slotIndex);
               _mysticSpentSlots.add(slotIndex);
               // Developer tools re-arm the cast instead of locking it to the
               // deployment, so the field can be re-lit over and over while its
@@ -4447,6 +4595,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     double damage, {
     int? sourceSlotIndex,
     bool fromPipSpecial = false,
+    bool autoAttack = false,
   }) {
     damage *= outbreak?.damageMultiplier(enemy) ?? 1.0;
     damage *= _companionOutgoingDamageMultiplier(
@@ -4472,10 +4621,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       enemy.hp -= damage;
     }
 
-    if (sourceSlotIndex != null) {
-      final dealt = hpBefore - max(enemy.hp, 0.0);
-      if (dealt > 0) _runStatsFor(sourceSlotIndex).damageDealt += dealt;
+    final dealt = hpBefore - max(enemy.hp, 0.0);
+    if (sourceSlotIndex != null && dealt > 0) {
+      _runStatsFor(sourceSlotIndex).damageDealt += dealt;
     }
+    if (autoAttack) _payMysticBloodTithe(dealt, enemy.position);
 
     if (enemy.hp <= 0) {
       _killEnemy(
@@ -4495,6 +4645,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (enemy.isDead) return;
     onSound?.call(SoundCue.combatEnemyDefeat);
     enemy.isDead = true;
+    // Inside a Spirit world the chaff gets back up on our side. Done here,
+    // at the one place a body actually dies, so it works for every source of
+    // death — a companion, the ship, a trap, a burn tick — rather than only
+    // for whatever path happened to be wired up.
+    _raiseMysticRevenant(enemy);
     stats.kills++;
     if (sourceSlotIndex != null) _runStatsFor(sourceSlotIndex).kills++;
     final baseReward = tierShardReward(enemy.tier);
@@ -6050,9 +6205,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     String? attackElement,
     int? sourceSlotIndex,
     SurvivalBoss? target,
+    bool autoAttack = false,
   }) {
     final boss = target ?? activeBoss;
     if (boss == null || boss.isDead) return;
+    // A Blood world tithes from bosses as well. Taken off the incoming figure
+    // rather than the post-shield one: what the player feels is the shot they
+    // fired, and a boss with its shield up would otherwise quietly turn the
+    // world off.
+    if (autoAttack) _payMysticBloodTithe(damage, boss.position);
 
     damage *= _companionOutgoingDamageMultiplier(sourceSlotIndex, vsBoss: true);
 
@@ -6859,6 +7020,52 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     return strongest;
   }
 
+  /// Everything a slot's world currently has standing on the field — embers,
+  /// revenants, vines, holes. Exposed so a test can assert that nothing a world
+  /// placed outlives the world itself.
+  @visibleForTesting
+  int mysticWorldEntityCount(int slotIndex) =>
+      mysticEmberCount(slotIndex) +
+      mysticRevenantCount(slotIndex) +
+      mysticVineCount(slotIndex) +
+      _mysticMaws.where((m) => m.ownerSlot == slotIndex && m.fade > 0).length;
+
+  @visibleForTesting
+  int mysticRevenantCount(int slotIndex) =>
+      _mysticRevenants.where((r) => r.ownerSlot == slotIndex && !r.dead).length;
+
+  @visibleForTesting
+  int mysticVineCount(int slotIndex) =>
+      _mysticVines.where((v) => v.ownerSlot == slotIndex && v.fade > 0).length;
+
+  @visibleForTesting
+  int mysticVineLashCount(int slotIndex) => _mysticVines
+      .where((v) => v.ownerSlot == slotIndex && v.fade > 0 && v.lashes)
+      .length;
+
+  @visibleForTesting
+  Offset? mysticMawPosition(int slotIndex) {
+    for (final maw in _mysticMaws) {
+      if (maw.ownerSlot == slotIndex && maw.fade > 0) return maw.position;
+    }
+    return null;
+  }
+
+  /// Kills a body the way the game does, so a test can watch what the death
+  /// triggers rather than reaching into the rules that trigger on it.
+  @visibleForTesting
+  void debugKillEnemy(CosmicSurvivalEnemy enemy) => _killEnemy(enemy);
+
+  /// The two halves of the Blood tithe's gate, as a test can drive them:
+  /// damage that came from somebody's basic attack, and damage that did not.
+  @visibleForTesting
+  void debugAutoAttackDamage(CosmicSurvivalEnemy enemy, double damage) =>
+      _damageEnemy(enemy, damage, autoAttack: true);
+
+  @visibleForTesting
+  void debugAbilityDamage(CosmicSurvivalEnemy enemy, double damage) =>
+      _damageEnemy(enemy, damage);
+
   /// How far this slot's embers reach from [from] — the distance to the
   /// furthest one. Exposed so a test can assert the field covers the arena
   /// rather than orbiting its caster.
@@ -6881,6 +7088,401 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     for (final ember in _mysticEmbers) {
       if (ember.ownerSlot == slotIndex) ember.fade = min(ember.fade, 0.999);
     }
+    // Every world goes out the same way, and none of them blink: a world
+    // ending is the consequence the player is meant to watch.
+    for (final r in _mysticRevenants) {
+      if (r.ownerSlot == slotIndex) r.fade = min(r.fade, 0.999);
+    }
+    for (final v in _mysticVines) {
+      if (v.ownerSlot == slotIndex) v.fade = min(v.fade, 0.999);
+    }
+    for (final m in _mysticMaws) {
+      if (m.ownerSlot == slotIndex) m.fade = min(m.fade, 0.999);
+    }
+  }
+
+  /// True when this Mystic's world takes the place of the salvo the shared
+  /// ability table built for it.
+  bool _mysticCastReplacesSalvo(CosmicSurvivalCompanion comp) =>
+      comp.member.family.toLowerCase() == 'mystic' &&
+      _mysticWorldReplacesCast.contains(comp.member.element);
+
+  /// Lights whichever world this Mystic makes.
+  void _igniteMysticWorld(CosmicSurvivalCompanion comp, int slotIndex) {
+    switch (comp.member.element) {
+      case 'Fire':
+        _igniteMysticEmberField(comp);
+      case 'Spirit':
+        // Nothing is placed: the world is a RULE, and the fight supplies the
+        // bodies. Clearing first means a redeploy starts from an empty host.
+        _mysticRevenants.removeWhere((r) => r.ownerSlot == slotIndex);
+      case 'Blood':
+        // Also a rule — see _payMysticBloodTithe. Nothing to place.
+        break;
+      case 'Dark':
+        _openMysticMaw(comp);
+      case 'Plant':
+        _growMysticGrove(comp);
+    }
+  }
+
+  /// The slot hosting a live world of [element], or null. Deliberately checks
+  /// the caster rather than the leftover entities: a world belongs to a Mystic
+  /// that is alive and standing in it, and the entities are only its evidence.
+  int? _activeMysticWorldSlot(String element) {
+    for (final entry in activeCompanions.entries) {
+      final comp = entry.value;
+      if (comp.isDead) continue;
+      if (comp.member.family.toLowerCase() != 'mystic') continue;
+      if (comp.member.element != element) continue;
+      if (!_mysticSpentSlots.contains(entry.key)) continue;
+      return entry.key;
+    }
+    return null;
+  }
+
+  // ── SPIRIT: the dead change sides ───────────────────────────────────────
+
+  /// Called from [_killEnemy]. A small body that dies inside a Spirit world
+  /// gets back up on our side.
+  ///
+  /// Gated to the two smallest tiers on purpose: the mechanic should read as
+  /// "the chaff turns", not as "every brute you kill becomes a second brute",
+  /// which would make the world win fights by itself the moment it came up.
+  void _raiseMysticRevenant(CosmicSurvivalEnemy enemy) {
+    if (enemy.tier != EnemyTier.wisp && enemy.tier != EnemyTier.drone) return;
+    final slot = _activeMysticWorldSlot('Spirit');
+    if (slot == null) return;
+    final owner = activeCompanions[slot];
+    if (owner == null || owner.isDead) return;
+
+    final intel = _effectiveIntelligence(slot);
+    final cap = (_maxMysticRevenants * _hornStatScale(
+      intel,
+      perPoint: 0.09,
+      min: 0.5,
+      max: 1.0,
+    )).round().clamp(5, _maxMysticRevenants);
+    var standing = 0;
+    for (final r in _mysticRevenants) {
+      if (r.ownerSlot == slot && !r.dead) standing++;
+    }
+    if (standing >= cap) return;
+
+    _mysticRevenants.add(
+      _MysticRevenant(
+        position: enemy.position,
+        ownerSlot: slot,
+        damage: max(4.0, owner.elemAtk * 0.85),
+        radius: max(9.0, enemy.radius * 0.82),
+        // A shade is lighter than the body was.
+        speed: max(70.0, enemy.speed * 1.45),
+        seed: _rng.nextDouble() * 6.28,
+        life: 9.0 + _hornStatScale(intel, perPoint: 0.16, min: 0.8, max: 1.9) * 4.0,
+      ),
+    );
+    _spawnHitSpark(enemy.position, const Color(0xFFEAF2FF));
+  }
+
+  void _updateMysticRevenants(double dt) {
+    if (_mysticRevenants.isEmpty) return;
+    // Indexed against the count at entry, because a revenant's strike can kill
+    // — and a kill inside a Spirit world raises another revenant, which
+    // appends to the very list being walked. The new one waits for next frame.
+    final standingCount = _mysticRevenants.length;
+    for (var ri = 0; ri < standingCount; ri++) {
+      final r = _mysticRevenants[ri];
+      final owner = activeCompanions[r.ownerSlot];
+      final standing = owner != null && !owner.isDead;
+      if (!standing) {
+        r.fade = max(0.0, r.fade - dt * 0.8);
+        if (r.fade <= 0) continue;
+      }
+      if (r.rise < 1) r.rise = min(1.0, r.rise + dt * 2.6);
+      r.life -= dt;
+      if (r.strikeCooldown > 0) r.strikeCooldown = max(0.0, r.strikeCooldown - dt);
+
+      // Hunt. A revenant fights whatever it used to stand beside, and ignores
+      // the orb entirely — it is ours now.
+      final prey = _nearestEnemyTo(r.position, 620);
+      final goal = prey?.position ?? orb.position;
+      final delta = goal - r.position;
+      final dist = delta.distance;
+      if (dist > 0.5) {
+        final norm = delta / dist;
+        // Eases in so a fresh revenant drifts up out of the body rather than
+        // snapping to a heading the instant it rises.
+        final ease = 0.35 + 0.65 * r.rise;
+        r.velocity = norm * (r.speed * ease);
+        r.position += r.velocity * dt;
+      }
+
+      if (prey == null || !standing || r.strikeCooldown > 0) continue;
+      if (_withinRange(r.position, prey.position, prey.radius + r.radius + 4)) {
+        _damageEnemy(prey, r.damage, sourceSlotIndex: r.ownerSlot);
+        r.strikeCooldown = 0.5;
+        _spawnHitSpark(prey.position, const Color(0xFFDCE8FF));
+      }
+    }
+    _mysticRevenants.removeWhere((r) => r.dead);
+  }
+
+  // ── BLOOD: the tithe ────────────────────────────────────────────────────
+
+  double _mysticBloodMoteTimer = 0;
+  double _mysticBloodCarry = 0;
+
+  /// Every auto attack that lands inside a Blood world feeds the orb.
+  ///
+  /// Deliberately auto attacks ONLY — including the ship's. A Blood world
+  /// should reward the fire the player never stops putting out, not the
+  /// burst abilities they were going to press anyway; tying it to everything
+  /// would make the strongest play "stack cooldowns" instead of "keep
+  /// shooting", and would scale with whoever else happens to be in the party.
+  void _payMysticBloodTithe(double dealt, Offset where) {
+    if (dealt <= 0) return;
+    final slot = _activeMysticWorldSlot('Blood');
+    if (slot == null) return;
+    final comp = activeCompanions[slot];
+    if (comp == null || comp.isDead) return;
+
+    final share = 0.10 * _hornStatScale(
+      _effectiveStrength(slot) * 0.5 + _effectiveBeauty(slot) * 0.5,
+      perPoint: 0.14,
+      min: 0.75,
+      max: 1.85,
+    );
+    final drawn = dealt * share;
+    _healOrb(drawn * 0.72, sourceSlot: slot);
+    // The Mystic keeps a cut. It is the one standing in the blood.
+    //
+    // Companion HP is an integer, and a tithe off one auto attack is a
+    // fraction of a point, so paying it directly would round to nothing every
+    // time and the Mystic would never heal at all. Carried instead, and spent
+    // whole.
+    _mysticBloodCarry += drawn * 0.28;
+    if (_mysticBloodCarry >= 1 && comp.currentHp < comp.maxHp) {
+      final points = _mysticBloodCarry.floor();
+      _mysticBloodCarry -= points;
+      final before = comp.currentHp;
+      comp.currentHp = min(comp.maxHp, comp.currentHp + points);
+      _recordHeal(
+        (comp.currentHp - before).toDouble(),
+        target: 0,
+        sourceSlot: slot,
+      );
+    }
+
+    // A mote every so often rather than one per hit — at full auto-attack
+    // rate that would be dozens a second, and the ambient pool is shared.
+    // The timer is drained by the per-frame tick, not from here.
+    if (_mysticBloodMoteTimer <= 0 && _vfx.length < 140) {
+      _mysticBloodMoteTimer = 0.10;
+      final toOrb = orb.position - where;
+      final d = toOrb.distance;
+      final norm = d > 1 ? toOrb / d : const Offset(0, -1);
+      _vfx.add(
+        _VfxParticle(
+          x: where.dx,
+          y: where.dy,
+          vx: norm.dx * 190,
+          vy: norm.dy * 190,
+          size: 1.6 + _rng.nextDouble() * 1.2,
+          life: 0.45 + _rng.nextDouble() * 0.25,
+          color: const Color(0xFFC8254A),
+        ),
+      );
+    }
+  }
+
+  // ── DARK: the maw ───────────────────────────────────────────────────────
+
+  void _openMysticMaw(CosmicSurvivalCompanion comp) {
+    _mysticMaws.removeWhere((m) => m.ownerSlot == comp.slotIndex);
+    final strength = _effectiveStrength(comp.slotIndex);
+    final scale = _hornStatScale(strength, perPoint: 0.10, min: 0.8, max: 1.45);
+    _mysticMaws.add(
+      _MysticMaw(
+        // Fixed at the top of the arena, above the orb. A landmark, not a
+        // placement: the player learns where the north went and fights around
+        // it, which is something no other ability in the game asks of them.
+        position: orb.position + Offset(0, -_arenaRadius * 0.34),
+        ownerSlot: comp.slotIndex,
+        radius: 430.0 * scale,
+        damage: max(6.0, comp.elemAtk * 1.25),
+      ),
+    );
+  }
+
+  void _updateMysticMaws(double dt) {
+    if (_mysticMaws.isEmpty) return;
+    for (final maw in _mysticMaws) {
+      final owner = activeCompanions[maw.ownerSlot];
+      final standing = owner != null && !owner.isDead;
+      if (!standing) {
+        maw.fade = max(0.0, maw.fade - dt * 0.6);
+        if (maw.fade <= 0) continue;
+      }
+      if (maw.open < 1) maw.open = min(1.0, maw.open + dt * 0.9);
+      maw.spin += dt * 1.15;
+      if (!standing) continue;
+
+      final reach = maw.radius * maw.open;
+      final horizon = maw.horizon * maw.open;
+      _visitEnemiesNear(maw.position, reach, (enemy) {
+        final delta = maw.position - enemy.position;
+        final dist = delta.distance;
+        if (dist > reach) return false;
+        if (dist <= horizon) {
+          _swallowIntoMaw(maw, enemy);
+          return false;
+        }
+        // Harder the closer it gets, so the last stretch is a fall rather
+        // than a walk.
+        final t = 1.0 - (dist / reach);
+        final pull = (40.0 + 300.0 * t * t) * maw.open;
+        enemy.position += (delta / dist) * pull * dt;
+        return false;
+      });
+    }
+    _mysticMaws.removeWhere((m) => m.dead);
+  }
+
+  /// Eats an enemy and puts it back at the rim.
+  ///
+  /// It is displacement, not execution — the body comes back, and the player
+  /// gets the walk-in time again. A maw that killed would just be a bigger
+  /// version of every other Mystic.
+  void _swallowIntoMaw(_MysticMaw maw, CosmicSurvivalEnemy enemy) {
+    _damageEnemy(enemy, maw.damage, sourceSlotIndex: maw.ownerSlot);
+    if (enemy.isDead) {
+      _spawnHitSpark(enemy.position, const Color(0xFFB89AFF));
+      return;
+    }
+    // Back out at the rim, well away from the hole so it is not immediately
+    // re-eaten, and reeling for a moment when it lands.
+    final a = _rng.nextDouble() * 2 * pi;
+    final rim = _arenaRadius * 0.92;
+    enemy.position = orb.position + Offset(cos(a), sin(a)) * rim;
+    enemy.knockbackVelocity = Offset.zero;
+    enemy.slowTimer = max(enemy.slowTimer, 1.5);
+    enemy.slowMultiplier = min(enemy.slowMultiplier, 0.4);
+    enemy.retargetTimer = 0;
+    _spawnHitSpark(maw.position, const Color(0xFFB89AFF));
+    _spawnHitSpark(enemy.position, const Color(0xFF6A4AA8));
+  }
+
+  // ── PLANT: the grove ────────────────────────────────────────────────────
+
+  void _growMysticGrove(CosmicSurvivalCompanion comp) {
+    _mysticVines.removeWhere((v) => v.ownerSlot == comp.slotIndex);
+    final strength = _effectiveStrength(comp.slotIndex);
+    final scale = _hornStatScale(strength, perPoint: 0.11, min: 0.82, max: 1.5);
+    // Flanking the caster, far enough apart that the two jobs read as two
+    // plants rather than one bush with two behaviours.
+    const spacing = 132.0;
+    for (var i = 0; i < 2; i++) {
+      final lashes = i == 0;
+      _mysticVines.add(
+        _MysticVine(
+          root: comp.position + Offset(lashes ? -spacing : spacing, 18),
+          ownerSlot: comp.slotIndex,
+          lashes: lashes,
+          damage: max(5.0, comp.elemAtk * (lashes ? 1.5 : 1.15)),
+          reach: (lashes ? 200.0 : 620.0) * scale,
+          seed: _rng.nextDouble() * 6.28,
+        ),
+      );
+    }
+  }
+
+  void _updateMysticVines(double dt) {
+    if (_mysticVines.isEmpty) return;
+    for (final vine in _mysticVines) {
+      final owner = activeCompanions[vine.ownerSlot];
+      final standing = owner != null && !owner.isDead;
+      if (!standing) {
+        vine.fade = max(0.0, vine.fade - dt * 0.7);
+        if (vine.fade <= 0) continue;
+      }
+      if (vine.growth < 1) vine.growth = min(1.0, vine.growth + dt * 1.1);
+      if (vine.swing > 0) vine.swing = max(0.0, vine.swing - dt * 3.2);
+      if (vine.cooldown > 0) vine.cooldown = max(0.0, vine.cooldown - dt);
+      if (!standing || vine.growth < 1) continue;
+
+      final prey = _nearestEnemyTo(vine.root, vine.reach);
+      if (prey == null) continue;
+      vine.aimAngle = atan2(
+        prey.position.dy - vine.root.dy,
+        prey.position.dx - vine.root.dx,
+      );
+      if (vine.cooldown > 0) continue;
+
+      if (vine.lashes) {
+        // A sweep, not a point hit: everything in the arc in front of it goes
+        // flying. This is the half that punishes anything that closed.
+        vine.cooldown = 0.9;
+        vine.swing = 1.0;
+        _visitEnemiesNear(vine.root, vine.reach, (enemy) {
+          final delta = enemy.position - vine.root;
+          final dist = delta.distance;
+          if (dist > vine.reach) return false;
+          var diff = atan2(delta.dy, delta.dx) - vine.aimAngle;
+          while (diff > pi) {
+            diff -= 2 * pi;
+          }
+          while (diff < -pi) {
+            diff += 2 * pi;
+          }
+          if (diff.abs() > 1.15) return false;
+          _damageEnemy(enemy, vine.damage, sourceSlotIndex: vine.ownerSlot);
+          if (dist > 0.5) {
+            enemy.knockbackVelocity += (delta / dist) * 260;
+          }
+          return false;
+        });
+        _spawnHitSpark(
+          vine.root + Offset(cos(vine.aimAngle), sin(vine.aimAngle)) * (vine.reach * 0.6),
+          const Color(0xFF7CE07C),
+        );
+      } else {
+        // The other half covers everything that did not.
+        vine.cooldown = 0.72;
+        vine.swing = 1.0;
+        if (companionProjectiles.length >= 210) continue;
+        companionProjectiles.add(
+          Projectile(
+            position: vine.root + Offset(cos(vine.aimAngle), sin(vine.aimAngle)) * 34,
+            angle: vine.aimAngle,
+            element: 'Plant',
+            damage: vine.damage,
+            life: 2.4,
+            speedMultiplier: 1.45,
+            radiusMultiplier: 1.25,
+            visualScale: 1.15,
+            visualStyle: ProjectileVisualStyle.mysticOrbital,
+            homing: true,
+            homingStrength: 5.0,
+            piercing: true,
+            abilityFamily: 'mystic',
+            sourceSlotIndex: vine.ownerSlot,
+          ),
+        );
+      }
+    }
+    _mysticVines.removeWhere((v) => v.dead);
+  }
+
+
+  /// Per-frame tick for every Mystic world except the ember field, which has
+  /// its own pass.
+  void _updateMysticWorlds(double dt) {
+    if (_mysticBloodMoteTimer > 0) {
+      _mysticBloodMoteTimer = max(0.0, _mysticBloodMoteTimer - dt);
+    }
+    _updateMysticRevenants(dt);
+    _updateMysticMaws(dt);
+    _updateMysticVines(dt);
   }
 
   void _updateMysticEmbers(double dt) {
@@ -7461,7 +8063,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (enemy.isDead) return false;
       final d = _distanceToSegment(enemy.position, comp.position, beamEnd);
       if (d <= enemy.radius + lateral) {
-        _damageEnemy(enemy, dmg, sourceSlotIndex: slotIndex);
+        // Kin's charged beam IS its basic attack, so it tithes too.
+        _damageEnemy(enemy, dmg, sourceSlotIndex: slotIndex, autoAttack: true);
         _spawnHitSpark(enemy.position, elementColor(comp.member.element));
       }
       return false;
@@ -12012,6 +12615,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           p.damage,
           sourceSlotIndex: p.sourceSlotIndex,
           fromPipSpecial: isPipSpecialDart,
+          // Basic attacks leave abilityFamily empty; every special stamps one.
+          // That is what a Blood world tithes from.
+          autoAttack: p.abilityFamily.isEmpty,
         );
         final killed = !wasDead && enemy.isDead;
         resolveAbilityHit(p, enemy, killed: killed);
@@ -12236,6 +12842,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                 ? null
                 : p.element,
             sourceSlotIndex: p.sourceSlotIndex,
+            autoAttack: p.abilityFamily.isEmpty,
             target: boss,
           );
           // Crowd control lands on bosses too. This branch used to deal damage
@@ -12529,7 +13136,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (!_withinRange(proj.position, enemy.position, enemy.radius + 5)) {
           return false;
         }
-        _damageEnemy(enemy, proj.damage);
+        _damageEnemy(enemy, proj.damage, autoAttack: true);
         // Rocket splash AoE
         if (proj.splashRadius > 0) {
           _visitEnemiesNear(proj.position, proj.splashRadius, (other) {
@@ -12539,13 +13146,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               other.position,
               proj.splashRadius,
             )) {
-              _damageEnemy(other, proj.damage * 0.55);
+              _damageEnemy(other, proj.damage * 0.55, autoAttack: true);
             }
             return false;
           });
           for (final b in allLivingBosses) {
             if (_withinRange(proj.position, b.position, proj.splashRadius)) {
-              damageBoss(proj.damage * 0.55, target: b);
+              damageBoss(proj.damage * 0.55, target: b, autoAttack: true);
             }
           }
         }
@@ -12556,7 +13163,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (proj.life > 0) {
         for (final boss in allLivingBosses) {
           if (_withinRange(proj.position, boss.position, boss.radius + 5)) {
-            damageBoss(proj.damage, target: boss);
+            damageBoss(proj.damage, target: boss, autoAttack: true);
             // Rocket splash AoE on boss
             if (proj.splashRadius > 0) {
               _visitEnemiesNear(proj.position, proj.splashRadius, (other) {
@@ -12565,7 +13172,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                   other.position,
                   proj.splashRadius,
                 )) {
-                  _damageEnemy(other, proj.damage * 0.55);
+                  _damageEnemy(other, proj.damage * 0.55, autoAttack: true);
                 }
                 return false;
               });
@@ -13949,6 +14556,302 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         Rect.fromLTWH(cx, cy, viewW, viewH),
         Paint()..color = spirit.withValues(alpha: 0.18 * f),
       );
+    }
+
+    // Dark Mystic's maw. Drawn before everything else in this pass because it
+    // is a hole in the floor, not an effect sitting on top of one — enemies
+    // being dragged across it have to pass OVER it.
+    for (final maw in _mysticMaws) {
+      if (maw.fade <= 0.01) continue;
+      final a = maw.fade;
+      final open = maw.open;
+      final pull = maw.radius * open;
+      final horizon = maw.horizon * open;
+      if (!_isWithinViewport(
+        maw.position,
+        pull,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 40,
+      )) {
+        continue;
+      }
+      final violet = const Color(0xFFB89AFF);
+      final deep = const Color(0xFF12061F);
+
+      // The reach, as three faint rings rather than a filled disc: the player
+      // needs to read where the pull starts without losing sight of what is
+      // standing inside it.
+      final reachPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..color = violet.withValues(alpha: 0.10 * a);
+      for (var i = 0; i < 3; i++) {
+        reachPaint.strokeWidth = 1.2 + i * 0.5;
+        canvas.drawCircle(maw.position, pull * (0.5 + i * 0.25), reachPaint);
+      }
+
+      // Accretion: arcs at several radii turning at different rates, so the
+      // whole thing shears instead of spinning as one plate.
+      final arcPaint = Paint()..style = PaintingStyle.stroke;
+      for (var ring = 0; ring < 5; ring++) {
+        final rr = horizon * (1.7 + ring * 0.85);
+        final turn = maw.spin * (1.0 + ring * 0.42) + ring * 1.3;
+        arcPaint
+          ..strokeWidth = 2.6 - ring * 0.35
+          ..color = Color.lerp(violet, const Color(0xFFFFFFFF), ring * 0.12)!
+              .withValues(alpha: (0.34 - ring * 0.05) * a);
+        canvas.drawArc(
+          Rect.fromCircle(center: maw.position, radius: rr),
+          turn,
+          2.1 - ring * 0.22,
+          false,
+          arcPaint,
+        );
+      }
+
+      // The hole itself: a hard black disc with a bright rim, so it reads as
+      // an absence rather than as a dark sphere.
+      canvas.drawCircle(
+        maw.position,
+        horizon * 1.35,
+        Paint()..color = deep.withValues(alpha: 0.55 * a),
+      );
+      canvas.drawCircle(
+        maw.position,
+        horizon,
+        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.96 * a),
+      );
+      canvas.drawCircle(
+        maw.position,
+        horizon,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2
+          ..color = violet.withValues(alpha: 0.85 * a),
+      );
+      // Light bending round the rim.
+      final rimPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.55 * a);
+      canvas.drawArc(
+        Rect.fromCircle(center: maw.position, radius: horizon * 1.12),
+        -maw.spin * 0.8,
+        1.5,
+        false,
+        rimPaint,
+      );
+    }
+
+    // Plant Mystic's grove. Two trunks: the one that lashes and the one that
+    // spits. Drawn as stroked spines rather than filled bodies so they stay
+    // legible with a crowd standing in front of them.
+    for (final vine in _mysticVines) {
+      if (vine.fade <= 0.01) continue;
+      if (!_isWithinViewport(
+        vine.root,
+        vine.reach,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 160,
+      )) {
+        continue;
+      }
+      final a = vine.fade;
+      final grow = vine.growth;
+      final t = stats.timeElapsed;
+      final plant = elementColor('Plant');
+      final bright = Color.lerp(plant, const Color(0xFFFFFFFF), 0.45)!;
+      // Tall: these are supposed to be the two biggest things on the field
+      // that are not a boss.
+      final height = 128.0 * grow;
+      final sway = sin(t * 1.15 + vine.seed) * 9.0;
+
+      // Trunk, as a swaying spine with the width tapering toward the head.
+      final trunk = Path()..moveTo(vine.root.dx, vine.root.dy);
+      const steps = 7;
+      var head = vine.root;
+      for (var i = 1; i <= steps; i++) {
+        final f = i / steps;
+        final p = Offset(
+          vine.root.dx + sway * f * f,
+          vine.root.dy - height * f,
+        );
+        trunk.lineTo(p.dx, p.dy);
+        head = p;
+      }
+      final trunkPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      trunkPaint
+        ..strokeWidth = 13.0 * grow
+        ..color = plant.withValues(alpha: 0.30 * a);
+      canvas.drawPath(trunk, trunkPaint);
+      trunkPaint
+        ..strokeWidth = 7.0 * grow
+        ..color = plant.withValues(alpha: 0.88 * a);
+      canvas.drawPath(trunk, trunkPaint);
+
+      // Leaves down the stem, alternating sides.
+      final leafPaint = Paint()..color = plant.withValues(alpha: 0.55 * a);
+      for (var i = 1; i < steps; i++) {
+        final f = i / steps;
+        final at = Offset(
+          vine.root.dx + sway * f * f,
+          vine.root.dy - height * f,
+        );
+        final side = i.isEven ? 1.0 : -1.0;
+        final leaf = Offset(at.dx + side * (16.0 - f * 7) * grow, at.dy + 4);
+        canvas.drawCircle(leaf, (4.4 - f * 1.6) * grow, leafPaint);
+      }
+
+      if (vine.lashes) {
+        // The arm. At rest it curls; through a swing it snaps out along the
+        // aim and drags a barbed tip across the arc it just cleared.
+        final swing = vine.swing;
+        final extend = 0.30 + 0.70 * swing;
+        final reach = vine.reach * 0.92 * extend * grow;
+        final dir = Offset(cos(vine.aimAngle), sin(vine.aimAngle));
+        // Curl the whip to one side, straightening as it lands.
+        final perp = Offset(-dir.dy, dir.dx) * (reach * 0.42 * (1.0 - swing));
+        final tip = head + dir * reach;
+        final whip = Path()
+          ..moveTo(head.dx, head.dy)
+          ..quadraticBezierTo(
+            head.dx + dir.dx * reach * 0.5 + perp.dx,
+            head.dy + dir.dy * reach * 0.5 + perp.dy,
+            tip.dx,
+            tip.dy,
+          );
+        final whipPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 6.5 * grow
+          ..color = plant.withValues(alpha: (0.45 + 0.45 * swing) * a);
+        canvas.drawPath(whip, whipPaint);
+        whipPaint
+          ..strokeWidth = 2.6 * grow
+          ..color = bright.withValues(alpha: (0.30 + 0.60 * swing) * a);
+        canvas.drawPath(whip, whipPaint);
+        canvas.drawCircle(
+          tip,
+          (3.5 + 3.0 * swing) * grow,
+          Paint()..color = bright.withValues(alpha: (0.55 + 0.40 * swing) * a),
+        );
+        // The arc it just swept, fading out behind the tip.
+        if (swing > 0.05) {
+          canvas.drawArc(
+            Rect.fromCircle(center: head, radius: reach),
+            vine.aimAngle - 1.15,
+            2.30,
+            false,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.0
+              ..color = bright.withValues(alpha: 0.22 * swing * a),
+          );
+        }
+      } else {
+        // The spitter's head: petals that flare open as it fires and settle
+        // back closed, with a bright throat in the middle.
+        final fire = vine.swing;
+        final headR = (13.0 + 5.0 * fire) * grow;
+        final petalPaint = Paint()..color = plant.withValues(alpha: 0.62 * a);
+        for (var i = 0; i < 6; i++) {
+          final pa = vine.aimAngle + (i - 2.5) * 0.42 + sin(t * 1.4 + i) * 0.05;
+          final spread = headR * (0.85 + 0.55 * fire);
+          canvas.drawCircle(
+            head + Offset(cos(pa), sin(pa)) * spread,
+            (4.6 - fire * 0.8) * grow,
+            petalPaint,
+          );
+        }
+        canvas.drawCircle(
+          head,
+          headR * 0.72,
+          Paint()..color = plant.withValues(alpha: 0.90 * a),
+        );
+        canvas.drawCircle(
+          head,
+          headR * (0.30 + 0.26 * fire),
+          Paint()
+            ..color = bright.withValues(alpha: (0.60 + 0.35 * fire) * a),
+        );
+      }
+    }
+
+    // Spirit Mystic's revenants: the fight's own dead, white and lit from
+    // inside. Deliberately NOT the purple of Mask+Spirit's collectible wisps —
+    // those are something the ship picks up, these are something that fights.
+    for (final r in _mysticRevenants) {
+      if (r.fade <= 0.01) continue;
+      if (!_isWithinViewport(
+        r.position,
+        r.radius * 3,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 32,
+      )) {
+        continue;
+      }
+      final a = r.fade * (r.life < 1.5 ? (r.life / 1.5).clamp(0.0, 1.0) : 1.0);
+      final pulse = 0.72 + 0.28 * sin(stats.timeElapsed * 4.2 + r.seed);
+      final rr = r.radius * (0.55 + 0.45 * r.rise);
+
+      // A short wake behind the heading, so it reads as something moving
+      // under its own will rather than a floating pickup.
+      final v = r.velocity;
+      if (v.distance > 1) {
+        final back = -v / v.distance;
+        for (var i = 1; i <= 3; i++) {
+          canvas.drawCircle(
+            r.position + back * (rr * 1.25 * i),
+            rr * (0.72 - i * 0.16),
+            Paint()
+              ..color = const Color(
+                0xFFAFC4FF,
+              ).withValues(alpha: 0.16 * a / i),
+          );
+        }
+      }
+
+      canvas.drawCircle(
+        r.position,
+        rr * 2.1,
+        Paint()
+          ..color = const Color(0xFF8FA8FF).withValues(alpha: 0.14 * a * pulse),
+      );
+      canvas.drawCircle(
+        r.position,
+        rr,
+        Paint()
+          ..color = const Color(0xFFE8EEFF).withValues(alpha: 0.82 * a),
+      );
+      canvas.drawCircle(
+        r.position,
+        rr * 0.46,
+        Paint()
+          ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.95 * a * pulse),
+      );
+      // The turn itself: a ring that expands once as the body changes sides.
+      if (r.rise < 1) {
+        canvas.drawCircle(
+          r.position,
+          rr * (1.4 + r.rise * 3.2),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.8
+            ..color = const Color(
+              0xFFFFFFFF,
+            ).withValues(alpha: 0.55 * (1.0 - r.rise) * a),
+        );
+      }
     }
 
     // Fire Mystic embers. Drawn under the craters and debris so they read as

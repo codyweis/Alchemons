@@ -1843,9 +1843,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
     case 'Mystic':
       final (subtitle, desc, _) = switch (element) {
         'Fire' => (
-          'Supernova Collapse • Beauty scales count',
-          'An expanding ring of fire orbs collapses inward, then a core orb detonates into fragments.',
-          ['BURST', 'CLUSTER', 'HOMING'],
+          'The Ember Season • Beauty and Intelligence scale the field',
+          'Lights a drifting ember field across the whole arena; anything that '
+              'walks into an ember catches fire. It burns for as long as this '
+              'Mystic is alive and deployed, and is cast once per deployment.',
+          ['WORLD', 'PERSISTENT', 'BURN'],
         ),
         'Lava' => (
           'Cataclysm Moons • Strength scales count',
@@ -1898,9 +1900,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['INTERCEPT', 'ORBITAL', 'DEFENSE'],
         ),
         'Plant' => (
-          'Verdant Procession • Strength scales count',
-          'Plants vine turrets that fire homing thorns at nearby enemies.',
-          ['TURRET', 'HOMING', 'SUSTAINED'],
+          'The Grove • Strength scales reach',
+          'Grows two huge vines beside the caster: one lashes everything that '
+              'closes, one spits homing thorns at everything that does not. '
+              'They stand while this Mystic is alive and deployed.',
+          ['WORLD', 'MELEE', 'TURRET'],
         ),
         'Poison' => (
           'Venom Halo • Intelligence scales count',
@@ -1908,14 +1912,18 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['SNARE', 'TRAIL', 'AREA DENIAL'],
         ),
         'Spirit' => (
-          'Wraith Chorus • Intelligence scales count',
-          'Launches piercing ghost bolts with strong homing and spectral trails.',
-          ['PIERCING', 'HOMING', 'HUNTER'],
+          'The Turning • Intelligence scales the host',
+          'Small enemies that die anywhere on the map get back up on your side '
+              'as glowing revenants and hunt their own. The world holds while '
+              'this Mystic is alive and deployed.',
+          ['WORLD', 'PERSISTENT', 'RAISE'],
         ),
         'Dark' => (
-          'Eclipse Procession • Strength scales count',
-          'Places void wells that taunt, snare, and detonate into cluster explosions.',
-          ['TAUNT', 'SNARE', 'CLUSTER'],
+          'The Maw • Strength scales the pull',
+          'Tears a black hole open in the north of the arena that drags enemies '
+              'in and spits them back out at the rim, hurt and reeling. It holds '
+              'while this Mystic is alive and deployed.',
+          ['WORLD', 'DISPLACE', 'CONTROL'],
         ),
         'Light' => (
           'Radiant Crown • Beauty scales count',
@@ -1923,9 +1931,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['TURRET', 'INTERCEPT', 'ORBITAL'],
         ),
         'Blood' => (
-          'Crimson Coronation • Strength scales count',
-          'Launches heavy homing blood orbs that split into clusters and leave crimson trails, plus a self-heal and blessing aura on cast.',
-          ['HOMING', 'HEAL', 'BLESSING'],
+          'The Crimson Tithe • Strength and Beauty scale the draw',
+          'A passive world: every auto attack that lands — the whole party\'s '
+              'and the ship\'s — drains life back into the orb and into this '
+              'Mystic. It holds while this Mystic is alive and deployed.',
+          ['WORLD', 'PASSIVE', 'LIFESTEAL'],
         ),
         _ => (
           'Guardian Ultimate • Single-slot impact',
