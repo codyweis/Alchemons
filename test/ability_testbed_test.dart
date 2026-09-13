@@ -7,6 +7,7 @@ import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -73,11 +74,32 @@ void main() {
     );
   }
 
+  /// The fights an alchemon has to be judged across.
+  ///
+  /// One mixed wave is not an audit. A family is supposed to answer SOME part
+  /// of survival, and an ability that looks weak against a swarm may be the
+  /// one thing that answers a boss — measuring a single scenario and calling
+  /// the low numbers "weak" would quietly punish every specialist in the
+  /// roster for being specialised.
+  const scenarios = <({String name, int wave, SurvivalWavePattern? pattern, bool boss})>[
+    // Many small bodies at once: the test of clear rate and area coverage.
+    (name: 'horde', wave: 22, pattern: SurvivalWavePattern.wispHorde, boss: false),
+    // Standoff shooters at range: the test of reach and of closing distance.
+    (name: 'shooters', wave: 22, pattern: SurvivalWavePattern.shooterScreen, boss: false),
+    // Heavy bodies walking in: the test of single-target damage and of holding
+    // ground.
+    (name: 'siege', wave: 22, pattern: SurvivalWavePattern.siegePush, boss: false),
+    // One enormous health pool that does not die to area damage at all.
+    (name: 'boss', wave: 25, pattern: null, boss: true),
+  ];
+
   Future<({double damage, int kills, double healing, double orbLost})> measure(
     String family,
     String element, {
     required int wave,
     required double seconds,
+    SurvivalWavePattern? pattern,
+    required bool boss,
   }) async {
     final game = CosmicSurvivalGame(
       party: [subject(family, element)],
@@ -89,6 +111,13 @@ void main() {
     game.startGame();
     for (var w = 1; w < wave; w++) {
       game.spawner.resumeAfterIntermission();
+    }
+    // Hold the fight in the shape being tested. Left to itself the spawner
+    // rolls a pattern per wave, which would give each subject a different
+    // fight and make the whole comparison meaningless.
+    if (pattern != null) {
+      game.spawner.currentPattern = pattern;
+      game.spawner.isBossWave = false;
     }
     game.summonCompanion(0);
     game.clearCompanionTether();
@@ -127,7 +156,7 @@ void main() {
     );
   }
 
-  test('every alchemon ability, measured in the same fight', () async {
+  test('every alchemon ability, across every kind of fight', () async {
     const families = [
       'horn',
       'wing',
@@ -138,78 +167,93 @@ void main() {
       'kin',
       'mystic',
     ];
-    const wave = 20;
-    const seconds = 60.0;
+    const seconds = 45.0;
 
-    final results =
-        <({String family, String element, double damage, int kills, double healing, double orbLost})>[];
+    // family/element -> scenario -> damage
+    final byScenario = <String, Map<String, double>>{};
+    final killsByScenario = <String, Map<String, int>>{};
     for (final family in families) {
       for (final element in kCosmicAbilityElements) {
-        final r = await measure(family, element, wave: wave, seconds: seconds);
-        results.add((
-          family: family,
-          element: element,
-          damage: r.damage,
-          kills: r.kills,
-          healing: r.healing,
-          orbLost: r.orbLost,
-        ));
-      }
-    }
-
-    // ignore: avoid_print
-    print('TESTBED — one alchemon alone, wave $wave, ${seconds.round()}s, '
-        'identical enemy stream (${results.length} subjects)');
-    // ignore: avoid_print
-    print('family   element     damage  kills  healing  orbLost');
-    for (final r in results) {
-      // ignore: avoid_print
-      print(
-        '${r.family.padRight(8)} ${r.element.padRight(10)} '
-        '${r.damage.round().toString().padLeft(7)}  '
-        '${r.kills.toString().padLeft(5)}  '
-        '${r.healing.round().toString().padLeft(7)}  '
-        '${r.orbLost.round().toString().padLeft(7)}',
-      );
-    }
-
-    // Family summaries, then the outliers inside each.
-    // ignore: avoid_print
-    print('TESTBED — by family');
-    // ignore: avoid_print
-    print('family   medianDmg  minDmg(element)     maxDmg(element)     spread');
-    for (final family in families) {
-      final fam = results.where((r) => r.family == family).toList()
-        ..sort((a, b) => a.damage.compareTo(b.damage));
-      final median = fam[fam.length ~/ 2].damage;
-      // ignore: avoid_print
-      print(
-        '${family.padRight(8)} '
-        '${median.round().toString().padLeft(9)}  '
-        '${fam.first.damage.round().toString().padLeft(6)} (${fam.first.element.padRight(9)})  '
-        '${fam.last.damage.round().toString().padLeft(6)} (${fam.last.element.padRight(9)})  '
-        'x${(fam.last.damage / max(1.0, fam.first.damage)).toStringAsFixed(1)}',
-      );
-    }
-
-    // ignore: avoid_print
-    print('TESTBED — outside half-to-double their family median');
-    for (final family in families) {
-      final fam = results.where((r) => r.family == family).toList()
-        ..sort((a, b) => a.damage.compareTo(b.damage));
-      final median = fam[fam.length ~/ 2].damage;
-      for (final r in fam) {
-        final ratio = r.damage / max(1.0, median);
-        if (ratio >= 2.0 || ratio <= 0.5) {
-          // ignore: avoid_print
-          print(
-            '  ${r.family}/${r.element}: ${r.damage.round()} vs median '
-            '${median.round()} (x${ratio.toStringAsFixed(1)})',
+        final key = '$family/$element';
+        byScenario[key] = {};
+        killsByScenario[key] = {};
+        for (final s in scenarios) {
+          final r = await measure(
+            family,
+            element,
+            wave: s.wave,
+            seconds: seconds,
+            pattern: s.pattern,
+            boss: s.boss,
           );
+          byScenario[key]![s.name] = r.damage;
+          killsByScenario[key]![s.name] = r.kills;
         }
       }
     }
 
-    expect(results, hasLength(families.length * kCosmicAbilityElements.length));
+    // ignore: avoid_print
+    print('TESTBED \u2014 one alchemon alone, ${seconds.round()}s per fight, '
+        'identical enemy stream (${byScenario.length} subjects x '
+        '${scenarios.length} fights)');
+    // ignore: avoid_print
+    print('subject              ${scenarios.map((s) => s.name.padLeft(9)).join()}   best');
+    for (final entry in byScenario.entries) {
+      final best = entry.value.entries.reduce(
+        (a, b) => a.value >= b.value ? a : b,
+      );
+      // ignore: avoid_print
+      print(
+        '${entry.key.padRight(20)} '
+        '${scenarios.map((s) => entry.value[s.name]!.round().toString().padLeft(9)).join()}'
+        '   ${best.key}',
+      );
+    }
+
+    // The question that matters is not "who is lowest in one fight" but "is
+    // there any fight this alchemon is FOR". Scored per scenario against that
+    // scenario's own median, so specialists are credited where they specialise.
+    // ignore: avoid_print
+    print('TESTBED \u2014 specialists and the genuinely weak');
+    final medians = <String, double>{};
+    for (final s in scenarios) {
+      final all = byScenario.values.map((m) => m[s.name]!).toList()..sort();
+      medians[s.name] = all[all.length ~/ 2];
+    }
+    final noGoodFight = <String>[];
+    for (final entry in byScenario.entries) {
+      final ratios = {
+        for (final s in scenarios)
+          s.name: entry.value[s.name]! / max(1.0, medians[s.name]!),
+      };
+      final bestRatio = ratios.values.reduce(max);
+      if (bestRatio >= 1.6) {
+        // ignore: avoid_print
+        print(
+          '  SPECIALIST ${entry.key.padRight(18)} '
+          '${ratios.entries.where((e) => e.value >= 1.6).map((e) => "${e.key} x${e.value.toStringAsFixed(1)}").join(", ")}',
+        );
+      } else if (bestRatio < 0.55) {
+        noGoodFight.add(
+          '${entry.key.padRight(18)} best is ${ratios.entries.reduce((a, b) => a.value >= b.value ? a : b).key} '
+          'at x${bestRatio.toStringAsFixed(2)} of median',
+        );
+      }
+    }
+    // ignore: avoid_print
+    print('TESTBED \u2014 no fight they are good at '
+        '(under 55% of the median in EVERY scenario)');
+    for (final n in noGoodFight) {
+      // ignore: avoid_print
+      print('  $n');
+    }
+    // ignore: avoid_print
+    print('  ${noGoodFight.length} of ${byScenario.length} subjects have no '
+        'fight of their own');
+
+    expect(
+      byScenario,
+      hasLength(families.length * kCosmicAbilityElements.length),
+    );
   }, timeout: const Timeout(Duration(minutes: 45)));
 }
