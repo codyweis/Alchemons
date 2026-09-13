@@ -93,13 +93,26 @@ void main() {
     (name: 'boss', wave: 25, pattern: null, boss: true),
   ];
 
-  Future<({double damage, int kills, double healing, double orbLost})> measure(
+  /// One fight. With [deploy] false nothing is summoned, which gives the
+  /// control: what the orb and ship lose with no alchemon helping at all.
+  /// Every defensive number here is a difference against that.
+  Future<
+    ({
+      double damage,
+      int kills,
+      double healing,
+      double lost,
+      double controlUptime,
+    })
+  >
+  measure(
     String family,
     String element, {
     required int wave,
     required double seconds,
     SurvivalWavePattern? pattern,
     required bool boss,
+    bool deploy = true,
   }) async {
     final game = CosmicSurvivalGame(
       party: [subject(family, element)],
@@ -119,11 +132,20 @@ void main() {
       game.spawner.currentPattern = pattern;
       game.spawner.isBossWave = false;
     }
-    game.summonCompanion(0);
-    game.clearCompanionTether();
+    if (deploy) {
+      game.summonCompanion(0);
+      game.clearCompanionTether();
+    }
 
-    var orbLost = 0.0;
+    var lost = 0.0;
     var prevOrb = game.orb.currentHp;
+    var prevShip = game.ship.currentHp;
+    // Enemy-frames spent under crowd control, over enemy-frames total. This is
+    // the axis that makes a tank or a support legible: an ability that roots,
+    // slows, blocks or taunts produces no damage and no kills, and on a damage
+    // column looks identical to an ability that does nothing.
+    var ccFrames = 0.0;
+    var enemyFrames = 0.0;
     const step = 1 / 60;
     while (game.stats.timeElapsed < seconds) {
       // Orb and ship held up so the window is fixed for everyone. What the orb
@@ -134,11 +156,26 @@ void main() {
         game.dismissPowerUpSelection();
       }
       game.update(step);
-      final now = game.orb.currentHp;
-      if (now < prevOrb) orbLost += prevOrb - now;
+      final orbNow = game.orb.currentHp;
+      final shipNow = game.ship.currentHp;
+      if (orbNow < prevOrb) lost += prevOrb - orbNow;
+      if (shipNow < prevShip) lost += prevShip - shipNow;
+      for (final e in game.enemies) {
+        if (e.isDead) continue;
+        enemyFrames += 1;
+        if (e.slowTimer > 0 ||
+            e.maneRootTimer > 0 ||
+            e.hornPlantRootTimer > 0 ||
+            e.blizzardMultiplier < 1.0 ||
+            e.disorientTimer > 0) {
+          ccFrames += 1;
+        }
+      }
       game.orb.currentHp = game.orb.maxHp;
       game.ship.currentHp = game.ship.maxHp;
+      game.ship.isDead = false;
       prevOrb = game.orb.currentHp;
+      prevShip = game.ship.currentHp;
       final comp = game.activeCompanions[0];
       if (comp != null && comp.isDead) {
         comp
@@ -147,12 +184,16 @@ void main() {
       }
     }
 
-    final s = game.companionRunStats[0];
+    final st = game.companionRunStats[0];
     return (
-      damage: s?.damageDealt ?? 0,
-      kills: s?.kills ?? 0,
-      healing: s?.healingDone ?? 0,
-      orbLost: orbLost,
+      damage: st?.damageDealt ?? 0,
+      kills: st?.kills ?? 0,
+      // Run-wide healing, not just what is attributed to the caster: a Kin's
+      // blessing and its signature piece heal allies without either being
+      // credited to a slot.
+      healing: game.healingStats.total,
+      lost: lost,
+      controlUptime: enemyFrames == 0 ? 0.0 : ccFrames / enemyFrames,
     );
   }
 
@@ -169,91 +210,128 @@ void main() {
     ];
     const seconds = 45.0;
 
-    // family/element -> scenario -> damage
-    final byScenario = <String, Map<String, double>>{};
-    final killsByScenario = <String, Map<String, int>>{};
+    // The control: the same four fights with nothing summoned. Every defensive
+    // number below is a difference against this, because "the orb lost 900"
+    // means nothing until you know what it loses with no help at all.
+    final control = <String, double>{};
+    for (final sc in scenarios) {
+      final r = await measure(
+        'horn',
+        'Fire',
+        wave: sc.wave,
+        seconds: seconds,
+        pattern: sc.pattern,
+        boss: sc.boss,
+        deploy: false,
+      );
+      control[sc.name] = r.lost;
+    }
+    // ignore: avoid_print
+    print('TESTBED \u2014 control (nothing deployed): '
+        '${scenarios.map((s) => "${s.name} ${control[s.name]!.round()}").join(", ")}');
+
+    final dmg = <String, Map<String, double>>{};
+    final prevented = <String, Map<String, double>>{};
+    final healed = <String, Map<String, double>>{};
+    final control01 = <String, Map<String, double>>{};
     for (final family in families) {
       for (final element in kCosmicAbilityElements) {
         final key = '$family/$element';
-        byScenario[key] = {};
-        killsByScenario[key] = {};
-        for (final s in scenarios) {
+        dmg[key] = {};
+        prevented[key] = {};
+        healed[key] = {};
+        control01[key] = {};
+        for (final sc in scenarios) {
           final r = await measure(
             family,
             element,
-            wave: s.wave,
+            wave: sc.wave,
             seconds: seconds,
-            pattern: s.pattern,
-            boss: s.boss,
+            pattern: sc.pattern,
+            boss: sc.boss,
           );
-          byScenario[key]![s.name] = r.damage;
-          killsByScenario[key]![s.name] = r.kills;
+          dmg[key]![sc.name] = r.damage;
+          prevented[key]![sc.name] = control[sc.name]! - r.lost;
+          healed[key]![sc.name] = r.healing;
+          control01[key]![sc.name] = r.controlUptime;
         }
       }
     }
 
+    double best(Map<String, double> m) => m.values.reduce(max);
+    double sum(Map<String, double> m) => m.values.reduce((a, b) => a + b);
+
+    /// A subject's standing on one axis, against the median of every subject
+    /// on that same axis in that same fight.
+    Map<String, double> medianPer(Map<String, Map<String, double>> src) {
+      final out = <String, double>{};
+      for (final sc in scenarios) {
+        final all = src.values.map((m) => m[sc.name]!).toList()..sort();
+        out[sc.name] = all[all.length ~/ 2];
+      }
+      return out;
+    }
+
+    final medDmg = medianPer(dmg);
+    final medPrev = medianPer(prevented);
+
     // ignore: avoid_print
-    print('TESTBED \u2014 one alchemon alone, ${seconds.round()}s per fight, '
-        'identical enemy stream (${byScenario.length} subjects x '
-        '${scenarios.length} fights)');
+    print('TESTBED \u2014 four axes, best-of-four-fights, against each axis median');
     // ignore: avoid_print
-    print('subject              ${scenarios.map((s) => s.name.padLeft(9)).join()}   best');
-    for (final entry in byScenario.entries) {
-      final best = entry.value.entries.reduce(
-        (a, b) => a.value >= b.value ? a : b,
-      );
+    print('subject              bestDmg  bestPrevented  healing  ccUptime  reads as');
+    final verdicts = <String, String>{};
+    for (final key in dmg.keys) {
+      final dRatio = best({
+        for (final sc in scenarios)
+          sc.name: dmg[key]![sc.name]! / max(1.0, medDmg[sc.name]!),
+      });
+      final pRatio = best({
+        for (final sc in scenarios)
+          sc.name: prevented[key]![sc.name]! / max(1.0, medPrev[sc.name]!.abs()),
+      });
+      final heal = sum(healed[key]!);
+      final cc = best(control01[key]!);
+
+      // An alchemon earns its place on ANY axis. Only one that is unremarkable
+      // on all four has nothing to offer.
+      final verdict = dRatio >= 1.6
+          ? 'damage'
+          : pRatio >= 1.6
+          ? 'defence'
+          : heal >= 400
+          ? 'sustain'
+          : cc >= 0.55
+          ? 'control'
+          : dRatio >= 0.8 || pRatio >= 0.8
+          ? 'solid'
+          : 'NOTHING';
+      verdicts[key] = verdict;
       // ignore: avoid_print
       print(
-        '${entry.key.padRight(20)} '
-        '${scenarios.map((s) => entry.value[s.name]!.round().toString().padLeft(9)).join()}'
-        '   ${best.key}',
+        '${key.padRight(20)} '
+        '${dRatio.toStringAsFixed(1).padLeft(7)}  '
+        '${pRatio.toStringAsFixed(1).padLeft(13)}  '
+        '${heal.round().toString().padLeft(7)}  '
+        '${(cc * 100).round().toString().padLeft(7)}%  '
+        '$verdict',
       );
     }
 
-    // The question that matters is not "who is lowest in one fight" but "is
-    // there any fight this alchemon is FOR". Scored per scenario against that
-    // scenario's own median, so specialists are credited where they specialise.
     // ignore: avoid_print
-    print('TESTBED \u2014 specialists and the genuinely weak');
-    final medians = <String, double>{};
-    for (final s in scenarios) {
-      final all = byScenario.values.map((m) => m[s.name]!).toList()..sort();
-      medians[s.name] = all[all.length ~/ 2];
-    }
-    final noGoodFight = <String>[];
-    for (final entry in byScenario.entries) {
-      final ratios = {
-        for (final s in scenarios)
-          s.name: entry.value[s.name]! / max(1.0, medians[s.name]!),
-      };
-      final bestRatio = ratios.values.reduce(max);
-      if (bestRatio >= 1.6) {
-        // ignore: avoid_print
-        print(
-          '  SPECIALIST ${entry.key.padRight(18)} '
-          '${ratios.entries.where((e) => e.value >= 1.6).map((e) => "${e.key} x${e.value.toStringAsFixed(1)}").join(", ")}',
-        );
-      } else if (bestRatio < 0.55) {
-        noGoodFight.add(
-          '${entry.key.padRight(18)} best is ${ratios.entries.reduce((a, b) => a.value >= b.value ? a : b).key} '
-          'at x${bestRatio.toStringAsFixed(2)} of median',
-        );
-      }
+    print('TESTBED \u2014 summary');
+    final tally = <String, int>{};
+    for (final v in verdicts.values) {
+      tally[v] = (tally[v] ?? 0) + 1;
     }
     // ignore: avoid_print
-    print('TESTBED \u2014 no fight they are good at '
-        '(under 55% of the median in EVERY scenario)');
-    for (final n in noGoodFight) {
+    print('  ${tally.entries.map((e) => "${e.key} ${e.value}").join(", ")}');
+    // ignore: avoid_print
+    print('TESTBED \u2014 nothing on any axis');
+    for (final e in verdicts.entries.where((e) => e.value == 'NOTHING')) {
       // ignore: avoid_print
-      print('  $n');
+      print('  ${e.key}');
     }
-    // ignore: avoid_print
-    print('  ${noGoodFight.length} of ${byScenario.length} subjects have no '
-        'fight of their own');
 
-    expect(
-      byScenario,
-      hasLength(families.length * kCosmicAbilityElements.length),
-    );
+    expect(dmg, hasLength(families.length * kCosmicAbilityElements.length));
   }, timeout: const Timeout(Duration(minutes: 45)));
 }
