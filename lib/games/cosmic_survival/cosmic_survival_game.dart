@@ -288,8 +288,7 @@ class CosmicSurvivalCompanion {
       _ => 1.0,
     };
     // Family/element basic-cooldown passives.
-    //   Wing+Dark: auto-attack 2× as fast. The SPECIAL no longer doubles with
-    //   it — see effectiveSpecialCooldown for why.
+    //   Wing+Dark: auto-attack and laser both pulse 2× as fast.
     final familyL = member.family.toLowerCase();
     final familyElementMul = (familyL == 'wing' && member.element == 'Dark')
         ? 0.5
@@ -378,16 +377,24 @@ class CosmicSurvivalCompanion {
       member.family,
       member.element,
     );
-    // Wing+Dark's doubled rate applies to its AUTO ATTACK only.
+    // Wing+Dark's doubled rate applies to the LASER as well as the basic, per
+    // the design board: "both the laser and the dark wing's auto-attacks fire
+    // twice as fast".
     //
-    // It used to halve this cooldown as well, and that made Dark the strongest
-    // wing in all four kinds of fight at once — a horde, a shooter screen, a
-    // siege and a boss — because doubling a special is scenario-independent in
-    // a way that no other wing rider is. Every other element answers SOME part
-    // of survival; Dark answered all of them by doing everything twice.
+    // Deliberate, and its cost is known. Doubling a special is
+    // scenario-independent in a way no other wing rider is — every other
+    // element answers SOME part of survival, where Dark answers all of them by
+    // doing everything twice — and measured across a horde, a shooter screen,
+    // a siege and a boss it sits at about x4 of the damage median in every one
+    // of them, against roughly x2.6 for the other two-beam wings. Scoping it
+    // to the basic alone brings that to x2.9.
     //
-    // The basic keeps its 0.5, so "Dark is the fast one" survives intact.
-    const familyElementMul = 1.0;
+    // That trade was looked at and Dark keeps both halves. What it buys them
+    // with is carrying no beam rider at all, which the conformance test pins:
+    // add one and Dark is silently the strongest wing twice over.
+    final familyElementMul = family == 'wing' && member.element == 'Dark'
+        ? 0.5
+        : 1.0;
     return (base / factor) *
         familyMultiplier *
         elementMultiplier *

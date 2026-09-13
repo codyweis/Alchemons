@@ -280,6 +280,11 @@ const List<BogFord> kBogFords = [
   ),
 ];
 
+/// The most crossings this fen can be made to drown at once — three sloughs,
+/// two apiece, reached only by dragging all three middles. See
+/// [BogField.fenAtFullDrown].
+const int kMaxDrowned = 6;
+
 /// The knolls, in the order the fen's readouts name them.
 const List<String> kBogKnollIds = [
   'mire_gate',
@@ -423,6 +428,31 @@ class BogField {
   /// Star 1 lands when all three moor-altars hold water at once.
   bool get choirWhole => kMoorKnollIds.every(moorsWoken.contains);
 
+  /// How many crossings are open water right now.
+  int get drownedCount {
+    var n = 0;
+    for (final f in kBogFords) {
+      if (stateOf(f.id) == BogFordState.drowned) n++;
+    }
+    return n;
+  }
+
+  /// THE FEN CARRYING ALL THE WATER IT CAN — and there is exactly one shape
+  /// that does it (proved by enumeration in the test).
+  ///
+  /// Every slough is a chain of three. Hardening its MIDDLE crossing drowns
+  /// both the others, which is two; hardening an end drowns one; hardening
+  /// both ends drowns the one between them, which is also one. So the most
+  /// water a slough can be made to carry is two drowned crossings, by the
+  /// middle drag and by nothing else — and the whole fen's maximum is the
+  /// three middles together, [kMaxDrowned] of nine crossings gone.
+  ///
+  /// It is also the exact shape every star forbids: the three middles are
+  /// the SHORT roads, and the choir demands the four that make the long
+  /// southern one. That opposition is the Lost Maxim (see the Black Lead in
+  /// the game file) — the secret is the fen you are punished for making.
+  bool get fenAtFullDrown => drownedCount == kMaxDrowned;
+
   /// THE HEAVE — the sough's price. The fen returns to the state it opened
   /// in: every drag gone, every drowned channel running, the lotus risen and
   /// the sarsen washed back to the gate. Banked stars are not touched.
@@ -525,7 +555,19 @@ class BogFen {
   /// The fen's outfall, in the drowned fane: the anti-strand valve.
   final Offset? sough;
 
-  /// The deepest sink-pit — the Lost Maxim (§6 easter eggs #9).
+  /// THE BLACK LEAD — the peat-cutters' old drain, and the Lost Maxim's
+  /// PLACE (§9.6: a maxim has to be somewhere, not a condition you satisfy).
+  /// It leaves the fane's water here and runs away south-west into a dead
+  /// corner nothing else in the dungeon uses. Choked and dry unless the fen
+  /// above is carrying all the water it can.
+  final Offset? leadHead;
+
+  /// The three peat cuts sunk along the lead — the cutters' own trenches,
+  /// under black water and invisible until Water reads them.
+  final List<Offset>? peatCuts;
+
+  /// The sink at the lead's end: the deepest hole in Palusia, and where
+  /// everything the fen has ever eaten has gone.
   final Offset? sinkPit;
 
   /// Bogdrya's mire anchor: the quaking floor firmed under it, so the mystic
@@ -537,6 +579,8 @@ class BogFen {
     this.moor,
     this.altar,
     this.sough,
+    this.leadHead,
+    this.peatCuts,
     this.sinkPit,
     this.anchor,
   });
@@ -979,7 +1023,15 @@ const DungeonLayout mudLayout = DungeonLayout(
           targetSpawn: Offset(450, 150),
         ),
       ],
-      fen: BogFen(sough: Offset(680, 180), sinkPit: Offset(170, 640)),
+      fen: BogFen(
+        sough: Offset(680, 180),
+        // THE BLACK LEAD runs off the fane's west water into the dead
+        // south-west corner — a spur with no door at the end of it, which
+        // is the whole point (§9.6).
+        leadHead: Offset(560, 300),
+        peatCuts: [Offset(452, 392), Offset(330, 476), Offset(224, 566)],
+        sinkPit: Offset(140, 662),
+      ),
     ),
 
     // ── BOGDRYA'S HOLLOW — Star 2. §7: the mystic fights WITH the planet's

@@ -85,9 +85,17 @@ class SinkingFen {
   Offset smearAt = Offset.zero;
   List<String> smearLost = const [];
 
-  /// The Lost Maxim's seed: planted, watered, and then let go.
-  bool seedPlanted = false;
-  bool seedWatered = false;
+  /// THE LOST MAXIM — the Black Lead. `cutsFound` once Water has read the
+  /// three peat cuts out of the black water; `seedSet` once Plant has put a
+  /// seed in the sink; `poured` the cuts whose lips have been dragged.
+  bool cutsFound = false;
+  bool seedSet = false;
+  final Set<int> poured = {};
+
+  /// How thick the sink is, 0 (clean water) → 1 (peat you could stand a
+  /// stone in). Eased toward `poured.length / 3` so a pour READS as an
+  /// arrival rather than a value change.
+  double sinkThickness = 0;
 
   /// THE GROUND, BUILT ONCE. A fen floor is pools, hummocks, bog-oak and
   /// cotton-grass, none of it on a grid and none of it changing — so it is
@@ -123,8 +131,10 @@ extension SinkingAltarFen on PlanetDungeonGame {
       ..clock = 0
       ..smear = 0
       ..smearLost = const []
-      ..seedPlanted = false
-      ..seedWatered = false;
+      ..cutsFound = false
+      ..seedSet = false
+      ..sinkThickness = 0;
+    bog.poured.clear();
   }
 
   // ── Per-frame update ─────────────────────────────────────
@@ -358,7 +368,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     return _tryWeedSkin(a) ||
         _tryMireAnchor(a) ||
         _trySough(a) ||
-        _trySinkPit(a) ||
+        _tryBlackLead(a) ||
         _tryMoorBasin(a) ||
         _trySocketCap(a) ||
         _trySeatSarsen(a) ||
@@ -646,48 +656,125 @@ extension SinkingAltarFen on PlanetDungeonGame {
     return true;
   }
 
-  /// THE LOST MAXIM (§6 easter eggs #9). Plant a seed in the deepest sink-pit,
-  /// water it, and let it go all the way down. No hint anywhere teaches this.
-  bool _trySinkPit(DungeonCreature a) {
-    final pit = currentRoom.fen?.sinkPit;
-    if (pit == null) return false;
-    if ((a.position - pit).distance > _kFenReach) return false;
+  /// THE LOST MAXIM — NO MUD, NO LOTUS, and it is THE BLACK LEAD.
+  ///
+  /// What it was: three presses at one coordinate in the fane — Plant, then
+  /// Water, then Mud, each answered with a line of narration. Three keys in
+  /// one lock. Against §7's maxim standard it kept nothing: no chain (no
+  /// step changed anything a later step needed), no braid, no repeated beat,
+  /// and its "place" was a dot on a floor you already walk across.
+  ///
+  /// What it is: **the secret is the fen you are punished for making.**
+  ///
+  ///  1. THE FEN AT FULL DROWN. The lead is a choked, dry cut until the bog
+  ///     above is carrying all the water it can — [BogField.fenAtFullDrown],
+  ///     which exactly one shape in the whole fen reaches: all three SHORT
+  ///     roads, the three middles, six of nine crossings gone. That is the
+  ///     shape the Sarsen road and the choir both forbid, so the secret
+  ///     costs you the run's stars for as long as you hold it, and the
+  ///     sough's heave is what buys them back. Nothing is pressed for this
+  ///     beat: you come down the wallow and the lead is running.
+  ///  2. WATER reads the three PEAT CUTS out of the black water — the same
+  ///     job Water does at the cairn's basin, on the same planet's terms.
+  ///  3. PLANT sets a seed in the sink. It sits in clean water doing
+  ///     nothing, because a seed in clean water is not a lotus.
+  ///  4. MUD drags each cut's lip in turn — THE REPEATED BEAT, and it is the
+  ///     planet's one verb (the braid **Plant+Water→Mud** carries it here
+  ///     too, as it does everywhere). Each pour runs down the lead and the
+  ///     sink thickens: water → slurry → peat, and the seed goes under.
+  ///  5. The third pour buries it utterly, and it blooms.
+  ///
+  /// Wordless past the HINT button's one line. Nothing is consumed: a wrong
+  /// hand gets a burst and a sentence about what it sees, and a heave washes
+  /// the lead out so it can always be done again.
+  bool _tryBlackLead(DungeonCreature a) {
+    final fen = currentRoom.fen;
+    final sink = fen?.sinkPit;
+    final lead = fen?.leadHead;
+    final cuts = fen?.peatCuts;
+    if (sink == null || lead == null || cuts == null) return false;
     if (discoveredClouds.contains(kMudNoLotusEggId)) return false;
+    // A choked lead is not a thing to press. The fen has to be carrying it.
+    if (!_fen.fenAtFullDrown) return false;
+
     final e = a.member.element;
-    if (!bog.seedPlanted) {
-      if (e != 'Plant') return false;
-      bog.seedPlanted = true;
-      _setHint('A seed goes into the black, and the black takes it');
-      _spawnAlchemyBurst(
-        pit,
-        producedElement: 'Plant',
-        particleCount: 16,
-        intensity: 0.8,
-      );
+
+    // ── 2 · the cuts, read out of the black water ──
+    if (!bog.cutsFound) {
+      if ((a.position - lead).distance > _kFenReach) return false;
+      if (e != 'Water') {
+        _spawnAlchemyBurst(lead, producedElement: e, particleCount: 8,
+            intensity: 0.5);
+        _setHint('Black water, and something under it that will not show');
+        return true;
+      }
+      bog.cutsFound = true;
+      _spawnAlchemyBurst(lead, producedElement: 'Water', particleCount: 20,
+          intensity: 0.9);
       return true;
     }
-    if (!bog.seedWatered) {
-      if (e != 'Water') return false;
-      bog.seedWatered = true;
-      _setHint('The pit swallows the water and asks for more');
-      _spawnAlchemyBurst(
-        pit,
-        producedElement: 'Water',
-        particleCount: 16,
-        intensity: 0.8,
-      );
+
+    // ── 4 · the pours: the repeated beat, and the planet's own verb ──
+    for (var i = 0; i < cuts.length; i++) {
+      if ((a.position - cuts[i]).distance > _kFenReach) continue;
+      if (bog.poured.contains(i)) return false;
+      if (!bog.seedSet) {
+        // Pouring into a sink with nothing in it teaches what is missing
+        // without naming it: the peat goes down and the hole takes it.
+        _spawnAlchemyBurst(cuts[i], producedElement: 'Mud', particleCount: 8,
+            intensity: 0.5);
+        _setHint('The cut pours, the sink swallows it, and nothing changes');
+        return true;
+      }
+      final braid = e != 'Mud';
+      if (braid && !_bogBraidReady(a)) {
+        _spawnAlchemyBurst(cuts[i], producedElement: e, particleCount: 8,
+            intensity: 0.5);
+        _setHint('The lip holds, this hand has no drag in it');
+        return true;
+      }
+      if (braid) {
+        spawnWispWave(
+          element: 'Mud',
+          center: cuts[i],
+          count: _kBraidWisps,
+          unstable: true,
+          announce: false,
+        );
+      }
+      bog.poured.add(i);
+      bog.smear = _kSmearSeconds;
+      bog.smearAt = cuts[i];
+      bog.smearLost = const [];
+      onSound?.call(SoundCue.dungeonSwitch);
+      _spawnAlchemyBurst(cuts[i], producedElement: 'Mud',
+          reagentElements: const ['Water'], particleCount: 22, intensity: 1.0);
+      if (bog.poured.length == cuts.length) {
+        // ── 5 · buried utterly, and it blooms ──
+        beginMaximRite(kMudNoLotusEggId, sink);
+        _spawnAlchemyBurst(
+          sink,
+          producedElement: 'Plant',
+          reagentElements: const ['Mud', 'Water'],
+          particleCount: 40,
+          intensity: 1.4,
+        );
+      }
       return true;
     }
-    if (e != 'Mud') return false;
-    // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    beginMaximRite(kMudNoLotusEggId, pit);
-    _spawnAlchemyBurst(
-      pit,
-      producedElement: 'Plant',
-      reagentElements: const ['Mud', 'Water'],
-      particleCount: 40,
-      intensity: 1.4,
-    );
+
+    // ── 3 · the seed ──
+    if ((a.position - sink).distance > _kFenReach) return false;
+    if (bog.seedSet) return false;
+    if (e != 'Plant') {
+      _spawnAlchemyBurst(sink, producedElement: e, particleCount: 8,
+          intensity: 0.5);
+      _setHint('The sink is clean to the bottom, and holds nothing');
+      return true;
+    }
+    bog.seedSet = true;
+    _spawnAlchemyBurst(sink, producedElement: 'Plant', particleCount: 18,
+        intensity: 0.8);
     return true;
   }
 
@@ -1143,7 +1230,6 @@ extension SinkingAltarFen on PlanetDungeonGame {
   static const Color _fenSod = Color(0xFF5E6B37);
   static const Color _fenWater = Color(0xFF0D1A1E);
   static const Color _fenSheen = Color(0xFF9FB6A6);
-  static const Color _fenBrass = Color(0xFFE4C16A);
 
   void _renderBog(Canvas canvas, DungeonRoom room) {
     _renderFordHeads(canvas, room);
