@@ -9,6 +9,7 @@ import 'dart:math' as math;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:flutter/material.dart';
 
@@ -814,6 +815,18 @@ class _LegendChip extends StatelessWidget {
   }
 }
 
+/// Test seam: run the REAL full-map painter over a canvas.
+///
+/// `debugFullMapNodePoint` proves the placement helper, and the placement
+/// helper was never the thing that was broken — the painter was, by not
+/// calling it. Anything that claims the map draws has to go through this.
+@visibleForTesting
+void debugPaintFullMap(PlanetDungeonGame game, Canvas canvas, Size size) =>
+    _DungeonFullMapPainter(game).paint(canvas, size);
+
+/// How Palusia's chart draws one crossing. See `_fenEdgeState`.
+enum _FenEdge { mire, sod, drowned, plank }
+
 class _DungeonFullMapPainter extends CustomPainter {
   _DungeonFullMapPainter(this.game);
 
@@ -823,11 +836,19 @@ class _DungeonFullMapPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     final element = game.layout.element;
-    final atlas = _fullMapNodePositionsByElement[element] ?? const {};
+    // EVERY ROOM IN THE LAYOUT, through `_fullMapNodePoint` — which is what
+    // falls back to the derived chart for a planet with no authored atlas.
+    //
+    // This used to iterate the AUTHORED atlas instead, so the eleven planets
+    // that have none (Mud, Ice, Dust, Lava, Poison, Plant, Crystal, Spirit,
+    // Dark, Light, Blood) built an empty `positions` map and the full map
+    // drew its background and nothing else: no nodes, no edges, no YOU ARE
+    // HERE. The chart test never saw it because it asks
+    // `debugFullMapNodePoint`, which has always had the fallback — the bug
+    // was in who the painter asked, not in what the answer would have been.
     final positions = {
-      for (final entry in atlas.entries)
-        if (game.layout.rooms.containsKey(entry.key))
-          entry.key: _fullMapNodePoint(element, entry.key, size),
+      for (final id in game.layout.rooms.keys)
+        id: _fullMapNodePoint(element, id, size),
     };
 
     final background = Paint()
@@ -901,15 +922,67 @@ class _DungeonFullMapPainter extends CustomPainter {
         final active =
             room.id == game.currentRoomId ||
             door.targetRoomId == game.currentRoomId;
-        paint.color =
-            (active ? const Color(0xFF5BC8E8) : const Color(0xFF74613A))
-                .withValues(alpha: active ? 0.62 : 0.34);
+        paint
+          ..strokeWidth = 1.25
+          ..color =
+              (active ? const Color(0xFF5BC8E8) : const Color(0xFF74613A))
+                  .withValues(alpha: active ? 0.62 : 0.34);
+        // PALUSIA'S EDGES ARE THE PUZZLE. Every other planet's door graph is
+        // a constant and the chart is a reminder of where things are; this
+        // one is authored by the player, one irreversible drag at a time,
+        // and the whole strategic question is "what shape am I in now".
+        // Leaving every crossing drawn as the same thread made the one map
+        // in the game that carries live information carry none of it.
+        final fenState = _fenEdgeState(room.id, door.targetRoomId);
+        if (fenState != null) {
+          switch (fenState) {
+            case _FenEdge.mire:
+              paint
+                ..strokeWidth = 1.1
+                ..color = const Color(0xFF8A7350).withValues(alpha: 0.45);
+            case _FenEdge.sod:
+              paint
+                ..strokeWidth = 2.6
+                ..color = const Color(0xFF9BB05A).withValues(alpha: 0.85);
+            case _FenEdge.drowned:
+              // Gone, and never coming back: drawn, but as water.
+              paint
+                ..strokeWidth = 1.0
+                ..color = const Color(0xFF2A4A52).withValues(alpha: 0.42);
+            case _FenEdge.plank:
+              paint
+                ..strokeWidth = 1.2
+                ..color = const Color(0xFF6E5B3A).withValues(alpha: 0.55);
+          }
+        }
         final path = Path()..moveTo(from.dx, from.dy);
         final control = _edgeControl(room.id, door.targetRoomId, from, to);
         path.quadraticBezierTo(control.dx, control.dy, to.dx, to.dy);
         canvas.drawPath(path, paint);
       }
     }
+  }
+
+  /// What the fen makes of the crossing between two knolls, or null when
+  /// this is not Palusia or not a crossing (the wallows, the plank, the
+  /// founder hole and the drowned level's own doors).
+  _FenEdge? _fenEdgeState(String from, String to) {
+    if (game.layout.element != 'Mud') return null;
+    for (final ford in kBogFords) {
+      if (!ford.touches(from) || ford.other(from) != to) continue;
+      return switch (game.bog.field.stateOf(ford.id)) {
+        BogFordState.mire => _FenEdge.mire,
+        BogFordState.sod => _FenEdge.sod,
+        BogFordState.drowned => _FenEdge.drowned,
+      };
+    }
+    // The peat-cutters' boardwalk joins the same two knolls as `add_tail`,
+    // and it is not a crossing: it carries a walker and moors nothing.
+    if ((from == kPlankFromKnoll && to == kPlankToKnoll) ||
+        (from == kPlankToKnoll && to == kPlankFromKnoll)) {
+      return _FenEdge.plank;
+    }
+    return null;
   }
 
   Offset _edgeControl(String a, String b, Offset from, Offset to) {

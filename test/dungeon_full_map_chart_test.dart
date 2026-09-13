@@ -12,12 +12,18 @@
 // hand-authored one, or some future third scheme all satisfy it, and all of
 // them are fine. Collapsing to one point is not.
 
+import 'dart:ui' as ui;
+
+import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  _painterTests();
   const canvas = Size(880, 980);
 
   group('every dungeon charts as a real map', () {
@@ -97,6 +103,107 @@ void main() {
             reason: '$element/$id moved between calls',
           );
         }
+      });
+    });
+  });
+}
+
+// ─────────────────────────────────────────────────────────
+// AND THE PAINTER HAS TO ASK THE SAME QUESTION THE TEST DOES.
+//
+// The invariant above held perfectly while the map drew NOTHING. The chart
+// helper has always fallen back to the derived layout; the painter did not
+// ask the helper — it iterated the hand-authored atlas directly and built an
+// empty position map for every planet without one, so eleven dungeons opened
+// their full map on a background with no nodes, no threads and no "you are
+// here". A test that exercises a helper proves the helper.
+//
+// So this one renders the widget and counts ink.
+
+Future<int> _inkOfMap(PlanetDungeonGame game) async {
+  const size = Size(880, 980);
+  final rec = ui.PictureRecorder();
+  debugPaintFullMap(game, Canvas(rec), size);
+  final img = await rec.endRecording().toImage(
+    size.width.toInt(),
+    size.height.toInt(),
+  );
+  final raw = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+  final bytes = raw!.buffer.asUint8List();
+  // The chart's background is a dark vertical gradient; anything the painter
+  // puts down is brighter than it. Count what stands out from its own row.
+  var lit = 0;
+  for (var i = 0; i < bytes.length; i += 4) {
+    if (bytes[i] > 70 || bytes[i + 1] > 70 || bytes[i + 2] > 90) lit++;
+  }
+  return lit;
+}
+
+PlanetDungeonGame _mapGame(String element) {
+  final els = kCosmicPlanetEntry[element] ?? const ['Mud', 'Mud', 'Mud'];
+  final game = PlanetDungeonGame(
+    element: element,
+    party: [
+      for (var i = 0; i < els.length; i++)
+        CosmicPartyMember(
+          instanceId: 'i$i',
+          baseId: 'b$i',
+          displayName: els[i],
+          element: els[i],
+          family: 'mane',
+          level: 10,
+          statSpeed: 3,
+          statIntelligence: 3,
+          statStrength: 3,
+          statBeauty: 3,
+          slotIndex: i,
+          staminaBars: 3,
+          staminaMax: 3,
+        ),
+    ],
+    initialStarMask: 0,
+    onStarEarned: (_) {},
+    onPlayerDown: () {},
+    onChanged: () {},
+  );
+  return game;
+}
+
+void _painterTests() {
+  group('the full map actually draws', () {
+    testWidgets('every planet puts nodes and threads on the chart', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        for (final element in kPlanetDungeonLayouts.keys) {
+          final lit = await _inkOfMap(_mapGame(element));
+          expect(
+            lit,
+            greaterThan(400),
+            reason:
+                '$element: the full map drew background and nothing else — '
+                'this is what an empty position map looks like',
+          );
+        }
+      });
+    });
+
+    testWidgets('Palusia draws its crossings by STATE, not as one thread', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        final game = _mapGame('Mud');
+        final open = await _inkOfMap(game);
+        // A dragged road is a heavier, brighter thread; a drowned one all but
+        // disappears. The chart has to move when the fen does — it is the
+        // only planet whose edges are the puzzle.
+        game.bog.field.harden('tarn_head');
+        final dragged = await _inkOfMap(game);
+        expect(
+          dragged,
+          isNot(open),
+          reason: 'the fen changed and the map did not',
+        );
       });
     });
   });
