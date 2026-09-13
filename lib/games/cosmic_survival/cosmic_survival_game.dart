@@ -2384,7 +2384,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
         // Face along the tangent of the circle (perpendicular to radius).
         comp.angle = comp.chargeCircleAngle + pi / 2;
-        for (final e in enemies) {
+        // SNAPSHOT: killing something here can APPEND to `enemies` — a
+        // splitter breaks into smaller bodies on death, and a summoner's brood
+        // lands in the same list — so walking the live list throws Concurrent
+        // modification mid-frame. `_updateEnemies` already iterates a copy for
+        // exactly this reason.
+        for (final e in List<CosmicSurvivalEnemy>.of(enemies)) {
           if (e.isDead) continue;
           final d = (e.position - comp.position).distance;
           if (d < e.radius + comp.chargeSweepRadius &&
@@ -2407,7 +2412,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           final hornElement = comp.member.family.toLowerCase() == 'horn'
               ? comp.member.element
               : null;
-          for (final e in enemies) {
+          // SNAPSHOT: killing something here can APPEND to `enemies` — a
+          // splitter breaks into smaller bodies on death, and a summoner's
+          // brood lands in the same list — so walking the live list throws
+          // Concurrent modification mid-frame. `_updateEnemies` already
+          // iterates a copy for exactly this reason.
+          for (final e in List<CosmicSurvivalEnemy>.of(enemies)) {
             if (e.isDead) continue;
             final d = (e.position - comp.position).distance;
             if (d < e.radius + comp.chargeSweepRadius &&
@@ -2470,7 +2480,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         }
       }
       if (comp.chargeTimer <= 0) {
-        for (final e in enemies) {
+        // SNAPSHOT: killing something here can APPEND to `enemies` — a
+        // splitter breaks into smaller bodies on death, and a summoner's brood
+        // lands in the same list — so walking the live list throws Concurrent
+        // modification mid-frame. `_updateEnemies` already iterates a copy for
+        // exactly this reason.
+        for (final e in List<CosmicSurvivalEnemy>.of(enemies)) {
           if (e.isDead) continue;
           final d = (e.position - comp.position).distance;
           if (d < e.radius + comp.chargeFinalSweepRadius &&
@@ -9302,7 +9317,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticQuakes.add(
       _MysticQuake(centre: orb.position, radius: _arenaRadius * 0.95),
     );
-    for (final enemy in enemies) {
+    // SNAPSHOT: killing something here can APPEND to `enemies` — a splitter
+    // breaks into smaller bodies on death, and a summoner's brood lands in the
+    // same list — so walking the live list throws Concurrent modification mid-
+    // frame. `_updateEnemies` already iterates a copy for exactly this reason.
+    for (final enemy in List<CosmicSurvivalEnemy>.of(enemies)) {
       if (enemy.isDead) continue;
       _damageEnemy(enemy, damage, sourceSlotIndex: slotIndex);
       if (enemy.isDead) continue;
@@ -13874,7 +13893,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _fireMaskSpiritNuke(CosmicSurvivalCompanion comp, double basePower) {
     // Wipes every regular enemy. Bosses are tracked in `activeBoss` /
     // `extraBosses`, not in `enemies`, so they're naturally skipped.
-    for (final enemy in enemies) {
+    // SNAPSHOT: killing something here can APPEND to `enemies` — a splitter
+    // breaks into smaller bodies on death, and a summoner's brood lands in the
+    // same list — so walking the live list throws Concurrent modification mid-
+    // frame. `_updateEnemies` already iterates a copy for exactly this reason.
+    for (final enemy in List<CosmicSurvivalEnemy>.of(enemies)) {
       if (enemy.isDead) continue;
       _damageEnemy(enemy, enemy.hp + 1, sourceSlotIndex: comp.slotIndex);
     }
