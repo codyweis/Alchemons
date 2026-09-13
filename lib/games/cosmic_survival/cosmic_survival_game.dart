@@ -7419,7 +7419,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       mysticRevenantCount(slotIndex) +
       mysticVineCount(slotIndex) +
       _mysticMaws.where((m) => m.ownerSlot == slotIndex && m.fade > 0).length +
-      _mysticPools.where((p) => p.ownerSlot == slotIndex && p.fade > 0).length;
+      _mysticPools.where((p) => p.ownerSlot == slotIndex && p.fade > 0).length +
+      // Everything below was missing, which made the "nothing outlives its
+      // world" assertion pass for six worlds by simply not looking at them.
+      // The family was built one or two elements at a time over a long stretch
+      // and this counter was never revisited — the exact failure an audit is
+      // for.
+      _mysticCrystals.where((c) => c.ownerSlot == slotIndex && !c.dead).length +
+      _mysticStars.where((s) => s.ownerSlot == slotIndex && !s.dead).length +
+      _mysticFissures
+          .where((f) => f.ownerSlot == slotIndex && f.fade > 0)
+          .length +
+      _mysticMeteors.where((m) => m.ownerSlot == slotIndex).length +
+      _mysticMaelstroms
+          .where((m) => m.ownerSlot == slotIndex && m.fade > 0)
+          .length +
+      _mysticTornados
+          .where((t) => t.ownerSlot == slotIndex && t.fade > 0)
+          .length;
 
   /// How many poison patches this slot's world has laid down.
   @visibleForTesting
@@ -7432,7 +7449,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// count is whatever that world is MADE of — embers, revenants, vines,
   /// patches, or the hole itself — so the player can see their world rather
   /// than being told it exists.
-  ({String element, String noun, int standing, double strength})?
+  ({String element, String effect, String status, double strength})?
   mysticWorldReadout(int slotIndex) {
     final comp = activeCompanions[slotIndex];
     if (comp == null || comp.member.family.toLowerCase() != 'mystic') {
@@ -7440,84 +7457,123 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     if (!isMysticFieldSpent(slotIndex)) return null;
     final element = comp.member.element;
-    final (noun, standing) = switch (element) {
-      'Fire' => ('embers adrift', mysticEmberCount(slotIndex)),
-      'Spirit' => ('revenants risen', mysticRevenantCount(slotIndex)),
-      'Plant' => ('vines standing', mysticVineCount(slotIndex)),
-      'Poison' => ('patches spilled', mysticPoolCount(slotIndex)),
-      'Dark' => (
-        'maw open',
-        _mysticMaws.where((m) => m.ownerSlot == slotIndex && m.fade > 0).length,
+
+    /// Seconds until this world's next beat, for the ones that run on a clock.
+    String nextBeat() {
+      final left = _mysticClock[slotIndex];
+      if (left == null) return '';
+      return ' · next in ${left.ceil()}s';
+    }
+
+    int inRangeOf(Offset centre, double radius) => enemies
+        .where((e) => !e.isDead && (e.position - centre).distance <= radius)
+        .length;
+
+    // Two lines, not one. The old readout gave a bare count and a noun, which
+    // produced things like "42 toward dawn" and "1 maw open" — a number the
+    // player has no way to interpret next to a phrase that is not a sentence.
+    // What they actually need is what this world DOES, and then how it is
+    // going right now.
+    final (effect, status) = switch (element) {
+      'Fire' => (
+        'Embers drift the whole arena and set light to whatever walks into them.',
+        '${mysticEmberCount(slotIndex)} embers adrift',
       ),
-      'Lightning' => ('bolts fallen', mysticStrikeCount(slotIndex)),
-      'Earth' => ('quakes run', mysticStrikeCount(slotIndex)),
-      'Steam' => ('vents blown', mysticStrikeCount(slotIndex)),
-      'Air' => (
-        'caught in the funnel',
+      'Spirit' => (
+        'Small enemies that die anywhere get back up on your side and hunt their own.',
+        mysticRevenantCount(slotIndex) == 0
+            ? 'nothing risen yet'
+            : '${mysticRevenantCount(slotIndex)} revenants fighting for you',
+      ),
+      'Blood' => (
+        "Every auto attack that lands — the party's and the ship's — drains life back into the orb.",
+        'passive · nothing on the field to lose',
+      ),
+      'Dark' => (
+        'A hole north of the orb drags enemies in and puts them off the map, to walk back from the edge.',
+        _mysticMaws.any((m) => m.ownerSlot == slotIndex && m.fade > 0)
+            ? 'the maw is open'
+            : 'closing',
+      ),
+      'Plant' => (
+        'Two vines flank the orb: one lashes whatever closes, one spits thorns at whatever does not.',
+        '${mysticVineCount(slotIndex)} of 2 still standing',
+      ),
+      'Lightning' => (
+        'The sky marks a spot, then strikes it. A boss caught by one is stunned for a second.',
+        '${mysticStrikeCount(slotIndex)} bolts fallen${nextBeat()}',
+      ),
+      'Poison' => (
+        'The ship leaves poison wherever it flies, so the shape of this world is whatever you draw.',
+        '${mysticPoolCount(slotIndex)} patches still burning',
+      ),
+      'Mud' => (
+        'Anything the SHIP hits bogs down — 70% slower, and further as this world deepens.',
+        '${enemies.where((e) => !e.isDead && e.slowTimer > 0 && e.slowMultiplier <= 0.35).length} bogged down right now',
+      ),
+      'Earth' => (
+        'The ground never settles, and every quake damages every enemy on the field and puts it down.',
+        '${mysticStrikeCount(slotIndex)} quakes run${nextBeat()}',
+      ),
+      'Steam' => (
+        'Pressure builds and vents, throwing every enemy outward from the orb. It buys room; it deals no damage.',
+        '${mysticStrikeCount(slotIndex)} vents blown${nextBeat()}',
+      ),
+      'Ice' => (
+        'Every enemy on the field is slowed for as long as this world holds, on top of any other slow.',
+        '${enemies.where((e) => !e.isDead && e.blizzardMultiplier < 1.0).length} caught in the blizzard',
+      ),
+      'Crystal' => (
+        'The dead crystallise. The ship draws the shards in, and each one feeds your surge meter.',
+        '${mysticCrystalCount(slotIndex)} shards waiting to be collected',
+      ),
+      'Light' => (
+        'A star is rising outside the arena. When it breaks, the orb, the ship and every alchemon go back to full.',
         (() {
-          for (final twister in _mysticTornados) {
-            if (twister.ownerSlot != slotIndex) continue;
-            return enemies
-                .where(
-                  (e) =>
-                      !e.isDead &&
-                      (e.position - twister.position).distance <=
-                          twister.funnelRadius,
-                )
-                .length;
+          for (final star in _mysticStars) {
+            if (star.ownerSlot != slotIndex) continue;
+            if (star.flare > 0) return 'dawn breaking';
+            final left = (1.0 - star.charge) * star.period;
+            return 'dawn in ${left.ceil()}s';
           }
-          return 0;
+          return 'dark';
         })(),
       ),
+      'Dust' => (
+        "The air is thick with grit. Enemy shooters choke on it and their rounds go off in their own faces.",
+        '$_mysticMisfires rounds turned back so far',
+      ),
+      'Lava' => (
+        'Cracks split the floor. Anything as heavy as a BOSS crossing one brings meteors down on that ground.',
+        '${_mysticFissures.where((f) => f.ownerSlot == slotIndex && f.fade > 0).length} cracks glowing',
+      ),
       'Water' => (
-        'held in the water',
+        'A whirlpool turns out in the ring. Everything it catches stops advancing and is carried round the eye.',
         (() {
           for (final storm in _mysticMaelstroms) {
             if (storm.ownerSlot != slotIndex) continue;
-            return enemies
-                .where(
-                  (e) =>
-                      !e.isDead &&
-                      (e.position - storm.centre).distance <= storm.radius,
-                )
-                .length;
+            return '${inRangeOf(storm.centre, storm.radius)} held in the water';
           }
-          return 0;
+          return 'still';
         })(),
       ),
-      'Lava' => (
-        'cracks open',
-        _mysticFissures
-            .where((f) => f.ownerSlot == slotIndex && f.fade > 0)
-            .length,
-      ),
-      'Crystal' => (
-        'shards waiting',
-        _mysticCrystals.where((c) => c.ownerSlot == slotIndex && !c.dead).length,
-      ),
-      'Ice' => (
-        'caught in the blizzard',
-        enemies.where((e) => !e.isDead && e.blizzardMultiplier < 1.0).length,
-      ),
-      'Light' => (
-        'toward dawn',
+      'Air' => (
+        'A tornado walks a circuit around the arena, lifting whatever it passes over and grinding it down.',
         (() {
-          for (final star in _mysticStars) {
-            if (star.ownerSlot == slotIndex) {
-              return (star.charge * 100).round();
-            }
+          for (final twister in _mysticTornados) {
+            if (twister.ownerSlot != slotIndex) continue;
+            return '${inRangeOf(twister.position, twister.funnelRadius)} caught in the funnel';
           }
-          return 0;
+          return 'still';
         })(),
       ),
-      // Blood and Mud place nothing: they are rules on somebody's guns, so
-      // there is no count to give and the readout says so with a zero.
-      _ => ('passive', 0),
+      _ => ('This world holds while its Mystic stands.', ''),
     };
+
     return (
       element: element,
-      noun: noun,
-      standing: standing,
+      effect: effect,
+      status: status,
       strength: mysticWorldStrength(slotIndex),
     );
   }

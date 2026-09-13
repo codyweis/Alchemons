@@ -1875,8 +1875,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 _PauseWorldPanel(
                   name: cosmicSpecialAbilityName('mystic', world.element),
                   element: world.element,
-                  noun: world.noun,
-                  standing: world.standing,
+                  effect: world.effect,
+                  status: world.status,
                   casterName: member.displayName,
                   fading: world.strength < 0.999,
                 ),
@@ -3200,8 +3200,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                     w.element,
                                   ),
                                   element: w.element,
-                                  noun: w.noun,
-                                  standing: w.standing,
+                                  effect: w.effect,
+                                  status: w.status,
                                   casterName: party[i].displayName,
                                   fading: w.strength < 0.999,
                                 ),
@@ -4229,16 +4229,20 @@ class _PauseWorldPanel extends StatelessWidget {
   const _PauseWorldPanel({
     required this.name,
     required this.element,
-    required this.noun,
-    required this.standing,
+    required this.effect,
+    required this.status,
     required this.casterName,
     required this.fading,
   });
 
   final String name;
   final String element;
-  final String noun;
-  final int standing;
+
+  /// What this world does, in a sentence.
+  final String effect;
+
+  /// How it is going right now.
+  final String status;
   final String casterName;
   final bool fading;
 
@@ -4310,15 +4314,33 @@ class _PauseWorldPanel extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 5),
+                      // WHAT IT DOES, first. A bare count and a noun fragment
+                      // told the player nothing they could act on — the world
+                      // is the thing they gave up their only Mystic slot for,
+                      // and this is the one screen with room to say what it is.
                       Text(
-                        standing > 0 ? '$standing $noun' : noun,
+                        effect,
                         style: const TextStyle(
                           color: _C.textPrimary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                          height: 1.4,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 5),
+                      if (status.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          status.toUpperCase(),
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: accent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 6),
                       // The trade, stated plainly. It is the whole mechanic and
                       // nothing in the game says it out loud anywhere else.
                       Text(
