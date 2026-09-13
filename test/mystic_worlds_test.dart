@@ -542,33 +542,47 @@ void main() {
     );
   });
 
-  test('Mud bogs down what the ship hits, and nothing else', () async {
+  test('Mud makes everything take more, and heavy bodies most', () async {
     final game = await boot('Mud');
     await castOnce(game);
 
+    // It is NOT a slow any more. Ice already slows the whole field, always,
+    // stacking with everything — Mud being a worse copy of that was the reason
+    // this world changed verb.
     final live = game.enemies.where((e) => !e.isDead).toList();
-    expect(live.length, greaterThan(1));
-    final shipHit = live.first..hp = 1e9;
-    final partyHit = live.last..hp = 1e9;
-
-    game.debugShipAttackDamage(shipHit, 5);
-    // The floor of the range is 70%, rising to 90% with stats and further with
-    // surges. Pinned rather than checked loosely, because the whole pitch of a
-    // Mud world is a specific number: nothing crosses the field.
+    expect(live, isNotEmpty);
     expect(
-      shipHit.effectiveSpeed,
-      lessThanOrEqualTo(shipHit.speed * 0.30 + 0.001),
-      reason: "the ship's guns are supposed to be the brake",
+      live.every((e) => e.effectiveSpeed >= e.speed * 0.99),
+      isTrue,
+      reason: 'a Mud world is slowing things again',
     );
 
-    game.debugAutoAttackDamage(partyHit, 5);
+    // Weight instead: the same hit costs a heavy body more than a light one.
+    final light = game.debugWeightMultiplier(EnemyTier.wisp);
+    final heavy = game.debugWeightMultiplier(EnemyTier.colossus);
+    expect(light, greaterThan(1.0), reason: 'the world weighs on nothing');
+    // Compared on the weight ADDED, not on the multiplier: the multiplier
+    // carries a base of 1.0, which flattens the difference into nothing
+    // interesting (1.13 against 1.67) and would let real scaling look flat.
     expect(
-      partyHit.effectiveSpeed,
-      greaterThan(partyHit.speed * 0.30),
+      heavy - 1.0,
+      greaterThan((light - 1.0) * 4),
       reason:
-          'a companion basic must not carry the mire — this world hands the '
-          "PLAYER a tool, which is what keeps it distinct from Blood's tithe",
+          'a colossus should be dragging half the arena around; if it takes '
+          'about what a wisp takes, the scaling is not doing its job',
     );
+
+    // Every tier in between is heavier than the one before it.
+    var previous = 0.0;
+    for (final tier in EnemyTier.values) {
+      final w = game.debugWeightMultiplier(tier);
+      expect(w, greaterThan(previous), reason: '$tier is not heavier than the tier below');
+      previous = w;
+    }
+
+    // And it lifts with its Mystic.
+    game.returnCompanion(0);
+    expect(game.debugWeightMultiplier(EnemyTier.colossus), 1.0);
   });
 
   test('Ice slows everything, and the cold lifts when the world ends', () async {

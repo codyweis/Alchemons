@@ -2279,7 +2279,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             life: 0.08,
           );
           _damageEnemy(target, beamDamage, autoAttack: true);
-          _applyMysticMudSlow(target);
         } else {
           SurvivalBoss? best;
           double bestDist = 560;
@@ -4985,6 +4984,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     bool autoAttack = false,
   }) {
     damage *= outbreak?.damageMultiplier(enemy) ?? 1.0;
+    final weight = _mysticWeightMultiplier(enemy.tier);
+    damage *= weight;
+    // Only worth showing on the bodies the world actually leans on.
+    if (weight > 1.2 && enemy.tier.index >= 2) _splatterMire(enemy.position);
     damage *= _companionOutgoingDamageMultiplier(
       sourceSlotIndex,
       vsBoss: false,
@@ -6604,6 +6607,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (autoAttack) _payMysticBloodTithe(damage, boss.position);
 
     damage *= _companionOutgoingDamageMultiplier(sourceSlotIndex, vsBoss: true);
+    damage *= _mysticBossWeightMultiplier();
 
     // Apply element effectiveness
     final effectiveDamage = attackElement != null
@@ -7508,8 +7512,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         '${mysticPoolCount(slotIndex)} patches still burning',
       ),
       'Mud' => (
-        'Anything the SHIP hits bogs down — 70% slower, and further as this world deepens.',
-        '${enemies.where((e) => !e.isDead && e.slowTimer > 0 && e.slowMultiplier <= 0.35).length} bogged down right now',
+        'Mud cakes everything on the field and it all takes more damage — a little on the small bodies, far more on the heavy ones.',
+        (() {
+          final heavy = enemies
+              .where((e) => !e.isDead && e.tier.index >= 3)
+              .length;
+          final worst =
+              ((_mysticWeightMultiplier(EnemyTier.colossus) - 1) * 100).round();
+          return 'heaviest take +$worst% · $heavy big bodies out there';
+        })(),
       ),
       'Earth' => (
         'The ground never settles, and every quake damages every enemy on the field and puts it down.',
@@ -7704,12 +7715,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void debugAbilityDamage(CosmicSurvivalEnemy enemy, double damage) =>
       _damageEnemy(enemy, damage);
 
-  /// Damage the way the SHIP deals it — an auto attack that also carries a Mud
-  /// world's brake, which a companion's basic deliberately does not.
+  /// Damage the way the SHIP deals it.
   @visibleForTesting
   void debugShipAttackDamage(CosmicSurvivalEnemy enemy, double damage) {
     _damageEnemy(enemy, damage, autoAttack: true);
-    _applyMysticMudSlow(enemy);
   }
 
   /// How far this slot's embers reach from [from] — the distance to the
@@ -8049,11 +8058,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   double _mysticMireSplatTimer = 0;
   double _mysticMireDripTimer = 0;
 
-  /// Mud thrown up where a shot lands.
+  /// Mud thrown off a heavy body as it takes a hit.
   ///
-  /// A Mud world is the only one whose mechanic has no shape of its own — the
-  /// enemy simply moves slower, which is almost impossible to see in a crowd.
-  /// This is what makes the brake visible at the moment it is applied.
+  /// The weight is a number on a damage roll and numbers are invisible, so this
+  /// is the moment it becomes legible: the bigger the thing, the more comes off
+  /// it. Throttled hard — a Mud world applies to every hit on the field.
   void _splatterMire(Offset at) {
     if (_mysticMireSplatTimer > 0) return;
     if (_vfx.length >= 138) return;
@@ -8078,11 +8087,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
-  /// Mud sliding off whatever the mire is currently holding.
+  /// Mud sliding off whatever the world is caking.
   ///
-  /// The splatter marks the hit; this marks the STATE, so a bogged enemy keeps
-  /// looking bogged for as long as it is. Throttled hard and budget-capped —
-  /// a Mud world can have the whole screen slowed at once.
+  /// The splatter marks a hit; this marks the STATE, so the heavy bodies keep
+  /// looking caked whether or not anything is shooting them. Weighted toward
+  /// the big ones, because that is where the world's effect actually lands.
   void _dripMire(double dt) {
     final slot = _activeMysticWorldSlot('Mud');
     if (slot == null) return;
@@ -8096,11 +8105,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final mud = elementColor('Mud');
     final dark = Color.lerp(mud, const Color(0xFF2A1608), 0.5)!;
     var dripped = 0;
-    for (final enemy in enemies) {
+    // Heaviest first: the mud is on everything, but a colossus is wearing most
+    // of it and a wisp is barely marked.
+    final caking = [
+      for (final e in enemies)
+        if (!e.isDead && _isOnScreen(e.position, 40)) e,
+    ]..sort((a, b) => b.tier.index.compareTo(a.tier.index));
+    for (final enemy in caking) {
       if (dripped >= 3) break;
-      if (enemy.isDead || enemy.slowTimer <= 0) continue;
-      if (enemy.slowMultiplier > 0.45) continue;
-      if (!_isOnScreen(enemy.position, 40)) continue;
+      if (enemy.tier.index < 1 && _rng.nextDouble() < 0.75) continue;
       if (_vfx.length >= 148) break;
       dripped++;
       final a = _rng.nextDouble() * 2 * pi;
@@ -8986,6 +8999,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _ventMysticSteam(slotIndex, comp);
   }
 
+  /// What a Mud world currently multiplies damage by, for a body of this size.
+  /// Exposed because the effect is a factor on a damage roll, which leaves
+  /// nothing on the field to observe afterwards.
+  @visibleForTesting
+  double debugWeightMultiplier(EnemyTier tier) =>
+      _mysticWeightMultiplier(tier);
+
   /// Rolls the haze against one enemy, as the fire path does.
   ///
   /// Exposed because shooter-conduct enemies do not appear until deep waves —
@@ -9388,35 +9408,42 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticPools.removeWhere((p) => p.dead);
   }
 
-  // ── MUD: the ship's guns ────────────────────────────────────────────────
+  // ── MUD: the weight ─────────────────────────────────────────────────────
 
-  /// A Mud world turns the ship's own fire into a brake.
+  /// A Mud world cakes everything on the field, and heavy things worst.
   ///
-  /// Ship attacks ONLY, not the party's: the ship is the thing the player
-  /// aims, so the world hands them a tool rather than a passive that happens
-  /// around them, and it keeps this distinct from Blood's tithe, which
-  /// deliberately counts everybody's fire.
-  void _applyMysticMudSlow(CosmicSurvivalEnemy enemy) {
-    if (enemy.isDead) return;
+  /// This was a slow applied to whatever the ship hit, and that was a dead end:
+  /// Ice already slows the entire field, always, stacking with everything else,
+  /// so Mud was a strictly worse copy of a world that already existed. Weight
+  /// is a verb nothing else in the family has — the mud does not make anything
+  /// slower, it makes everything take MORE.
+  ///
+  /// Scaled by the size of the body, which inverts the usual problem: a wisp
+  /// barely notices and a colossus is dragging half the arena around with it.
+  /// The bigger the thing, the more the world hates it.
+  double _mysticWeightMultiplier(EnemyTier tier) {
     final slot = _activeMysticWorldSlot('Mud');
-    if (slot == null) return;
+    if (slot == null) return 1.0;
     final comp = activeCompanions[slot];
-    if (comp == null || comp.isDead) return;
+    if (comp == null || comp.isDead) return 1.0;
+
     final scale = _hornStatScale(
       _effectiveStrength(slot) * 0.5 + _effectiveIntelligence(slot) * 0.5,
-      perPoint: 0.12,
-      min: 0.0,
-      max: 1.0,
+      perPoint: 0.11,
+      min: 0.75,
+      max: 1.5,
     );
-    // 70% slow at the bottom of the stat range up to 90% at the top. The
-    // surge pushes past 90% and holds it longer — the one thing a Mud world
-    // has to sell is that nothing crosses the field.
-    final surge = _mysticWorldPower(slot);
-    final multiplier = max(0.02, (0.30 - 0.20 * scale) / surge);
-    enemy.slowTimer = max(enemy.slowTimer, 1.4 * surge);
-    enemy.slowMultiplier = min(enemy.slowMultiplier, multiplier);
-    _splatterMire(enemy.position);
+    // 12% on the lightest body up to 60% on the heaviest, before stats and the
+    // surge — enough that a colossus walking into a Mud world is a different
+    // fight, without turning the chaff into paper.
+    final byTier = 0.12 + tier.index * 0.096;
+    return 1.0 + byTier * scale * _mysticWorldPower(slot);
   }
+
+  /// The same weight on a boss, which is the heaviest thing on the field and
+  /// so takes the top of the scale.
+  double _mysticBossWeightMultiplier() =>
+      _mysticWeightMultiplier(EnemyTier.colossus);
 
   // ── GROUND COVER: what a world does to the map itself ───────────────────
 
@@ -15299,7 +15326,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           return false;
         }
         _damageEnemy(enemy, proj.damage, autoAttack: true);
-        _applyMysticMudSlow(enemy);
         // Rocket splash AoE
         if (proj.splashRadius > 0) {
           _visitEnemiesNear(proj.position, proj.splashRadius, (other) {
@@ -15310,7 +15336,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               proj.splashRadius,
             )) {
               _damageEnemy(other, proj.damage * 0.55, autoAttack: true);
-              _applyMysticMudSlow(other);
             }
             return false;
           });
@@ -15337,7 +15362,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                   proj.splashRadius,
                 )) {
                   _damageEnemy(other, proj.damage * 0.55, autoAttack: true);
-              _applyMysticMudSlow(other);
                 }
                 return false;
               });

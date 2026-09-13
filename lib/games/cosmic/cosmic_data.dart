@@ -10754,7 +10754,7 @@ CosmicSpecialResult _mysticSpecial(
       break;
     case 'Earth':
       break;
-    // ── MUD: The Mire ──
+    // ── MUD: The Weight ──
     // A world, not a salvo — implemented where worlds can exist, in
     // CosmicSurvivalGame. Deliberately nothing here to fall back on: every
     // Mystic is bespoke, and a shared projectile table for them is a second
@@ -10999,7 +10999,7 @@ String cosmicSpecialAbilityName(String family, String element) {
         'Ice' => 'The Blizzard',
         'Steam' => 'The Pressure',
         'Earth' => 'The Quaking',
-        'Mud' => 'The Mire',
+        'Mud' => 'The Weight',
         'Dust' => 'The Haze',
         'Crystal' => 'The Vein',
         'Air' => 'The Tornado',

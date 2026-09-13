@@ -1894,11 +1894,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           ['WORLD', 'ARENA-WIDE', 'STUN'],
         ),
         'Mud' => (
-          'The Mire • Strength and Intelligence scale the drag',
-          'The field turns to mud under the ship\'s guns: anything the SHIP '
-              'hits bogs down 70% to 90%, further with surges. Holds while '
-              'this Mystic is alive and deployed.',
-          ['WORLD', 'SHIP', 'SLOW'],
+          'The Weight • Strength and Intelligence scale the drag',
+          'Mud cakes everything on the field and it all takes more damage — '
+              'barely anything on a wisp, far more on a brute, most of all on '
+              'a boss. Holds while this Mystic is alive and deployed.',
+          ['WORLD', 'AMPLIFY', 'ANTI-HEAVY'],
         ),
         'Dust' => (
           'The Haze • Intelligence scales the grit',

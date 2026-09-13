@@ -592,8 +592,8 @@ const kMysticWorldPowerUps = [
   ),
   PowerUpDef(
     id: 'world_mud',
-    name: 'Deepening Mire',
-    description: "The ship's guns bog enemies down harder and for longer",
+    name: 'Deepening Weight',
+    description: 'The mud drags harder on everything, heavy bodies most',
     icon: '🟤',
     category: PowerUpCategory.mysticWorld,
     rarity: PowerUpRarity.rare,
