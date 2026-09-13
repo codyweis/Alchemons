@@ -113,7 +113,7 @@ void main() {
 
   testWidgets('the fen LOOKS different in its three states', (tester) async {
     await tester.runAsync(() async {
-      final g = _game();
+      final g = _game()..entryDoorRevealed = true;
       g.bog.field.reset();
       final mire = await _shot(g, 'mire_gate', 'fen_0_mire');
 
@@ -126,12 +126,37 @@ void main() {
         reason: 'a dragged crossing has to CHANGE the picture of the fen',
       );
 
+      // THE GATE WITH ALL THREE STATES AT ONCE — the picture that has to be
+      // readable from the middle of the room.
+      g.bog.field.reset();
+      g.bog.field.harden('add_head'); // sod; drowns add_neck (not here)
+      g.bog.field.harden('cor_neck'); // drowns cor_head, at the gate
+      await _shot(g, 'mire_gate', 'fen_3_all_three');
+
       // The lotus, cut adrift and riding down.
       g.bog.field.reset();
       g.bog.field.harden('cor_neck');
       g.bog.field.harden('add_neck');
       final adrift = await _shot(g, 'lotus_knoll', 'fen_2_adrift');
       expect(adrift, isNonZero);
+    });
+  });
+
+  testWidgets('the knolls, with the fen open', (tester) async {
+    await tester.runAsync(() async {
+      final g = _game()..entryDoorRevealed = true;
+      g.bog.field.reset();
+      g.bog.field.harden('add_neck');
+      for (final id in const [
+        'mire_gate',
+        'hag_knoll',
+        'altar_knoll',
+        'sedge_knoll',
+        'cairn_knoll',
+        'lotus_knoll',
+      ]) {
+        expect(await _shot(g, id, 'open_' + id), isNonZero);
+      }
     });
   });
 }

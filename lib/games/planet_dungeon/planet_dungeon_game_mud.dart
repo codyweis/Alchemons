@@ -1140,7 +1140,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
 
   static const Color _fenPeat = Color(0xFF241E17);
   static const Color _fenSlurry = Color(0xFF6B5B41);
-  static const Color _fenSod = Color(0xFF7E8C4B);
+  static const Color _fenSod = Color(0xFF5E6B37);
   static const Color _fenWater = Color(0xFF0D1A1E);
   static const Color _fenSheen = Color(0xFF9FB6A6);
   static const Color _fenBrass = Color(0xFFE4C16A);
@@ -1288,8 +1288,33 @@ extension SinkingAltarFen on PlanetDungeonGame {
       Paint()..color = _fenPeat.withValues(alpha: 0.34),
     );
 
-    // Standing water, and a single slow sheen crossing each pool.
+    // THE POOLS ARE THE KNOLL'S OWN GAUGE. A knoll stands DRY-FOOTED when
+    // every crossing that touches it is sod, and that — not a number in the
+    // corner of the HUD — is what the moor-altars answer to. So the ground
+    // says it: a knoll that still swims lies under standing water, and a
+    // drained one has cracked mud where the water was. State lives ON the
+    // thing it belongs to (§7.9.2).
+    final drained = _fen.isDry(room.id) && room.fen?.knoll != null;
     for (var i = 0; i < g.pools.length; i++) {
+      if (drained) {
+        canvas.drawPath(
+          g.pools[i],
+          Paint()..color = _fenSlurry.withValues(alpha: 0.30),
+        );
+        // Crazing: three cracks across the dry pan.
+        final c = g.poolCentres[i];
+        for (var k = 0; k < 3; k++) {
+          final a = k * 2.1 + i;
+          canvas.drawLine(
+            c + Offset(cos(a) * 10, sin(a) * 6),
+            c + Offset(cos(a) * 34, sin(a) * 18),
+            Paint()
+              ..strokeWidth = 1.1
+              ..color = _fenPeat.withValues(alpha: 0.75),
+          );
+        }
+        continue;
+      }
       canvas.drawPath(
         g.pools[i],
         Paint()..color = _fenWater.withValues(alpha: 0.66),
@@ -1446,29 +1471,61 @@ extension SinkingAltarFen on PlanetDungeonGame {
       return Offset.lerp(a, b, t)!;
     }
 
+    /// The same ribbon with a BROKEN EDGE — the half-width wanders along the
+    /// run. A constant-width band reads as a built structure (the first cut
+    /// of this made every mire crossing look like a boardwalk), and mire is
+    /// precisely the crossing nobody built.
+    Path ragged(double halfWidth, double seed) {
+      const n = 9;
+      double w(int i) =>
+          halfWidth * (0.72 + 0.5 * (sin(i * 2.3 + seed) * 0.5 + 0.5));
+      final path = Path();
+      for (var i = 0; i <= n; i++) {
+        final p = at(i / n) + norm * w(i);
+        i == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
+      }
+      for (var i = n; i >= 0; i--) {
+        final p = at(i / n) - norm * w(i + 5);
+        path.lineTo(p.dx, p.dy);
+      }
+      path.close();
+      return path;
+    }
+
     switch (state) {
       case BogFordState.mire:
         // QUAKING. A wide soft slurry, a paler skin on it, and ripples
         // travelling out along the crossing: it moves, so it is not to be
         // trusted with anything heavy.
+        // Wet ground with no edge to it — three broken-edged ribbons, each
+        // wandering differently, so the crossing frays into the fen on both
+        // sides instead of stopping at a line.
         canvas.drawPath(
-          ribbon(30),
-          Paint()..color = _fenSlurry.withValues(alpha: 0.42),
+          ragged(30, 0.0),
+          Paint()..color = _fenPeat.withValues(alpha: 0.55),
         );
         canvas.drawPath(
-          ribbon(22),
-          Paint()..color = _fenSlurry.withValues(alpha: 0.55),
+          ragged(23, 1.7),
+          Paint()..color = _fenSlurry.withValues(alpha: 0.26),
         );
+        canvas.drawPath(
+          ragged(13, 3.4),
+          Paint()..color = _fenSlurry.withValues(alpha: 0.22),
+        );
+        // QUAKING. Wet blisters travelling out along it, not rungs across it:
+        // perpendicular strokes at regular spacing are plank joints, which is
+        // how the first cut of this turned a bog into a bridge.
         for (var i = 0; i < 4; i++) {
-          final t = ((bog.clock * 0.28 + i / 4) % 1.0);
+          final t = ((bog.clock * 0.22 + i / 4) % 1.0);
           final p = at(t);
-          final w = 15.0 * (1 - (t - 0.5).abs());
-          canvas.drawLine(
-            p + norm * w,
-            p - norm * w,
-            Paint()
-              ..strokeWidth = 2.4
-              ..color = _fenSheen.withValues(alpha: 0.13),
+          final s = 1 - (t - 0.5).abs() * 1.4;
+          canvas.drawOval(
+            Rect.fromCenter(
+              center: p + norm * (sin(i * 2.7) * 9),
+              width: 26 * s,
+              height: 9 * s,
+            ),
+            Paint()..color = _fenSheen.withValues(alpha: 0.09 * s),
           );
         }
       case BogFordState.sod:
@@ -1559,103 +1616,34 @@ extension SinkingAltarFen on PlanetDungeonGame {
 
     final knoll = fen.knoll;
     if (knoll != null) {
-      // The wallow: a soft dark eye that breathes.
-      final r = 26 + sin(bog.clock * 1.1) * 2.5;
-      canvas.drawCircle(
-        knoll.wallow,
-        r,
-        Paint()..color = _fenWater.withValues(alpha: 0.85),
-      );
-      canvas.drawCircle(
-        knoll.wallow,
-        r,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = _fenSlurry.withValues(alpha: 0.7),
-      );
-      // The sarsen, wherever it currently stands.
+      _renderWallow(canvas, knoll.wallow);
+      // The sarsen, wherever it currently stands. At the gate it is LYING in
+      // the silt where it fell; anywhere else the party has walked it there.
       if (f.sarsenKnoll == room.id && !f.sarsenSeated) {
-        _renderSarsen(canvas, Offset(room.bounds.center.dx, 140));
-      }
-      if (f.isDry(room.id)) {
-        // A drained knoll reads as drained: a dry hairline round its heart.
-        canvas.drawCircle(
-          room.bounds.center,
-          150,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4
-            ..color = _fenSod.withValues(alpha: 0.35),
+        final home = f.sarsenKnoll == kSarsenHomeKnoll;
+        _renderSarsen(
+          canvas,
+          Offset(room.bounds.center.dx, home ? 150 : 140),
+          fallen: home,
         );
       }
     }
 
     final moor = fen.moor;
     if (moor != null) {
-      final woken = f.moorsWoken.contains(room.id);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: moor.basin, width: 74, height: 26),
-          const Radius.circular(12),
-        ),
-        Paint()
-          ..color = (woken ? _fenSheen : _fenPeat).withValues(
-            alpha: woken ? 0.6 : 0.9,
-          ),
+      _renderMoorAltar(
+        canvas,
+        moor.basin,
+        holding: f.moorsWoken.contains(room.id),
+        dryFooted: f.isDry(room.id),
       );
-      // The standing stone above it.
-      canvas.drawPath(
-        Path()
-          ..moveTo(moor.basin.dx - 16, moor.basin.dy - 12)
-          ..lineTo(moor.basin.dx - 10, moor.basin.dy - 92)
-          ..lineTo(moor.basin.dx + 12, moor.basin.dy - 86)
-          ..lineTo(moor.basin.dx + 17, moor.basin.dy - 12)
-          ..close(),
-        Paint()..color = const Color(0xFF4A4740),
-      );
-      if (woken) {
-        canvas.drawCircle(
-          moor.basin,
-          9 + sin(bog.clock * 2) * 1.6,
-          Paint()..color = _fenBrass.withValues(alpha: 0.7),
-        );
-      }
     }
 
     final altar = fen.altar;
-    if (altar != null) {
-      canvas.drawCircle(
-        altar.socket,
-        34,
-        Paint()
-          ..color = (f.socketOpen ? _fenWater : const Color(0xFF3A3128))
-              .withValues(alpha: 0.92),
-      );
-      if (f.sarsenSeated) _renderSarsen(canvas, altar.socket);
-    }
+    if (altar != null) _renderSinkingAltar(canvas, altar);
 
     final sough = fen.sough;
-    if (sough != null) {
-      canvas.drawCircle(
-        sough,
-        30,
-        Paint()..color = _fenWater.withValues(alpha: 0.9),
-      );
-      if (f.soughFreed) {
-        // A pulled plug reads as a pull: three curves running inward.
-        for (var i = 0; i < 3; i++) {
-          final a0 = bog.clock * 1.4 + i * 2.09;
-          canvas.drawLine(
-            sough + Offset(cos(a0) * 62, sin(a0) * 62),
-            sough + Offset(cos(a0) * 30, sin(a0) * 30),
-            Paint()
-              ..color = _fenSheen.withValues(alpha: 0.4)
-              ..strokeWidth = 2.4,
-          );
-        }
-      }
-    }
+    if (sough != null) _renderSough(canvas, sough);
 
     final pit = fen.sinkPit;
     if (pit != null) {
@@ -1670,27 +1658,404 @@ extension SinkingAltarFen on PlanetDungeonGame {
     }
 
     final anchor = fen.anchor;
-    if (anchor != null) {
-      canvas.drawCircle(
-        anchor,
-        30,
+    if (anchor != null) _renderMireAnchor(canvas, anchor, firm: f.anchorFirm);
+  }
+
+  /// THE WALLOW — the soft eye at a knoll's heart, and the way down from
+  /// every one of them. It is a door the player uses more than any other on
+  /// this planet and it was a flat dark circle; a hole you let the fen pull
+  /// you into should look like it is pulling.
+  void _renderWallow(Canvas canvas, Offset at) {
+    final breathe = sin(bog.clock * 1.1);
+    // The slumped lip: peat sagging inward all round.
+    canvas.drawOval(
+      Rect.fromCenter(center: at.translate(0, 4), width: 84, height: 46),
+      Paint()..color = _fenPeat.withValues(alpha: 0.95),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at, width: 74, height: 38),
+      Paint()..color = _fenSlurry.withValues(alpha: 0.45),
+    );
+    // Three draw-down rings, each one narrower and lower: the pull.
+    for (var i = 0; i < 3; i++) {
+      final k = 1 - i * 0.28;
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: at.translate(0, i * 2.0),
+          width: 60 * k + breathe * 2,
+          height: 30 * k + breathe,
+        ),
         Paint()
-          ..color = (f.anchorFirm ? _fenSod : _fenSlurry).withValues(
-            alpha: f.anchorFirm ? 0.85 : 0.45,
-          ),
+          ..color = Color.lerp(
+            _fenSlurry,
+            _fenWater,
+            0.4 + i * 0.3,
+          )!.withValues(alpha: 0.85),
+      );
+    }
+    // Bubbles coming up out of it, because something down there is breathing.
+    for (var i = 0; i < 2; i++) {
+      final t = ((bog.clock * 0.5 + i * 0.5) % 1.0);
+      canvas.drawCircle(
+        at.translate((i == 0 ? -9 : 11).toDouble(), 6 - t * 14),
+        2.2 * (1 - t),
+        Paint()..color = _fenSheen.withValues(alpha: 0.28 * (1 - t)),
       );
     }
   }
 
-  void _renderSarsen(Canvas canvas, Offset at) {
+  /// A MOOR-ALTAR — a carved standing stone with a peat-black basin cut into
+  /// its foot. Its state is drawn ON it, never in the HUD: an empty bowl on
+  /// sodden ground, water visibly DRAINING AWAY through the peat when the
+  /// knoll still swims, and a full, still bowl when it holds. That draining
+  /// bowl is how the world teaches the dry-footed rule without a caption.
+  void _renderMoorAltar(
+    Canvas canvas,
+    Offset basin, {
+    required bool holding,
+    required bool dryFooted,
+  }) {
+    // The plinth the bowl is cut into.
     canvas.drawPath(
       Path()
-        ..moveTo(at.dx - 22, at.dy + 14)
-        ..lineTo(at.dx - 15, at.dy - 62)
-        ..lineTo(at.dx + 14, at.dy - 56)
-        ..lineTo(at.dx + 22, at.dy + 14)
+        ..moveTo(basin.dx - 46, basin.dy + 16)
+        ..lineTo(basin.dx - 38, basin.dy - 10)
+        ..lineTo(basin.dx + 38, basin.dy - 10)
+        ..lineTo(basin.dx + 46, basin.dy + 16)
         ..close(),
-      Paint()..color = const Color(0xFF5B5750),
+      Paint()..color = const Color(0xFF3B3830),
+    );
+    // The standing stone above it, leaning as everything here leans, with
+    // three cut grooves down its face.
+    final stone = Path()
+      ..moveTo(basin.dx - 19, basin.dy - 8)
+      ..lineTo(basin.dx - 13, basin.dy - 104)
+      ..lineTo(basin.dx + 14, basin.dy - 97)
+      ..lineTo(basin.dx + 20, basin.dy - 8)
+      ..close();
+    canvas.drawPath(stone, Paint()..color = const Color(0xFF4A4740));
+    canvas.drawPath(
+      stone,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFF5E5B52),
+    );
+    for (var i = 0; i < 3; i++) {
+      final y = basin.dy - 30 - i * 22;
+      canvas.drawLine(
+        Offset(basin.dx - 10, y),
+        Offset(basin.dx + 11, y - 3),
+        Paint()
+          ..strokeWidth = 1.6
+          ..color = const Color(0xFF23211C).withValues(alpha: 0.8),
+      );
+    }
+    // Lichen on the weather side.
+    canvas.drawCircle(
+      Offset(basin.dx - 9, basin.dy - 66),
+      5,
+      Paint()..color = _fenMoss.withValues(alpha: 0.45),
+    );
+
+    // The bowl.
+    final bowl = Rect.fromCenter(center: basin, width: 66, height: 24);
+    canvas.drawOval(bowl, Paint()..color = _fenPeat.withValues(alpha: 0.95));
+    canvas.drawOval(
+      bowl.deflate(3),
+      Paint()..color = const Color(0xFF17140F),
+    );
+    if (holding) {
+      // Still water, right to the rim, and the sky in it.
+      canvas.drawOval(
+        bowl.deflate(5),
+        Paint()..color = const Color(0xFF2E4A4E),
+      );
+      canvas.drawOval(
+        bowl.deflate(5),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = _fenSheen.withValues(alpha: 0.5),
+      );
+      canvas.drawLine(
+        Offset(basin.dx - 14, basin.dy - 1),
+        Offset(basin.dx + 10, basin.dy - 2),
+        Paint()
+          ..strokeWidth = 1.4
+          ..color = _fenSheen.withValues(alpha: 0.35),
+      );
+    } else if (!dryFooted) {
+      // SODDEN GROUND DRINKS IT. A shallow lick of water in the bottom and
+      // a bead running out under the plinth — the bowl is losing it.
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: basin.translate(0, 4),
+          width: 34,
+          height: 8,
+        ),
+        Paint()..color = const Color(0xFF2E4A4E).withValues(alpha: 0.55),
+      );
+      final t = (bog.clock * 0.6) % 1.0;
+      canvas.drawCircle(
+        Offset(basin.dx + 22, basin.dy + 10 + t * 10),
+        2.0 * (1 - t),
+        Paint()..color = const Color(0xFF2E4A4E).withValues(alpha: 0.6),
+      );
+    }
+  }
+
+  /// THE SINKING ALTAR — the room the planet is named for, and it was a flat
+  /// brown disc. It is a socket cut for the sarsen: a stone collar sunk in
+  /// the peat, packed with the bog-resin cap until **Plant+Mud→Poison** eats
+  /// it, and then an open throat with nothing in it but the shape of a stone.
+  void _renderSinkingAltar(Canvas canvas, SinkingAltarSocket altar) {
+    final c = altar.socket;
+    // The apron of old, trodden peat round the socket.
+    canvas.drawOval(
+      Rect.fromCenter(center: c.translate(0, 6), width: 190, height: 96),
+      Paint()..color = _fenPeat.withValues(alpha: 0.55),
+    );
+    // The collar: eight kerbstones set round the throat.
+    for (var i = 0; i < 8; i++) {
+      final a = i / 8 * pi * 2 + 0.2;
+      final p = Offset(c.dx + cos(a) * 62, c.dy + sin(a) * 33);
+      canvas.save();
+      canvas.translate(p.dx, p.dy);
+      canvas.rotate(a + pi / 2);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset.zero, width: 30, height: 17),
+          const Radius.circular(4),
+        ),
+        Paint()..color = const Color(0xFF443F37),
+      );
+      canvas.restore();
+    }
+    // The throat.
+    canvas.drawOval(
+      Rect.fromCenter(center: c, width: 96, height: 52),
+      Paint()..color = const Color(0xFF120F0B),
+    );
+    if (!_fen.socketOpen) {
+      // THE RESIN CAP: a domed, glossy plug of bog-resin, with the grain of
+      // something that set while it was running.
+      canvas.drawOval(
+        Rect.fromCenter(center: c.translate(0, -2), width: 92, height: 48),
+        Paint()..color = const Color(0xFF5A3F1E),
+      );
+      for (var i = 0; i < 4; i++) {
+        canvas.drawArc(
+          Rect.fromCenter(
+            center: c.translate(0, -2),
+            width: 74 - i * 17.0,
+            height: 38 - i * 9.0,
+          ),
+          pi * 0.15,
+          pi * 0.7,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..color = const Color(0xFF7A5A2C).withValues(alpha: 0.6),
+        );
+      }
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: c.translate(-14, -12),
+          width: 26,
+          height: 11,
+        ),
+        Paint()..color = const Color(0xFF9A7638).withValues(alpha: 0.35),
+      );
+    } else if (!_fen.sarsenSeated) {
+      // Open, and shaped for one thing. A ledge inside the throat says what
+      // goes in it without a word.
+      canvas.drawOval(
+        Rect.fromCenter(center: c.translate(0, 5), width: 62, height: 26),
+        Paint()..color = const Color(0xFF241E17),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: c.translate(0, 5), width: 62, height: 26),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = _fenSlurry.withValues(alpha: 0.5),
+      );
+    }
+    if (_fen.sarsenSeated) _renderSarsen(canvas, c.translate(0, 6));
+  }
+
+  /// THE SOUGH — the fen's outfall, and the anti-strand valve. A stone
+  /// throat in the fane's wall with the peat-cutters' plug rammed into it;
+  /// pulled, the whole bog runs for it.
+  void _renderSough(Canvas canvas, Offset at) {
+    // The stone throat.
+    canvas.drawOval(
+      Rect.fromCenter(center: at, width: 96, height: 74),
+      Paint()..color = const Color(0xFF2A2620),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at, width: 76, height: 56),
+      Paint()..color = const Color(0xFF0A0907),
+    );
+    // Voussoirs round the mouth, so it reads as built and not as a hole.
+    for (var i = 0; i < 9; i++) {
+      final a = pi + i / 8 * pi;
+      canvas.drawLine(
+        at + Offset(cos(a) * 40, sin(a) * 31),
+        at + Offset(cos(a) * 50, sin(a) * 39),
+        Paint()
+          ..strokeWidth = 3
+          ..color = const Color(0xFF3E382F),
+      );
+    }
+    if (!_fen.soughFreed) {
+      // The plug: a rammed peat bung, banded, with the cutters' iron ring.
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: 62, height: 46),
+        Paint()..color = const Color(0xFF3A2E1E),
+      );
+      for (var i = -1; i <= 1; i++) {
+        canvas.drawLine(
+          at + Offset(-28, i * 12.0),
+          at + Offset(28, i * 12.0),
+          Paint()
+            ..strokeWidth = 2
+            ..color = const Color(0xFF23190F),
+        );
+      }
+      canvas.drawCircle(
+        at.translate(0, -2),
+        9,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = const Color(0xFF6E6455),
+      );
+    } else {
+      // Pulled. The fen is going down it: streaks running in, and a throat
+      // with nothing left to stop it.
+      for (var i = 0; i < 5; i++) {
+        final a0 = bog.clock * 1.4 + i * 1.26;
+        canvas.drawLine(
+          at + Offset(cos(a0) * 66, sin(a0) * 52),
+          at + Offset(cos(a0) * 28, sin(a0) * 22),
+          Paint()
+            ..strokeWidth = 2.4
+            ..color = _fenSheen.withValues(alpha: 0.35),
+        );
+      }
+    }
+  }
+
+  /// BOGDRYA'S MIRE ANCHOR — quaking floor until a Mud hand sets it, and
+  /// then a pad of hard ground you can plant a foot on. It was a coloured
+  /// circle; firm ground and soft ground have to look like different things
+  /// in the one room where standing on the wrong one loses the fight.
+  void _renderMireAnchor(Canvas canvas, Offset at, {required bool firm}) {
+    if (!firm) {
+      // Soft: the surface travelling, with nothing under it.
+      for (var i = 0; i < 3; i++) {
+        final t = ((bog.clock * 0.5 + i / 3) % 1.0);
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: at,
+            width: 30 + t * 60,
+            height: 16 + t * 32,
+          ),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = _fenSlurry.withValues(alpha: 0.35 * (1 - t)),
+        );
+      }
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: 66, height: 34),
+        Paint()..color = _fenSlurry.withValues(alpha: 0.28),
+      );
+      return;
+    }
+    // Set: a dried pad, crazed across, sitting proud of the mire.
+    canvas.drawOval(
+      Rect.fromCenter(center: at.translate(0, 5), width: 96, height: 46),
+      Paint()..color = Colors.black.withValues(alpha: 0.3),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at, width: 92, height: 44),
+      Paint()..color = const Color(0xFF6B5B41),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at, width: 92, height: 44),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = const Color(0xFF8A7856),
+    );
+    for (var i = 0; i < 5; i++) {
+      final a = i * 1.26 + 0.3;
+      canvas.drawLine(
+        at + Offset(cos(a) * 8, sin(a) * 4),
+        at + Offset(cos(a) * 42, sin(a) * 20),
+        Paint()
+          ..strokeWidth = 1.2
+          ..color = const Color(0xFF3A3021),
+      );
+    }
+  }
+
+  /// The sarsen — the fen's fallen standing stone. Lying in the silt where it
+  /// went down, or upright once it is being walked.
+  void _renderSarsen(Canvas canvas, Offset at, {bool fallen = false}) {
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    if (fallen) canvas.rotate(1.36);
+    final body = Path()
+      ..moveTo(-23, 16)
+      ..lineTo(-16, -64)
+      ..lineTo(15, -58)
+      ..lineTo(23, 16)
+      ..close();
+    canvas.drawPath(body, Paint()..color = const Color(0xFF5B5750));
+    // A lit face and a shadowed one, so it has a side.
+    canvas.drawPath(
+      Path()
+        ..moveTo(-16, -64)
+        ..lineTo(15, -58)
+        ..lineTo(23, 16)
+        ..lineTo(8, 16)
+        ..close(),
+      Paint()..color = const Color(0xFF6C675E),
+    );
+    canvas.drawPath(
+      body,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFF3A362F),
+    );
+    // Lichen, and the old peat line it stood in.
+    canvas.drawCircle(
+      const Offset(-6, -40),
+      6,
+      Paint()..color = _fenMoss.withValues(alpha: 0.4),
+    );
+    canvas.drawLine(
+      const Offset(-20, -4),
+      const Offset(21, -6),
+      Paint()
+        ..strokeWidth = 2
+        ..color = const Color(0xFF2F2A22).withValues(alpha: 0.7),
+    );
+    canvas.restore();
+    // It is heavy: the ground under it is pressed down.
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: at.translate(0, fallen ? 4 : 14),
+        width: fallen ? 86 : 56,
+        height: fallen ? 26 : 18,
+      ),
+      Paint()..color = Colors.black.withValues(alpha: 0.32),
     );
   }
 

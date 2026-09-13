@@ -201,8 +201,8 @@ const List<BogFord> kBogFords = [
     knollB: 'hag_knoll',
     slough: 'cor',
     index: 0,
-    headA: Offset(620, 105),
-    headB: Offset(70, 125),
+    headA: Offset(570, 105),
+    headB: Offset(150, 125),
   ),
   BogFord(
     id: 'cor_neck',
@@ -210,8 +210,8 @@ const List<BogFord> kBogFords = [
     knollB: 'altar_knoll',
     slough: 'cor',
     index: 1,
-    headA: Offset(570, 215),
-    headB: Offset(70, 305),
+    headA: Offset(490, 215),
+    headB: Offset(150, 305),
   ),
   BogFord(
     id: 'cor_tail',
@@ -219,8 +219,8 @@ const List<BogFord> kBogFords = [
     knollB: 'lotus_knoll',
     slough: 'cor',
     index: 2,
-    headA: Offset(530, 220),
-    headB: Offset(70, 220),
+    headA: Offset(450, 220),
+    headB: Offset(150, 220),
   ),
   // ── the Adder, head to mouth ──
   BogFord(
@@ -229,8 +229,8 @@ const List<BogFord> kBogFords = [
     knollB: 'reed_knoll',
     slough: 'add',
     index: 0,
-    headA: Offset(620, 240),
-    headB: Offset(70, 215),
+    headA: Offset(570, 240),
+    headB: Offset(150, 215),
   ),
   BogFord(
     id: 'add_neck',
@@ -238,8 +238,8 @@ const List<BogFord> kBogFords = [
     knollB: 'altar_knoll',
     slough: 'add',
     index: 1,
-    headA: Offset(570, 155),
-    headB: Offset(70, 125),
+    headA: Offset(490, 155),
+    headB: Offset(150, 125),
   ),
   BogFord(
     id: 'add_tail',
@@ -247,8 +247,8 @@ const List<BogFord> kBogFords = [
     knollB: 'lotus_knoll',
     slough: 'add',
     index: 2,
-    headA: Offset(530, 165),
-    headB: Offset(530, 140),
+    headA: Offset(450, 140),
+    headB: Offset(450, 140),
   ),
   // ── the Tarn, head to mouth ──
   BogFord(
@@ -257,8 +257,8 @@ const List<BogFord> kBogFords = [
     knollB: 'sedge_knoll',
     slough: 'tarn',
     index: 0,
-    headA: Offset(620, 375),
-    headB: Offset(70, 220),
+    headA: Offset(570, 375),
+    headB: Offset(150, 220),
   ),
   BogFord(
     id: 'tarn_neck',
@@ -266,8 +266,8 @@ const List<BogFord> kBogFords = [
     knollB: 'reed_knoll',
     slough: 'tarn',
     index: 1,
-    headA: Offset(570, 325),
-    headB: Offset(70, 345),
+    headA: Offset(490, 325),
+    headB: Offset(150, 345),
   ),
   BogFord(
     id: 'tarn_tail',
@@ -275,8 +275,8 @@ const List<BogFord> kBogFords = [
     knollB: 'cairn_knoll',
     slough: 'tarn',
     index: 2,
-    headA: Offset(690, 215),
-    headB: Offset(70, 220),
+    headA: Offset(610, 215),
+    headB: Offset(150, 220),
   ),
 ];
 
