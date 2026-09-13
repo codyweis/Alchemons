@@ -104,8 +104,10 @@ class SinkingFen {
   final Map<String, FenGround> ground = {};
 }
 
-/// One room's worth of fen floor: the standing shapes, in world coordinates.
+/// One room's worth of ground, in world coordinates: the fen above, or the
+/// drowned level under it. Built once, then only read.
 class FenGround {
+  // ── the fen ──
   final List<Path> pools = [];
   final List<Offset> poolCentres = [];
   final List<Path> hummocks = [];
@@ -113,6 +115,13 @@ class FenGround {
   final List<Offset> bogOak = [];
   final List<double> bogOakLean = [];
   final List<Offset> cotton = [];
+
+  // ── the drowned level ──
+  final List<Path> flags = [];
+  final List<Offset> drums = [];
+  final List<double> drumLean = [];
+  final List<Offset> roots = [];
+  final List<double> rootLength = [];
 }
 
 extension SinkingAltarFen on PlanetDungeonGame {
@@ -143,6 +152,12 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (!_isBog) return;
     bog.clock += dt;
     if (bog.smear > 0) bog.smear = max(0.0, bog.smear - dt);
+    // The sink thickens toward what has been poured into it, rather than
+    // snapping: a pour has to READ as peat arriving down the lead.
+    final want = bog.poured.length / 3.0;
+    if ((bog.sinkThickness - want).abs() > 0.001) {
+      bog.sinkThickness += (want - bog.sinkThickness) * min(1.0, dt * 1.4);
+    }
     _updateFounder(room, dt);
     _updateBogdrya(room, dt);
   }
@@ -872,6 +887,16 @@ extension SinkingAltarFen on PlanetDungeonGame {
     final knoll = room.fen?.knoll;
     if (knoll != null && (a.position - knoll.wallow).distance < 90) {
       _setAmbientHint('A soft eye in the peat, going down a long way');
+      return;
+    }
+    // THE BLACK LEAD. Flavour only, and the same two lines whether or not
+    // anything is going on down there — a secret that announces itself is
+    // not one (§5.6 AMBIENT; §7 rule 5, wordless past the first nudge).
+    final sink = room.fen?.sinkPit;
+    if (sink != null && (a.position - sink).distance < 110) {
+      _setAmbientHint(_fen.fenAtFullDrown
+          ? 'The cut is running, and it runs away from the fane'
+          : 'An old cut, dug for something, going nowhere now');
     }
   }
 
@@ -879,6 +904,23 @@ extension SinkingAltarFen on PlanetDungeonGame {
   /// Intelligence.
   void _bogReveal(DungeonCreature a, DungeonRoom room) {
     final tier = revealHintTier(a.member.statIntelligence);
+    // THE BLACK LEAD'S ONE OBLIQUE LINE (§7 rule 5), and it is the only thing
+    // anywhere in the game that speaks about the Lost Maxim. It does not
+    // tier, it does not track progress, and it says the same words whether
+    // the lead is running or dry: it points at the IDEA — this cut was dug
+    // to take the fen's worst, and clean water grows nothing — and every
+    // step after it is legible from what is standing there.
+    final sink = room.fen?.sinkPit;
+    if (sink != null &&
+        (a.position - sink).distance < 150 &&
+        !discoveredClouds.contains(kMudNoLotusEggId)) {
+      _setHint(
+        'The cut was dug to take the fen\'s worst. Nothing has ever '
+        'bloomed out of clean water.',
+        4.0,
+      );
+      return;
+    }
     if (room.fen?.moor != null) {
       _setInsightHint(switch (tier) {
         0 => 'Wet ground will not keep an offering',
@@ -1256,7 +1298,184 @@ extension SinkingAltarFen on PlanetDungeonGame {
   static const Color _fenCotton = Color(0xFFD8D2BA);
 
   FenGround _bogGround(DungeonRoom room) =>
-      bog.ground.putIfAbsent(room.id, () => _buildBogGround(room));
+      bog.ground.putIfAbsent(
+        room.id,
+        () => room.fen?.knoll != null
+            ? _buildBogGround(room)
+            : _buildDrownedGround(room),
+      );
+
+  /// UNDER THE FEN. The fane, the bowl and the hollow are not knolls and had
+  /// no business drawing moss caps, cotton-grass and standing pools — this is
+  /// the drowned level, and the fane in particular is a building that went
+  /// down: flagstones half-swallowed by silt, column drums lying where they
+  /// fell, and the underside of the peat overhead letting its roots through.
+  FenGround _buildDrownedGround(DungeonRoom room) {
+    final b = room.bounds.deflate(10);
+    final g = FenGround();
+    var seed = (b.width * 23 + b.height * 41).toInt() | 1;
+    double rnd() {
+      seed = (seed * 1103515245 + 12345) & 0x3FFFFFFF;
+      return (seed >> 8) / 0x3FFFFF;
+    }
+
+    // FLAGSTONES, in courses, every one tilted and none of them square —
+    // a floor that has been settling for a thousand years.
+    const fw = 96.0;
+    const fh = 58.0;
+    for (var y = b.top + 30; y < b.bottom - 30; y += fh + 10) {
+      final off = ((y - b.top) ~/ (fh + 10)).isEven ? 0.0 : 46.0;
+      for (var x = b.left + 24 + off; x < b.right - 40; x += fw + 12) {
+        // Thinning out toward the room's edges, so the floor drowns in silt
+        // rather than stopping at a line.
+        // Better than half of the floor is gone under silt. A dense, even
+        // course of identical slabs is a BRICK WALL laid flat, which is what
+        // the first cut of this looked like.
+        if (rnd() < 0.58) continue;
+        final c = Offset(x + fw / 2, y + fh / 2);
+        final tilt = (rnd() - 0.5) * 0.22;
+        final sx = fw * (0.62 + rnd() * 0.5);
+        final sy = fh * (0.7 + rnd() * 0.5);
+        final p = Path();
+        final corners = [
+          Offset(-sx / 2, -sy / 2),
+          Offset(sx / 2, -sy / 2),
+          Offset(sx / 2, sy / 2),
+          Offset(-sx / 2, sy / 2),
+        ];
+        for (var i = 0; i < 4; i++) {
+          final k = corners[i] + Offset((rnd() - 0.5) * 9, (rnd() - 0.5) * 7);
+          final r = Offset(
+            k.dx * cos(tilt) - k.dy * sin(tilt),
+            k.dx * sin(tilt) + k.dy * cos(tilt),
+          );
+          final q = c + r;
+          i == 0 ? p.moveTo(q.dx, q.dy) : p.lineTo(q.dx, q.dy);
+        }
+        p.close();
+        g.flags.add(p);
+      }
+    }
+
+    // FALLEN COLUMN DRUMS.
+    final drums = 2 + (rnd() * 3).floor();
+    for (var i = 0; i < drums; i++) {
+      g.drums.add(
+        Offset(
+          b.left + 70 + rnd() * (b.width - 140),
+          b.top + 80 + rnd() * (b.height - 160),
+        ),
+      );
+      g.drumLean.add((rnd() - 0.5) * 1.4);
+    }
+
+    // ROOTS, coming down out of the peat ceiling.
+    final roots = (b.width / 150).clamp(4, 12).toInt();
+    for (var i = 0; i < roots; i++) {
+      g.roots.add(Offset(b.left + 40 + rnd() * (b.width - 80), b.top));
+      g.rootLength.add(50 + rnd() * 90);
+    }
+    return g;
+  }
+
+  /// The drowned level's floor.
+  void _renderDrownedFloor(Canvas canvas, DungeonRoom room) {
+    _renderPlainFloor(canvas, room.bounds, false);
+    final g = _bogGround(room);
+    final t = bog.clock;
+    final b = room.bounds;
+
+    // Silt lying over everything.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(34)),
+      Paint()..color = const Color(0xFF0B0E10).withValues(alpha: 0.45),
+    );
+
+    for (final f in g.flags) {
+      canvas.drawPath(
+        f,
+        Paint()..color = const Color(0xFF2B2C28).withValues(alpha: 0.55),
+      );
+      canvas.drawPath(
+        f,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = const Color(0xFF07090A).withValues(alpha: 0.8),
+      );
+    }
+
+    for (var i = 0; i < g.drums.length; i++) {
+      final c = g.drums[i];
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(g.drumLean[i]);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: const Offset(0, 6), width: 128, height: 40),
+          const Radius.circular(8),
+        ),
+        Paint()..color = Colors.black.withValues(alpha: 0.30),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset.zero, width: 124, height: 38),
+          const Radius.circular(7),
+        ),
+        Paint()..color = const Color(0xFF3A3A34),
+      );
+      // The drum joints, so it reads as a column in pieces.
+      for (var k = -1; k <= 1; k++) {
+        canvas.drawLine(
+          Offset(k * 36.0, -18),
+          Offset(k * 36.0, 18),
+          Paint()
+            ..strokeWidth = 2
+            ..color = const Color(0xFF23231F),
+        );
+      }
+      canvas.restore();
+    }
+
+    // The peat overhead, letting its roots down into the room.
+    canvas.drawRect(
+      Rect.fromLTRB(b.left, b.top, b.right, b.top + 26),
+      Paint()..color = _fenPeat.withValues(alpha: 0.85),
+    );
+    for (var i = 0; i < g.roots.length; i++) {
+      final o = g.roots[i];
+      final len = g.rootLength[i];
+      final sway = sin(t * 0.4 + i * 1.7) * 5;
+      final p = Path()
+        ..moveTo(o.dx, o.dy)
+        ..quadraticBezierTo(
+          o.dx + sway,
+          o.dy + len * 0.6,
+          o.dx + sway * 1.6,
+          o.dy + len,
+        );
+      canvas.drawPath(
+        p,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = _fenOak.withValues(alpha: 0.85),
+      );
+    }
+
+    // Silt going up through the water, slowly.
+    for (var i = 0; i < 10; i++) {
+      final ph = ((t * 0.16 + i * 0.1) % 1.0);
+      canvas.drawCircle(
+        Offset(
+          b.left + 60 + (i * 137 % (b.width - 120)),
+          b.bottom - 30 - ph * (b.height - 70),
+        ),
+        1.6,
+        Paint()..color = _fenSheen.withValues(alpha: 0.12 * (1 - ph)),
+      );
+    }
+  }
 
   /// Deterministic from the room's own size, so a room looks the same every
   /// time you walk into it and no two rooms look alike.
@@ -1360,6 +1579,10 @@ extension SinkingAltarFen on PlanetDungeonGame {
 
   /// The fen floor, under everything else in the room.
   void _renderBogFloor(Canvas canvas, DungeonRoom room) {
+    if (room.fen?.knoll == null) {
+      _renderDrownedFloor(canvas, room);
+      return;
+    }
     _renderPlainFloor(canvas, room.bounds, room.id == layout.entranceRoomId);
     final g = _bogGround(room);
     final t = bog.clock;
@@ -1731,17 +1954,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     final sough = fen.sough;
     if (sough != null) _renderSough(canvas, sough);
 
-    final pit = fen.sinkPit;
-    if (pit != null) {
-      canvas.drawCircle(
-        pit,
-        22,
-        Paint()..color = Colors.black.withValues(alpha: 0.85),
-      );
-      if (discoveredClouds.contains(kMudNoLotusEggId)) {
-        canvas.drawCircle(pit, 13, Paint()..color = const Color(0xFFF2D7E6));
-      }
-    }
+    if (fen.sinkPit != null) _renderBlackLead(canvas, fen);
 
     final anchor = fen.anchor;
     if (anchor != null) _renderMireAnchor(canvas, anchor, firm: f.anchorFirm);
@@ -2088,6 +2301,202 @@ extension SinkingAltarFen on PlanetDungeonGame {
           ..color = const Color(0xFF3A3021),
       );
     }
+  }
+
+  /// THE BLACK LEAD — the Lost Maxim's place, and it has to be drawn as a
+  /// PLACE: a cut in the fane's floor running away into a corner with no
+  /// door at the end of it, choked and dead until the fen above is carrying
+  /// all the water it can. Nothing here is labelled and nothing is a gauge:
+  /// the lead either runs or it does not, and the sink either is water or is
+  /// peat. Those two readings are the whole state of the secret.
+  void _renderBlackLead(Canvas canvas, BogFen fen) {
+    final sink = fen.sinkPit!;
+    final head = fen.leadHead;
+    final cuts = fen.peatCuts;
+    if (head == null || cuts == null) return;
+    final running = _fen.fenAtFullDrown;
+    final found = bog.cutsFound;
+
+    // The channel, as one curve head → cuts → sink.
+    final spine = Path()..moveTo(head.dx, head.dy);
+    var prev = head;
+    for (final c in [...cuts, sink]) {
+      final mid = Offset((prev.dx + c.dx) / 2, (prev.dy + c.dy) / 2 + 14);
+      spine.quadraticBezierTo(mid.dx, mid.dy, c.dx, c.dy);
+      prev = c;
+    }
+    // The cut banks: always here, because the cutters dug this long ago.
+    canvas.drawPath(
+      spine,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 40
+        ..strokeCap = StrokeCap.round
+        ..color = _fenPeat.withValues(alpha: 0.85),
+    );
+    canvas.drawPath(
+      spine,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 27
+        ..strokeCap = StrokeCap.round
+        ..color = (running ? _fenWater : const Color(0xFF241E17)).withValues(
+          alpha: running ? 0.95 : 0.9,
+        ),
+    );
+    if (running) {
+      // It RUNS. Three lights travelling down the lead, away from the fen.
+      for (var i = 0; i < 3; i++) {
+        final t = ((bog.clock * 0.30 + i / 3) % 1.0);
+        final along = _pointAlong(spine, t);
+        if (along == null) continue;
+        canvas.drawCircle(
+          along,
+          4.5,
+          Paint()..color = _fenSheen.withValues(alpha: 0.30),
+        );
+      }
+    } else {
+      // Choked: old peat lying in the bottom of a dry cut.
+      canvas.drawPath(
+        spine,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 13
+          ..strokeCap = StrokeCap.round
+          ..color = _fenSlurry.withValues(alpha: 0.22),
+      );
+    }
+
+    // THE PEAT CUTS — the cutters' trenches off the lead. Under black water
+    // and not there to be found until Water has read them.
+    for (var i = 0; i < cuts.length; i++) {
+      final c = cuts[i];
+      if (!found) continue;
+      final poured = bog.poured.contains(i);
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(-0.5);
+      final trench = Rect.fromCenter(
+        center: Offset.zero,
+        width: 96,
+        height: 34,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(trench.inflate(5), const Radius.circular(8)),
+        Paint()..color = _fenPeat.withValues(alpha: 0.95),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(trench, const Radius.circular(6)),
+        Paint()..color = poured
+            ? const Color(0xFF17140F)
+            : const Color(0xFF3E3322),
+      );
+      if (!poured) {
+        // Turves still stacked on the lip, and the lip itself unbroken.
+        for (var k = -1; k <= 1; k++) {
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                center: Offset(k * 27.0, -26),
+                width: 24,
+                height: 11,
+              ),
+              const Radius.circular(3),
+            ),
+            Paint()..color = _fenSlurry.withValues(alpha: 0.5),
+          );
+        }
+      } else {
+        // Poured: the lip dragged away, and a tongue of peat gone downhill.
+        canvas.drawPath(
+          Path()
+            ..moveTo(-18, 14)
+            ..lineTo(18, 14)
+            ..lineTo(34, 40)
+            ..lineTo(-6, 38)
+            ..close(),
+          Paint()..color = _fenSlurry.withValues(alpha: 0.45),
+        );
+      }
+      canvas.restore();
+    }
+
+    // THE SINK. Clean water you can see the bottom of, or peat — and the
+    // seed going under as it thickens. This is the only readout the secret
+    // has, and it is the thing itself.
+    final k = bog.sinkThickness;
+    canvas.drawOval(
+      Rect.fromCenter(center: sink.translate(0, 5), width: 130, height: 74),
+      Paint()..color = _fenPeat.withValues(alpha: 0.9),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: sink, width: 116, height: 62),
+      Paint()..color = Color.lerp(
+        const Color(0xFF10262B),
+        const Color(0xFF1B1409),
+        k,
+      )!,
+    );
+    if (k < 0.98) {
+      // Water still: a sheen, and the bottom showing through.
+      canvas.drawOval(
+        Rect.fromCenter(center: sink, width: 116, height: 62),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = _fenSheen.withValues(alpha: 0.22 * (1 - k)),
+      );
+      canvas.drawLine(
+        sink.translate(-26, -4),
+        sink.translate(12, -6),
+        Paint()
+          ..strokeWidth = 1.4
+          ..color = _fenSheen.withValues(alpha: 0.20 * (1 - k)),
+      );
+    }
+    if (bog.seedSet && !discoveredClouds.contains(kMudNoLotusEggId)) {
+      // The seed, sinking as the peat comes in. At full thickness it is gone.
+      final sunk = (1 - k).clamp(0.0, 1.0);
+      if (sunk > 0.02) {
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: sink.translate(0, 8 * k),
+            width: 13 * sunk,
+            height: 9 * sunk,
+          ),
+          Paint()..color = const Color(0xFF8FA45E).withValues(alpha: sunk),
+        );
+      }
+    }
+    if (discoveredClouds.contains(kMudNoLotusEggId)) {
+      // It came up anyway.
+      for (var i = 0; i < 8; i++) {
+        final a = i / 8 * pi * 2;
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: sink + Offset(cos(a) * 20, sin(a) * 11),
+            width: 26,
+            height: 13,
+          ),
+          Paint()..color = const Color(0xFFF2D7E6).withValues(alpha: 0.75),
+        );
+      }
+      canvas.drawCircle(
+        sink,
+        9,
+        Paint()..color = const Color(0xFFF7E9A8),
+      );
+    }
+  }
+
+  /// A point a fraction [t] along [path]. `PathMetrics` allocates, so this is
+  /// only ever called for the lead's three travelling lights.
+  Offset? _pointAlong(Path path, double t) {
+    for (final m in path.computeMetrics()) {
+      return m.getTangentForOffset(m.length * t)?.position;
+    }
+    return null;
   }
 
   /// The sarsen — the fen's fallen standing stone. Lying in the silt where it

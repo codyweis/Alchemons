@@ -142,6 +142,49 @@ void main() {
     });
   });
 
+  testWidgets('the Black Lead: choked, running, and buried', (tester) async {
+    await tester.runAsync(() async {
+      final g = _game()..entryDoorRevealed = true;
+      g.bog.field.reset();
+      final choked = await _shot(
+        g,
+        'drowned_fane',
+        'lead_0_choked',
+        at: const Offset(360, 470),
+      );
+
+      // FULL DROWN: the three middles, and the lead runs.
+      for (final f in const ['cor_neck', 'add_neck', 'tarn_neck']) {
+        g.bog.field.harden(f);
+      }
+      final running = await _shot(
+        g,
+        'drowned_fane',
+        'lead_1_running',
+        at: const Offset(360, 470),
+      );
+      expect(
+        running,
+        isNot(choked),
+        reason: 'a running lead has to look different from a dead cut',
+      );
+
+      // The cuts read, the seed set, and two of three poured.
+      g.bog
+        ..cutsFound = true
+        ..seedSet = true
+        ..sinkThickness = 0.66;
+      g.bog.poured.addAll({0, 1});
+      final poured = await _shot(
+        g,
+        'drowned_fane',
+        'lead_2_poured',
+        at: const Offset(360, 470),
+      );
+      expect(poured, isNot(running));
+    });
+  });
+
   testWidgets('the knolls, with the fen open', (tester) async {
     await tester.runAsync(() async {
       final g = _game()..entryDoorRevealed = true;

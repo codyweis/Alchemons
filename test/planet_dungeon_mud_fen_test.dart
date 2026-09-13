@@ -13,6 +13,8 @@
 // the strategic question a question, the vault's induced map state, and
 // Bogdrya's own weaponisation of the planet's rule.
 
+import 'dart:math' show max;
+
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
@@ -650,20 +652,192 @@ void main() {
     });
   });
 
-  group('the lost maxim — NO MUD, NO LOTUS', () {
-    test('seed, water, and let it go all the way down', () {
+  group('the lost maxim — NO MUD, NO LOTUS (the Black Lead)', () {
+    /// Every legal fen shape, by construction: an independent set in each of
+    /// the three slough chains, taken independently.
+    List<Set<String>> allShapes() {
+      final perSlough = <String, List<List<String>>>{};
+      for (final sl in kSloughNames.keys) {
+        final ids = [
+          for (var i = 0; i < 3; i++)
+            kBogFords.firstWhere((f) => f.slough == sl && f.index == i).id,
+        ];
+        perSlough[sl] = [
+          [],
+          [ids[0]],
+          [ids[1]],
+          [ids[2]],
+          [ids[0], ids[2]],
+        ];
+      }
+      final out = <Set<String>>[];
+      for (final a in perSlough['cor']!) {
+        for (final b in perSlough['add']!) {
+          for (final c in perSlough['tarn']!) {
+            out.add({...a, ...b, ...c});
+          }
+        }
+      }
+      return out;
+    }
+
+    test('FULL DROWN is one shape in the whole fen, and it is the three '
+        'middles', () {
+      final shapes = allShapes();
+      expect(shapes, hasLength(125), reason: 'the fen\'s legal shapes');
+      final full = <Set<String>>[];
+      var maxSeen = 0;
+      for (final sh in shapes) {
+        final f = BogField()..hardened.addAll(sh);
+        maxSeen = max(maxSeen, f.drownedCount);
+        if (f.fenAtFullDrown) full.add(sh);
+      }
+      expect(maxSeen, kMaxDrowned,
+          reason: 'six of nine is the most water this fen can carry');
+      expect(full, hasLength(1),
+          reason: 'the secret has to demand ONE shape, not a family of them');
+      expect(full.single, {'cor_neck', 'add_neck', 'tarn_neck'});
+    });
+
+    test('THE SECRET IS THE SHAPE THE STARS FORBID', () {
+      // The choir's four fords and the full-drown three share nothing, and
+      // full drown drowns every one the choir needs. That opposition is the
+      // whole design: you cannot hold the secret's fen and a star's at once,
+      // and the heave is the only way between them.
+      final f = BogField()..hardened.addAll({'cor_neck', 'add_neck', 'tarn_neck'});
+      for (final need in const ['cor_tail', 'add_tail', 'tarn_head', 'tarn_tail']) {
+        expect(f.stateOf(need), BogFordState.drowned,
+            reason: '$need is what the choir wants, and full drown takes it');
+      }
+      for (final k in kMoorKnollIds) {
+        expect(f.isDry(k), isFalse);
+      }
+    });
+
+    test('a choked lead answers nothing at all', () {
       final found = <String>[];
       final game = _harness(_idealTrio(), onCloud: found.add);
-      final pit = game.layout.rooms['drowned_fane']!.fen!.sinkPit!;
-      _act(game, plant, 'drowned_fane', pit);
-      _act(game, water, 'drowned_fane', pit);
-      expect(found, isNot(contains(kMudLotusEggId)));
-      _act(game, mud, 'drowned_fane', pit);
+      final fen = game.layout.rooms['drowned_fane']!.fen!;
+      // The fen as it opens: no drag anywhere, so the lead is dry.
+      _act(game, water, 'drowned_fane', fen.leadHead!);
+      expect(game.bog.cutsFound, isFalse,
+          reason: 'the secret must not be workable before its own condition');
+      _act(game, plant, 'drowned_fane', fen.sinkPit!);
+      expect(game.bog.seedSet, isFalse);
+    });
+
+    void fullDrown(PlanetDungeonGame g) {
+      _drag(g, 'cor_neck', 'reed_knoll');
+      _drag(g, 'add_neck', 'hag_knoll');
+      _drag(g, 'tarn_neck', 'hag_knoll');
+      expect(g.bog.field.fenAtFullDrown, isTrue);
+    }
+
+    test('THE AUTHORED CHAIN: drown the fen, read the cuts, seed the sink, '
+        'and bury it three times over', () {
+      final found = <String>[];
+      final game = _harness(_idealTrio(), onCloud: found.add);
+      final fen = game.layout.rooms['drowned_fane']!.fen!;
+      fullDrown(game);
+
+      // 2 · Water reads the cuts out of the black water. Nothing else does.
+      _act(game, mud, 'drowned_fane', fen.leadHead!);
+      expect(game.bog.cutsFound, isFalse);
+      _act(game, water, 'drowned_fane', fen.leadHead!);
+      expect(game.bog.cutsFound, isTrue);
+
+      // 4 before 3 · a pour with nothing in the sink changes nothing.
+      _act(game, mud, 'drowned_fane', fen.peatCuts![0]);
+      expect(game.bog.poured, isEmpty,
+          reason: 'the beats have to be a CHAIN, not three keys in a lock');
+
+      // 3 · the seed.
+      _act(game, water, 'drowned_fane', fen.sinkPit!);
+      expect(game.bog.seedSet, isFalse);
+      _act(game, plant, 'drowned_fane', fen.sinkPit!);
+      expect(game.bog.seedSet, isTrue);
+
+      // 5 · the repeated beat, and only the last one pays.
+      for (var i = 0; i < 3; i++) {
+        expect(found, isNot(contains(kMudLotusEggId)));
+        _act(game, mud, 'drowned_fane', fen.peatCuts![i]);
+        expect(game.bog.poured, hasLength(i + 1));
+      }
       // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
       for (var tick = 0; tick < 200; tick++) {
         game.update(1 / 60);
       }
       expect(found, contains(kMudLotusEggId));
+    });
+
+    test('NOTHING IS CONSUMED — a wrong hand costs a press and no more', () {
+      final game = _harness(_idealTrio());
+      final fen = game.layout.rooms['drowned_fane']!.fen!;
+      fullDrown(game);
+
+      // Wrong hands at the reading, twice over — and the cuts stay hidden.
+      for (var i = 0; i < 2; i++) {
+        _act(game, mud, 'drowned_fane', fen.leadHead!);
+        _act(game, plant, 'drowned_fane', fen.leadHead!);
+      }
+      expect(game.bog.cutsFound, isFalse);
+      _act(game, water, 'drowned_fane', fen.leadHead!);
+      expect(game.bog.cutsFound, isTrue);
+
+      // Wrong hands at the sink, twice over — and the sink stays empty.
+      for (var i = 0; i < 2; i++) {
+        _act(game, water, 'drowned_fane', fen.sinkPit!);
+        _act(game, mud, 'drowned_fane', fen.sinkPit!);
+      }
+      expect(game.bog.seedSet, isFalse);
+      _act(game, plant, 'drowned_fane', fen.sinkPit!);
+      expect(game.bog.seedSet, isTrue);
+
+      // …and the chain still finishes, none the worse.
+      for (var i = 0; i < 3; i++) {
+        _act(game, mud, 'drowned_fane', fen.peatCuts![i]);
+      }
+      expect(game.bog.poured, hasLength(3));
+    });
+
+    test('the braid pours too, at its usual price', () {
+      // **Plant+Water→Mud** carries the drag everywhere else on this planet,
+      // so it has to carry it here: a secret that demanded a specific body
+      // would be a family gate wearing a maxim's clothes.
+      final game = _harness(_idealTrio());
+      final fen = game.layout.rooms['drowned_fane']!.fen!;
+      fullDrown(game);
+      _act(game, water, 'drowned_fane', fen.leadHead!);
+      _act(game, plant, 'drowned_fane', fen.sinkPit!);
+      _act(game, plant, 'drowned_fane', fen.peatCuts![0]);
+      expect(game.bog.poured, hasLength(1));
+    });
+
+    test('a heave washes the lead out, and it can always be done again', () {
+      final game = _harness(_idealTrio());
+      final fen = game.layout.rooms['drowned_fane']!.fen!;
+      fullDrown(game);
+      _act(game, water, 'drowned_fane', fen.leadHead!);
+      _act(game, plant, 'drowned_fane', fen.sinkPit!);
+      _act(game, mud, 'drowned_fane', fen.peatCuts![0]);
+      expect(game.bog.poured, hasLength(1));
+
+      // The sough, and out: the fen goes back to the shape it opened in.
+      _act(game, mud, 'drowned_fane', fen.sough!);
+      game.onBogTransitForTest(
+        game.layout.rooms['drowned_fane']!,
+        game.layout.rooms['drowned_fane']!.doors.first,
+      );
+      expect(game.bog.field.fenAtFullDrown, isFalse);
+
+      // Nothing is lost: drown it again and the chain is there to be walked.
+      fullDrown(game);
+      _act(game, water, 'drowned_fane', fen.leadHead!);
+      _act(game, plant, 'drowned_fane', fen.sinkPit!);
+      for (var i = 0; i < 3; i++) {
+        _act(game, mud, 'drowned_fane', fen.peatCuts![i]);
+      }
+      expect(game.bog.poured, hasLength(3));
     });
   });
 }
