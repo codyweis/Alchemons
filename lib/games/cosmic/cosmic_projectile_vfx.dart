@@ -8194,22 +8194,32 @@ void drawMysticDawnStar({
   // shadow on the far side. This is built the same way, so the thing hanging
   // outside the arena belongs to the same solar system as the home planet.
   final core = 132.0 * (0.42 + 0.58 * t) + 200.0 * flare;
-  final gold = const ui.Color(0xFFFFD98A);
-  final deep = const ui.Color(0xFF6A4406);
+  final gold = const ui.Color(0xFFFFE6A8);
+  // No dark end to this palette. A Light world's star is a source, and a
+  // source has no dark side to it — shading the far limb made it read as a
+  // rock being lit by something else, which is the one thing it is not.
+  final warm = const ui.Color(0xFFFFC14D);
   final white = const ui.Color(0xFFFFFFFF);
   final breath = 0.96 + 0.04 * sin(time * 0.9);
   final r = core * breath;
 
   // Atmosphere: a couple of discs rather than a blur, since blurring in the
   // per-frame paint is the single worst thing for frame time in this renderer.
-  for (var i = 3; i >= 1; i--) {
-    canvas.drawCircle(
-      at,
-      r * (1.0 + i * 0.24),
-      ui.Paint()
-        ..color = gold.withValues(alpha: (0.05 - i * 0.011) * alpha * (0.5 + t)),
-    );
-  }
+  // One gradient rather than stacked discs. Discs at low alpha over a
+  // near-black sky banded into visible brown rings with hard edges — the exact
+  // thing a corona must not have. A radial shader fading to transparent gives
+  // the same falloff smoothly, and still no blur.
+  final halo = r * 2.1;
+  canvas.drawCircle(
+    at,
+    halo,
+    ui.Paint()
+      ..shader = ui.Gradient.radial(at, halo, [
+        gold.withValues(alpha: 0.34 * alpha * (0.55 + 0.45 * t)),
+        gold.withValues(alpha: 0.13 * alpha * (0.55 + 0.45 * t)),
+        gold.withValues(alpha: 0.0),
+      ], const [0.42, 0.66, 1.0]),
+  );
 
   // Rays, BEHIND the body — drawn over it they cross the sphere and it stops
   // reading as solid, which is how the game's own Light planet does it too.
@@ -8218,8 +8228,8 @@ void drawMysticDawnStar({
   final ray = ui.Paint()
     ..style = ui.PaintingStyle.stroke
     ..strokeCap = ui.StrokeCap.round
-    ..strokeWidth = 2.4 + 5.0 * t
-    ..color = gold.withValues(alpha: (0.10 + 0.32 * t) * alpha);
+    ..strokeWidth = 2.8 + 5.6 * t
+    ..color = gold.withValues(alpha: (0.22 + 0.46 * t) * alpha);
   for (var i = 0; i < 12; i++) {
     final ang = i * (pi * 2 / 12) + time * 0.14;
     final dir = ui.Offset(cos(ang), sin(ang));
@@ -8237,22 +8247,14 @@ void drawMysticDawnStar({
     at,
     r,
     ui.Paint()
-      ..shader = ui.Gradient.radial(light, r * 1.5, [
-        // Brightens as it charges: dull ember at dark, white-hot at dawn.
-        ui.Color.lerp(gold, white, 0.25 + 0.70 * t)!.withValues(alpha: alpha),
-        ui.Color.lerp(deep, gold, 0.35 + 0.60 * t)!.withValues(alpha: alpha),
-        ui.Color.lerp(deep, const ui.Color(0xFF1A0E00), 0.55)!
-            .withValues(alpha: alpha),
-      ], const [0.0, 0.5, 1.0]),
-  );
-
-  // Terminator: the far limb falling into its own shadow, which is what makes
-  // a flat disc read as a sphere.
-  canvas.drawCircle(
-    ui.Offset(at.dx + r * 0.34, at.dy + r * 0.26),
-    r * 0.94,
-    ui.Paint()
-      ..color = const ui.Color(0xFF120A00).withValues(alpha: 0.20 * alpha),
+      ..shader = ui.Gradient.radial(light, r * 1.6, [
+        // Glowing through, not lit from outside: white core, warm gold at the
+        // limb, and nothing darker than the gold anywhere on it. It still
+        // brightens as it charges — warm at dark, near-white at dawn.
+        white.withValues(alpha: alpha),
+        ui.Color.lerp(gold, white, 0.20 + 0.55 * t)!.withValues(alpha: alpha),
+        ui.Color.lerp(warm, gold, 0.25 + 0.60 * t)!.withValues(alpha: alpha),
+      ], const [0.0, 0.55, 1.0]),
   );
 
   // Specular highlight, squashed the way a curved surface returns it.
@@ -8262,7 +8264,17 @@ void drawMysticDawnStar({
       width: r * 0.46,
       height: r * 0.20,
     ),
-    ui.Paint()..color = white.withValues(alpha: (0.14 + 0.26 * t) * alpha),
+    ui.Paint()..color = white.withValues(alpha: (0.30 + 0.35 * t) * alpha),
+  );
+
+  // A lit edge at all times, so the limb glows instead of simply stopping.
+  canvas.drawCircle(
+    at,
+    r * 0.99,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 2.0 + 2.5 * t
+      ..color = white.withValues(alpha: (0.22 + 0.40 * t) * alpha),
   );
 
   // The break itself: a hard white rim, only in the moment it goes off.
