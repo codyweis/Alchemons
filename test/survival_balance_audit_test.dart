@@ -301,4 +301,66 @@ void main() {
         'dmg x${(CosmicSurvivalBalance.enemyWaveDamageScale(50)).toStringAsFixed(1)}, '
         'speed x${(CosmicSurvivalBalance.enemyWaveSpeedScale(50)).toStringAsFixed(2)}');
   });
+
+  test('what every ability heals, per cast', () {
+    // The healing riders the ability table hands out, for a representative
+    // cast. These are the numbers to argue about when someone says healing is
+    // too strong — a run-level total mixes them with the ship's free respawns
+    // and tells you nothing about which ability to touch.
+    //
+    // Note what the survival side then does with them: _healLowestAllyOrShip
+    // pays the target AND 45% of it to the orb, and _healAllCompanionsAndShip
+    // pays the ship and EVERY companion the full amount plus 35% to the orb —
+    // 6.35x the nominal figure with a five-strong party.
+    const damage = 40.0;
+    // ignore: avoid_print
+    print('BALANCE \u2500 ability healing riders (damage=$damage, level 10)');
+    // ignore: avoid_print
+    print('family   element    selfHeal  shipHeal  blessT  blessPerTick  perSec');
+    for (final family in [
+      'horn',
+      'wing',
+      'let',
+      'pip',
+      'mane',
+      'mask',
+      'kin',
+      'mystic',
+    ]) {
+      for (final element in kCosmicAbilityElements) {
+        final r = createCosmicSpecialAbility(
+          origin: Offset.zero,
+          baseAngle: 0,
+          family: family,
+          element: element,
+          damage: damage,
+          maxHp: 120,
+          casterPower: 5,
+          casterBeauty: 5,
+          casterIntelligence: 5,
+          casterStrength: 5,
+          targetPos: const Offset(120, 0),
+        );
+        if (r.selfHeal == 0 &&
+            r.shipHeal == 0 &&
+            r.blessingHealPerTick == 0) {
+          continue;
+        }
+        // What the blessing ACTUALLY pays out per second once survival applies
+        // it: the tick is rounded to a whole number every frame, so anything
+        // under 30 a second rounds to zero and anything over pays 60.
+        final perFrame = (r.blessingHealPerTick / 60).round();
+        final perSec = perFrame * 60;
+        // ignore: avoid_print
+        print(
+          '${family.padRight(8)} ${element.padRight(10)} '
+          '${r.selfHeal.toString().padLeft(8)}  '
+          '${r.shipHeal.toString().padLeft(8)}  '
+          '${r.blessingTimer.toStringAsFixed(1).padLeft(6)}  '
+          '${r.blessingHealPerTick.toStringAsFixed(2).padLeft(12)}  '
+          '${perSec.toString().padLeft(6)}',
+        );
+      }
+    }
+  });
 }

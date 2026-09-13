@@ -71,6 +71,10 @@ class CosmicSurvivalCompanion {
   Set<int>? chargeHitIds;
   double blessingTimer;
   double blessingHealPerTick;
+
+  /// Fractional blessing healing not yet worth a whole HP. See the blessing
+  /// tick in the companion update for why this has to be carried.
+  double blessingCarry = 0;
   double basicHasteTimer;
   double basicHasteMultiplier;
   // Pip+Spirit: while > 0, the empower window grants ~10× attack speed.
@@ -2642,15 +2646,30 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     // Blessing timer
+    //
+    // Carried as a fraction and spent in whole points, because companion HP is
+    // an integer and a blessing's tick is a fraction of one.
+    //
+    // This used to round the per-FRAME amount, which silently paid out nothing
+    // at all. Every blessing in the game sits between 2.3 and 5.4 HP a second,
+    // which at sixty frames is 0.04 to 0.09 a frame — and `.round()` of
+    // anything under 0.5 is zero. Not a weak heal: a heal that never once
+    // landed, for every family, at every level. The same rounding would have
+    // paid 60 HP a second the moment a tick crossed 30, so it was a cliff as
+    // well as a hole.
     if (comp.blessingTimer > 0) {
       comp.blessingTimer -= dt;
-      final blessingHeal = (comp.blessingHealPerTick * dt).round();
-      if (blessingHeal > 0) {
+      comp.blessingCarry += comp.blessingHealPerTick * dt;
+      if (comp.blessingCarry >= 1) {
+        final blessingHeal = comp.blessingCarry.floor();
+        comp.blessingCarry -= blessingHeal;
         final before = comp.currentHp;
         comp.currentHp = min(comp.maxHp, comp.currentHp + blessingHeal);
         _recordHeal((comp.currentHp - before).toDouble(), target: 0);
         _healOrb(blessingHeal * 0.5);
       }
+    } else if (comp.blessingCarry != 0) {
+      comp.blessingCarry = 0;
     }
 
     // Haste timer
