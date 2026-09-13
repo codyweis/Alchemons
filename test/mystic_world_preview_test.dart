@@ -59,28 +59,32 @@ void main() {
       );
     }
 
-    // Row 1 — the spitter, closed through firing.
-    for (var i = 0; i < cols; i++) {
-      final grow = [0.25, 0.6, 1.0, 1.0, 1.0][i];
-      final fire = [0.0, 0.0, 0.0, 1.0, 0.5][i];
-      final at = cell(i, 1) + const Offset(-40, -200);
-      drawMysticGroveVine(
+    // Row 1b — the two spinning worlds side by side. They are the pair most
+    // at risk of reading as the same effect in two colours.
+    for (var i = 0; i < 3; i++) {
+      drawMysticTornado(
         canvas: canvas,
-        root: at,
-        lashes: false,
-        growth: grow,
-        swing: fire,
-        aimAngle: 0.6,
-        reach: 620,
-        seed: 4.1,
+        at: cell(i, 1) + const Offset(0, 150),
+        radius: 96,
+        phase: i * 1.3,
+        travelAngle: i * 0.9,
         alpha: 1,
-        time: 3.0 + i * 0.7,
-        plant: elementColor('Plant'),
+        time: i * 1.1,
+      );
+    }
+    for (var i = 3; i < 5; i++) {
+      drawMysticMaelstrom(
+        canvas: canvas,
+        centre: cell(i, 1) + const Offset(0, 60),
+        radius: 150,
+        phase: i * 1.1,
+        alpha: 1,
+        time: i * 0.7,
       );
     }
 
     // Row 2a — ground cover per element, so two brown worlds can be compared.
-    const cover = ['Plant', 'Mud', 'Earth', 'Fire', 'Poison'];
+    const cover = ['Plant', 'Mud', 'Ice', 'Dust', 'Poison'];
     for (var i = 0; i < cover.length; i++) {
       for (var k = 0; k < 3; k++) {
         drawMysticFlora(
@@ -102,7 +106,6 @@ void main() {
       drawMysticMaw(
         canvas: canvas,
         centre: cell(i, 2),
-        pullRadius: 150,
         horizonRadius: 26,
         open: open,
         spin: i * 0.9,

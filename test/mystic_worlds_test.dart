@@ -192,16 +192,16 @@ void main() {
       reason: 'it landed back inside the pull',
     );
 
-    // And put back where bodies come IN from, not at the arena's outer edge.
-    // Thrown to the rim it was off-screen for an age, which reads as deletion
-    // rather than as displacement.
+    // Put OUT of the play area, on the ring fresh bodies arrive on, and made
+    // to walk back in. This has been both ways: dropped at the arena's far rim
+    // it read as deletion, moved inside the spawn ring it read as a shove. Out
+    // past the edge is the version that says what the maw does — it takes
+    // something off the map, and the map hands it back at the door.
     final walkBack = (victim.position - game.orb.position).distance;
     expect(
       walkBack,
-      lessThan(900),
-      reason:
-          'ejected far outside the lane enemies actually approach through — '
-          'the player never sees it come back',
+      greaterThan(700),
+      reason: 'it was put back inside the fight rather than out of it',
     );
   });
 
@@ -829,18 +829,26 @@ void main() {
     final game = await boot('Water');
     await castOnce(game);
     final radius = game.mysticMaelstromRadius(0)!;
+    // The eye is anchored out in the middle-to-outer ring, NOT on the orb —
+    // centred on the orb it sat under the fight and under the player.
+    final eye = game.mysticMaelstromCentre(0)!;
+    expect(
+      (eye - game.orb.position).distance,
+      greaterThan(200),
+      reason: 'the whirlpool is turning on top of the thing it defends',
+    );
 
     // Put a body in the water, off to one side of the eye.
     final caught = game.enemies.firstWhere((e) => !e.isDead)
       ..hp = 1e9
       ..isDead = false
-      ..position = game.orb.position + Offset(radius * 0.5, 0);
+      ..position = eye + Offset(radius * 0.5, 0);
     run(game, 2);
 
-    final start = caught.position - game.orb.position;
+    final start = caught.position - eye;
     final startAngle = atan2(start.dy, start.dx);
     run(game, 60);
-    final now = caught.position - game.orb.position;
+    final now = caught.position - eye;
     final nowAngle = atan2(now.dy, now.dx);
 
     // Held: it cannot advance under its own power.
@@ -869,7 +877,7 @@ void main() {
     )
       ..hp = 1e9
       ..isDead = false
-      ..position = game.orb.position + Offset(radius * 2.2, 0)
+      ..position = eye + Offset(radius * 2.2, 0)
       ..slowTimer = 0
       ..slowMultiplier = 1.0;
     run(game, 2);

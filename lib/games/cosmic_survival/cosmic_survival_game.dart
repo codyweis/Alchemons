@@ -725,11 +725,16 @@ class _MysticTornado {
 class _MysticMaelstrom {
   _MysticMaelstrom({
     required this.ownerSlot,
+    required this.anchor,
     required this.radius,
     required this.damage,
   });
 
   final int ownerSlot;
+
+  /// Where it turns. Fixed at the cast, out in the middle-to-outer ring — a
+  /// whirlpool that followed the orb would sit under the fight forever.
+  final Offset anchor;
   final double radius;
 
   /// Per-grind damage, applied twice a second to everything in the water.
@@ -8122,14 +8127,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _spawnHitSpark(enemy.position, const Color(0xFFB89AFF));
       return;
     }
-    // Put it back where enemies come IN from, not at the arena's outer edge.
+    // Put it OUTSIDE the play area and make it walk back in.
     //
-    // The rim at 0.92 of the arena radius is more than twice the spawner's own
-    // distance, so a swallowed body was thrown somewhere the player could not
-    // see and spent an age walking back — it read as deletion, not as
-    // displacement, which is the whole point of the hole.
-    // Same formula the spawner uses to place a fresh body (see _spawnEnemy).
-    final ring = max(size.x / _currentZoom, size.y / _currentZoom) * 0.55;
+    // This has been both ways now. Dropping it at the arena's far rim read as
+    // deletion, so it moved in to the spawner's own ring; that made the hole
+    // feel like a shove rather than a hole. Out past the edge, on the ring
+    // fresh bodies arrive on, is the version that says what the maw does: it
+    // takes something off the map, and the map hands it back at the door.
+    final ring =
+        max(size.x / _currentZoom, size.y / _currentZoom) * 0.55 + 220.0;
 
     // And not back into the mouth. The maw's pull reaches further than that
     // ring, so a body landing on the maw's own bearing would be eaten again
@@ -8389,14 +8395,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       min: 0.82,
       max: 1.45,
     );
+    // Out in the middle-to-outer ring, not on the orb.
+    //
+    // Centred on the orb it sat under the fight and under the player, which is
+    // both the busiest part of the screen and the part that most needs to stay
+    // readable — and a hold wrapped around the thing being defended is closer
+    // to an off switch than to a hazard. Out here it is somewhere the player
+    // steers bodies INTO, or keeps clear of.
+    final bearing = _rng.nextDouble() * 2 * pi;
     _mysticMaelstroms.add(
       _MysticMaelstrom(
         ownerSlot: comp.slotIndex,
-        // Big, but deliberately NOT the whole arena. Everything caught in it
-        // stops advancing, so a maelstrom that covered the floor would end the
-        // run's pressure outright; enemies outside the rim still come on, and
-        // the player still has a fight to hold.
-        radius: 520.0 * scale * _mysticWorldPower(comp.slotIndex),
+        anchor:
+            orb.position +
+            Offset(cos(bearing), sin(bearing)) * (_arenaRadius * 0.44),
+        radius: 460.0 * scale * _mysticWorldPower(comp.slotIndex),
         damage: max(2.0, comp.elemAtk * 0.42 * scale),
       ),
     );
@@ -8411,7 +8424,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _turnMysticMaelstrom(int slotIndex, CosmicSurvivalCompanion owner) {
     for (final storm in _mysticMaelstroms) {
       if (storm.ownerSlot != slotIndex) continue;
-      final centre = orb.position;
+      final centre = storm.anchor;
       storm.centre = centre;
 
       for (final enemy in enemies) {
@@ -8700,6 +8713,46 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  double _mysticRimeTimer = 0;
+
+  /// Frost sliding off whatever the blizzard is holding.
+  ///
+  /// The blizzard's whole effect is a number — everything moves slower — and a
+  /// crowd that is uniformly slower looks exactly like a crowd. This is what
+  /// puts the cold ON the bodies, so the world is visible in the fight rather
+  /// than only in the tint at the edges of the screen. Throttled and capped:
+  /// a blizzard holds the entire field at once.
+  void _rimeMysticBlizzard(double dt) {
+    _mysticRimeTimer -= dt;
+    if (_mysticRimeTimer > 0) return;
+    _mysticRimeTimer = 0.07;
+    if (_vfx.length >= 130) return;
+
+    final ice = elementColor('Ice');
+    final white = Color.lerp(ice, const Color(0xFFFFFFFF), 0.65)!;
+    var rimed = 0;
+    for (final enemy in enemies) {
+      if (rimed >= 4) break;
+      if (enemy.isDead || enemy.blizzardMultiplier >= 1.0) continue;
+      if (!_isOnScreen(enemy.position, 40)) continue;
+      if (_vfx.length >= 148) break;
+      rimed++;
+      final a = _rng.nextDouble() * 2 * pi;
+      _vfx.add(
+        _VfxParticle(
+          x: enemy.position.dx + cos(a) * enemy.radius * 0.9,
+          y: enemy.position.dy + sin(a) * enemy.radius * 0.9,
+          // Barely drifts: frost settles, it does not fly off.
+          vx: (_rng.nextDouble() - 0.5) * 10,
+          vy: 12 + _rng.nextDouble() * 14,
+          size: 1.1 + _rng.nextDouble() * 1.3,
+          life: 0.7 + _rng.nextDouble() * 0.5,
+          color: _rng.nextBool() ? white : const Color(0xFFEFFFFF),
+        ),
+      );
+    }
+  }
+
   /// Lifts the blizzard off everything. Called when an Ice world ends, so the
   /// field is not left permanently slowed by a Mystic that is no longer there.
   void _thawMysticBlizzard() {
@@ -8819,6 +8872,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           .length;
     }
     return 0;
+  }
+
+  @visibleForTesting
+  Offset? mysticMaelstromCentre(int slotIndex) {
+    for (final storm in _mysticMaelstroms) {
+      if (storm.ownerSlot == slotIndex && storm.fade > 0) return storm.anchor;
+    }
+    return null;
   }
 
   @visibleForTesting
@@ -9114,15 +9175,30 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _updateShake(double dt) {
     _shakeClock += dt;
+    // Decays on its own, so the world has to keep asserting it.
+    _tremor = max(0.0, _tremor - dt * 18.0);
     if (_shakeTrauma > 0) {
       _shakeTrauma = max(0.0, _shakeTrauma - dt * 1.35);
     }
   }
 
+  /// A constant low tremor while an Earth world stands, rising as the next
+  /// quake approaches. Set every frame by the world; zero otherwise.
+  ///
+  /// This is the whole answer to "I can hardly tell": a tint and a quake every
+  /// fifteen seconds left thirteen of those seconds with nothing in them. A
+  /// floor that never quite stops moving is felt continuously without ever
+  /// taking the screen, and its rising makes the quake something the player
+  /// sees coming rather than something that simply happens to them.
+  double _tremor = 0;
+
   Offset _screenShakeOffset() {
-    if (_shakeTrauma <= 0.001) return Offset.zero;
+    final tremor = _tremor;
+    if (_shakeTrauma <= 0.001 && tremor <= 0.001) {
+      return Offset.zero;
+    }
     final power = _shakeTrauma * _shakeTrauma;
-    final amplitude = 26.0 * power;
+    final amplitude = 26.0 * power + tremor;
     // Two different frequencies so the motion never looks like a clean orbit.
     return Offset(
       sin(_shakeClock * 43.0) * amplitude,
@@ -9337,8 +9413,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     'Fire',
     'Poison',
     'Spirit',
-    'Lightning',
     'Mud',
+    'Ice',
+    'Dust',
   };
 
   /// Per-frame tick for every Mystic world except the ember field, which has
@@ -9351,6 +9428,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _mysticMireSplatTimer = max(0.0, _mysticMireSplatTimer - dt);
     }
     _dripMire(dt);
+    if (_activeMysticWorldSlot('Ice') != null) _rimeMysticBlizzard(dt);
     _updateMysticRevenants(dt);
     _updateMysticMaws(dt);
     _updateMysticVines(dt);
@@ -9416,6 +9494,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             _shakeMysticEarth(slot, comp);
           } else {
             _mysticClock[slot] = next;
+            // Always trembling a little, and hard in the last second or so
+            // before it breaks. Quartic so the build stays almost unnoticed
+            // until the end and then arrives fast.
+            final closing = 1.0 - (next / beat);
+            final ramp = closing * closing * closing * closing;
+            _tremor = max(_tremor, 0.9 + 7.5 * ramp);
           }
         case 'Poison':
           _trailMysticPoison(slot, comp, dt);
@@ -9706,18 +9790,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         break;
       case 'Dust':
         // Grit hanging in the air: slow, gritty, going nowhere in particular.
-        final dustAngle = _rng.nextDouble() * 2 * pi;
-        _vfx.add(
-          _VfxParticle(
-            x: x,
-            y: y,
-            vx: cos(dustAngle) * 16,
-            vy: sin(dustAngle) * 16,
-            size: 0.9 + _rng.nextDouble() * 0.7,
-            life: 1.2 + _rng.nextDouble() * 0.6,
-            color: Color.lerp(ec, const Color(0xFF8A6A3A), 0.35)!,
-          ),
-        );
+        // Two per tick and larger than the rest, because a dust world's whole
+        // claim is that the air is FULL — one small mote at a time read as a
+        // clean sky with a speck in it.
+        for (var d = 0; d < 2; d++) {
+          if (_vfx.length >= 150) break;
+          final dustAngle = _rng.nextDouble() * 2 * pi;
+          _vfx.add(
+            _VfxParticle(
+              x: x + (_rng.nextDouble() - 0.5) * 90,
+              y: y + (_rng.nextDouble() - 0.5) * 90,
+              vx: cos(dustAngle) * 16,
+              vy: sin(dustAngle) * 16,
+              size: 1.4 + _rng.nextDouble() * 1.8,
+              life: 1.4 + _rng.nextDouble() * 0.8,
+              color: Color.lerp(ec, const Color(0xFF8A6A3A), 0.35)!,
+            ),
+          );
+        }
         break;
       case 'Air':
         // Clean fast streaks sweeping ACROSS the field in one direction —
@@ -9918,6 +10008,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// The inner half of a two-tone world, or null for the elements that are one
   /// colour. Sits between the clear middle and the edge tint.
   Color? _mysticEnvUnderTintColor(String element) => switch (element) {
+    // Ice: frozen white at the rim over deep cold beneath.
+    'Ice' => const Color(0x3AB8E8FF),
+    // Dust: the haze carries into the middle as well as the edges — the point
+    // of a dust world is that you cannot see through it.
+    'Dust' => const Color(0x3CC6A878),
     // Brown earth beneath the green growing on it.
     'Earth' => const Color(0x3A6B4A28),
     // Charged air under the storm's dark edge.
@@ -9941,7 +10036,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       case 'Water':
         return const Color(0x3010E0FF);
       case 'Ice':
-        return const Color(0x308CDCFF);
+        // Deeper and colder. At 0x30 this was a pale wash that vanished against
+        // the starfield, which is why a blizzard was hard to tell from no
+        // world at all.
+        return const Color(0x4A2E6E9E);
       case 'Steam':
         return const Color(0x30E0EEFF);
       case 'Earth':
@@ -9952,7 +10050,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       case 'Mud':
         return const Color(0x404A2A10);
       case 'Dust':
-        return const Color(0x38D6B080);
+        // Thick, dirty air rather than a faint tan film.
+        return const Color(0x52A8834E);
       case 'Crystal':
         return const Color(0x30E5D5FF);
       case 'Air':
@@ -16724,7 +16823,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       drawMysticMaw(
         canvas: canvas,
         centre: maw.position,
-        pullRadius: maw.radius,
         horizonRadius: maw.horizon,
         open: maw.open,
         spin: maw.spin,

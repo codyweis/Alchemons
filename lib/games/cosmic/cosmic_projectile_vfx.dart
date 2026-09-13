@@ -7281,7 +7281,6 @@ ui.Path _tapered(List<ui.Offset> spine, double baseWidth, double tipWidth) {
 void drawMysticMaw({
   required ui.Canvas canvas,
   required ui.Offset centre,
-  required double pullRadius,
   required double horizonRadius,
   required double open,
   required double spin,
@@ -7289,27 +7288,23 @@ void drawMysticMaw({
   required double time,
 }) {
   final a = alpha;
-  final pull = pullRadius * open;
   final horizon = horizonRadius * open;
   final violet = const ui.Color(0xFFB89AFF);
   final deep = const ui.Color(0xFF12061F);
-  // A slow breath, not a strobe. The hole is a permanent feature of the
-  // map for as long as the Mystic stands, so it should read as something
-  // alive and steady rather than something firing.
-  final pulse = 1.0 + 0.045 * sin(time * 0.85);
 
-  // ONE boundary line for the pull, held at a constant radius. This used
-  // to be three rings at different radii, which read as expanding shock
-  // rings — an effect going off, repeatedly, instead of a hole staying
-  // open.
-  canvas.drawCircle(
-    centre,
-    pull * 0.94,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..color = violet.withValues(alpha: 0.09 * a),
-  );
+  // Two beats laid over one another — a slow swell with a faster flutter
+  // inside it — so the hole never settles into a metronome. A single sine was
+  // a machine breathing; this is something alive that does not repeat cleanly.
+  final pulse =
+      1.0 + 0.075 * sin(time * 0.62) + 0.035 * sin(time * 1.63 + 1.1);
+  // The light bends harder on the swell, which is what actually sells it as
+  // gravity rather than as a circle changing size.
+  final bend = 0.5 + 0.5 * sin(time * 0.62);
+
+  // NO boundary ring. There was one faint circle left marking the reach of the
+  // pull and it still read as a ring drawn around a thing — the drag is legible
+  // from the bodies sliding toward the mouth, which is the honest signal, and
+  // a hole in space does not come with an outline.
 
   // Accretion: two arcs close to the mouth, shearing against each other.
   final arcPaint = ui.Paint()..style = ui.PaintingStyle.stroke;
@@ -7317,9 +7312,9 @@ void drawMysticMaw({
     final rr = horizon * (1.9 + ring * 0.75) * pulse;
     final turn = spin * (1.0 + ring * 0.5) + ring * 2.1;
     arcPaint
-      ..strokeWidth = 2.8 - ring * 0.8
+      ..strokeWidth = (2.8 - ring * 0.8) * (0.8 + 0.5 * bend)
       ..color = ui.Color.lerp(violet, const ui.Color(0xFFFFFFFF), ring * 0.25)!
-          .withValues(alpha: (0.32 - ring * 0.10) * a);
+          .withValues(alpha: (0.30 - ring * 0.10) * a * (0.7 + 0.6 * bend));
     canvas.drawArc(
       ui.Rect.fromCircle(center: centre, radius: rr),
       turn,
@@ -7329,8 +7324,8 @@ void drawMysticMaw({
     );
   }
 
-  // The hole itself: a hard black disc with a bright rim, so it reads as
-  // an absence rather than as a dark sphere.
+  // The hole: a hard black disc with a bright rim, so it reads as an absence
+  // rather than as a dark sphere.
   canvas.drawCircle(
     centre,
     horizon * 1.35 * pulse,
@@ -7346,20 +7341,22 @@ void drawMysticMaw({
     horizon * pulse,
     ui.Paint()
       ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..color = violet.withValues(alpha: 0.85 * a),
+      ..strokeWidth = 1.8 + 1.6 * bend
+      ..color = violet.withValues(alpha: (0.55 + 0.40 * bend) * a),
   );
-  // Light bending round the rim.
+  // Light bending round the rim, sweeping with the swell.
   canvas.drawArc(
     ui.Rect.fromCircle(center: centre, radius: horizon * 1.12 * pulse),
     -spin * 0.8,
-    1.5,
+    1.2 + 0.7 * bend,
     false,
     ui.Paint()
       ..style = ui.PaintingStyle.stroke
       ..strokeWidth = 1.4
-      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.55 * a),
+      ..color = const ui.Color(0xFFFFFFFF)
+          .withValues(alpha: (0.35 + 0.45 * bend) * a),
   );
+
 }
 
 /// The curved spine of a grove vine, root first and head last.
@@ -7961,6 +7958,49 @@ void drawMysticFlora({
           ..color = const ui.Color(0xFFBFE0FF).withValues(alpha: 0.72 * bloom),
       );
 
+    case 'Ice':
+      // Rime creeping across the floor: a cluster of flat shards, angular
+      // where everything else growing out here is round or soft.
+      final glint = 0.75 + 0.25 * sin(time * 2.4 + seed);
+      for (var i = 0; i < 5; i++) {
+        final ang = seed + i * 1.26 + sway * 0.4;
+        final len = (20.0 - i * 2.2) * grow;
+        final base = at + ui.Offset(cos(ang), sin(ang)) * (3.0 * grow);
+        final tip = base + ui.Offset(cos(ang), sin(ang)) * len;
+        final side = ui.Offset(-sin(ang), cos(ang)) * (4.0 * grow);
+        final shard = ui.Path()
+          ..moveTo(base.dx + side.dx, base.dy + side.dy)
+          ..lineTo(tip.dx, tip.dy)
+          ..lineTo(base.dx - side.dx, base.dy - side.dy)
+          ..close();
+        canvas.drawPath(
+          shard,
+          ui.Paint()..color = lift.withValues(alpha: 0.42 * bloom * glint),
+        );
+      }
+      canvas.drawCircle(
+        at,
+        5.0 * grow,
+        ui.Paint()
+          ..color = const ui.Color(0xFFEFFFFF).withValues(alpha: 0.60 * bloom),
+      );
+
+    case 'Dust':
+      // A dust devil: a low spiral of grit turning on the spot. Moving where
+      // the other ground cover sits still, which is what a dry, windy floor
+      // does and what tells it apart from Mud's wet pits at a glance.
+      final turn = time * 1.8 + seed;
+      for (var i = 0; i < 9; i++) {
+        final f = i / 8.0;
+        final ang = turn + f * 4.2;
+        final r = (4.0 + 15.0 * f) * grow;
+        canvas.drawCircle(
+          at + ui.Offset(cos(ang) * r, sin(ang) * r * 0.5 - 7.0 * f * grow),
+          (3.2 - 1.8 * f) * grow,
+          ui.Paint()..color = lift.withValues(alpha: (0.46 - 0.24 * f) * bloom),
+        );
+      }
+
     case 'Mud':
       // A mire pit: a wet, uneven hole in the floor with a skin that bulges
       // and pops. Deliberately sunk INTO the ground where Earth's stone is
@@ -8404,31 +8444,42 @@ void drawMysticMaelstrom({
   final water = const ui.Color(0xFF3FC8E8);
   final pale = const ui.Color(0xFFDFF6FF);
 
-  // The body of the water, darkening toward the eye.
+  // Subtle. This is the surface the fight happens ON, not an effect playing on
+  // top of it, and the first version painted five bright arms and a ring of
+  // foam over a quarter of the screen — which buried the enemies the player
+  // has to read. Everything here is faint and slow; the loud signal is the
+  // crowd being carried around, not the water.
+
+  // A shallow dish: barely-there shading that deepens toward the eye.
   canvas.drawCircle(
     centre,
     radius,
-    ui.Paint()..color = water.withValues(alpha: 0.055 * alpha),
+    ui.Paint()..color = water.withValues(alpha: 0.030 * alpha),
   );
   canvas.drawCircle(
     centre,
-    radius * 0.58,
-    ui.Paint()..color = water.withValues(alpha: 0.06 * alpha),
+    radius * 0.60,
+    ui.Paint()..color = water.withValues(alpha: 0.035 * alpha),
+  );
+  canvas.drawCircle(
+    centre,
+    radius * 0.30,
+    ui.Paint()..color = water.withValues(alpha: 0.040 * alpha),
   );
 
-  // Arms. Logarithmic sweeps from the eye out to the rim, all turning together.
+  // Three arms rather than five, thin, and dim enough to read as a current
+  // under the fight instead of lines drawn over it.
   final arm = ui.Paint()
     ..style = ui.PaintingStyle.stroke
     ..strokeCap = ui.StrokeCap.round;
-  const arms = 5;
+  const arms = 3;
   for (var a = 0; a < arms; a++) {
     final base = phase + a * (pi * 2 / arms);
     final path = ui.Path();
     for (var i = 0; i <= 26; i++) {
       final f = i / 26;
-      // Wraps harder near the eye, the way a real vortex tightens.
       final ang = base + f * 3.1 - (1.0 - f) * 1.6;
-      final r = radius * (0.10 + 0.90 * f);
+      final r = radius * (0.12 + 0.88 * f);
       final p = centre + ui.Offset(cos(ang), sin(ang)) * r;
       if (i == 0) {
         path.moveTo(p.dx, p.dy);
@@ -8436,52 +8487,47 @@ void drawMysticMaelstrom({
         path.lineTo(p.dx, p.dy);
       }
     }
+    // Fades out toward the rim, so the edge is soft and the eye is where the
+    // detail collects.
     arm
-      ..strokeWidth = 9.0
-      ..color = water.withValues(alpha: 0.16 * alpha);
+      ..strokeWidth = 5.0
+      ..color = water.withValues(alpha: 0.070 * alpha);
     canvas.drawPath(path, arm);
     arm
-      ..strokeWidth = 2.4
-      ..color = pale.withValues(alpha: 0.26 * alpha);
+      ..strokeWidth = 1.4
+      ..color = pale.withValues(alpha: 0.085 * alpha);
     canvas.drawPath(path, arm);
   }
 
-  // Foam scattered along the current, so the surface has texture between arms.
-  final foam = ui.Paint()..color = pale.withValues(alpha: 0.30 * alpha);
-  for (var i = 0; i < 22; i++) {
-    final f = 0.18 + (i % 7) / 7.0 * 0.78;
-    final ang = phase * (0.5 + f) + i * 1.47;
-    final r = radius * f;
+  // A little foam, kept near the eye where it does not compete with anything.
+  final foam = ui.Paint()..color = pale.withValues(alpha: 0.16 * alpha);
+  for (var i = 0; i < 10; i++) {
+    final f = 0.14 + (i % 5) / 5.0 * 0.34;
+    final ang = phase * (0.6 + f) + i * 1.47;
     canvas.drawCircle(
-      centre + ui.Offset(cos(ang), sin(ang)) * r,
-      1.6 + 1.4 * sin(time * 3.0 + i),
+      centre + ui.Offset(cos(ang), sin(ang)) * (radius * f),
+      1.2 + 0.8 * sin(time * 3.0 + i),
       foam,
     );
   }
 
-  // The eye: dark, still, and ringed by the fastest water on the field.
+  // The eye. The one piece with any weight to it, because it is the only part
+  // the player needs to locate at a glance.
   canvas.drawCircle(
     centre,
-    radius * 0.10,
-    ui.Paint()..color = const ui.Color(0xFF04121C).withValues(alpha: 0.62 * alpha),
+    radius * 0.085,
+    ui.Paint()
+      ..color = const ui.Color(0xFF04121C).withValues(alpha: 0.45 * alpha),
   );
   canvas.drawCircle(
     centre,
-    radius * 0.10,
+    radius * 0.085,
     ui.Paint()
       ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..color = pale.withValues(alpha: 0.50 * alpha),
+      ..strokeWidth = 1.4
+      ..color = pale.withValues(alpha: 0.30 * alpha),
   );
-  // Rim, so the edge of the hold is unambiguous — everything inside it stops.
-  canvas.drawCircle(
-    centre,
-    radius,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..color = water.withValues(alpha: 0.30 * alpha),
-  );
+
 }
 
 /// An Air world's tornado, seen from above.
@@ -8502,69 +8548,90 @@ void drawMysticTornado({
 }) {
   if (alpha <= 0.01) return;
   final pale = const ui.Color(0xFFDCF0FF);
-  final lean = ui.Offset(cos(travelAngle), sin(travelAngle));
+  final grit = const ui.Color(0xFFBFC9D8);
 
-  // Dust skirt where it meets the ground: widest, faintest, and it stays put.
-  canvas.drawCircle(
-    at,
-    radius,
-    ui.Paint()..color = pale.withValues(alpha: 0.05 * alpha),
-  );
-  canvas.drawCircle(
-    at,
-    radius * 0.72,
-    ui.Paint()..color = pale.withValues(alpha: 0.05 * alpha),
-  );
+  // Third attempt at this shape, and the lesson from the other two is that a
+  // funnel cannot be drawn side-on in a top-down arena.
+  //
+  // Stacked leaning ovals read as a set of hoops. Two swept ribbons read as
+  // two ribbons crossing. What actually reads as a tornado from above is what
+  // you would really see: a dense, fast, opaque column of dust turning on one
+  // spot. It is told apart from the maelstrom by density and speed rather than
+  // by shape — the whirlpool is vast, faint and slow; this is small, solid and
+  // violent, and it is the one that moves.
 
-  // The funnel: rings climbing away from the base, narrowing then flaring.
-  final ring = ui.Paint()..style = ui.PaintingStyle.stroke;
-  const bands = 7;
-  for (var i = 0; i < bands; i++) {
-    final f = i / (bands - 1);
-    // Narrow at the waist, flared at the top — an hourglass read as height.
-    final width = radius * (0.62 - 0.34 * sin(f * pi) + 0.42 * f);
-    final centre = at - lean * (radius * 0.30 * f) - ui.Offset(0, radius * 0.52 * f);
-    final wobble = sin(phase + f * 3.4) * radius * 0.06;
-    ring
-      ..strokeWidth = 2.6 - f * 1.1
-      ..color = pale.withValues(alpha: (0.34 - f * 0.035) * alpha);
-    canvas.drawOval(
-      ui.Rect.fromCenter(
-        center: centre + ui.Offset(wobble, 0),
-        width: width * 2,
-        height: width * 1.05,
-      ),
-      ring,
+  // The column: overlapping dust, thickest at the middle.
+  for (var i = 0; i < 5; i++) {
+    final f = i / 4.0;
+    final wob = ui.Offset(
+      cos(phase * 1.7 + i * 1.9) * radius * 0.06,
+      sin(phase * 1.3 + i * 2.3) * radius * 0.05,
+    );
+    canvas.drawCircle(
+      at + wob,
+      radius * (0.86 - 0.52 * f),
+      ui.Paint()..color = grit.withValues(alpha: (0.05 + 0.055 * f) * alpha),
     );
   }
 
-  // Debris carried round the waist, so the direction of spin is unmistakable.
-  final debris = ui.Paint()..color = pale.withValues(alpha: 0.55 * alpha);
-  for (var i = 0; i < 14; i++) {
-    final f = (i % 5) / 5.0;
-    final ang = phase * (1.4 + f) + i * 1.32;
-    final r = radius * (0.26 + 0.46 * f);
-    final centre = at - lean * (radius * 0.30 * f) - ui.Offset(0, radius * 0.52 * f);
+  // Streaks wrapping the column. Short arcs rather than long spirals: a long
+  // spiral has to be followed, where a ring of short strokes all leaning the
+  // same way is read instantly as rotation.
+  final streak = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round;
+  for (var band = 0; band < 4; band++) {
+    final bf = band / 3.0;
+    final r = radius * (0.30 + 0.52 * bf);
+    final turn = phase * (2.4 - bf * 0.9) + band * 1.1;
+    streak
+      ..strokeWidth = 4.2 - bf * 2.0
+      ..color = pale.withValues(alpha: (0.30 - bf * 0.05) * alpha);
+    for (var k = 0; k < 3; k++) {
+      canvas.drawArc(
+        ui.Rect.fromCenter(
+          center: at,
+          width: r * 2,
+          height: r * 2 * 0.58,
+        ),
+        turn + k * 2.09,
+        1.05,
+        false,
+        streak,
+      );
+    }
+  }
+
+  // Grit thrown out and caught again, fastest at the waist.
+  final debris = ui.Paint();
+  for (var i = 0; i < 16; i++) {
+    final f = (i % 6) / 6.0;
+    final ang = phase * 3.4 + i * 1.29;
+    final r = radius * (0.22 + 0.68 * f) * (1.0 + 0.10 * sin(time * 5 + i));
+    debris.color = pale.withValues(alpha: (0.62 - 0.30 * f) * alpha);
     canvas.drawCircle(
-      centre + ui.Offset(cos(ang) * r, sin(ang) * r * 0.52),
-      1.5 + 1.5 * (1.0 - f),
+      at + ui.Offset(cos(ang) * r, sin(ang) * r * 0.58),
+      2.2 - 1.1 * f,
       debris,
     );
   }
 
-  // Core, so the middle of the pull is obvious to aim around.
+  // The eye of it, dark and small, so the middle of the pull is unmistakable.
   canvas.drawCircle(
     at,
-    radius * 0.16,
-    ui.Paint()..color = pale.withValues(alpha: 0.20 * alpha),
+    radius * 0.14,
+    ui.Paint()
+      ..color = const ui.Color(0xFF0A1018).withValues(alpha: 0.50 * alpha),
   );
-  // Rim: the edge of the lift.
-  canvas.drawCircle(
-    at,
-    radius,
+
+  // The edge of the lift, flattened — a true circle floats on a field seen at
+  // an angle.
+  canvas.drawOval(
+    ui.Rect.fromCenter(center: at, width: radius * 2, height: radius * 1.24),
     ui.Paint()
       ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..color = pale.withValues(alpha: 0.26 * alpha),
+      ..strokeWidth = 1.3
+      ..color = pale.withValues(alpha: 0.18 * alpha),
   );
+
 }
