@@ -363,4 +363,148 @@ void main() {
       }
     }
   });
+
+  test('what every family element casts, and where the outliers are', () {
+    // Output per cast for all eight families across all seventeen elements.
+    // Nothing here decides what is correct — it makes the spread visible, so
+    // an ability that is twice its family's normal can be argued about on
+    // purpose instead of discovered by a player.
+    const damage = 40.0;
+    final rows =
+        <({
+          String family,
+          String element,
+          int count,
+          double dmg,
+          double dps,
+        })>[];
+    for (final family in [
+      'horn',
+      'wing',
+      'let',
+      'pip',
+      'mane',
+      'mask',
+      'kin',
+      'mystic',
+    ]) {
+      for (final element in kCosmicAbilityElements) {
+        final r = createCosmicSpecialAbility(
+          origin: Offset.zero,
+          baseAngle: 0,
+          family: family,
+          element: element,
+          damage: damage,
+          maxHp: 120,
+          casterPower: 5,
+          casterBeauty: 5,
+          casterIntelligence: 5,
+          casterStrength: 5,
+          targetPos: const Offset(120, 0),
+        );
+        final total = r.projectiles.fold<double>(0, (a, p) => a + p.damage);
+        // Damage per cast means little without the cadence behind it. The
+        // family multipliers alone span 0.88 to 1.90, so two families with the
+        // same payload can be more than twice apart in what they actually put
+        // out over a fight.
+        final familyMultiplier = switch (family) {
+          'let' => 1.18,
+          'pip' => 0.92,
+          'mane' => 0.88,
+          'mask' => 1.05,
+          'mystic' => 1.90,
+          _ => 1.0,
+        };
+        final cooldown =
+            15.0 *
+            familyMultiplier *
+            elementalSpecialCooldownMultiplier(family, element);
+        rows.add((
+          family: family,
+          element: element,
+          count: r.projectiles.length,
+          dmg: total,
+          dps: cooldown <= 0 ? 0.0 : total / cooldown,
+        ));
+      }
+    }
+
+    // ignore: avoid_print
+    print('BALANCE \u2500 cast payload by family (damage=$damage)');
+    // ignore: avoid_print
+    print('family   casts  medianDmg  minDmg(element)      maxDmg(element)      spread');
+    for (final family in [
+      'horn',
+      'wing',
+      'let',
+      'pip',
+      'mane',
+      'mask',
+      'kin',
+      'mystic',
+    ]) {
+      final fam = rows.where((r) => r.family == family).toList()
+        ..sort((a, b) => a.dmg.compareTo(b.dmg));
+      final withPayload = fam.where((r) => r.dmg > 0).toList();
+      if (withPayload.isEmpty) {
+        // ignore: avoid_print
+        print('${family.padRight(8)} ${fam.length.toString().padLeft(5)}  '
+            '(no projectile payload \u2014 passive or world family)');
+        continue;
+      }
+      final median = withPayload[withPayload.length ~/ 2].dmg;
+      final lo = withPayload.first;
+      final hi = withPayload.last;
+      final byDps = [...withPayload]..sort((a, b) => a.dps.compareTo(b.dps));
+      final medianDps = byDps[byDps.length ~/ 2].dps;
+      // ignore: avoid_print
+      print(
+        '${family.padRight(8)} '
+        '${withPayload.length.toString().padLeft(5)}  '
+        '${median.round().toString().padLeft(9)}  '
+        '${lo.dmg.round().toString().padLeft(6)} (${lo.element.padRight(9)})  '
+        '${hi.dmg.round().toString().padLeft(6)} (${hi.element.padRight(9)})  '
+        'x${(hi.dmg / max(1.0, lo.dmg)).toStringAsFixed(1)}  '
+        'dps~${medianDps.toStringAsFixed(1)}',
+      );
+    }
+
+    // And the elements that sit furthest from their own family's median, which
+    // is where a balance conversation actually starts.
+    // ignore: avoid_print
+    print('BALANCE \u2500 furthest from family median');
+    final flagged = <String>[];
+    for (final family in [
+      'horn',
+      'wing',
+      'let',
+      'pip',
+      'mane',
+      'mask',
+      'kin',
+      'mystic',
+    ]) {
+      final withPayload =
+          rows.where((r) => r.family == family && r.dmg > 0).toList()
+            ..sort((a, b) => a.dmg.compareTo(b.dmg));
+      if (withPayload.length < 3) continue;
+      final median = withPayload[withPayload.length ~/ 2].dmg;
+      for (final r in withPayload) {
+        final ratio = r.dmg / median;
+        if (ratio >= 2.0 || ratio <= 0.5) {
+          flagged.add(
+            '${r.family}/${r.element}: ${r.dmg.round()} vs median '
+            '${median.round()} (x${ratio.toStringAsFixed(1)})',
+          );
+        }
+      }
+    }
+    for (final f in flagged) {
+      // ignore: avoid_print
+      print('  $f');
+    }
+    // ignore: avoid_print
+    print('  ${flagged.length} of ${rows.length} casts sit outside half-to-double '
+        'their family median');
+  });
 }
