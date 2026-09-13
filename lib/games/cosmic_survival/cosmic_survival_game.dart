@@ -288,7 +288,8 @@ class CosmicSurvivalCompanion {
       _ => 1.0,
     };
     // Family/element basic-cooldown passives.
-    //   Wing+Dark: auto-attack and laser pulse 2× as fast.
+    //   Wing+Dark: auto-attack 2× as fast. The SPECIAL no longer doubles with
+    //   it — see effectiveSpecialCooldown for why.
     final familyL = member.family.toLowerCase();
     final familyElementMul = (familyL == 'wing' && member.element == 'Dark')
         ? 0.5
@@ -377,10 +378,16 @@ class CosmicSurvivalCompanion {
       member.family,
       member.element,
     );
-    // Wing+Dark passive: laser pulse 2× as fast.
-    final familyElementMul = family == 'wing' && member.element == 'Dark'
-        ? 0.5
-        : 1.0;
+    // Wing+Dark's doubled rate applies to its AUTO ATTACK only.
+    //
+    // It used to halve this cooldown as well, and that made Dark the strongest
+    // wing in all four kinds of fight at once — a horde, a shooter screen, a
+    // siege and a boss — because doubling a special is scenario-independent in
+    // a way that no other wing rider is. Every other element answers SOME part
+    // of survival; Dark answered all of them by doing everything twice.
+    //
+    // The basic keeps its 0.5, so "Dark is the fast one" survives intact.
+    const familyElementMul = 1.0;
     return (base / factor) *
         familyMultiplier *
         elementMultiplier *
@@ -1220,6 +1227,10 @@ class _ActiveWingBeam {
   // Wing+Earth: a mirror beam re-anchors to the orb instead of the
   // caster companion, so the orb fires its own laser alongside the wing.
   final bool anchorToOrb;
+
+  /// Wing+Spirit tethers its laser to the SHIP, which then fires its own beam
+  /// at whatever is nearest. Same mechanism as the orb anchor.
+  final bool anchorToShip;
   // Wing+Steam: the beam executes the first enemy it touches once, then
   // behaves as a normal damage beam.
   bool steamKillUsed;
@@ -1230,6 +1241,7 @@ class _ActiveWingBeam {
     required this.origin,
     required this.angle,
     this.anchorToOrb = false,
+    this.anchorToShip = false,
   }) : life = descriptor.duration,
        tickTimer = descriptor.tickInterval,
        chargeTimer = descriptor.chargeTime,
@@ -12137,6 +12149,31 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ),
         );
       }
+      // Wing+Spirit: the beam tethers to the SHIP, and the ship fires its own
+      // at whatever is nearest.
+      //
+      // The board has always said so; nothing implemented it. It is the same
+      // shape as Earth's orb co-fire, one anchor over — and because the beam
+      // updater re-aims every frame toward its own target, a ship-anchored
+      // beam tracks the nearest enemy on its own without any new targeting.
+      //
+      // Earth's second beam and this one differ in the way that matters: the
+      // orb never moves, so Earth's is a fixed second line, where the ship is
+      // wherever the player has flown it. Spirit turns the thing the player
+      // steers into the weapon, which is the identity the board was reaching
+      // for.
+      if (beam.element == 'Spirit' && !ship.isDead) {
+        if (_activeWingBeams.length >= 14) _activeWingBeams.removeAt(0);
+        _activeWingBeams.add(
+          _ActiveWingBeam(
+            descriptor: beam,
+            sourceSlotIndex: sourceSlotIndex,
+            origin: ship.position,
+            angle: angle,
+            anchorToShip: true,
+          ),
+        );
+      }
     }
   }
 
@@ -12149,6 +12186,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // expires naturally.
       if (beam.anchorToOrb) {
         beam.origin = orb.position;
+      } else if (beam.anchorToShip) {
+        // Follows the ship, and stops if the ship is destroyed — the tether
+        // is to the ship, not to the place the ship used to be.
+        if (!ship.isDead) {
+          beam.origin = ship.position;
+        } else {
+          beam.life = 0;
+        }
       } else {
         final caster = activeCompanions[beam.sourceSlotIndex];
         if (caster != null && !caster.isDead) {

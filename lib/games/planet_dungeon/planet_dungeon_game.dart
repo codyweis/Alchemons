@@ -13000,6 +13000,8 @@ class PlanetDungeonGame extends FlameGame {
         _renderCircuitFloor(canvas, room);
       } else if (_isVapor) {
         _renderSteamFloor(canvas, room);
+      } else if (_isBog) {
+        _renderBogFloor(canvas, room);
       } else {
         _renderPlainFloor(canvas, b, room.id == layout.entranceRoomId);
       }

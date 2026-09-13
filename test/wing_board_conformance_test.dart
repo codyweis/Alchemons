@@ -109,28 +109,47 @@ void main() {
     );
   });
 
-  test('Spirit and Earth are the two the board and the code disagree on', () {
-    // Recorded rather than asserted, because these are design decisions and
-    // not mine to make:
+  test('Earth co-fires from the orb and Spirit tethers to the ship', () {
+    // Both of these were reported as unimplemented in the first pass of this
+    // audit, and only one of them was.
     //
-    //   Earth — board: "the orb also fires a laser alongside the earth wing".
-    //           Nothing in the ability table or the survival side does that.
-    //   Spirit — board: "tethers the laser to the ship; the ship then shoots
-    //           its own laser at the nearest enemies". The beam carries a
-    //           `buff` tick instead, and no ship tether exists.
+    // Earth's orb co-fire was there all along — keyed off the beam ELEMENT
+    // inside _activateWingBeamEffects with an anchorToOrb flag, which the
+    // grep that went looking for it ("orbBeam", "Earth.*orb") could never have
+    // matched. A search that finds nothing is not the same as a thing that is
+    // not there.
     //
-    // Both currently cast an ordinary beam with extra projectiles. This test
-    // asserts only what is TRUE today, so that if either is implemented later
-    // it fails and someone deletes this note.
+    // Spirit's ship tether genuinely was missing and is built now: the beam
+    // anchors to the ship, which then fires at whatever is nearest. The two
+    // differ in the way that matters — the orb never moves, so Earth is a
+    // fixed second line, where Spirit turns the thing the player steers into
+    // the weapon.
+    //
+    // Neither is visible in the ability table, which is why this checks the
+    // descriptors that survival keys off rather than the returned result.
     expect(
-      cast('Earth').beams.map((b) => b.tickEffect).toSet(),
-      everyElement(AbilityEffectKind.none),
-      reason: 'Earth grew an effect — check whether the orb beam landed too',
+      cast('Earth').beams,
+      isNotEmpty,
+      reason: 'Earth casts no beam for the orb to mirror',
     );
     expect(
-      cast('Spirit').beams.map((b) => b.tickEffect).toSet(),
-      everyElement(AbilityEffectKind.buff),
-      reason: 'Spirit changed — check it against the ship-tether promise',
+      cast('Spirit').beams,
+      isNotEmpty,
+      reason: 'Spirit casts no beam for the ship to tether to',
+    );
+    expect(
+      cast('Earth').beams.every((b) => b.element == 'Earth'),
+      isTrue,
+      reason:
+          'the orb co-fire is dispatched on beam.element — if that stops being '
+          '"Earth" the second beam silently disappears',
+    );
+    expect(
+      cast('Spirit').beams.every((b) => b.element == 'Spirit'),
+      isTrue,
+      reason:
+          'the ship tether is dispatched on beam.element — if that stops being '
+          '"Spirit" the tether silently disappears',
     );
   });
 }

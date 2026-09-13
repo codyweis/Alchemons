@@ -88,6 +88,23 @@ class SinkingFen {
   /// The Lost Maxim's seed: planted, watered, and then let go.
   bool seedPlanted = false;
   bool seedWatered = false;
+
+  /// THE GROUND, BUILT ONCE. A fen floor is pools, hummocks, bog-oak and
+  /// cotton-grass, none of it on a grid and none of it changing — so it is
+  /// laid out once per room and kept, rather than re-deriving sixty times a
+  /// second. Only the sheen on the water moves, and that is a phase.
+  final Map<String, FenGround> ground = {};
+}
+
+/// One room's worth of fen floor: the standing shapes, in world coordinates.
+class FenGround {
+  final List<Path> pools = [];
+  final List<Offset> poolCentres = [];
+  final List<Path> hummocks = [];
+  final List<Path> mossCaps = [];
+  final List<Offset> bogOak = [];
+  final List<double> bogOakLean = [];
+  final List<Offset> cotton = [];
 }
 
 extension SinkingAltarFen on PlanetDungeonGame {
@@ -1134,100 +1151,404 @@ extension SinkingAltarFen on PlanetDungeonGame {
     _renderSmear(canvas, room);
   }
 
-  /// A crossing, seen from the bank you stand on: a ribbon of ground running
-  /// out into the fen, drawn with the state's own language.
+  // ── THE GROUND ────────────────────────────────────────────
+  //
+  // THE FLOOR OF A QUAKING FEN, NOT A LOZENGE. Every room on this planet
+  // stood on the generic rounded slab, which is an odd thing for the one
+  // dungeon whose entire premise is *what the ground is like under you*. A
+  // bog is not a floor with things on it: it is pools lying in low ground,
+  // sphagnum hummocks standing between them, the black bog-oak the peat has
+  // been keeping for a thousand years, and cotton-grass — the only pale
+  // thing in the whole fen — wherever the ground is briefly sure.
+  //
+  // Nothing here is on a grid and nothing is a tile (the §5.5 grammar, and
+  // Steam's NOTE that Mud must read nothing like a tile flood). It is laid
+  // out ONCE per room and cached: only the sheen on the water moves.
+
+  static const Color _fenMoss = Color(0xFF4A5733);
+  static const Color _fenOak = Color(0xFF16110C);
+  static const Color _fenCotton = Color(0xFFD8D2BA);
+
+  FenGround _bogGround(DungeonRoom room) =>
+      bog.ground.putIfAbsent(room.id, () => _buildBogGround(room));
+
+  /// Deterministic from the room's own size, so a room looks the same every
+  /// time you walk into it and no two rooms look alike.
+  FenGround _buildBogGround(DungeonRoom room) {
+    final b = room.bounds.deflate(10);
+    final g = FenGround();
+    var seed = (b.width * 31 + b.height * 17).toInt() | 1;
+    double rnd() {
+      seed = (seed * 1103515245 + 12345) & 0x3FFFFFFF;
+      return (seed >> 8) / 0x3FFFFF;
+    }
+
+    // POOLS. Irregular closed curves lying in the low ground — never round,
+    // never rectangular; a pool in peat has a ragged lip.
+    final pools = (b.width * b.height / 62000).clamp(4, 11).toInt();
+    for (var i = 0; i < pools; i++) {
+      final c = Offset(
+        b.left + 40 + rnd() * (b.width - 80),
+        b.top + 40 + rnd() * (b.height - 80),
+      );
+      final rx = 34 + rnd() * 58;
+      final ry = rx * (0.34 + rnd() * 0.3);
+      g.pools.add(_blobPath(c, rx, ry, rnd, wobble: 0.34));
+      g.poolCentres.add(c);
+    }
+
+    // HUMMOCKS. Sphagnum mounds standing between the water, each with a
+    // lighter moss cap sitting on its crown so the ground has relief.
+    final mounds = (b.width * b.height / 34000).clamp(6, 20).toInt();
+    for (var i = 0; i < mounds; i++) {
+      final c = Offset(
+        b.left + 30 + rnd() * (b.width - 60),
+        b.top + 30 + rnd() * (b.height - 60),
+      );
+      final rx = 26 + rnd() * 40;
+      final ry = rx * (0.42 + rnd() * 0.22);
+      g.hummocks.add(_blobPath(c, rx, ry, rnd, wobble: 0.22));
+      g.mossCaps.add(
+        _blobPath(c.translate(0, -ry * 0.30), rx * 0.72, ry * 0.5, rnd,
+            wobble: 0.26),
+      );
+    }
+
+    // BOG-OAK. Two or three black stumps half-risen out of the peat: the fen
+    // keeps what it eats, which is the fiction the whole planet runs on and
+    // the reason a Plant hand is worth bringing ("quicken whatever the peat
+    // has kept").
+    final oaks = 2 + (rnd() * 2).floor();
+    for (var i = 0; i < oaks; i++) {
+      g.bogOak.add(
+        Offset(
+          b.left + 60 + rnd() * (b.width - 120),
+          b.top + 70 + rnd() * (b.height - 140),
+        ),
+      );
+      g.bogOakLean.add((rnd() - 0.5) * 0.6);
+    }
+
+    // COTTON-GRASS. Scattered pale tufts — the only light thing down here.
+    final tufts = (b.width * b.height / 17000).clamp(10, 40).toInt();
+    for (var i = 0; i < tufts; i++) {
+      g.cotton.add(
+        Offset(
+          b.left + 20 + rnd() * (b.width - 40),
+          b.top + 20 + rnd() * (b.height - 40),
+        ),
+      );
+    }
+    return g;
+  }
+
+  /// A closed, ragged-lipped blob. Eight points round an ellipse, each pushed
+  /// in or out a little and joined with quadratics, so nothing in this fen
+  /// has a clean edge.
+  Path _blobPath(
+    Offset c,
+    double rx,
+    double ry,
+    double Function() rnd, {
+    required double wobble,
+  }) {
+    const n = 8;
+    final pts = <Offset>[];
+    for (var i = 0; i < n; i++) {
+      final a = i / n * pi * 2;
+      final k = 1 + (rnd() - 0.5) * 2 * wobble;
+      pts.add(Offset(c.dx + cos(a) * rx * k, c.dy + sin(a) * ry * k));
+    }
+    final path = Path();
+    final mid0 = Offset.lerp(pts[n - 1], pts[0], 0.5)!;
+    path.moveTo(mid0.dx, mid0.dy);
+    for (var i = 0; i < n; i++) {
+      final cur = pts[i];
+      final nxt = pts[(i + 1) % n];
+      final mid = Offset.lerp(cur, nxt, 0.5)!;
+      path.quadraticBezierTo(cur.dx, cur.dy, mid.dx, mid.dy);
+    }
+    path.close();
+    return path;
+  }
+
+  /// The fen floor, under everything else in the room.
+  void _renderBogFloor(Canvas canvas, DungeonRoom room) {
+    _renderPlainFloor(canvas, room.bounds, room.id == layout.entranceRoomId);
+    final g = _bogGround(room);
+    final t = bog.clock;
+
+    // The peat itself: a dark wash over the generic slab so the ground reads
+    // as saturated rather than paved.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        room.bounds.deflate(8),
+        const Radius.circular(34),
+      ),
+      Paint()..color = _fenPeat.withValues(alpha: 0.34),
+    );
+
+    // Standing water, and a single slow sheen crossing each pool.
+    for (var i = 0; i < g.pools.length; i++) {
+      canvas.drawPath(
+        g.pools[i],
+        Paint()..color = _fenWater.withValues(alpha: 0.66),
+      );
+      canvas.drawPath(
+        g.pools[i],
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = _fenSheen.withValues(alpha: 0.10),
+      );
+      final c = g.poolCentres[i];
+      final phase = sin(t * 0.5 + i * 1.3);
+      canvas.drawLine(
+        Offset(c.dx - 20, c.dy + phase * 7),
+        Offset(c.dx + 22, c.dy + phase * 7 - 2),
+        Paint()
+          ..strokeWidth = 1.2
+          ..color = _fenSheen.withValues(alpha: 0.13),
+      );
+    }
+
+    // Hummocks: a peat shadow under, the mound, then the moss cap on top.
+    for (var i = 0; i < g.hummocks.length; i++) {
+      canvas.save();
+      canvas.translate(0, 5);
+      canvas.drawPath(
+        g.hummocks[i],
+        Paint()..color = Colors.black.withValues(alpha: 0.28),
+      );
+      canvas.restore();
+      canvas.drawPath(
+        g.hummocks[i],
+        Paint()..color = _fenPeat.withValues(alpha: 0.9),
+      );
+      canvas.drawPath(
+        g.mossCaps[i],
+        Paint()..color = _fenMoss.withValues(alpha: 0.55),
+      );
+    }
+
+    // Bog-oak: a black root out of the ground, leaning where it fell.
+    for (var i = 0; i < g.bogOak.length; i++) {
+      final o = g.bogOak[i];
+      final lean = g.bogOakLean[i];
+      final top = o + Offset(sin(lean) * 40, -46);
+      canvas.drawPath(
+        Path()
+          ..moveTo(o.dx - 13, o.dy + 6)
+          ..quadraticBezierTo(o.dx - 6, o.dy - 20, top.dx - 5, top.dy)
+          ..lineTo(top.dx + 6, top.dy + 3)
+          ..quadraticBezierTo(o.dx + 8, o.dy - 18, o.dx + 14, o.dy + 6)
+          ..close(),
+        Paint()..color = _fenOak,
+      );
+      // Two broken limbs, so it reads as a drowned tree and not a post.
+      for (var k = -1; k <= 1; k += 2) {
+        canvas.drawLine(
+          top + Offset(0, 8),
+          top + Offset(k * 17.0, -4 + k * 3.0),
+          Paint()
+            ..strokeWidth = 3
+            ..color = _fenOak,
+        );
+      }
+    }
+
+    // Cotton-grass.
+    for (var i = 0; i < g.cotton.length; i++) {
+      final c = g.cotton[i];
+      final sway = sin(t * 0.9 + i * 2.2) * 1.6;
+      canvas.drawLine(
+        c,
+        c + Offset(sway, -9),
+        Paint()
+          ..strokeWidth = 1.2
+          ..color = _fenMoss.withValues(alpha: 0.7),
+      );
+      canvas.drawCircle(
+        c + Offset(sway, -11),
+        2.1,
+        Paint()..color = _fenCotton.withValues(alpha: 0.55),
+      );
+    }
+  }
+
+  /// A CROSSING, DRAWN AS A CROSSING.
+  ///
+  /// It used to be a 92px stub of colour at the bank, which put the one thing
+  /// this planet is ABOUT — is that ground firm, soft, or gone — into a smudge
+  /// mostly hidden behind its own door plate, and made the three states
+  /// distinguishable only by fill colour at arm's length. A crossing now runs
+  /// from the head you work it at all the way OUT to the doorway it leads
+  /// through, so the map you are authoring is legible from the middle of the
+  /// room, and the drowned ones read as gone from across it.
   void _renderFordHeads(Canvas canvas, DungeonRoom room) {
     final f = _fen;
     if (room.id == layout.entranceRoomId && !entryDoorRevealed) return;
-    for (final ford in kBogFords) {
+    for (final door in room.doors) {
+      final ford = _fordForDoor(room, door);
+      if (ford == null) continue;
       final head = ford.headIn(room.id);
       if (head == null) continue;
-      final outward = head.dx > room.bounds.center.dx ? 1.0 : -1.0;
-      final tip = head + Offset(outward * 92, 0);
-      final wobble = sin(bog.clock * 0.8 + ford.index * 1.7) * 9;
-      final path = Path()
-        ..moveTo(head.dx, head.dy - 26)
+      _renderCrossing(canvas, ford, head, door.rect.center, f.stateOf(ford.id));
+    }
+  }
+
+  /// One crossing, from [head] (the bank you work it at) to [mouth] (its
+  /// doorway). Drawn as a ribbon with a spine, so it curves like water and
+  /// never like a corridor.
+  void _renderCrossing(
+    Canvas canvas,
+    BogFord ford,
+    Offset head,
+    Offset mouth,
+    BogFordState state,
+  ) {
+    final along = mouth - head;
+    final len = along.distance;
+    if (len < 1) return;
+    final dir = along / len;
+    final norm = Offset(-dir.dy, dir.dx);
+    // The ribbon bows a little to one side, per ford, so no two crossings in
+    // a room are parallel lines.
+    final bow = sin(ford.index * 2.1 + ford.slough.hashCode % 7) * 16;
+    final mid = head + dir * (len / 2) + norm * bow;
+
+    Path ribbon(double halfWidth) {
+      final hA = head + norm * halfWidth;
+      final hB = head - norm * halfWidth;
+      final mA = mouth + norm * halfWidth;
+      final mB = mouth - norm * halfWidth;
+      return Path()
+        ..moveTo(hA.dx, hA.dy)
         ..quadraticBezierTo(
-          (head.dx + tip.dx) / 2,
-          head.dy - 40 + wobble,
-          tip.dx,
-          tip.dy - 20,
+          mid.dx + norm.dx * halfWidth,
+          mid.dy + norm.dy * halfWidth,
+          mA.dx,
+          mA.dy,
         )
-        ..lineTo(tip.dx, tip.dy + 20)
+        ..lineTo(mB.dx, mB.dy)
         ..quadraticBezierTo(
-          (head.dx + tip.dx) / 2,
-          head.dy + 40 - wobble,
-          head.dx,
-          head.dy + 26,
+          mid.dx - norm.dx * halfWidth,
+          mid.dy - norm.dy * halfWidth,
+          hB.dx,
+          hB.dy,
         )
         ..close();
-      switch (f.stateOf(ford.id)) {
-        case BogFordState.mire:
-          canvas.drawPath(
-            path,
-            Paint()..color = _fenSlurry.withValues(alpha: 0.62),
+    }
+
+    Offset at(double t) {
+      final a = Offset.lerp(head, mid, t)!;
+      final b = Offset.lerp(mid, mouth, t)!;
+      return Offset.lerp(a, b, t)!;
+    }
+
+    switch (state) {
+      case BogFordState.mire:
+        // QUAKING. A wide soft slurry, a paler skin on it, and ripples
+        // travelling out along the crossing: it moves, so it is not to be
+        // trusted with anything heavy.
+        canvas.drawPath(
+          ribbon(30),
+          Paint()..color = _fenSlurry.withValues(alpha: 0.42),
+        );
+        canvas.drawPath(
+          ribbon(22),
+          Paint()..color = _fenSlurry.withValues(alpha: 0.55),
+        );
+        for (var i = 0; i < 4; i++) {
+          final t = ((bog.clock * 0.28 + i / 4) % 1.0);
+          final p = at(t);
+          final w = 15.0 * (1 - (t - 0.5).abs());
+          canvas.drawLine(
+            p + norm * w,
+            p - norm * w,
+            Paint()
+              ..strokeWidth = 2.4
+              ..color = _fenSheen.withValues(alpha: 0.13),
           );
-          // Quaking: three travelling ripples along the ribbon, no tiles.
-          for (var i = 0; i < 3; i++) {
-            final t = ((bog.clock * 0.35 + i / 3) % 1.0);
-            final x = head.dx + outward * (18 + t * 62);
+        }
+      case BogFordState.sod:
+        // A CAUSEWAY. Something built: a peat shadow under it, a raised bank,
+        // a lit crown down the middle and a root fringe along both lips. It
+        // should read as the only ground here you would put a stone on.
+        canvas.save();
+        canvas.translate(0, 6);
+        canvas.drawPath(
+          ribbon(26),
+          Paint()..color = Colors.black.withValues(alpha: 0.30),
+        );
+        canvas.restore();
+        canvas.drawPath(
+          ribbon(26),
+          Paint()..color = _fenPeat.withValues(alpha: 0.95),
+        );
+        canvas.drawPath(
+          ribbon(19),
+          Paint()..color = _fenSod.withValues(alpha: 0.80),
+        );
+        canvas.drawPath(
+          ribbon(6),
+          Paint()..color = _fenSod.withValues(alpha: 0.95),
+        );
+        for (var i = 1; i < 10; i++) {
+          final p = at(i / 10);
+          for (var k = -1; k <= 1; k += 2) {
             canvas.drawLine(
-              Offset(x, head.dy - 18),
-              Offset(x, head.dy + 18),
+              p + norm * (k * 22.0),
+              p + norm * (k * 30.0) + dir * (i.isEven ? 4.0 : -4.0),
               Paint()
-                ..color = _fenSheen.withValues(alpha: 0.16)
-                ..strokeWidth = 3,
-            );
-          }
-        case BogFordState.sod:
-          canvas.drawPath(
-            path,
-            Paint()..color = _fenSod.withValues(alpha: 0.82),
-          );
-          // The tussock fringe: short root strokes along both lips.
-          for (var i = 0; i < 9; i++) {
-            final x = head.dx + outward * (10 + i * 9.5);
-            final h = 6.0 + (i.isEven ? 4 : 0);
-            canvas.drawLine(
-              Offset(x, head.dy - 24),
-              Offset(x + outward * 3, head.dy - 24 - h),
-              Paint()
-                ..color = _fenPeat.withValues(alpha: 0.6)
-                ..strokeWidth = 2,
-            );
-            canvas.drawLine(
-              Offset(x, head.dy + 24),
-              Offset(x + outward * 3, head.dy + 24 + h),
-              Paint()
-                ..color = _fenPeat.withValues(alpha: 0.6)
-                ..strokeWidth = 2,
-            );
-          }
-        case BogFordState.drowned:
-          canvas.drawPath(
-            path,
-            Paint()..color = _fenWater.withValues(alpha: 0.9),
-          );
-          // Drifting weed: two slow curved strokes, nothing gridded.
-          for (var i = 0; i < 2; i++) {
-            final drift = sin(bog.clock * 0.5 + i * 2.1) * 14;
-            final w = Path()
-              ..moveTo(head.dx + outward * 20, head.dy - 8 + i * 16)
-              ..quadraticBezierTo(
-                head.dx + outward * 55,
-                head.dy - 8 + i * 16 + drift,
-                head.dx + outward * 84,
-                head.dy - 8 + i * 16,
-              );
-            canvas.drawPath(
-              w,
-              Paint()
-                ..style = PaintingStyle.stroke
                 ..strokeWidth = 2
-                ..color = _fenSheen.withValues(alpha: 0.2),
+                ..color = _fenMoss.withValues(alpha: 0.55),
             );
           }
-      }
+        }
+      case BogFordState.drowned:
+        // OPEN WATER, and it is never coming back. Wider than the crossing
+        // ever was — the banks went too — with weed drifting on it and a
+        // broken lip where the ground used to run in.
+        canvas.drawPath(
+          ribbon(34),
+          Paint()..color = _fenWater.withValues(alpha: 0.92),
+        );
+        canvas.drawPath(
+          ribbon(34),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = _fenSheen.withValues(alpha: 0.12),
+        );
+        for (var i = 0; i < 3; i++) {
+          final t0 = 0.2 + i * 0.28;
+          final drift = sin(bog.clock * 0.4 + i * 2.1) * 12;
+          final a = at(t0) + norm * (drift * 0.5);
+          final w = Path()
+            ..moveTo(a.dx - dir.dx * 26, a.dy - dir.dy * 26)
+            ..quadraticBezierTo(
+              a.dx + norm.dx * drift,
+              a.dy + norm.dy * drift,
+              a.dx + dir.dx * 26,
+              a.dy + dir.dy * 26,
+            );
+          canvas.drawPath(
+            w,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.2
+              ..color = _fenSheen.withValues(alpha: 0.18),
+          );
+        }
+        // The broken bank at the near end: the ground stops, mid-crossing.
+        canvas.drawLine(
+          head + norm * 30,
+          head - norm * 30,
+          Paint()
+            ..strokeWidth = 4
+            ..color = _fenPeat.withValues(alpha: 0.85),
+        );
     }
   }
 
