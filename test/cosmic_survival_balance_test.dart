@@ -87,25 +87,41 @@ void main() {
       expect(wave, lessThanOrEqualTo(60));
     });
 
-    test('enemy scaling stays gentle early and serious late', () {
+    test('enemy health and damage climb together', () {
+      // This used to require damage to TRAIL health — x2.96 against x5.65 at
+      // wave 50 — on the reasoning that a damage curve meeting the health
+      // curve would turn late fights into lethal coin-flips.
+      //
+      // Measured, that reasoning produced the opposite problem. A health curve
+      // running at twice the damage curve is the shape of a game that gets
+      // LONGER rather than harder: late waves were no more likely to kill you,
+      // just slower to clear. A fight you cannot lose stops mattering however
+      // big its numbers get. See test/survival_balance_audit_test.dart for the
+      // run-level figures behind that.
+      //
+      // They rise together now — about x4 each at wave 50 — so a late enemy is
+      // exactly as dangerous as it is tanky. Parity is not the coin-flip the
+      // old note worried about: that would need damage to OUTRUN health, which
+      // this still asserts it does not.
       expect(
         CosmicSurvivalBalance.enemyWaveHpScale(15),
-        inInclusiveRange(1.7, 2.3),
+        inInclusiveRange(1.5, 1.8),
       );
       expect(
         CosmicSurvivalBalance.enemyWaveHpScale(50),
-        inInclusiveRange(5.3, 6.0),
-      );
-      // Damage now climbs alongside HP so late waves stay threatening
-      // instead of becoming pure damage sponges, while still trailing
-      // the HP curve so fights don't become lethal coin-flips.
-      expect(
-        CosmicSurvivalBalance.enemyWaveDamageScale(50),
-        inInclusiveRange(2.5, 3.3),
+        inInclusiveRange(3.8, 4.4),
       );
       expect(
         CosmicSurvivalBalance.enemyWaveDamageScale(50),
-        lessThan(CosmicSurvivalBalance.enemyWaveHpScale(50)),
+        inInclusiveRange(3.8, 4.4),
+      );
+      // Neither runs away from the other, in either direction.
+      final hp = CosmicSurvivalBalance.enemyWaveHpScale(50);
+      final dmg = CosmicSurvivalBalance.enemyWaveDamageScale(50);
+      expect(
+        (hp - dmg).abs() / hp,
+        lessThan(0.15),
+        reason: 'the two curves have drifted apart again',
       );
     });
 

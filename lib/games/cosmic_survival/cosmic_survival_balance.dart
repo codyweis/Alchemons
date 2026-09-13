@@ -94,17 +94,37 @@ class CosmicSurvivalBalance {
     return raw.round().clamp(1, 99);
   }
 
+  /// Enemy health by wave.
+  ///
+  /// Health used to outrun damage by roughly two to one — x5.65 against x2.96
+  /// at wave 50 — which is the shape of a game that gets LONGER rather than
+  /// harder. Late waves were sponges: no more likely to kill you, just slower
+  /// to clear, and a fight you cannot lose is a fight that stops mattering
+  /// however big its numbers get.
+  ///
+  /// Flattened to about x4 at wave 50, with the post-wave-10 compounding
+  /// halved. The danger is moved onto the damage curve instead, where it can
+  /// actually be felt.
   static double enemyWaveHpScale(int wave) {
     if (wave <= 1) return 1.0;
-    final base = 1.0 + pow(wave - 1, 1.12).toDouble() * 0.042;
-    return base * (1.0 + max(0, wave - 10) * 0.008);
+    final base = 1.0 + pow(wave - 1, 1.12).toDouble() * 0.032;
+    return base * (1.0 + max(0, wave - 10) * 0.004);
   }
 
+  /// Enemy damage by wave.
+  ///
+  /// Steepened to meet the flattened health curve: about x4 at wave 50 rather
+  /// than x3, so the two now rise together instead of health running away.
+  ///
+  /// The early half of this curve is doing a second job. A five-minute
+  /// autopilot run at wave 1 took ZERO damage to the orb and sat at full
+  /// health the whole time — the party out-killed the spawn rate outright, so
+  /// the thing you lose the run by was never in the fight. More damage per
+  /// body is the honest lever for that: it costs the player something when one
+  /// gets through, without spawning more of them.
   static double enemyWaveDamageScale(int wave) {
     if (wave <= 1) return 1.0;
-    // Steeper damage curve so late-wave enemies (especially big slow ones)
-    // stay genuinely threatening rather than becoming damage sponges.
-    return 1.0 + pow(wave - 1, 1.22).toDouble() * 0.017;
+    return 1.0 + pow(wave - 1, 1.22).toDouble() * 0.026;
   }
 
   static double enemyWaveSpeedScale(int wave) {
