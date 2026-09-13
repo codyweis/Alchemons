@@ -8184,46 +8184,99 @@ void drawMysticDawnStar({
 }) {
   if (alpha <= 0.01) return;
   final t = charge.clamp(0.0, 1.0);
-  // Grows through the wait and blows out at the break.
-  final core = 120.0 * (0.32 + 0.68 * t) + 260.0 * flare;
-  final gold = const ui.Color(0xFFFFD98A);
-  final white = const ui.Color(0xFFFFFFFF);
-  final breath = 0.9 + 0.1 * sin(time * 1.4);
 
-  // Corona, as a few nested discs rather than a blur.
-  for (var i = 4; i >= 1; i--) {
+  // A body, not a flare.
+  //
+  // The first version was nested translucent discs with spokes — which is what
+  // a light source looks like, and exactly not what everything else in this
+  // game's sky looks like. The planets are lit SPHERES: a radial gradient with
+  // its highlight up and to the left, the colour in the middle, and real
+  // shadow on the far side. This is built the same way, so the thing hanging
+  // outside the arena belongs to the same solar system as the home planet.
+  final core = 132.0 * (0.42 + 0.58 * t) + 200.0 * flare;
+  final gold = const ui.Color(0xFFFFD98A);
+  final deep = const ui.Color(0xFF6A4406);
+  final white = const ui.Color(0xFFFFFFFF);
+  final breath = 0.96 + 0.04 * sin(time * 0.9);
+  final r = core * breath;
+
+  // Atmosphere: a couple of discs rather than a blur, since blurring in the
+  // per-frame paint is the single worst thing for frame time in this renderer.
+  for (var i = 3; i >= 1; i--) {
     canvas.drawCircle(
       at,
-      core * (1.0 + i * 0.55) * breath,
+      r * (1.0 + i * 0.24),
       ui.Paint()
-        ..color = gold.withValues(alpha: (0.055 - i * 0.008) * alpha * (0.4 + t)),
+        ..color = gold.withValues(alpha: (0.05 - i * 0.011) * alpha * (0.5 + t)),
     );
   }
-  canvas.drawCircle(
-    at,
-    core * breath,
-    ui.Paint()..color = gold.withValues(alpha: (0.30 + 0.55 * t) * alpha),
-  );
-  canvas.drawCircle(
-    at,
-    core * 0.58 * breath,
-    ui.Paint()..color = white.withValues(alpha: (0.35 + 0.60 * t) * alpha),
-  );
 
-  // Rays reaching further as it fills, so the progress is readable from across
-  // the arena without a bar.
+  // Rays, BEHIND the body — drawn over it they cross the sphere and it stops
+  // reading as solid, which is how the game's own Light planet does it too.
+  // Short and lazy while it is dark, long and even as dawn approaches: the
+  // progress bar for this world, readable from across the arena.
   final ray = ui.Paint()
     ..style = ui.PaintingStyle.stroke
     ..strokeCap = ui.StrokeCap.round
-    ..strokeWidth = 3.0 + 6.0 * t
-    ..color = gold.withValues(alpha: (0.16 + 0.34 * t) * alpha);
+    ..strokeWidth = 2.4 + 5.0 * t
+    ..color = gold.withValues(alpha: (0.10 + 0.32 * t) * alpha);
   for (var i = 0; i < 12; i++) {
-    final ang = i * (pi * 2 / 12) + time * 0.12;
+    final ang = i * (pi * 2 / 12) + time * 0.14;
     final dir = ui.Offset(cos(ang), sin(ang));
-    final inner = core * 1.1;
-    final outer = inner + (60.0 + 220.0 * t) * (i.isEven ? 1.0 : 0.62);
-    canvas.drawLine(at + dir * inner, at + dir * outer, ray);
+    final inner = r * 1.06;
+    final reach =
+        inner + (34.0 + 210.0 * t) * (i.isEven ? 1.0 : 0.58) *
+            (0.85 + 0.15 * sin(time * 1.6 + i));
+    canvas.drawLine(at + dir * inner, at + dir * reach, ray);
   }
+
+  // The lit body. Light comes from the upper left, as it does on every planet
+  // in this game.
+  final light = ui.Offset(at.dx - r * 0.3, at.dy - r * 0.3);
+  canvas.drawCircle(
+    at,
+    r,
+    ui.Paint()
+      ..shader = ui.Gradient.radial(light, r * 1.5, [
+        // Brightens as it charges: dull ember at dark, white-hot at dawn.
+        ui.Color.lerp(gold, white, 0.25 + 0.70 * t)!.withValues(alpha: alpha),
+        ui.Color.lerp(deep, gold, 0.35 + 0.60 * t)!.withValues(alpha: alpha),
+        ui.Color.lerp(deep, const ui.Color(0xFF1A0E00), 0.55)!
+            .withValues(alpha: alpha),
+      ], const [0.0, 0.5, 1.0]),
+  );
+
+  // Terminator: the far limb falling into its own shadow, which is what makes
+  // a flat disc read as a sphere.
+  canvas.drawCircle(
+    ui.Offset(at.dx + r * 0.34, at.dy + r * 0.26),
+    r * 0.94,
+    ui.Paint()
+      ..color = const ui.Color(0xFF120A00).withValues(alpha: 0.20 * alpha),
+  );
+
+  // Specular highlight, squashed the way a curved surface returns it.
+  canvas.drawOval(
+    ui.Rect.fromCenter(
+      center: ui.Offset(at.dx - r * 0.32, at.dy - r * 0.34),
+      width: r * 0.46,
+      height: r * 0.20,
+    ),
+    ui.Paint()..color = white.withValues(alpha: (0.14 + 0.26 * t) * alpha),
+  );
+
+  // The break itself: a hard white rim, only in the moment it goes off.
+  if (flare > 0.01) {
+    canvas.drawCircle(
+      at,
+      r * 1.06,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 3.0 + 10.0 * flare
+        ..color = white.withValues(alpha: 0.70 * flare * alpha),
+    );
+  }
+
 }
 
 /// A Steam world venting: the arena exhaling, and the front of that exhale

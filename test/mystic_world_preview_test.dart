@@ -2,7 +2,6 @@
 library;
 
 import 'dart:io';
-import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -40,36 +39,17 @@ void main() {
     Offset cell(int col, int row) =>
         Offset(cellW * col + cellW / 2, cellH * row + cellH / 2);
 
-    // Row 0b — fissures at rest and flaring, over a patch of floor, so the
-    // question "does this take over the screen" can actually be looked at.
+    // Row 1c — the dawn star across its charge, so it can be compared with the
+    // lit spheres the rest of the game's sky is made of.
     for (var i = 0; i < 5; i++) {
-      final flare = [0.0, 0.0, 0.0, 0.55, 1.0][i];
-      final rng = Random(7 + i);
-      for (var c = 0; c < 3; c++) {
-        final mid = cell(i, 0) + Offset(-120.0 + c * 120, -40.0 + c * 70);
-        final bearing = rng.nextDouble() * pi;
-        final dir = Offset(cos(bearing), sin(bearing));
-        final normal = Offset(-dir.dy, dir.dx);
-        final length = 190.0 + rng.nextDouble() * 210.0;
-        final wander = rng.nextDouble() * 6.28;
-        final pts = <Offset>[
-          for (var k = 0; k <= 8; k++)
-            () {
-              final f = k / 8 - 0.5;
-              final jag =
-                  sin(f * 9.0 + wander) * 17.0 + sin(f * 21.0 + wander) * 6.0;
-              return mid + dir * (length * f) + normal * jag;
-            }(),
-        ];
-        drawMysticFissure(
-          canvas: canvas,
-          points: pts,
-          alpha: 1,
-          flare: c == 1 ? flare : 0,
-          seed: c * 2.1 + i,
-          time: i * 0.9,
-        );
-      }
+      drawMysticDawnStar(
+        canvas: canvas,
+        at: cell(i, 0) + const Offset(0, 120),
+        charge: [0.0, 0.35, 0.75, 1.0, 1.0][i],
+        flare: i == 4 ? 0.8 : 0.0,
+        alpha: 1,
+        time: i * 1.4,
+      );
     }
 
     // Row 1b — the two spinning worlds side by side. They are the pair most
