@@ -772,7 +772,7 @@ void main() {
     await castOnce(game);
     expect(
       game.mysticFissureCount(0),
-      inInclusiveRange(4, 8),
+      inInclusiveRange(5, 9),
       reason: 'a Lava world is a broken floor, not one line someone placed',
     );
 

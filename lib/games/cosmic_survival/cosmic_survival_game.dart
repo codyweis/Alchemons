@@ -8545,29 +8545,36 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _openMysticFissures(CosmicSurvivalCompanion comp) {
     _mysticFissures.removeWhere((f) => f.ownerSlot == comp.slotIndex);
     final strength = _effectiveStrength(comp.slotIndex);
-    final count = (4 + _hornStatScale(strength, perPoint: 0.11, min: 0.0, max: 1.0) * 4)
-        .round()
-        .clamp(4, 8);
+    final count =
+        (5 + _hornStatScale(strength, perPoint: 0.11, min: 0.0, max: 1.0) * 4)
+            .round()
+            .clamp(5, 9);
     final centre = orb.position;
-    final span = _arenaRadius * 0.86;
 
     for (var i = 0; i < count; i++) {
-      // Chords across the arena rather than spokes from the middle: spokes all
-      // meet at the orb, which would put every crack exactly where the player
-      // is standing and none of them anywhere else.
+      // SHORT cracks scattered through the ring, not chords across the arena.
+      //
+      // They were laid as full-width chords — nearly two thousand pixels each,
+      // five to eight of them — which covered the entire screen in glowing
+      // lines and left nothing for the eye to rest on. A crack is a local
+      // thing. These are a few hundred pixels long, placed out where the fight
+      // moves rather than through the middle of it, and the floor between them
+      // stays floor.
+      final place = _rng.nextDouble() * 2 * pi;
+      final away = 0.26 + _rng.nextDouble() * 0.52;
+      final mid = centre + Offset(cos(place), sin(place)) * (_arenaRadius * away);
       final bearing = _rng.nextDouble() * pi;
-      final offset = (_rng.nextDouble() - 0.5) * span * 1.1;
       final dir = Offset(cos(bearing), sin(bearing));
       final normal = Offset(-dir.dy, dir.dx);
-      final mid = centre + normal * offset;
+      final length = 190.0 + _rng.nextDouble() * 210.0;
 
       final points = <Offset>[];
-      const steps = 9;
+      const steps = 8;
       final wander = _rng.nextDouble() * 6.28;
       for (var k = 0; k <= steps; k++) {
         final f = k / steps - 0.5;
-        final jag = sin(f * 7.0 + wander) * 46.0 + sin(f * 17.0 + wander) * 16.0;
-        points.add(mid + dir * (span * f * 2.0) + normal * jag);
+        final jag = sin(f * 9.0 + wander) * 17.0 + sin(f * 21.0 + wander) * 6.0;
+        points.add(mid + dir * (length * f) + normal * jag);
       }
       _mysticFissures.add(
         _MysticFissure(

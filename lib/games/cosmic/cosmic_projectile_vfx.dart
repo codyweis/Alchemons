@@ -8274,6 +8274,48 @@ void drawMysticVent({
   }
 }
 
+/// A ribbon that opens from nothing, bellies out, and closes to nothing again.
+///
+/// `_tapered` runs wide-to-narrow, which is right for a stem and wrong for a
+/// split in the ground: a crack has two ends and both of them are hairlines.
+ui.Path _splitRibbon(List<ui.Offset> spine, double maxWidth) {
+  final path = ui.Path();
+  if (spine.length < 2) return path;
+  final left = <ui.Offset>[];
+  final right = <ui.Offset>[];
+  for (var i = 0; i < spine.length; i++) {
+    final prev = spine[i == 0 ? 0 : i - 1];
+    final next = spine[i == spine.length - 1 ? i : i + 1];
+    var tangent = next - prev;
+    final len = tangent.distance;
+    tangent = len < 0.0001 ? const ui.Offset(0, -1) : tangent / len;
+    final normal = ui.Offset(-tangent.dy, tangent.dx);
+    final f = i / (spine.length - 1);
+    // Widest a little past the middle, so it does not read as symmetrical.
+    final half = sin(pow(f, 0.82) * pi) * maxWidth * 0.5;
+    left.add(spine[i] + normal * half);
+    right.add(spine[i] - normal * half);
+  }
+  void trace(List<ui.Offset> side) {
+    for (var i = 1; i < side.length - 1; i++) {
+      final mid = ui.Offset(
+        (side[i].dx + side[i + 1].dx) * 0.5,
+        (side[i].dy + side[i + 1].dy) * 0.5,
+      );
+      path.quadraticBezierTo(side[i].dx, side[i].dy, mid.dx, mid.dy);
+    }
+    path.lineTo(side.last.dx, side.last.dy);
+  }
+
+  path.moveTo(left.first.dx, left.first.dy);
+  trace(left);
+  final reversed = right.reversed.toList();
+  path.lineTo(reversed.first.dx, reversed.first.dy);
+  trace(reversed);
+  path.close();
+  return path;
+}
+
 /// A Lava world's fissure: a crack in the arena floor with molten light in it.
 ///
 /// Drawn as a dark split with a glowing seam INSIDE it rather than a bright
@@ -8288,43 +8330,71 @@ void drawMysticFissure({
   required double time,
 }) {
   if (alpha <= 0.01 || points.length < 2) return;
-  final breath = 0.78 + 0.22 * sin(time * 1.5 + seed);
-  final heat = (breath + flare * 1.4).clamp(0.0, 2.0);
+  final breath = 0.72 + 0.28 * sin(time * 1.3 + seed);
+  // Banked at rest, bright when broken. Eight cracks all glowing at full heat
+  // is a lava floor, which is not what this world is: it is a dark arena with
+  // seams in it that flare when something heavy crosses one. The rest state is
+  // roughly a third as hot as the flare.
+  final heat = (0.40 * breath + flare * 1.8).clamp(0.0, 2.2);
 
-  final path = ui.Path()..moveTo(points.first.dx, points.first.dy);
-  for (var i = 1; i < points.length - 1; i++) {
-    final mid = ui.Offset(
-      (points[i].dx + points[i + 1].dx) * 0.5,
-      (points[i].dy + points[i + 1].dy) * 0.5,
+  // A split that closes to a hairline at both ends, with the molten seam
+  // narrower still inside it. The first version stroked one constant-width
+  // line the whole length of the crack, which is why it read as a drawn mark
+  // rather than as ground that has come apart.
+  canvas.drawPath(
+    _splitRibbon(points, 13.0),
+    ui.Paint()
+      ..color = const ui.Color(0xFF140602).withValues(alpha: 0.88 * alpha),
+  );
+  canvas.drawPath(
+    _splitRibbon(points, 6.0 + 2.0 * flare),
+    ui.Paint()
+      ..color = const ui.Color(0xFFC2400C)
+          .withValues(alpha: (0.34 * heat).clamp(0.0, 0.85) * alpha),
+  );
+  canvas.drawPath(
+    _splitRibbon(points, 2.4 + 1.4 * flare),
+    ui.Paint()
+      ..color = const ui.Color(0xFFFFA24A)
+          .withValues(alpha: (0.42 * heat).clamp(0.0, 0.92) * alpha),
+  );
+
+  // A couple of hairline branches off the middle, so it forks the way real
+  // ground does instead of running as one clean line.
+  final mid = points.length ~/ 2;
+  for (var b = 0; b < 2; b++) {
+    final at = points[(mid + (b == 0 ? -1 : 1)).clamp(0, points.length - 1)];
+    final ang = seed * 3.0 + b * 2.4;
+    final branch = <ui.Offset>[
+      at,
+      at + ui.Offset(cos(ang), sin(ang)) * 16.0,
+      at + ui.Offset(cos(ang + 0.4), sin(ang + 0.4)) * 29.0,
+    ];
+    canvas.drawPath(
+      _splitRibbon(branch, 4.6),
+      ui.Paint()
+        ..color = const ui.Color(0xFF140602).withValues(alpha: 0.70 * alpha),
     );
-    path.quadraticBezierTo(points[i].dx, points[i].dy, mid.dx, mid.dy);
+    canvas.drawPath(
+      _splitRibbon(branch, 1.6),
+      ui.Paint()
+        ..color = const ui.Color(0xFFC2400C)
+            .withValues(alpha: (0.26 * heat).clamp(0.0, 0.6) * alpha),
+    );
   }
-  path.lineTo(points.last.dx, points.last.dy);
 
-  final stroke = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round
-    ..strokeJoin = ui.StrokeJoin.round;
+  // Only a flaring crack throws light onto the floor around it. At rest it is
+  // a dark seam with an ember in it, which is what lets eight of them sit on
+  // the map without taking it over.
+  if (flare > 0.02) {
+    canvas.drawPath(
+      _splitRibbon(points, 40.0),
+      ui.Paint()
+        ..color = const ui.Color(0xFFFF6A1E)
+            .withValues(alpha: 0.10 * flare * alpha),
+    );
+  }
 
-  // Heat bleeding onto the ground either side of the split.
-  stroke
-    ..strokeWidth = 26.0 + 10.0 * flare
-    ..color = const ui.Color(0xFFFF6A1E).withValues(alpha: 0.07 * alpha * heat);
-  canvas.drawPath(path, stroke);
-  // The split itself: dark, so the seam inside it has something to glow out of.
-  stroke
-    ..strokeWidth = 11.0
-    ..color = const ui.Color(0xFF180703).withValues(alpha: 0.92 * alpha);
-  canvas.drawPath(path, stroke);
-  // Molten seam.
-  stroke
-    ..strokeWidth = 5.0 + 2.5 * flare
-    ..color = const ui.Color(0xFFFF7A1E).withValues(alpha: (0.55 * heat).clamp(0.0, 0.95) * alpha);
-  canvas.drawPath(path, stroke);
-  stroke
-    ..strokeWidth = 1.8 + 1.6 * flare
-    ..color = const ui.Color(0xFFFFD9A0).withValues(alpha: (0.60 * heat).clamp(0.0, 0.98) * alpha);
-  canvas.drawPath(path, stroke);
 }
 
 /// A meteor a broken fissure threw up, on its way back down.
