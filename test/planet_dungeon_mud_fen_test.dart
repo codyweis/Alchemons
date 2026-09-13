@@ -652,6 +652,81 @@ void main() {
     });
   });
 
+  group('THE WALLOW ARRIVALS — the carried fault, settled', () {
+    // Every knoll's wallow drops you onto the fane hatch you just came
+    // through: the arrival sits inside a 54x54 floor hatch, which the
+    // doorway invariant exempts on the grounds that a hatch is climbed out
+    // of and arriving on top of one is Mud's fiction rather than a fault.
+    //
+    // That exemption had never been checked, and it is only safe for a
+    // reason nothing stated: a risen wallow is shut until the sough is
+    // freed, and climbing one HEAVES — which re-plugs the sough behind you.
+    // If either half of that ever stopped being true, landing on the hatch
+    // would hand the player an unasked-for heave half a second after they
+    // arrived, and every road they had dragged with it.
+    test('every wallow lands you on its own hatch', () {
+      final layout = kPlanetDungeonLayouts['Mud']!;
+      final fane = layout.rooms['drowned_fane']!;
+      for (final knollId in kBogKnollIds) {
+        final down = layout.rooms[knollId]!.doors
+            .firstWhere((d) => d.targetRoomId == 'drowned_fane');
+        final up = fane.doors.firstWhere((d) => d.targetRoomId == knollId);
+        expect(
+          up.rect.contains(down.targetSpawn),
+          isTrue,
+          reason: '$knollId: the wallow has to put you at the foot of itself',
+        );
+      }
+    });
+
+    test('and standing on it costs you nothing, because it is shut', () {
+      final game = _harness(_idealTrio());
+      final layout = game.layout;
+      final fane = layout.rooms['drowned_fane']!;
+
+      // Down the gate's wallow, and stand exactly where it puts you.
+      game.entryDoorRevealed = true;
+      _drag(game, 'tarn_head', 'mire_gate');
+      final down = layout.rooms['mire_gate']!.doors
+          .firstWhere((d) => d.targetRoomId == 'drowned_fane');
+      game.setActive(mud);
+      game.passThroughDoor(down);
+      expect(game.currentRoomId, 'drowned_fane');
+      final onHatch = fane.doors
+          .firstWhere((d) => d.targetRoomId == 'mire_gate')
+          .rect
+          .center;
+      for (final c in game.creatures) {
+        c
+          ..position = onHatch
+          ..lastSafe = onHatch;
+      }
+      // Long past the door cooldown, without moving a step.
+      for (var tick = 0; tick < 240; tick++) {
+        game.update(1 / 60);
+      }
+      expect(game.currentRoomId, 'drowned_fane',
+          reason: 'the hatch is shut, so standing on it is standing still');
+      expect(game.bog.field.heaves, 0);
+      expect(game.bog.field.hardened, contains('tarn_head'));
+    });
+
+    test('THE HEAVE RE-PLUGS THE SOUGH, which is what makes the arrival '
+        'safe at all', () {
+      final game = _harness(_idealTrio());
+      final fane = game.layout.rooms['drowned_fane']!;
+      _act(game, mud, 'drowned_fane', fane.fen!.sough!);
+      expect(game.bog.field.soughFreed, isTrue);
+      game.onBogTransitForTest(
+        fane,
+        fane.doors.firstWhere((d) => d.targetRoomId == 'mire_gate'),
+      );
+      expect(game.bog.field.soughFreed, isFalse,
+          reason: 'if a heave left the sough open, the next wallow down would '
+              'drop you onto an OPEN hatch and heave again on its own');
+    });
+  });
+
   group('the lost maxim — NO MUD, NO LOTUS (the Black Lead)', () {
     /// Every legal fen shape, by construction: an independent set in each of
     /// the three slough chains, taken independently.

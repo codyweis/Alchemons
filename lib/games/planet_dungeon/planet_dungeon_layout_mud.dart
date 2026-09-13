@@ -201,7 +201,7 @@ const List<BogFord> kBogFords = [
     knollB: 'hag_knoll',
     slough: 'cor',
     index: 0,
-    headA: Offset(570, 105),
+    headA: Offset(570, 75),
     headB: Offset(150, 125),
   ),
   BogFord(
@@ -211,7 +211,7 @@ const List<BogFord> kBogFords = [
     slough: 'cor',
     index: 1,
     headA: Offset(490, 215),
-    headB: Offset(150, 305),
+    headB: Offset(150, 325),
   ),
   BogFord(
     id: 'cor_tail',
@@ -229,8 +229,8 @@ const List<BogFord> kBogFords = [
     knollB: 'reed_knoll',
     slough: 'add',
     index: 0,
-    headA: Offset(570, 240),
-    headB: Offset(150, 215),
+    headA: Offset(570, 285),
+    headB: Offset(150, 135),
   ),
   BogFord(
     id: 'add_neck',
@@ -257,7 +257,7 @@ const List<BogFord> kBogFords = [
     knollB: 'sedge_knoll',
     slough: 'tarn',
     index: 0,
-    headA: Offset(570, 375),
+    headA: Offset(570, 495),
     headB: Offset(150, 220),
   ),
   BogFord(
@@ -266,7 +266,7 @@ const List<BogFord> kBogFords = [
     knollB: 'reed_knoll',
     slough: 'tarn',
     index: 1,
-    headA: Offset(490, 325),
+    headA: Offset(490, 355),
     headB: Offset(150, 345),
   ),
   BogFord(
@@ -680,20 +680,25 @@ const DungeonLayout mudLayout = DungeonLayout(
     // washes it off. The sarsen lies here in the silt.
     'mire_gate': DungeonRoom(
       id: 'mire_gate',
-      bounds: Rect.fromLTWH(0, 0, 720, 480),
+      // TALLER THAN IT WAS (480). Three crossings leave this wall — the head
+      // of all three sloughs — and they sat 45px apart, which on a phone is
+      // one long broken opening rather than three doorways you can tell
+      // apart. They clear each other by 120px now, and the room grew to
+      // carry it rather than the doors shrinking (Lightning's hub rule).
+      bounds: Rect.fromLTWH(0, 0, 720, 560),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(696, 60, 24, 90),
+          rect: Rect.fromLTWH(696, 30, 24, 90),
           targetRoomId: 'hag_knoll',
           targetSpawn: Offset(60, 125),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(696, 195, 24, 90),
+          rect: Rect.fromLTWH(696, 240, 24, 90),
           targetRoomId: 'reed_knoll',
-          targetSpawn: Offset(60, 215),
+          targetSpawn: Offset(60, 135),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(696, 330, 24, 90),
+          rect: Rect.fromLTWH(696, 450, 24, 90),
           targetRoomId: 'sedge_knoll',
           targetSpawn: Offset(60, 220),
         ),
@@ -721,7 +726,7 @@ const DungeonLayout mudLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(0, 80, 24, 90),
           targetRoomId: 'mire_gate',
-          targetSpawn: Offset(630, 105),
+          targetSpawn: Offset(630, 75),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(616, 110, 24, 90),
@@ -729,7 +734,7 @@ const DungeonLayout mudLayout = DungeonLayout(
           targetSpawn: Offset(60, 125),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(616, 280, 24, 90),
+          rect: Rect.fromLTWH(616, 310, 24, 90),
           targetRoomId: 'reed_knoll',
           targetSpawn: Offset(60, 345),
         ),
@@ -754,19 +759,19 @@ const DungeonLayout mudLayout = DungeonLayout(
       bounds: Rect.fromLTWH(0, 0, 640, 460),
       doors: [
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 170, 24, 90),
+          rect: Rect.fromLTWH(0, 90, 24, 90),
           targetRoomId: 'mire_gate',
-          targetSpawn: Offset(630, 240),
+          targetSpawn: Offset(630, 285),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(0, 300, 24, 90),
           targetRoomId: 'hag_knoll',
-          targetSpawn: Offset(570, 325),
+          targetSpawn: Offset(570, 355),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(616, 170, 24, 90),
           targetRoomId: 'altar_knoll',
-          targetSpawn: Offset(60, 305),
+          targetSpawn: Offset(60, 325),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(300, 380, 54, 54),
@@ -795,9 +800,9 @@ const DungeonLayout mudLayout = DungeonLayout(
           targetSpawn: Offset(570, 155),
         ),
         DungeonDoor(
-          rect: Rect.fromLTWH(0, 260, 24, 90),
+          rect: Rect.fromLTWH(0, 280, 24, 90),
           targetRoomId: 'reed_knoll',
-          targetSpawn: Offset(570, 215),
+          targetSpawn: Offset(490, 215),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(736, 170, 24, 90),
@@ -833,7 +838,7 @@ const DungeonLayout mudLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(0, 175, 24, 90),
           targetRoomId: 'mire_gate',
-          targetSpawn: Offset(620, 375),
+          targetSpawn: Offset(620, 495),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(576, 175, 24, 90),
@@ -874,9 +879,14 @@ const DungeonLayout mudLayout = DungeonLayout(
         ),
         // THE PLANK ROAD — Mud MANE. Not a ford: it moors nothing.
         DungeonDoor(
-          rect: Rect.fromLTWH(576, 270, 24, 90),
+          // THE PLANK ROAD. It joins the same two knolls as `add_tail` and
+          // does something completely different — a boardwalk laid ON the
+          // water carries a walker and moors nothing, which is the whole
+          // vault trick — so it cannot sit 85px from the ford and read as
+          // its other half. 120px of wall between them.
+          rect: Rect.fromLTWH(576, 305, 24, 90),
           targetRoomId: 'lotus_knoll',
-          targetSpawn: Offset(530, 315),
+          targetSpawn: Offset(530, 350),
         ),
         DungeonDoor(
           rect: Rect.fromLTWH(275, 350, 54, 54),
@@ -913,9 +923,9 @@ const DungeonLayout mudLayout = DungeonLayout(
         ),
         // The plank road's far end.
         DungeonDoor(
-          rect: Rect.fromLTWH(576, 270, 24, 90),
+          rect: Rect.fromLTWH(576, 305, 24, 90),
           targetRoomId: 'cairn_knoll',
-          targetSpawn: Offset(530, 315),
+          targetSpawn: Offset(530, 350),
         ),
         // THE FOUNDER — the knoll going down under your weight. The engine
         // walks the party through this door itself; it is never touched.

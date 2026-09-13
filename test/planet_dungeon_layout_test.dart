@@ -3,6 +3,7 @@ import 'dart:ui' show Rect;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart'
     show
         PlanetDungeonGame,
@@ -1454,6 +1455,86 @@ void main() {
             reason:
                 '${t.id} sits closer to ${d.targetRoomId} than to any wing '
                 'it actually feeds',
+          );
+        }
+      }
+    });
+
+    test('Mud: the fen reads — no wall carries two crossings that look like '
+        'one opening', () {
+      // Lightning's rule, applied to the planet that needs it most. The mire
+      // gate is the head of all three sloughs and put its three doorways 45px
+      // apart on one wall; reed knoll had two 40px apart; and worst, the
+      // cairn and the lotus each carried TWO doors to the other, 85px apart —
+      // one the ford `add_tail`, the other the peat-cutters' plank road,
+      // which moors nothing and is the whole vault trick. Telling those two
+      // apart at a glance is not a nicety on this planet: which opening you
+      // take is the difference between a crossing that holds the knoll up
+      // and one that does not.
+      final l = kPlanetDungeonLayouts['Mud']!;
+      final tooClose = <String>[];
+      for (final room in l.rooms.values) {
+        String? wall(Rect d) {
+          if (d.left <= 1) return 'W';
+          if (d.right >= room.bounds.right - 1) return 'E';
+          if (d.top <= 1) return 'N';
+          if (d.bottom >= room.bounds.bottom - 1) return 'S';
+          return null; // a floor hatch is not a wall door
+        }
+
+        final byWall = <String, List<DungeonDoor>>{};
+        for (final d in room.doors) {
+          final w = wall(d.rect);
+          if (w != null) byWall.putIfAbsent(w, () => []).add(d);
+        }
+        byWall.forEach((w, ds) {
+          for (var i = 0; i < ds.length; i++) {
+            for (var j = i + 1; j < ds.length; j++) {
+              final a = ds[i].rect;
+              final b = ds[j].rect;
+              final gap = (w == 'W' || w == 'E')
+                  ? (a.top < b.top ? b.top - a.bottom : a.top - b.bottom)
+                  : (a.left < b.left ? b.left - a.right : a.left - b.right);
+              if (gap < 100) {
+                tooClose.add(
+                  '${room.id} wall $w: ${ds[i].targetRoomId} and '
+                  '${ds[j].targetRoomId} are ${gap.round()}px apart',
+                );
+              }
+            }
+          }
+        });
+      }
+      expect(tooClose, isEmpty, reason: tooClose.join('\n'));
+    });
+
+    test('Mud: you work a crossing from your own knoll, not pressed against '
+        'the wall', () {
+      // Every ford head sat hard against its doorway, so the crossing — the
+      // thing this planet is entirely about — happened off-screen between
+      // rooms and showed only its last 60px, behind its own door plate. A
+      // head stands well inside the room now and the ribbon runs out to the
+      // doorway, which is what makes the map legible from the middle of the
+      // floor.
+      final l = kPlanetDungeonLayouts['Mud']!;
+      for (final ford in kBogFords) {
+        for (final knoll in [ford.knollA, ford.knollB]) {
+          final room = l.rooms[knoll]!;
+          final head = ford.headIn(knoll)!;
+          final door = room.doors.firstWhere(
+            (d) => d.targetRoomId == ford.other(knoll),
+          );
+          expect(
+            (head - door.rect.center).distance,
+            greaterThan(90),
+            reason:
+                '${ford.id} on $knoll is worked at $head, right on top of '
+                'its own doorway',
+          );
+          expect(
+            room.bounds.deflate(60).contains(head),
+            isTrue,
+            reason: '${ford.id} on $knoll is worked against the room edge',
           );
         }
       }

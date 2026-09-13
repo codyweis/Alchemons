@@ -834,11 +834,17 @@ extension SinkingAltarFen on PlanetDungeonGame {
         fraction: f.moorsWoken.length / kMoorKnollIds.length,
       );
     }
-    final sod = f.hardened.length;
+    // A GAUGE CAN BE WRONG WITH EVERY NUMBER RIGHT (§7.9). This counted the
+    // roads you had BUILT, going up — which on this planet says almost
+    // nothing: three sod crossings can leave the bog cut in two and four can
+    // be the whole southern road. What you are actually spending, and the
+    // only quantity here that is irreversible, is how much fen is left to
+    // cross. It starts at nine and it only ever goes down.
+    final left = kBogFords.length - f.drownedCount;
     return DungeonProgressReadout(
-      label: 'ROADS',
-      value: '$sod of ${kBogFords.length}',
-      fraction: sod / kBogFords.length,
+      label: 'CROSSINGS',
+      value: '$left left',
+      fraction: left / kBogFords.length,
     );
   }
 
@@ -1275,8 +1281,88 @@ extension SinkingAltarFen on PlanetDungeonGame {
 
   void _renderBog(Canvas canvas, DungeonRoom room) {
     _renderFordHeads(canvas, room);
+    _renderPlankRoad(canvas, room);
     _renderKnollFurniture(canvas, room);
     _renderSmear(canvas, room);
+  }
+
+  /// THE PLANK ROAD — and it has to look like nothing else on this planet.
+  ///
+  /// It joins the same two knolls as the ford `add_tail` and does the
+  /// opposite thing: a rotten boardwalk laid ON the water carries a walker
+  /// and MOORS NOTHING, which is the entire vault trick — cut the lotus's
+  /// two crossings and it is adrift, then walk out on the planks and the
+  /// knoll founders under you. It drew nothing at all, so the two openings
+  /// on that wall were a ford and an unexplained second doorway.
+  void _renderPlankRoad(Canvas canvas, DungeonRoom room) {
+    if (room.id != kPlankFromKnoll && room.id != kPlankToKnoll) return;
+    final want = room.id == kPlankFromKnoll ? kPlankToKnoll : kPlankFromKnoll;
+    final pair = room.doors.where((d) => d.targetRoomId == want).toList();
+    if (pair.length < 2) return;
+    final mouth = pair.last.rect.center;
+    // It leaves the knoll where the ground gives up, not at a worked head:
+    // there is nothing to work here, which is the point.
+    final start = Offset(
+      mouth.dx > room.bounds.center.dx ? mouth.dx - 210 : mouth.dx + 210,
+      mouth.dy + 12,
+    );
+    final dir = (mouth - start) / (mouth - start).distance;
+    final norm = Offset(-dir.dy, dir.dx);
+
+    // The water it is laid on — the planks moor nothing because there is
+    // nothing under them.
+    canvas.drawPath(
+      Path()
+        ..moveTo(start.dx + norm.dx * 34, start.dy + norm.dy * 34)
+        ..lineTo(mouth.dx + norm.dx * 34, mouth.dy + norm.dy * 34)
+        ..lineTo(mouth.dx - norm.dx * 34, mouth.dy - norm.dy * 34)
+        ..lineTo(start.dx - norm.dx * 34, start.dy - norm.dy * 34)
+        ..close(),
+      Paint()..color = _fenWater.withValues(alpha: 0.85),
+    );
+    // Two stringers on trestles, and the boards across them: SAWN TIMBER,
+    // the only worked wood in the fen, and grey with rot.
+    for (var k = -1; k <= 1; k += 2) {
+      canvas.drawLine(
+        start + norm * (k * 15.0),
+        mouth + norm * (k * 15.0),
+        Paint()
+          ..strokeWidth = 4
+          ..color = const Color(0xFF3D3529),
+      );
+    }
+    final len = (mouth - start).distance;
+    for (var d = 8.0; d < len - 4; d += 15) {
+      final p = start + dir * d;
+      // Every third board is gone, and the rest do not lie straight.
+      if ((d ~/ 15) % 4 == 2) continue;
+      final skew = sin(d * 0.4) * 2.6;
+      canvas.drawLine(
+        p + norm * (20 + skew),
+        p - norm * (20 - skew),
+        Paint()
+          ..strokeWidth = 8
+          ..color = const Color(0xFF6B6250).withValues(alpha: 0.85),
+      );
+      canvas.drawLine(
+        p + norm * (20 + skew),
+        p - norm * (20 - skew),
+        Paint()
+          ..strokeWidth = 1.2
+          ..color = const Color(0xFF2A251C).withValues(alpha: 0.6),
+      );
+    }
+    // Trestle posts going down into black water, and not into ground.
+    for (var d = 30.0; d < len - 20; d += 62) {
+      final p = start + dir * d;
+      canvas.drawLine(
+        p + norm * 22,
+        p + norm * 34,
+        Paint()
+          ..strokeWidth = 3.5
+          ..color = const Color(0xFF2A251C),
+      );
+    }
   }
 
   // ── THE GROUND ────────────────────────────────────────────
