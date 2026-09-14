@@ -2341,7 +2341,28 @@ Path _shaftOctagon(Offset c, double rx, double ry) {
 /// carrying one hairline down its lit side. They stop and start, they are
 /// nowhere near evenly spaced, and at these alphas a room reads as ice that
 /// has a direction rather than as a floor someone hatched.
+/// AMBIENT IS TEXTURE, NOT CONTENT.
+///
+/// The art passes were steered by an "emptiness ranking" — edge-pixels per
+/// room — with a note that under ~600 is a box. A metric that rewards ink
+/// gets you ink: rooms went from 400 edge-pixels to eleven thousand, and the
+/// result, played, is that you cannot tell what you are meant to touch. The
+/// orrery floor had three brass orbits crossing the whole room at the same
+/// visual weight as the sockets you actually seat blocks in.
+///
+/// So the decorative layers are thinned and faded at ONE knob apiece, rather
+/// than by re-authoring twenty call sites: the relative weights the pass
+/// chose are kept, and the whole ambient bed sits back behind the furniture.
+/// The room keeps its material and loses its clutter.
+///
+/// Raise these to get the busy version back; they are the whole lever.
+const double _kAmbientThin = 0.42; // how many of them there are
+const double _kAmbientFade = 0.55; // how much they assert themselves
+
+int _ambientCount(int n) => (n * _kAmbientThin).round().clamp(1, n);
+
 void _shaftFoliation(_ShaftGround g, Rect b, _ShaftRnd rnd, double alpha) {
+  alpha *= _kAmbientFade;
   final skew = rnd.range(0.14, 0.38) * rnd.sign();
   final slivers = Path();
   final edges = Path();
@@ -2381,6 +2402,8 @@ void _shaftFoliation(_ShaftGround g, Rect b, _ShaftRnd rnd, double alpha) {
 /// forked and forked again is the single cheapest way to say "this is ice
 /// and not a painted floor".
 void _shaftCraze(_ShaftGround g, Rect b, _ShaftRnd rnd, int seeds, double a) {
+  seeds = _ambientCount(seeds);
+  a *= _kAmbientFade;
   final main = Path();
   final hair = Path();
   void crack(Offset from, double ang, double len, int depth) {
@@ -2418,6 +2441,7 @@ void _shaftCraze(_ShaftGround g, Rect b, _ShaftRnd rnd, int seeds, double a) {
 /// — a shallow lens with one bright rim. Small, scattered, never repeated at
 /// the same size twice.
 void _shaftChips(_ShaftGround g, Rect b, _ShaftRnd rnd, int n) {
+  n = _ambientCount(n);
   for (var i = 0; i < n; i++) {
     final c = Offset(rnd.range(b.left, b.right), rnd.range(b.top, b.bottom));
     final rx = rnd.range(14, 44);
@@ -2487,6 +2511,7 @@ Path _shaftBloom(Offset c, double r, _ShaftRnd rnd) {
 /// deliberately: the guardian arena and every hub floor has to stay open to
 /// walk and fight in, so detail lives at the walls.
 void _shaftBlooms(_ShaftGround g, Rect b, _ShaftRnd rnd, int n, double band) {
+  n = _ambientCount(n);
   for (var i = 0; i < n; i++) {
     final (p, _) = _shaftEdgePoint(b, rnd, band);
     g.fill(
@@ -2499,6 +2524,7 @@ void _shaftBlooms(_ShaftGround g, Rect b, _ShaftRnd rnd, int n, double band) {
 /// FROST FERNS creeping in off the walls: a stem with barbs, each barb
 /// shorter than the last. Nothing in nature grows this on a lattice.
 void _shaftFerns(_ShaftGround g, Rect b, _ShaftRnd rnd, int n, double band) {
+  n = _ambientCount(n);
   final path = Path();
   for (var f = 0; f < n; f++) {
     final (root, side) = _shaftEdgePoint(b, rnd, band * 0.5);
@@ -2541,6 +2567,7 @@ void _shaftIcicles(
   required double maxLen,
   _ShaftLayer layer = _ShaftLayer.overlay,
 }) {
+  n = _ambientCount(n);
   final body = Path();
   final lit = Path();
   var x = b.left + rnd.range(4, 30);
@@ -2991,10 +3018,18 @@ void _groundOrreryFloor(_ShaftGround g, Rect b, _ShaftRnd rnd, OrreryGrid o) {
 
   // The orbits, at four different tilts. A nest of tilted ellipses is an
   // orrery; a nest of concentric circles is a target.
-  _shaftOrbit(g, hub, 118, 74, 0.32, 0.55, 2.6);
-  _shaftOrbit(g, hub, 196, 128, -0.22, 0.48, 2.4);
-  _shaftOrbit(g, hub, 288, 176, 0.44, 0.42, 2.1);
-  _shaftOrbit(g, hub, 360, 232, -0.12, 0.32, 1.8);
+  //
+  // AND THEY ARE INLAY, NOT FURNITURE. At their first weight they were brass
+  // lines as bright and as thick as the socket rims — three of them crossing
+  // the whole floor, at the same visual pitch as the four things you actually
+  // seat a block in. The room read as a diagram of itself and the puzzle
+  // hid inside its own decoration. They are sunk into the floor now: thinner,
+  // dimmer, and falling away outward, so the machine is legible as a MACHINE
+  // and the brightest brass in the room is the brass you can use.
+  _shaftOrbit(g, hub, 118, 74, 0.32, 0.26, 1.5);
+  _shaftOrbit(g, hub, 196, 128, -0.22, 0.21, 1.3);
+  _shaftOrbit(g, hub, 288, 176, 0.44, 0.16, 1.1);
+  _shaftOrbit(g, hub, 360, 232, -0.12, 0.11, 1.0);
 
   // THE ARMATURE, SHORT. The first pass ran a brass arm from the hub all the
   // way out to each of the four standards — and because the layout puts them

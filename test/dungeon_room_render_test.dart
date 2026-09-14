@@ -16,11 +16,23 @@ import 'package:flutter_test/flutter_test.dart';
 // `mkdir -p build/room_audit` and run this to get the pictures; CI has no
 // such directory and writes none (the Poison precedent — `flutter test`
 // passes neither --dart-define nor the environment through to the isolate).
-// It also prints an EMPTINESS RANKING, which is how a pass decides which
-// rooms to draw first: edge pixels and distinct colours, both crude, both
-// good enough to sort by. For calibration, the polished planets run from
-// about 840 (Lightning's cloud works, a dark room, legitimately) to 6400
-// (Lava's chill house); anything under ~600 is a box.
+// It also prints an INK RANKING: edge pixels and distinct colours per room.
+//
+// READ IT AS A SMOKE ALARM, NOT A SCORE. It was originally captioned as an
+// "emptiness ranking" with the note that under ~600 is a box, and eight
+// parallel art passes duly optimised for it — rooms went from 400 edge
+// pixels to eleven thousand, and the player's verdict was that the detail
+// "crowds things and makes it hard to know what to do". A metric that
+// rewards ink gets you ink.
+//
+// What the number can tell you is that a room drew almost NOTHING. It cannot
+// tell you a room is good, and a falling number is not a regression: Ice's
+// orrery floor went from 10,518 to 6,934 by sinking its decorative orbits
+// into the floor, and it is better, because the sockets you actually use are
+// now the brightest brass in the room.
+//
+// The standard is hierarchy, not density: THE THINGS YOU CAN ACT ON ARE THE
+// LOUDEST THINGS IN THE ROOM, and everything else is texture behind them.
 
 PlanetDungeonGame _game(String element) {
   final els = kCosmicPlanetEntry[element] ?? const ['Fire','Water','Air'];
@@ -99,6 +111,8 @@ void main() {
         }
       }
       rows.sort((a, b) => a.$4.compareTo(b.$4));
+      // Low end first: those are the rooms that may genuinely be boxes. The
+      // high end is not a leaderboard.
       for (final r in rows) {
         // ignore: avoid_print
         print('${r.$4.toString().padLeft(6)} edges  ${r.$3.toString().padLeft(4)} cols  ${r.$1}/${r.$2}');

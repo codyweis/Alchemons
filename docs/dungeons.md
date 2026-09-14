@@ -2281,6 +2281,46 @@ source, ~310 sites, mostly cosmic. (The other, *Mud's fane arrivals land
 inside their wallow hatches*, is settled — see the MUD entry. The exemption
 was right, and it was right for a reason nobody had written down.)
 
+### AMBIENT IS TEXTURE, NOT CONTENT (2026-09-14)
+
+**The metric caused this, and the metric was mine.** The eight parallel art
+passes were steered by an "emptiness ranking" — edge pixels per room — with
+the note that under ~600 is a box. A number that rewards ink gets you ink.
+Rooms went from 400 edge pixels to eleven thousand, and played, the verdict
+was: *"you're adding too much detail to the world… it crowds things and makes
+it hard to know what to do."*
+
+The clearest case was Ice's orrery floor. Three brass orbits crossed the
+whole room at the same weight and brightness as the socket rims — the four
+things you actually seat a block in — so the room read as a diagram of
+itself and the puzzle hid inside its own decoration.
+
+**THE STANDARD IS HIERARCHY, NOT DENSITY.** The things you can act on are the
+loudest things in the room; everything else is texture behind them. A room
+earns its detail by having somewhere for the eye to land first.
+
+Two levers, and Ice is the worked example:
+
+  · **One knob per decorative layer, not twenty re-authored call sites.**
+    `_kAmbientThin` (how many) and `_kAmbientFade` (how much they assert) are
+    applied inside the generators, so the relative weights a pass chose are
+    preserved and the whole ambient bed sits back behind the furniture.
+    Raising them restores the busy version; they are the whole lever.
+  · **Decoration is INLAY.** The orbits are sunk into the floor — thinner,
+    dimmer, falling away outward — so the brightest brass in the room is the
+    brass you can use.
+
+Ice's orrery went 10,518 → 6,934 edge pixels and got BETTER, which is the
+proof that the ranking was measuring the wrong thing. The harness is
+recaptioned as an INK RANKING and reads as a smoke alarm: it can tell you a
+room drew almost nothing, it cannot tell you a room is good, and a falling
+number is not a regression.
+
+**Still to do:** the same pass is owed on the other seven planets the batch
+touched (Dust, Crystal, Plant, Dark, Light, Blood, and Spirit's field), each
+of which needs its own judgement about what the furniture is and what the
+texture is.
+
 ### §7.10 THE TEN — where each actually stands (2026-09-13)
 
 All ten unpolished planets now have an ART FOUNDATION. **None of them is
