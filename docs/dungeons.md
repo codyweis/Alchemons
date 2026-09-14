@@ -2223,9 +2223,10 @@ catch it because they call `activateAbility()` past the HUD's gate.
     no art on it, and a last hop that could not be made at all. Simulated and
     rendered is not played.
 
-**The ten left** (Mud has had the pass but not the device session — it is
-still in this list until it has been played): Poison, Mud, Dust, Crystal,
-Plant, Spirit, Dark, Light, Blood, Ice — all BUILT and proved, none through a polish pass. Their
+**The ten left** — and as of 2026-09-13 every one of them has had its ART
+FOUNDATION and nothing else: Poison, Mud, Dust, Crystal, Plant, Spirit,
+Dark, Light, Blood, Ice. See §7.10 for exactly how far each got and what is
+still owed. None is promoted; none is descendable — all BUILT and proved, none through a polish pass. Their
 secrets are the queue in §7's maxim table, and Steam moved that count: five of
 seventeen clear the standard now, because a maxim that is a PLACE is the shape
 the other twelve should be reaching for (§9.6).
@@ -2235,6 +2236,88 @@ One carried fault belongs to that queue rather than to any one planet:
 source, ~310 sites, mostly cosmic. (The other, *Mud's fane arrivals land
 inside their wallow hatches*, is settled — see the MUD entry. The exemption
 was right, and it was right for a reason nobody had written down.)
+
+### §7.10 THE TEN — where each actually stands (2026-09-13)
+
+All ten unpolished planets now have an ART FOUNDATION. **None of them is
+polished, none is promoted, and `kPolishedDungeons` is unchanged**, so none
+of the ten can be descended. This section exists so nobody reads the volume
+of work below as a finished pass.
+
+| Planet | Ground | Maxim | Sounds | Device |
+|---|---|---|---|---|
+| **Mud** | ✅ | ✅ §9.8 | ✅ | ⬜ **the gate** |
+| **Spirit** | ✅ | ✅ §9.9 | ✅ | ⬜ |
+| **Poison** | ✅ | ⬜ one press | ⬜ | ⬜ |
+| **Dust** | ✅ | ⬜ one verb, N times | ⬜ | ⬜ |
+| **Crystal** | ✅ | ⬜ positional, one beat | ⬜ | ⬜ |
+| **Plant** | ✅ | ▶ has beats | ⬜ | ⬜ |
+| **Dark** | ✅ | ⬜ a wait | ⬜ | ⬜ |
+| **Light** | ✅ | ⬜ a restriction | ⬜ | ⬜ |
+| **Blood** | ✅ | ⬜ rhythm, one verb | ⬜ | ⬜ |
+| **Ice** | ✅ | ⬜ (§7 table) | ⬜ | ⬜ |
+
+Blood additionally still has GENERIC FIXTURES — its ostia, cocks, balance,
+drum and vagal node are circles, rings and bars standing on very good
+tissue. Dust's observatory carries a local patch for a shared bug (below).
+
+**WHAT THE EIGHT PARALLEL PASSES TAUGHT, beyond their own planets.** Every
+one of them failed the same way at least once, and it is always the same
+sentence: *a shape that is geometrically correct and reads as the wrong
+object.* Trabeculae that grew from one wall and stopped in mid-air read as
+fallen branches until they bridged wall to wall. A sinus was four
+scaffolding poles until a throat was drawn as a hollow. Arcade arches
+floated above their piers as croquet hoops. A stair was invisible from above
+until its treads cast shadows — the shadow is what makes a shelf a shelf.
+Ledger slabs outlined bright read as index cards; a mosaic with every tile
+drawn read as a keyboard; a bronze lemniscate over two plinths read as
+spectacles over a smile.
+
+Three of those generalise hard enough to state as rules:
+
+  1. **FLOOR IS STONES DIVIDED BY DARK; WALL IS STONES DIVIDED BY LIGHT.**
+     A highlight on a stone's upper edge says the stone has a FACE and the
+     light is above it, so a floor full of them reads as an elevation. Toxica
+     read as a wall seen face-on for a whole pass because of that one line,
+     and jittering the corners did not fix it — the courses had to go, the
+     floor's vertical gradient had to go, and the tones had to split warm
+     against cool.
+  2. **A BLOCK WITH NO VISIBLE SIDE HAS NO HEIGHT**, whatever its shading
+     says. A near face projecting below the collision rect is worth more
+     than any amount of gradient, and a body ramps across its SHORT axis,
+     because that is the axis a solid turns through.
+  3. **"NOT A GRID" IS NOT THE GOAL.** Wandering lines that share nothing
+     are as far from a floor as graph paper is, and read as scratches.
+     Glazing is a MESH; paving TESSELLATES; what varies is cell size and
+     angle, not whether the cells connect.
+
+**Two shared-engine faults came out of it**, one fixed and one deliberately
+not:
+
+  · ✅ **An obstacle belongs to its planet.** `_renderWalls` drew every wall
+    rect in all seventeen dungeons as the same fixed blue-grey with a bright
+    top band — the fault the FLOORS were fixed for in §8, and worse, because
+    an obstacle sits in the middle of a room the planet just drew. It read
+    as a UI panel on the Beacon Archive's reading floor. Now derived from
+    the planet's own sky palette, and `_planetOwnedWalls` lets a module that
+    draws its obstacles properly (Plant's three) opt out entirely.
+  · ⬜ **`_renderIslandAndVoid` only slices a room into HORIZONTAL BANDS.**
+    Any room whose `gaps` form a ring leaves real walkable ground undrawn —
+    Dust's observatory had no floor under Star 1's marquee gate. Patched
+    locally in Dust. NOT fixed in the shared renderer on purpose: the
+    banding is what every spire and cloud-platform room depends on for its
+    floating-ledge look, and replacing it with a path subtraction to serve
+    one room risks silently changing rooms across four polished planets. The
+    next planet that authors a moat should fix it properly, with those rooms
+    rendered and compared.
+
+**And a process note for the next time this is parallelised.** Eight agents
+in eight worktrees, one planet's `part` file each, is a good shape — the
+files never collided. What did bite: every worktree branched before the
+shared work landed, so a returning file could silently REVERT a change
+master had made to it in the meantime (Ice came back with the sound funnel
+undone). A per-file merge is only safe if you diff it against what master
+did to that file, not only against what the agent changed.
 
 ### ◐ MUD — the pass, minus the device session (2026-09-13)
 
