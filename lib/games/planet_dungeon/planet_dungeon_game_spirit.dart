@@ -1067,6 +1067,19 @@ extension EchoGraveDungeon on PlanetDungeonGame {
             ..strokeWidth = 1.1
             ..color = _graveCold.withValues(alpha: 0.7),
         );
+        // A NAME, CUT. Two or three scratches is all it takes to read as
+        // lettering at this size — and it has to be there, because the Lost
+        // Maxim's whole tell is one headstone in the field that is BLANK.
+        // A blank stone among blank stones says nothing at all.
+        for (var k = 0; k < 2 + (i % 2); k++) {
+          canvas.drawLine(
+            Offset(head.dx - 5, head.dy - 20 + k * 6),
+            Offset(head.dx + 5, head.dy - 20.5 + k * 6),
+            Paint()
+              ..strokeWidth = 1.1
+              ..color = _graveCold.withValues(alpha: 0.45),
+          );
+        }
       } else if (g.fallen[i]) {
         // Down in the grass, face up, half swallowed.
         canvas.save();
@@ -1095,6 +1108,33 @@ extension EchoGraveDungeon on PlanetDungeonGame {
           Paint()..color = _graveStone.withValues(alpha: 0.42),
         );
         canvas.restore();
+      }
+    }
+
+    // THE SPUR. Where a room carries the undug grave, its last stretch is a
+    // dead cut nobody finished: the field's verge closes in past the last
+    // fixture and simply stops, so the walk reads as somewhere that goes
+    // nowhere rather than as more room (§9.6 — a maxim has to be a PLACE,
+    // and a place has edges).
+    final undug = room.grave?.undugGrave;
+    if (undug != null) {
+      final b = room.bounds;
+      final mouth = undug.dx - 150;
+      for (final side in [-1.0, 1.0]) {
+        final y0 = b.center.dy + side * b.height * 0.42;
+        final y1 = b.center.dy + side * b.height * 0.20;
+        canvas.drawPath(
+          Path()
+            ..moveTo(mouth, y0)
+            ..quadraticBezierTo(mouth + 90, y0, undug.dx + 60, y1)
+            ..lineTo(b.right - 14, y1),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3
+            ..color = (ghost ? _graveCold : _graveStone).withValues(
+              alpha: ghost ? 0.28 : 0.34,
+            ),
+        );
       }
     }
 
