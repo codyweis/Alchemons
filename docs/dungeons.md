@@ -1445,7 +1445,7 @@ shape is not "a hidden thing you touch". It is:
      sentence about what it sees. A secret that can be spent is a secret that
      can be lost, in a room built for curiosity.
 
-**WHERE THE SEVENTEEN STAND AGAINST THAT.** Nine clear it; the rest are the
+**WHERE THE SEVENTEEN STAND AGAINST THAT.** Ten clear it; the rest are the
 queue:
 
 | Planet | Beats | Elements | Verdict |
@@ -1457,7 +1457,7 @@ queue:
 | **Lightning** — Thunderbolt | 3 | Air · Fire×4 · Lightning | ✅ rebuilt 2026-09-01 |
 | **Steam** — Hidden Harmony | 1 | the whole main, spent on something that is not a door | ✅ §9.6 |
 | **Lava** — Black Glass | 1 | the pour you throw away | ✅ §9.7 |
-| **Poison** — The Dose | 1 | cure the sick wisp | ⬜ one press |
+| **Poison** — The Dose | 3+ | Poison · Plant · Mud, each walked home | ✅ rebuilt 2026-09-04 |
 | **Mud** — No Mud No Lotus | 5 | the fen at full drown · Water · Plant · Mud×3 | ✅ rebuilt 2026-09-13 (§9.8) |
 | **Dust** — Nothing Perishes | 1 | Air sweeps every print | ⬜ one verb, N times |
 | **Crystal** — Know Thyself | 1 | stand all three in the beam | ⬜ positional, one beat |
@@ -1648,8 +1648,13 @@ quotation constants are deleted from the code — nothing left to drift.
     prism beam at once — it casts their merged reflection.
 12. **Plant — The Unseen Shade:** at tiny scale, tend the seed hidden under
     the giant root until it towers at huge scale.
-13. **Poison — The Dose:** one sick wisp wanders the monastery; cure it with
-    an antidote instead of a blade.
+13. **Poison — The Dose:** the sick wisp wears one element at a time and only
+    a hand of THAT element can touch it. Each press shoves it a stride toward
+    the lustral cross — about six, walked with it — and at the cross it sheds
+    the colour and comes back out wearing the next. Purple, then green, then
+    brown, which are the game's own element colours, so there is no code to
+    crack: the player has been looking at those three on their own party
+    since they picked it. Rebuilt 2026-09-04.
 14. **Spirit — Stuff of Dreams:** THE UNDUG GRAVE (§9.9). At the far end of
     the mourners' walk, down a spur no door uses, is a grave somebody scored
     out and never dug — and in the cold world it stands open, full of black
@@ -2248,7 +2253,7 @@ of work below as a finished pass.
 |---|---|---|---|---|
 | **Mud** | ✅ | ✅ §9.8 | ✅ | ⬜ **the gate** |
 | **Spirit** | ✅ | ✅ §9.9 | ✅ | ⬜ |
-| **Poison** | ✅ | ⬜ one press | ⬜ | ⬜ |
+| **Poison** | ✅ | ✅ 2026-09-04 | ⬜ | ✅ played |
 | **Dust** | ✅ | ⬜ one verb, N times | ⬜ | ⬜ |
 | **Crystal** | ✅ | ⬜ positional, one beat | ⬜ | ⬜ |
 | **Plant** | ✅ | ▶ has beats | ⬜ | ⬜ |

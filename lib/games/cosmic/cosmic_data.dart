@@ -1920,6 +1920,12 @@ const Set<String> kPolishedDungeons = <String>{
   'Lightning',
   'Steam',
   'Lava',
+  // Poison — promoted 2026-09-14 on the author's own account of having
+  // played it. Its maxim was rebuilt into a real errand on 2026-09-04 (The
+  // Dose: three colours walked home to the cross) and its art foundation
+  // landed with the rest; the record here had simply not caught up, and
+  // §7.9's list was stale rather than the planet unfinished.
+  'Poison',
 };
 
 /// True if [element]'s descent is ready for a player: built AND polished.

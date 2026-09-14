@@ -14,7 +14,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 
 void main() {
-  test('the polished set is the seven that have had the pass', () {
+  test('the polished set is the eight that have had the pass', () {
     expect(kPolishedDungeons, {
       'Fire',
       'Air',
@@ -23,6 +23,10 @@ void main() {
       'Lightning',
       'Steam',
       'Lava',
+      // Poison, 2026-09-14. Its maxim was rebuilt on 2026-09-04 and it has
+      // been played; §7.9's "ten left" list was stale, not the planet
+      // unfinished.
+      'Poison',
     });
   });
 
