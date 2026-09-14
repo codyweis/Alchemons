@@ -1445,7 +1445,7 @@ shape is not "a hidden thing you touch". It is:
      sentence about what it sees. A secret that can be spent is a secret that
      can be lost, in a room built for curiosity.
 
-**WHERE THE SEVENTEEN STAND AGAINST THAT.** Five clear it; the rest are the
+**WHERE THE SEVENTEEN STAND AGAINST THAT.** Eight clear it; the rest are the
 queue:
 
 | Planet | Beats | Elements | Verdict |
@@ -1458,7 +1458,7 @@ queue:
 | **Steam** — Hidden Harmony | 1 | the whole main, spent on something that is not a door | ✅ §9.6 |
 | **Lava** — Black Glass | 1 | the pour you throw away | ✅ §9.7 |
 | **Poison** — The Dose | 1 | cure the sick wisp | ⬜ one press |
-| **Mud** — No Mud No Lotus | 3 | Plant · Water · Mud | ▶ closest of the rest |
+| **Mud** — No Mud No Lotus | 5 | the fen at full drown · Water · Plant · Mud×3 | ✅ rebuilt 2026-09-13 (§9.8) |
 | **Dust** — Nothing Perishes | 1 | Air sweeps every print | ⬜ one verb, N times |
 | **Crystal** — Know Thyself | 1 | stand all three in the beam | ⬜ positional, one beat |
 | **Plant** — The Unseen Shade | 3 | tend small, look big | ▶ has beats, check the elements |
@@ -1637,8 +1637,11 @@ quotation constants are deleted from the code — nothing left to drift.
    it sees. Knowledge survives death, the growth does not.
 8. **Lava — Black Glass:** quench the casting font mid-pour three times —
    the spoiled keys cool into a black-glass mirror.
-9. **Mud — No Mud, No Lotus:** plant a seed in the DEEPEST sink-pit, water
-   it, and let it sink utterly — it re-blooms.
+9. **Mud — No Mud, No Lotus:** THE BLACK LEAD (§9.8). Drown the fen to the
+   one shape that carries the most water it can — the three short roads, the
+   shape both stars forbid — and the cutters' dead drain runs. Water reads
+   the three peat cuts out of it, Plant seeds the sink, and Mud drags each
+   cut's lip in turn until the seed is buried utterly. It blooms.
 10. **Dust — Nothing Perishes:** reveal, then sweep away (Air) EVERY ancient
     footprint in the ruins.
 11. **Crystal — Know Thyself:** stand all three creatures inside one split
@@ -1830,7 +1833,9 @@ been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
 **SEVEN of seventeen (2026-09-03): Fire · Air · Water · Earth · Lightning ·
-Steam · Lava.** This list is mirrored in code as `kPolishedDungeons`
+Steam · Lava.** **MUD has had the whole pass except the device session
+(2026-09-13) and is deliberately NOT promoted until it has been played —
+see its entry below.** This list is mirrored in code as `kPolishedDungeons`
 (`lib/games/cosmic/cosmic_data.dart`), and it is what decides whether a planet
 offers DESCEND or the coming-soon placard — the other ten keep their gate
 ritual and cannot be descended. Promoting a planet is one line there, pinned
@@ -2212,17 +2217,155 @@ catch it because they call `activateAbility()` past the HUD's gate.
     no art on it, and a last hop that could not be made at all. Simulated and
     rendered is not played.
 
-**The ten left**: Poison, Mud, Dust, Crystal, Plant, Spirit, Dark,
-Light, Blood, Ice — all BUILT and proved, none through a polish pass. Their
+**The ten left** (Mud has had the pass but not the device session — it is
+still in this list until it has been played): Poison, Mud, Dust, Crystal,
+Plant, Spirit, Dark, Light, Blood, Ice — all BUILT and proved, none through a polish pass. Their
 secrets are the queue in §7's maxim table, and Steam moved that count: five of
 seventeen clear the standard now, because a maxim that is a PLACE is the shape
 the other twelve should be reaching for (§9.6).
 
-Two carried faults belong to that queue rather than to any one planet. **Mud's
-fane arrivals land inside their wallow hatches** — deliberate as fiction (you
-climb out of one) but never checked on a device, and the doorway invariant
-exempts them on that assumption. And **`MaskFilter.blur` in per-frame paint**
-is still the repo's main jank source, ~310 sites, mostly cosmic.
+One carried fault belongs to that queue rather than to any one planet:
+**`MaskFilter.blur` in per-frame paint** is still the repo's main jank
+source, ~310 sites, mostly cosmic. (The other, *Mud's fane arrivals land
+inside their wallow hatches*, is settled — see the MUD entry. The exemption
+was right, and it was right for a reason nobody had written down.)
+
+### ◐ MUD — the pass, minus the device session (2026-09-13)
+
+**Mechanically the best-proved planet in the set, and visually unbuilt.** The
+fen's rules had a solver, two independent no-strand searches pinned equal, a
+provably-unique choir and thirty-odd green tests — and on screen the planet
+whose entire premise is *what is the ground like under you* stood on the
+generic rounded slab with a 92px smudge of colour at each wall standing in for
+a crossing. The first render of the mire gate was an empty dark box. A drag to
+sod and the drowning it caused changed a few hundred bytes of the frame and
+nothing a person could see; the render harness's own checksum passed on
+exactly that, which is why it now also asserts the states look different.
+
+  · ✅ **THE FLOOR IS A FEN.** Pools in the low ground, sphagnum hummocks with
+    moss caps, the black bog-oak the peat has been keeping, cotton-grass
+    wherever the ground is briefly sure. Nothing on a grid (§5.5, and Steam's
+    note that Mud must read nothing like a tile flood), laid out once per room
+    and cached; only the sheen on the water moves.
+  · ✅ **A CROSSING RUNS TO ITS DOORWAY.** Every ford head sat hard against
+    its wall, so the crossing — the thing you author, the thing the planet IS
+    — happened off-screen between rooms and showed only its last 60px, behind
+    its own door plate. Heads stand 150px in now and the ribbon runs the whole
+    way out. Pinned, so they cannot slide back.
+  · ✅ **THE THREE STATES READ ACROSS THE ROOM.** Mire is a broken-edged wet
+    ribbon that quakes; sod a raised causeway with a lit crown and a root
+    fringe; drowned is wider than the crossing ever was, weed on it, the bank
+    broken off at the near end. *The first cut of mire was a constant-width
+    band with rungs across it and read as a BOARDWALK* — a poor look for the
+    one crossing nobody built.
+  · ✅ **THE POOLS ARE THE DRYNESS GAUGE.** A dry-footed knoll was announced
+    by a 150px hairline circle round the room's centre: a HUD ring drawn on
+    the floor. The knoll's own pools go to cracked mud instead. And a
+    moor-altar's bowl visibly DRINKS ITS OFFERING AWAY while its knoll still
+    swims, which is how the dry-footed rule gets taught with no caption.
+  · ✅ **THE FIXTURES ARE THINGS.** The Sinking Altar was a flat brown disc in
+    the room the planet is named for; it is a kerbed socket packed with the
+    bog-resin cap. The sough is a stone throat with the cutters' plug rammed
+    in it, the wallow pulls, the sarsen lies where it fell until you walk it.
+  · ✅ **THE DROWNED LEVEL STOPPED PRETENDING TO BE A KNOLL**, and then the
+    hollow stopped pretending to be the fane. Three rooms under the fen were
+    drawing moss caps and cotton-grass; the FANE is a building that went down
+    (flagstones drowning in silt, column drums, roots through the peat
+    ceiling), and the HOLLOW and the BOWL are not buildings at all — soft pans
+    that quake and the ribs of what the fen has eaten. In the one room where
+    standing on the wrong ground loses the fight, a temple floor was telling
+    the player the opposite of the truth.
+  · ✅ **THE MIRE ANCHOR was the same size and colour as the soft ground it
+    is the exception to.** It is the only firm footing in Bogdrya's hollow and
+    the whole reason the mystic can be struck.
+  · ✅ **THE ENTRY RITE HAD NOTHING TO AIM AT.** The fen opens under a skin of
+    floating weed that Water sluices off — and nothing drew the weed, so the
+    first room was a bog with three doorways missing and no reason on screen
+    to press anything. **Air's rite failed the same way, from the same cause.**
+    Sixth instance. The raft lies on the water where the crossings are and
+    thins westward across the knoll you stand on.
+  · ✅ **THREE DOORWAYS ON ONE WALL ARE ONE DOORWAY** — Lightning's rule,
+    failed in four rooms. The mire gate is the head of all three sloughs and
+    carried its three crossings 45px apart; reed 40; hag and altar 80 and 90.
+    Worst, the cairn and the lotus each carried TWO doors to the other 85px
+    apart — one the ford, one the PLANK ROAD, which moors nothing and is the
+    entire vault trick. Every wall clears 100px now (the gate grew from 480 to
+    560 tall to carry its three rather than shrinking its doors), and the
+    plank draws as sawn timber on black water: the only worked wood in the
+    fen, boards grey with rot with every fourth one gone, trestle posts going
+    down into water and not into ground.
+  · ✅ **THE GAUGE MEASURED THE WRONG THING** (§7.9, "a gauge can be wrong
+    with every number right"). "ROADS n of 9" counted what you had built,
+    going up — which here says almost nothing: three sod crossings can leave
+    the bog cut in two and four can be the whole southern road. It counts
+    CROSSINGS LEFT now. Nine, and it only ever goes down.
+  · ✅ **THE CARRIED WALLOW FAULT IS SETTLED.** Every knoll's wallow drops you
+    inside the fane hatch you came through, exempted by the doorway invariant
+    because a hatch is climbed out of. That exemption was only ever safe for a
+    reason nothing had written down — a risen wallow is shut until the sough
+    is freed, and climbing one HEAVES, which re-plugs the sough behind you. If
+    either half had ever stopped being true, landing on the hatch would have
+    handed the player an unasked-for heave half a second after arriving, and
+    every road they had dragged with it. Both halves are invariants now, plus
+    one test that stands a party on the hatch for four seconds.
+  · ✅ **THE MAXIM IS THE FEN YOU ARE PUNISHED FOR MAKING** — §9.8.
+  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Nothing
+    on this planet has been played. Every planet in the polished seven found
+    its real faults in a device session and none of them in the suite, and
+    this pass is no different in kind from the ones that preceded that
+    session elsewhere — it is what a rendered screenshot and a green suite can
+    see, which the record above says twice is not the same as played. `Mud`
+    stays out of `kPolishedDungeons` until it has been.
+
+### §9.8 MUD'S LOST MAXIM — the fen you are punished for making
+
+NO MUD, NO LOTUS was three presses at one coordinate in the fane: Plant, then
+Water, then Mud, each answered with a line of narration. Three keys in one
+lock. Against §7's standard it kept nothing — no chain (no step changed
+anything a later step needed), no braid, no repeated beat — and its "place"
+was a dot on a floor you already cross. §7's table graded it *"▶ closest of
+the rest"*, which was generous.
+
+**THE BLACK LEAD.** The peat-cutters' old drain leaves the fane's water and
+runs away south-west into a dead corner with no door at the end of it (§9.6 —
+a maxim has to be a PLACE). It is choked and dry, and it runs only when the
+fen above is carrying all the water it can.
+
+  1. **FULL DROWN.** Every slough is a chain of three. Hardening its MIDDLE
+     drowns both the others; hardening an end drowns one; hardening both ends
+     drowns the one between. So the most water this fen can carry is six of
+     nine crossings, reached by the three middles together and by nothing
+     else — **one shape out of a hundred and twenty-five**, enumerated in the
+     test rather than argued. It is also exactly the shape both stars forbid:
+     the three middles are the short roads, and the choir demands the four
+     that make the long southern one. The secret costs you the run's stars for
+     as long as you hold it, and the sough's heave is the only way back.
+     Nothing is pressed for this beat — you come down a wallow and the cut is
+     running.
+  2. **WATER** reads the three PEAT CUTS out of the black water: the job it
+     already does at the cairn's basin.
+  3. **PLANT** sets a seed in the sink, where it lies in clean water doing
+     nothing, because a seed in clean water is not a lotus.
+  4. **MUD** drags each cut's lip in turn — the repeated beat, and the
+     planet's one verb, with the braid **Plant+Water→Mud** carrying it here as
+     it does everywhere else. Each pour runs down the lead and the sink
+     thickens: water, slurry, peat. The seed goes under.
+  5. The third pour buries it utterly, and it blooms.
+
+One oblique line on the HINT button and nothing after it: *the cut was dug to
+take the fen's worst, and nothing has ever bloomed out of clean water.* It
+does not tier and it does not track progress — the sink's own colour is the
+only readout the secret has. Nothing is consumed; a wrong hand gets a burst
+and a sentence about what it sees, and a heave washes the lead out so it can
+always be walked again.
+
+**THE GENERAL LESSON, for the nine secrets still in the queue.** Steam's was
+that a maxim has to be a PLACE. Mud's is the next one along: **the best place
+to hide a secret is the state your own stars punish.** Every dungeon here
+teaches a rule and then rewards obeying it; the shape a planet spends the
+whole run steering you away from is somewhere the player has never been and
+has a reason to remember, and building the secret there costs nothing but the
+valve you already shipped for softlocks.
 
 ### ✅ LAVA — complete (2026-09-03)
 
