@@ -652,6 +652,109 @@ void main() {
     });
   });
 
+  // ─────────────────────────────────────────────────────────
+  // CAN THE PLAYER TELL WHAT IS GOING ON?
+  //
+  // From the first device session: *"it's not very intuitive, I'm not sure
+  // what the goal is, I'm just going around tapping things."* The puzzle was
+  // sound and provably unique and completely unreadable, because the rule's
+  // INPUTS were hidden: which water a crossing sits on, what a drag is about
+  // to cost, and what the fen looks like now. These pin the answers.
+  group('the fen can be read', () {
+    test('standing at a workable head names exactly what it would drown', () {
+      final game = _harness(_idealTrio())..entryDoorRevealed = true;
+      game.currentRoomId = 'mire_gate';
+      final head = _ford('add_head').headIn('mire_gate')!;
+      for (final c in game.creatures) {
+        c
+          ..position = head
+          ..lastSafe = head;
+      }
+      game.setActive(mud);
+      // add_head's only slough-neighbour is add_neck.
+      expect(game.bogDoomedByHand, {'add_neck'});
+
+      // …and it is the truth: dragging really does take that one.
+      game.activateAbility();
+      expect(game.bog.field.stateOf('add_neck'), BogFordState.drowned);
+    });
+
+    test('a crossing that cannot be dragged promises nothing', () {
+      final game = _harness(_idealTrio())..entryDoorRevealed = true;
+      game.bog.field.harden('add_neck'); // drowns add_head
+      game.currentRoomId = 'mire_gate';
+      final head = _ford('add_head').headIn('mire_gate')!;
+      for (final c in game.creatures) {
+        c
+          ..position = head
+          ..lastSafe = head;
+      }
+      game.setActive(mud);
+      expect(game.bogDoomedByHand, isEmpty,
+          reason: 'open water has nothing left to pull on, so it costs '
+              'nothing and must not say it would');
+    });
+
+    test('standing nowhere near a crossing promises nothing', () {
+      final game = _harness(_idealTrio())..entryDoorRevealed = true;
+      game.currentRoomId = 'mire_gate';
+      for (final c in game.creatures) {
+        c
+          ..position = const Offset(300, 500)
+          ..lastSafe = const Offset(300, 500);
+      }
+      game.setActive(mud);
+      expect(game.bogDoomedByHand, isEmpty);
+    });
+
+    test('THE STONE ANSWERS A PRESS, instead of doing nothing at all', () {
+      // Walking up to the big stone and pressing is the first thing anybody
+      // does on this planet. The haul is worked at a CROSSING, so that press
+      // used to fall through to the wordless element puff — silence, at the
+      // one object the whole star is about.
+      final game = _harness(_idealTrio())..entryDoorRevealed = true;
+      final hints = <String>[];
+      game.currentRoomId = 'mire_gate';
+      final stone = Offset(
+        game.layout.rooms['mire_gate']!.bounds.center.dx,
+        150,
+      );
+      for (final c in game.creatures) {
+        c
+          ..position = stone
+          ..lastSafe = stone;
+      }
+      game.setActive(mud);
+      game.activateAbility();
+      // THE DUNGEON DOES NOT NARRATE: an unasked-for refusal is remembered
+      // and flashed at the creature, and the capsule says it when the player
+      // presses HINT. What matters here is that there IS an answer — before,
+      // the press fell through to the wordless puff and stored nothing.
+      expect(game.hintHasAnswer, isTrue,
+          reason: 'the stone said nothing at all when pressed');
+      expect(game.refusalFlash, greaterThan(0));
+      game.askForRoomHint();
+      hints.add(game.hintText ?? '');
+      expect(hints.single.toLowerCase(), contains('road'));
+    });
+
+    test('the readout tracks the HAUL, and knows when there is no road', () {
+      final game = _harness(_idealTrio())..entryDoorRevealed = true;
+      game.currentRoomId = 'mire_gate';
+      expect(game.progressReadout?.label, 'SARSEN');
+      expect(game.progressReadout?.value, 'no road',
+          reason: 'an unbuilt fen has no road home, and should say so');
+
+      // The authored southern road, one crossing at a time.
+      _drag(game, 'tarn_head', 'mire_gate');
+      expect(game.progressReadout?.value, 'no road');
+      _drag(game, 'tarn_tail', 'altar_knoll');
+      // tarn_head joins the gate to sedge; tarn_tail joins altar to cairn.
+      // Still nothing continuous between the stone and the socket.
+      expect(game.progressReadout?.value, 'no road');
+    });
+  });
+
   group('THE WALLOW ARRIVALS — the carried fault, settled', () {
     // Every knoll's wallow drops you onto the fane hatch you just came
     // through: the arrival sits inside a 54x54 floor hatch, which the

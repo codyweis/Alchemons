@@ -9668,6 +9668,9 @@ class PlanetDungeonGame extends FlameGame {
     // Screen-space framing.
     if (_isTemple) _drawTideGauge(canvas, vp);
     if (_isVapor) _drawSteamPhaseHud(canvas, vp);
+    // Mud: the fen chart. This planet's map is the puzzle and it changes
+    // under the player's own hand, so it cannot live behind a button.
+    if (_isBog) _drawFenChart(canvas, vp);
     drawVignette(canvas, vp);
   }
 

@@ -185,6 +185,34 @@ void main() {
     });
   });
 
+  testWidgets('the fen reads: marks, the chart, and the price of a drag', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      final g = _game()..entryDoorRevealed = true;
+      g.bog.field.reset();
+      // Standing at the gate's own crossing head: the marker stones, the fen
+      // chart, and the doomed preview all in one shot.
+      final head = kBogFords
+          .firstWhere((f) => f.id == 'add_head')
+          .headIn('mire_gate')!;
+      expect(await _shot(g, 'mire_gate', 'read_0_at_head', at: head), isNonZero);
+      expect(
+        g.bogDoomedByHand.isNotEmpty,
+        isTrue,
+        reason: 'standing at a workable head has to show what it would cost',
+      );
+
+      // And with the fen half spent, so the chart has all three states on it.
+      g.bog.field.harden('cor_neck');
+      g.bog.field.harden('tarn_head');
+      expect(
+        await _shot(g, 'mire_gate', 'read_1_spent', at: head),
+        isNonZero,
+      );
+    });
+  });
+
   testWidgets('the knolls, with the fen open', (tester) async {
     await tester.runAsync(() async {
       final g = _game()..entryDoorRevealed = true;

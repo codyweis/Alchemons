@@ -505,6 +505,17 @@ extension SinkingAltarFen on PlanetDungeonGame {
     final f = _fen;
     if (f.sarsenSeated) return false;
     if (currentRoomId != f.sarsenKnoll) return false;
+    // PRESSING AT THE STONE HAS TO SAY SOMETHING. The haul is worked at a
+    // CROSSING, not at the sarsen, so the obvious thing to try — walk up to
+    // the big stone and press — did nothing at all and fell through to the
+    // wordless element puff. That is the first thing a player does on this
+    // planet, and the answer was silence.
+    if ((a.position - _sarsenStandsAt()).distance <= _kFenReach) {
+      _setBlockedHint(
+        'The stone will not be lifted, only pushed — and only onto a road',
+      );
+      return true;
+    }
     for (final ford in kBogFords) {
       final head = ford.headIn(currentRoomId);
       if (head == null) continue;
@@ -524,6 +535,14 @@ extension SinkingAltarFen on PlanetDungeonGame {
       return true;
     }
     return false;
+  }
+
+  /// Where the sarsen stands in the room it is currently on. One copy, so
+  /// the renderer and the haul cannot disagree about what you are next to.
+  Offset _sarsenStandsAt() {
+    final room = layout.rooms[_fen.sarsenKnoll];
+    final b = room?.bounds ?? currentRoom.bounds;
+    return Offset(b.center.dx, _fen.sarsenKnoll == kSarsenHomeKnoll ? 150 : 140);
   }
 
   /// The socket's bog-resin cap — **Plant+Mud→Poison** eats it (§6.8). The
@@ -833,6 +852,21 @@ extension SinkingAltarFen on PlanetDungeonGame {
   DungeonProgressReadout? _bogProgressReadout() {
     final f = _fen;
     final altar = layout.rooms[kSarsenSocketKnoll]?.fen?.altar;
+    // THE HAUL COMES FIRST while the stone is still out in the fen. It is
+    // Star 0, it is the thing a player is doing in the opening minutes, and
+    // it is the one quantity here nobody can derive by looking: how many
+    // crossings of HARD ground still lie between the stone and the socket,
+    // which is a different question from how far apart they are. The basins
+    // take the slot once the stone is home; the crossings that used to live
+    // here are all nine of them on the fen chart now.
+    if (altar != null && !f.sarsenSeated && !hasStar(altar.sarsenStarIndex)) {
+      final hops = _sarsenHopsHome();
+      return DungeonProgressReadout(
+        label: 'SARSEN',
+        value: hops == null ? 'no road' : '$hops to go',
+        fraction: null,
+      );
+    }
     if (altar != null && !hasStar(altar.moorStarIndex)) {
       return DungeonProgressReadout(
         label: 'BASINS',
@@ -840,18 +874,33 @@ extension SinkingAltarFen on PlanetDungeonGame {
         fraction: f.moorsWoken.length / kMoorKnollIds.length,
       );
     }
-    // A GAUGE CAN BE WRONG WITH EVERY NUMBER RIGHT (§7.9). This counted the
-    // roads you had BUILT, going up — which on this planet says almost
-    // nothing: three sod crossings can leave the bog cut in two and four can
-    // be the whole southern road. What you are actually spending, and the
-    // only quantity here that is irreversible, is how much fen is left to
-    // cross. It starts at nine and it only ever goes down.
-    final left = kBogFords.length - f.drownedCount;
-    return DungeonProgressReadout(
-      label: 'CROSSINGS',
-      value: '$left left',
-      fraction: left / kBogFords.length,
-    );
+    return null;
+  }
+
+  /// Crossings of SOD between the stone and the socket, or null when no road
+  /// of hard ground joins them at all. A plain breadth-first walk of the fen
+  /// as it stands right now.
+  int? _sarsenHopsHome() {
+    final f = _fen;
+    if (f.sarsenKnoll == kSarsenSocketKnoll) return 0;
+    final seen = <String>{f.sarsenKnoll};
+    var frontier = <String>[f.sarsenKnoll];
+    var depth = 0;
+    while (frontier.isNotEmpty) {
+      depth++;
+      final next = <String>[];
+      for (final knoll in frontier) {
+        for (final ford in f.fordsOf(knoll)) {
+          if (f.stateOf(ford.id) != BogFordState.sod) continue;
+          final other = ford.other(knoll);
+          if (other == null || !seen.add(other)) continue;
+          if (other == kSarsenSocketKnoll) return depth;
+          next.add(other);
+        }
+      }
+      frontier = next;
+    }
+    return null;
   }
 
   /// WHAT, never HOW (§5.6). Every method here is Mask's to give.
@@ -866,17 +915,33 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (room.vaultCache != null) {
       return 'A bowl under the fen, something is bottled here';
     }
+    // WHERE THE STONE IS, AND WHERE IT IS GOING. These two lines used to
+    // describe their rooms — "the sarsen lies here", "its socket stands
+    // empty" — as two unrelated facts in two rooms you never see at once.
+    // Each names the OTHER end now, because a haul is only a goal when you
+    // know both ends of it.
     final altar = room.fen?.altar;
     if (altar != null && !hasStar(altar.sarsenStarIndex)) {
-      return 'The Sinking Altar, its socket stands empty';
+      return f.sarsenKnoll == room.id
+          ? 'The Sinking Altar, and the stone is here at last'
+          : 'The Sinking Altar, its socket wants the fen\'s fallen stone';
+    }
+    if (room.fen?.knoll != null &&
+        f.sarsenKnoll == room.id &&
+        !f.sarsenSeated) {
+      return 'The stone stands here, and the altar is not this knoll';
     }
     if (room.fen?.moor != null) {
-      final done = f.moorsWoken.contains(room.id);
-      return done ? null : 'A moor-altar, its basin will not keep anything';
+      if (f.moorsWoken.contains(room.id)) return null;
+      // The condition, not just the symptom. "Will not keep anything" is
+      // true and teaches nothing; a knoll that still swims is the reason.
+      return f.isDry(room.id)
+          ? 'A moor-altar on drained ground, its basin would hold now'
+          : 'A moor-altar, and this knoll still swims';
     }
     if (room.id == layout.entranceRoomId) {
       return entryDoorRevealed
-          ? 'The Mire Gate, the fen opens out, and the sarsen lies here'
+          ? 'The Mire Gate, three crossings out, and the stone lies here'
           : 'The Mire Gate. Weed lies over everything';
     }
     return null;
@@ -1284,6 +1349,58 @@ extension SinkingAltarFen on PlanetDungeonGame {
   static const Color _fenSod = Color(0xFF5E6B37);
   static const Color _fenWater = Color(0xFF0D1A1E);
   static const Color _fenSheen = Color(0xFF9FB6A6);
+
+  // ── READING THE FEN ───────────────────────────────────────
+  //
+  // Everything in this block exists because of one playtest sentence: *"it's
+  // not intuitive, I'm not sure what the goal is, I'm just going around
+  // tapping things."* The puzzle was sound and unreadable. Three things were
+  // missing and they are all the same thing — the rule's INPUTS were hidden:
+  //
+  //   · WHICH WATER a crossing sits on. The rule is "hardening drowns its
+  //     neighbours on the same slough", and a slough was an id in a table.
+  //   · WHAT A DRAG WILL COST, before you pay it. The drag is irreversible
+  //     and its victims are usually in another room, so the price was
+  //     invisible until it had been paid.
+  //   · WHAT THE FEN LOOKS LIKE NOW. Seven knolls seen one at a time, and
+  //     the map you are authoring existed only in the player's head.
+
+  /// One tint per watercourse, used on the marker stones and the chart. They
+  /// never colour the crossing itself — MIRE / SOD / DROWNED owns that read,
+  /// and a second colour system laid over it would fight the first.
+  static const List<Color> _sloughInk = [
+    Color(0xFF7FA8C9), // the Cormorant
+    Color(0xFFC98F6A), // the Adder
+    Color(0xFF9C8FC9), // the Tarn
+  ];
+
+  Color _sloughColour(String slough) =>
+      _sloughInk[(kSloughOrder[slough] ?? 0) % _sloughInk.length];
+
+  /// The crossing the active creature is standing at, if any — the one a
+  /// press would drag.
+  BogFord? _fordUnderHand() {
+    final a = active;
+    if (a == null) return null;
+    for (final ford in kBogFords) {
+      final head = ford.headIn(currentRoomId);
+      if (head == null) continue;
+      if ((a.position - head).distance <= _kFenReach) return ford;
+    }
+    return null;
+  }
+
+  /// What dragging the crossing under your hand would DROWN. Empty when
+  /// there is nothing there, or when that crossing cannot take a drag.
+  Set<String> get bogDoomedByHand {
+    final ford = _fordUnderHand();
+    if (ford == null) return const {};
+    if (!_fen.canHarden(ford.id)) return const {};
+    return {
+      for (final n in _fen.neighbours(ford))
+        if (_fen.stateOf(n.id) != BogFordState.drowned) n.id,
+    };
+  }
 
   void _renderBog(Canvas canvas, DungeonRoom room) {
     _renderFordHeads(canvas, room);
@@ -1758,6 +1875,139 @@ extension SinkingAltarFen on PlanetDungeonGame {
     return path;
   }
 
+  /// THE FEN CHART — the map you are authoring, on screen, always.
+  ///
+  /// Seven knolls are seen one at a time, so the shape of the bog existed
+  /// only in the player's head, and a drag's real cost — two crossings
+  /// drowning in rooms two doors away — was invisible at the moment it was
+  /// paid. This is the planet's progress readout (§5.6 STATE LEAVES THE
+  /// CAPSULE, and the Steam/Water precedent for a per-planet canvas HUD):
+  /// three watercourses, three crossings each, in stream order.
+  ///
+  /// It shows STATE, never method. Which crossings are live, which are sod,
+  /// which are gone, and — while you stand at a head — which ones this drag
+  /// is about to take.
+  void _drawFenChart(Canvas canvas, Size vp) {
+    const rowH = 16.0;
+    const cellW = 21.0;
+    const padX = 7.0;
+    const padY = 7.0;
+    final w = padX * 2 + cellW * 3 + 16;
+    final h = padY * 2 + rowH * 3;
+    // The screen's mid-right band — the same strip Water hangs its tide gauge
+    // in, and the only edge no corner-pinned panel claims (the minimap owns
+    // top-left, the joystick bottom-left, the action pad bottom-right).
+    final origin = Offset(vp.width - w - 10, vp.height * 0.5 - h / 2);
+    final rect = Rect.fromLTWH(origin.dx, origin.dy, w, h);
+    canvas.drawRect(
+      rect,
+      Paint()..color = const Color(0xFF0B0906).withValues(alpha: 0.72),
+    );
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = const Color(0xFFE4C16A).withValues(alpha: 0.34),
+    );
+
+    final doomed = bogDoomedByHand;
+    final hand = _fordUnderHand();
+    // WHICH OF THESE ARE MINE. The chart is grouped by watercourse, because
+    // that is what the rule is about — but a moor-altar's condition is about
+    // the KNOLL ("every crossing that touches it is sod"), and the two
+    // groupings do not line up. Without this, "this knoll still swims" named
+    // a condition the player could not locate on the only map they had.
+    final here = currentRoom.fen?.knoll == null
+        ? const <String>{}
+        : {for (final f in _fen.fordsOf(currentRoomId)) f.id};
+    final sloughs = kSloughOrder.keys.toList()
+      ..sort((a, b) => (kSloughOrder[a] ?? 0).compareTo(kSloughOrder[b] ?? 0));
+    for (var r = 0; r < sloughs.length; r++) {
+      final slough = sloughs[r];
+      final ink = _sloughColour(slough);
+      final y = origin.dy + padY + rowH * r + rowH / 2;
+      // The watercourse's own mark, so the stones in the world and the rows
+      // on the chart are obviously the same three things.
+      _drawSloughMark(canvas, Offset(origin.dx + padX + 4, y), ink, r);
+      // The water itself, running head to mouth behind its crossings.
+      canvas.drawLine(
+        Offset(origin.dx + padX + 13, y),
+        Offset(origin.dx + w - padX, y),
+        Paint()
+          ..strokeWidth = 1.1
+          ..color = ink.withValues(alpha: 0.30),
+      );
+      for (var i = 0; i < 3; i++) {
+        final ford = kBogFords.firstWhere(
+          (f) => f.slough == slough && f.index == i,
+        );
+        final c = Offset(origin.dx + padX + 20 + cellW * i, y);
+        final state = _fen.stateOf(ford.id);
+        if (here.contains(ford.id)) {
+          // The crossings that moor the knoll you are standing on.
+          canvas.drawLine(
+            c.translate(-8, 7),
+            c.translate(8, 7),
+            Paint()
+              ..strokeWidth = 1.4
+              ..color = const Color(0xFFE4C16A).withValues(alpha: 0.7),
+          );
+        }
+        switch (state) {
+          case BogFordState.sod:
+            // A road: solid, and the widest thing on its row.
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(
+                Rect.fromCenter(center: c, width: 17, height: 8),
+                const Radius.circular(3),
+              ),
+              Paint()..color = const Color(0xFF9BB05A),
+            );
+          case BogFordState.mire:
+            // Still live, still yours to spend.
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(
+                Rect.fromCenter(center: c, width: 15, height: 7),
+                const Radius.circular(3),
+              ),
+              Paint()..color = const Color(0xFF8A7350).withValues(alpha: 0.75),
+            );
+          case BogFordState.drowned:
+            // Gone. Drawn, because what you have spent is part of the map.
+            canvas.drawLine(
+              c.translate(-7, 0),
+              c.translate(7, 0),
+              Paint()
+                ..strokeWidth = 1.4
+                ..color = const Color(0xFF2A4A52).withValues(alpha: 0.65),
+            );
+        }
+        if (doomed.contains(ford.id)) {
+          final pulse = (sin(bog.clock * 4) * 0.5 + 0.5);
+          canvas.drawRect(
+            Rect.fromCenter(center: c, width: 21, height: 13),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.4
+              ..color = const Color(
+                0xFF8FC8D8,
+              ).withValues(alpha: 0.5 + pulse * 0.4),
+          );
+        } else if (hand != null && ford.id == hand.id) {
+          // The one under your hand.
+          canvas.drawRect(
+            Rect.fromCenter(center: c, width: 21, height: 13),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.2
+              ..color = const Color(0xFFE4C16A).withValues(alpha: 0.85),
+          );
+        }
+      }
+    }
+  }
+
   /// The fen floor, under everything else in the room.
   void _renderBogFloor(Canvas canvas, DungeonRoom room) {
     if (room.fen?.knoll == null) {
@@ -1966,7 +2216,113 @@ extension SinkingAltarFen on PlanetDungeonGame {
       final head = ford.headIn(room.id);
       if (head == null) continue;
       _renderCrossing(canvas, ford, head, door.rect.center, f.stateOf(ford.id));
+      _renderFordMarker(canvas, ford, head);
     }
+    // THE PRICE, BEFORE YOU PAY IT. Stand at a crossing you could drag and
+    // every crossing that drag would drown is marked as doomed — here if it
+    // is in this room, and on the fen chart if it is not. The drag is
+    // permanent; a player has to be able to SEE what it costs before
+    // committing, which is what turns a provably-unique puzzle into one you
+    // can steer into instead of search for (§7.9.7).
+    final doomed = bogDoomedByHand;
+    for (final id in doomed) {
+      final ford = f.fordById(id);
+      final head = ford?.headIn(room.id);
+      if (ford == null || head == null) continue;
+      _renderDoomedMark(canvas, head);
+    }
+  }
+
+  /// A MARKER STONE at the head of a crossing, cut with its watercourse's
+  /// mark and scored with how far down that water it lies. Two crossings
+  /// wearing the same mark share their water — which is the one fact the
+  /// planet's rule turns on and the one fact nothing used to state.
+  void _renderFordMarker(Canvas canvas, BogFord ford, Offset head) {
+    final ink = _sloughColour(ford.slough);
+    final at = head + const Offset(0, -46);
+    // A short cut stone, leaning, with a mossy foot.
+    canvas.drawOval(
+      Rect.fromCenter(center: at.translate(0, 26), width: 34, height: 12),
+      Paint()..color = _fenPeat.withValues(alpha: 0.85),
+    );
+    final stone = Path()
+      ..moveTo(at.dx - 11, at.dy + 24)
+      ..lineTo(at.dx - 8, at.dy - 20)
+      ..lineTo(at.dx + 9, at.dy - 18)
+      ..lineTo(at.dx + 12, at.dy + 24)
+      ..close();
+    canvas.drawPath(stone, Paint()..color = const Color(0xFF4A4740));
+    canvas.drawPath(
+      stone,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..color = const Color(0xFF5E5B52),
+    );
+    // The watercourse's mark, cut into the face and picked out in its ink.
+    _drawSloughMark(canvas, at.translate(0, -2), ink, kSloughOrder[ford.slough] ?? 0);
+    // …and the notches: how far down this water the crossing lies.
+    for (var i = 0; i <= ford.index; i++) {
+      canvas.drawLine(
+        Offset(at.dx - 6 + i * 6, at.dy + 16),
+        Offset(at.dx - 6 + i * 6, at.dy + 21),
+        Paint()
+          ..strokeWidth = 1.8
+          ..color = ink.withValues(alpha: 0.85),
+      );
+    }
+  }
+
+  /// The three marks, drawn small enough to be a carving and distinct enough
+  /// to tell apart at a glance: the Cormorant's hooked neck, the Adder's
+  /// wave, the Tarn's ring.
+  void _drawSloughMark(Canvas canvas, Offset at, Color ink, int which) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round
+      ..color = ink;
+    switch (which) {
+      case 0:
+        canvas.drawPath(
+          Path()
+            ..moveTo(at.dx - 6, at.dy + 6)
+            ..quadraticBezierTo(at.dx - 1, at.dy + 2, at.dx - 1, at.dy - 4)
+            ..quadraticBezierTo(at.dx - 1, at.dy - 8, at.dx + 6, at.dy - 7),
+          p,
+        );
+      case 1:
+        canvas.drawPath(
+          Path()
+            ..moveTo(at.dx - 7, at.dy + 4)
+            ..quadraticBezierTo(at.dx - 2, at.dy - 6, at.dx + 1, at.dy)
+            ..quadraticBezierTo(at.dx + 4, at.dy + 6, at.dx + 7, at.dy - 4),
+          p,
+        );
+      default:
+        canvas.drawCircle(at, 5.5, p);
+    }
+  }
+
+  /// A crossing this drag is about to drown: a ring closing on it, and the
+  /// water already showing through.
+  void _renderDoomedMark(Canvas canvas, Offset head) {
+    final pulse = (sin(bog.clock * 4) * 0.5 + 0.5);
+    canvas.drawOval(
+      Rect.fromCenter(center: head, width: 92, height: 52),
+      Paint()..color = _fenWater.withValues(alpha: 0.30 + pulse * 0.18),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: head,
+        width: 92 - pulse * 14,
+        height: 52 - pulse * 8,
+      ),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..color = const Color(0xFF8FC8D8).withValues(alpha: 0.55 + pulse * .3),
+    );
   }
 
   /// One crossing, from [head] (the bank you work it at) to [mouth] (its
@@ -2167,11 +2523,10 @@ extension SinkingAltarFen on PlanetDungeonGame {
       // The sarsen, wherever it currently stands. At the gate it is LYING in
       // the silt where it fell; anywhere else the party has walked it there.
       if (f.sarsenKnoll == room.id && !f.sarsenSeated) {
-        final home = f.sarsenKnoll == kSarsenHomeKnoll;
         _renderSarsen(
           canvas,
-          Offset(room.bounds.center.dx, home ? 150 : 140),
-          fallen: home,
+          _sarsenStandsAt(),
+          fallen: f.sarsenKnoll == kSarsenHomeKnoll,
         );
       }
     }

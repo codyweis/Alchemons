@@ -181,6 +181,21 @@ const Map<String, String> kSloughNames = {
   'tarn': 'the Tarn',
 };
 
+/// THE WATERCOURSES HAVE TO BE VISIBLE, and for a long time they were not.
+///
+/// This planet's whole rule is *hardening a crossing drowns its neighbours ON
+/// ITS OWN SLOUGH*. A slough was an id in a data table: two crossings on the
+/// same water are almost never in the same room, so the player did something
+/// irreversible here and paid for it somewhere they could not see, announced
+/// by a line naming "the Cormorant" — a thing they had also never seen. The
+/// rule was deterministic, fair, and completely hidden.
+///
+/// So every crossing carries its watercourse's MARK, cut into a marker stone
+/// at the head where you work it and drawn again on the fen chart, and the
+/// order along the slough is scored into the same stone. Two crossings that
+/// share a mark share their water; the notches say which is upstream.
+const Map<String, int> kSloughOrder = {'cor': 0, 'add': 1, 'tarn': 2};
+
 /// The fen's nine crossings, authored as ONE list rather than per room, so
 /// the no-strand proof walks exactly the graph the doors are built from and
 /// the two can never disagree (the Ice precedent).
@@ -656,9 +671,17 @@ const DungeonLayout mudLayout = DungeonLayout(
     'Plant, to quicken whatever the peat has kept;',
     'and a Water Mask, for I keep my best beneath black water.',
   ],
+  // THE PRIMER STATED THE RULE AND NEVER THE GOAL. A player who has read it
+  // knows what a drag does to the fen and still has no idea what they came
+  // here to accomplish — which is exactly how the first playtest went: *"I'm
+  // not sure what the goal is, I'm just going around tapping things."* The
+  // goal goes first now, and the rule second, where it belongs: as the
+  // reason the goal is hard.
   primer: [
-    'Harden a crossing and its neighbours drown.',
-    'The order you drag in does not matter; the shape you are left in does.',
+    'The fen\'s fallen stone belongs in the Sinking Altar; it crosses hard '
+        'ground and nothing else.',
+    'Drag a crossing firm and its neighbours on that water drown. The order '
+        'does not matter — the shape you are left with does.',
   ],
   familyGates: [
     DungeonFamilyGate(
