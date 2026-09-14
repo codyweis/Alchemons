@@ -67,6 +67,18 @@ void main() {
       SoundCue.cosmicOrbPickup,
       SoundCue.dungeonStepStone,
       SoundCue.dungeonStepWater,
+      // The eight per-family auto-attacks. They fire more often than
+      // anything else in the game, so under load a crowded fight thins down
+      // to its impacts rather than to a wall of launches — the shot is
+      // droppable, the hit it causes is not.
+      SoundCue.basicMane,
+      SoundCue.basicLet,
+      SoundCue.basicPip,
+      SoundCue.basicHorn,
+      SoundCue.basicMask,
+      SoundCue.basicWing,
+      SoundCue.basicKin,
+      SoundCue.basicMystic,
     });
   });
 }

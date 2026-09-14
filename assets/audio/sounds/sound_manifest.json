@@ -433,6 +433,154 @@
     "sha256": "5335f731ebb386fbb3b8ef2a836613b32a4238ba3202083cfa2dd4afa60cc86e"
   },
   {
+    "name": "sfx_combat_special_cast",
+    "category": "Shared combat",
+    "description": "Quiet mechanism releasing; a special has gone off. Layers UNDER the element cue, which says which element it was \u2014 so it carries no colour of its own and no flourish",
+    "target": "0.30\u20130.50 s",
+    "path": "assets/audio/sounds/sfx_combat_special_cast.wav",
+    "duration": 0.42,
+    "loop": false,
+    "peak_db": -13.98,
+    "rms_db": -27.34,
+    "sha256": "272d4511c277c48ffabb28ec3306f2fe64f78dd112f426ed780646c556a81ff9"
+  },
+  {
+    "name": "sfx_basic_mane",
+    "category": "Shared combat",
+    "description": "Twin airy swipes, the second close behind the first",
+    "target": "0.10\u20130.25 s",
+    "path": "assets/audio/sounds/sfx_basic_mane.wav",
+    "duration": 0.2,
+    "loop": false,
+    "peak_db": -16.48,
+    "rms_db": -33.24,
+    "sha256": "05082c96cc5b129f975544fc710c76592749f3d9ac5d27e15f93bd484b72700d",
+    "variations": [
+      "assets/audio/sounds/sfx_basic_mane_01.wav",
+      "assets/audio/sounds/sfx_basic_mane_02.wav",
+      "assets/audio/sounds/sfx_basic_mane_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_basic_let",
+    "category": "Shared combat",
+    "description": "One slow heavy lob with low body",
+    "target": "0.15\u20130.30 s",
+    "path": "assets/audio/sounds/sfx_basic_let.wav",
+    "duration": 0.28,
+    "loop": false,
+    "peak_db": -15.39,
+    "rms_db": -28.47,
+    "sha256": "de0101592705d0a9e63e0e18b49b7438fdbcb9fa18b9d3b8d9ce6cfeae51dbdd",
+    "variations": [
+      "assets/audio/sounds/sfx_basic_let_01.wav",
+      "assets/audio/sounds/sfx_basic_let_02.wav",
+      "assets/audio/sounds/sfx_basic_let_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_basic_pip",
+    "category": "Shared combat",
+    "description": "Three tiny high ticks in quick succession",
+    "target": "0.10\u20130.22 s",
+    "path": "assets/audio/sounds/sfx_basic_pip.wav",
+    "duration": 0.18,
+    "loop": false,
+    "peak_db": -17.08,
+    "rms_db": -30.24,
+    "sha256": "7b9b16d957caeabbbebc64257f8c4ddc5b46834f9c971ba54a1cdacc5515c33e",
+    "variations": [
+      "assets/audio/sounds/sfx_basic_pip_01.wav",
+      "assets/audio/sounds/sfx_basic_pip_02.wav",
+      "assets/audio/sounds/sfx_basic_pip_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_basic_horn",
+    "category": "Shared combat",
+    "description": "One low shove of air; weight without a bang",
+    "target": "0.15\u20130.30 s",
+    "path": "assets/audio/sounds/sfx_basic_horn.wav",
+    "duration": 0.28,
+    "loop": false,
+    "peak_db": -15.39,
+    "rms_db": -28.38,
+    "sha256": "04b49f9034dc380993a70fc83feae55b000374c694998e2e9f66ab062a13575a",
+    "variations": [
+      "assets/audio/sounds/sfx_basic_horn_01.wav",
+      "assets/audio/sounds/sfx_basic_horn_02.wav",
+      "assets/audio/sounds/sfx_basic_horn_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_basic_mask",
+    "category": "Shared combat",
+    "description": "A thin focused zip that pierces rather than hits",
+    "target": "0.10\u20130.22 s",
+    "path": "assets/audio/sounds/sfx_basic_mask.wav",
+    "duration": 0.2,
+    "loop": false,
+    "peak_db": -17.08,
+    "rms_db": -30.95,
+    "sha256": "69552352e1393195a6b0d4faa2c0afddeba2bf3ccc947d7a525b463cb7c2de7a",
+    "variations": [
+      "assets/audio/sounds/sfx_basic_mask_01.wav",
+      "assets/audio/sounds/sfx_basic_mask_02.wav",
+      "assets/audio/sounds/sfx_basic_mask_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_basic_wing",
+    "category": "Shared combat",
+    "description": "Two soft high blips, light and fast",
+    "target": "0.10\u20130.22 s",
+    "path": "assets/audio/sounds/sfx_basic_wing.wav",
+    "duration": 0.18,
+    "loop": false,
+    "peak_db": -17.72,
+    "rms_db": -31.68,
+    "sha256": "0d952217a23a043b0abc539f0956f93738268658e8f42acbbed6e92cc9579ee6",
+    "variations": [
+      "assets/audio/sounds/sfx_basic_wing_01.wav",
+      "assets/audio/sounds/sfx_basic_wing_02.wav",
+      "assets/audio/sounds/sfx_basic_wing_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_basic_kin",
+    "category": "Shared combat",
+    "description": "A small charge gathering, then letting go",
+    "target": "0.15\u20130.30 s",
+    "path": "assets/audio/sounds/sfx_basic_kin.wav",
+    "duration": 0.3,
+    "loop": false,
+    "peak_db": -15.92,
+    "rms_db": -30.83,
+    "sha256": "f71f277b19186ce650d203d76eda5274b7b16e8478470504124bb3763c02353a",
+    "variations": [
+      "assets/audio/sounds/sfx_basic_kin_01.wav",
+      "assets/audio/sounds/sfx_basic_kin_02.wav",
+      "assets/audio/sounds/sfx_basic_kin_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_basic_mystic",
+    "category": "Shared combat",
+    "description": "Three soft mid blips, gentler than a pip's darts",
+    "target": "0.10\u20130.25 s",
+    "path": "assets/audio/sounds/sfx_basic_mystic.wav",
+    "duration": 0.22,
+    "loop": false,
+    "peak_db": -17.08,
+    "rms_db": -28.76,
+    "sha256": "20ca454da38f52d3e29813872d9907abb90b2eab41203903d1f266515182a47b",
+    "variations": [
+      "assets/audio/sounds/sfx_basic_mystic_01.wav",
+      "assets/audio/sounds/sfx_basic_mystic_02.wav",
+      "assets/audio/sounds/sfx_basic_mystic_03.wav"
+    ]
+  },
+  {
     "name": "sfx_survival_wave_start",
     "category": "Survival-specific events",
     "description": "Focused rising challenge pulse",
@@ -441,8 +589,8 @@
     "duration": 0.85,
     "loop": false,
     "peak_db": -10.46,
-    "rms_db": -24.21,
-    "sha256": "a77de9464c1ad7adfdeddfa3149cc8d5625546b23a5b6efdb84c4d9b51b83bac"
+    "rms_db": -23.68,
+    "sha256": "3b25c2336c1840ee1a3d4ef0973f2e97d9f3a67664fb3b7ad6fcb3675d48cb9b"
   },
   {
     "name": "sfx_survival_wave_clear",
@@ -465,8 +613,8 @@
     "duration": 2.2,
     "loop": false,
     "peak_db": -7.96,
-    "rms_db": -25.32,
-    "sha256": "512487ffd6ad256281900a89b0cd3a6b8ddcaaf790383e540ee90b64bc3bd440"
+    "rms_db": -25.0,
+    "sha256": "fc65dc68644753ac82550f8309cc05c9512f3042d287fdcc1d8c51d1f20b6d86"
   },
   {
     "name": "sfx_survival_powerup_collect",
@@ -501,8 +649,8 @@
     "duration": 1.4,
     "loop": false,
     "peak_db": -9.63,
-    "rms_db": -22.52,
-    "sha256": "8d01c1cee12deb27843f9359da92c2be195733bfaac6f9f1cfe5fe1cf8f3258e"
+    "rms_db": -22.45,
+    "sha256": "090842ed48691de779496b05feb6f87bfd546081869d55ad36432466c03f1973"
   },
   {
     "name": "sfx_survival_milestone",
@@ -514,7 +662,7 @@
     "loop": false,
     "peak_db": -9.37,
     "rms_db": -23.2,
-    "sha256": "10a882ac278b4b162eee579632fea820a09152c11d463620f30db2d87d3d4157"
+    "sha256": "c61882588f07231d2e05ecb9ef0d8ac1267877174f667598547d1436c5e8e326"
   },
   {
     "name": "sfx_dungeon_interact",
@@ -525,8 +673,8 @@
     "duration": 0.3,
     "loop": false,
     "peak_db": -12.4,
-    "rms_db": -28.56,
-    "sha256": "bde8158ce0d15318612163d492e51b63dac5376efc7a17a035bed303c1a0b746"
+    "rms_db": -29.0,
+    "sha256": "a3394268a80929cdb021923ddb1db017941f98bcda5ce55155ec44e120176b45"
   },
   {
     "name": "sfx_dungeon_gate_open",
@@ -537,8 +685,8 @@
     "duration": 1.65,
     "loop": false,
     "peak_db": -9.9,
-    "rms_db": -27.91,
-    "sha256": "17e82415961dd777f1811be4b6e1b6f2fe6eb256cd2f0f67495d26b867303472"
+    "rms_db": -26.47,
+    "sha256": "f86635b80b92ad71ba1528f857ab0db538604538a997fcc7a5bfb0035d9db678"
   },
   {
     "name": "sfx_dungeon_switch",
@@ -549,8 +697,8 @@
     "duration": 0.3,
     "loop": false,
     "peak_db": -12.04,
-    "rms_db": -28.33,
-    "sha256": "591f22ec7def6502f9425cb4b59ab353fad4f1d841de3c82b2f174e392214efc"
+    "rms_db": -27.68,
+    "sha256": "d682d48c499180363e5fc6767b41248f45934f9c4d7d9d748625d63cb49a250a"
   },
   {
     "name": "sfx_dungeon_puzzle_solved",
@@ -585,8 +733,8 @@
     "duration": 1.15,
     "loop": false,
     "peak_db": -12.04,
-    "rms_db": -25.59,
-    "sha256": "613c7e06bd6ba10ee875db8230f862d8a9bbb822abb7420c9a91a4ec5bd7b3d8"
+    "rms_db": -25.61,
+    "sha256": "e00cba0d7c9c7fca4d322a3798da4bb3b0821238ca4ec3c4ab27734a116fc57b"
   },
   {
     "name": "sfx_dungeon_wall_break",
@@ -597,8 +745,8 @@
     "duration": 0.8,
     "loop": false,
     "peak_db": -8.87,
-    "rms_db": -25.15,
-    "sha256": "cdf4375bdb1bdc4a8c68e2c40fcebe97f15d757ba1cd4b8b0e81620011c11b80"
+    "rms_db": -25.67,
+    "sha256": "35661292e8a4183bc2824ba538725b3ca3f3ae4154dd5634a0dbf34e6aa343c5"
   },
   {
     "name": "sfx_dungeon_block_move",
@@ -609,8 +757,8 @@
     "duration": 0.6,
     "loop": false,
     "peak_db": -11.7,
-    "rms_db": -28.75,
-    "sha256": "9ec819fd9c57a72fe31ed234a6fc7226740c759e4223ca0a09c065262123bff6"
+    "rms_db": -28.54,
+    "sha256": "9b78901379b36af1ccf0add7679b0c1847255f7879c121a9d731b89cceb600f2"
   },
   {
     "name": "sfx_dungeon_hazard_trigger",
@@ -621,8 +769,8 @@
     "duration": 0.45,
     "loop": false,
     "peak_db": -10.75,
-    "rms_db": -30.98,
-    "sha256": "72d8813ac6deae74b04ad87af12a7d84369714f4105375ecc6514b7f2fc306d1"
+    "rms_db": -31.42,
+    "sha256": "744876b294370b097ec819b8f2bbf91dc99a30063b90c2d68aa40c6f6ee4c731"
   },
   {
     "name": "sfx_dungeon_checkpoint",
@@ -657,8 +805,8 @@
     "duration": 0.14,
     "loop": false,
     "peak_db": -14.89,
-    "rms_db": -30.33,
-    "sha256": "a0c2f3d3c64939938c4d28e8112ddfc6f30e476b760cfad48f57ab28bf22844e",
+    "rms_db": -29.84,
+    "sha256": "f4949f94eb7871f212cbc5cd1729e8795ae1bf671015164e53d912b9c4cf3ff2",
     "variations": [
       "assets/audio/sounds/sfx_dungeon_step_stone_01.wav",
       "assets/audio/sounds/sfx_dungeon_step_stone_02.wav",
@@ -674,8 +822,8 @@
     "duration": 0.2,
     "loop": false,
     "peak_db": -14.89,
-    "rms_db": -31.36,
-    "sha256": "3b9e36a937ec9efb667820b449f5ff51c28b7f74fea044cb01335928c4015ab9",
+    "rms_db": -30.62,
+    "sha256": "fb68e4a5ee339661563251c2ddde89777adb30b1cc1558533cd774cb59e9dbfb",
     "variations": [
       "assets/audio/sounds/sfx_dungeon_step_water_01.wav",
       "assets/audio/sounds/sfx_dungeon_step_water_02.wav",
@@ -691,8 +839,8 @@
     "duration": 0.8,
     "loop": false,
     "peak_db": -11.37,
-    "rms_db": -25.1,
-    "sha256": "ed8d98149fd75d743b924c4253178f9bb77d4d331144d4f3258b80618c4ee466"
+    "rms_db": -25.01,
+    "sha256": "761d3962112b11d508af46c65d4210aacb12f7f8b9e7c0d417fd18359ef3b80b"
   },
   {
     "name": "sfx_capture_throw",
@@ -703,8 +851,8 @@
     "duration": 0.3,
     "loop": false,
     "peak_db": -12.4,
-    "rms_db": -30.51,
-    "sha256": "f785a803b14a7d0121263f5ea3a90c27199b4a3b3cd16d98e8c5826da9ba258d"
+    "rms_db": -29.1,
+    "sha256": "62859220287f9ae3d2a45edc9d96ab771ccb5615670796f43f6099941c90a7db"
   },
   {
     "name": "sfx_capture_attempt",
@@ -728,7 +876,7 @@
     "loop": false,
     "peak_db": -9.9,
     "rms_db": -24.51,
-    "sha256": "d382ebd88131bb08f08b9f789f616ec2d4b9a3cd2502c9d1bab894c18df5a5b3"
+    "sha256": "1026acb5b72df0ecf4006e5a472192d9f9e99891b5791c03e23d5da7f31c436c"
   },
   {
     "name": "sfx_capture_escape",
@@ -739,8 +887,8 @@
     "duration": 0.7,
     "loop": false,
     "peak_db": -11.37,
-    "rms_db": -27.53,
-    "sha256": "fbac96f49cd5f7166cc9c63882091d9464d351941d531c458bdcc25b463de33c"
+    "rms_db": -27.36,
+    "sha256": "1523def2a4496d4e4e8a48eca029e6109f1e8f52dec9fc8661d6f9db47ec1baa"
   },
   {
     "name": "sfx_breeding_start",
@@ -763,8 +911,8 @@
     "duration": 0.45,
     "loop": false,
     "peak_db": -12.77,
-    "rms_db": -28.55,
-    "sha256": "a6bdf7626c2cd0c8018ee7d7759ec74e1ab0881ce924ba7a04a0cdbd05375c94"
+    "rms_db": -29.45,
+    "sha256": "76e3d552e2c84c9c2e930ad44d4c09683c3aaec08ac7cf345c5112d2b9d1fe68"
   },
   {
     "name": "sfx_extraction_complete",
@@ -776,7 +924,7 @@
     "loop": false,
     "peak_db": -10.75,
     "rms_db": -25.34,
-    "sha256": "43c93598e34397b398377c0d4f72f066063604c8b4ce5b5b169f1a7093a75ff6"
+    "sha256": "4a23bf5cb6f26483f2186c439e3ccca85c74d6eaa4befddaf8814f52523d6d40"
   },
   {
     "name": "sfx_extraction_reaction_start",
@@ -787,8 +935,8 @@
     "duration": 1.6,
     "loop": false,
     "peak_db": -11.06,
-    "rms_db": -26.2,
-    "sha256": "3b1c107e57aecebd37645a90686ab26813e2f58c4a3d373c37c79aea20ba796c"
+    "rms_db": -25.03,
+    "sha256": "6651c61b6e8a75ad3fe0e13ded98a80d224fbafc6a9acba9a9bfee9f5dc32fbd"
   },
   {
     "name": "sfx_extraction_reaction_burst",
@@ -799,8 +947,8 @@
     "duration": 0.75,
     "loop": false,
     "peak_db": -9.37,
-    "rms_db": -27.98,
-    "sha256": "27fb29b2ff75b7fa73683fb8fb6f71a14f5fedb4a0e2561d6bc393f168fd4858"
+    "rms_db": -26.98,
+    "sha256": "be0c273c77dcf6edbf1e18df6efe14e2bc5068accc9ce00ef5974cf018bd6e8e"
   },
   {
     "name": "sfx_extraction_creature_reveal",
@@ -811,8 +959,8 @@
     "duration": 1.8,
     "loop": false,
     "peak_db": -10.46,
-    "rms_db": -27.33,
-    "sha256": "e7b6407353cfaaf236facda3e553e4c2ecde56e997c340819a33ba81bef19560"
+    "rms_db": -27.32,
+    "sha256": "512f50555288da486354b22ae4fb2dac242c144e26b424f50d2b67b8d9c1c67f"
   },
   {
     "name": "sfx_extraction_rare_reveal",
@@ -824,7 +972,7 @@
     "loop": false,
     "peak_db": -8.87,
     "rms_db": -25.62,
-    "sha256": "3a96088c92b5bf3b0fbd8722eacc19ae6e131636215e27841f12e816e075f260"
+    "sha256": "238c9659fcea9fad1f77f1a90f310fe80935578bce93e977ccbf724dce388966"
   },
   {
     "name": "sfx_element_fire",
@@ -835,8 +983,8 @@
     "duration": 0.65,
     "loop": false,
     "peak_db": -10.46,
-    "rms_db": -28.7,
-    "sha256": "13185ce8754252c0844f7846332d70ad83d798053fb0d9e195b02ee6968e68d7"
+    "rms_db": -29.61,
+    "sha256": "718b7687bbe501caa4a397d3bc808e53a5c1f381d5f8f7c62215de6c62a696bd"
   },
   {
     "name": "sfx_element_water",
@@ -847,8 +995,8 @@
     "duration": 0.65,
     "loop": false,
     "peak_db": -11.06,
-    "rms_db": -28.86,
-    "sha256": "000a39b3d9fd2d140a752c0256c839f87aeeae2e41ea606f55905ad55988168d"
+    "rms_db": -27.21,
+    "sha256": "668e25de4f803231f2004771e28e635366573ad543701fde7d00c0132cc233b7"
   },
   {
     "name": "sfx_element_air",
@@ -859,8 +1007,8 @@
     "duration": 0.45,
     "loop": false,
     "peak_db": -12.4,
-    "rms_db": -30.01,
-    "sha256": "4d2bb45a211e77dfd1c9fa0d8ecc531efcaac64c708c3d099f14cc45f3a0ad54"
+    "rms_db": -30.32,
+    "sha256": "e0ee9fde5ca7793a54d2b22e9ccdba9ad3b2d1da20113c7df7887fb3e6f5c225"
   },
   {
     "name": "sfx_element_earth",
@@ -871,8 +1019,8 @@
     "duration": 0.65,
     "loop": false,
     "peak_db": -9.37,
-    "rms_db": -26.49,
-    "sha256": "69a4f833c74a62512a3918899785d7cad30a1ee629bd1bdde3b24d57f030edc3"
+    "rms_db": -25.06,
+    "sha256": "e067eb6a8710e34cdac669385339452f23eabe1bde11a9de152271f32274b61e"
   },
   {
     "name": "sfx_element_lightning",
@@ -883,8 +1031,8 @@
     "duration": 0.35,
     "loop": false,
     "peak_db": -9.63,
-    "rms_db": -28.44,
-    "sha256": "df2e47d8d14d1dcc8f583bc23d9d4d3c4816d5b18d99246d27c9a8d2fa561dd8"
+    "rms_db": -29.85,
+    "sha256": "e8fea161ed4911cd02cce60f58e0481a429cdc37ddf89836116502ef63da9789"
   },
   {
     "name": "sfx_element_steam",
@@ -895,8 +1043,8 @@
     "duration": 0.7,
     "loop": false,
     "peak_db": -11.37,
-    "rms_db": -30.59,
-    "sha256": "6cdcfebb63b77aa2055ece56a1f808914be277f0f49b951b5b2a4b6a9981d95b"
+    "rms_db": -30.46,
+    "sha256": "7fe542f4997e754b46fcd9dea9775b0f8b63f4db48bae31d2e8b5a70c8b9b225"
   },
   {
     "name": "sfx_element_lava",
@@ -907,8 +1055,8 @@
     "duration": 0.8,
     "loop": false,
     "peak_db": -9.63,
-    "rms_db": -26.52,
-    "sha256": "34a0401ad669aec3d6b900d376d018addab984961d0b34a1d01d091a57b3a91b"
+    "rms_db": -25.31,
+    "sha256": "8def5e8ee29f6cd7ede5a88cb0d21bb6b7e6d1a744d97584a63579482577a225"
   },
   {
     "name": "sfx_element_poison",
@@ -920,7 +1068,7 @@
     "loop": false,
     "peak_db": -11.06,
     "rms_db": -24.87,
-    "sha256": "7258fec5148fce80701223f4de5230d93fb2b08dd5143978e1194e747bc040be"
+    "sha256": "b7fc5b466b94b88ac4898351618ba05ad53398d50613d7a2548f346bd8c16e7a"
   },
   {
     "name": "sfx_element_ice",
@@ -931,8 +1079,8 @@
     "duration": 0.5,
     "loop": false,
     "peak_db": -11.06,
-    "rms_db": -26.61,
-    "sha256": "34e5e5bed928ee9b9ac0be33439000595634a038493778fab38761e027537cc7"
+    "rms_db": -26.71,
+    "sha256": "2a27ef792f2f43c53f8ff8c1529af9ecd3363a672bf5ce73a7596391e5cd6982"
   },
   {
     "name": "sfx_element_mud",
@@ -943,8 +1091,8 @@
     "duration": 0.5,
     "loop": false,
     "peak_db": -11.06,
-    "rms_db": -26.72,
-    "sha256": "8bc262453d8903020986cf01e83166605f93c29752cfbac8a09bbbf8fb0bcf5f"
+    "rms_db": -27.43,
+    "sha256": "da18bd9104ac833973b413f8646438c0c7437bdc59c05458b631c86b236cff78"
   },
   {
     "name": "sfx_element_dust",
@@ -955,8 +1103,8 @@
     "duration": 0.65,
     "loop": false,
     "peak_db": -12.4,
-    "rms_db": -31.16,
-    "sha256": "32f5bf4e8bf4de0befe3d83c524ce2429431249cb0c81e95a4c45b4d7b01c5d5"
+    "rms_db": -30.34,
+    "sha256": "29af1bdc06e04aedab1d5eff7b7c7f84dffef61b43c622f69527403fb6b554fd"
   },
   {
     "name": "sfx_element_crystal",
@@ -979,8 +1127,8 @@
     "duration": 0.65,
     "loop": false,
     "peak_db": -11.7,
-    "rms_db": -30.0,
-    "sha256": "e8967f77f9d05d226f3177cd52572ee790ac658c09e9e1a2c61c2fb1fd542926"
+    "rms_db": -28.51,
+    "sha256": "70b2040aac6b0bd29957f6c640fdb0acab66d4e74a8831dc4cbb23d8b7e73815"
   },
   {
     "name": "sfx_element_spirit",
@@ -991,8 +1139,8 @@
     "duration": 0.95,
     "loop": false,
     "peak_db": -11.37,
-    "rms_db": -24.92,
-    "sha256": "c256e93744cea67544fcd4e48266244e8b96124173762141a20f0b90b2396e2a"
+    "rms_db": -24.95,
+    "sha256": "aa2efc92f94c5a273a82e37c3925195f4a9c32c976a0c3ba2b6b0b9eb64b4295"
   },
   {
     "name": "sfx_element_dark",
@@ -1003,8 +1151,8 @@
     "duration": 0.8,
     "loop": false,
     "peak_db": -9.9,
-    "rms_db": -23.47,
-    "sha256": "d0ac5b45749e06b2b2e32948641e09f5a33a9393e9470a809727abef7ca1aeac"
+    "rms_db": -24.6,
+    "sha256": "275ee2dda94b7a9593dd82426ac7b346171fab97682e066c59b84b0348f30fa9"
   },
   {
     "name": "sfx_element_light",
@@ -1015,8 +1163,8 @@
     "duration": 0.8,
     "loop": false,
     "peak_db": -11.06,
-    "rms_db": -27.14,
-    "sha256": "60f41f0780459248b242c034d2cdaef8121f55f14a3be7e61c076f41a91c432e"
+    "rms_db": -27.09,
+    "sha256": "ef99a7d66edeb3dbdf22da40fda7971edf50b91962a534cc6d9516386081eba1"
   },
   {
     "name": "sfx_element_blood",
@@ -1028,85 +1176,85 @@
     "loop": false,
     "peak_db": -10.46,
     "rms_db": -23.83,
-    "sha256": "c769e71b266fc76c1b106bc3229f1745407115361c131f1b90ed129a6b2cd12e"
+    "sha256": "9cb341e185ce1a6a6c4b3758e1c0f7cd45d2b5b609cf244b2717e774bdcc818a"
   },
   {
     "name": "amb_cosmic_space_loop",
     "category": "Optional ambience and music",
     "description": "Quiet deep-space resonance and distant particles",
     "target": "30\u201360 s",
-    "loop_seam_delta": 0.00174,
+    "loop_seam_delta": 0.001373,
     "path": "assets/audio/sounds/amb_cosmic_space_loop.wav",
     "duration": 30.0,
     "loop": true,
     "peak_db": -16.48,
-    "rms_db": -26.33,
-    "sha256": "20f8538364d93156a1a0519e979906b2332f26a7aaeff260086b57fbe5abcaf5"
+    "rms_db": -26.76,
+    "sha256": "090f6c9d9f0ea2cfe9d7841b6afd8160a2dadfbc30c21da8028e5c3333976296"
   },
   {
     "name": "amb_dungeon_ruins_loop",
     "category": "Optional ambience and music",
     "description": "Hollow air and occasional distant stone movement",
     "target": "30\u201360 s",
-    "loop_seam_delta": 0.001099,
+    "loop_seam_delta": 0.002502,
     "path": "assets/audio/sounds/amb_dungeon_ruins_loop.wav",
     "duration": 30.0,
     "loop": true,
     "peak_db": -16.48,
-    "rms_db": -26.73,
-    "sha256": "be873f2a11673fd95997fe2fac6ddf6ba39b4f579ac5ed2036a1a0087f60cdb8"
+    "rms_db": -27.24,
+    "sha256": "1c5291193b51d890ee321e6b758db21e811145cd92d17191c60ccb5a4cafa024"
   },
   {
     "name": "amb_dungeon_water_loop",
     "category": "Optional ambience and music",
     "description": "Underground flow and scattered drips",
     "target": "20\u201340 s",
-    "loop_seam_delta": 0.005554,
+    "loop_seam_delta": 0.010315,
     "path": "assets/audio/sounds/amb_dungeon_water_loop.wav",
     "duration": 30.0,
     "loop": true,
     "peak_db": -16.48,
-    "rms_db": -29.67,
-    "sha256": "b7812dee8db803f0892095f9312ed3e8eddbbdb06ffd44b2f84f5f63a8e7aa78"
+    "rms_db": -29.74,
+    "sha256": "0dbf558f6a9d161d896e2335ebf0561ef7eeb6482ef125f7d988867ec2c34c96"
   },
   {
     "name": "amb_dungeon_fire_loop",
     "category": "Optional ambience and music",
     "description": "Restrained crackle and subterranean heat rumble",
     "target": "20\u201340 s",
-    "loop_seam_delta": 0.003082,
+    "loop_seam_delta": 0.000122,
     "path": "assets/audio/sounds/amb_dungeon_fire_loop.wav",
     "duration": 30.0,
     "loop": true,
     "peak_db": -16.48,
-    "rms_db": -29.65,
-    "sha256": "7b02e27b09171178d9364f1b59067f85a8bce711686330d8b8c63c6bba3ec5a3"
+    "rms_db": -29.9,
+    "sha256": "47b4842455ee74c5303323a229a00c28466df5ecc61dfee9d7aa3f5953f529f6"
   },
   {
     "name": "amb_dungeon_arcane_loop",
     "category": "Optional ambience and music",
     "description": "Slow magical oscillations and crystal resonance",
     "target": "30\u201360 s",
-    "loop_seam_delta": 0.001404,
+    "loop_seam_delta": 0.003662,
     "path": "assets/audio/sounds/amb_dungeon_arcane_loop.wav",
     "duration": 30.0,
     "loop": true,
     "peak_db": -16.48,
-    "rms_db": -28.3,
-    "sha256": "7a43ed094cfba9ff5a36b56d66a978e21843ac5fc23701a0a274a125700626bd"
+    "rms_db": -26.36,
+    "sha256": "a98e2728d7ff43c9d2dda3305a931510b8b4415333c8658d785631eaf5546b97"
   },
   {
     "name": "amb_lab_loop",
     "category": "Optional ambience and music",
     "description": "Soft equipment hum and occasional alchemical bubbles",
     "target": "20\u201340 s",
-    "loop_seam_delta": 0.001862,
+    "loop_seam_delta": 0.00296,
     "path": "assets/audio/sounds/amb_lab_loop.wav",
     "duration": 30.0,
     "loop": true,
     "peak_db": -16.48,
-    "rms_db": -26.6,
-    "sha256": "8654546f7e522b41aff9c399361e8270f1a516c1545b5b6bb54edbf2d3b06b2b"
+    "rms_db": -27.53,
+    "sha256": "9c9819cedc7e327d8ab9ca4a11c90efa89785d6af4b25980aed370139d7f6a1f"
   },
   {
     "name": "sfx_cosmic_matter_collect",
@@ -1117,8 +1265,8 @@
     "duration": 0.34,
     "loop": false,
     "peak_db": -16.48,
-    "rms_db": -29.33,
-    "sha256": "714518a0420be5819998342c27713fa100d6c0c56e656061c671a0868c6c9b44",
+    "rms_db": -31.73,
+    "sha256": "3886af3429474c0bb2e412655a895083443669a29fa33e8a283af167cde70e1d",
     "variations": [
       "assets/audio/sounds/sfx_cosmic_matter_collect_01.wav",
       "assets/audio/sounds/sfx_cosmic_matter_collect_02.wav",
@@ -1130,12 +1278,12 @@
     "category": "Later additions",
     "description": "The booster held down \u2014 a continuous thruster, not a repeated whoosh",
     "target": "30 s",
-    "loop_seam_delta": 0.007568,
+    "loop_seam_delta": 0.00174,
     "path": "assets/audio/sounds/amb_cosmic_boost_loop.wav",
     "duration": 4.0,
     "loop": true,
     "peak_db": -16.48,
-    "rms_db": -26.57,
-    "sha256": "6568a1988f411354a97f00acd5e26cb796a00572a858a1d280defc157f9ea9da"
+    "rms_db": -26.04,
+    "sha256": "df86ba66a1a680a5a7e7078fdbef9095bcca278051fa090766ffd0f24be6ee0c"
   }
 ]

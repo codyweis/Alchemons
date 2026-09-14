@@ -155,6 +155,60 @@ recipe('combat_danger', .46, .30, lambda s: s.notes([740, 740], gap=.15, decay=.
 recipe('combat_victory', 2.60, .35, lambda s: s.notes([440, 554.37, 659.25, 880, 1108.73], gap=.16, decay=.24).notes([220, 329.63, 440], gap=0, start=.64, decay=.35, amp=.27))
 recipe('combat_defeat', 2.00, .28, lambda s: s.notes([440, 349.23, 293.66, 277.18], gap=.20, decay=.23, amp=.40).tone(138.59, start=.60, decay=.25, amp=.25, attack=.02))
 
+# A SPECIAL WENT OFF, AND THAT IS ALL IT SAYS.
+#
+# The cast already plays the caster's ELEMENT cue, which is the part with
+# colour in it; this sits under that and only marks that the special — as
+# opposed to a basic — is what just happened. So: no flourish, no rising
+# figure, nothing that reads as a reward. A mechanism releasing. It is a
+# fifth with a breath of air under it, opened slowly enough (15 ms) that
+# there is no click at the front to fight the element's own transient, and
+# washed into a small room so it sits BEHIND rather than on top.
+recipe('combat_special_cast', .42, .20, lambda s: (
+    s.tone(392, decay=.055, amp=.30, attack=.015, metal=.04)
+     .tone(587.33, start=.030, decay=.070, amp=.18, attack=.012, metal=.03)
+     .noise(decay=.030, amp=.07, low=650, high=3000, attack=.014)
+     .space(amount=.28, decay=.06, damp=1600)))
+
+# ── ALCHEMON AUTO-ATTACKS, ONE PER FAMILY ──
+#
+# Shaped like the projectile each family actually throws (see
+# createFamilyBasicAttack): mane's twin slashes, pip's three darts, horn's one
+# slow heavy shot. All of them are quieter than the impacts they cause — the
+# hit should be louder than the shot — and all are short, because a run fires
+# thousands of these and any tail at all stacks into mud.
+recipe('basic_mane', .20, .15, lambda s: (
+    s.noise(decay=.020, amp=.42, low=900, high=5200, attack=.004)
+     .noise(start=.038, decay=.022, amp=.34, low=800, high=4600, attack=.004)
+     .tone(520, decay=.018, amp=.08, end=880, glide=.008)))
+recipe('basic_let', .28, .17, lambda s: (
+    s.tone(150, decay=.055, amp=.38, end=92, glide=.020, metal=.06)
+     .noise(decay=.032, amp=.20, low=110, high=1400, attack=.006)))
+recipe('basic_pip', .18, .14, lambda s: (
+    s.tone(1480, decay=.010, amp=.26, metal=.03)
+     .tone(1660, start=.022, decay=.010, amp=.22, metal=.03)
+     .tone(1568, start=.044, decay=.011, amp=.20, metal=.03)
+     .noise(decay=.008, amp=.06, low=2200, high=6000)))
+recipe('basic_horn', .28, .17, lambda s: (
+    s.tone(128, decay=.050, amp=.40, end=78, glide=.022)
+     .noise(decay=.040, amp=.26, low=90, high=1100, attack=.010)))
+recipe('basic_mask', .20, .14, lambda s: (
+    s.tone(1180, decay=.026, amp=.30, end=680, glide=.014, metal=.05)
+     .noise(decay=.012, amp=.09, low=1600, high=5200, attack=.003)))
+recipe('basic_wing', .18, .13, lambda s: (
+    s.tone(980, decay=.016, amp=.26, end=1240, glide=.007)
+     .tone(1100, start=.030, decay=.016, amp=.20, end=1360, glide=.007)
+     .noise(decay=.014, amp=.08, low=1400, high=5000, attack=.004)))
+recipe('basic_kin', .30, .16, lambda s: (
+    s.tone(330, decay=.045, amp=.20, end=660, glide=.040, attack=.026)
+     .tone(660, start=.070, decay=.030, amp=.24, metal=.04)
+     .noise(start=.068, decay=.014, amp=.08, low=1200, high=4200)))
+recipe('basic_mystic', .22, .14, lambda s: (
+    s.tone(740, decay=.018, amp=.24, metal=.04)
+     .tone(880, start=.026, decay=.018, amp=.20, metal=.04)
+     .tone(830.61, start=.052, decay=.020, amp=.17, metal=.04)
+     .noise(decay=.010, amp=.05, low=1200, high=4000)))
+
 recipe('survival_wave_start', .85, .30, lambda s: s.notes([220, 293.66, 440], gap=.13, decay=.07, amp=.45).impact(size=.9, amp=.2))
 recipe('survival_wave_clear', 1.00, .29, lambda s: s.notes([587.33, 739.99, 880], gap=.11, decay=.12))
 recipe('survival_boss_arrive', 2.20, .40, lambda s: s.tone(73.42, decay=.35, attack=.07, amp=.50, wobble=.6).tone(103.83, decay=.30, attack=.06, amp=.2).impact(start=.43, size=2.5, amp=.8).noise(start=.42, decay=.15, low=60, high=1000, amp=.3))
@@ -395,7 +449,7 @@ def catalog():
             cells = [c.strip() for c in line.split('|')[1:-1]]
             rows.append({'name': match[1], 'category': section, 'description': cells[-1],
                          'target': cells[-2]})
-    assert len(rows) == 91, len(rows)
+    assert len(rows) == 100, len(rows)
     return rows
 
 
@@ -437,7 +491,7 @@ a{color:#a5c6ff}.controls{display:flex;gap:10px;flex-wrap:wrap;position:sticky;t
 input,select,button{background:#232a43;color:#edf0ff;border:1px solid #465273;border-radius:9px;padding:11px;font:14px system-ui}
 input{flex:1;min-width:190px}button{cursor:pointer}[hidden]{display:none!important}.variants{font-size:12px}
 </style><main><h1>Alchemons · Sound library</h1>
-<p>89 core sounds · 21 extra variations · 10 approved samples preserved.<br>
+<p>NCORE core sounds · NVAR extra variations · 10 approved samples preserved.<br>
 Revised extraction sounds appear first: reaction buildup and release, then scanner sweeps, data ticks, and identification tones.<br>
 Synthesized prototypes for review. Six ambient tracks loop automatically; playback is one sound at a time.</p>
 <div class="controls"><input id="search" aria-label="Search sounds" placeholder="Search sounds…">
@@ -451,7 +505,9 @@ document.querySelector('#stop').onclick=()=>players.forEach(a=>{a.pause();a.curr
 function filter(){const query=document.querySelector('#search').value.toLowerCase();const cat=document.querySelector('#category').value;
 document.querySelectorAll('section').forEach(s=>{let visible=0;s.querySelectorAll('article').forEach(a=>{a.hidden=!!((cat&&s.dataset.category!==cat)||!a.dataset.search.toLowerCase().includes(query));if(!a.hidden)visible++;else a.querySelector('audio').pause()});s.hidden=!visible})}
 document.querySelector('#search').oninput=filter;document.querySelector('#category').onchange=filter;
-</script></html>'''.replace('OPTIONS', options).replace('SECTIONS', ''.join(sections))
+</script></html>'''.replace('OPTIONS', options).replace('SECTIONS', ''.join(sections)) \
+        .replace('NCORE', str(len(rows))) \
+        .replace('NVAR', str(sum(len(r.get('variations', ())) for r in rows)))
     REVIEW.mkdir(parents=True, exist_ok=True)
     (REVIEW / 'index.html').write_text(page, encoding='utf-8')
 
@@ -513,7 +569,13 @@ def main():
     varying = {'sfx_combat_projectile', 'sfx_combat_hit_light', 'sfx_combat_hit_heavy',
                'sfx_combat_enemy_defeat', 'sfx_cosmic_orb_pickup',
                'sfx_cosmic_matter_collect',
-               'sfx_dungeon_step_stone', 'sfx_dungeon_step_water'}
+               'sfx_dungeon_step_stone', 'sfx_dungeon_step_water'} | {
+               # The auto-attacks fire more than anything else in the game.
+               # The brief's own rule: variation matters more on a frequent
+               # attack than a dozen unique UI sounds do.
+               'sfx_basic_' + f for f in (
+                   'mane', 'let', 'pip', 'horn', 'mask', 'wing', 'kin',
+                   'mystic')}
     for r in rows:
         if r['name'] not in varying:
             continue
@@ -534,7 +596,8 @@ def main():
     (OUT / 'sound_manifest.json').write_text(json.dumps(rows, indent=2) + '\n', encoding='utf-8')
     size = sum(asset_path(r['name']).stat().st_size for r in rows)
     print(json.dumps({'core_sounds': len(rows), 'new_core_sounds': len(rows) - len(APPROVED),
-                      'variations': 21, 'approved_unchanged': len(original),
+                      'variations': sum(len(r.get('variations', ())) for r in rows),
+                      'approved_unchanged': len(original),
                       'core_wav_megabytes': round(size / 1e6, 2),
                       'validation': 'PCM, duration, clipping, DC offset, endpoints, loop seam'
                                     + (', approved samples REWRITTEN (--reapprove)' if args.reapprove

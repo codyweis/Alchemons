@@ -2873,6 +2873,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             );
           }
         }
+        // The echo is the SAME cast happening twice; it takes the plain
+        // launch so a double-cast does not stack two cast cues on itself.
         _appendCompanionProjectiles(result2.projectiles);
         _activateWingBeamEffects(
           result2.beams,
@@ -2952,7 +2954,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             );
           }
         }
-        _appendCompanionProjectiles(basics);
+        _appendCompanionProjectiles(
+          basics,
+          cue: SoundCue.forFamilyBasic(comp.member.family),
+        );
 
         // Mystic family passive: basic attacks reduce special cooldown
         if (comp.member.family.toLowerCase() == 'mystic') {
@@ -2991,6 +2996,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             _specialCooldownReductionMultiplier(slotIndex, comp.member.family) *
             (isDarkWing ? 0.5 : 1.0);
         comp.specialCooldown = _mysticCastCooldown(comp, cooldown);
+        // A SPECIAL WENT OFF. Survival played the same generic launch blip
+        // for a basic and for a special, so the one thing a player most
+        // needs to hear — the cooldown you were waiting on just spent
+        // itself — sounded identical to the shot before it. The element cue
+        // carries the colour; this only marks the distinction, quietly, and
+        // several ability families append no projectile at all (the world
+        // mystics, the kin supports), so it cannot live in the appender.
+        final castElement = SoundCue.forElement(comp.member.element);
+        if (castElement != null) onSound?.call(castElement);
+        onSound?.call(SoundCue.combatSpecialCast);
 
         // Pip+Poison: design says the poison-line web persists "until
         // next usage". Despawn the previous cast's line zones and reset
@@ -15184,16 +15199,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
-  bool _appendCompanionProjectile(Projectile projectile) {
+  /// [cue] is what this launch SOUNDS like. It defaults to the generic
+  /// launch, which is what every companion shot used to play — turret shots,
+  /// seeds, specials and all eight families' basics, one blip for the lot.
+  /// Callers that know better say so.
+  bool _appendCompanionProjectile(Projectile projectile, {SoundCue? cue}) {
     if (companionProjectiles.length >= _maxCompanionProjectiles) {
       return false;
     }
-    onSound?.call(SoundCue.combatProjectile);
+    onSound?.call(cue ?? SoundCue.combatProjectile);
     companionProjectiles.add(projectile);
     return true;
   }
 
-  void _appendCompanionProjectiles(Iterable<Projectile> projectiles) {
+  void _appendCompanionProjectiles(
+    Iterable<Projectile> projectiles, {
+    SoundCue? cue,
+  }) {
     final available = _maxCompanionProjectiles - companionProjectiles.length;
     if (available <= 0) return;
     final list = projectiles is List<Projectile>
@@ -15201,7 +15223,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         : projectiles.toList(growable: false);
     final takeCount = min(available, list.length);
     if (takeCount <= 0) return;
-    onSound?.call(SoundCue.combatProjectile);
+    onSound?.call(cue ?? SoundCue.combatProjectile);
     companionProjectiles.addAll(list.take(takeCount));
   }
 

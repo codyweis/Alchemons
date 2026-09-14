@@ -37,6 +37,17 @@ enum SoundCue {
   combatDanger('assets/audio/sounds/sfx_combat_danger.wav'),
   combatVictory('assets/audio/sounds/sfx_combat_victory.wav'),
   combatDefeat('assets/audio/sounds/sfx_combat_defeat.wav'),
+  combatSpecialCast('assets/audio/sounds/sfx_combat_special_cast.wav'),
+  // One per FAMILY, because an alchemon's basic attack is its family's and
+  // the eight throw genuinely different things — see createFamilyBasicAttack.
+  basicMane('assets/audio/sounds/sfx_basic_mane.wav'),
+  basicLet('assets/audio/sounds/sfx_basic_let.wav'),
+  basicPip('assets/audio/sounds/sfx_basic_pip.wav'),
+  basicHorn('assets/audio/sounds/sfx_basic_horn.wav'),
+  basicMask('assets/audio/sounds/sfx_basic_mask.wav'),
+  basicWing('assets/audio/sounds/sfx_basic_wing.wav'),
+  basicKin('assets/audio/sounds/sfx_basic_kin.wav'),
+  basicMystic('assets/audio/sounds/sfx_basic_mystic.wav'),
   survivalWaveStart('assets/audio/sounds/sfx_survival_wave_start.wav'),
   survivalWaveClear('assets/audio/sounds/sfx_survival_wave_clear.wav'),
   survivalBossArrive('assets/audio/sounds/sfx_survival_boss_arrive.wav'),
@@ -102,6 +113,26 @@ enum SoundCue {
     return values.where((cue) => cue.name.toLowerCase() == key).firstOrNull;
   }
 
+  /// The auto-attack cue for a creature's family, or null for a family with
+  /// no authored basic (which falls back to the generic launch).
+  static SoundCue? forFamilyBasic(String family) {
+    final key = 'basic${family.toLowerCase()}';
+    return values.where((cue) => cue.name.toLowerCase() == key).firstOrNull;
+  }
+
+  /// The eight per-family auto-attacks, as a set — the mixer treats them as
+  /// one class for priority and throttling.
+  bool get isFamilyBasic => const {
+    SoundCue.basicMane,
+    SoundCue.basicLet,
+    SoundCue.basicPip,
+    SoundCue.basicHorn,
+    SoundCue.basicMask,
+    SoundCue.basicWing,
+    SoundCue.basicKin,
+    SoundCue.basicMystic,
+  }.contains(this);
+
   bool get hasVariants => const {
     SoundCue.combatProjectile,
     SoundCue.combatHitLight,
@@ -111,7 +142,7 @@ enum SoundCue {
     SoundCue.cosmicMatterCollect,
     SoundCue.dungeonStepStone,
     SoundCue.dungeonStepWater,
-  }.contains(this);
+  }.contains(this) || isFamilyBasic;
   String assetForVariant(int index) => hasVariants && index % 4 != 0
       ? asset.replaceFirst('.wav', '_0${index % 4}.wav')
       : asset;
@@ -138,6 +169,11 @@ enum SoundCue {
     SoundCue.cosmicOrbPickup ||
     SoundCue.dungeonStepStone ||
     SoundCue.dungeonStepWater => 0,
+    // THE SHOT IS DROPPABLE, THE HIT IS NOT. Auto-attacks are the most
+    // repeated sound in the game; when the mix runs out of voices these are
+    // the first to go, so a crowded fight thins itself down to its impacts
+    // rather than to a wall of launches.
+    _ when isFamilyBasic => 0,
     _ => 1,
   };
   int get cooldownMs => switch (this) {
@@ -156,6 +192,10 @@ enum SoundCue {
     SoundCue.cosmicMatterCollect => 80,
     SoundCue.dungeonStepStone || SoundCue.dungeonStepWater => 220,
     SoundCue.uiTap || SoundCue.uiSelect => 70,
+    // Per-cue, so two different families firing together are still two
+    // sounds — it is one family machine-gunning that gets thinned.
+    _ when isFamilyBasic => 110,
+    SoundCue.combatSpecialCast => 180,
     _ => 250,
   };
   double get gain => switch (this) {
@@ -167,6 +207,12 @@ enum SoundCue {
     // its job is to sit under the music rather than on top of it.
     SoundCue.cosmicMatterCollect => .30,
     SoundCue.uiTap || SoundCue.uiSelect || SoundCue.uiBack => .65,
+    // Under combatHitLight (.55) on purpose: the hit a shot causes should be
+    // louder than the shot (the brief's own rule for frequent launches).
+    _ when isFamilyBasic => .34,
+    // It layers beneath the caster's element cue, which plays at full gain
+    // and is the part that carries any colour.
+    SoundCue.combatSpecialCast => .55,
     _ => 1.0,
   };
 }

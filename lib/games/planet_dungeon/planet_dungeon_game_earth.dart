@@ -455,15 +455,20 @@ extension BuriedGiant on PlanetDungeonGame {
   bool _tryBarrowLintel(DungeonCreature a, DungeonRoom room) {
     if (room.id != 'barrow_gate') return false;
     if ((a.position - kBarrowLintel).distance > 46) return false;
+    // Both of these are REFUSALS and belong on the blocked channel (§5.6),
+    // not the plain one — a press that gets turned down is not the room
+    // telling you something. It was invisible while nothing depended on the
+    // distinction; now the cue does, and a refusal that called itself a
+    // statement got the success sound.
     if (entryDoorRevealed) {
-      _setHint('The lintel stands raised, the way within open');
+      _setBlockedHint('The lintel stands raised, the way within open');
       return true;
     }
     if (a.member.element != 'Earth') {
-      _setHint('Fallen stone bars the way, it answers earthen strength');
+      _setBlockedHint('Fallen stone bars the way, it answers earthen strength');
       return true;
     }
-    onSound?.call(SoundCue.dungeonGateOpen);
+    _cue(SoundCue.dungeonGateOpen);
     entryDoorRevealed = true;
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist
     final doorCenter = room.doors.isNotEmpty
@@ -555,7 +560,7 @@ extension BuriedGiant on PlanetDungeonGame {
           dur: _kRibSlideClean,
         );
       }
-      if (moved > 0) onSound?.call(SoundCue.dungeonBlockMove);
+      if (moved > 0) _cue(SoundCue.dungeonBlockMove);
       _spawnAlchemyBurst(
         _ribRect(rib).center,
         producedElement: 'Earth',
@@ -809,7 +814,7 @@ extension BuriedGiant on PlanetDungeonGame {
     // Open: the pillars come up out of the floor, watched.
     if (cryptRise < 1) cryptRise = min(1.0, cryptRise + dt * 0.9);
     if (pillarBared.length < room.fossilPillars.length) {
-      onSound?.call(SoundCue.dungeonBlockMove);
+      _cue(SoundCue.dungeonBlockMove);
       for (final p in room.fossilPillars) {
         pillarBared.add(p.id);
       }
@@ -928,7 +933,7 @@ extension BuriedGiant on PlanetDungeonGame {
           return true;
         }
         pillarSealed.add(id);
-        onSound?.call(SoundCue.elementCrystal);
+        _cue(SoundCue.elementCrystal);
         pillarLife.remove(id);
         _crystalGrow[id] = 0.0001;
         _spawnAlchemyBurst(

@@ -1613,7 +1613,7 @@ extension CinderCathedral on PlanetDungeonGame {
         return true;
       }
       litMuralTorches.add(i);
-      onSound?.call(SoundCue.elementFire);
+      _cue(SoundCue.elementFire);
       _spawnAlchemyBurst(
         room.muralTorches[i],
         producedElement: 'Fire',

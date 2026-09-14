@@ -60,4 +60,53 @@ void main() {
     expect(game.entryDoorRevealed, isFalse);
     expect(sounds, isNot(contains(SoundCue.dungeonGateOpen)));
   });
+
+  // THE INTERACT CUE IS A FALLBACK, NOT A GREETING.
+  //
+  // `dungeonInteract` used to be the FIRST line of activateAbility, before
+  // anything had decided whether the press meant something. So it played on
+  // a working press, on a refused one, and on a press into empty air — the
+  // audio said the same thing about all three, in every one of seventeen
+  // dungeons, which is the same as saying nothing while still being loud.
+  group('the press has to have done something to sound like it did', () {
+    test('a verb with its own cue does not also get the generic one', () {
+      final sounds = <SoundCue>[];
+      final game = atLintel('Earth', sounds);
+      game.activateAbility();
+      expect(sounds, contains(SoundCue.dungeonGateOpen));
+      expect(
+        sounds,
+        isNot(contains(SoundCue.dungeonInteract)),
+        reason: 'the lintel said something better; two cues for one press',
+      );
+    });
+
+    test('a refused press sounds refused, not successful', () {
+      final sounds = <SoundCue>[];
+      // Water at the Earth lintel: the stone answers earthen strength and
+      // turns the press down.
+      final game = atLintel('Water', sounds);
+      game.activateAbility();
+      expect(sounds, contains(SoundCue.uiDenied));
+      expect(
+        sounds,
+        isNot(contains(SoundCue.dungeonInteract)),
+        reason: 'a refusal must not sound like a success',
+      );
+    });
+
+    test('an open gate refusing a second press sounds refused', () {
+      final sounds = <SoundCue>[];
+      final game = atLintel('Earth', sounds);
+      game.activateAbility(); // opens it
+      sounds.clear();
+      game.activateAbility(); // already open — refused
+      expect(sounds, contains(SoundCue.uiDenied));
+      expect(
+        sounds,
+        isNot(contains(SoundCue.dungeonInteract)),
+        reason: 'a refusal must not sound like a success',
+      );
+    });
+  });
 }

@@ -1,6 +1,6 @@
 # Sound integration
 
-The app bundles all 83 one-shot cues and their 21 variations. Playback uses the
+The app bundles all 100 one-shot cues and their 48 variations. Playback uses the
 existing master/SFX switches. Music remains independently controlled.
 
 Six ambience loops are also connected, using a separate single-loop player.
@@ -20,9 +20,44 @@ Six ambience loops are also connected, using a separate single-loop player.
 - Survival: ship/companion projectile launches, enemy hits and defeats, ship/orb
   damage, wave starts/clears, wave-50 milestone, boss arrival, outbreaks,
   power-up selection, and game over.
-- Dungeons: interaction attempts, visible gate reveals, successful elemental
-  combat specials (all 17 elements), refused/cooling specials, direct enemy hits
-  and defeats, stars, discoveries, guardian arrival, player down, and raid victory.
+- Dungeons: visible gate reveals, successful elemental combat specials (all 17
+  elements), refused/cooling specials, direct enemy hits and defeats, stars,
+  discoveries, guardian arrival, player down, and raid victory.
+- **Auto-attacks, one cue per family** (`sfx_basic_<family>.wav`, eight of
+  them, three pitch variations each). An alchemon's basic attack is its
+  family's and the eight throw genuinely different things — mane's twin
+  slashes, pip's three darts, horn's one slow heavy shot — so each cue is
+  shaped like the projectile it belongs to. They are the most repeated sounds
+  in the game: quieter than every impact they cause (.34 against
+  combatHitLight's .55, because the hit should be louder than the shot),
+  throttled per-family at 110 ms so two families firing together are still two
+  sounds, and at priority 0 so a crowded fight thins down to its impacts
+  rather than to a wall of launches. Wired in both the dungeon and survival; a
+  kin's cue fires at the beam's RELEASE, not when the charge starts.
+- **`sfx_combat_special_cast.wav`** marks that a special — rather than a basic
+  — just went off. The element cue still carries the colour; this only makes
+  the distinction, at a little over half gain and with no flourish, because
+  survival played the same generic launch blip for a basic and a special and
+  the dungeon marked the difference with the element cue alone. It is emitted
+  at the cast, not in the projectile appender, because several ability
+  families (the world mystics, the kin supports) append no projectile at all.
+
+### The dungeon interact cue is a FALLBACK
+
+`dungeonInteract` used to be the first line of `activateAbility()` — before
+anything had decided whether the press meant anything. It played on a press
+that worked, on one a locked object refused, and on one aimed at empty air.
+Seventeen dungeons, and the audio said the same thing about all three.
+
+The dispatch now reports whether a verb took the press, and every dungeon cue
+goes through one funnel that counts itself, so the generic cue plays only when
+something consumed the press AND did not already say something better of its
+own. A refusal plays `uiDenied`. A press into nothing stays quiet — the
+wordless element puff is already the answer to that one.
+
+This also means a refusal has to be ON the blocked channel to sound like one,
+which caught the barrow lintel answering two refusals (*already open*, *it
+answers earthen strength*) on the plain hint channel.
 - Capture: device launch, containment attempt, escape, and success. Success plays
   after the captured specimen is stored; attempt audio is cancelled if the
   encounter closes. The success tone can finish across that closing transition.

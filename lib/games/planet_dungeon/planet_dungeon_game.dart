@@ -374,6 +374,20 @@ class PlanetDungeonGame extends FlameGame {
   final List<CosmicPartyMember> party;
   final int initialStarMask;
   final void Function(SoundCue cue)? onSound;
+
+  /// How many cues this run has emitted. Only ever compared against itself:
+  /// `activateAbility` snapshots it, dispatches, and uses the difference to
+  /// tell whether the verb that took the press already said something —
+  /// which is how the generic interact cue became a FALLBACK rather than an
+  /// unconditional chirp at the top of every press.
+  int _cuesEmitted = 0;
+
+  /// Every dungeon sound goes through here. One funnel, so the count above
+  /// cannot drift from what was actually played.
+  void _cue(SoundCue cue) {
+    _cuesEmitted++;
+    onSound?.call(cue);
+  }
   final void Function(int starIndex) onStarEarned;
   final void Function(String cloudId)? onCloudDiscovered;
 
@@ -1257,7 +1271,7 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _reviveCreature(DungeonCreature c) {
-    onSound?.call(SoundCue.dungeonCheckpoint);
+    _cue(SoundCue.dungeonCheckpoint);
     c.respawnTimer = 0;
     c.downHandled = false;
     c.hp = c.maxHp;
@@ -2322,7 +2336,7 @@ class PlanetDungeonGame extends FlameGame {
       return;
     }
     if (conduitEnergy[id] != double.infinity) {
-      onSound?.call(SoundCue.dungeonSwitch);
+      _cue(SoundCue.dungeonSwitch);
     }
     conduitEnergy[id] = double.infinity;
     _conduitMaxEnergy[id] = double.infinity;
@@ -2331,7 +2345,7 @@ class PlanetDungeonGame extends FlameGame {
   void _queueDoorReveal(String roomId, String targetRoomId) {
     final room = layout.rooms[roomId];
     if (room == null) return;
-    if (roomId == currentRoomId) onSound?.call(SoundCue.dungeonGateOpen);
+    if (roomId == currentRoomId) _cue(SoundCue.dungeonGateOpen);
     for (final d in room.doors) {
       if (d.targetRoomId == targetRoomId) {
         _doorRevealFx.add(
@@ -2429,10 +2443,16 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
+  /// Set whenever a verb refuses a press. Read and cleared by
+  /// `activateAbility`, so a refusal can SOUND like one.
+  bool _refusedThisPress = false;
+
   /// A refused attempt that is inherently edge-triggered (a button press, a
   /// one-shot interaction) — the input already happened once, so it speaks.
-  bool _setBlockedHint(String msg, [double ttl = 3.0]) =>
-      _emitHint(msg, DungeonHintChannel.blocked, ttl);
+  bool _setBlockedHint(String msg, [double ttl = 3.0]) {
+    _refusedThisPress = true;
+    return _emitHint(msg, DungeonHintChannel.blocked, ttl);
+  }
 
   /// A refused attempt driven by a CONTINUOUS condition (standing against a
   /// sealed door, overlapping a gate every frame). [key] identifies the
@@ -2800,7 +2820,7 @@ class PlanetDungeonGame extends FlameGame {
     if (relicFx != null) {
       relicFx.t += dt;
       if (relicFx.done) {
-        onSound?.call(SoundCue.dungeonRelicCollect);
+        _cue(SoundCue.dungeonRelicCollect);
         _relicFx = null;
       }
     }
@@ -2876,7 +2896,7 @@ class PlanetDungeonGame extends FlameGame {
               room.tideZones.any(
                 (z) => _zoneFlooded(z) && z.rect.contains(a.position),
               );
-          onSound?.call(
+          _cue(
             wet ? SoundCue.dungeonStepWater : SoundCue.dungeonStepStone,
           );
         }
@@ -3731,7 +3751,7 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _crackAnvilShell(HiddenCloud sealed, {required bool viaRecipe}) {
-    if (!_anvilShellStruck) onSound?.call(SoundCue.dungeonWallBreak);
+    if (!_anvilShellStruck) _cue(SoundCue.dungeonWallBreak);
     _anvilShellStruck = true;
     _setHint(
       viaRecipe
@@ -4448,7 +4468,7 @@ class PlanetDungeonGame extends FlameGame {
   void _detonateLetSkyfall(Projectile p) {
     final centre = p.skyfallImpact;
     final blast = letSkyfallBlastRadius(p);
-    onSound?.call(SoundCue.combatHitHeavy);
+    _cue(SoundCue.combatHitHeavy);
     pushLetSkyfallImpact(
       _letSkyfallImpacts,
       LetSkyfallImpact(
@@ -5646,6 +5666,12 @@ class PlanetDungeonGame extends FlameGame {
       projectile.sourceSlotIndex = comp.slotIndex;
     }
     combatProjectiles.addAll(basics);
+    // An alchemon's basic attack is its FAMILY's, and the eight families
+    // throw genuinely different things — twin slashes, three darts, one slow
+    // heavy shot. The dungeon made no sound at all for any of them.
+    _cue(
+      SoundCue.forFamilyBasic(comp.member.family) ?? SoundCue.combatProjectile,
+    );
     if (comp.member.family.toLowerCase() == 'pip' &&
         comp.member.element == 'Earth') {
       comp.specialCooldown = max(0, comp.specialCooldown - 0.4);
@@ -5784,19 +5810,26 @@ class PlanetDungeonGame extends FlameGame {
     // permanently-passive button; a cooling one as its ring plus a refusal
     // pulse. Neither evicts the room's line.
     if (isPassiveOnlyCosmicAbility(comp.member.family, comp.member.element)) {
-      onSound?.call(SoundCue.uiDenied);
+      _cue(SoundCue.uiDenied);
       abilityDeniedFlash = _deniedFlashSeconds;
       onChanged();
       return false;
     }
     if (comp.specialCooldown > 0) {
-      onSound?.call(SoundCue.uiDenied);
+      _cue(SoundCue.uiDenied);
       abilityDeniedFlash = _deniedFlashSeconds;
       onChanged();
       return false;
     }
+    // TWO CUES, AND THEY SAY DIFFERENT THINGS. The element cue carries the
+    // colour — which element just went off — and has always played here. The
+    // cast cue says only that it was a SPECIAL rather than a basic, which is
+    // the distinction a player needs and the one nothing was making. It is
+    // deliberately plain and sits under the element at a little over half
+    // gain; it is not a reward sting.
     final elementSound = SoundCue.forElement(comp.member.element);
-    if (elementSound != null) onSound?.call(elementSound);
+    if (elementSound != null) _cue(elementSound);
+    _cue(SoundCue.combatSpecialCast);
     // Specials auto-target the nearest enemy anywhere in the room; the
     // fallback aim point is only for genuinely empty rooms.
     final target = _nearestCombatEnemy(
@@ -6258,6 +6291,9 @@ class PlanetDungeonGame extends FlameGame {
       comp.kinAutoChargeEnemy = null;
       comp.basicCooldown = comp.effectiveBasicCooldown;
       if (dist < 0.01) continue;
+      // A kin's basic is a charged beam, so its cue belongs HERE — at the
+      // release — and not back where the charge was started.
+      _cue(SoundCue.basicKin);
       final norm = dir / dist;
       final beamLength = (dist + 60.0).clamp(120.0, 720.0).toDouble();
       final beamEnd = creature.position + norm * beamLength;
@@ -6981,7 +7017,7 @@ class PlanetDungeonGame extends FlameGame {
     bool fromPipSpecial = false,
   }) {
     if (enemy.isDead || amount <= 0) return;
-    onSound?.call(SoundCue.combatHitLight);
+    _cue(SoundCue.combatHitLight);
     final dealt = amount * _enemyDamageTakenScale(enemy);
     enemy.hp -= dealt;
     enemy.hitFlash = max(enemy.hitFlash, 0.14);
@@ -7029,7 +7065,7 @@ class PlanetDungeonGame extends FlameGame {
     int? sourceSlot, {
     bool fromPipSpecial = false,
   }) {
-    onSound?.call(SoundCue.combatEnemyDefeat);
+    _cue(SoundCue.combatEnemyDefeat);
     if (sourceSlot == null) return;
     final idx = combatCompanions.indexWhere((c) => c.slotIndex == sourceSlot);
     final companion = idx >= 0 ? combatCompanions[idx] : null;
@@ -8077,16 +8113,45 @@ class PlanetDungeonGame extends FlameGame {
 
   // ── Utility activation ──────────────────────────────────
 
+  /// A press of the utility button.
+  ///
+  /// THE SOUND USED TO FIRE BEFORE THE DECISION. `dungeonInteract` played
+  /// unconditionally at the top of this method — on a press that worked, on
+  /// one a locked object refused, and on one with nothing in reach at all.
+  /// Seventeen dungeons' worth of verbs, and the audio said the same thing
+  /// about every one of them, including the ones that did nothing. So it
+  /// taught the player nothing and it fired constantly.
+  ///
+  /// Now the dispatch reports whether anything took the press, and the
+  /// generic cue is the FALLBACK — played only when a verb consumed it and
+  /// that verb did not already say something better of its own. A planet
+  /// with an authored cue keeps it; the nine silent planets get feedback for
+  /// the first time; and a press into empty air stays quiet, which is what
+  /// the wordless element puff is already there to answer.
   void activateAbility() {
     final a = active;
     if (a == null) return;
-    onSound?.call(SoundCue.dungeonInteract);
+    final before = _cuesEmitted;
+    _refusedThisPress = false;
+    final took = _dispatchAbility(a);
+    if (took && _cuesEmitted == before) {
+      // A REFUSAL SOUNDS LIKE ONE. A locked object consumes the press and
+      // says why in the capsule; it used to get the same cue as a press that
+      // worked, which is the audio contradicting the words on screen.
+      _cue(_refusedThisPress ? SoundCue.uiDenied : SoundCue.dungeonInteract);
+    }
+    _refusedThisPress = false;
+  }
+
+  /// Runs the press through every verb this planet has. True when one of
+  /// them took it.
+  bool _dispatchAbility(DungeonCreature a) {
     _spawnUtilitySignature(a);
     // Object-driven interactions first, so any creature near a conduit can
     // attempt it — the object itself decides whether it answers.
     if (_tryChannel(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Wind-Crown Spire: wake a gust shrine (Star 1), crank a storm-rod or
     // shove the storm-cell (Star 3 and the Roc's own fight). The rods sit
@@ -8094,27 +8159,27 @@ class PlanetDungeonGame extends FlameGame {
     // they are checked BEFORE the guardian's catch.
     if (_isSpire && (_tryGustShrine(a) || _tryStormRod(a) || _tryHerdCell(a))) {
       onChanged();
-      return;
+      return true;
     }
     // Storm Circuit: the grounding spike outranks the guardian's own catch —
     // the spike IS the fight's verb (§7: Raikuma feeds on powered trunks),
     // and it sits inside the guardian's interaction radius.
     if (_isCircuit && _tryCoreBreaker(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Molten Reliquary: the ring's heads outrank the guardian's own catch —
     // they sit inside its radius and they ARE the fight's verb (§7).
     if (_isFoundry && _tryHeartHead(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Venom Monastery: a phial in hand outranks the guardian's own catch —
     // the dose IS the fight's verb (§7: Blightfang's lull answers physic, not
     // a clock). Empty-handed this declines and the strike path runs.
     if (_isVenom && _tryDoseBlightfang(a)) {
       onChanged();
-      return;
+      return true;
     }
     // The Frozen Observatory: freezing a flue, the rimefall, the orrery's
     // glaze/shove, the mirror ring, the font and Frowyrm's pillar all ride
@@ -8122,21 +8187,21 @@ class PlanetDungeonGame extends FlameGame {
     // the guardian's own catch.
     if (_isShaft && _tryShaftVerb(a)) {
       onChanged();
-      return;
+      return true;
     }
     // The Sinking Altar: the drag, the haul, the basins, the sough, the
     // sink-pit and Bogdrya's mire anchor all ride one dispatcher — and the
     // anchor, like Ice's pillar, must outrank the guardian's own catch.
     if (_isBog && _tryBogVerb(a)) {
       onChanged();
-      return;
+      return true;
     }
     // The Ruins of Time: the spade, the vanes, the yard, the armillary, the
     // glass and Ashdjinn's cut all ride one dispatcher — and the cut, like
     // Lightning's spike, must outrank the guardian's own catch.
     if (_isRuins && _tryRuinsVerb(a)) {
       onChanged();
-      return;
+      return true;
     }
     // The Prism Labyrinth: the glass face, the lamp, the hearth shard, the
     // font, the berth chain, the anneal, the choir floor and the shunt itself
@@ -8144,7 +8209,7 @@ class PlanetDungeonGame extends FlameGame {
     // outrank the guardian's own catch.
     if (_isKeep && _tryKeepVerb(a)) {
       onChanged();
-      return;
+      return true;
     }
     // The Echo Grave: the mouth, the lych-stones, the telling, the drowned
     // brink, the sigil, the lamp and the hollow's mark all ride one
@@ -8152,7 +8217,7 @@ class PlanetDungeonGame extends FlameGame {
     // guardian's own catch, because passing over IS the fight.
     if (_isWake && _tryGraveVerb(a)) {
       onChanged();
-      return;
+      return true;
     }
     // The Verdant Crypt: the briar, the galls, the mulch pits, the lamps, the
     // growth altar, the sepulchre, the hidden seed and the seed beds all ride
@@ -8160,7 +8225,7 @@ class PlanetDungeonGame extends FlameGame {
     // outrank the guardian's own catch.
     if (_isCrypt && _tryCryptVerb(a)) {
       onChanged();
-      return;
+      return true;
     }
     // The Eclipse Vault: the pall, the gnomons, the arena's vane, the
     // analemma's stones, the shadow-anchors and the nave's snuffer all ride
@@ -8168,14 +8233,14 @@ class PlanetDungeonGame extends FlameGame {
     // guardian's own catch.
     if (_isVault && _tryVaultVerb(a)) {
       onChanged();
-      return;
+      return true;
     }
     // The Beacon Archive: the door-shutter, the beacons, the court's effigies,
     // the slips behind the shelves and the reading floor's shutter-ring all
     // ride one dispatcher.
     if (_isArchive && _tryArchiveVerb(a)) {
       onChanged();
-      return;
+      return true;
     }
     // The Sanguine Orrery: the pericardium, the arena's vagal node, the four
     // mouths, the collateral cocks, the rite's balance, the heart-drum and
@@ -8183,89 +8248,89 @@ class PlanetDungeonGame extends FlameGame {
     // Dark's shadow-vane, must outrank the guardian's own catch.
     if (_isHeart && _tryHeartVerb(a)) {
       onChanged();
-      return;
+      return true;
     }
     // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
     if (_tryGuardian(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Cinder Cathedral interactions (hearth, braziers, garden, vesper).
     if (_tryCathedral(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Mirror-Tide Temple interactions (fountain, valves, seals, currents,
     // moon-pools, the frozen moon).
     if (_tryTemple(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Buried Giant interactions (lintel, ribs, sockets, the stone scale,
     // the open palm).
     if (_tryBarrow(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Storm Circuit interactions (charge pylons, rotate conductor mirrors,
     // herd/heat storm-cells, the breaker maze, the Thunderbolt egg).
     if (_tryCircuit(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Fire Star 2: the garth's three verbs answer before anything else in
     // the cathedral — the room IS the burn now.
     if (_tryBurn(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Steam Star 1: Earth's stone is the room's own verb, so it answers
     // before the ring-main's fixtures.
     if (_tryEarthRock(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Pressure Cathedral interactions (vents/seals steer the clock, boiler
     // pack+ignite, the escapement, the entry vent).
     if (_tryPressure(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Molten Reliquary interactions (the crucible and its font, the points,
     // the accumulator, a hand chill, melting a casting out, keys and wards).
     if (_tryFoundry(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Venom Monastery interactions (the wax seals, the still's four taps, a
     // ward's censer, the prior's cross, the oubliette, the sick wisp).
     if (_tryMonastery(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Wonder-cloud trials (ring conjunction, anvil shell, veil pinning) —
     // checked before the generic Fire ignite so trial-specific recipe uses
     // (Fire arcing the anvil shell) win over the flavour spark.
     if (_tryWonderTrial(a)) {
       onChanged();
-      return;
+      return true;
     }
     // THE FOUR WINDS — Air's lost maxim, worked at the hub's rune pillars.
     // Wordless; the pillars answer every press themselves.
     if (_tryFourWinds(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Fire-element contextual ignition (the Air+Fire→Lightning recipe).
     if (a.member.element == 'Fire' && _tryFireIgnite(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Lightning answers its own: everything the braid electrifies, the
     // storm-born arc directly (entry rune, conduit B, a carried Anvil).
     if (a.member.element == 'Lightning' && _tryLightningArc(a)) {
       onChanged();
-      return;
+      return true;
     }
     // Otherwise fall back to the creature's family ability.
     // Nothing here TALKS any more. A press with no object in reach used to
@@ -8297,6 +8362,7 @@ class PlanetDungeonGame extends FlameGame {
         break;
     }
     onChanged();
+    return false;
   }
 
   void _toggleGlide(DungeonCreature a) {
@@ -9221,7 +9287,7 @@ class PlanetDungeonGame extends FlameGame {
   void _checkHazards(DungeonCreature a, double dt) {
     final inHazard = currentRoom.hazards.any((h) => h.contains(a.position));
     if (inHazard && !_soundInHazard) {
-      onSound?.call(SoundCue.dungeonHazardTrigger);
+      _cue(SoundCue.dungeonHazardTrigger);
     }
     _soundInHazard = inHazard;
     for (final h in currentRoom.hazards) {
@@ -9384,7 +9450,7 @@ class PlanetDungeonGame extends FlameGame {
   void earnStar(int starIndex) {
     if (starIndex < 0 || starIndex > 2) return;
     if (_earnedStars.contains(starIndex)) return;
-    if (starIndex < 2 && !isRaid) onSound?.call(SoundCue.dungeonPuzzleSolved);
+    if (starIndex < 2 && !isRaid) _cue(SoundCue.dungeonPuzzleSolved);
     _earnedStars.add(starIndex);
     starMask |= (1 << starIndex);
     lastStarEarnPosition = active?.position ?? currentRoom.bounds.center;

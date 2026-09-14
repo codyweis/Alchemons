@@ -767,7 +767,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       bog.smear = _kSmearSeconds;
       bog.smearAt = cuts[i];
       bog.smearLost = const [];
-      onSound?.call(SoundCue.dungeonSwitch);
+      _cue(SoundCue.dungeonSwitch);
       _spawnAlchemyBurst(cuts[i], producedElement: 'Mud',
           reagentElements: const ['Water'], particleCount: 22, intensity: 1.0);
       if (bog.poured.length == cuts.length) {

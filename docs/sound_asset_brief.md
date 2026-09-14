@@ -70,6 +70,30 @@ The first five rows already have cue definitions and calls in the app. Their gen
 | P1 | `sfx_combat_danger.wav` | 0.30–0.60 s | Readable incoming attack warning |
 | P1 | `sfx_combat_victory.wav` | 2.00–3.50 s | Short triumphant cosmic flourish |
 | P1 | `sfx_combat_defeat.wav` | 1.50–2.50 s | Gentle descending unresolved chord |
+| P1 | `sfx_combat_special_cast.wav` | 0.30–0.50 s | Quiet mechanism releasing; a special has gone off. Layers UNDER the element cue, which says which element it was — so it carries no colour of its own and no flourish |
+
+### Alchemon auto-attacks, one per family
+
+Every alchemon's basic attack is its FAMILY's, and the eight families throw
+genuinely different things — twin slashes, three darts, one slow heavy shot.
+One generic launch blip for all of them says nothing, which is what the whole
+roster shared before. Each cue is shaped like the projectile it belongs to.
+
+These are the most-repeated sounds in the game: a run fires thousands. They are
+deliberately quieter than every impact they cause, short, and first to be
+dropped when the mixer runs out of voices — the hit should be louder than the
+shot. Three pitch variations each.
+
+| Priority | Filename | Length | Sound / use |
+|---|---|---|---|
+| P1 | `sfx_basic_mane.wav` | 0.10–0.25 s | Twin airy swipes, the second close behind the first |
+| P1 | `sfx_basic_let.wav` | 0.15–0.30 s | One slow heavy lob with low body |
+| P1 | `sfx_basic_pip.wav` | 0.10–0.22 s | Three tiny high ticks in quick succession |
+| P1 | `sfx_basic_horn.wav` | 0.15–0.30 s | One low shove of air; weight without a bang |
+| P1 | `sfx_basic_mask.wav` | 0.10–0.22 s | A thin focused zip that pierces rather than hits |
+| P1 | `sfx_basic_wing.wav` | 0.10–0.22 s | Two soft high blips, light and fast |
+| P1 | `sfx_basic_kin.wav` | 0.15–0.30 s | A small charge gathering, then letting go |
+| P1 | `sfx_basic_mystic.wav` | 0.10–0.25 s | Three soft mid blips, gentler than a pip's darts |
 
 Keep frequent launch/hit sounds understated. Throttle overlapping hits and pickups; prioritize player damage, danger warnings, and major events. Do not sound every projectile in a crowded wave.
 
