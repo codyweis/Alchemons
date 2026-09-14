@@ -9219,6 +9219,10 @@ class PlanetDungeonGame extends FlameGame {
   /// and nothing else ever reads them back.
   String? roomObjectiveLine(String roomId) => _roomObjectiveHint(roomId);
 
+  /// Test seam for the objective-line audit.
+  @visibleForTesting
+  String? debugObjectiveHint(String roomId) => _roomObjectiveHint(roomId);
+
   String? _roomObjectiveHint(String roomId) {
     final room = layout.rooms[roomId];
     if (room == null || _roomCleared(room)) return null;

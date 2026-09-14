@@ -1460,6 +1460,59 @@ void main() {
       }
     });
 
+    test('NO WALL ANYWHERE CARRIES TWO DOORWAYS THAT READ AS ONE', () {
+      // Lightning's rule, promoted to all seventeen. It began as a hub-only
+      // check after a locked endgame door and a treasury sat ten pixels apart
+      // on the same wall; Mud then failed it in four rooms, worst of all a
+      // ford and the plank road 85px apart on the same wall with completely
+      // different behaviour. A doorway you cannot pick out is a doorway you
+      // take by accident.
+      //
+      // IDENTICAL rects are exempt and deliberate: Ice's flue mouth carries
+      // two doors at exactly the same place, of which the module keeps
+      // exactly one live, so the lip reads as ONE hole that behaves
+      // differently depending on its snow. That is the opposite of the fault
+      // — it is one opening, drawn as one opening.
+      final tooClose = <String>[];
+      for (final element in kPlanetDungeonLayouts.keys) {
+        final l = kPlanetDungeonLayouts[element]!;
+        for (final room in l.rooms.values) {
+          String? wall(Rect d) {
+            if (d.left <= 1) return 'W';
+            if (d.right >= room.bounds.right - 1) return 'E';
+            if (d.top <= 1) return 'N';
+            if (d.bottom >= room.bounds.bottom - 1) return 'S';
+            return null; // a floor hatch is not a wall door
+          }
+
+          final byWall = <String, List<DungeonDoor>>{};
+          for (final d in room.doors) {
+            final w = wall(d.rect);
+            if (w != null) byWall.putIfAbsent(w, () => []).add(d);
+          }
+          byWall.forEach((w, ds) {
+            for (var i = 0; i < ds.length; i++) {
+              for (var j = i + 1; j < ds.length; j++) {
+                final a = ds[i].rect;
+                final b = ds[j].rect;
+                if (a == b) continue; // one mouth, two behaviours
+                final gap = (w == 'W' || w == 'E')
+                    ? (a.top < b.top ? b.top - a.bottom : a.top - b.bottom)
+                    : (a.left < b.left ? b.left - a.right : a.left - b.right);
+                if (gap < 90) {
+                  tooClose.add(
+                    '$element ${room.id} wall $w: ${ds[i].targetRoomId} and '
+                    '${ds[j].targetRoomId} are ${gap.round()}px apart',
+                  );
+                }
+              }
+            }
+          });
+        }
+      }
+      expect(tooClose, isEmpty, reason: tooClose.join('\n'));
+    });
+
     test('Mud: the fen reads — no wall carries two crossings that look like '
         'one opening', () {
       // Lightning's rule, applied to the planet that needs it most. The mire
