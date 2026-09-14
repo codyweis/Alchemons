@@ -32,7 +32,9 @@
 //  • Vault — THE HOLLOW GRAVE, behind a door the living wall does not have,
 //    marked only by a name-slot in the mere's living floor.
 //  • Lost Maxim — STUFF OF DREAMS: set the mark on your own position, in the
-//    unmarked grave, with all three bodies standing in it.
+//    UNDUG GRAVE at the far end of the mourners' walk: drawn off by Water,
+//    lit by Crystal, and three Spirit tellings — one name per body, because
+//    the slot was never cut and there is no name there to tell but your own.
 //
 // NO VALVE, AND WHY (the design's one real danger). Death as a puzzle verb is
 // a stranding machine, and the four mutable-world planets before this one all
@@ -106,6 +108,13 @@ class EchoGrave3D {
   /// The beat-edge the mystic's strike is detected on.
   bool bitLastFrame = false;
 
+  /// THE UNDUG GRAVE — the Lost Maxim. Drawn off, lit, and the names told
+  /// into it (by party slot, so three different bodies are required and one
+  /// creature cannot say the same name three times).
+  bool undugDrawn = false;
+  bool undugLit = false;
+  final Set<int> namesTold = {};
+
   /// THE FIELD, LAID OUT ONCE. A grave-field is grave-cuts, kerbs, fallen
   /// markers and tussocks, none of it on a grid and none of it moving. Built
   /// per room and kept; only the cold light on it changes.
@@ -118,6 +127,9 @@ class EchoGrave3D {
     wraithWorld = GraveWorld.ghost;
     wraithCross = 0;
     bitLastFrame = false;
+    undugDrawn = false;
+    undugLit = false;
+    namesTold.clear();
   }
 }
 
@@ -266,7 +278,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         _tryWraithStone(a) ||
         _tryTelling(a) ||
         _tryDrownedBrink(a) ||
-        _tryHollowMark(a) ||
+        _tryUndugGrave(a) ||
         _tryGraveSigil(a) ||
         _tryGraveLamp(a) ||
         _tryLychStone(a);
@@ -542,7 +554,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   /// Wraithord's own stone. In its grave the lych-stone outranks every other
   /// verb, because passing over IS the fight: the mystic is only ever solid in
   /// one world, and matching it is the only way to open a lull. It also holds
-  /// the Lost Maxim's cousin verb — see [_tryHollowMark].
+  /// the Lost Maxim lives at the far end of the mourners' walk now, not here.
   bool _tryWraithStone(DungeonCreature a) {
     final pos = currentRoom.grave?.wraithStone;
     if (pos == null) return false;
@@ -555,28 +567,110 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     return true;
   }
 
-  /// THE HOLLOW GRAVE'S MARK — the Lost Maxim (§6 easter eggs #14). The one
-  /// grave in Requia with no name-slot cut in it is the one you can put your
-  /// own in. All three bodies, in it, as the dead. Wordless: nothing on the
-  /// planet hints at it.
-  bool _tryHollowMark(DungeonCreature a) {
-    if (currentRoom.vaultCache == null) return false;
+  /// THE LOST MAXIM — STUFF OF DREAMS, and it is THE UNDUG GRAVE.
+  ///
+  /// What it was: stand all three bodies anywhere inside the vault room in
+  /// the cold world and press. One press, one condition, no chain, no braid,
+  /// no repeated beat — and its "place" was the vault's own room, so the
+  /// secret and the treasure diluted each other. §7's table graded it ⬜
+  /// *"one press"*, which was right.
+  ///
+  /// What it is: **the seventh funeral, and it is yours.**
+  ///
+  /// Six dead are heard out on this planet and pass on. At the far end of the
+  /// mourners' walk, down 260px of spur no door uses, is a grave somebody
+  /// scored out and never dug. In the living world it is bare marked ground.
+  /// In the cold one it is open, standing full of black water, with nothing
+  /// beside it and — this is the point — NO NAME CUT ANYWHERE ON IT, so the
+  /// telling that finishes all six cannot finish this one.
+  ///
+  ///  1. BE DEAD. The spur is only a grave in the cold world; warm, there is
+  ///     nothing there to work. Nothing is pressed for this beat.
+  ///  2. WATER draws the black water off — the same job it does at the gate
+  ///     arch to open the planet.
+  ///  3. CRYSTAL sets a grave-lamp at its head, exactly as the rite's own
+  ///     lamp is set, and the light shows the slot is uncut.
+  ///  4. SPIRIT, THREE TIMES, ONE BODY EACH — the repeated beat. You cannot
+  ///     tell a name that was never cut, so each of the three tells its OWN
+  ///     into the grave instead. Slot-tracked, so it is three bodies and not
+  ///     one body three times.
+  ///  5. The third name lands and the field takes all three.
+  ///
+  /// Wordless past the HINT button's one line. Nothing is consumed: a wrong
+  /// hand gets a burst and a sentence, and dying resets the run's state along
+  /// with everything else, never the secret alone.
+  bool _tryUndugGrave(DungeonCreature a) {
+    final pos = currentRoom.grave?.undugGrave;
+    if (pos == null) return false;
     if (discoveredClouds.contains(kSpiritStuffOfDreamsEgg)) return false;
+    if ((a.position - pos).distance > _kGraveReach) return false;
+    // Warm, there is nothing here but scored turf.
     if (!_field.isGhost) return false;
-    final live = creatures.where((c) => c.alive).toList();
-    if (live.length < 3) return false;
-    for (final c in live) {
-      if (!currentRoom.bounds.contains(c.position)) return false;
+    final e = a.member.element;
+
+    if (!wake.undugDrawn) {
+      if (e != 'Water') {
+        _spawnAlchemyBurst(pos, producedElement: e, particleCount: 8,
+            intensity: 0.5);
+        _setBlockedHint('Black water, standing in a hole nobody finished');
+        return true;
+      }
+      wake.undugDrawn = true;
+      _spawnAlchemyBurst(pos, producedElement: 'Water', particleCount: 22,
+          intensity: 0.9);
+      return true;
     }
-    // THE RITE OF THREE pays this out (see `beginMaximRite`).
-    beginMaximRite(kSpiritStuffOfDreamsEgg, a.position);
-    _spawnAlchemyBurst(
-      a.position,
-      producedElement: 'Spirit',
-      reagentElements: const ['Water', 'Crystal'],
-      particleCount: 42,
-      intensity: 1.5,
-    );
+    if (!wake.undugLit) {
+      if (e != 'Crystal') {
+        _spawnAlchemyBurst(pos, producedElement: e, particleCount: 8,
+            intensity: 0.5);
+        _setBlockedHint('It is too dark in there to read anything');
+        return true;
+      }
+      wake.undugLit = true;
+      _spawnAlchemyBurst(pos, producedElement: 'Crystal', particleCount: 22,
+          intensity: 0.9);
+      return true;
+    }
+    if (e != 'Spirit') {
+      _spawnAlchemyBurst(pos, producedElement: e, particleCount: 8,
+          intensity: 0.5);
+      _setBlockedHint('The slot is uncut, there is no name here to tell');
+      return true;
+    }
+    // THREE NAMES, ONE PER BODY — but the TELLING is Spirit's verb, as it is
+    // for all six of the dead, so the Spirit hand speaks each of them in
+    // turn. Demanding three Spirit hands instead would put this secret
+    // outside the ideal trio (Spirit · Water · Crystal, one Spirit), and §4
+    // guarantees that trio the planet; a maxim may ask for more thought, but
+    // never for a party the dungeon told you not to bring.
+    final here = [
+      for (final c in creatures)
+        if (c.alive && (c.position - pos).distance <= _kGraveReach * 2.2) c,
+    ];
+    if (here.length < 3) {
+      _setBlockedHint('A name apiece, and there are not three of you here');
+      return true;
+    }
+    final next = here
+        .map((c) => c.member.slotIndex)
+        .firstWhere((i) => !wake.namesTold.contains(i), orElse: () => -1);
+    if (next < 0) return false;
+    wake.namesTold.add(next);
+    _spawnAlchemyBurst(pos, producedElement: 'Spirit', particleCount: 26,
+        intensity: 1.0);
+    onSound?.call(SoundCue.dungeonSwitch);
+    if (wake.namesTold.length >= 3) {
+      // THE RITE OF THREE pays this out (see `beginMaximRite`).
+      beginMaximRite(kSpiritStuffOfDreamsEgg, pos);
+      _spawnAlchemyBurst(
+        pos,
+        producedElement: 'Spirit',
+        reagentElements: const ['Water', 'Crystal'],
+        particleCount: 42,
+        intensity: 1.5,
+      );
+    }
     return true;
   }
 
@@ -683,6 +777,21 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   void _graveReveal(DungeonCreature a, DungeonRoom room) {
     final tier = revealHintTier(a.member.statIntelligence);
     final f = _field;
+    // THE UNDUG GRAVE'S ONE OBLIQUE LINE (§7 rule 5) — the only thing in the
+    // game that speaks about this secret at all. It does not tier and it
+    // does not track progress; it points at the idea and stops. Everything
+    // after it is legible from the blank stone standing there.
+    final undug = room.grave?.undugGrave;
+    if (undug != null &&
+        (a.position - undug).distance < 150 &&
+        !discoveredClouds.contains(kSpiritStuffOfDreamsEgg)) {
+      _setHint(
+        'Six were buried here and told. This one was never cut a name, so '
+        'nobody can tell it but the one it was dug for.',
+        4.4,
+      );
+      return;
+    }
     if (room.guardian != null) {
       _setInsightHint(switch (tier) {
         0 => 'It is never quite in the room with you',
@@ -1119,6 +1228,118 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     if (!_field.sigilStamped) _renderFieldArc(canvas, room);
   }
 
+  /// THE UNDUG GRAVE — the Lost Maxim's place, and it has to look like
+  /// somewhere nobody finished rather than like a puzzle.
+  ///
+  /// Warm: four scoring marks in the turf where a grave was set out, and
+  /// nothing else. Cold: the same outline, open, standing full of black
+  /// water until Water draws it off — and with an UNCUT HEADSTONE, blank
+  /// where every other marker in the field carries a name. That blank is the
+  /// whole secret stated in one object: the telling that finishes all six of
+  /// the dead has nothing here to work on.
+  void _renderUndugGrave(Canvas canvas, Offset at, bool ghost) {
+    final cut = Rect.fromCenter(center: at, width: 86, height: 40);
+    if (!ghost) {
+      // Scored out and abandoned: four corner marks, no grave.
+      for (var i = 0; i < 4; i++) {
+        final c = [
+          cut.topLeft,
+          cut.topRight,
+          cut.bottomRight,
+          cut.bottomLeft,
+        ][i];
+        final dx = i == 0 || i == 3 ? 13.0 : -13.0;
+        final dy = i < 2 ? 13.0 : -13.0;
+        canvas.drawLine(
+          c,
+          c.translate(dx, 0),
+          Paint()
+            ..strokeWidth = 1.6
+            ..color = _graveStone.withValues(alpha: 0.35),
+        );
+        canvas.drawLine(
+          c,
+          c.translate(0, dy),
+          Paint()
+            ..strokeWidth = 1.6
+            ..color = _graveStone.withValues(alpha: 0.35),
+        );
+      }
+      return;
+    }
+    // Open, and deeper than the others.
+    canvas.drawRect(cut, Paint()..color = _graveCut.withValues(alpha: 0.9));
+    canvas.drawRect(
+      cut,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = _graveCold.withValues(alpha: 0.6),
+    );
+    if (!wake.undugDrawn) {
+      // Black water, with the cold barely moving on it.
+      final sheen = sin(wake.clock * 0.6) * 3;
+      canvas.drawRect(
+        cut.deflate(4),
+        Paint()..color = const Color(0xFF0A1418).withValues(alpha: 0.92),
+      );
+      canvas.drawLine(
+        Offset(cut.left + 12, at.dy + sheen),
+        Offset(cut.right - 14, at.dy + sheen - 1),
+        Paint()
+          ..strokeWidth = 1.2
+          ..color = _graveCold.withValues(alpha: 0.22),
+      );
+    }
+    // THE UNCUT HEADSTONE. Every other marker in this field carries a name;
+    // this one is blank, and that is the secret said in one object.
+    final head = Offset(at.dx, cut.top - 6);
+    final stone = Path()
+      ..moveTo(head.dx - 12, head.dy)
+      ..lineTo(head.dx - 10, head.dy - 34)
+      ..quadraticBezierTo(head.dx, head.dy - 43, head.dx + 11, head.dy - 33)
+      ..lineTo(head.dx + 13, head.dy)
+      ..close();
+    canvas.drawPath(
+      stone,
+      Paint()..color = _graveCold.withValues(alpha: wake.undugLit ? .40 : .26),
+    );
+    canvas.drawPath(
+      stone,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = _graveCold.withValues(alpha: wake.undugLit ? 0.95 : 0.6),
+    );
+    if (wake.undugLit) {
+      // The lamp at its head, and the light it throws up the blank face.
+      canvas.drawCircle(
+        head.translate(-26, -8),
+        5,
+        Paint()..color = const Color(0xFFE4C16A).withValues(alpha: 0.9),
+      );
+      for (var i = 0; i < 3; i++) {
+        canvas.drawLine(
+          head.translate(-26, -8),
+          head.translate(-14 + i * 10.0, -34.0),
+          Paint()
+            ..strokeWidth = 1
+            ..color = const Color(0xFFE4C16A).withValues(alpha: 0.16),
+        );
+      }
+    }
+    // One mark per name already given, cut into the face as they land.
+    for (var i = 0; i < wake.namesTold.length; i++) {
+      canvas.drawLine(
+        Offset(head.dx - 7, head.dy - 26 + i * 8),
+        Offset(head.dx + 7, head.dy - 27 + i * 8),
+        Paint()
+          ..strokeWidth = 1.8
+          ..color = const Color(0xFFE4C16A).withValues(alpha: 0.85),
+      );
+    }
+  }
+
   /// The GHOST half of the sigil: one arc struck over the field on
   /// [kGraveFieldBearing], legible from any barrow because the dead do not
   /// have to be near a thing to see it.
@@ -1156,6 +1377,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     final g = room.grave;
     if (g == null) return;
     final ink = ghost ? _graveCold : _graveStone;
+    if (g.undugGrave != null) _renderUndugGrave(canvas, g.undugGrave!, ghost);
 
     // THE LYCH-STONE: a low kerbed slab, long enough to lie on.
     final stone = g.lychStone ?? g.wraithStone;

@@ -816,24 +816,66 @@ void main() {
     });
   });
 
-  group('THE LOST MAXIM — Stuff of Dreams', () {
-    test('all three bodies in the unmarked grave, as the dead', () {
+  // THE LOST MAXIM — STUFF OF DREAMS, rebuilt as THE UNDUG GRAVE.
+  //
+  // It used to be one press: stand three bodies anywhere in the vault room
+  // in the cold world. No chain, no braid, no repeated beat, and its "place"
+  // was the vault's own room, so the secret and the treasure diluted each
+  // other. §7's table graded it ⬜ "one press", which was right.
+  //
+  // It is now the seventh funeral, at the far end of the mourners' walk,
+  // down a spur no door uses — and the one being buried is you.
+  group('THE LOST MAXIM — the undug grave', () {
+    Offset undug(PlanetDungeonGame g) =>
+        g.layout.rooms['mourners_walk']!.grave!.undugGrave!;
+
+    test('warm, there is nothing there at all', () {
+      final clouds = <String>[];
+      final game = harness(idealTrio(), onCloud: clouds.add);
+      final at = undug(game);
+      for (final idx in [water, crystal, spirit]) {
+        act(game, idx, 'mourners_walk', at);
+      }
+      expect(game.wake.undugDrawn, isFalse);
+      expect(game.wake.undugLit, isFalse);
+      expect(game.wake.namesTold, isEmpty);
+      expect(clouds, isNot(contains(kSpiritStuffOfDreamsEggId)));
+    });
+
+    test('THE AUTHORED CHAIN: draw it off, light it, and give it three '
+        'names', () {
       final clouds = <String>[];
       final game = harness(idealTrio(), onCloud: clouds.add);
       game.wake.field.world = GraveWorld.ghost;
-      game.currentRoomId = 'hollow_grave';
-      // Two of three is not three.
-      game.creatures[2].hp = 0;
-      game.setActive(spirit);
-      for (final c in game.creatures) {
-        c.position = const Offset(210, 150);
-      }
-      game.activateAbility();
+      final at = undug(game);
+
+      // 2 · only Water draws the black water off.
+      act(game, spirit, 'mourners_walk', at);
+      expect(game.wake.undugDrawn, isFalse);
+      act(game, water, 'mourners_walk', at);
+      expect(game.wake.undugDrawn, isTrue);
+
+      // 3 · only Crystal lights it, and the order is a CHAIN — a name
+      // cannot be given into a hole nobody can see the bottom of.
+      act(game, spirit, 'mourners_walk', at);
+      expect(game.wake.namesTold, isEmpty,
+          reason: 'the beats have to depend on each other');
+      act(game, crystal, 'mourners_walk', at);
+      expect(game.wake.undugLit, isTrue);
+
+      // 4 · three tellings, ONE PER BODY. The repeated beat.
+      act(game, spirit, 'mourners_walk', at);
+      expect(game.wake.namesTold, hasLength(1));
+
+      // The TELLING is Spirit's verb — the same one that finishes all six of
+      // the dead — so the one Spirit hand speaks each of the three names in
+      // turn. Demanding three Spirit bodies would have put this secret
+      // outside the ideal trio, which §4 guarantees the planet to.
+      act(game, spirit, 'mourners_walk', at);
+      expect(game.wake.namesTold, hasLength(2));
       expect(clouds, isNot(contains(kSpiritStuffOfDreamsEggId)));
-      game.creatures[2].hp = 10;
-      game.creatures[2].position = const Offset(210, 150);
-      game.setActive(spirit);
-      game.activateAbility();
+      act(game, spirit, 'mourners_walk', at);
+      expect(game.wake.namesTold, hasLength(3));
       // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
       for (var tick = 0; tick < 200; tick++) {
         game.update(1 / 60);
@@ -841,12 +883,32 @@ void main() {
       expect(clouds, contains(kSpiritStuffOfDreamsEggId));
     });
 
-    test('a warm party writes nothing', () {
-      final clouds = <String>[];
-      final game = harness(idealTrio(), onCloud: clouds.add);
-      game.currentRoomId = 'hollow_grave';
-      act(game, spirit, 'hollow_grave', const Offset(210, 150));
-      expect(clouds, isNot(contains(kSpiritStuffOfDreamsEggId)));
+    test('NOTHING IS CONSUMED — a wrong hand costs a press and no more', () {
+      final game = harness(idealTrio());
+      game.wake.field.world = GraveWorld.ghost;
+      final at = undug(game);
+      for (var i = 0; i < 3; i++) {
+        act(game, crystal, 'mourners_walk', at);
+        act(game, spirit, 'mourners_walk', at);
+      }
+      expect(game.wake.undugDrawn, isFalse);
+      act(game, water, 'mourners_walk', at);
+      expect(game.wake.undugDrawn, isTrue,
+          reason: 'the chain still runs after any number of wrong presses');
+    });
+
+    test('THE PLACE IS ITS OWN: the spur no door uses', () {
+      // §9.6's rule, and the reason this moved out of the vault room. The
+      // grave sits past every door and every other fixture in its room.
+      final room = kPlanetDungeonLayouts['Spirit']!.rooms['mourners_walk']!;
+      final at = room.grave!.undugGrave!;
+      for (final d in room.doors) {
+        expect((d.rect.center - at).distance, greaterThan(300),
+            reason: 'the maxim must not sit on the way to anywhere');
+      }
+      expect(at.dx, greaterThan(room.grave!.graveLamp!.dx + 200));
+      expect(room.vaultCache, isNull,
+          reason: 'the secret and the treasure must not share a room');
     });
   });
 
@@ -919,15 +981,24 @@ void main() {
       tell(game, 'r_sexton');
       expect(game.wake.field.ghostReach('lych_gate'), contains('hollow_grave'));
 
-      // The vault, and the maxim, taken as the dead.
+      // The vault, taken as the dead.
       game.currentRoomId = 'hollow_grave';
       for (final c in game.creatures) {
         c.position = layout.rooms['hollow_grave']!.vaultCache!;
       }
       game.update(0.016);
       expect(clouds, contains('cache:spirit_vault'));
-      game.setActive(spirit);
-      game.activateAbility();
+
+      // AND THE MAXIM, which is no longer in the vault's room: the undug
+      // grave at the far end of the mourners' walk. Water draws the black
+      // water off it, Crystal lights it, and the Spirit hand tells the three
+      // names — one apiece, with all three standing in it.
+      final undug = layout.rooms['mourners_walk']!.grave!.undugGrave!;
+      act(game, water, 'mourners_walk', undug);
+      act(game, crystal, 'mourners_walk', undug);
+      for (var i = 0; i < 3; i++) {
+        act(game, spirit, 'mourners_walk', undug);
+      }
       // THE RITE OF THREE runs before the gold lands (see `beginMaximRite`).
       for (var tick = 0; tick < 200; tick++) {
         game.update(1 / 60);

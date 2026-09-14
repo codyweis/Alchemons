@@ -739,6 +739,18 @@ class EchoGrave {
   /// Wraithord's own lych-stone: the fight's whole verb (§7).
   final Offset? wraithStone;
 
+  /// THE UNDUG GRAVE — the Lost Maxim's PLACE (§9.6: a maxim has to be
+  /// somewhere, not a condition you satisfy). A patch of the mourners' walk
+  /// that somebody marked out and never dug: bare scored ground in the
+  /// living world, and in the cold one an open grave standing full of black
+  /// water, with the field's seventh mourner beside it and no name anywhere
+  /// on it to be told.
+  ///
+  /// Authored as its own point in its own dead corner rather than hung on
+  /// the vault or the rite, because the maxim used to share the hollow
+  /// grave with the vault cache and diluted both.
+  final Offset? undugGrave;
+
   const EchoGrave({
     this.barrow = false,
     this.vigil,
@@ -748,6 +760,7 @@ class EchoGrave {
     this.sigilStone,
     this.graveLamp,
     this.wraithStone,
+    this.undugGrave,
   });
 }
 
@@ -1087,7 +1100,12 @@ const DungeonLayout spiritLayout = DungeonLayout(
     // refusal here rather than two (the Ice/Crystal precedent).
     'mourners_walk': DungeonRoom(
       id: 'mourners_walk',
-      bounds: Rect.fromLTWH(0, 0, 640, 460),
+      // WIDER THAN THE RITE NEEDS (was 640). The last 260px are a dead spur
+      // that no door uses and no star wants: THE UNDUG GRAVE, and the Lost
+      // Maxim's own place (§9.6, the Steam precedent — a maxim has to be
+      // somewhere). The rite's own furniture is untouched at its old
+      // coordinates.
+      bounds: Rect.fromLTWH(0, 0, 900, 460),
       doors: [
         DungeonDoor(
           rect: Rect.fromLTWH(265, 436, 110, 24),
@@ -1118,6 +1136,7 @@ const DungeonLayout spiritLayout = DungeonLayout(
       grave: EchoGrave(
         graveLamp: Offset(450, 250),
         lychStone: Offset(320, 380),
+        undugGrave: Offset(790, 240),
       ),
     ),
 

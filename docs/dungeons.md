@@ -1445,7 +1445,7 @@ shape is not "a hidden thing you touch". It is:
      sentence about what it sees. A secret that can be spent is a secret that
      can be lost, in a room built for curiosity.
 
-**WHERE THE SEVENTEEN STAND AGAINST THAT.** Eight clear it; the rest are the
+**WHERE THE SEVENTEEN STAND AGAINST THAT.** Nine clear it; the rest are the
 queue:
 
 | Planet | Beats | Elements | Verdict |
@@ -1462,7 +1462,7 @@ queue:
 | **Dust** — Nothing Perishes | 1 | Air sweeps every print | ⬜ one verb, N times |
 | **Crystal** — Know Thyself | 1 | stand all three in the beam | ⬜ positional, one beat |
 | **Plant** — The Unseen Shade | 3 | tend small, look big | ▶ has beats, check the elements |
-| **Spirit** — Stuff of Dreams | 1 | mark your own position | ⬜ one press |
+| **Spirit** — Stuff of Dreams | 5 | the cold world · Water · Crystal · Spirit×3 | ✅ rebuilt 2026-09-13 (§9.9) |
 | **Dark** — The Abyss | 1 | stand still a minute | ⬜ a wait |
 | **Light** — Afraid of the Light | 1 | cross casting nothing | ⬜ a restriction |
 | **Blood** — The Blood Is the Life | 1 | twelve beats on the drum | ⬜ rhythm, one verb |
@@ -1650,8 +1650,14 @@ quotation constants are deleted from the code — nothing left to drift.
     the giant root until it towers at huge scale.
 13. **Poison — The Dose:** one sick wisp wanders the monastery; cure it with
     an antidote instead of a blade.
-14. **Spirit — Stuff of Dreams:** stamp the minimap on your OWN position —
-    the grave that replays is yours.
+14. **Spirit — Stuff of Dreams:** THE UNDUG GRAVE (§9.9). At the far end of
+    the mourners' walk, down a spur no door uses, is a grave somebody scored
+    out and never dug — and in the cold world it stands open, full of black
+    water, with an UNCUT headstone. The telling that finishes all six of the
+    dead has nothing here to work on. Water draws the water off, Crystal
+    sets a lamp at its head, and the Spirit hand tells three names into it,
+    one apiece, with all three of you standing in it. The seventh funeral is
+    yours.
 15. **Dark — The Abyss:** stand utterly still in the total-darkness chamber
     for a full minute, casting no light.
 16. **Light — Afraid of the Light:** cross the blinding maze revealing
@@ -2316,6 +2322,44 @@ exactly that, which is why it now also asserts the states look different.
     session elsewhere — it is what a rendered screenshot and a green suite can
     see, which the record above says twice is not the same as played. `Mud`
     stays out of `kPolishedDungeons` until it has been.
+
+### §9.9 SPIRIT'S LOST MAXIM — the seventh funeral is yours
+
+*Stuff of Dreams* was one press: stand three bodies anywhere inside the vault
+room in the cold world. No chain, no braid, no repeated beat — and its
+"place" was the vault's own room, so the secret and the treasure diluted each
+other. §7's table graded it ⬜ *"one press"*, which was right.
+
+**THE UNDUG GRAVE.** The mourners' walk runs 260px further west than the rite
+needs, into a dead spur no door uses (§9.6, and Steam's precedent). At the end
+of it is a grave somebody scored out and never dug. Warm, it is four scoring
+marks in the turf. Cold, it is open, standing full of black water, with an
+**uncut headstone** — blank, where every other marker in the field carries a
+name. That blank IS the secret, stated in one object: the telling that
+finishes all six of Requia's dead has nothing here to work on.
+
+  1. **BE DEAD.** Warm there is nothing to work. Nothing is pressed for this.
+  2. **WATER** draws the black water off — the job it already does at the gate
+     arch to open the planet.
+  3. **CRYSTAL** sets a grave-lamp at its head, exactly as the rite's own lamp
+     is set, and the light shows the slot is uncut.
+  4. **SPIRIT, THREE TIMES** — the repeated beat, and the same telling verb
+     that finishes the six. You cannot tell a name that was never cut, so the
+     Spirit hand gives the three names it DOES have: yours. One apiece, with
+     all three standing in the grave.
+  5. The third name lands and the field takes all three.
+
+One oblique line on the HINT button: *six were buried here and told; this one
+was never cut a name, so nobody can tell it but the one it was dug for.*
+
+**AND THE FIRST CUT OF IT WAS WRONG IN A WAY WORTH RECORDING.** The repeated
+beat was originally three tellings by three different SPIRIT bodies — which
+is a better sentence and a worse design, because the ideal trio is Spirit ·
+Water · Crystal and carries exactly one Spirit. §4 guarantees that trio the
+planet. A maxim may ask for more thought than a star does; it may never ask
+for a party the dungeon told you not to bring. The full-run test caught it,
+which is the one place a demand like that shows up as an error rather than as
+a shrug.
 
 ### §9.8 MUD'S LOST MAXIM — the fen you are punished for making
 
