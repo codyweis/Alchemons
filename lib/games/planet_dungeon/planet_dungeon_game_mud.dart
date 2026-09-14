@@ -1872,6 +1872,63 @@ extension SinkingAltarFen on PlanetDungeonGame {
       }
     }
 
+    // THE WEED SKIN — the entry rite, and it drew nothing.
+    //
+    // The fen's face opens under a mat of floating weed, and Water sluices it
+    // off so the gate's three crossings show themselves. Nothing rendered it,
+    // so the first room of the planet was a bog with three doorways missing
+    // and no reason on screen to press anything — Air's entry rite failed the
+    // same way, from the same cause, and it is how a dungeon ends up
+    // unstartable.
+    if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
+      // It lies on the WATER, out where the crossings are — not over the
+      // knoll you are standing on. A mat thrown across the whole room hides
+      // the sarsen, the wallow and the ground under your own feet, and then
+      // sluicing it reads as the room being repainted rather than as the fen
+      // showing you its crossings.
+      final b = room.bounds.deflate(10);
+      final over = Rect.fromLTRB(
+        b.left + b.width * 0.44,
+        b.top,
+        b.right,
+        b.bottom,
+      );
+      // No clip: a clipped mat ends in a straight vertical seam down the
+      // middle of the room, which is the one shape a raft of floating weed
+      // never has. It thins out westward instead.
+      for (var i = 0; i < 18; i++) {
+        final fx = (i * 37 % 100) / 100;
+        final c = Offset(
+          over.left - 120 + (over.width + 120) * fx,
+          over.top + over.height * ((i * 53 % 100) / 100),
+        );
+        final thin = ((c.dx - b.left - b.width * 0.36) / (b.width * 0.26))
+            .clamp(0.0, 1.0);
+        final drift = sin(t * 0.25 + i) * 4;
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: c.translate(drift, 0),
+            width: 96 + (i % 3) * 34,
+            height: 50 + (i % 4) * 16,
+          ),
+          Paint()
+            ..color = const Color(0xFF33401F).withValues(alpha: 0.55 * thin),
+        );
+      }
+      // Fibrous: the weed is a mat of strands, not a green rectangle.
+      for (var i = 0; i < 30; i++) {
+        final x = over.left + over.width * ((i * 29 % 100) / 100);
+        final y = over.top + over.height * ((i * 61 % 100) / 100);
+        canvas.drawLine(
+          Offset(x, y),
+          Offset(x + 22 + (i % 3) * 8, y + 5 - (i % 5) * 3),
+          Paint()
+            ..strokeWidth = 2
+            ..color = const Color(0xFF5D6B33).withValues(alpha: 0.42),
+        );
+      }
+    }
+
     // Cotton-grass.
     for (var i = 0; i < g.cotton.length; i++) {
       final c = g.cotton[i];
@@ -2537,15 +2594,21 @@ extension SinkingAltarFen on PlanetDungeonGame {
     );
     if (running) {
       // It RUNS. Three lights travelling down the lead, away from the fen.
-      for (var i = 0; i < 3; i++) {
-        final t = ((bog.clock * 0.30 + i / 3) % 1.0);
-        final along = _pointAlong(spine, t);
-        if (along == null) continue;
-        canvas.drawCircle(
-          along,
-          4.5,
-          Paint()..color = _fenSheen.withValues(alpha: 0.30),
-        );
+      // ONE `computeMetrics` for all three — it allocates, and this is a
+      // per-frame painter in the room the player stands in most.
+      final metrics = spine.computeMetrics().toList();
+      if (metrics.isNotEmpty) {
+        final m = metrics.first;
+        for (var i = 0; i < 3; i++) {
+          final t = ((bog.clock * 0.30 + i / 3) % 1.0);
+          final along = m.getTangentForOffset(m.length * t)?.position;
+          if (along == null) continue;
+          canvas.drawCircle(
+            along,
+            4.5,
+            Paint()..color = _fenSheen.withValues(alpha: 0.30),
+          );
+        }
       }
     } else {
       // Choked: old peat lying in the bottom of a dry cut.
@@ -2681,18 +2744,22 @@ extension SinkingAltarFen on PlanetDungeonGame {
     }
   }
 
-  /// A point a fraction [t] along [path]. `PathMetrics` allocates, so this is
-  /// only ever called for the lead's three travelling lights.
-  Offset? _pointAlong(Path path, double t) {
-    for (final m in path.computeMetrics()) {
-      return m.getTangentForOffset(m.length * t)?.position;
-    }
-    return null;
-  }
-
   /// The sarsen — the fen's fallen standing stone. Lying in the silt where it
   /// went down, or upright once it is being walked.
   void _renderSarsen(Canvas canvas, Offset at, {bool fallen = false}) {
+    // A stone lying in silt is pressed into it: the ground goes first, then
+    // the stone, or the slab reads as a translucent shard floating on the
+    // floor — which is what the fallen one looked like at the gate.
+    if (fallen) {
+      canvas.drawOval(
+        Rect.fromCenter(center: at.translate(4, 10), width: 116, height: 44),
+        Paint()..color = Colors.black.withValues(alpha: 0.34),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: at.translate(0, 8), width: 128, height: 48),
+        Paint()..color = _fenSlurry.withValues(alpha: 0.30),
+      );
+    }
     canvas.save();
     canvas.translate(at.dx, at.dy);
     if (fallen) canvas.rotate(1.36);
