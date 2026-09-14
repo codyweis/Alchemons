@@ -13426,32 +13426,47 @@ class PlanetDungeonGame extends FlameGame {
         Paint()..color = Colors.black.withValues(alpha: 0.35),
       );
       final rock = RRect.fromRectAndRadius(w, const Radius.circular(11));
-      // Cool stone body.
+      // THE ROCK BELONGS TO ITS PLANET. This was a fixed cool blue-grey with
+      // a bright top band, on every obstacle in all seventeen dungeons —
+      // exactly the fault the FLOORS were fixed for (§8: "a bog, a foundry
+      // and an eclipse all stood on the same slab of blue-grey stone"), and
+      // far more visible, because an obstacle sits in the middle of a room
+      // the planet has just drawn. On the Beacon Archive's reading floor and
+      // in Sablis's undercity it reads as a UI panel somebody left lying on
+      // the ground.
+      //
+      // Derived from the same sky palette the floor tint comes from, so a
+      // block of stone in a room always belongs to the room. Lifted well
+      // clear of the floor's own value — it has to read as a thing standing
+      // ON the ground, not a patch OF it.
+      final tint = dungeonFloorTint(layout.element);
+      final crown = Color.lerp(tint.top, const Color(0xFFFFFFFF), 0.30)!;
+      final body = Color.lerp(tint.top, const Color(0xFF000000), 0.15)!;
+      final foot = Color.lerp(tint.bottom, const Color(0xFF000000), 0.35)!;
       canvas.drawRRect(
         rock,
         Paint()
-          ..shader = ui.Gradient.linear(
-            w.topCenter,
-            w.bottomCenter,
-            const [Color(0xFF45566B), Color(0xFF2A3543), Color(0xFF1C2531)],
-            const [0.0, 0.55, 1.0],
-          ),
+          ..shader = ui.Gradient.linear(w.topCenter, w.bottomCenter, [
+            crown,
+            body,
+            foot,
+          ], const [0.0, 0.55, 1.0]),
       );
-      // Top highlight (lit from above).
+      // Top highlight (lit from above) — the cue that says this stands up.
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(w.left, w.top, w.width, w.height * 0.42),
           const Radius.circular(11),
         ),
-        Paint()..color = const Color(0xFF6E8197).withValues(alpha: 0.30),
+        Paint()..color = crown.withValues(alpha: 0.34),
       );
-      // Faint cool rim.
+      // A faint rim, in the planet's own light rather than a fixed blue.
       canvas.drawRRect(
         rock,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1
-          ..color = const Color(0xFF9FB6CE).withValues(alpha: 0.25),
+          ..color = crown.withValues(alpha: 0.30),
       );
     }
   }
