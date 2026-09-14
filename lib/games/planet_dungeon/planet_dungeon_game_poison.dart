@@ -220,23 +220,32 @@ class PlagueLash {
 // furniture you get killed behind.
 final Map<String, _MonasteryGround> _monasteryGroundCache = {};
 
-/// ONE DRESSED STONE in a floor, as a FOUR-CORNERED POLYGON rather than a
-/// rectangle. [crack] is the angle of a split across it, negative for a whole
-/// flag.
+/// ONE PAVING SLAB, as an irregular quadrilateral.
 ///
-/// The rectangles were the bug. Courses of intact rectangles with a lit top
-/// edge is precisely how this engine draws a BRICK WALL, and the first pass
-/// of this floor looked like one seen from the front — every room a masonry
-/// elevation with furniture floating over it. Jittering each corner
-/// independently means no joint in the room runs straight for more than one
-/// stone, which is the difference between a paved floor and a course of
-/// bricks, and it costs nothing because it is built once.
+/// THE FLOOR AND THE WALL HAVE TO BE DIFFERENT MATERIALS, not the same
+/// material with noise on it. The first two passes of this floor were
+/// COURSES — rows of stones of a wall's size, in a wall's colour, each with a
+/// lit top edge — and courses of lit-topped stones is exactly how this engine
+/// draws masonry seen face-on. The result was a room with a wall band at the
+/// top (the ward bays), a wall band at the bottom (the arcade) and a third
+/// band of the same stuff in between, so the eye read all 900x600 as one
+/// elevation and the room had no ground in it at all. Jittering the corners
+/// did not touch that: the courses survived, and so did the highlight.
+///
+/// What this is instead:
+///  · a JITTERED POINT LATTICE, so neighbouring slabs share their corners and
+///    the paving tessellates with no gaps and no straight joint anywhere —
+///    every edge of every slab has its own angle;
+///  · rows and columns of genuinely different sizes, so there is no course to
+///    read along and the SCALE is nothing like the wall stone's;
+///  · NO LIT EDGE. A raked highlight along a stone's top is the single
+///    strongest "this is a vertical face" cue there is. A floor slab is
+///    separated from its neighbour by the dark bed BETWEEN them, so the joint
+///    is a shadow, never a highlight.
 class _MonFlag {
   const _MonFlag({
     required this.path,
     required this.rect,
-    required this.lit0,
-    required this.lit1,
     required this.tone,
     required this.crack,
     required this.hollow,
@@ -244,11 +253,6 @@ class _MonFlag {
 
   final Path path;
   final Rect rect;
-
-  /// The lifted edge, corner to corner, so the light rakes along a stone's
-  /// own shoulder rather than along a ruled line across the room.
-  final Offset lit0;
-  final Offset lit1;
   final double tone;
 
   /// The split, already built. Nothing about it can change, so building it
@@ -372,70 +376,99 @@ _MonasteryGround _buildMonasteryGround(DungeonRoom room) {
     return st / 2147483648;
   }
 
-  // ── FLAGSTONES ──
+  // ── PAVING ──
   //
-  // Laid by hand out of whatever came off the hill. Four things stop this
-  // being a lattice, and it needed all four: course depths that vary by a
-  // factor of two, a course start that is never the same as the one above,
-  // long stones that swallow the joint they would otherwise have made — and
-  // CORNERS THAT DO NOT MEET, which is the one that actually did it. Every
-  // corner is pulled a few pixels off true, so no joint in the room runs
-  // straight for more than a single stone.
-  var y = b.top - 16;
-  while (y < b.bottom) {
-    final h = 24 + rnd() * 32;
-    var x = b.left - 34 - rnd() * 70;
-    while (x < b.right) {
-      var w = 34 + rnd() * 62;
-      if (rnd() < 0.22) w += 26 + rnd() * 58; // a long stone
-      final slab = Rect.fromLTWH(x + 2.0, y + 2.0, w - 4, h - 4);
+  // A DIFFERENT MATERIAL FROM THE WALLS, which is the whole point (see
+  // [_MonFlag]). Wall stone is small, dark, cool and coursed with the light
+  // falling down its face; the paving is big, flat, warm and laid in no
+  // course at all.
+  //
+  // The slabs come off a jittered point lattice with rows and columns of
+  // genuinely different sizes: neighbours share their corners, so the floor
+  // tessellates with no gaps, and not one joint in the room runs straight —
+  // every edge of every slab has an angle of its own. The joint itself is
+  // the DARK BED showing through between stones, because a floor is stones
+  // separated by shadow and a wall is stones separated by highlight.
+  final colX = <double>[];
+  for (var x = b.left - 90.0; x < b.right + 110; ) {
+    colX.add(x);
+    x += 84 + rnd() * 74;
+  }
+  final rowY = <double>[];
+  for (var y = b.top - 80.0; y < b.bottom + 100; ) {
+    rowY.add(y);
+    y += 72 + rnd() * 68;
+  }
+  final pts = [
+    for (var r = 0; r < rowY.length; r++)
+      [
+        for (var c = 0; c < colX.length; c++)
+          Offset(colX[c] + (rnd() - 0.5) * 44, rowY[r] + (rnd() - 0.5) * 38),
+      ],
+  ];
+  final swallowed = <int>{};
+  for (var r = 0; r + 1 < rowY.length; r++) {
+    for (var c = 0; c + 1 < colX.length; c++) {
+      if (swallowed.contains(r * 1000 + c)) continue;
+      // A flagger with a long stone used it, and the joint it would have
+      // made is simply not there.
+      var c2 = c;
+      if (c + 2 < colX.length && rnd() < 0.22) {
+        c2 = c + 1;
+        swallowed.add(r * 1000 + c + 1);
+      }
+      final tl = pts[r][c], tr = pts[r][c2 + 1];
+      final br = pts[r + 1][c2 + 1], bl = pts[r + 1][c];
+      final slab = Rect.fromLTRB(
+        min(tl.dx, bl.dx),
+        min(tl.dy, tr.dy),
+        max(tr.dx, br.dx),
+        max(bl.dy, br.dy),
+      );
+      if (!slab.overlaps(b)) continue;
       // A lifted flag, never put back: the bed shows through, and the hole is
       // what tells you the floor is stones rather than a texture.
-      if (rnd() > 0.075 && slab.overlaps(b)) {
-        double j() => (rnd() - 0.5) * 6.0;
-        final tl = Offset(slab.left + j(), slab.top + j());
-        final tr = Offset(slab.right + j(), slab.top + j());
-        final br = Offset(slab.right + j(), slab.bottom + j());
-        final bl = Offset(slab.left + j(), slab.bottom + j());
-        // Split rather than sawn: a bend halfway across, so it reads as
-        // stone that gave rather than a line ruled over it.
-        Path? crack;
-        if (rnd() < 0.15) {
-          final a = rnd() * pi;
-          final c = slab.center;
-          final d = Offset(cos(a), sin(a));
-          final mid = c + Offset(-d.dy, d.dx) * 4;
-          crack = Path()
-            ..moveTo(
-              c.dx - d.dx * slab.width * 0.5,
-              c.dy - d.dy * slab.height * 0.5,
-            )
-            ..lineTo(mid.dx, mid.dy)
-            ..lineTo(
-              c.dx + d.dx * slab.width * 0.5,
-              c.dy + d.dy * slab.height * 0.5,
-            );
-        }
-        g.flags.add(
-          _MonFlag(
-            path: Path()
-              ..moveTo(tl.dx, tl.dy)
-              ..lineTo(tr.dx, tr.dy)
-              ..lineTo(br.dx, br.dy)
-              ..lineTo(bl.dx, bl.dy)
-              ..close(),
-            rect: slab,
-            lit0: tl,
-            lit1: tr,
-            tone: rnd(),
-            crack: crack,
-            hollow: rnd() < 0.13,
-          ),
-        );
+      if (rnd() < 0.06) continue;
+      // Pulled in off its own corners, so the bed reads as a joint all round.
+      final mid = Offset(
+        (tl.dx + tr.dx + br.dx + bl.dx) / 4,
+        (tl.dy + tr.dy + br.dy + bl.dy) / 4,
+      );
+      Offset inset(Offset p) => Offset.lerp(p, mid, 2.6 / (p - mid).distance)!;
+      final a = inset(tl), bq = inset(tr), cq = inset(br), d = inset(bl);
+      // Split rather than sawn: a bend halfway across, so it reads as stone
+      // that gave rather than a line ruled over it.
+      Path? crack;
+      if (rnd() < 0.16) {
+        final ang = rnd() * pi;
+        final dir = Offset(cos(ang), sin(ang));
+        final bend = mid + Offset(-dir.dy, dir.dx) * 5;
+        crack = Path()
+          ..moveTo(
+            mid.dx - dir.dx * slab.width * 0.46,
+            mid.dy - dir.dy * slab.height * 0.46,
+          )
+          ..lineTo(bend.dx, bend.dy)
+          ..lineTo(
+            mid.dx + dir.dx * slab.width * 0.46,
+            mid.dy + dir.dy * slab.height * 0.46,
+          );
       }
-      x += w;
+      g.flags.add(
+        _MonFlag(
+          path: Path()
+            ..moveTo(a.dx, a.dy)
+            ..lineTo(bq.dx, bq.dy)
+            ..lineTo(cq.dx, cq.dy)
+            ..lineTo(d.dx, d.dy)
+            ..close(),
+          rect: slab,
+          tone: rnd(),
+          crack: crack,
+          hollow: rnd() < 0.11,
+        ),
+      );
     }
-    y += h;
   }
 
   // ── THE TREAD ──
@@ -3832,47 +3865,51 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   void _renderLazarFloor(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
     final g = _monasteryGround(room);
+    // THE BED the slabs are set in — and it is FLAT.
+    //
+    // It used to carry a top-to-bottom gradient, light at the head of the
+    // room and dark at its foot. That is light falling down a vertical
+    // surface, which is the second-strongest wall cue after a lit top edge,
+    // and it was being applied to the ground. Ground is lit evenly; what
+    // shapes it is the gloom and the lamps, not a ramp baked into the paint.
     canvas.drawRect(
       b,
+      // NOT OPAQUE. The floor sits a little off the sky so the planet's own
+      // light comes up through the flags and the miasma behind them keeps
+      // showing — a sealed house that is nonetheless full of something.
       Paint()
-        // NOT OPAQUE. The floor sits a little off the sky so the planet's own
-        // light comes up through the flags and the miasma behind them keeps
-        // showing — a sealed house that is nonetheless full of something.
-        // Solid, the stage cut the background off and every room was a lit
-        // box with weather happening somewhere you could not see.
-        ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, [
-          const Color(0xFF1B2019).withValues(alpha: _kLazarFloorAlpha),
-          const Color(0xFF10140F).withValues(alpha: _kLazarFloorAlpha),
-        ]),
+        ..color = const Color(0xFF14170E).withValues(alpha: _kLazarFloorAlpha),
     );
 
-    // FLAGSTONES, built once (see [_buildMonasteryGround]). What this pass
-    // draws that the old one did not is BREAKAGE — cracks, knocked corners
-    // and lifted flags — because it was the intactness of every stone, more
-    // than the spacing of them, that made the old floor read as a texture.
-    final lit = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.3
-      ..color = const Color(0xFF333A2D).withValues(alpha: 0.30);
+    // PAVING, built once (see [_buildMonasteryGround] and [_MonFlag]).
+    //
+    // NO HIGHLIGHT ON A SLAB, and the tonal range between slabs is NARROW —
+    // a floor is a flat plane and every stone in it catches the same light,
+    // where a wall is a stack of faces each catching its own. The two things
+    // that used to be here, a raked edge-light and a wide tone spread, are
+    // both wall grammar, and between them they made a paved floor read as a
+    // masonry elevation with furniture floating in front of it.
+    //
+    // WARM, too, against wall stone that is darker and cooler. A floor and a
+    // wall in the same colour are interchangeable no matter what shape they
+    // are cut into.
     final crack = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
-      ..color = const Color(0xFF0A0D09).withValues(alpha: 0.8);
+      ..color = const Color(0xFF0A0D09).withValues(alpha: 0.7);
     // ONE PAINT for every stone in the room. This is the longest loop on the
-    // planet — the ambulatory lays about a hundred and seventy flags — and a
-    // fresh Paint per stone per frame is an allocation bill for a floor that
-    // has not changed since the room was built.
+    // planet, and a fresh Paint per stone per frame is an allocation bill for
+    // a floor that has not changed since the room was built.
     final fill = Paint();
     final hollow = Paint()
-      ..color = const Color(0xFF191E18).withValues(alpha: 0.5);
+      ..color = const Color(0xFF2C3020).withValues(alpha: 0.45);
     for (final f in g.flags) {
       fill.color = Color.lerp(
-        const Color(0xFF272D22),
-        const Color(0xFF141911),
+        const Color(0xFF33362A),
+        const Color(0xFF272A20),
         f.tone,
       )!.withValues(alpha: _kLazarFloorAlpha);
       canvas.drawPath(f.path, fill);
-      canvas.drawLine(f.lit0, f.lit1, lit);
       if (f.hollow) {
         canvas.drawOval(f.rect.deflate(f.rect.width * 0.3), hollow);
       }
@@ -3978,6 +4015,36 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // Drawn as a dark bay BEHIND each pair with a lit springing over it, so
     // the arcade reads as something you can see through into the garth (or,
     // underground, into the next vault) rather than as posts on a floor.
+    // THE ARCADE IS A WALL, so it gets a wall's ground: a dark cool band
+    // behind the whole run of piers and a shadow off its head onto the
+    // paving. Without it the arcade floated on the floor it stands on, and
+    // the floor was free to go on reading as more wall.
+    final row = g.piers.where((p) => p.top == g.piers.firstOrNull?.top).length;
+    if (row >= 3) {
+      final top = g.piers.first.top - 12;
+      canvas.drawRect(
+        Rect.fromLTRB(b.left, top, b.right, b.bottom),
+        Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(b.left, top),
+            Offset(b.left, b.bottom),
+            [const Color(0xFF161D22), const Color(0xFF070A0C)],
+          ),
+      );
+      canvas.drawRect(
+        Rect.fromLTRB(b.left, top - 13, b.right, top),
+        Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(b.left, top - 13),
+            Offset(b.left, top),
+            [
+              const Color(0x00000000),
+              const Color(0xFF05070A).withValues(alpha: 0.6),
+            ],
+          ),
+      );
+    }
+
     for (var i = 0; i < g.piers.length; i++) {
       final p = g.piers[i];
       if (i + 1 < g.piers.length && g.piers[i + 1].top == p.top) {
@@ -4340,13 +4407,35 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   void _renderWallFoot(Canvas canvas, DungeonRoom room, _MonasteryGround g) {
     final b = room.bounds;
     const head = 44.0;
+    // DARKER AND COOLER THAN THE FLOOR, with the light falling DOWN it.
+    //
+    // This band and the arcade band at the other end of the room are the two
+    // things in a monastery room that are genuinely vertical, and they have
+    // to be readable as such at a glance or the paving between them gets
+    // read as more of the same and the room becomes one flat elevation. So
+    // the wall keeps every cue the floor gives up: a top-to-bottom fall of
+    // light, a cool cast, and a tone well below the paving's.
     canvas.drawRect(
       Rect.fromLTWH(b.left, b.top, b.width, head),
       Paint()
         ..shader = ui.Gradient.linear(
           b.topLeft,
           b.topLeft + const Offset(0, head),
-          [const Color(0xFF232A20), const Color(0xFF13180F)],
+          [const Color(0xFF1A2126), const Color(0xFF080B0D)],
+        ),
+    );
+    // The shadow the wall throws onto the paving at its foot — the join, and
+    // the thing that says one of these two planes is standing up.
+    canvas.drawRect(
+      Rect.fromLTWH(b.left, b.top + head, b.width, 14),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          b.topLeft + const Offset(0, head),
+          b.topLeft + const Offset(0, head + 14),
+          [
+            const Color(0xFF05070A).withValues(alpha: 0.55),
+            const Color(0x00000000),
+          ],
         ),
     );
     // The lime line, where the wash stops. Grubby, and never level, because
@@ -4364,10 +4453,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     );
     // A thinner skirt along the other three walls, so the room is enclosed
     // on every side rather than fronted on one.
-    final skirt = Paint()..color = const Color(0xFF161B13).withValues(alpha: 0.7);
+    final skirt = Paint()..color = const Color(0xFF10161A).withValues(alpha: 0.8);
     canvas.drawRect(Rect.fromLTWH(b.left, b.top, 16, b.height), skirt);
     canvas.drawRect(Rect.fromLTWH(b.right - 16, b.top, 16, b.height), skirt);
     canvas.drawRect(Rect.fromLTWH(b.left, b.bottom - 16, b.width, 16), skirt);
+    // ...and the shadow each of them casts inward onto the paving.
+    final foot = Paint()
+      ..color = const Color(0xFF05070A).withValues(alpha: 0.3);
+    canvas.drawRect(Rect.fromLTWH(b.left + 16, b.top, 9, b.height), foot);
+    canvas.drawRect(Rect.fromLTWH(b.right - 25, b.top, 9, b.height), foot);
+    canvas.drawRect(Rect.fromLTWH(b.left, b.bottom - 25, b.width, 9), foot);
 
     // Consecration crosses, cut into the wash and painted over a dozen times.
     for (final m in g.marks) {
@@ -4787,14 +4882,18 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// rectangle of a slightly different colour.
   void _stoneBlock(Canvas canvas, Rect r, {double radius = 3}) {
     final rr = RRect.fromRectAndRadius(r, Radius.circular(radius));
-    canvas.drawRRect(rr, Paint()..color = const Color(0xFF262B24));
+    // COOLER AND DARKER THAN THE PAVING. Everything cut from this goes on a
+    // wall or stands up off the floor — piers, door jambs, plaques, benches,
+    // the sacristy — and at its old warm mid-green it came out LIGHTER than
+    // the flags, so a column read as a pale tablet lying on the ground.
+    canvas.drawRRect(rr, Paint()..color = const Color(0xFF1E252A));
     canvas.drawRect(
       Rect.fromLTWH(r.left + 2, r.top, r.width - 4, 2),
-      Paint()..color = const Color(0xFF3A4136).withValues(alpha: 0.8),
+      Paint()..color = const Color(0xFF323D44).withValues(alpha: 0.8),
     );
     canvas.drawRect(
       Rect.fromLTWH(r.left + 2, r.bottom - 2, r.width - 4, 2),
-      Paint()..color = const Color(0xFF0B0E0A).withValues(alpha: 0.85),
+      Paint()..color = const Color(0xFF06090B).withValues(alpha: 0.9),
     );
   }
 
