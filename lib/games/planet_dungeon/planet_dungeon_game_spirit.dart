@@ -106,6 +106,11 @@ class EchoGrave3D {
   /// The beat-edge the mystic's strike is detected on.
   bool bitLastFrame = false;
 
+  /// THE FIELD, LAID OUT ONCE. A grave-field is grave-cuts, kerbs, fallen
+  /// markers and tussocks, none of it on a grid and none of it moving. Built
+  /// per room and kept; only the cold light on it changes.
+  final Map<String, GraveGround> ground = {};
+
   void reset() {
     field.reset();
     clock = 0;
@@ -114,6 +119,22 @@ class EchoGrave3D {
     wraithCross = 0;
     bitLastFrame = false;
   }
+}
+
+/// One room's worth of burial ground, in world coordinates.
+///
+/// THE TWO WORLDS SHARE IT, which is the whole point: the same graves, the
+/// same stones, in the same places — and what differs is their CONDITION.
+/// In the living field the markers have fallen and the cuts are grassed over;
+/// in the cold one the past is intact and the graves are the bright things.
+/// A player comparing two worlds needs them to be recognisably one place.
+class GraveGround {
+  final List<Rect> cuts = [];
+  final List<double> cutAngle = [];
+  /// Which of the cuts have lost their marker in the living world.
+  final List<bool> fallen = [];
+  final List<Offset> tussocks = [];
+  final List<Offset> kerb = [];
 }
 
 extension EchoGraveDungeon on PlanetDungeonGame {
@@ -780,10 +801,222 @@ extension EchoGraveDungeon on PlanetDungeonGame {
             ? _graveVoid.withValues(alpha: 0.42)
             : _graveSod.withValues(alpha: 0.58),
     );
+    _renderGraveGround(canvas, room, ghost);
 
     _renderGraveCrossings(canvas, room, ghost, t);
     if (room.grave?.barrow == true) _renderBarrowMound(canvas, room, ghost);
     _renderGraveFixtures(canvas, room, ghost);
+  }
+
+  // ── THE BURIAL GROUND ─────────────────────────────────────
+  //
+  // The floor of this planet was ONE drawRect. A translucent rectangle, one
+  // colour per world — which is an odd thing for a dungeon whose entire
+  // premise is *two worlds you stand in one at a time and compare*, and it
+  // is why its guardian arena measured as the barest room in the game: a
+  // wash, a grey bar, and nothing else.
+  //
+  // The two worlds share the same ground, and that is the device. Same
+  // graves, same stones, same places — what differs is their CONDITION. In
+  // the LIVING field the markers have fallen, the cuts are grassed over and
+  // the turf has closed; in the COLD one the past is intact, the fallen
+  // stones are standing again, and the graves are the brightest thing in the
+  // room. Crossing over is therefore not a palette swap: it is walking into
+  // the same field before it was ruined.
+
+  static const Color _graveTurf = Color(0xFF3A4033);
+  static const Color _graveCut = Color(0xFF14140F);
+
+  GraveGround _graveGround(DungeonRoom room) =>
+      wake.ground.putIfAbsent(room.id, () => _buildGraveGround(room));
+
+  GraveGround _buildGraveGround(DungeonRoom room) {
+    final b = room.bounds.deflate(16);
+    final g = GraveGround();
+    var seed = (b.width * 29 + b.height * 13).toInt() | 1;
+    double rnd() {
+      seed = (seed * 1103515245 + 12345) & 0x3FFFFFFF;
+      return (seed >> 8) / 0x3FFFFF;
+    }
+
+    // GRAVE-CUTS. A burial ground is laid out by people, so there are rows —
+    // but it is also mostly EMPTY GROUND, and the first cut of this tiled the
+    // room with sixty identical rectangles in visible columns, which is the
+    // same graph-paper fault Lightning's floor had and unfightable besides.
+    //
+    // Two rules fix it. Cuts thin out toward the middle of the room, so every
+    // room keeps an open centre to walk and fight in and the graves read as
+    // the EDGE of a field rather than its tiling. And no two are the same
+    // size: a grave is cut for a body.
+    const ch = 34.0;
+    final centre = b.center;
+    final reach = (b.shortestSide / 2).clamp(1.0, 9999.0);
+    for (var y = b.top + 40; y < b.bottom - 40; y += ch + 56) {
+      final off = rnd() * 70;
+      for (var x = b.left + 26 + off; x < b.right - 90; x += 96 + rnd() * 70) {
+        final cw = 56 + rnd() * 34;
+        final at = Offset(x + cw / 2, y + ch / 2);
+        // Nearer the middle, likelier to be bare ground.
+        final open = 1 - ((at - centre).distance / reach).clamp(0.0, 1.0);
+        if (rnd() < 0.20 + open * 0.72) continue;
+        g.cuts.add(
+          Rect.fromLTWH(x, y + (rnd() - 0.5) * 16, cw, ch * (0.8 + rnd() * .4)),
+        );
+        g.cutAngle.add((rnd() - 0.5) * 0.22);
+        g.fallen.add(rnd() < 0.62);
+      }
+    }
+    // The kerb: a low wall of set stones round the round's edge.
+    final kerbs = (b.width / 90).clamp(4, 14).toInt();
+    for (var i = 0; i < kerbs; i++) {
+      g.kerb.add(Offset(b.left + 20 + (b.width - 40) * i / (kerbs - 1), b.bottom));
+    }
+    final tufts = (b.width * b.height / 24000).clamp(6, 28).toInt();
+    for (var i = 0; i < tufts; i++) {
+      g.tussocks.add(
+        Offset(
+          b.left + rnd() * b.width,
+          b.top + rnd() * b.height,
+        ),
+      );
+    }
+    return g;
+  }
+
+  void _renderGraveGround(Canvas canvas, DungeonRoom room, bool ghost) {
+    final g = _graveGround(room);
+    final t = wake.clock;
+
+    for (var i = 0; i < g.cuts.length; i++) {
+      final cut = g.cuts[i];
+      final c = cut.center;
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(g.cutAngle[i]);
+      final local = Rect.fromCenter(
+        center: Offset.zero,
+        width: cut.width,
+        height: cut.height,
+      );
+      if (ghost) {
+        // THE COLD FIELD. The grave is the lit thing — the dead are what is
+        // solid here — and it breathes very slowly.
+        final glow = 0.16 + 0.05 * sin(t * 0.7 + i);
+        canvas.drawRect(
+          local,
+          Paint()..color = _graveCold.withValues(alpha: glow),
+        );
+        canvas.drawRect(
+          local,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.2
+            ..color = _graveCold.withValues(alpha: 0.55),
+        );
+      } else {
+        // THE LIVING FIELD. The cut has grassed over; what is left is a
+        // depression in the turf with a shadow in it.
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(local, const Radius.circular(5)),
+          Paint()..color = _graveCut.withValues(alpha: 0.38),
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(local.deflate(5), const Radius.circular(4)),
+          Paint()..color = _graveTurf.withValues(alpha: 0.34),
+        );
+      }
+      canvas.restore();
+
+      // THE MARKER. Fallen in the living world and standing in the cold one —
+      // the same stone, before and after. This is the comparison the planet
+      // is made of, said without a word.
+      final head = Offset(c.dx, cut.top - 4);
+      if (ghost) {
+        final stone = Path()
+          ..moveTo(head.dx - 9, head.dy)
+          ..lineTo(head.dx - 7, head.dy - 26)
+          ..quadraticBezierTo(head.dx, head.dy - 33, head.dx + 8, head.dy - 25)
+          ..lineTo(head.dx + 10, head.dy)
+          ..close();
+        canvas.drawPath(
+          stone,
+          Paint()..color = _graveCold.withValues(alpha: 0.30),
+        );
+        canvas.drawPath(
+          stone,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.1
+            ..color = _graveCold.withValues(alpha: 0.7),
+        );
+      } else if (g.fallen[i]) {
+        // Down in the grass, face up, half swallowed.
+        canvas.save();
+        canvas.translate(head.dx, head.dy - 3);
+        canvas.rotate(1.3 + g.cutAngle[i]);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset.zero, width: 26, height: 17),
+            const Radius.circular(3),
+          ),
+          Paint()..color = _graveStone.withValues(alpha: 0.34),
+        );
+        canvas.restore();
+      } else {
+        // Still up, but leaning.
+        canvas.save();
+        canvas.translate(head.dx, head.dy);
+        canvas.rotate(g.cutAngle[i] * 2.2);
+        canvas.drawPath(
+          Path()
+            ..moveTo(-8, 0)
+            ..lineTo(-6, -24)
+            ..quadraticBezierTo(0, -30, 7, -23)
+            ..lineTo(9, 0)
+            ..close(),
+          Paint()..color = _graveStone.withValues(alpha: 0.42),
+        );
+        canvas.restore();
+      }
+    }
+
+    // The kerb round the field's edge.
+    for (final k in g.kerb) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: k, width: 46, height: 13),
+          const Radius.circular(3),
+        ),
+        Paint()
+          ..color = (ghost ? _graveCold : _graveStone).withValues(
+            alpha: ghost ? 0.22 : 0.3,
+          ),
+      );
+    }
+
+    // Living grass, or the cold drifting through where it used to be.
+    for (var i = 0; i < g.tussocks.length; i++) {
+      final o = g.tussocks[i];
+      if (ghost) {
+        final ph = ((t * 0.12 + i * 0.09) % 1.0);
+        canvas.drawCircle(
+          o.translate(0, -ph * 26),
+          1.5,
+          Paint()..color = _graveCold.withValues(alpha: 0.18 * (1 - ph)),
+        );
+        continue;
+      }
+      final sway = sin(t * 0.8 + i * 1.9) * 2;
+      for (var k = -1; k <= 1; k++) {
+        canvas.drawLine(
+          o,
+          o + Offset(sway + k * 3.5, -8 - (k == 0 ? 3 : 0)),
+          Paint()
+            ..strokeWidth = 1.2
+            ..color = _graveTurf.withValues(alpha: 0.75),
+        );
+      }
+    }
   }
 
   /// The crossings, drawn on the wall they pierce. A road the other world owns
@@ -833,10 +1066,46 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       height: room.bounds.height * 0.34,
     );
     if (!ghost) {
+      // A BARROW IS A HILL, and this was a flat olive ellipse lying on the
+      // floor — the biggest thing in the room, with no height in it at all.
+      // Shadow, body, a lit crown where the turf catches the sky, and the
+      // kerb of set stones that holds the whole mound in.
+      canvas.drawOval(
+        mound.shift(const Offset(0, 9)),
+        Paint()..color = Colors.black.withValues(alpha: 0.30),
+      );
       canvas.drawOval(mound, Paint()..color = _graveMoss);
       canvas.drawOval(
-        mound.deflate(9),
-        Paint()..color = _graveStone.withValues(alpha: 0.22),
+        mound.deflate(mound.height * 0.18).shift(Offset(0, -mound.height * .12)),
+        Paint()..color = Color.lerp(_graveMoss, _graveTurf, 0.45)!,
+      );
+      // The kerb: stones set on end round the foot, thinning at the sides.
+      for (var i = 0; i < 18; i++) {
+        final a = i / 18 * pi * 2;
+        final p = Offset(
+          c.dx + cos(a) * mound.width / 2,
+          c.dy + sin(a) * mound.height / 2,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: p, width: 15, height: 11),
+            const Radius.circular(3),
+          ),
+          Paint()
+            ..color = _graveStone.withValues(
+              alpha: 0.18 + 0.22 * (sin(a) * 0.5 + 0.5),
+            ),
+        );
+      }
+      // The mouth: every barrow has a way in, and it is shut.
+      canvas.drawPath(
+        Path()
+          ..moveTo(c.dx - 22, c.dy + mound.height * 0.42)
+          ..lineTo(c.dx - 17, c.dy + mound.height * 0.14)
+          ..lineTo(c.dx + 17, c.dy + mound.height * 0.14)
+          ..lineTo(c.dx + 22, c.dy + mound.height * 0.42)
+          ..close(),
+        Paint()..color = _graveCut.withValues(alpha: 0.75),
       );
       return;
     }
