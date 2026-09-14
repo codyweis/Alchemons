@@ -122,6 +122,12 @@ class FenGround {
   final List<double> drumLean = [];
   final List<Offset> roots = [];
   final List<double> rootLength = [];
+
+  // ── the hollow and the bowl: not buildings ──
+  final List<Path> pans = [];
+  final List<Offset> panCentres = [];
+  final List<Offset> bones = [];
+  final List<double> boneLean = [];
 }
 
 extension SinkingAltarFen on PlanetDungeonGame {
@@ -1405,6 +1411,44 @@ extension SinkingAltarFen on PlanetDungeonGame {
       return (seed >> 8) / 0x3FFFFF;
     }
 
+    // THE HOLLOW AND THE BOWL ARE NOT BUILDINGS. Only the FANE went down as
+    // architecture; Bogdrya's hollow is a void eaten out of the peat, and
+    // the sunken lotus is the underside of a knoll that foundered. Giving
+    // all three a flagged temple floor made the wyrm's pit read as a nave
+    // and told the player the wrong thing about where it is safe to stand.
+    if (room.id != 'drowned_fane') {
+      // SOFT PANS — the quaking floor, wherever it has not set.
+      final pans = (b.width * b.height / 46000).clamp(3, 9).toInt();
+      for (var i = 0; i < pans; i++) {
+        final c = Offset(
+          b.left + 60 + rnd() * (b.width - 120),
+          b.top + 60 + rnd() * (b.height - 120),
+        );
+        g.pans.add(
+          _blobPath(c, 46 + rnd() * 62, 26 + rnd() * 30, rnd, wobble: 0.3),
+        );
+        g.panCentres.add(c);
+      }
+      // BONES — what the fen has eaten and kept. The one pale thing down
+      // here, and the reason a Plant hand is worth bringing.
+      final bones = 3 + (rnd() * 3).floor();
+      for (var i = 0; i < bones; i++) {
+        g.bones.add(
+          Offset(
+            b.left + 70 + rnd() * (b.width - 140),
+            b.top + 90 + rnd() * (b.height - 170),
+          ),
+        );
+        g.boneLean.add((rnd() - 0.5) * 2.2);
+      }
+      final roots = (b.width / 130).clamp(4, 12).toInt();
+      for (var i = 0; i < roots; i++) {
+        g.roots.add(Offset(b.left + 40 + rnd() * (b.width - 80), b.top));
+        g.rootLength.add(60 + rnd() * 110);
+      }
+      return g;
+    }
+
     // FLAGSTONES, in courses, every one tilted and none of them square —
     // a floor that has been settling for a thousand years.
     const fw = 96.0;
@@ -1476,6 +1520,57 @@ extension SinkingAltarFen on PlanetDungeonGame {
       RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(34)),
       Paint()..color = const Color(0xFF0B0E10).withValues(alpha: 0.45),
     );
+
+    // The hollow and the bowl: soft ground, and bones in it.
+    for (var i = 0; i < g.pans.length; i++) {
+      canvas.drawPath(
+        g.pans[i],
+        Paint()..color = _fenSlurry.withValues(alpha: 0.22),
+      );
+      // Quaking: one travelling ring per pan, so soft ground reads as soft
+      // before anything stands on it.
+      final c = g.panCentres[i];
+      final ph = ((t * 0.35 + i * 0.2) % 1.0);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: c,
+          width: 28 + ph * 74,
+          height: 15 + ph * 38,
+        ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = _fenSlurry.withValues(alpha: 0.26 * (1 - ph)),
+      );
+    }
+    for (var i = 0; i < g.bones.length; i++) {
+      final o = g.bones[i];
+      canvas.save();
+      canvas.translate(o.dx, o.dy);
+      canvas.rotate(g.boneLean[i]);
+      // A rib: a curve out of the peat and back into it.
+      canvas.drawPath(
+        Path()
+          ..moveTo(-34, 8)
+          ..quadraticBezierTo(0, -40, 34, 6),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 5
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFFB9B096).withValues(alpha: 0.32),
+      );
+      canvas.drawPath(
+        Path()
+          ..moveTo(-20, 10)
+          ..quadraticBezierTo(0, -22, 21, 9),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFFB9B096).withValues(alpha: 0.22),
+      );
+      canvas.restore();
+    }
 
     for (final f in g.flags) {
       canvas.drawPath(
@@ -2355,23 +2450,33 @@ extension SinkingAltarFen on PlanetDungeonGame {
             ..color = _fenSlurry.withValues(alpha: 0.35 * (1 - t)),
         );
       }
+      // Bigger than the ambient pans around it, and ringed: this is the one
+      // patch in the hollow that is a FIXTURE rather than weather, and the
+      // fight is lost standing anywhere else.
       canvas.drawOval(
-        Rect.fromCenter(center: at, width: 66, height: 34),
-        Paint()..color = _fenSlurry.withValues(alpha: 0.28),
+        Rect.fromCenter(center: at, width: 112, height: 56),
+        Paint()..color = _fenSlurry.withValues(alpha: 0.30),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: 112, height: 56),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = _fenPeat.withValues(alpha: 0.9),
       );
       return;
     }
     // Set: a dried pad, crazed across, sitting proud of the mire.
     canvas.drawOval(
-      Rect.fromCenter(center: at.translate(0, 5), width: 96, height: 46),
+      Rect.fromCenter(center: at.translate(0, 6), width: 122, height: 60),
       Paint()..color = Colors.black.withValues(alpha: 0.3),
     );
     canvas.drawOval(
-      Rect.fromCenter(center: at, width: 92, height: 44),
+      Rect.fromCenter(center: at, width: 118, height: 58),
       Paint()..color = const Color(0xFF6B5B41),
     );
     canvas.drawOval(
-      Rect.fromCenter(center: at, width: 92, height: 44),
+      Rect.fromCenter(center: at, width: 118, height: 58),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.6
@@ -2380,8 +2485,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
     for (var i = 0; i < 5; i++) {
       final a = i * 1.26 + 0.3;
       canvas.drawLine(
-        at + Offset(cos(a) * 8, sin(a) * 4),
-        at + Offset(cos(a) * 42, sin(a) * 20),
+        at + Offset(cos(a) * 10, sin(a) * 5),
+        at + Offset(cos(a) * 55, sin(a) * 27),
         Paint()
           ..strokeWidth = 1.2
           ..color = const Color(0xFF3A3021),
