@@ -864,12 +864,40 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
     _renderHeartTurn(canvas, room);
   }
 
-  /// THE SWELL. Cheap by construction: a fixed handful of strokes derived from
-  /// the room's own bounds, no allocation per frame beyond the paints, and
-  /// nothing that scales with the party or the enemies. No blur filters (the
-  /// game's known jank source) — the wetness is done with alpha and arcs.
+  /// THE ONE MOVING NUMBER ON THE PLANET. A decaying thump at each of the two
+  /// onsets a real beat has: the squeeze, and the rebound off the closing
+  /// valve — which this layout already calls the backwash, so the lub-dub is
+  /// not invented, it is the phase table read out loud.
+  ///
+  /// The pulse is Hemavorn's whole identity, which makes it the one planet
+  /// where the temptation is to animate everything; heavy per-frame work is
+  /// this repo's known jank source, so instead EVERY shape on the floor is
+  /// cached and static and reads this single scalar. A wall that swells two
+  /// pixels on the beat is worth more than a hundred moving particles and
+  /// costs one multiply.
+  double _heartSwell() {
+    // The vagal node stops the heart, so it stops the room with it. The
+    // arrest is the only hand anybody has on this clock and it should be
+    // FELT, not just read in the capsule.
+    if (heart.arrest > 0) return 0;
+    double thump(double since, double len) {
+      if (since < 0 || since > len) return 0.0;
+      final t = 1 - since / len;
+      return t * t;
+    }
+
+    return (thump(heart.clock, 1.4) +
+            0.5 * thump(heart.clock - kPulsePhaseSeconds[0], 1.0))
+        .clamp(0.0, 1.0);
+  }
+
+  /// THE CHAMBER ITSELF — wet tissue, valve leaves and vessel wall, built
+  /// once per room and cached (see `_buildHeartGround`). What varies per frame
+  /// is three numbers: the phase's [fill], the beat's swell, and one sine on
+  /// the standing blood.
   void _renderHeartGround(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
+    final g = _heartGround(room);
     // How full the chamber is, eased off the phase. Systole floods it, the
     // flatline leaves it flat and bone-still.
     final fill = switch (heart.phase) {
@@ -878,26 +906,67 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       PulsePhase.diastole => 0.45,
       PulsePhase.flatline => 0.12,
     };
-    canvas.drawRect(b, Paint()..color = _kHeartInk.withValues(alpha: 0.42));
-    canvas.drawRect(
-      b,
-      Paint()..color = _kHeartRust.withValues(alpha: 0.10 + 0.16 * fill),
+    final swell = _heartSwell();
+
+    // The floor. Ink first, so the tissue drawn over it has something to be
+    // wet against; then a rust wash that thickens as the chamber fills. Both
+    // sit inside the FLOOR TRANSLUCENCY RULE — the sky shader is the room's
+    // mood and has to keep showing through the meat.
+    final rr = RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(30));
+    canvas.drawRRect(rr, Paint()..color = _kHeartInk.withValues(alpha: 0.46));
+    canvas.drawRRect(
+      rr,
+      Paint()..color = _kHeartRust.withValues(alpha: 0.12 + 0.18 * fill),
     );
-    // Four slow crimson bands, the tide of the chamber. They rise on the
-    // systole and lie flat on the pause — the body reading, never a tide line.
-    final band = Paint()
-      ..color = _kHeartCrimson.withValues(alpha: 0.10 + 0.14 * fill)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2 + 3 * fill;
-    for (var i = 1; i < 5; i++) {
-      final y = b.top + b.height * i / 5;
-      final lift = (1 - fill) * 8.0;
+
+    // THE BREATH, in one matrix. The tissue grows a little over half a
+    // percent on the thump and the floor under it does not, so the chamber
+    // reads as a wall pressing in rather than as the camera lurching.
+    //
+    // CLIPPED TO THE FLOOR. The first cut of this let seams, spindles and
+    // vessel throats run off the edge of the chamber and hang in the sky,
+    // which turned a body into a diagram drawn on a card. Tissue stops at the
+    // wall; one clip does it for everything, including the swell.
+    canvas.save();
+    canvas.clipRRect(rr);
+    canvas.translate(b.center.dx, b.center.dy);
+    canvas.scale(1 + 0.006 * swell);
+    canvas.translate(-b.center.dx, -b.center.dy);
+
+    // Standing blood, lying in the low places. Dark, because pooled blood is
+    // nearly black and the crimson belongs to what is moving.
+    for (var i = 0; i < g.pools.length; i++) {
+      canvas.drawPath(
+        g.pools[i],
+        Paint()..color = _kHeartWet.withValues(alpha: 0.50),
+      );
+      final c = g.poolCentres[i];
+      final y = sin(heart.clock * 0.7 + i * 1.7) * 5;
       canvas.drawLine(
-        Offset(b.left + 12, y + lift),
-        Offset(b.right - 12, y + lift),
-        band,
+        Offset(c.dx - 26, c.dy + y),
+        Offset(c.dx + 24, c.dy + y - 2),
+        Paint()
+          ..strokeWidth = 1.6
+          ..color = _kHeartCrimson.withValues(alpha: 0.16 + 0.16 * fill),
       );
     }
+
+    for (final p in g.pieces) {
+      final k = p.swell * swell;
+      final paint = Paint()
+        ..color = p.color.withValues(
+          alpha: (p.alpha * (1 + 0.35 * k)).clamp(0.0, 1.0),
+        );
+      if (p.stroke > 0) {
+        paint
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = p.stroke * (1 + 0.22 * k)
+          ..strokeCap = StrokeCap.round;
+      }
+      canvas.drawPath(p.path, paint);
+    }
+    canvas.restore();
+
     if (heart.phase == PulsePhase.flatline) {
       // The pause is drawn by ABSENCE: one hard bone hairline across the
       // chamber, the flat trace on a stopped heart.
@@ -1452,4 +1521,1125 @@ extension SanguineOrreryDungeon on PlanetDungeonGame {
       vaultReachableUngrafted: vaultOk,
     );
   }
+}
+
+// ═════════════════════════════════════════════════════════
+// THE GROUND — what Hemavorn actually IS
+// ═════════════════════════════════════════════════════════
+//
+// Every chamber of the terminal planet stood on the generic tinted slab with
+// four evenly spaced hairlines ruled across it. Four equal lines is not a
+// heart; it is a page of graph paper, and it was the same page in all ten
+// rooms. What follows draws the inside of something ALIVE instead: an
+// endocardial lining with muscle cords webbing its walls, standing blood in
+// the low places, a vessel tracery in the wall itself — and then, per
+// chamber, the one piece of anatomy that chamber is NAMED for. A run down
+// the orrery should be legible as a tour of a body: sac, artery, arch,
+// sinus, stair, lung, comb, muscle, ear, valve.
+//
+// Three rules this file keeps, all of them learned the hard way:
+//
+//  • **NOTHING ON A GRID.** Anatomy is never regular. Every spacing here is
+//    jittered, every run skips, every length and angle varies, and the two
+//    places that wanted to be a lattice (the myocardium's fibres, the
+//    auricle's ridges) are built out of tapered bundles and bowed ribs
+//    precisely so they cannot tile.
+//  • **BUILT ONCE.** All of it is a pure function of the room's own bounds
+//    through a small LCG, cached in `_heartGroundCache`, so a chamber looks
+//    the same every time you walk into it and costs nothing to walk into
+//    twice. Strokes are merged into compound paths wherever one paint can
+//    serve many shapes, which keeps a room to roughly fifty draw calls.
+//  • **NO `MaskFilter.blur`, ANYWHERE.** The wetness is alpha, dark pools and
+//    a pale meniscus. Blur in a per-frame paint is this repo's main jank
+//    source and there is none of it on this planet.
+//
+// The centre of a chamber is left to walk and fight in — the arena and the
+// crossing take an explicit open radius — and every big fill stays inside the
+// FLOOR TRANSLUCENCY RULE so the sky shader still reads through the meat.
+
+/// Deep muscle in section — what the wall of a heart looks like cut.
+const Color _kHeartMeat = Color(0xFF5A1420);
+
+/// Tendon, cartilage and valve leaf: the pale, dry things inside a wet one.
+const Color _kHeartSinew = Color(0xFFD9BFA2);
+
+/// Standing blood. Nearly black, because pooled blood is — the crimson in
+/// this planet belongs to what is still moving.
+const Color _kHeartWet = Color(0xFF2A0A11);
+
+/// One drawn piece of a chamber: a compound path plus the paint it wants.
+///
+/// [swell] is how much of the beat this piece takes — 0 for dead tissue that
+/// should sit still, 1 for a wall that should visibly push. It is the only
+/// per-frame input any of this has.
+class _HeartPiece {
+  const _HeartPiece(
+    this.path,
+    this.color, {
+    this.stroke = 0,
+    this.alpha = 0.4,
+    this.swell = 0,
+  });
+
+  final Path path;
+  final Color color;
+
+  /// Stroke width, or 0 to fill.
+  final double stroke;
+  final double alpha;
+  final double swell;
+}
+
+/// One chamber's static geometry.
+class _HeartGround {
+  final List<_HeartPiece> pieces = [];
+
+  /// Standing blood is kept apart from [pieces] because it is the one thing
+  /// with a moving highlight on it.
+  final List<Path> pools = [];
+  final List<Offset> poolCentres = [];
+}
+
+/// Built once per chamber, keyed by room id, and never rebuilt.
+final Map<String, _HeartGround> _heartGroundCache = {};
+
+_HeartGround _heartGround(DungeonRoom room) =>
+    _heartGroundCache.putIfAbsent(room.id, () => _buildHeartGround(room));
+
+// ── Small geometry helpers ────────────────────────────────
+
+/// The control point that bows a straight run between [a] and [b] out to one
+/// side by [bow]. Nothing in a body runs straight, so almost every line in
+/// this file goes through here.
+Offset _heartBow(Offset a, Offset b, double bow) {
+  final m = Offset.lerp(a, b, 0.5)!;
+  final d = b - a;
+  final len = d.distance;
+  if (len < 0.001) return m;
+  return m + Offset(-d.dy / len, d.dx / len) * bow;
+}
+
+/// A bowed run from [a] to [b], appended to [into] (or a fresh path).
+Path _heartArcTo(Offset a, Offset b, double bow, [Path? into]) {
+  final c = _heartBow(a, b, bow);
+  final p = into ?? Path();
+  p.moveTo(a.dx, a.dy);
+  p.quadraticBezierTo(c.dx, c.dy, b.dx, b.dy);
+  return p;
+}
+
+/// A point on that same bowed run, so things can be hung along it (stitches
+/// on a seam, voussoirs on an arch) without re-deriving the curve.
+Offset _heartArcAt(Offset a, Offset b, double bow, double t) {
+  final c = _heartBow(a, b, bow);
+  final u = 1 - t;
+  return Offset(
+    u * u * a.dx + 2 * u * t * c.dx + t * t * b.dx,
+    u * u * a.dy + 2 * u * t * c.dy + t * t * b.dy,
+  );
+}
+
+/// A closed, ragged-lipped blob: eight points round an ellipse, each pushed
+/// in or out and joined with quadratics, so no pool of blood in this dungeon
+/// has a clean edge.
+Path _heartBlob(
+  Offset c,
+  double rx,
+  double ry,
+  double Function() rnd, {
+  double wobble = 0.30,
+}) {
+  const n = 8;
+  final pts = <Offset>[];
+  for (var i = 0; i < n; i++) {
+    final a = i / n * pi * 2;
+    final k = 1 + (rnd() - 0.5) * 2 * wobble;
+    pts.add(Offset(c.dx + cos(a) * rx * k, c.dy + sin(a) * ry * k));
+  }
+  final path = Path();
+  final mid0 = Offset.lerp(pts[n - 1], pts[0], 0.5)!;
+  path.moveTo(mid0.dx, mid0.dy);
+  for (var i = 0; i < n; i++) {
+    final cur = pts[i];
+    final mid = Offset.lerp(cur, pts[(i + 1) % n], 0.5)!;
+    path.quadraticBezierTo(cur.dx, cur.dy, mid.dx, mid.dy);
+  }
+  path.close();
+  return path;
+}
+
+/// A closed contour round [r] with every point nudged off true, smoothed
+/// through its own midpoints. Anywhere a chamber wants an outline, it gets
+/// one of these rather than a rectangle — a body has no straight edges and a
+/// ruled border is the single loudest way to make a room look like a diagram.
+Path _heartLoop(Rect r, double Function() rnd, double jitter) {
+  final pts = <Offset>[];
+  void side(Offset a, Offset z, int n) {
+    final d = z - a;
+    final l = d.distance;
+    final nrm = Offset(-d.dy / l, d.dx / l);
+    for (var i = 0; i < n; i++) {
+      pts.add(
+        Offset.lerp(a, z, i / n)! + nrm * ((rnd() - 0.5) * 2 * jitter),
+      );
+    }
+  }
+
+  side(r.topLeft, r.topRight, 7);
+  side(r.topRight, r.bottomRight, 5);
+  side(r.bottomRight, r.bottomLeft, 7);
+  side(r.bottomLeft, r.topLeft, 5);
+  final path = Path();
+  final n = pts.length;
+  final mid0 = Offset.lerp(pts[n - 1], pts[0], 0.5)!;
+  path.moveTo(mid0.dx, mid0.dy);
+  for (var i = 0; i < n; i++) {
+    final cur = pts[i];
+    final mid = Offset.lerp(cur, pts[(i + 1) % n], 0.5)!;
+    path.quadraticBezierTo(cur.dx, cur.dy, mid.dx, mid.dy);
+  }
+  path.close();
+  return path;
+}
+
+/// A branching vessel, recursively. A TREE is the one thing that can never
+/// come out looking like a lattice however many of them you draw, which is
+/// why the wall tracery and the lung's weave are both built out of it.
+void _heartBranch(
+  Path p,
+  Offset at,
+  double ang,
+  double len,
+  int depth,
+  double Function() rnd,
+) {
+  if (depth <= 0 || len < 7) return;
+  final end = at + Offset(cos(ang) * len, sin(ang) * len);
+  _heartArcTo(at, end, (rnd() - 0.5) * len * 0.35, p);
+  final forks = rnd() < 0.30 ? 3 : 2;
+  for (var i = 0; i < forks; i++) {
+    _heartBranch(
+      p,
+      end,
+      ang + (rnd() - 0.5) * 1.6,
+      len * (0.48 + rnd() * 0.30),
+      depth - 1,
+      rnd,
+    );
+  }
+}
+
+// ── The lining every chamber has ──────────────────────────
+
+/// THE WALL. A heart chamber is not a floor with a border; it is a muscular
+/// tube seen from inside, so the rim gets a thick band of meat, a wet inner
+/// line, and endocardial fibres combed inward off it.
+///
+/// The fibres are where the "nothing on a grid" rule earns its keep: the
+/// first cut of them was evenly spaced and read as the teeth of a zip round
+/// every room. They now skip about a fifth of their steps, lean by a random
+/// amount and vary from a stub to a finger.
+void _heartLining(_HeartGround g, Rect b, double Function() rnd) {
+  final rim = RRect.fromRectAndRadius(b, const Radius.circular(28));
+  g.pieces.add(
+    _HeartPiece(
+      Path()..addRRect(rim.deflate(14)),
+      _kHeartMeat,
+      stroke: 28,
+      alpha: 0.36,
+      swell: 0.6,
+    ),
+  );
+  // THE WET LINE where the lining meets the floor. It was a perfect rounded
+  // rectangle, which in every single room read as a HUD frame ruled round the
+  // outside of the picture — the exact fault this pass exists to remove. It
+  // is a wobbling closed contour now: the same line, but grown.
+  g.pieces.add(
+    _HeartPiece(
+      _heartLoop(b.deflate(24), rnd, 9),
+      _kHeartCrimson,
+      stroke: 2.6,
+      alpha: 0.34,
+      swell: 1,
+    ),
+  );
+
+  // THE GRAIN OF THE FLOOR. Long, faint, bowed strokes right across the
+  // chamber. Muscle has a direction, and without this the open middle of a
+  // room — which the arena and the crossing are REQUIRED to keep clear —
+  // came out as a flat wash with furniture round the edge of it. It is
+  // texture, never an obstacle: nothing here is above a tenth of an alpha.
+  final grain = Path();
+  for (var i = 0; i < 8; i++) {
+    final t0 = rnd();
+    _heartArcTo(
+      _heartPerimeter(b, t0),
+      _heartPerimeter(b, t0 + 0.32 + rnd() * 0.28),
+      (rnd() - 0.5) * 320,
+      grain,
+    );
+  }
+  g.pieces.add(
+    _HeartPiece(grain, _kHeartCrimson, stroke: 2.2, alpha: 0.09, swell: 0.8),
+  );
+
+  final fib = Path();
+  void comb(double along0, double along1, Offset Function(double) at, Offset dir) {
+    var t = along0 + rnd() * 40;
+    while (t < along1) {
+      if (rnd() > 0.20) {
+        final len = 9 + rnd() * 28;
+        final lean = (rnd() - 0.5) * 0.7;
+        final a = at(t);
+        final d = Offset(
+          dir.dx * cos(lean) - dir.dy * sin(lean),
+          dir.dx * sin(lean) + dir.dy * cos(lean),
+        );
+        _heartArcTo(a, a + d * len, (rnd() - 0.5) * 9, fib);
+      }
+      t += 9 + rnd() * 26;
+    }
+  }
+
+  comb(b.left + 26, b.right - 26, (t) => Offset(t, b.top + 26), const Offset(0, 1));
+  comb(b.left + 26, b.right - 26, (t) => Offset(t, b.bottom - 26), const Offset(0, -1));
+  comb(b.top + 40, b.bottom - 40, (t) => Offset(b.left + 26, t), const Offset(1, 0));
+  comb(b.top + 40, b.bottom - 40, (t) => Offset(b.right - 26, t), const Offset(-1, 0));
+  g.pieces.add(
+    _HeartPiece(fib, _kHeartCrimson, stroke: 2.0, alpha: 0.34, swell: 1),
+  );
+}
+
+/// A point [t] of the way round the perimeter of [b], t in [0,1).
+Offset _heartPerimeter(Rect b, double t) {
+  final per = 2 * (b.width + b.height);
+  var d = (t % 1.0) * per;
+  if (d < 0) d += per;
+  if (d < b.width) return Offset(b.left + d, b.top);
+  d -= b.width;
+  if (d < b.height) return Offset(b.right, b.top + d);
+  d -= b.height;
+  if (d < b.width) return Offset(b.right - d, b.bottom);
+  d -= b.width;
+  return Offset(b.left, b.bottom - d);
+}
+
+/// TRABECULAE CARNEAE — the fleshy cords that web the inside of a chamber and
+/// are the reason a heart's interior looks knotted rather than smooth.
+///
+/// ANCHORED AT BOTH ENDS. The first cut of these grew out of one wall and
+/// stopped in mid-air, and a room full of them read as a floor strewn with
+/// fallen branches. A trabecula is a BRIDGE: it leaves the wall, arches into
+/// the chamber and comes back to the wall, which is both what the tissue
+/// actually does and what makes the room read as webbed rather than littered.
+/// [openRadius] keeps the arches shallow in a room that has to be fought in.
+///
+/// Bucketed into three thicknesses so all of them cost six draw calls rather
+/// than two per cord.
+void _heartTrabeculae(
+  _HeartGround g,
+  Rect b,
+  double Function() rnd, {
+  int count = 13,
+  double openRadius = 0,
+}) {
+  final under = [Path(), Path(), Path()];
+  final over = [Path(), Path(), Path()];
+  const widths = [3.0, 5.0, 7.5];
+  final per = 2 * (b.width + b.height);
+  for (var i = 0; i < count; i++) {
+    final t0 = rnd();
+    final a = _heartPerimeter(b, t0);
+    final z = _heartPerimeter(b, t0 + (70 + rnd() * 300) / per);
+    final d = z - a;
+    final l = d.distance;
+    if (l < 40) continue;
+    // Bow whichever way is into the room.
+    final nrm = Offset(-d.dy / l, d.dx / l);
+    final toward = b.center - Offset.lerp(a, z, 0.5)!;
+    final sign = (nrm.dx * toward.dx + nrm.dy * toward.dy) >= 0 ? 1.0 : -1.0;
+    final bow = sign * (26 + rnd() * 120);
+    if (openRadius > 0 &&
+        (_heartArcAt(a, z, bow, 0.5) - b.center).distance < openRadius) {
+      continue;
+    }
+    final bucket = (rnd() * 3).floor();
+    _heartArcTo(a, z, bow, under[bucket]);
+    _heartArcTo(a, z, bow, over[bucket]);
+  }
+  for (var i = 0; i < 3; i++) {
+    g.pieces.add(
+      _HeartPiece(under[i], _kHeartInk, stroke: widths[i] + 3, alpha: 0.46),
+    );
+    g.pieces.add(
+      _HeartPiece(
+        over[i],
+        _kHeartCrimson,
+        stroke: widths[i],
+        alpha: 0.32,
+        swell: 1,
+      ),
+    );
+  }
+}
+
+/// Standing blood, in the low places. Never round, never centred: a chamber
+/// that has been beating for an age has puddles where the floor sags.
+void _heartPools(
+  _HeartGround g,
+  Rect b,
+  double Function() rnd, {
+  int count = 5,
+  double openRadius = 0,
+}) {
+  for (var i = 0; i < count; i++) {
+    final c = Offset(
+      b.left + 60 + rnd() * (b.width - 120),
+      b.top + 50 + rnd() * (b.height - 100),
+    );
+    if (openRadius > 0 && (c - b.center).distance < openRadius) continue;
+    final rx = 32 + rnd() * 60;
+    g.pools.add(_heartBlob(c, rx, rx * (0.34 + rnd() * 0.28), rnd));
+    g.poolCentres.add(c);
+  }
+}
+
+/// VASA VASORUM — the vessels that feed the vessel. A fine tracery growing
+/// out of the wall itself, which is what stops the rim reading as a painted
+/// border: the wall has a supply, so it is tissue.
+void _heartVasa(_HeartGround g, Rect b, double Function() rnd, {int trees = 5}) {
+  final p = Path();
+  for (var i = 0; i < trees; i++) {
+    final side = (rnd() * 4).floor();
+    final u = rnd();
+    final (at, ang) = switch (side) {
+      0 => (Offset(b.left + 40 + u * (b.width - 80), b.top + 16), pi / 2),
+      1 => (Offset(b.left + 40 + u * (b.width - 80), b.bottom - 16), -pi / 2),
+      2 => (Offset(b.left + 16, b.top + 50 + u * (b.height - 100)), 0.0),
+      _ => (Offset(b.right - 16, b.top + 50 + u * (b.height - 100)), pi),
+    };
+    _heartBranch(p, at, ang + (rnd() - 0.5) * 0.9, 46 + rnd() * 36, 4, rnd);
+  }
+  g.pieces.add(
+    _HeartPiece(p, _kHeartCrimson, stroke: 1.3, alpha: 0.26, swell: 0.5),
+  );
+}
+
+// ── What each chamber is ──────────────────────────────────
+
+/// THE PERICARD GATE — the sac. Leathery seams sweeping the whole width of
+/// the room with sutures crossing them at irregular intervals, because the
+/// thing the party's own BLOOD unpicks to open this planet ought to be
+/// visibly SEWN. A fifth of the stitches are already gone.
+void _buildSac(_HeartGround g, Rect b, double Function() rnd) {
+  final dark = Path();
+  final pale = Path();
+  final stitch = Path();
+  for (var i = 0; i < 4; i++) {
+    final y = b.top + b.height * (0.13 + 0.25 * i) + (rnd() - 0.5) * 56;
+    // TWO SEAMS ACROSS AND TWO DOWN. Four near-horizontal bands, however much
+    // they sag and tilt, still read as a ruled page — and a sac is not sewn
+    // in one direction anyway. The down-seams cross the across-seams, which
+    // is what makes the room read as something CLOSED UP rather than lined.
+    final across = i.isEven;
+    final x = b.left + b.width * (0.24 + 0.46 * i) + (rnd() - 0.5) * 70;
+    final a = across
+        ? Offset(b.left - 14, y + (rnd() - 0.5) * 110)
+        : Offset(x + (rnd() - 0.5) * 90, b.top - 14);
+    final c = across
+        ? Offset(b.right + 14, y + (rnd() - 0.5) * 110)
+        : Offset(x + (rnd() - 0.5) * 90, b.bottom + 14);
+    // A seam that barely bends is a clothesline. These sag and rise by up to
+    // a fifth of the room.
+    final bow = (rnd() - 0.5) * 210;
+    // Two lips of membrane drawn TOGETHER — a seam is where two edges have
+    // been pulled up against each other, which is why the stitches read as
+    // holding something shut rather than as ticks on a wire.
+    for (final lip in const [-5.0, 5.0]) {
+      final off = across ? Offset(0, lip) : Offset(lip, 0);
+      _heartArcTo(a + off, c + off, bow, dark);
+    }
+    _heartArcTo(a, c, bow, pale);
+    // Sutures. Spacing is jittered and a fifth of them are missing, so the
+    // seam reads as hand-sewn and half-unpicked rather than machined.
+    // A WHIP STITCH, which leans the same way all along one seam. Ticks at
+    // random angles read as tally marks; a consistent slant reads as
+    // somebody's hand going round and round the same edge.
+    final slant = (i.isEven ? 0.72 : -0.72) + (rnd() - 0.5) * 0.3;
+    var t = 0.04 + rnd() * 0.08;
+    while (t < 0.96) {
+      if (rnd() > 0.22) {
+        final at = _heartArcAt(a, c, bow, t);
+        final lean = slant + (rnd() - 0.5) * 0.22 + (across ? 0 : pi / 2);
+        final h = 8 + rnd() * 9;
+        stitch.moveTo(at.dx - sin(lean) * h, at.dy - cos(lean) * h);
+        stitch.lineTo(at.dx + sin(lean) * h, at.dy + cos(lean) * h);
+      }
+      t += 0.035 + rnd() * 0.055;
+    }
+  }
+  g.pieces.add(_HeartPiece(dark, _kHeartInk, stroke: 11, alpha: 0.44));
+  g.pieces.add(
+    _HeartPiece(pale, _kHeartSinew, stroke: 3.2, alpha: 0.26, swell: 0.4),
+  );
+  g.pieces.add(
+    _HeartPiece(stitch, _kHeartBone, stroke: 1.8, alpha: 0.34, swell: 0.3),
+  );
+}
+
+/// THE ARTERIAL RUN — a length of great artery, seen from inside. Bands of
+/// circular muscle cross the corridor at irregular intervals and every one of
+/// them is BROKEN in the middle, which does two jobs at once: it leaves a
+/// clear lane to run down, and a band you can see through reads as wrapped
+/// around a tube rather than painted on a floor.
+void _buildRun(_HeartGround g, Rect b, double Function() rnd) {
+  // BANDS, NOT BARS. The first cut bowed these by a few pixels over two
+  // hundred and the run came out looking like a row of railings; a hoop
+  // wrapped round a tube has a real belly to it, and no two of them here have
+  // the same belly, the same gap or the same thickness.
+  final dark = [Path(), Path(), Path()];
+  final lit = [Path(), Path(), Path()];
+  const widths = [6.0, 9.5, 14.0];
+  const lane = 78.0;
+  var x = b.left + 40 + rnd() * 30;
+  while (x < b.right - 30) {
+    final bow = (rnd() < 0.5 ? -1 : 1) * (44 + rnd() * 62);
+    final k = (rnd() * 3).floor();
+    final drift = (rnd() - 0.5) * 44;
+    final gapTop = b.center.dy - lane - rnd() * 34;
+    final gapBottom = b.center.dy + lane + rnd() * 34;
+    final foot = x + (rnd() - 0.5) * 24;
+    for (final into in [dark[k], lit[k]]) {
+      _heartArcTo(Offset(x, b.top + 14), Offset(x + drift, gapTop), bow, into);
+      _heartArcTo(
+        Offset(x + drift, gapBottom),
+        Offset(foot, b.bottom - 14),
+        bow,
+        into,
+      );
+    }
+    x += 40 + rnd() * 86;
+  }
+  for (var i = 0; i < 3; i++) {
+    g.pieces.add(
+      _HeartPiece(dark[i], _kHeartInk, stroke: widths[i] + 7, alpha: 0.40),
+    );
+    g.pieces.add(
+      _HeartPiece(lit[i], _kHeartMeat, stroke: widths[i], alpha: 0.50, swell: 1),
+    );
+  }
+  // Elastic laminae: a few long ridges running the LENGTH of the run, which
+  // is the direction the party travels and the direction blood does.
+  final lam = Path();
+  for (var i = 0; i < 6; i++) {
+    final y = b.top + 40 + rnd() * (b.height - 80);
+    final x0 = b.left + rnd() * b.width * 0.4;
+    final x1 = x0 + 160 + rnd() * 320;
+    _heartArcTo(
+      Offset(x0, y),
+      Offset(min(x1, b.right - 20), y + (rnd() - 0.5) * 40),
+      (rnd() - 0.5) * 40,
+      lam,
+    );
+  }
+  g.pieces.add(
+    _HeartPiece(lam, _kHeartCrimson, stroke: 2.6, alpha: 0.40, swell: 0.7),
+  );
+}
+
+/// THE AORTIC ARCH — an arch, and the only piece of this dungeon that is
+/// genuinely ARCHITECTURE. Three nested muscular bands spring from both
+/// haunches and cross the chamber overhead, with voussoir divisions cut
+/// across the outer one at uneven intervals (an evenly divided arch reads as
+/// masonry, and this one is grown, not laid).
+void _buildArch(_HeartGround g, Rect b, double Function() rnd) {
+  final dark = Path();
+  final band = Path();
+  final tick = Path();
+  for (var i = 0; i < 3; i++) {
+    final inset = 60.0 + i * 52;
+    final a = Offset(b.left + inset * 0.5, b.bottom - 26);
+    final c = Offset(b.right - inset * 0.5, b.bottom - 26);
+    // A quadratic's crown rises only half its control offset, so the first
+    // cut of this — one room-height of bow — put the springing of the arch
+    // where its crown should be and left the top third of the chamber empty.
+    final bow = -(b.height - inset) * 1.62;
+    _heartArcTo(a, c, bow, dark);
+    _heartArcTo(a, c, bow, band);
+    if (i != 0) continue;
+    var t = 0.06 + rnd() * 0.06;
+    while (t < 0.94) {
+      if (rnd() > 0.18) {
+        final p0 = _heartArcAt(a, c, bow, t);
+        final p1 = _heartArcAt(a, c, bow + 46, t);
+        tick.moveTo(p0.dx, p0.dy);
+        tick.lineTo(p1.dx, p1.dy);
+      }
+      t += 0.04 + rnd() * 0.06;
+    }
+  }
+  g.pieces.add(_HeartPiece(dark, _kHeartInk, stroke: 22, alpha: 0.42));
+  g.pieces.add(
+    _HeartPiece(band, _kHeartMeat, stroke: 13, alpha: 0.48, swell: 1),
+  );
+  g.pieces.add(
+    _HeartPiece(tick, _kHeartSinew, stroke: 2.0, alpha: 0.24, swell: 0.4),
+  );
+}
+
+/// THE VENA CROSSING — the sinus, where the figure of eight crosses itself.
+/// Two great throats come in from opposite corners and EMPTY into a common
+/// pool in the middle: their walls are drawn only at the ends of each run and
+/// stop before they reach the centre, so the hub keeps an open floor and
+/// still reads as the one place two vessels meet.
+void _buildSinus(_HeartGround g, Rect b, double Function() rnd) {
+  final dark = Path();
+  final wall = Path();
+  final axes = [
+    (Offset(b.left - 40, b.top - 30), Offset(b.right + 40, b.bottom + 30)),
+    (Offset(b.left - 40, b.bottom + 30), Offset(b.right + 40, b.top - 30)),
+  ];
+  // A THROAT IS A HOLLOW, not a stick. The first cut drew each vessel as two
+  // long thin strokes and the crossing came out looking like scaffolding
+  // poles laid over the floor; each mouth is a tapered opening now, with a
+  // dark hollow inside it and a wall of meat on either lip.
+  final bore = Path();
+  for (final (a, c) in axes) {
+    final d = c - a;
+    final len = d.distance;
+    final n = Offset(-d.dy / len, d.dx / len);
+    for (final seg in const [(0.0, 0.36), (1.0, 0.64)]) {
+      final mouth = Offset.lerp(a, c, seg.$1)!;
+      final inner = Offset.lerp(a, c, seg.$2)!;
+      final wide = 116.0 + rnd() * 30;
+      final narrow = 70.0 + rnd() * 20;
+      final m0 = mouth + n * wide;
+      final m1 = mouth - n * wide;
+      final i0 = inner + n * narrow;
+      final i1 = inner - n * narrow;
+      final c0 = _heartBow(m0, i0, 30);
+      final c1 = _heartBow(i1, m1, 30);
+      bore.addPath(
+        Path()
+          ..moveTo(m0.dx, m0.dy)
+          ..quadraticBezierTo(c0.dx, c0.dy, i0.dx, i0.dy)
+          ..lineTo(i1.dx, i1.dy)
+          ..quadraticBezierTo(c1.dx, c1.dy, m1.dx, m1.dy)
+          ..close(),
+        Offset.zero,
+      );
+      for (final into in [dark, wall]) {
+        _heartArcTo(m0, i0, 30, into);
+        _heartArcTo(i1, m1, 30, into);
+      }
+    }
+  }
+  // The lumen has to be DARKER than the chamber or the throat reads as two
+  // lines rather than a hole: blood standing in a vessel is nearly black.
+  g.pieces.add(_HeartPiece(bore, _kHeartWet, alpha: 0.58));
+  g.pieces.add(_HeartPiece(dark, _kHeartInk, stroke: 20, alpha: 0.46));
+  g.pieces.add(
+    _HeartPiece(wall, _kHeartMeat, stroke: 11, alpha: 0.52, swell: 1),
+  );
+  // The sinus itself: one broad shallow pool of standing blood under the
+  // crossing. Scenery to stand in, never an obstacle.
+  g.pools.add(_heartBlob(b.center, 150, 96, rnd, wobble: 0.22));
+  g.poolCentres.add(b.center);
+}
+
+/// THE PULMONIC STAIR — terraces of tissue climbing out of the crossing into
+/// the lung. Each shelf has a pale cartilage lip on its tread and a fringe of
+/// roots hanging under its nose; the rise and the run of every step differ,
+/// because a stair grown by a body is not a stair anybody cut.
+void _buildStair(_HeartGround g, Rect b, double Function() rnd) {
+  final tread = Path();
+  final shadow = Path();
+  final lip = Path();
+  final fringe = Path();
+  var x = b.left + 34;
+  var y = b.bottom - 70;
+  for (var i = 0; i < 6 && x < b.right - 70; i++) {
+    final w = 130 + rnd() * 110;
+    final h = 30 + rnd() * 22;
+    final a = Offset(x, y);
+    final c = Offset(min(x + w, b.right - 24), y + (rnd() - 0.5) * 16);
+    final slab = RRect.fromRectAndRadius(
+      Rect.fromLTRB(a.dx, a.dy, c.dx, a.dy + h),
+      Radius.circular(h * 0.45),
+    );
+    // THE SHADOW IS THE STEP. Seen from above, a shelf is only a shelf
+    // because of what it casts; the first cut had treads at the same value as
+    // the floor and the whole stair was invisible in the picture.
+    shadow.addRRect(slab.shift(const Offset(5, 11)));
+    tread.addRRect(slab);
+    _heartArcTo(a, c, -6 - rnd() * 8, lip);
+    // The roots under the nose. Jittered, and a quarter of them missing.
+    var t = 0.05 + rnd() * 0.1;
+    while (t < 0.95) {
+      if (rnd() > 0.25) {
+        final at = Offset.lerp(a, c, t)!.translate(0, h);
+        fringe.moveTo(at.dx, at.dy);
+        fringe.lineTo(at.dx + (rnd() - 0.5) * 12, at.dy + 8 + rnd() * 20);
+      }
+      t += 0.05 + rnd() * 0.08;
+    }
+    x += w * (0.62 + rnd() * 0.3);
+    y -= 48 + rnd() * 34;
+  }
+  g.pieces.add(_HeartPiece(shadow, _kHeartInk, alpha: 0.55));
+  g.pieces.add(_HeartPiece(tread, _kHeartMeat, alpha: 0.60, swell: 0.5));
+  g.pieces.add(
+    _HeartPiece(lip, _kHeartSinew, stroke: 4.0, alpha: 0.46, swell: 0.6),
+  );
+  g.pieces.add(_HeartPiece(fringe, _kHeartInk, stroke: 2.0, alpha: 0.5));
+}
+
+/// THE CAPILLARY WEAVE — the deepest chamber of the lung, and the busiest
+/// room on the planet. A dense branching mesh grown off every wall, cross-
+/// linked by anastomoses, with bunches of alveoli crowded where the weave is
+/// thickest.
+void _buildWeave(_HeartGround g, Rect b, double Function() rnd) {
+  final fine = Path();
+  for (var i = 0; i < 11; i++) {
+    final side = (rnd() * 4).floor();
+    final u = rnd();
+    final (at, ang) = switch (side) {
+      0 => (Offset(b.left + 30 + u * (b.width - 60), b.top + 14), pi / 2),
+      1 => (Offset(b.left + 30 + u * (b.width - 60), b.bottom - 14), -pi / 2),
+      2 => (Offset(b.left + 14, b.top + 40 + u * (b.height - 80)), 0.0),
+      _ => (Offset(b.right - 14, b.top + 40 + u * (b.height - 80)), pi),
+    };
+    _heartBranch(fine, at, ang + (rnd() - 0.5) * 1.1, 50 + rnd() * 40, 5, rnd);
+  }
+  // ANASTOMOSES — short cross-links between neighbouring twigs. A capillary
+  // bed is a network, not a set of separate trees, and the links are what
+  // make it read as woven.
+  for (var i = 0; i < 14; i++) {
+    final a = Offset(
+      b.left + 24 + rnd() * (b.width - 48),
+      b.top + 24 + rnd() * (b.height - 48),
+    );
+    _heartArcTo(
+      a,
+      a + Offset((rnd() - 0.5) * 120, (rnd() - 0.5) * 90),
+      (rnd() - 0.5) * 34,
+      fine,
+    );
+  }
+  g.pieces.add(
+    _HeartPiece(fine, _kHeartCrimson, stroke: 1.7, alpha: 0.34, swell: 0.8),
+  );
+
+  // ALVEOLI. Bunches, never a scatter and never a grid: a cluster centre with
+  // five to nine sacs crowded round it at varying radii.
+  final sacs = Path();
+  final rims = Path();
+  for (var i = 0; i < 5; i++) {
+    final c = Offset(
+      b.left + 60 + rnd() * (b.width - 120),
+      b.top + 50 + rnd() * (b.height - 100),
+    );
+    final n = 5 + (rnd() * 5).floor();
+    for (var k = 0; k < n; k++) {
+      final a = rnd() * pi * 2;
+      final d = 6 + rnd() * 34;
+      final at = c + Offset(cos(a) * d, sin(a) * d * 0.8);
+      final r = 7 + rnd() * 10;
+      sacs.addOval(Rect.fromCircle(center: at, radius: r));
+      rims.addOval(Rect.fromCircle(center: at, radius: r));
+    }
+  }
+  g.pieces.add(_HeartPiece(sacs, _kHeartWet, alpha: 0.44));
+  g.pieces.add(
+    _HeartPiece(rims, _kHeartCrimson, stroke: 1.4, alpha: 0.36, swell: 1),
+  );
+}
+
+/// THE ATRIAL GALLERY — pectinate muscle, the comb an atrium actually has
+/// inside it. A thick crista runs the length of the chamber and the teeth
+/// spring off it in a FAN, with varied lengths, a fifth of them missing and
+/// some of them forked. Parallel teeth of one length would be a garden rake;
+/// this is a gallery of ribs.
+void _buildGallery(_HeartGround g, Rect b, double Function() rnd) {
+  final crista = Path();
+  final teeth = Path();
+  final dark = Path();
+  for (final run in const [0.26, 0.78]) {
+    final down = run < 0.5 ? 1.0 : -1.0;
+    final y = b.top + b.height * run;
+    final a = Offset(b.left + 20, y + (rnd() - 0.5) * 30);
+    final c = Offset(b.right - 20, y + (rnd() - 0.5) * 30);
+    final bow = (rnd() - 0.5) * 130;
+    _heartArcTo(a, c, bow, crista);
+    var t = 0.03 + rnd() * 0.06;
+    while (t < 0.97) {
+      if (rnd() > 0.20) {
+        final at = _heartArcAt(a, c, bow, t);
+        // Fanned: the lean runs from one end of the crista to the other, so
+        // no two teeth are parallel.
+        final lean = (t - 0.5) * 1.1 + (rnd() - 0.5) * 0.35;
+        // Lengths are deliberately bimodal — mostly stubs with the occasional
+        // long rib. Teeth of one length is a garden rake, and the first cut
+        // of this was one.
+        final len = rnd() < 0.40 ? 78 + rnd() * 105 : 22 + rnd() * 52;
+        final end = at + Offset(sin(lean) * len, down * cos(lean) * len);
+        _heartArcTo(at, end, (rnd() - 0.5) * 22, teeth);
+        _heartArcTo(at, end, (rnd() - 0.5) * 22, dark);
+        if (rnd() < 0.25) {
+          // A forked tooth. Real pectinate muscle branches.
+          final mid = Offset.lerp(at, end, 0.6)!;
+          _heartArcTo(
+            mid,
+            mid +
+                Offset(
+                  sin(lean + 0.7) * len * 0.5,
+                  down * cos(lean + 0.7) * len * 0.5,
+                ),
+            8,
+            teeth,
+          );
+        }
+      }
+      t += 0.022 + rnd() * 0.045;
+    }
+  }
+  g.pieces.add(_HeartPiece(dark, _kHeartInk, stroke: 7, alpha: 0.46));
+  g.pieces.add(
+    _HeartPiece(teeth, _kHeartMeat, stroke: 4.6, alpha: 0.62, swell: 1),
+  );
+  // A hairline of light down each rib. Without it the comb read as dark
+  // stubble on the floor rather than as tissue standing up off it.
+  g.pieces.add(
+    _HeartPiece(teeth, _kHeartSinew, stroke: 1.1, alpha: 0.20, swell: 0.6),
+  );
+  g.pieces.add(_HeartPiece(crista, _kHeartInk, stroke: 20, alpha: 0.46));
+  g.pieces.add(
+    _HeartPiece(crista, _kHeartMeat, stroke: 9, alpha: 0.44, swell: 0.8),
+  );
+}
+
+/// THE MYOCARDIUM — standing INSIDE the heart's wall, which is the one place
+/// on the planet where you see the muscle rather than the cavity. Helical
+/// fibre bundles, drawn as long tapered spindles at two interleaved angles.
+///
+/// Two families of lines at two angles is a LATTICE, which is what the first
+/// cut of this looked like; what stops it here is that no bundle shares a
+/// length, a width or an exact angle with any other, and they overlap.
+void _buildMyocardium(_HeartGround g, Rect b, double Function() rnd) {
+  final body = Path();
+  final edge = Path();
+  final striae = Path();
+  for (var i = 0; i < 14; i++) {
+    // Two helical families, badly behaved on purpose.
+    final mean = i.isEven ? -0.44 : 0.36;
+    final ang = mean + (rnd() - 0.5) * 0.34;
+    final len = 170 + rnd() * 250;
+    final half = 9 + rnd() * 17;
+    // Spread right out to the walls: the first cut kept every centre well
+    // inside the room and left the muscle as one diagonal raft with bare
+    // corners round it. The floor clip takes care of the overhang.
+    final c = Offset(
+      b.left + 30 + rnd() * (b.width - 60),
+      b.top + 40 + rnd() * (b.height - 80),
+    );
+    final d = Offset(cos(ang), sin(ang));
+    final n = Offset(-d.dy, d.dx);
+    final a = c - d * (len / 2);
+    final z = c + d * (len / 2);
+    // A spindle: two opposed bows meeting at tapered ends.
+    final p = Path()
+      ..moveTo(a.dx, a.dy)
+      ..quadraticBezierTo(
+        c.dx + n.dx * half * 2,
+        c.dy + n.dy * half * 2,
+        z.dx,
+        z.dy,
+      )
+      ..quadraticBezierTo(
+        c.dx - n.dx * half * 2,
+        c.dy - n.dy * half * 2,
+        a.dx,
+        a.dy,
+      )
+      ..close();
+    body.addPath(p, Offset.zero);
+    edge.addPath(p, Offset.zero);
+    for (var k = 0; k < 2; k++) {
+      final off = n * ((rnd() - 0.5) * half);
+      _heartArcTo(
+        a + d * (len * 0.12) + off,
+        z - d * (len * 0.12) + off,
+        half * 0.8,
+        striae,
+      );
+    }
+  }
+  g.pieces.add(_HeartPiece(body, _kHeartMeat, alpha: 0.40, swell: 0.8));
+  g.pieces.add(_HeartPiece(edge, _kHeartInk, stroke: 2.4, alpha: 0.46));
+  g.pieces.add(
+    _HeartPiece(striae, _kHeartCrimson, stroke: 1.6, alpha: 0.42, swell: 1),
+  );
+}
+
+/// THE AURICLE RELIQUARY — the little ear off the atrium, and the pocket the
+/// vault trick hides in. An auricle is lined all round with ridges running
+/// down into it, so the whole pouch is texture converging on the cache; the
+/// ribs stop well short of the middle, bow in alternating directions and vary
+/// wildly in length, which is what keeps a radial fan from reading as a
+/// sunburst.
+void _buildAuricle(_HeartGround g, Rect b, double Function() rnd) {
+  final ribs = Path();
+  final dark = Path();
+  final c = b.center;
+  var a = rnd() * pi * 2;
+  for (var i = 0; i < 26; i++) {
+    a += 0.14 + rnd() * 0.30;
+    if (rnd() < 0.15) continue;
+    final outer = Offset(
+      c.dx + cos(a) * (b.width * 0.5 - 18),
+      c.dy + sin(a) * (b.height * 0.5 - 18),
+    );
+    final inner = Offset.lerp(outer, c, 0.30 + rnd() * 0.42)!;
+    final bow = (i.isEven ? 1 : -1) * (8 + rnd() * 22);
+    _heartArcTo(outer, inner, bow, ribs);
+    _heartArcTo(outer, inner, bow, dark);
+  }
+  g.pieces.add(_HeartPiece(dark, _kHeartInk, stroke: 8, alpha: 0.44));
+  g.pieces.add(
+    _HeartPiece(ribs, _kHeartMeat, stroke: 4.4, alpha: 0.52, swell: 1),
+  );
+  // Two muscle bands round the pouch. Wobbled, not oval: two true ellipses
+  // round a small room read as a target reticle drawn on the floor.
+  final bands = Path();
+  for (final r in const [0.62, 0.86]) {
+    bands.addPath(
+      _heartLoop(
+        Rect.fromCenter(
+          center: c,
+          width: b.width * r,
+          height: b.height * r * 0.92,
+        ),
+        rnd,
+        11,
+      ),
+      Offset.zero,
+    );
+  }
+  g.pieces.add(
+    _HeartPiece(bands, _kHeartCrimson, stroke: 2.2, alpha: 0.28, swell: 0.7),
+  );
+}
+
+/// SANGUORATH'S SYSTOLE — the last arena in the campaign, and the inside of
+/// the valve itself. Papillary muscles stand off the four corners, chordae
+/// tendineae fan off their apexes to the rim, and three great cusps hang from
+/// the upper wall.
+///
+/// EVERYTHING IS AT THE EDGE. The middle of this floor is where the final
+/// fight of the game happens and where the vagal node sits, so nothing is
+/// drawn within [open] of the guardian's stand — the cords all run OUTWARD
+/// from their mounds, which is both what real chordae do and what keeps the
+/// arena clear.
+void _buildArena(_HeartGround g, Rect b, double Function() rnd) {
+  const open = 205.0;
+  final heartCentre = Offset(b.center.dx, b.top + b.height * 0.47);
+  final mound = Path();
+  final moundEdge = Path();
+  final cord = Path();
+  // THE ANNULUS — the fibrous ring the cusps actually hang from, round the
+  // edge of the open floor, and the thing that frames the last fight in the
+  // campaign with a piece of the body instead of a painted circle.
+  //
+  // IN FOUR PIECES, WITH GAPS. A closed ring came out as a rounded rectangle
+  // inside a rounded rectangle — a box drawn inside a box, which is the exact
+  // fault this whole pass exists to remove. A real annulus is four arcs
+  // meeting at commissures, and broken arcs cannot read as a frame.
+  final annulus = Path();
+  var a0 = 0.4 + rnd();
+  for (var i = 0; i < 4; i++) {
+    final span = 0.85 + rnd() * 0.55;
+    for (var k = 0; k <= 8; k++) {
+      final t = a0 + span * k / 8;
+      final at =
+          heartCentre +
+          Offset(
+            cos(t) * (288 + (rnd() - 0.5) * 30),
+            sin(t) * (212 + (rnd() - 0.5) * 30),
+          );
+      k == 0 ? annulus.moveTo(at.dx, at.dy) : annulus.lineTo(at.dx, at.dy);
+    }
+    a0 += span + 0.34 + rnd() * 0.5;
+  }
+  g.pieces.add(_HeartPiece(annulus, _kHeartInk, stroke: 28, alpha: 0.34));
+  g.pieces.add(
+    _HeartPiece(annulus, _kHeartMeat, stroke: 14, alpha: 0.44, swell: 1),
+  );
+  final mounts = [
+    Offset(b.left + 120, b.bottom - 90),
+    Offset(b.right - 120, b.bottom - 96),
+    Offset(b.left + 150, b.top + 190),
+    Offset(b.right - 150, b.top + 178),
+  ];
+  for (final base in mounts) {
+    final w = 52 + rnd() * 30;
+    final h = 62 + rnd() * 44;
+    final apex = base.translate((rnd() - 0.5) * 26, -h);
+    // A DOME, not a cone. Control points pushed out past the base make the
+    // sides bulge; the first cut pulled them in and put four grey pyramids in
+    // the corners of the last arena in the game.
+    final p = Path()
+      ..moveTo(base.dx - w, base.dy)
+      ..quadraticBezierTo(
+        base.dx - w * 1.05,
+        base.dy - h * 0.92,
+        apex.dx,
+        apex.dy,
+      )
+      ..quadraticBezierTo(
+        base.dx + w * 1.05,
+        base.dy - h * 0.92,
+        base.dx + w,
+        base.dy,
+      )
+      ..close();
+    mound.addPath(p, Offset.zero);
+    moundEdge.addPath(p, Offset.zero);
+    // The chordae. A fan per mound, every cord a different length, all of
+    // them bowed (a straight fan of rays is a starburst, which is what the
+    // first cut of this drew), and none reaching past the open floor.
+    final n = 4 + (rnd() * 4).floor();
+    final away = base - heartCentre;
+    final base0 = atan2(away.dy, away.dx);
+    for (var k = 0; k < n; k++) {
+      final ang = base0 + (rnd() - 0.5) * 2.1;
+      final len = 58 + rnd() * 96;
+      final end = apex + Offset(cos(ang) * len, sin(ang) * len);
+      if ((end - heartCentre).distance < open) continue;
+      _heartArcTo(apex, end, (rnd() < 0.5 ? -1 : 1) * (14 + rnd() * 34), cord);
+    }
+  }
+  g.pieces.add(_HeartPiece(mound, _kHeartMeat, alpha: 0.50, swell: 0.9));
+  g.pieces.add(_HeartPiece(moundEdge, _kHeartInk, stroke: 3, alpha: 0.5));
+  // Tendon is the one DRY thing in this dungeon, so it is the one pale thing
+  // — and it goes taut on the beat, which is the swell doing real work.
+  g.pieces.add(
+    _HeartPiece(cord, _kHeartSinew, stroke: 1.8, alpha: 0.40, swell: 1),
+  );
+
+  // THE CUSPS. Three leaves hanging off the upper wall, uneven, overlapping.
+  final leaf = Path();
+  final leafEdge = Path();
+  final cusps = [
+    (b.left + 180.0, 270.0, 158.0),
+    (b.center.dx, 205.0, 96.0),
+    (b.right - 175.0, 255.0, 172.0),
+  ];
+  final leafRib = Path();
+  for (final (cx, w, drop) in cusps) {
+    final top = b.top + 14;
+    final p = Path()
+      ..moveTo(cx - w / 2, top)
+      ..quadraticBezierTo(cx - w * 0.42, top + drop * 1.15, cx, top + drop)
+      ..quadraticBezierTo(cx + w * 0.42, top + drop * 1.15, cx + w / 2, top)
+      ..close();
+    leaf.addPath(p, Offset.zero);
+    leafEdge.addPath(p, Offset.zero);
+    // Ribs down the leaf, unevenly spaced and none of them reaching the free
+    // edge. A cusp with no grain in it read as a lampshade.
+    for (var k = 0; k < 6; k++) {
+      final u = -0.4 + k * 0.16 + (rnd() - 0.5) * 0.08;
+      _heartArcTo(
+        Offset(cx + w * u * 0.5, top),
+        Offset(cx + w * u * 0.22, top + drop * (0.55 + rnd() * 0.3)),
+        (rnd() - 0.5) * 16,
+        leafRib,
+      );
+    }
+  }
+  g.pieces.add(_HeartPiece(leaf, _kHeartMeat, alpha: 0.54, swell: 0.7));
+  g.pieces.add(
+    _HeartPiece(leafRib, _kHeartRust, stroke: 2.0, alpha: 0.42, swell: 0.5),
+  );
+  g.pieces.add(_HeartPiece(leafEdge, _kHeartInk, stroke: 4.5, alpha: 0.45));
+  g.pieces.add(
+    _HeartPiece(leafEdge, _kHeartSinew, stroke: 1.8, alpha: 0.34, swell: 1),
+  );
+
+  // PURKINJE FIBRES — the conduction net, a pale tracery creeping along the
+  // floor at the rim. The thing that actually carries the beat, in the one
+  // room where the beat is the enemy.
+  final purkinje = Path();
+  for (var i = 0; i < 4; i++) {
+    final at = Offset(
+      i.isEven ? b.left + 30 : b.right - 30,
+      b.top + 120 + rnd() * (b.height - 200),
+    );
+    _heartBranch(purkinje, at, i.isEven ? 0.4 : pi - 0.4, 54, 4, rnd);
+  }
+  g.pieces.add(
+    _HeartPiece(purkinje, _kHeartBone, stroke: 1.1, alpha: 0.14, swell: 0.6),
+  );
+}
+
+/// Which architecture each chamber gets. A room that is not in here still
+/// gets the lining, the cords and the pools — nothing can come out empty.
+final Map<String, void Function(_HeartGround, Rect, double Function())>
+_heartArchitects = {
+  'pericard_gate': _buildSac,
+  'arterial_run': _buildRun,
+  'aortic_arch': _buildArch,
+  'vena_crossing': _buildSinus,
+  'pulmonic_stair': _buildStair,
+  'capillary_weave': _buildWeave,
+  'atrial_gallery': _buildGallery,
+  'myocardium': _buildMyocardium,
+  'auricle_reliquary': _buildAuricle,
+  'sanguorath_systole': _buildArena,
+};
+
+/// One chamber, built once. Deterministic from the room's own bounds through
+/// a plain LCG, so a chamber looks the same every descent and no two of the
+/// ten look alike (every room on this planet has its own size).
+_HeartGround _buildHeartGround(DungeonRoom room) {
+  final b = room.bounds.deflate(10);
+  final g = _HeartGround();
+  var seed = (b.width * 31 + b.height * 17).toInt() | 1;
+  double rnd() {
+    seed = (seed * 1103515245 + 12345) & 0x3FFFFFFF;
+    return (seed >> 8) / 0x3FFFFF;
+  }
+
+  // The two rooms that have to be fought and gathered in keep their middles
+  // clear: the guardian arena, and the hub where both rounds cross.
+  final open = switch (room.id) {
+    'sanguorath_systole' => 210.0,
+    'vena_crossing' => 185.0,
+    _ => 0.0,
+  };
+
+  _heartLining(g, b, rnd);
+  _heartVasa(g, b, rnd, trees: room.id == 'auricle_reliquary' ? 3 : 5);
+  _heartPools(
+    g,
+    b,
+    rnd,
+    count: (b.width * b.height / 86000).clamp(3, 7).toInt(),
+    openRadius: open,
+  );
+  _heartArchitects[room.id]?.call(g, b, rnd);
+  // The arena asks for more of them than anywhere else: its middle is out of
+  // bounds by design, so the only way to keep the biggest room in the dungeon
+  // from reading as bare is to web its edges properly.
+  _heartTrabeculae(
+    g,
+    b,
+    rnd,
+    count: switch (room.id) {
+      'auricle_reliquary' => 6,
+      'sanguorath_systole' => 24,
+      _ => 13,
+    },
+    openRadius: open,
+  );
+  return g;
 }
