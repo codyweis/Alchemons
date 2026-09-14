@@ -1677,56 +1677,472 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       canvas.restore();
     }
 
-    // The room's own built obstacles get bodies rather than the engine's
-    // grey bars — a toppled lintel, a buttress of root, a fallen catafalque
-    // are three different things and read as one shape without this.
-    // The dressing is drawn INFLATED past the collision rect. The engine
-    // paints its own grey bar over the top of this (shared `_renderWalls`,
-    // which this pass may not touch), so anything drawn exactly on the rect
-    // disappears under it; an oversize mass underneath is what turns that bar
-    // into a stone that happens to have a hitbox.
+    // The crypt's three obstacles, each drawn as itself.
     for (final w in room.walls) {
-      final m = w.inflate(11);
-      canvas.drawRect(
-        m.translate(3, 7),
-        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.34),
-      );
-      if (_cryptHas(room.id, 'giantroot')) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(m, Radius.circular(m.shortestSide * 0.45)),
-          Paint()..color = const Color(0xFF2E2113).withValues(alpha: 0.95),
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            m.deflate(m.shortestSide * 0.34),
-            Radius.circular(m.shortestSide * 0.3),
-          ),
-          Paint()..color = _kCryptBark.withValues(alpha: 0.50),
-        );
-      } else {
-        canvas.drawRect(
-          m,
-          Paint()..color = _kCryptStone.withValues(alpha: 0.62),
-        );
-        canvas.drawRect(
-          Rect.fromLTRB(m.left, m.top, m.right, m.top + 7),
-          Paint()..color = _kCryptBone.withValues(alpha: 0.24),
-        );
-        canvas.drawRect(
-          Rect.fromLTRB(m.left, m.bottom - 8, m.right, m.bottom),
-          Paint()..color = _kCryptSeam.withValues(alpha: 0.35),
-        );
-        // A carved fillet down the length, so a toppled lintel and a
-        // catafalque read as worked stone and not as a crate.
-        canvas.drawRect(
-          m.deflate(m.shortestSide * 0.30),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4
-            ..color = _kCryptSeam.withValues(alpha: 0.40),
-        );
+      switch (room.id) {
+        case 'fern_gallery':
+          _drawRootButtress(canvas, w, tiny);
+        case 'lantern_court':
+          _drawFallenCatafalque(canvas, w, tiny);
+        default:
+          _drawToppledLintel(canvas, w, tiny);
       }
     }
+  }
+
+  // ── THE THREE OBSTACLES ──────────────────────────────────
+  //
+  // The engine used to lay a generic blue-grey bar over every `room.walls`
+  // rect, so a toppled lintel, a buttress of giant root and a fallen
+  // catafalque all arrived on screen as the same object; this render drew a
+  // mass UNDER the bar to give it a body. Now that the shared renderer skips
+  // a planet's claimed rects, nothing is drawn over these at all — and
+  // nothing was carrying their DEPTH either. The bar was generic but it was
+  // doing real work: a cast shadow, a lit upper face and a dark foot. Without
+  // those, a claimed rect reads as a flat panel lying on the carpet, which is
+  // exactly what the lintel became.
+  //
+  // So each object now carries its own solidity, by the same three cues, in
+  // the crypt's own palette — and since they are finally allowed to be three
+  // objects, they are three different objects. All of it is world-size
+  // geometry, so it reads at both scales without a branch: at tiny these are
+  // cliffs, and the shadow and the lit face only get more emphatic.
+
+  /// What puts a thing ON the floor rather than IN it, drawn before its body.
+  ///
+  /// A single cast shadow was not enough. The crypt's floor is already dark,
+  /// so black at half alpha over it is barely a change of tone and the object
+  /// went on reading as a differently-coloured slab. Two things fix it, and
+  /// both are here: a TWO-STAGE contact shadow (a wide faint pool and a tight
+  /// dark one — no blur filter anywhere, two alphas do the same work), and a
+  /// NEAR FACE, a band of the object's own thickness that projects below the
+  /// collision rect. The near face is the cue that actually lands: a block
+  /// with no visible side has no height, whatever its shading says.
+  ///
+  /// The light is up and behind the camera, which is where the ledger stones,
+  /// the wall course and the column stumps already put it. Nothing in a room
+  /// may disagree about that; one object lit from elsewhere flattens the lot.
+  void _cryptFooting(
+    Canvas canvas,
+    Rect w,
+    bool tiny, {
+    required double radius,
+    required Color nearFace,
+  }) {
+    final lift = tiny ? 11.0 : 7.5;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        w.translate(lift * 0.5, lift * 1.4).inflate(7),
+        Radius.circular(radius + 6),
+      ),
+      Paint()..color = const Color(0xFF000000).withValues(alpha: 0.24),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        w.translate(lift * 0.35, lift).inflate(1.5),
+        Radius.circular(radius),
+      ),
+      Paint()..color = const Color(0xFF000000).withValues(alpha: 0.60),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTRB(
+          w.left,
+          w.bottom - w.height * 0.30,
+          w.right,
+          w.bottom + lift * 0.85,
+        ),
+        Radius.circular(radius),
+      ),
+      Paint()..color = nearFace,
+    );
+  }
+
+  /// A block's body: lit across its SHORT axis, because that is the axis a
+  /// solid turns through. A long beam is lit top to bottom; a standing column
+  /// is lit side to side. Getting this backwards is what makes a 3D object
+  /// look like a printed rectangle.
+  Paint _cryptSolid(Rect w, List<Color> ramp) {
+    final horizontal = w.width >= w.height;
+    return Paint()
+      ..shader = ui.Gradient.linear(
+        horizontal ? w.topCenter : w.centerLeft,
+        horizontal ? w.bottomCenter : w.centerRight,
+        ramp,
+        const [0.0, 0.52, 1.0],
+      );
+  }
+
+  /// THE TOPPLED LINTEL, over the root porch's gate. A carved beam that came
+  /// off the arch: squared, moulded down its length, and broken at both ends
+  /// — it did not arrive here cut, it arrived here falling.
+  void _drawToppledLintel(Canvas canvas, Rect w, bool tiny) {
+    // THE SILHOUETTE IS BROKEN, not the surface. Painting fracture wedges on
+    // a clean rounded rectangle did nothing at all — the outline is what the
+    // eye reads first, so the beam's own outline steps in at both ends. The
+    // bite is ≤12px on a 170px beam, inside the slack the engine's rounded
+    // corners already had, so it never asks you to collide with air.
+    const bite = 17.0;
+    final body = Path()
+      ..moveTo(w.left + bite, w.top)
+      ..lineTo(w.right - bite, w.top)
+      ..lineTo(w.right - bite * 0.45, w.top + w.height * 0.34)
+      ..lineTo(w.right, w.top + w.height * 0.52)
+      ..lineTo(w.right - bite * 0.8, w.bottom)
+      ..lineTo(w.left + bite * 0.55, w.bottom)
+      ..lineTo(w.left, w.top + w.height * 0.58)
+      ..lineTo(w.left + bite * 0.5, w.top + w.height * 0.28)
+      ..close();
+    _cryptFooting(
+      canvas,
+      w.deflate(2),
+      tiny,
+      radius: 3,
+      nearFace: const Color(0xFF262A1C),
+    );
+    // The ramp tops out at the wall course's own lightest block. Pale stone
+    // on a dark floor popped out of the room like a UI element — an obstacle
+    // has to be solid, not luminous.
+    canvas.drawPath(
+      body,
+      _cryptSolid(w, const [
+        Color(0xFF6F6A54),
+        Color(0xFF43452F),
+        Color(0xFF171B11),
+      ]),
+    );
+    canvas.save();
+    canvas.clipPath(body);
+    // The top face. A WIDE bright band turned the beam into a chrome pipe —
+    // a weathered lintel catches the light along a narrow crown and nowhere
+    // else, and everything below it is in its own shade.
+    canvas.drawRect(
+      Rect.fromLTRB(w.left, w.top + 1.5, w.right, w.top + w.height * 0.18),
+      Paint()..color = _kCryptBone.withValues(alpha: 0.11),
+    );
+    // Tooling and weathering: chisel marks across the crown and a few pits.
+    // A perfectly smooth body is the other half of why it read as a pipe.
+    for (var i = 0; i < 11; i++) {
+      final x = w.left + w.width * ((i * 0.091) + 0.05);
+      canvas.drawLine(
+        Offset(x, w.top + 3),
+        Offset(x + 2, w.top + w.height * (0.22 + (i % 3) * 0.06)),
+        Paint()
+          ..strokeWidth = 1.1
+          ..color = _kCryptSeam.withValues(alpha: 0.22),
+      );
+    }
+    // Lichen on the crown — the garden is eating this too, and it is what
+    // stops the beam looking like a machined part dropped into a crypt.
+    for (var i = 0; i < 3; i++) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(
+            w.left + w.width * (0.24 + i * 0.27),
+            w.top + w.height * (0.26 + (i % 2) * 0.18),
+          ),
+          width: 26.0 + i * 9,
+          height: w.height * 0.34,
+        ),
+        Paint()..color = _kCryptMoss.withValues(alpha: 0.26),
+      );
+    }
+    canvas.restore();
+    // The foot: the dark band where the beam meets the floor, and the single
+    // strongest cue that it is standing ON something.
+    canvas.drawRect(
+      Rect.fromLTRB(w.left, w.bottom - w.height * 0.20, w.right, w.bottom),
+      Paint()..color = _kCryptSeam.withValues(alpha: 0.55),
+    );
+    // The moulding — two fillets running the length. A lintel without them is
+    // a kerbstone.
+    for (final u in [0.40, 0.56]) {
+      canvas.drawRect(
+        Rect.fromLTRB(
+          w.left + 7,
+          w.top + w.height * u,
+          w.right - 7,
+          w.top + w.height * u + 2,
+        ),
+        Paint()..color = _kCryptSeam.withValues(alpha: 0.38),
+      );
+    }
+    // The fracture faces. Raw stone is LIGHTER than the lichened outside, not
+    // darker — painted near-black (the first attempt) the breaks disappeared
+    // into the room behind them and both ends read as a clean bevel.
+    for (final left in [true, false]) {
+      final x = left ? w.left + bite * 0.5 : w.right - bite * 0.45;
+      final s = left ? 1.0 : -1.0;
+      canvas.drawPath(
+        Path()
+          ..moveTo(x, w.top + w.height * 0.28)
+          ..lineTo(x + s * 10, w.top + 1)
+          ..lineTo(x + s * 10, w.bottom - 1)
+          ..lineTo(x - s * 2, w.bottom - w.height * 0.2)
+          ..close(),
+        Paint()..color = const Color(0xFF8E8871).withValues(alpha: 0.45),
+      );
+      canvas.drawLine(
+        Offset(x, w.top + w.height * 0.28),
+        Offset(x - s * 2, w.bottom - w.height * 0.2),
+        Paint()
+          ..strokeWidth = 1.4
+          ..color = _kCryptSeam.withValues(alpha: 0.6),
+      );
+    }
+    // And a split across it, a third of the way along — it is broken, not old.
+    final sx = w.left + w.width * 0.36;
+    canvas.drawPath(
+      Path()
+        ..moveTo(sx, w.top)
+        ..lineTo(sx + 5, w.center.dy)
+        ..lineTo(sx - 3, w.bottom),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = tiny ? 4 : 2
+        ..color = _kCryptSeam.withValues(alpha: 0.7),
+    );
+  }
+
+  /// THE BUTTRESS OF GIANT ROOT, in the fern gallery. Not masonry at all: a
+  /// living wall, round in section, with bark grain down its length and
+  /// rootlets splaying where it meets the floor. Its silhouette is allowed to
+  /// be softer than its hitbox — it is the one obstacle here that grew.
+  void _drawRootButtress(Canvas canvas, Rect w, bool tiny) {
+    final body = RRect.fromRectAndRadius(
+      w,
+      Radius.circular(w.shortestSide * 0.48),
+    );
+    _cryptFooting(
+      canvas,
+      w,
+      tiny,
+      radius: w.shortestSide * 0.48,
+      nearFace: const Color(0xFF261B0E),
+    );
+    // Rootlets first, so they read as going UNDER the buttress rather than
+    // being stuck on its face.
+    for (var k = 0; k < 6; k++) {
+      final u = 0.12 + k * 0.15;
+      final at = Offset(
+        w.center.dx + (k.isEven ? -1 : 1) * w.width * 0.4,
+        w.top + w.height * u,
+      );
+      canvas.drawLine(
+        at,
+        at + Offset((k.isEven ? -1 : 1) * (16.0 + k * 5), 9.0 - k * 2),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = tiny ? 5 : 3
+          ..color = const Color(0xFF2A1D10).withValues(alpha: 0.85),
+      );
+    }
+    canvas.drawRRect(
+      body,
+      // Kept in the same family as the roots running over the floor, so the
+      // buttress reads as one of them stood on end rather than as timber.
+      _cryptSolid(w, const [
+        Color(0xFF6E5233),
+        Color(0xFF3C2B1B),
+        Color(0xFF150D06),
+      ]),
+    );
+    // The lit cap at the top end: light comes from above in these rooms, and
+    // a column lit only across its width has no top.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w.left, w.top, w.width, w.height * 0.13),
+        Radius.circular(w.shortestSide * 0.45),
+      ),
+      Paint()..color = const Color(0xFF9A7846).withValues(alpha: 0.34),
+    );
+    // Bark grain, none of it straight and none of it evenly spaced — four
+    // lines on an even pitch is corduroy, which is what this first was.
+    const pitch = [0.17, 0.33, 0.41, 0.62, 0.79];
+    for (var k = 0; k < pitch.length; k++) {
+      final x = w.left + w.width * pitch[k];
+      canvas.drawPath(
+        Path()
+          ..moveTo(x, w.top + 6)
+          ..quadraticBezierTo(
+            x + (k.isEven ? 5 : -6),
+            w.center.dy,
+            x + (k.isEven ? -2 : 3),
+            w.bottom - 6,
+          ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = tiny ? 3 : 1.6
+          ..color = const Color(0xFF17100A).withValues(alpha: 0.55),
+      );
+    }
+    // Two knots, at different heights and sizes. A dark ring round a LIGHTER
+    // middle drew two doughnuts — a knot is a raised boss, so it is a filled
+    // swelling with the shadow only under its lower edge.
+    for (final k in [0.31, 0.68]) {
+      final c = Offset(w.center.dx + (k < 0.5 ? -5 : 6), w.top + w.height * k);
+      final r = w.width * (k < 0.5 ? 0.20 : 0.15);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: c.translate(1, 2),
+          width: r * 2.1,
+          height: r * 2.7,
+        ),
+        Paint()..color = const Color(0xFF150D06).withValues(alpha: 0.8),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: c, width: r * 2, height: r * 2.6),
+        Paint()..color = const Color(0xFF6B4F30).withValues(alpha: 0.95),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: c.translate(0, -r * 0.3),
+          width: r * 0.8,
+          height: r * 0.9,
+        ),
+        Paint()..color = const Color(0xFF33220F).withValues(alpha: 0.75),
+      );
+    }
+    // The foot, where it goes into the floor.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTRB(w.left, w.bottom - w.height * 0.08, w.right, w.bottom),
+        Radius.circular(w.shortestSide * 0.4),
+      ),
+      Paint()..color = _kCryptSeam.withValues(alpha: 0.45),
+    );
+  }
+
+  /// THE FALLEN CATAFALQUE, in the lantern court. The bier the crypt's dead
+  /// were laid on: an arcaded stone chest with a lid — and the lid has SLID,
+  /// which is the whole word "fallen". Drawn slipped off its plinth rather
+  /// than tilted, so the silhouette still owns the rect the party walks round.
+  void _drawFallenCatafalque(Canvas canvas, Rect w, bool tiny) {
+    final chest = RRect.fromRectAndRadius(w, const Radius.circular(3));
+    _cryptFooting(
+      canvas,
+      w,
+      tiny,
+      radius: 3,
+      nearFace: const Color(0xFF262A1C),
+    );
+    canvas.drawRRect(
+      chest,
+      _cryptSolid(w, const [
+        Color(0xFF6E6A54),
+        Color(0xFF464837),
+        Color(0xFF191D14),
+      ]),
+    );
+    // THE ARCADED FACE, in the LOWER half of the chest. Put across the whole
+    // height it vanished under the lid and the catafalque read as a second
+    // toppled lintel; the plinth showing below the lid is what says "chest".
+    final face = Rect.fromLTRB(
+      w.left + 4,
+      w.top + w.height * 0.52,
+      w.right - 4,
+      w.bottom - w.height * 0.12,
+    );
+    canvas.drawRect(
+      face,
+      Paint()..color = const Color(0xFF2E3226).withValues(alpha: 0.55),
+    );
+    final bays = (w.width / 30).clamp(3, 9).toInt();
+    for (var i = 0; i < bays; i++) {
+      final cx = face.left + face.width * (i + 0.5) / bays;
+      final bw = face.width / bays * (0.56 + (i % 3) * 0.08);
+      final arch = Rect.fromCenter(
+        center: Offset(cx, face.bottom - face.height * 0.16),
+        width: bw,
+        height: face.height * 1.5,
+      );
+      final ink = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = _kCryptBone.withValues(alpha: 0.14);
+      canvas.save();
+      canvas.clipRect(face);
+      canvas.drawArc(arch, pi, pi, false, ink);
+      canvas.drawLine(
+        Offset(arch.left, arch.center.dy),
+        Offset(arch.left, face.bottom),
+        ink,
+      );
+      canvas.drawLine(
+        Offset(arch.right, arch.center.dy),
+        Offset(arch.right, face.bottom),
+        ink,
+      );
+      canvas.restore();
+    }
+    // The foot.
+    canvas.drawRect(
+      Rect.fromLTRB(w.left, w.bottom - w.height * 0.12, w.right, w.bottom),
+      Paint()..color = _kCryptSeam.withValues(alpha: 0.60),
+    );
+    // THE LID, slid off its plinth and turned a couple of degrees, sitting
+    // high on the chest so the arcade below it stays visible. A chest with
+    // its lid square on it is furniture; this is a grave that was opened.
+    canvas.save();
+    canvas.translate(w.center.dx, w.top + w.height * 0.26);
+    canvas.rotate(0.045);
+    final lid = Rect.fromCenter(
+      center: const Offset(19, 0),
+      width: w.width * 0.86,
+      height: w.height * 0.50,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(lid.translate(3, 7), const Radius.circular(3)),
+      Paint()..color = const Color(0xFF000000).withValues(alpha: 0.46),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(lid, const Radius.circular(3)),
+      Paint()
+        ..shader = ui.Gradient.linear(lid.topCenter, lid.bottomCenter, const [
+          Color(0xFF7E7961),
+          Color(0xFF4E5040),
+          Color(0xFF20241A),
+        ], const [0.0, 0.5, 1.0]),
+    );
+    // The chamfer round the lid's top face.
+    canvas.drawRect(
+      Rect.fromLTRB(lid.left + 4, lid.top + 2, lid.right - 4, lid.top + 5),
+      Paint()..color = _kCryptBone.withValues(alpha: 0.13),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(lid.deflate(5), const Radius.circular(2)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = _kCryptSeam.withValues(alpha: 0.45),
+    );
+    // A corner broken off the lid, where it struck the floor — the raw stone
+    // inside, lighter than the lichened face, as at the lintel's ends.
+    canvas.drawPath(
+      Path()
+        ..moveTo(lid.right, lid.top)
+        ..lineTo(lid.right - 24, lid.top)
+        ..lineTo(lid.right - 9, lid.center.dy)
+        ..lineTo(lid.right, lid.center.dy + 2)
+        ..close(),
+      Paint()..color = const Color(0xFF8E8871).withValues(alpha: 0.38),
+    );
+    // Lichen creeping over the slab, as on the lintel.
+    for (var i = 0; i < 2; i++) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(
+            lid.left + lid.width * (0.28 + i * 0.34),
+            lid.top + lid.height * (0.42 + i * 0.20),
+          ),
+          width: 30.0 + i * 12,
+          height: lid.height * 0.40,
+        ),
+        Paint()..color = _kCryptMoss.withValues(alpha: 0.24),
+      );
+    }
+    canvas.restore();
   }
 
   /// INSIDE THE SEED. The gourd hollow is the vault — the pocket behind the
