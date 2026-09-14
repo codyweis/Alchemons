@@ -295,6 +295,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       return true;
     }
     entryDoorRevealed = true;
+    _cue(SoundCue.dungeonGateOpen);
     _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
     _setHint('The arch drains, and a field of barrows behind it');
     _spawnAlchemyBurst(
@@ -331,6 +332,10 @@ extension EchoGraveDungeon on PlanetDungeonGame {
   void _passOver(Offset at) {
     final f = _field;
     f.passOver();
+    // The single most sensory thing that happens on this planet: the room
+    // you are standing in becomes the other world. It gets the wavering
+    // Spirit tone rather than the generic interact chirp.
+    _cue(SoundCue.elementSpirit);
     wake.reink = _kGraveReinkSeconds;
     _clearHints();
     _setHint(
@@ -388,6 +393,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         return true;
       }
       f.tell(r.id);
+      _cue(SoundCue.dungeonCheckpoint);
       _clearHints();
       _setHint(
         '${r.name} finishes dying, and lets go of the arch it was holding',
@@ -429,6 +435,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       return true;
     }
     f.cutFrozen = true;
+    _cue(SoundCue.elementIce);
     _setHint('The cut goes hard, and the road under it comes up to meet you');
     _spawnAlchemyBurst(
       pos,
@@ -496,6 +503,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       return true;
     }
     f.sigilStamped = true;
+    _cue(SoundCue.dungeonPuzzleSolved);
     final spec = _graveVigil;
     if (spec != null && !hasStar(spec.sigilStarIndex)) {
       earnStar(spec.sigilStarIndex);
@@ -533,6 +541,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       return true;
     }
     conduitEnergy['B'] = double.infinity;
+    _cue(SoundCue.dungeonSwitch);
     _setHint('The lamp takes, and something in the dark sits up');
     _spawnAlchemyBurst(
       pos,
@@ -659,7 +668,7 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     wake.namesTold.add(next);
     _spawnAlchemyBurst(pos, producedElement: 'Spirit', particleCount: 26,
         intensity: 1.0);
-    onSound?.call(SoundCue.dungeonSwitch);
+    _cue(SoundCue.dungeonSwitch);
     if (wake.namesTold.length >= 3) {
       // THE RITE OF THREE pays this out (see `beginMaximRite`).
       beginMaximRite(kSpiritStuffOfDreamsEgg, pos);
