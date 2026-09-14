@@ -1051,44 +1051,815 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     _renderCryptObjects(canvas, room);
   }
 
-  /// The change of reference. Cheap by construction: a fixed handful of
-  /// strokes derived from the room's own bounds, no allocation per frame
-  /// beyond the paints, and nothing that scales with the party or the enemies.
+  // Stone, soil and green. The crypt is limestone being eaten by a garden, so
+  // nothing in it is one colour: the paving runs from a pale weathered course
+  // to a slab so lichened it is nearly moss.
+  static const Color _kCryptStone = Color(0xFFA1977C);
+  static const Color _kCryptStoneCold = Color(0xFF333B2C);
+  static const Color _kCryptSeam = Color(0xFF11150F);
+  static const Color _kCryptSoil = Color(0xFF2A2115);
+  static const Color _kCryptMoss = Color(0xFF5A7A39);
+  static const Color _kCryptWater = Color(0xFF20403C);
+  static const Color _kCryptSheen = Color(0xFF9FD8C4);
+
+  /// THE GROUND. One geometry, two readings.
+  ///
+  /// The whole planet rests on a sentence — *the crypt never changes size; you
+  /// do* — and the art has to be able to carry it on its own, because the
+  /// player meets the picture before they meet the rule. So the room's ground
+  /// is built ONCE at its true world size and then rendered twice over: the
+  /// same ledger stones, the same joints between them, the same seeps and the
+  /// same moss, drawn as TRIM at your own size and as TERRAIN at a small one.
+  /// A joint is a hairline up here and a lit-walled ravine down there. A seep
+  /// is a bead of dew up here and standing water down there. Nothing moves
+  /// between the two pictures, which is what makes "this is the room I just
+  /// left" legible without a word of text.
+  ///
+  /// Cost: everything irregular is cached (see `_cryptGroundCache`). Per frame
+  /// this is fills and strokes over a fixed list, plus three phases — the fern
+  /// sway, the sheen on standing water, and a drift of spores.
   void _renderCryptGround(Canvas canvas, DungeonRoom room) {
-    final b = room.bounds;
-    if (crypt.isTiny) {
-      // A canopy of fronds, and the paving joints as ravines.
-      final frond = Paint()
-        ..color = _kCryptGreen.withValues(alpha: 0.34)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3;
-      for (var i = 0; i < 9; i++) {
-        final x = b.left + b.width * (i + 0.5) / 9;
-        final h = 70.0 + 26.0 * ((i % 3) - 1);
-        final path = Path()
-          ..moveTo(x, b.bottom)
-          ..quadraticBezierTo(x + 22, b.bottom - h * 0.6, x + 6, b.bottom - h);
-        canvas.drawPath(path, frond);
+    final g = _cryptGround(room);
+    final b = room.bounds.deflate(10);
+    final tiny = crypt.isTiny;
+    final t = _time;
+
+    // The gourd is not a room of the crypt at all — it is the inside of a
+    // seed. It gets its own ground and none of the masonry below.
+    if (_cryptHas(room.id, 'shell')) {
+      _renderGourdShell(canvas, room, g, tiny, t);
+      return;
+    }
+
+    // THE ISLET STANDS IN WATER. Drawn first and OUTSIDE the paving, so the
+    // island reads as a thing the water surrounds rather than a blue frame
+    // painted on the floor (which is how the first attempt read).
+    if (_cryptHas(room.id, 'water')) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          room.bounds.deflate(8),
+          const Radius.circular(30),
+        ),
+        Paint()..color = const Color(0xFF0E2A34).withValues(alpha: 0.62),
+      );
+      // Two slow rings on the water. The islet read as a stone lozenge on a
+      // green floor until the water had something moving in it.
+      for (var k = 0; k < 2; k++) {
+        final ph = ((t * 0.10 + k * 0.5) % 1.0);
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: room.bounds.center,
+            width: b.width * (0.94 + ph * 0.10),
+            height: b.height * (0.94 + ph * 0.10),
+          ),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = _kCryptSheen.withValues(alpha: 0.10 * (1 - ph)),
+        );
       }
-      final ravine = Paint()..color = _kCryptDeep.withValues(alpha: 0.42);
-      for (var i = 1; i < 4; i++) {
-        final y = b.top + b.height * i / 4;
-        canvas.drawRect(Rect.fromLTWH(b.left, y - 5, b.width, 10), ravine);
-      }
+      canvas.drawPath(
+        g.shore,
+        Paint()..color = _kCryptSoil.withValues(alpha: 0.62),
+      );
+      // A wet line where the water meets the bank, not a drawn ellipse.
+      canvas.drawPath(
+        g.shore,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = _kCryptSheen.withValues(alpha: 0.16),
+      );
     } else {
-      // Trim: a moss verge along the wall and a hairline of paving joints.
-      final verge = Paint()..color = _kCryptGreen.withValues(alpha: 0.2);
-      canvas.drawRect(Rect.fromLTWH(b.left, b.bottom - 18, b.width, 18), verge);
-      final joint = Paint()
-        ..color = _kCryptDeep.withValues(alpha: 0.22)
+      // Grave soil under the paving. Everything the stones do not cover is
+      // this, so a missing slab is a hole down to earth and not a hole in the
+      // floor. Alpha holds the FLOOR TRANSLUCENCY RULE.
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          room.bounds.deflate(8),
+          const Radius.circular(30),
+        ),
+        Paint()..color = _kCryptSoil.withValues(alpha: 0.42),
+      );
+    }
+
+    // ── the ledger stones ──────────────────────────────────
+    // A funerary floor is grave slabs, every one cut for a different body and
+    // laid at a different century, so no two are the same size and none of
+    // them line up. They come out of a recursive split of the room (see
+    // `_buildCryptGround`) precisely so that they CANNOT tile.
+    final shadow = Paint()..color = const Color(0xFF000000).withValues(alpha: 0.30);
+    for (var i = 0; i < g.slabs.length; i++) {
+      final tone = g.slabTone[i];
+      // At tiny each slab is a mesa you stand on top of, so it throws a real
+      // shadow into the joint beside it; at huge it is flush paving and the
+      // shadow is only a suggestion of a lip.
+      canvas.save();
+      canvas.translate(1.5, tiny ? 6 : 2.5);
+      canvas.drawPath(g.slabs[i], shadow);
+      canvas.restore();
+      canvas.drawPath(
+        g.slabs[i],
+        Paint()
+          ..color = Color.lerp(_kCryptStoneCold, _kCryptStone, tone)!
+              .withValues(alpha: 0.36),
+      );
+      // The lit upper edge. One stroke, clipped to the slab so it reads as
+      // the top face catching the light rather than an outline round it.
+      canvas.save();
+      canvas.clipPath(g.slabs[i]);
+      canvas.translate(0, tiny ? 3 : 1.2);
+      canvas.drawPath(
+        g.slabs[i],
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = tiny ? 4 : 1.6
+          ..color = _kCryptBone.withValues(alpha: 0.13 + 0.10 * tone),
+      );
+      canvas.restore();
+    }
+
+    // ── the joints, which are the crypt's small graph ──────
+    // This is the load-bearing drawing on the planet. The cracks a small body
+    // walks are the SAME lines a large one steps over without noticing, so
+    // they are one cached set of polylines rendered at two depths.
+    for (var i = 0; i < g.seams.length; i++) {
+      final w = g.seamWidth[i];
+      if (tiny) {
+        // A ravine: banked rim, black section, and a fringe of moss where the
+        // light stops. The rim goes down first and wider, so the crack reads
+        // as something cut INTO the ground.
+        canvas.drawPath(
+          g.seams[i],
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = w + 5
+            ..color = _kCryptSoil.withValues(alpha: 0.85),
+        );
+        canvas.drawPath(
+          g.seams[i],
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = w
+            ..color = _kCryptSeam.withValues(alpha: 0.88),
+        );
+        if (w > 12) {
+          // Only the big ones get a lit wall — otherwise every hairline in
+          // the room sprouted a highlight and the floor turned to tinsel.
+          canvas.save();
+          canvas.translate(0, -w * 0.30);
+          canvas.drawPath(
+            g.seams[i],
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2
+              ..color = _kCryptMoss.withValues(alpha: 0.35),
+          );
+          canvas.restore();
+        }
+      } else {
+        canvas.drawPath(
+          g.seams[i],
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = w > 12 ? 2.4 : 1.2
+            ..color = _kCryptSeam.withValues(alpha: 0.42),
+        );
+      }
+    }
+
+    // ── worn epitaphs ──────────────────────────────────────
+    // Two or three strokes of a name nobody can read any more. At your own
+    // size they are shallow scratches; at tiny they are trenches you could
+    // lose a leg in, which is the joke the whole planet is built on.
+    for (var i = 0; i < g.carvings.length; i++) {
+      final c = g.carvings[i];
+      final a = g.carvingAngle[i];
+      final len = g.carvingLen[i];
+      final dx = cos(a) * len, dy = sin(a) * len;
+      final p = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5;
-      for (var i = 1; i < 4; i++) {
-        final y = b.top + b.height * i / 4;
-        canvas.drawLine(Offset(b.left, y), Offset(b.right, y), joint);
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = tiny ? 5 : 1.4
+        ..color = _kCryptSeam.withValues(alpha: tiny ? 0.55 : 0.26);
+      for (var k = -1; k <= 1; k++) {
+        final o = Offset(-dy / len * k * (tiny ? 13 : 7), dx / len * k * (tiny ? 13 : 7));
+        canvas.drawLine(c + o - Offset(dx / 2, dy / 2), c + o + Offset(dx / 2, dy / 2), p);
+      }
+    }
+
+    // ── the seeps ──────────────────────────────────────────
+    for (var i = 0; i < g.seeps.length; i++) {
+      final c = g.seeps[i];
+      final r = g.seepR[i];
+      if (tiny) {
+        canvas.drawOval(
+          Rect.fromCenter(center: c, width: r * 2.6, height: r * 1.5),
+          Paint()..color = _kCryptWater.withValues(alpha: 0.72),
+        );
+        final ph = sin(t * 0.6 + i * 1.7);
+        canvas.drawLine(
+          Offset(c.dx - r * 0.8, c.dy + ph * r * 0.3),
+          Offset(c.dx + r * 0.9, c.dy + ph * r * 0.3 - 1),
+          Paint()
+            ..strokeWidth = 1.3
+            ..color = _kCryptSheen.withValues(alpha: 0.20),
+        );
+      } else {
+        canvas.drawOval(
+          Rect.fromCenter(center: c, width: r * 0.9, height: r * 0.5),
+          Paint()..color = _kCryptWater.withValues(alpha: 0.50),
+        );
+      }
+    }
+
+    // ── moss ───────────────────────────────────────────────
+    // The same blotches both ways: a stain you walk over, or a canopy you
+    // walk under. The fronds are only drawn at tiny — up there moss has no
+    // silhouette, and drawing one anyway is what made the old render look
+    // like a lawn instead of a crypt.
+    for (var i = 0; i < g.moss.length; i++) {
+      canvas.drawPath(
+        g.moss[i],
+        Paint()
+          ..color = _kCryptMoss.withValues(alpha: tiny ? 0.30 : 0.26),
+      );
+      if (tiny) {
+        final c = g.mossCentre[i];
+        final r = g.mossR[i];
+        for (var k = 0; k < 5; k++) {
+          final a = -pi / 2 + (k - 2) * 0.42;
+          final h = r * (1.5 + 0.35 * ((i + k) % 3));
+          final sway = sin(t * 0.8 + i + k * 0.6) * 3;
+          canvas.drawPath(
+            Path()
+              ..moveTo(c.dx, c.dy)
+              ..quadraticBezierTo(
+                c.dx + cos(a) * h * 0.4,
+                c.dy + sin(a) * h * 0.5,
+                c.dx + cos(a) * h * 0.8 + sway,
+                c.dy + sin(a) * h,
+              ),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.4
+              ..color = _kCryptGreen.withValues(alpha: 0.44),
+          );
+        }
+      }
+    }
+
+    // ── the roots that are taking the building apart ───────
+    _renderCryptRoots(canvas, g, tiny);
+
+    // ── the built edge ─────────────────────────────────────
+    _renderCryptMasonry(canvas, room, g, tiny, t);
+
+    // ── what this room in particular is ────────────────────
+    _renderCryptFixtures(canvas, room, g, tiny, t);
+
+    // The air of the place: spores off the fern, going nowhere in particular.
+    // The pollen stair is named for its air, so it gets three times as much
+    // of it and nothing else changes. A dozen circles at worst — the only
+    // thing in here that is genuinely per-frame.
+    final motes = _cryptHas(room.id, 'stair') ? 18 : 6;
+    for (var i = 0; i < motes; i++) {
+      final ph = (t * 0.05 + i * 0.17) % 1.0;
+      final x = b.left + 30 + ((i * 197) % (b.width.toInt() - 60));
+      final y = b.bottom - 20 - ph * (b.height - 60);
+      canvas.drawCircle(
+        Offset(x, y + sin(t * 0.7 + i * 2.1) * 9),
+        tiny ? 3.2 : 1.7,
+        Paint()
+          ..color = const Color(
+            0xFFE8E2A8,
+          ).withValues(alpha: 0.20 * (1 - ph) + 0.05),
+      );
+    }
+  }
+
+  /// Roots reaching in under the wall course.
+  ///
+  /// FIRST ATTEMPT READ AS SCAFFOLDING: they were constant-width strokes that
+  /// ran clean across the room from one wall to the opposite one, so every
+  /// chamber had two brown scaffold poles laid over it in an X. A root is not
+  /// a beam — it comes in under the masonry and TAPERS to nothing, so these
+  /// are filled polygons that start thick at the wall and end at a point,
+  /// they curve hard, and they stop short of the middle of the room.
+  void _renderCryptRoots(Canvas canvas, _CryptGround g, bool tiny) {
+    for (var i = 0; i < g.roots.length; i++) {
+      canvas.save();
+      canvas.translate(2, 5);
+      canvas.drawPath(
+        g.roots[i],
+        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.28),
+      );
+      canvas.restore();
+      canvas.drawPath(
+        g.roots[i],
+        Paint()..color = const Color(0xFF2E2113).withValues(alpha: 0.92),
+      );
+      // The lit crest along the back of the root, so it reads as round.
+      canvas.drawPath(
+        g.rootCrests[i],
+        Paint()..color = _kCryptBark.withValues(alpha: 0.42),
+      );
+      // Feeder rootlets — a root with no branches is a pipe, and the first
+      // pass looked exactly like plumbing.
+      for (var k = 0; k < g.rootlets[i].length; k++) {
+        final a = g.rootlets[i][k];
+        canvas.drawLine(
+          a.$1,
+          a.$2,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = tiny ? 3.4 : 2.0
+            ..color = const Color(0xFF3A2A19).withValues(alpha: 0.8),
+        );
       }
     }
   }
+
+  /// The wall course, its burial niches and its column stumps. This is the
+  /// architecture: a crypt seen from above is a band of ashlar with the
+  /// loculi cut into it, and the room's whole edge used to be a rounded
+  /// rectangle with a green lip.
+  void _renderCryptMasonry(
+    Canvas canvas,
+    DungeonRoom room,
+    _CryptGround g,
+    bool tiny,
+    double t,
+  ) {
+    for (var i = 0; i < g.masonry.length; i++) {
+      final r = g.masonry[i];
+      final tone = g.masonryTone[i];
+      canvas.drawRect(
+        r.translate(1, 2),
+        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.26),
+      );
+      // The course is deliberately DARKER and colder than the paving. When
+      // the two shared a palette the wall vanished into the floor and the
+      // whole room read as one quilt of stone with no edge to it.
+      canvas.drawRect(
+        r,
+        Paint()
+          ..color = Color.lerp(
+            const Color(0xFF20261C),
+            const Color(0xFF6C6754),
+            tone,
+          )!.withValues(alpha: 0.80),
+      );
+      canvas.drawRect(
+        Rect.fromLTRB(r.left, r.top, r.right, r.top + 3),
+        Paint()..color = _kCryptBone.withValues(alpha: 0.14),
+      );
+      canvas.drawRect(
+        r,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = _kCryptSeam.withValues(alpha: 0.55),
+      );
+    }
+    // LOCULI — the shelves the crypt was built to hold. Dark slots of
+    // different depths; a few still have their slab, most do not.
+    for (var i = 0; i < g.loculi.length; i++) {
+      final r = g.loculi[i];
+      canvas.drawRect(r, Paint()..color = _kCryptSeam.withValues(alpha: 0.9));
+      if (g.loculiSlab[i]) {
+        canvas.drawRect(
+          r.deflate(2.5),
+          Paint()..color = _kCryptBone.withValues(alpha: 0.30),
+        );
+        canvas.drawLine(
+          Offset(r.left + 5, r.center.dy),
+          Offset(r.right - 5, r.center.dy),
+          Paint()
+            ..strokeWidth = 1
+            ..color = _kCryptSeam.withValues(alpha: 0.4),
+        );
+      }
+    }
+    // Column stumps: broken at different heights, because a colonnade with
+    // every drum the same height is a fence.
+    for (var i = 0; i < g.columns.length; i++) {
+      final c = g.columns[i];
+      final h = g.columnH[i];
+      canvas.drawOval(
+        Rect.fromCenter(center: c.translate(3, 4), width: 30, height: 15),
+        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.28),
+      );
+      // The shaft, seen from above and slightly in front: a body plus a DRUM
+      // TOP. Without the ellipse on top these were pale capsules standing on
+      // the floor and read as bottles, not stone.
+      canvas.drawRect(
+        Rect.fromLTRB(c.dx - 13, c.dy - h, c.dx + 13, c.dy),
+        Paint()..color = _kCryptStone.withValues(alpha: 0.50),
+      );
+      canvas.drawRect(
+        Rect.fromLTRB(c.dx + 4, c.dy - h, c.dx + 13, c.dy),
+        Paint()..color = _kCryptSeam.withValues(alpha: 0.22),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(c.dx, c.dy - h),
+          width: 26,
+          height: 13,
+        ),
+        Paint()..color = _kCryptStoneCold.withValues(alpha: 0.85),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(c.dx, c.dy - h),
+          width: 26,
+          height: 13,
+        ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = _kCryptBone.withValues(alpha: 0.22),
+      );
+      // Fluting, two strokes. Any more and the stumps went stripy.
+      for (var k = -1; k <= 1; k += 2) {
+        canvas.drawLine(
+          Offset(c.dx + k * 6, c.dy - h + 8),
+          Offset(c.dx + k * 6, c.dy - 3),
+          Paint()
+            ..strokeWidth = 1.2
+            ..color = _kCryptSeam.withValues(alpha: 0.30),
+        );
+      }
+    }
+    // Fern clumps standing against the wall — the room's name, in the room.
+    for (var i = 0; i < g.ferns.length; i++) {
+      _drawFernClump(
+        canvas,
+        g.ferns[i],
+        g.fernH[i] * (tiny ? 2.6 : 1.0),
+        i * 1.31,
+        t,
+      );
+    }
+  }
+
+  /// A fern: five fronds off one crown, leaning apart, swaying on one phase.
+  void _drawFernClump(
+    Canvas canvas,
+    Offset at,
+    double h,
+    double phase,
+    double t,
+  ) {
+    final sway = sin(t * 0.6 + phase) * (h * 0.05);
+    for (var k = -2; k <= 2; k++) {
+      final lean = k * 0.40;
+      final hh = h * (1 - 0.13 * k.abs());
+      final tip = Offset(at.dx + sin(lean) * hh * 0.62 + sway, at.dy - hh);
+      canvas.drawPath(
+        Path()
+          ..moveTo(at.dx, at.dy)
+          ..quadraticBezierTo(
+            at.dx + sin(lean) * hh * 0.16,
+            at.dy - hh * 0.6,
+            tip.dx,
+            tip.dy,
+          ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = max(1.4, h * 0.045)
+          ..color = _kCryptGreen.withValues(alpha: h > 52 ? 0.40 : 0.52),
+      );
+      if (h > 52) {
+        // Pinnae, but only when the frond is big enough for them to read.
+        for (var p = 1; p <= 3; p++) {
+          final u = p / 4;
+          final on = Offset.lerp(at, tip, u)!;
+          canvas.drawLine(
+            on,
+            on + Offset(-8.0 - u * 6, -5),
+            Paint()
+              ..strokeWidth = 1.6
+              ..color = _kCryptGreen.withValues(alpha: 0.36),
+          );
+          canvas.drawLine(
+            on,
+            on + Offset(8.0 + u * 6, -5),
+            Paint()
+              ..strokeWidth = 1.6
+              ..color = _kCryptGreen.withValues(alpha: 0.36),
+          );
+        }
+      }
+    }
+  }
+
+  /// What makes each room ITSELF rather than another lot of paving: the stair
+  /// that gives the pollen stair its name, the reeds round the islet, the
+  /// nave's chancel step, the arena's ring of root.
+  void _renderCryptFixtures(
+    Canvas canvas,
+    DungeonRoom room,
+    _CryptGround g,
+    bool tiny,
+    double t,
+  ) {
+    final b = room.bounds.deflate(10);
+
+    // THE BROKEN TREAD. A flight of steps really crossing the floor, one of
+    // them gone — which is the span the layout calls 'one step down, or a
+    // cliff', so it had better be a step you can see.
+    for (var i = 0; i < g.treads.length; i++) {
+      final r = g.treads[i];
+      if (g.treadBroken[i]) {
+        // Rubble where the tread was: the riser behind it, and the pieces.
+        canvas.drawRect(
+          r,
+          Paint()..color = _kCryptSeam.withValues(alpha: 0.62),
+        );
+        for (var k = 0; k < 4; k++) {
+          canvas.drawRect(
+            Rect.fromCenter(
+              center: Offset(r.left + r.width * (0.2 + k * 0.22), r.center.dy),
+              width: 16.0 + k * 5,
+              height: 11.0 + (k % 2) * 5,
+            ),
+            Paint()..color = _kCryptStone.withValues(alpha: 0.45),
+          );
+        }
+        continue;
+      }
+      canvas.drawRect(
+        r.translate(0, 6),
+        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.34),
+      );
+      canvas.drawRect(
+        r,
+        Paint()
+          ..color = Color.lerp(_kCryptStoneCold, _kCryptStone, 0.30)!
+              .withValues(alpha: 0.80),
+      );
+      // RISER then NOSING. A flight seen from above is a stack of identical
+      // bars and nothing else — the descent only appears when each tread has
+      // a dark vertical face at its back and a lit lip at its front. Pale and
+      // half-transparent (the first attempt) the whole flight read as fog
+      // lying on the floor, so the stone here is nearly opaque.
+      canvas.drawRect(
+        Rect.fromLTRB(r.left, r.top, r.right, r.top + 11),
+        Paint()..color = _kCryptSeam.withValues(alpha: 0.72),
+      );
+      canvas.drawRect(
+        Rect.fromLTRB(r.left, r.bottom - 4, r.right, r.bottom),
+        Paint()..color = _kCryptBone.withValues(alpha: 0.22),
+      );
+    }
+
+    // REEDS round the islet's shore, leaning off the water.
+    for (var i = 0; i < g.reeds.length; i++) {
+      final c = g.reeds[i];
+      final sway = sin(t * 0.9 + i * 1.6) * 4;
+      final h = (tiny ? 46.0 : 22.0) + (i % 3) * 7;
+      canvas.drawLine(
+        c,
+        c + Offset(sway, -h),
+        Paint()
+          ..strokeWidth = tiny ? 3 : 1.6
+          ..strokeCap = StrokeCap.round
+          ..color = _kCryptGreen.withValues(alpha: 0.48),
+      );
+      canvas.drawCircle(
+        c + Offset(sway, -h - 2),
+        tiny ? 3.4 : 2.0,
+        Paint()..color = const Color(0xFF8A7A42).withValues(alpha: 0.55),
+      );
+    }
+
+    // THE CHANCEL STEP, in the bloom hall: a raised sanctuary platform across
+    // the far end, with the rood line where the screen stands.
+    if (_cryptHas(room.id, 'chancel')) {
+      final step = Rect.fromLTRB(b.left, b.bottom - 118, b.right, b.bottom);
+      canvas.drawRect(
+        step,
+        Paint()..color = _kCryptStone.withValues(alpha: 0.30),
+      );
+      canvas.drawRect(
+        Rect.fromLTRB(step.left, step.top, step.right, step.top + 6),
+        Paint()..color = _kCryptBone.withValues(alpha: 0.13),
+      );
+      canvas.drawRect(
+        Rect.fromLTRB(step.left, step.top + 7, step.right, step.top + 13),
+        Paint()..color = _kCryptSeam.withValues(alpha: 0.40),
+      );
+    }
+
+    // Fallen petals, only in the arena. They lie where the flower dropped
+    // them — banked at the edges, thinning inward, never scattered evenly.
+    // The buttress roots that bank the arena are ordinary crypt roots at
+    // eight times the scale and are drawn with the rest of them.
+    for (var i = 0; i < g.petals.length; i++) {
+      final c = g.petals[i];
+      final a = i * 0.7;
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(a);
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: 42, height: 17),
+        Paint()..color = const Color(0xFFB9738F).withValues(alpha: 0.26),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: const Offset(0, -2), width: 30, height: 8),
+        Paint()..color = const Color(0xFFE8A8BE).withValues(alpha: 0.14),
+      );
+      canvas.restore();
+    }
+
+    // The room's own built obstacles get bodies rather than the engine's
+    // grey bars — a toppled lintel, a buttress of root, a fallen catafalque
+    // are three different things and read as one shape without this.
+    // The dressing is drawn INFLATED past the collision rect. The engine
+    // paints its own grey bar over the top of this (shared `_renderWalls`,
+    // which this pass may not touch), so anything drawn exactly on the rect
+    // disappears under it; an oversize mass underneath is what turns that bar
+    // into a stone that happens to have a hitbox.
+    for (final w in room.walls) {
+      final m = w.inflate(11);
+      canvas.drawRect(
+        m.translate(3, 7),
+        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.34),
+      );
+      if (_cryptHas(room.id, 'giantroot')) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(m, Radius.circular(m.shortestSide * 0.45)),
+          Paint()..color = const Color(0xFF2E2113).withValues(alpha: 0.95),
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            m.deflate(m.shortestSide * 0.34),
+            Radius.circular(m.shortestSide * 0.3),
+          ),
+          Paint()..color = _kCryptBark.withValues(alpha: 0.50),
+        );
+      } else {
+        canvas.drawRect(
+          m,
+          Paint()..color = _kCryptStone.withValues(alpha: 0.62),
+        );
+        canvas.drawRect(
+          Rect.fromLTRB(m.left, m.top, m.right, m.top + 7),
+          Paint()..color = _kCryptBone.withValues(alpha: 0.24),
+        );
+        canvas.drawRect(
+          Rect.fromLTRB(m.left, m.bottom - 8, m.right, m.bottom),
+          Paint()..color = _kCryptSeam.withValues(alpha: 0.35),
+        );
+        // A carved fillet down the length, so a toppled lintel and a
+        // catafalque read as worked stone and not as a crate.
+        canvas.drawRect(
+          m.deflate(m.shortestSide * 0.30),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..color = _kCryptSeam.withValues(alpha: 0.40),
+        );
+      }
+    }
+  }
+
+  /// INSIDE THE SEED. The gourd hollow is the vault — the pocket behind the
+  /// little door in the altar's rim — and it is not masonry at all: it is the
+  /// inside of a dried seed-case, which is why a body has to be small to be
+  /// in here.
+  void _renderGourdShell(
+    Canvas canvas,
+    DungeonRoom room,
+    _CryptGround g,
+    bool tiny,
+    double t,
+  ) {
+    final b = room.bounds.deflate(12);
+    final shell = Rect.fromCenter(
+      center: b.center,
+      width: b.width,
+      height: b.height,
+    );
+    // The corners of the room are inside the husk too — without this the
+    // gourd floated on a square of the generic stage tint.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        room.bounds.deflate(8),
+        const Radius.circular(30),
+      ),
+      Paint()..color = const Color(0xFF1B1408).withValues(alpha: 0.60),
+    );
+    // The case has THICKNESS: an outer husk, a shadowed inner face, and the
+    // pith floor. Drawn as two flat ovals it was a barrel lid.
+    canvas.drawOval(
+      shell,
+      Paint()..color = const Color(0xFF3A2C14).withValues(alpha: 0.62),
+    );
+    canvas.drawOval(
+      shell.deflate(10),
+      Paint()..color = const Color(0xFF8A7038).withValues(alpha: 0.50),
+    );
+    canvas.drawOval(
+      shell.deflate(26),
+      Paint()..color = const Color(0xFF241A0B).withValues(alpha: 0.40),
+    );
+    canvas.drawOval(
+      shell.deflate(34),
+      Paint()..color = const Color(0xFF6E5A2E).withValues(alpha: 0.45),
+    );
+    // Ribs of the case, bellying out toward the middle as a seed-case does.
+    for (var i = 0; i < g.ribs.length; i++) {
+      canvas.drawPath(
+        g.ribs[i],
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..color = const Color(0xFF2E2210).withValues(alpha: 0.42),
+      );
+    }
+    // The pith: dry fibre lying in the bottom of the case. Each patch runs
+    // ONE way, in parallel strands — radiating them from a centre (the first
+    // attempt) drew a row of asterisks, which is the last thing a heap of dry
+    // fibre looks like.
+    for (var i = 0; i < g.moss.length; i++) {
+      final c = g.mossCentre[i];
+      final a = (i * 1.7) % pi;
+      final dir = Offset(cos(a), sin(a));
+      final nrm = Offset(-dir.dy, dir.dx);
+      for (var k = -2; k <= 2; k++) {
+        final len = 26.0 - (k.abs() * 5) + (i % 3) * 5;
+        final at = c + nrm * (k * 5.0);
+        canvas.drawLine(
+          at - dir * len,
+          at + dir * len,
+          Paint()
+            ..strokeWidth = 1.5
+            ..color = const Color(0xFFC8B87E).withValues(alpha: 0.14),
+        );
+      }
+    }
+    // THE WAY IN. The only light in here comes through the little door cut in
+    // the altar's rim — the door a body has to be small to use — so it falls
+    // in a wedge off that wall and says, without a word, how you got here.
+    for (final d in room.doors) {
+      final from = d.rect.center;
+      final into = Offset.lerp(from, b.center, 0.62)!;
+      final perp = Offset(-(into.dy - from.dy), into.dx - from.dx);
+      final pl = perp.distance == 0 ? 1.0 : perp.distance;
+      canvas.drawPath(
+        Path()
+          ..moveTo(from.dx, from.dy)
+          ..lineTo(into.dx + perp.dx / pl * 54, into.dy + perp.dy / pl * 54)
+          ..lineTo(into.dx - perp.dx / pl * 54, into.dy - perp.dy / pl * 54)
+          ..close(),
+        Paint()..color = const Color(0xFFF2E3A8).withValues(alpha: 0.07),
+      );
+    }
+    // Husk flakes off the shell, banked where they fell.
+    for (var i = 0; i < g.ferns.length && i < 9; i++) {
+      final c = g.ferns[i];
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(i * 0.9);
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: 20, height: 7),
+        Paint()..color = const Color(0xFF4A3A1A).withValues(alpha: 0.45),
+      );
+      canvas.restore();
+    }
+    // Loose seeds, each with its own shine. They breathe very slightly —
+    // this room is the only place in the crypt with nothing else moving.
+    for (var i = 0; i < g.seeds.length; i++) {
+      final c = g.seeds[i];
+      final r = 7.0 + (i % 4) * 2.5 + sin(t * 0.8 + i) * 0.6;
+      canvas.drawOval(
+        Rect.fromCenter(center: c.translate(1, 3), width: r * 2, height: r * 1.5),
+        Paint()..color = const Color(0xFF000000).withValues(alpha: 0.25),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: c, width: r * 2, height: r * 1.5),
+        Paint()..color = const Color(0xFFD8C384).withValues(alpha: 0.60),
+      );
+      canvas.drawCircle(
+        c.translate(-r * 0.3, -r * 0.3),
+        r * 0.25,
+        Paint()..color = _kCryptBone.withValues(alpha: 0.40),
+      );
+    }
+  }
+
+  /// The room's ground, built once. Keyed by room id — every room in the
+  /// crypt has its own bounds, and the shapes are derived from those bounds,
+  /// so a room looks the same every time you walk into it and no two rooms
+  /// look alike.
+  _CryptGround _cryptGround(DungeonRoom room) =>
+      _cryptGroundCache.putIfAbsent(room.id, () => _buildCryptGround(room));
 
   /// A size glyph at every passage the room can see: a low flat bar for a way
   /// only a small body takes, a tall arch for one only a big body takes. The
@@ -1385,4 +2156,628 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       }
     }
   }
+}
+
+// ─────────────────────────────────────────────────────────
+// THE GROUND, BUILT ONCE
+// ─────────────────────────────────────────────────────────
+
+/// One room's crypt floor and architecture, in world coordinates.
+///
+/// EVERYTHING IRREGULAR IN THE CRYPT LIVES HERE, and it is laid out exactly
+/// once per room rather than re-derived sixty times a second. What the render
+/// does per frame is fills and strokes over these lists plus three phases (a
+/// fern sway, a sheen on water, a drift of spores) — no allocation that grows
+/// with the party, the enemies or the puzzle state.
+class _CryptGround {
+  /// Grave slabs. Never a grid: they come out of a recursive split of the
+  /// room with random fractions and a random stopping size, then every corner
+  /// is jittered, so no two are the same shape and none of them line up.
+  final List<Path> slabs = [];
+  final List<double> slabTone = [];
+
+  /// The joints between them — the crypt's SMALL graph. A hairline at your
+  /// own size and a ravine at the other; one set of lines, two readings.
+  final List<Path> seams = [];
+  final List<double> seamWidth = [];
+
+  /// Worn epitaphs: a few strokes of a name, on a few slabs.
+  final List<Offset> carvings = [];
+  final List<double> carvingAngle = [];
+  final List<double> carvingLen = [];
+
+  /// Dew in the low spots — beads up here, standing water down there.
+  final List<Offset> seeps = [];
+  final List<double> seepR = [];
+
+  /// Moss blotches: a stain, or a canopy.
+  final List<Path> moss = [];
+  final List<Offset> mossCentre = [];
+  final List<double> mossR = [];
+
+  /// The roots taking the building apart: a filled, TAPERED body (a root is
+  /// not a beam), its lit crest, and its feeders.
+  final List<Path> roots = [];
+  final List<Path> rootCrests = [];
+  final List<List<(Offset, Offset)>> rootlets = [];
+
+  /// The wall course, its burial niches, its broken colonnade.
+  final List<Rect> masonry = [];
+  final List<double> masonryTone = [];
+  final List<Rect> loculi = [];
+  final List<bool> loculiSlab = [];
+  final List<Offset> columns = [];
+  final List<double> columnH = [];
+
+  /// Fern clumps against the wall.
+  final List<Offset> ferns = [];
+  final List<double> fernH = [];
+
+  /// The pollen stair's flight, and which tread is the broken one.
+  final List<Rect> treads = [];
+  final List<bool> treadBroken = [];
+
+  /// The islet: the shore it stands on, and the reeds round it.
+  Path shore = Path();
+  final List<Offset> reeds = [];
+
+  /// Botanica's arena: what the flower has dropped.
+  final List<Offset> petals = [];
+
+  /// The gourd hollow: the seed-case's ribs and what is loose inside it.
+  final List<Path> ribs = [];
+  final List<Offset> seeds = [];
+}
+
+/// Built grounds, by room id. Top-level and never cleared: the geometry is a
+/// pure function of the room's own bounds, so it is correct for the life of
+/// the process and a re-entry costs nothing.
+final Map<String, _CryptGround> _cryptGroundCache = {};
+
+/// What each room of the crypt IS, beyond its paving. Read by both the
+/// builder and the render, so a room cannot grow reeds in one and not the
+/// other.
+const Map<String, Set<String>> _kCryptRoomTraits = {
+  'root_porch': {'ferny'},
+  'mosswalk': {'loculi', 'ferny'},
+  'fern_gallery': {'giantroot', 'ferny'},
+  'pollen_stair': {'stair'},
+  'crypt_niche': {'loculi', 'tight'},
+  'lantern_court': {'colonnade'},
+  'islet': {'water'},
+  'gourd_hollow': {'shell'},
+  'bloom_hall': {'colonnade', 'chancel'},
+  'botanica_heart': {'arena'},
+};
+
+bool _cryptHas(String roomId, String trait) =>
+    _kCryptRoomTraits[roomId]?.contains(trait) ?? false;
+
+/// A closed, ragged blob. Eight points round an ellipse, each pushed in or
+/// out and joined with quadratics — nothing a garden makes has a clean edge.
+Path _cryptBlob(
+  Offset c,
+  double rx,
+  double ry,
+  double Function() rnd, {
+  double wobble = 0.3,
+}) {
+  const n = 8;
+  final pts = <Offset>[];
+  for (var i = 0; i < n; i++) {
+    final a = i / n * pi * 2;
+    final k = 1 + (rnd() - 0.5) * 2 * wobble;
+    pts.add(Offset(c.dx + cos(a) * rx * k, c.dy + sin(a) * ry * k));
+  }
+  final path = Path();
+  final mid0 = Offset.lerp(pts[n - 1], pts[0], 0.5)!;
+  path.moveTo(mid0.dx, mid0.dy);
+  for (var i = 0; i < n; i++) {
+    final cur = pts[i];
+    final mid = Offset.lerp(cur, pts[(i + 1) % n], 0.5)!;
+    path.quadraticBezierTo(cur.dx, cur.dy, mid.dx, mid.dy);
+  }
+  path.close();
+  return path;
+}
+
+/// Lay out one room. Deterministic from the room's own bounds.
+_CryptGround _buildCryptGround(DungeonRoom room) {
+  final g = _CryptGround();
+  final b = room.bounds.deflate(10);
+  var seed = (room.bounds.width * 31 + room.bounds.height * 17).toInt() | 1;
+  double rnd() {
+    seed = (seed * 1103515245 + 12345) & 0x3FFFFFFF;
+    return (seed >> 8) / 0x3FFFFF;
+  }
+
+  final shell = _cryptHas(room.id, 'shell');
+  final arena = _cryptHas(room.id, 'arena');
+  final water = _cryptHas(room.id, 'water');
+
+  // THE OPEN CENTRE. A guardian arena and a star room have to be walked and
+  // fought in, so every standing thing this builder makes is rejected out of
+  // the middle of the room and the detail is banked at the edges. Paving,
+  // joints, moss and seeps are floor and go everywhere — they are what you
+  // walk ON, not what you walk round.
+  final open = Rect.fromCenter(
+    center: b.center,
+    width: b.width * (arena ? 0.58 : 0.44),
+    height: b.height * (arena ? 0.56 : 0.42),
+  );
+
+  // Doors are holes in the wall course; a block laid across one reads as a
+  // bricked-up doorway with a door drawn on top of it.
+  final blocked = [for (final d in room.doors) d.rect.inflate(10)];
+  bool clearOfDoors(Rect r) {
+    for (final d in blocked) {
+      if (r.overlaps(d)) return false;
+    }
+    return true;
+  }
+
+  // ── the seed-case: no paving, no masonry, nothing built ──
+  if (shell) {
+    final o = Rect.fromCenter(
+      center: b.center,
+      width: b.width - 32,
+      height: b.height - 32,
+    );
+    for (var i = 0; i < 6; i++) {
+      final u = 0.13 + 0.15 * i + (rnd() - 0.5) * 0.05;
+      final x = o.left + o.width * u;
+      // How far down the case this rib runs depends on how far it is from
+      // the middle, so the ribs follow the belly instead of standing as a
+      // set of parallel vertical lines (which read as barrel staves).
+      final edge = (u - 0.5).abs() * 2;
+      final dy = o.height * 0.5 * sqrt(max(0.0, 1 - edge * edge)) * 0.92;
+      g.ribs.add(
+        Path()
+          ..moveTo(x, o.center.dy - dy)
+          ..quadraticBezierTo(
+            x + (x - o.center.dx) * 0.62,
+            o.center.dy,
+            x,
+            o.center.dy + dy,
+          ),
+      );
+    }
+    for (var i = 0; i < 6; i++) {
+      final c = Offset(
+        o.left + 40 + rnd() * (o.width - 80),
+        o.top + 34 + rnd() * (o.height - 68),
+      );
+      g.moss.add(_cryptBlob(c, 30 + rnd() * 44, 20 + rnd() * 26, rnd));
+      g.mossCentre.add(c);
+      g.mossR.add(16);
+    }
+    for (var i = 0; i < 11; i++) {
+      final p = Offset(
+        o.left + 34 + rnd() * (o.width - 68),
+        o.top + 30 + rnd() * (o.height - 60),
+      );
+      // Leave a standing spot in the middle: this pocket is small and the
+      // party arrives in it.
+      if (i > 2 && (p - b.center).distance < 46) continue;
+      g.seeds.add(p);
+    }
+    // Husk flakes, banked round the wall of the case (the shell branch of
+    // the render borrows the fern list for them — there is no fern in here).
+    for (var i = 0; i < 9; i++) {
+      final a = rnd() * pi * 2;
+      g.ferns.add(
+        b.center +
+            Offset(
+              cos(a) * o.width * 0.5 * (0.62 + rnd() * 0.30),
+              sin(a) * o.height * 0.5 * (0.62 + rnd() * 0.30),
+            ),
+      );
+      g.fernH.add(0);
+    }
+    return g;
+  }
+
+  // ── the paving ───────────────────────────────────────────
+  // A recursive split with random fractions and a random stopping size. This
+  // is the anti-grid: a lattice of identical stones is the one thing a
+  // funerary floor never is, and a regular lattice is this project's most
+  // common render failure.
+  // The paving stops well short of the wall, leaving a verge of grave soil
+  // the course sits in. Run to the wall (as the first attempt did) and the
+  // room has no edge at all: paving and masonry fuse into one quilt of stone
+  // and the picture reads as a WALL seen face-on rather than a floor.
+  final pave = water ? b.deflate(90) : b.deflate(46);
+  final minArea = (pave.width * pave.height / 52).clamp(3400.0, 9000.0);
+
+  // ROT PATCHES. A crypt eaten by a garden does not lose its paving evenly —
+  // it loses it where the water sits and the roots came through. Slabs whose
+  // centre falls in one of these go, so the floor is a run of stone with bare
+  // earth opening through it rather than a continuous carpet.
+  final rot = <(Offset, double)>[];
+  for (var i = 0; i < 3 + (rnd() * 3).floor(); i++) {
+    rot.add((
+      Offset(pave.left + rnd() * pave.width, pave.top + rnd() * pave.height),
+      50 + rnd() * 95,
+    ));
+  }
+  bool rotten(Offset c) {
+    for (final r in rot) {
+      if ((c - r.$1).distance < r.$2) return rnd() < 0.72;
+    }
+    return false;
+  }
+
+  late void Function(Rect, int) split;
+  split = (r, depth) {
+    if (depth >= 6 || r.width * r.height < minArea * (0.55 + rnd())) {
+      // A missing stone now and then: bare grave soil, and the reason the
+      // floor never reads as a continuous surface.
+      if (rnd() < 0.10 || rotten(r.center)) return;
+      final inset = 2.5 + rnd() * 3.5;
+      final q = r.deflate(inset);
+      if (q.width < 8 || q.height < 8) return;
+      double j() => (rnd() - 0.5) * 11;
+      // A SETTLED stone. The split gives four neighbours a shared straight
+      // edge, and a run of those is what made the paving read as brickwork —
+      // so every slab is turned a degree or two on its own centre, which
+      // breaks every long collinear line in the room.
+      final a = (rnd() - 0.5) * 0.13;
+      final ca = cos(a), sa = sin(a);
+      Offset turn(double x, double y) {
+        final dx = x - q.center.dx, dy = y - q.center.dy;
+        return Offset(
+          q.center.dx + dx * ca - dy * sa,
+          q.center.dy + dx * sa + dy * ca,
+        );
+      }
+
+      final p0 = turn(q.left + j(), q.top + j());
+      final p1 = turn(q.right + j(), q.top + j());
+      final p2 = turn(q.right + j(), q.bottom + j());
+      final p3 = turn(q.left + j(), q.bottom + j());
+      g.slabs.add(
+        Path()
+          ..moveTo(p0.dx, p0.dy)
+          ..lineTo(p1.dx, p1.dy)
+          ..lineTo(p2.dx, p2.dy)
+          ..lineTo(p3.dx, p3.dy)
+          ..close(),
+      );
+      g.slabTone.add(rnd());
+      // A worn name, on one slab in five.
+      if (rnd() < 0.2 && q.shortestSide > 44) {
+        g.carvings.add(q.center);
+        g.carvingAngle.add(q.width >= q.height ? 0.0 : pi / 2);
+        g.carvingLen.add(q.longestSide * 0.45);
+      }
+      return;
+    }
+    // Split the longer side most of the time — but not always, or the stones
+    // march. The fraction is never a half.
+    final long = r.width >= r.height;
+    final vertical = rnd() < 0.78 ? long : !long;
+    final f = 0.32 + rnd() * 0.36;
+    // The cut IS a joint: a jittered polyline, not a ruled line. Its width is
+    // its depth in the tree, so a room gets a few major fissures and many
+    // hairlines rather than one size of crack everywhere.
+    final w = switch (depth) {
+      0 => 28.0,
+      1 => 21.0,
+      2 => 14.0,
+      3 => 10.0,
+      _ => 7.0,
+    };
+    Offset a, z;
+    if (vertical) {
+      final x = r.left + r.width * f;
+      a = Offset(x, r.top);
+      z = Offset(x, r.bottom);
+    } else {
+      final y = r.top + r.height * f;
+      a = Offset(r.left, y);
+      z = Offset(r.right, y);
+    }
+    // OVERSHOOT. A cut only spans its own sub-rectangle, so at tiny — where
+    // these are ravines a body walks down — every crack ended in a blunt
+    // round cap in the middle of the floor and the network read as a heap of
+    // loose worms. Six pixels past each end and the cracks meet.
+    final dir = z - a;
+    final dirLen = dir.distance == 0 ? 1.0 : dir.distance;
+    final over = Offset(dir.dx / dirLen, dir.dy / dirLen) * 7;
+    a -= over;
+    z += over;
+    final n = Offset(-(z.dy - a.dy), z.dx - a.dx);
+    final nl = n.distance == 0 ? 1.0 : n.distance;
+    final seam = Path()..moveTo(a.dx, a.dy);
+    for (var k = 1; k <= 3; k++) {
+      final u = k / 3;
+      final off = k == 3 ? 0.0 : (rnd() - 0.5) * (vertical ? 22 : 18);
+      final p =
+          Offset.lerp(a, z, u)! + Offset(n.dx / nl * off, n.dy / nl * off);
+      seam.lineTo(p.dx, p.dy);
+    }
+    g.seams.add(seam);
+    g.seamWidth.add(w);
+    if (vertical) {
+      final x = r.left + r.width * f;
+      split(Rect.fromLTRB(r.left, r.top, x, r.bottom), depth + 1);
+      split(Rect.fromLTRB(x, r.top, r.right, r.bottom), depth + 1);
+    } else {
+      final y = r.top + r.height * f;
+      split(Rect.fromLTRB(r.left, r.top, r.right, y), depth + 1);
+      split(Rect.fromLTRB(r.left, y, r.right, r.bottom), depth + 1);
+    }
+  };
+  split(pave, 0);
+
+  // ── moss and seeps ───────────────────────────────────────
+  // Clustered, not sprinkled: moss grows where the water runs, so the
+  // blotches come in runs of two or three off one damp spot.
+  final clumps = (pave.width * pave.height / 52000).clamp(3, 8).toInt();
+  for (var i = 0; i < clumps; i++) {
+    final at = Offset(
+      pave.left + rnd() * pave.width,
+      pave.top + rnd() * pave.height,
+    );
+    final n = 2 + (rnd() * 3).floor();
+    for (var k = 0; k < n; k++) {
+      final c = at + Offset((rnd() - 0.5) * 90, (rnd() - 0.5) * 70);
+      final r = 15.0 + rnd() * 26;
+      g.moss.add(_cryptBlob(c, r, r * (0.5 + rnd() * 0.3), rnd, wobble: 0.34));
+      g.mossCentre.add(c);
+      g.mossR.add(r);
+    }
+    if (rnd() < 0.7) {
+      g.seeps.add(at + Offset((rnd() - 0.5) * 40, (rnd() - 0.5) * 30));
+      g.seepR.add(10.0 + rnd() * 13);
+    }
+  }
+
+  // ── the roots ────────────────────────────────────────────
+  // Each one comes in UNDER the wall course, curls, and tapers out before it
+  // reaches the middle of the room — so it never crosses the ground the
+  // party has to fight on, and it never reads as a beam laid over the floor.
+  //
+  // The guardian's arena gets the same thing at buttress scale and eight
+  // times over, banked round the edge. It got a RING first — nine points on
+  // an ellipse joined end to end — and that is exactly what it looked like:
+  // a brown hoop drawn on the floor. Separate roots that happen to crowd the
+  // same wall read as the root-bowl of something enormous; a closed curve
+  // never will.
+  final n = arena ? 8 : 2 + (rnd() * 2.4).floor();
+  for (var i = 0; i < n; i++) {
+    final side = (rnd() * 4).floor();
+    final a = arena
+        ? b.center +
+              Offset(
+                cos(i / n * pi * 2 + rnd() * 0.4) * b.width * 0.56,
+                sin(i / n * pi * 2 + rnd() * 0.4) * b.height * 0.56,
+              )
+        : switch (side) {
+            0 => Offset(b.left + 40 + rnd() * (b.width - 80), b.top - 14),
+            1 => Offset(b.right + 14, b.top + 40 + rnd() * (b.height - 80)),
+            2 => Offset(b.left + 40 + rnd() * (b.width - 80), b.bottom + 14),
+            _ => Offset(b.left - 14, b.top + 40 + rnd() * (b.height - 80)),
+          };
+    // A tip in the outer band: past the wall, short of the open centre.
+    final ang = arena
+        ? atan2(a.dy - b.center.dy, a.dx - b.center.dx) + (rnd() - 0.5) * 1.1
+        : rnd() * pi * 2;
+    final reach = arena ? 0.46 + rnd() * 0.18 : 0.52 + rnd() * 0.30;
+    final z =
+        b.center +
+        Offset(cos(ang) * b.width * 0.5 * reach, sin(ang) * b.height * 0.5 * reach);
+    final mid = Offset.lerp(a, z, 0.5)!;
+    // A hard control offset, perpendicular-ish: a root that grew round
+    // something, not one that was surveyed.
+    final d = z - a;
+    final dl = d.distance == 0 ? 1.0 : d.distance;
+    final swing = (rnd() < 0.5 ? -1 : 1) * (0.34 + rnd() * 0.38) * dl;
+    final ctrl = mid + Offset(-d.dy / dl * swing, d.dx / dl * swing);
+    final base = arena ? 30.0 + rnd() * 26 : 13.0 + rnd() * 13;
+    Offset at(double u) =>
+        Offset.lerp(Offset.lerp(a, ctrl, u)!, Offset.lerp(ctrl, z, u)!, u)!;
+    // Taper: sample the curve, walk out along one side and back along the
+    // other, with the half-width falling to nothing at the tip.
+    const steps = 12;
+    final left = <Offset>[], right = <Offset>[];
+    for (var k = 0; k <= steps; k++) {
+      final u = k / steps;
+      final p = at(u);
+      final q = at(min(1.0, u + 0.03));
+      final t = q - p;
+      final tl = t.distance == 0 ? 1.0 : t.distance;
+      final hw = base * 0.5 * (1 - u * u) + 0.8;
+      final nn = Offset(-t.dy / tl, t.dx / tl) * hw;
+      left.add(p + nn);
+      right.add(p - nn);
+    }
+    final body = Path()..moveTo(left.first.dx, left.first.dy);
+    for (final p in left.skip(1)) {
+      body.lineTo(p.dx, p.dy);
+    }
+    for (final p in right.reversed) {
+      body.lineTo(p.dx, p.dy);
+    }
+    body.close();
+    g.roots.add(body);
+    // The crest is the same run at a third the width, shifted up the screen.
+    final crest = Path();
+    for (var k = 0; k <= steps; k++) {
+      final p = Offset.lerp(left[k], right[k], 0.32)! - const Offset(0, 2);
+      k == 0 ? crest.moveTo(p.dx, p.dy) : crest.lineTo(p.dx, p.dy);
+    }
+    for (var k = steps; k >= 0; k--) {
+      final p = Offset.lerp(left[k], right[k], 0.58)! - const Offset(0, 2);
+      crest.lineTo(p.dx, p.dy);
+    }
+    crest.close();
+    g.rootCrests.add(crest);
+    final feeders = <(Offset, Offset)>[];
+    for (var k = 1; k <= 3; k++) {
+      final u = (k / 4 + (rnd() - 0.5) * 0.12).clamp(0.05, 0.95);
+      final on = at(u);
+      final fa = rnd() * pi * 2;
+      feeders.add((on, on + Offset(cos(fa), sin(fa)) * (20 + rnd() * 28)));
+    }
+    g.rootlets.add(feeders);
+  }
+
+  // ── the wall course ──────────────────────────────────────
+  // Ashlar of uneven length, with gaps where a block has fallen out. The
+  // depth of the course varies too, so the room's edge is a built thing and
+  // not a border.
+  void course(bool horizontal, bool nearSide) {
+    var p = horizontal ? b.left : b.top;
+    final end = horizontal ? b.right : b.bottom;
+    while (p < end - 12) {
+      final len = 26.0 + rnd() * 54;
+      final depth = 18.0 + rnd() * 14;
+      final r = horizontal
+          ? Rect.fromLTWH(
+              p,
+              nearSide ? b.top : b.bottom - depth,
+              min(len, end - p),
+              depth,
+            )
+          : Rect.fromLTWH(
+              nearSide ? b.left : b.right - depth,
+              p,
+              depth,
+              min(len, end - p),
+            );
+      // One block in seven is missing — a course with no gaps in it is a
+      // frame, and a frame is what the plain floor already drew.
+      if (rnd() > 0.15 && clearOfDoors(r)) {
+        g.masonry.add(r);
+        g.masonryTone.add(rnd());
+      }
+      p += len + 2 + rnd() * 5;
+    }
+  }
+
+  if (water) {
+    // The islet's rim is its SHORE, not a wall — and it has to be well
+    // inside the room or the water it stands in is only visible in the four
+    // corners, which is how the first attempt drew it.
+    g.shore = _cryptBlob(
+      b.center,
+      b.width / 2 - 44,
+      b.height / 2 - 44,
+      rnd,
+      wobble: 0.11,
+    );
+    // Reeds stand on the shore ring, between the last stone and the water.
+    for (var i = 0; i < 20; i++) {
+      final a = i / 20 * pi * 2 + rnd() * 0.22;
+      final rx = b.width / 2 - 46 - rnd() * 22;
+      final ry = b.height / 2 - 46 - rnd() * 22;
+      g.reeds.add(b.center + Offset(cos(a) * rx, sin(a) * ry));
+    }
+  } else {
+    // The arena gets its course too: Botanica grew INSIDE a crypt chamber,
+    // and an arena with no built edge is a field.
+    course(true, true);
+    course(true, false);
+    course(false, true);
+    course(false, false);
+  }
+
+  // ── burial niches ────────────────────────────────────────
+  if (_cryptHas(room.id, 'loculi')) {
+    for (final top in [true, false]) {
+      var x = b.left + 30 + rnd() * 40;
+      while (x < b.right - 44) {
+        final w = 20.0 + rnd() * 16;
+        final h = 22.0 + rnd() * 14;
+        final r = Rect.fromLTWH(x, top ? b.top + 4 : b.bottom - 4 - h, w, h);
+        if (clearOfDoors(r) && rnd() > 0.22) {
+          g.loculi.add(r);
+          g.loculiSlab.add(rnd() < 0.35);
+        }
+        // Uneven spacing: these were cut as they were needed, over centuries.
+        x += w + 8 + rnd() * 46;
+      }
+    }
+  }
+
+  // ── colonnade ────────────────────────────────────────────
+  if (_cryptHas(room.id, 'colonnade')) {
+    for (final left in [true, false]) {
+      var y = b.top + 50 + rnd() * 60;
+      while (y < b.bottom - 50) {
+        final c = Offset(
+          left ? b.left + 44 + rnd() * 14 : b.right - 44 - rnd() * 14,
+          y,
+        );
+        final r = Rect.fromCenter(center: c, width: 30, height: 70);
+        if (clearOfDoors(r) && !open.contains(c)) {
+          g.columns.add(c);
+          g.columnH.add(28.0 + rnd() * 46);
+        }
+        y += 74 + rnd() * 78;
+      }
+    }
+  }
+
+  // ── ferns ────────────────────────────────────────────────
+  // Ferns grow where the damp and the broken ground are, which in this crypt
+  // means the VERGE between the last course of paving and the wall, and the
+  // rot patches. Scattered over the open floor (the first attempt) they read
+  // as weeds someone planted in rows of one.
+  {
+    final count = _cryptHas(room.id, 'ferny') ? 18 : 11;
+    for (var i = 0; i < count; i++) {
+      final onVerge = rnd() < 0.66 || rot.isEmpty;
+      Offset c;
+      if (onVerge) {
+        final a = rnd() * pi * 2;
+        c =
+            b.center +
+            Offset(
+              cos(a) * (b.width / 2 - 22 - rnd() * 26),
+              sin(a) * (b.height / 2 - 22 - rnd() * 26),
+            );
+      } else {
+        final r = rot[(rnd() * rot.length).floor().clamp(0, rot.length - 1)];
+        final a = rnd() * pi * 2;
+        c = r.$1 + Offset(cos(a), sin(a)) * (r.$2 * (0.3 + rnd() * 0.7));
+      }
+      if (!b.contains(c) || open.contains(c)) continue;
+      g.ferns.add(c);
+      g.fernH.add(15.0 + rnd() * 18);
+    }
+  }
+
+  // ── the broken tread ─────────────────────────────────────
+  if (_cryptHas(room.id, 'stair')) {
+    // A real flight, descending down-left across the room, and the sixth
+    // step gone — which is exactly where the layout puts the repair bed
+    // ('the sifted soil under the broken tread', at 380,280). The two have
+    // to agree or the bed is sitting on nothing.
+    const a = Offset(560, 40), z = Offset(330, 340);
+    for (var i = 0; i < 8; i++) {
+      final c = Offset.lerp(a, z, i / 7)!;
+      // The treads OVERLAP. Spaced apart they were a ladder of bars with
+      // floor showing between them; a flight of stairs is a continuous mass.
+      g.treads.add(
+        Rect.fromCenter(center: c, width: 152 - i * 3.0, height: 48),
+      );
+      g.treadBroken.add(i == 6);
+    }
+  }
+
+  // ── what the flower has dropped ──────────────────────────
+  if (arena) {
+    for (var i = 0; i < 26; i++) {
+      final c = Offset(
+        b.left + 20 + rnd() * (b.width - 40),
+        b.top + 20 + rnd() * (b.height - 40),
+      );
+      if (open.contains(c)) continue;
+      g.petals.add(c);
+    }
+  }
+
+  return g;
 }

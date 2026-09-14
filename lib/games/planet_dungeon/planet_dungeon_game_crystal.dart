@@ -792,12 +792,34 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
 
   // ── Rendering (§5.5 visual grammar) ──────────────────────
   // Nothing here may read like Water's tide regating: no level, no gauge, no
-  // dissolve, no water. A chamber is a slab of coloured glass in a stone
-  // socket; a slide is a HARD TRANSLATION with a bright shear at its leading
-  // edge; and the keep's whole state is legible from an index plate cut into
-  // every cell's frame. No MaskFilter.blur anywhere (the game's known jank
-  // source) — everything is flat fills, strokes and one gradient-free glow
+  // dissolve, no water. A slide is a HARD TRANSLATION with a bright shear at
+  // its leading edge, and the keep's whole state is legible from an index
+  // plate cut into every cell's frame. No MaskFilter.blur anywhere (the
+  // game's known jank source) — everything is flat fills, strokes and glows
   // built from concentric strokes.
+  //
+  // ─── WHAT THIS PLACE IS ───
+  // Vitrea is not a crystal cave, and nothing in it grew. It is a KEEP OF SET
+  // GLASS: dressed stone cut into nine sockets, and slabs of ground glass
+  // leaded up out of irregular panes, shoved about on bearing runways by a
+  // rack sunk under the floor. So the room vocabulary is masonry, ironwork
+  // and glaziery — courses and arrises, sunk channels and rack teeth, rail
+  // chairs, cames and shims, ground bevels, and the swarf that a few
+  // centuries of glass grinding across stone leaves in the corners.
+  //
+  // A BUILDING THAT MOVES HAS TO SHOW ITS BEARINGS. Everything the player is
+  // standing on says so: the runways the slab rides, the wear scored into
+  // them, the seam where a chamber does not quite touch its socket, the
+  // wedges someone drove into that seam to stop it ringing.
+  //
+  // THE TRAP THIS PLANET SETS FOR ITS OWN ART, and what was done about it: a
+  // 3×3 mechanic must not be drawn as a 3×3. The first attempt laid four
+  // identical runways crossing in a square and nine identical plates in the
+  // choir, and every room read as its own floor plan. The two runway axes are
+  // DIFFERENT OBJECTS at different heights now — sunk rack channels east-west,
+  // raised rail on chairs north-south — and no two plates in the choir are
+  // cut, chipped or bedded alike. The only 3×3 left in the game is the index
+  // plate, which is a diagram on purpose.
 
   // Painted with alpha so the prism sky shows through the keep (FLOOR
   // TRANSLUCENCY RULE, §8). These were laid down opaque, which flattened
@@ -810,6 +832,20 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   static const Color _keepVoid = Color(0xFF0B0910);
   static const Color _keepBrass = Color(0xFFE4C16A);
   static const Color _keepSheen = Color(0xFFBFD4E4);
+  // The masonry palette. Two tones and an arris is all a dressed face needs;
+  // the variation that stops it reading as brickwork is in the COURSING.
+  static const Color _keepStoneLit = Color(0xFF3C3450);
+  static const Color _keepStoneDim = Color(0xFF17131F);
+  static const Color _keepIron = Color(0xFF4E4A5E);
+  static const Color _keepRail = Color(0xFF9AA0B8);
+  static const Color _keepSwarf = Color(0xFFCBD6E6);
+
+  /// The two sunk rack channels (east-west) and the two raised rails
+  /// (north-south) every socket is bedded with. Deliberately NOT a symmetric
+  /// cross: they are two different pieces of machinery at two different
+  /// heights, which is what keeps the bearing bed from reading as a lattice.
+  static const List<double> _kChannelY = [92, 250];
+  static const List<double> _kRailX = [104, 312];
 
   void _renderKeep(Canvas canvas, DungeonRoom room) {
     final cell = _cellOf(room);
@@ -831,22 +867,18 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   void _renderKeepCell(Canvas canvas, DungeonRoom room, int cell) {
     final f = _keep;
     final chamber = f.chamberAt(cell);
+    // Seeded per CELL as well as per bounds: all nine sockets are the same
+    // 420×340 cut, and nine identical floors would tell the player they had
+    // not moved when the whole planet's verb is that they have.
+    final g = _keepGroundFor<_KeepFloor>(
+      'socket:$cell:${room.bounds.width}x${room.bounds.height}',
+      () => _buildSocketBed(room.bounds, cell),
+    );
 
-    // The socket: stone the chamber sits in, and never moves.
-    canvas.drawRect(
-      room.bounds,
-      Paint()..color = _keepStone.withValues(alpha: _keepFloorAlpha),
-    );
-    canvas.drawRect(
-      room.bounds.deflate(14),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = _keepMortar,
-    );
+    _renderSocketBed(canvas, room, g);
 
     if (chamber == null) {
-      _renderHollow(canvas, room);
+      _renderHollow(canvas, room, g);
     } else {
       canvas.save();
       // THE SHEAR: the chamber arrives from the side it was pushed from.
@@ -860,21 +892,219 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       _renderChamber(canvas, room, cell, chamber);
       canvas.restore();
       if (prism.shear > 0) _renderShearEdge(canvas, room);
+      // The seam belongs to the SOCKET, so it is drawn after the restore and
+      // stays put while the chamber slides through it.
+      _renderSeam(canvas, room, g);
     }
 
     _renderCellFrame(canvas, room, cell);
     _renderIndexPlate(canvas, cell);
   }
 
-  void _renderHollow(Canvas canvas, DungeonRoom room) {
-    final r = room.bounds.deflate(26);
-    canvas.drawRect(r, Paint()..color = _keepVoid);
-    final p = Paint()
+  /// THE SOCKET BED — what a room-sized slab of glass is actually shoved
+  /// across. Dressed stone in courses of unequal height (the joints never
+  /// line up, which is the difference between masonry and graph paper), two
+  /// sunk channels with the driving rack in them, two raised rails on chairs
+  /// crossing over the channels, and the ground-glass swarf that all of it
+  /// leaves behind.
+  void _renderSocketBed(Canvas canvas, DungeonRoom room, _KeepFloor g) {
+    final b = room.bounds;
+    canvas.drawRect(
+      b,
+      Paint()..color = _keepStone.withValues(alpha: _keepFloorAlpha),
+    );
+    _renderDressedStone(canvas, g);
+    _renderRunways(canvas, b, g);
+    _renderSwarf(canvas, g);
+    // The socket's own cut reveal — the frame's inner edge, all the way round.
+    canvas.drawRect(
+      b.deflate(14),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = _keepMortar,
+    );
+  }
+
+  /// Dressed courses. One fill, one joint, one lit arris per block — the
+  /// arris is what makes a flat rectangle read as a stone with a top face.
+  void _renderDressedStone(Canvas canvas, _KeepFloor g) {
+    final face = Paint();
+    final joint = Paint()
       ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..color = _keepVoid.withValues(alpha: 0.45);
+    final arris = Paint()
+      ..strokeWidth = 1.0
+      ..color = _keepSheen.withValues(alpha: 0.07);
+    for (final blk in g.blocks) {
+      canvas.drawRect(blk.r, face..color = blk.color);
+      canvas.drawRect(blk.r, joint);
+      canvas.drawLine(
+        Offset(blk.r.left + 1.5, blk.r.top + 0.5),
+        Offset(blk.r.right - 1.5, blk.r.top + 0.5),
+        arris,
+      );
+    }
+  }
+
+  void _renderRunways(Canvas canvas, Rect b, _KeepFloor g) {
+    // EAST-WEST: sunk channels, with the rack that drives a chamber across.
+    final well = Paint()..color = _keepVoid.withValues(alpha: 0.62);
+    final tooth = Paint()..color = _keepIron.withValues(alpha: 0.55);
+    final lip = Paint()
       ..strokeWidth = 1.2
-      ..color = _keepMortar.withValues(alpha: 0.7);
-    for (var i = 1; i < 5; i++) {
-      canvas.drawRect(r.deflate(i * 9.0), p);
+      ..color = _keepSheen.withValues(alpha: 0.10);
+    for (final cy in _kChannelY) {
+      final y = b.top + cy;
+      final ch = Rect.fromLTRB(b.left + 10, y - 12, b.right - 10, y + 12);
+      canvas.drawRect(ch, well);
+      for (var x = ch.left + 7; x < ch.right - 9; x += 18) {
+        canvas.drawRect(Rect.fromLTWH(x, y - 4, 9, 8), tooth);
+      }
+      canvas.drawLine(Offset(ch.left, ch.top), Offset(ch.right, ch.top), lip);
+      // The shoe at each end, where the run stops.
+      for (final x in [ch.left, ch.right]) {
+        canvas.drawRect(
+          Rect.fromCenter(center: Offset(x, y), width: 14, height: 30),
+          Paint()..color = _keepIron.withValues(alpha: 0.8),
+        );
+      }
+    }
+    // NORTH-SOUTH: rail laid on chairs ON TOP of the channels, so the two
+    // axes cross at different heights and never read as one grid.
+    final chair = Paint()..color = _keepIron.withValues(alpha: 0.85);
+    final web = Paint()
+      ..strokeWidth = 7
+      ..color = _keepStoneDim.withValues(alpha: 0.85);
+    final crown = Paint()
+      ..strokeWidth = 2.6
+      ..color = _keepRail.withValues(alpha: 0.42);
+    for (final rx in _kRailX) {
+      final x = b.left + rx;
+      for (final cy in g.chairs) {
+        canvas.drawRect(
+          Rect.fromCenter(center: Offset(x, b.top + cy), width: 26, height: 13),
+          chair,
+        );
+      }
+      canvas.drawLine(Offset(x, b.top + 12), Offset(x, b.bottom - 12), web);
+      canvas.drawLine(Offset(x, b.top + 12), Offset(x, b.bottom - 12), crown);
+    }
+    // WEAR. Glass has been ground over this bed for a very long time; the
+    // scoring is what says the building has really been moving.
+    final score = Paint()..color = _keepSwarf.withValues(alpha: 0.055);
+    for (final s in g.scores) {
+      canvas.drawRect(s.translate(b.left, b.top), score);
+    }
+  }
+
+  void _renderSwarf(Canvas canvas, _KeepFloor g) {
+    final dust = Paint()..color = _keepSwarf.withValues(alpha: 0.055);
+    for (final p in g.swarf) {
+      canvas.drawPath(p, dust);
+    }
+    final chip = Paint()..color = _keepSheen.withValues(alpha: 0.1);
+    for (final p in g.shards) {
+      canvas.drawPath(p, chip);
+    }
+  }
+
+  /// THE HOLLOW — "an empty socket, and the keep's works below". It used to
+  /// be four concentric rectangles, which read as a target painted on the
+  /// floor rather than as the one cell with no glass in it. The socket has no
+  /// slab, so what you stand on is the bare iron grating over the works: bars
+  /// one way only (never a mesh), the gearing showing black between them, and
+  /// every shard the keep has ever shaken loose lying in the bottom.
+  void _renderHollow(Canvas canvas, DungeonRoom room, _KeepFloor g) {
+    final r = room.bounds.deflate(26);
+    canvas.drawRect(r, Paint()..color = _keepVoid.withValues(alpha: 0.66));
+    // The works, seen a long way down: two gear rims and the drive shaft.
+    final gear = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..color = _keepIron.withValues(alpha: 0.95);
+    for (final c in [
+      r.center + const Offset(-58, 26),
+      r.center + const Offset(74, -34),
+    ]) {
+      canvas.drawCircle(c, 34, gear);
+      canvas.drawCircle(c, 21, gear);
+      for (var i = 0; i < 9; i++) {
+        final a = i * 0.698;
+        canvas.drawLine(
+          c + Offset(cos(a), sin(a)) * 21,
+          c + Offset(cos(a), sin(a)) * 34,
+          gear,
+        );
+      }
+    }
+    canvas.drawRect(
+      Rect.fromLTRB(r.left + 20, r.center.dy - 5, r.right - 20, r.center.dy + 5),
+      Paint()..color = _keepIron.withValues(alpha: 0.45),
+    );
+    // The grating: heavy bars ONE WAY, because a mesh is a grid and this
+    // planet has to stop drawing grids. The first pass laid them at a 21px
+    // pitch and the socket came out looking like a barcode; they are half as
+    // many, twice as heavy, and lit on top so they have thickness.
+    final bar = Paint()..color = _keepStoneDim.withValues(alpha: 0.95);
+    final barLit = Paint()
+      ..strokeWidth = 1.6
+      ..color = _keepSheen.withValues(alpha: 0.17);
+    for (var y = r.top + 8; y < r.bottom - 8; y += 42) {
+      final h = min(24.0, r.bottom - 8 - y);
+      canvas.drawRect(Rect.fromLTWH(r.left, y, r.width, h), bar);
+      canvas.drawLine(Offset(r.left, y + 1), Offset(r.right, y + 1), barLit);
+      canvas.drawLine(
+        Offset(r.left, y + h - 1),
+        Offset(r.right, y + h - 1),
+        Paint()
+          ..strokeWidth = 1.4
+          ..color = _keepVoid.withValues(alpha: 0.7),
+      );
+    }
+    // Two bearers holding the bars, and the socket's cut lip.
+    for (final x in [r.left + r.width * 0.3, r.left + r.width * 0.72]) {
+      canvas.drawRect(
+        Rect.fromLTRB(x - 7, r.top, x + 7, r.bottom),
+        Paint()..color = _keepIron.withValues(alpha: 0.5),
+      );
+    }
+    canvas.drawRect(
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..color = _keepMortar,
+    );
+    for (final p in g.shards) {
+      canvas.drawPath(p, Paint()..color = _keepSheen.withValues(alpha: 0.12));
+    }
+  }
+
+  /// THE SEAM. A chamber never quite touches its socket — there is a finger's
+  /// width of dark all round it, with wedges driven in at a few places to
+  /// stop the whole keep ringing. It is the single clearest statement that
+  /// the thing you are standing in is a loose part of a bigger machine.
+  void _renderSeam(Canvas canvas, DungeonRoom room, _KeepFloor g) {
+    final r = room.bounds.deflate(26);
+    canvas.drawRect(
+      r.inflate(3),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..color = _keepVoid.withValues(alpha: 0.55),
+    );
+    canvas.drawRect(
+      r.inflate(6),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = _keepSheen.withValues(alpha: 0.12),
+    );
+    final wedge = Paint()..color = _keepBrass.withValues(alpha: 0.42);
+    for (final w in g.shims) {
+      canvas.drawPath(w.shift(room.bounds.topLeft), wedge);
     }
   }
 
@@ -886,60 +1116,206 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   ) {
     final glass = Color(chamber.argb);
     final r = room.bounds.deflate(26);
-    canvas.drawRect(r, Paint()..color = glass.withValues(alpha: 0.30));
-    // Facet cuts: a bright notch on every wall the chamber is cut through.
-    final cut = Paint()..color = glass.withValues(alpha: 0.85);
-    if (chamber.cut(kFacetN)) {
-      canvas.drawRect(Rect.fromLTWH(r.left + 129, r.top, 110, 10), cut);
-    }
-    if (chamber.cut(kFacetS)) {
-      canvas.drawRect(Rect.fromLTWH(r.left + 129, r.bottom - 10, 110, 10), cut);
-    }
-    if (chamber.cut(kFacetW)) {
-      canvas.drawRect(Rect.fromLTWH(r.left, r.top + 102, 10, 110), cut);
-    }
-    if (chamber.cut(kFacetE)) {
-      canvas.drawRect(Rect.fromLTWH(r.right - 10, r.top + 102, 10, 110), cut);
-    }
-    // The grain: three long facet lines, so a chamber is recognisable at a
-    // glance when it turns up in a different socket.
-    final grain = Paint()
+    // The leadwork is cached per CHAMBER, not per cell, so a chamber is
+    // recognisable at a glance when it turns up in a different socket — which
+    // is the only way a player can track eight objects round nine holes.
+    final gl = _keepGroundFor<_KeepGlass>(
+      'glass:${chamber.id}',
+      () => _buildChamberGlass(r, chamber),
+    );
+
+    // The slab, bedded. One faint body tone, then the panes over it, so a
+    // dropped pane never leaves a hole in the glass.
+    //
+    // THE ALPHAS ARE LOW ON PURPOSE, and the first attempt got them wrong:
+    // at 0.22 body plus 0.2–0.4 panes the hearth's chamber came out as one
+    // flat slab of brown with scratches on it — the runways underneath it
+    // vanished, and with them the whole reason to have drawn a bearing bed.
+    // You are meant to see the machinery THROUGH the glass.
+    canvas.drawRect(r, Paint()..color = glass.withValues(alpha: 0.12));
+    final fill = Paint();
+    // Every pane colour, jamb colour and bevel colour is resolved at BUILD
+    // time, so the render loop allocates no Colors and does no lerping.
+
+    // The cames carry the whole read for a PALE or a BLACK chamber: the Pale
+    // Cell and the Black Cell have almost no colour to spend, so what tells
+    // the player a slab of glass is standing in the socket at all is its
+    // leadwork and its ground edges, not its hue. They are dark and definite.
+    final came = Paint()
       ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..color = _keepVoid.withValues(alpha: 0.46);
+    final lead = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.9
+      ..color = _keepSheen.withValues(alpha: 0.1);
+    for (var i = 0; i < gl.panes.length; i++) {
+      canvas.drawPath(gl.panes[i], fill..color = gl.paneColours[i]);
+      canvas.drawPath(gl.panes[i], came);
+      canvas.drawPath(gl.panes[i], lead);
+    }
+    // The arris the grinding wheel left on each pane. These were long white
+    // diagonals crossing the whole slab and read as somebody had keyed it
+    // with a nail; they are short, dim and pane-sized now.
+    final wheelMark = Paint()
       ..strokeWidth = 1.4
-      ..color = glass.withValues(alpha: 0.5);
-    for (var i = 1; i <= 3; i++) {
-      final x = r.left + r.width * i / 4;
-      canvas.drawLine(
-        Offset(x, r.top + 8),
-        Offset(x - 26, r.bottom - 8),
-        grain,
-      );
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.09);
+    for (final s in gl.arrises) {
+      canvas.drawLine(s.$1, s.$2, wheelMark);
+    }
+    // THE RIM BEVEL — the slab's edge is ground off all round. One clip, not
+    // one per pane: this is the cost-conscious version of the same read.
+    canvas.save();
+    canvas.clipRect(r);
+    canvas.drawRect(
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 16
+        ..color = gl.bevel,
+    );
+    canvas.drawRect(
+      r.deflate(8),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = _keepSheen.withValues(alpha: 0.18),
+    );
+    canvas.restore();
+    // Chips out of the corners, because a slab that has been shoved into
+    // stone a few thousand times is not still sharp.
+    for (final p in gl.chips) {
+      canvas.drawPath(p, Paint()..color = _keepVoid.withValues(alpha: 0.5));
+    }
+
+    for (final facet in const [kFacetN, kFacetE, kFacetS, kFacetW]) {
+      if (chamber.cut(facet)) _renderFacetDoorway(canvas, r, facet, gl.jamb);
     }
 
     if (chamber.id == 'hearth') _renderShardHearth(canvas);
     if (chamber.throne) _renderThrone(canvas, glass);
-    if (chamber.id == 'waiting') _renderWaitingFacet(canvas);
+    if (chamber.id == 'waiting') _renderWaitingFacet(canvas, glass);
     _renderBeamThrough(canvas, cell, chamber);
+  }
+
+  /// A CUT FACE IS A DOORWAY, NOT A BADGE. This used to be a bright bar
+  /// filling the opening — which read as the wall being PLUGGED at exactly
+  /// the place the player can walk through, the wrong way round. The glass is
+  /// removed there now: the socket bed shows through the gap, and the two
+  /// ground edges either side stand as jambs with the wheel's arris on them.
+  void _renderFacetDoorway(Canvas canvas, Rect r, int facet, Color ground) {
+    // Aligned with the authored door rects in the layout (110px wide on the
+    // north/south walls, 110px tall on the east/west).
+    //
+    // DEPTH 34, NOT 10 — a shallow notch sat entirely underneath the 44px
+    // shove-plate that stands at the middle of every wall, so on the rendered
+    // room you could not tell a cut face from a blind one, which is the
+    // single most important thing to be able to see in this keep. A reveal
+    // this deep puts both jambs out where the plate cannot cover them.
+    const d = 34.0;
+    final gap = switch (facet) {
+      kFacetN => Rect.fromLTWH(r.left + 129, r.top - 4, 110, d),
+      kFacetS => Rect.fromLTWH(r.left + 129, r.bottom + 4 - d, 110, d),
+      kFacetW => Rect.fromLTWH(r.left - 4, r.top + 102, d, 110),
+      _ => Rect.fromLTWH(r.right + 4 - d, r.top + 102, d, 110),
+    };
+    // The opening: the glass simply is not there, so the socket bed shows.
+    canvas.drawRect(gap, Paint()..color = _keepVoid.withValues(alpha: 0.5));
+    final horizontal = facet == kFacetN || facet == kFacetS;
+    final jamb = Paint()..color = ground;
+    final arris = Paint()
+      ..strokeWidth = 1.6
+      ..color = Colors.white.withValues(alpha: 0.32);
+    for (final near in const [true, false]) {
+      final j = horizontal
+          ? Rect.fromLTWH(
+              near ? gap.left - 11 : gap.right,
+              gap.top,
+              11,
+              gap.height,
+            )
+          : Rect.fromLTWH(
+              gap.left,
+              near ? gap.top - 11 : gap.bottom,
+              gap.width,
+              11,
+            );
+      canvas.drawRect(j, jamb);
+      // Outlined, so a pale jamb still reads against pale stone.
+      canvas.drawRect(
+        j,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = _keepVoid.withValues(alpha: 0.7),
+      );
+      canvas.drawLine(
+        horizontal ? j.topCenter : j.centerLeft,
+        horizontal ? j.bottomCenter : j.centerRight,
+        arris,
+      );
+    }
+    // The sill: a ground lip on the inner side of the opening, so a body
+    // steps over something on the way through.
+    final sill = Paint()
+      ..strokeWidth = 2.2
+      ..color = ground.withValues(alpha: 0.65);
+    switch (facet) {
+      case kFacetN:
+        canvas.drawLine(gap.bottomLeft, gap.bottomRight, sill);
+      case kFacetS:
+        canvas.drawLine(gap.topLeft, gap.topRight, sill);
+      case kFacetW:
+        canvas.drawLine(gap.topRight, gap.bottomRight, sill);
+      default:
+        canvas.drawLine(gap.topLeft, gap.bottomLeft, sill);
+    }
   }
 
   void _renderShardHearth(Canvas canvas) {
     final f = _keep;
     final warm = f.hearthKindled;
     final base = warm ? _keepBrass : const Color(0xFF6A6070);
-    // A standing shard, drawn as a hard prism — never a soft glow.
-    final path = Path()
-      ..moveTo(kChamberHeart.dx, kChamberHeart.dy - 46)
-      ..lineTo(kChamberHeart.dx + 24, kChamberHeart.dy + 12)
-      ..lineTo(kChamberHeart.dx, kChamberHeart.dy + 34)
-      ..lineTo(kChamberHeart.dx - 24, kChamberHeart.dy + 12)
+    // It stands on something. A shard this size resting on nothing was the
+    // clearest "floating fixture" left in the keep: there is a stepped stone
+    // pad under it now, and the shard is socketed into a bronze collar.
+    canvas.drawRect(
+      Rect.fromCenter(
+        center: kChamberHeart + const Offset(0, 40),
+        width: 108,
+        height: 26,
+      ),
+      Paint()..color = _keepStoneDim.withValues(alpha: 0.6),
+    );
+    canvas.drawRect(
+      Rect.fromCenter(center: kChamberHeart + const Offset(0, 31), width: 82, height: 16),
+      Paint()..color = _keepStoneLit.withValues(alpha: 0.85),
+    );
+    canvas.drawRect(
+      Rect.fromCenter(center: kChamberHeart + const Offset(0, 22), width: 56, height: 13),
+      Paint()..color = _keepIron.withValues(alpha: 0.95),
+    );
+    // A standing shard, drawn as a hard prism — never a soft glow. Three
+    // ground faces, so it has a body rather than an outline.
+    final left = Path()
+      ..moveTo(kChamberHeart.dx, kChamberHeart.dy - 52)
+      ..lineTo(kChamberHeart.dx, kChamberHeart.dy + 28)
+      ..lineTo(kChamberHeart.dx - 25, kChamberHeart.dy + 10)
       ..close();
-    canvas.drawPath(path, Paint()..color = base.withValues(alpha: 0.9));
-    canvas.drawPath(
-      path,
+    final right = Path()
+      ..moveTo(kChamberHeart.dx, kChamberHeart.dy - 52)
+      ..lineTo(kChamberHeart.dx + 25, kChamberHeart.dy + 10)
+      ..lineTo(kChamberHeart.dx, kChamberHeart.dy + 28)
+      ..close();
+    canvas.drawPath(left, Paint()..color = base.withValues(alpha: 0.95));
+    canvas.drawPath(right, Paint()..color = base.withValues(alpha: 0.62));
+    canvas.drawLine(
+      Offset(kChamberHeart.dx, kChamberHeart.dy - 52),
+      Offset(kChamberHeart.dx, kChamberHeart.dy + 28),
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = Colors.white.withValues(alpha: warm ? 0.55 : 0.2),
+        ..strokeWidth = 1.6
+        ..color = Colors.white.withValues(alpha: warm ? 0.5 : 0.22),
     );
     if (!warm) return;
     // Concentric strokes stand in for a glow — no blur.
@@ -955,35 +1331,93 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     }
   }
 
+  /// A THRONE IS CUT, NOT STACKED. Two rectangles read as a crate; a throne
+  /// cut out of a block of glass has a dais, a chamfered seat, arms, and a
+  /// tall back with an arch taken out of it.
   void _renderThrone(Canvas canvas, Color glass) {
-    final seat = Rect.fromCenter(
-      center: kChamberHeart + const Offset(0, 8),
-      width: 66,
-      height: 40,
-    );
-    canvas.drawRect(seat, Paint()..color = glass.withValues(alpha: 0.9));
+    final c = kChamberHeart;
+    // Dais — two steps, so it is standing on the chamber's own floor.
     canvas.drawRect(
-      Rect.fromLTWH(seat.left, seat.top - 48, seat.width, 48),
+      Rect.fromCenter(center: c + const Offset(0, 42), width: 126, height: 22),
+      Paint()..color = glass.withValues(alpha: 0.42),
+    );
+    canvas.drawRect(
+      Rect.fromCenter(center: c + const Offset(0, 32), width: 98, height: 16),
       Paint()..color = glass.withValues(alpha: 0.55),
     );
+    // The back, with an arch cut through it.
+    final back = Rect.fromLTWH(c.dx - 31, c.dy - 60, 62, 76);
+    canvas.drawRect(back, Paint()..color = glass.withValues(alpha: 0.72));
+    canvas.drawPath(
+      Path()
+        ..moveTo(back.left + 13, back.bottom)
+        ..lineTo(back.left + 13, back.top + 30)
+        ..quadraticBezierTo(c.dx, back.top + 2, back.right - 13, back.top + 30)
+        ..lineTo(back.right - 13, back.bottom)
+        ..close(),
+      Paint()..color = _keepVoid.withValues(alpha: 0.32),
+    );
+    // Seat and arms.
     canvas.drawRect(
-      seat,
+      Rect.fromCenter(center: c + const Offset(0, 14), width: 78, height: 22),
+      Paint()..color = glass.withValues(alpha: 0.95),
+    );
+    for (final dx in const [-43.0, 43.0]) {
+      canvas.drawRect(
+        Rect.fromCenter(center: c + Offset(dx, 2), width: 13, height: 44),
+        Paint()..color = glass.withValues(alpha: 0.8),
+      );
+    }
+    // The ground arris along the seat's front edge, and a brass strap.
+    canvas.drawLine(
+      c + const Offset(-39, 3),
+      c + const Offset(39, 3),
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = _keepBrass.withValues(alpha: 0.6),
+        ..strokeWidth = 1.6
+        ..color = Colors.white.withValues(alpha: 0.24),
+    );
+    canvas.drawRect(
+      Rect.fromCenter(center: c + const Offset(0, 25), width: 86, height: 4),
+      Paint()..color = _keepBrass.withValues(alpha: 0.55),
     );
   }
 
-  void _renderWaitingFacet(Canvas canvas) {
-    final p = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = _keepBrass.withValues(alpha: 0.7);
+  /// THE WAITING FACET — the vault chamber, and the only one that has spent
+  /// its life in a berth rather than a socket. A bare stroked rectangle said
+  /// nothing; it is a crated slab now, still strapped, standing on the
+  /// berth's own runners with the packing straw of ground glass around it.
+  void _renderWaitingFacet(Canvas canvas, Color glass) {
+    final crate = Rect.fromCenter(center: kChamberHeart, width: 150, height: 112);
+    canvas.drawRect(crate, Paint()..color = glass.withValues(alpha: 0.3));
     canvas.drawRect(
-      Rect.fromCenter(center: kChamberHeart, width: 120, height: 96),
-      p,
+      crate,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = _keepBrass.withValues(alpha: 0.6),
     );
+    // Straps, on the diagonal so they never make a frame of their own.
+    final strap = Paint()
+      ..strokeWidth = 5
+      ..color = _keepIron.withValues(alpha: 0.8);
+    canvas.drawLine(crate.topLeft, crate.bottomRight, strap);
+    canvas.drawLine(crate.bottomLeft, crate.topRight, strap);
+    canvas.drawCircle(
+      crate.center,
+      11,
+      Paint()..color = _keepBrass.withValues(alpha: 0.7),
+    );
+    // The berth's runners, still under it.
+    for (final dy in const [-46.0, 46.0]) {
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: kChamberHeart + Offset(0, dy),
+          width: 178,
+          height: 7,
+        ),
+        Paint()..color = _keepIron.withValues(alpha: 0.55),
+      );
+    }
   }
 
   /// The lamp's light, lying down the middle row. Drawn as a hard-edged band
@@ -1005,6 +1439,14 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       Paint()
         ..strokeWidth = 3
         ..color = tone.withValues(alpha: 0.85),
+    );
+    // The only thing in a cell that animates: one glint travelling the beam,
+    // because light in glass is the one thing here that should not sit still.
+    final gx = kBeamBand.left + (prism.clock * 118) % kBeamBand.width;
+    canvas.drawCircle(
+      Offset(gx, kBeamBand.center.dy),
+      4.5,
+      Paint()..color = Colors.white.withValues(alpha: 0.35),
     );
     if (chamber.id != 'hearth') return;
     // The hearth SPLITS rather than bends — three shapes, which is the maxim.
@@ -1065,88 +1507,292 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   /// the clearest possible statement of the planet's rule.
   void _renderCellFrame(Canvas canvas, DungeonRoom room, int cell) {
     final f = _keep;
-    final plate = Paint()..color = _keepMortar;
-    final live = Paint()..color = _keepBrass.withValues(alpha: 0.75);
     for (final facet in const [kFacetN, kFacetE, kFacetS, kFacetW]) {
       final n = keepNeighbourToward(cell, facet);
       if (n < 0) continue;
-      final at = keepPlateFor(facet);
       final inSocket = f.chamberAt(cell) == null;
       final ready =
           !f.facetStanding &&
           (inSocket ? f.chamberAt(n) != null : f.hollowCell == n);
-      canvas.drawRect(
-        Rect.fromCenter(center: at, width: 40, height: 40),
-        ready ? live : plate,
-      );
-      canvas.drawRect(
-        Rect.fromCenter(center: at, width: 40, height: 40),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..color = _keepBrass.withValues(alpha: 0.35),
-      );
+      _renderShovePlate(canvas, keepPlateFor(facet), facet, ready);
     }
-    // The tuning boss (THE ANNEAL).
-    canvas.drawCircle(kCellTuningBoss, 15, Paint()..color = _keepMortar);
-    canvas.drawCircle(
-      kCellTuningBoss,
-      15,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = _keepBrass.withValues(alpha: 0.55),
-    );
+    _renderTuningBoss(canvas, kCellTuningBoss, 15);
     // The berth chain, in the three sockets that can see the berth's mouth.
     if (keepNeighbours(kKeepMouthCell).contains(cell) ||
         cell == kKeepMouthCell) {
-      final taut = f.facetStanding || f.hollowCell == kKeepMouthCell;
+      _renderBerthChain(canvas, f.facetStanding || f.hollowCell == kKeepMouthCell);
+    }
+    if (cell == kKeepBeamRow.first) _renderWestLamp(canvas, f.lampLit);
+    if (cell == kKeepBeamRow.last) _renderEastRose(canvas);
+  }
+
+  /// A SHOVE-PLATE IS A TREAD-PLATE SET IN THE STONE. It was a 40px square in
+  /// two colours — the verb the player uses more than any other on this
+  /// planet, drawn as a swatch. There is a chamfered rebate, a cast plate
+  /// bedded in it on two hold-down bolts, and a chevron cast into the tread
+  /// pointing at the wall this plate sends the chamber through, so which way
+  /// a plate takes you is read off the floor and never off a legend.
+  void _renderShovePlate(Canvas canvas, Offset at, int facet, bool ready) {
+    canvas.drawRect(
+      Rect.fromCenter(center: at, width: 56, height: 56),
+      Paint()..color = _keepVoid.withValues(alpha: 0.42),
+    );
+    final plate = Rect.fromCenter(center: at, width: 44, height: 44);
+    canvas.drawRect(
+      plate,
+      Paint()..color = ready ? const Color(0xFF6E5628) : _keepMortar,
+    );
+    // Chamfer: lit on the top and left, shadowed on the bottom and right.
+    canvas.drawLine(
+      plate.topLeft,
+      plate.topRight,
+      Paint()
+        ..strokeWidth = 2
+        ..color = _keepBrass.withValues(alpha: ready ? 0.7 : 0.26),
+    );
+    canvas.drawLine(
+      plate.bottomLeft,
+      plate.bottomRight,
+      Paint()
+        ..strokeWidth = 2
+        ..color = _keepVoid.withValues(alpha: 0.55),
+    );
+    for (final c in [
+      plate.topLeft + const Offset(6, 6),
+      plate.bottomRight - const Offset(6, 6),
+    ]) {
+      canvas.drawCircle(c, 2.6, Paint()..color = _keepIron);
+      canvas.drawCircle(
+        c - const Offset(0.6, 0.6),
+        1.2,
+        Paint()..color = _keepSheen.withValues(alpha: 0.3),
+      );
+    }
+    final d = switch (facet) {
+      kFacetN => const Offset(0, -1),
+      kFacetS => const Offset(0, 1),
+      kFacetE => const Offset(1, 0),
+      _ => const Offset(-1, 0),
+    };
+    final side = Offset(-d.dy, d.dx);
+    final tread = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..color = (ready ? _keepBrass : _keepSheen).withValues(
+        alpha: ready ? 0.85 : 0.22,
+      );
+    for (var i = 0; i < 2; i++) {
+      final tip = at + d * (4.0 + i * 9);
+      canvas.drawPath(
+        Path()
+          ..moveTo(tip.dx - d.dx * 8 + side.dx * 10, tip.dy - d.dy * 8 + side.dy * 10)
+          ..lineTo(tip.dx, tip.dy)
+          ..lineTo(tip.dx - d.dx * 8 - side.dx * 10, tip.dy - d.dy * 8 - side.dy * 10),
+        tread,
+      );
+    }
+    if (!ready) return;
+    final glow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    for (var i = 1; i <= 3; i++) {
       canvas.drawRect(
-        Rect.fromCenter(center: kBerthChain, width: 16, height: 34),
-        Paint()
-          ..color = (taut ? _keepBrass : _keepMortar).withValues(alpha: 0.9),
-      );
-    }
-    // The west lamp and the east rose, on the outer frame of the middle row.
-    if (cell == kKeepBeamRow.first) {
-      canvas.drawCircle(
-        kWestLamp,
-        13,
-        Paint()
-          ..color = (f.lampLit ? _keepBrass : _keepMortar).withValues(
-            alpha: 0.95,
-          ),
-      );
-    }
-    if (cell == kKeepBeamRow.last) {
-      final want = _wheelColour(kRoseHue);
-      canvas.drawCircle(
-        kEastRose,
-        17,
-        Paint()..color = want.withValues(alpha: 0.35),
-      );
-      canvas.drawCircle(
-        kEastRose,
-        17,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5
-          ..color = want.withValues(alpha: 0.9),
+        plate.inflate(4.0 + i * 5),
+        glow..color = _keepBrass.withValues(alpha: 0.22 - i * 0.05),
       );
     }
   }
 
+  /// THE ANNEAL, wherever it is struck. The keep's frame is one tuned
+  /// instrument, so the boss is a bell: a stone plinth, a bronze dome turned
+  /// in concentric rings, and the bright crescent a few thousand strikes have
+  /// worn into one side of it. (It was a flat circle with a ring round it,
+  /// which read as a button.)
+  void _renderTuningBoss(Canvas canvas, Offset at, double r) {
+    canvas.drawRect(
+      Rect.fromCenter(center: at + Offset(0, r * 0.72), width: r * 2.7, height: r * 0.9),
+      Paint()..color = _keepStoneDim.withValues(alpha: 0.9),
+    );
+    canvas.drawRect(
+      Rect.fromCenter(center: at + Offset(0, r * 0.45), width: r * 2.1, height: r * 0.7),
+      Paint()..color = _keepStoneLit.withValues(alpha: 0.9),
+    );
+    canvas.drawCircle(at, r, Paint()..color = _keepIron);
+    final turn = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    for (var i = 1; i <= 3; i++) {
+      canvas.drawCircle(
+        at,
+        r * i / 3.6,
+        turn..color = _keepBrass.withValues(alpha: 0.16 + i * 0.06),
+      );
+    }
+    canvas.drawCircle(
+      at,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = _keepBrass.withValues(alpha: 0.65),
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: at, radius: r - 2.5),
+      -2.5,
+      1.5,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..color = Colors.white.withValues(alpha: 0.24),
+    );
+  }
+
+  /// THE BERTH CHAIN — an actual chain, hung off a bracket in the east frame,
+  /// with a ring pull on the end. It was a 16×34 rectangle.
+  void _renderBerthChain(Canvas canvas, bool taut) {
+    final tone = (taut ? _keepBrass : _keepIron).withValues(alpha: 0.92);
+    canvas.drawRect(
+      Rect.fromCenter(center: kBerthChain + const Offset(0, -54), width: 34, height: 10),
+      Paint()..color = _keepIron,
+    );
+    final link = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = tone;
+    // Slack chain hangs off to one side; taut chain hangs straight.
+    for (var i = 0; i < 5; i++) {
+      final sag = taut ? 0.0 : (i.isEven ? 4.0 : -4.0) * (i / 4);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: kBerthChain + Offset(sag, -44.0 + i * 11),
+          width: 11,
+          height: 14,
+        ),
+        link,
+      );
+    }
+    canvas.drawCircle(
+      kBerthChain + Offset(taut ? 0 : 4, 14),
+      9,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.4
+        ..color = tone,
+    );
+  }
+
+  /// THE WEST LAMP, in its bracket on the outer frame. A filled circle said
+  /// "indicator"; a lantern with a hood, a lens and a bracket says the beam
+  /// comes from somewhere.
+  void _renderWestLamp(Canvas canvas, bool lit) {
+    canvas.drawRect(
+      Rect.fromCenter(center: kWestLamp + const Offset(-8, 0), width: 16, height: 46),
+      Paint()..color = _keepIron.withValues(alpha: 0.95),
+    );
+    final hood = Path()
+      ..moveTo(kWestLamp.dx - 4, kWestLamp.dy - 22)
+      ..lineTo(kWestLamp.dx + 18, kWestLamp.dy - 13)
+      ..lineTo(kWestLamp.dx + 18, kWestLamp.dy + 13)
+      ..lineTo(kWestLamp.dx - 4, kWestLamp.dy + 22)
+      ..close();
+    canvas.drawPath(hood, Paint()..color = _keepStoneDim.withValues(alpha: 0.95));
+    canvas.drawPath(
+      hood,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = _keepBrass.withValues(alpha: 0.5),
+    );
+    canvas.drawCircle(
+      kWestLamp + const Offset(9, 0),
+      9,
+      Paint()..color = (lit ? _keepBrass : _keepMortar).withValues(alpha: 0.95),
+    );
+    if (!lit) return;
+    final glow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    for (var i = 1; i <= 3; i++) {
+      canvas.drawCircle(
+        kWestLamp + const Offset(9, 0),
+        9.0 + i * 7,
+        glow..color = _keepBrass.withValues(alpha: 0.22 - i * 0.05),
+      );
+    }
+  }
+
+  /// THE EAST ROSE — a rose window, which is radial and therefore the one
+  /// piece of regular geometry on this planet that is allowed to be regular.
+  void _renderEastRose(Canvas canvas) {
+    final want = _wheelColour(kRoseHue);
+    canvas.drawCircle(
+      kEastRose,
+      23,
+      Paint()..color = _keepStoneDim.withValues(alpha: 0.9),
+    );
+    canvas.drawCircle(kEastRose, 19, Paint()..color = want.withValues(alpha: 0.35));
+    final tracery = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..color = want.withValues(alpha: 0.75);
+    for (var i = 0; i < 8; i++) {
+      final a = i * pi / 4;
+      canvas.drawLine(
+        kEastRose + Offset(cos(a), sin(a)) * 6,
+        kEastRose + Offset(cos(a), sin(a)) * 19,
+        tracery,
+      );
+    }
+    canvas.drawCircle(kEastRose, 6, tracery);
+    canvas.drawCircle(
+      kEastRose,
+      19,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..color = want.withValues(alpha: 0.9),
+    );
+  }
+
   /// THE INDEX PLATE — a 3×3 diagram cut into every socket's frame. A sliding
   /// puzzle is unplayable if the player cannot see the board, and this planet
-  /// deliberately never shows it from above; the plate is the board.
+  /// deliberately never shows it from above; the plate is the board. It is
+  /// the ONE grid allowed in Vitrea, and it is dressed as what it is: a brass
+  /// plate screwed into a stone rebate, with the chambers as glass tokens.
   void _renderIndexPlate(Canvas canvas, int here) {
-    const origin = Offset(18, 18);
-    const pip = 26.0;
+    const origin = Offset(20, 20);
+    // 20, not 26: at full size and full saturation the plate was the loudest
+    // thing in the room — a colour swatch card hung in the corner of a keep.
+    // It has to be readable, not dominant.
+    const pip = 20.0;
     final f = _keep;
-    canvas.drawRect(
-      Rect.fromLTWH(origin.dx - 5, origin.dy - 5, pip * 3 + 10, pip * 3 + 10),
-      Paint()..color = _keepVoid.withValues(alpha: 0.8),
+    final board = Rect.fromLTWH(
+      origin.dx - 8,
+      origin.dy - 8,
+      pip * 3 + 16,
+      pip * 3 + 16,
     );
+    canvas.drawRect(
+      board.inflate(5),
+      Paint()..color = _keepStoneDim.withValues(alpha: 0.9),
+    );
+    canvas.drawRect(board, Paint()..color = _keepVoid.withValues(alpha: 0.7));
+    canvas.drawRect(
+      board,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = _keepBrass.withValues(alpha: 0.3),
+    );
+    for (final c in [
+      board.topLeft + const Offset(3.5, 3.5),
+      board.topRight + const Offset(-3.5, 3.5),
+      board.bottomLeft + const Offset(3.5, -3.5),
+      board.bottomRight + const Offset(-3.5, -3.5),
+    ]) {
+      canvas.drawCircle(c, 1.8, Paint()..color = _keepBrass.withValues(alpha: 0.5));
+    }
     for (var i = 0; i < 9; i++) {
       final r = Rect.fromLTWH(
         origin.dx + (i % 3) * pip,
@@ -1160,15 +1806,24 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         Paint()
           ..color = ch == null
               ? _keepVoid
-              : Color(ch.argb).withValues(alpha: 0.85),
+              : Color(ch.argb).withValues(alpha: 0.62),
       );
+      if (ch != null) {
+        canvas.drawLine(
+          r.topLeft + const Offset(1.5, 1.5),
+          r.topRight + const Offset(-1.5, 1.5),
+          Paint()
+            ..strokeWidth = 1.0
+            ..color = Colors.white.withValues(alpha: 0.16),
+        );
+      }
       if (i == here) {
         canvas.drawRect(
           r.inflate(2),
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2
-            ..color = Colors.white.withValues(alpha: 0.85),
+            ..color = Colors.white.withValues(alpha: 0.6),
         );
       }
     }
@@ -1179,60 +1834,175 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       pip - 3,
       pip - 3,
     );
+    canvas.drawLine(
+      Offset(origin.dx + 3 * pip - 3, berth.center.dy),
+      Offset(berth.left, berth.center.dy),
+      Paint()
+        ..strokeWidth = 1.4
+        ..color = _keepBrass.withValues(alpha: 0.45),
+    );
     canvas.drawRect(
       berth,
       Paint()
         ..color = f.facetStanding
             ? _keepVoid
-            : Color(kPrismChambers[kWaitingFacet].argb).withValues(alpha: 0.7),
+            : Color(kPrismChambers[kWaitingFacet].argb).withValues(alpha: 0.5),
     );
   }
 
+  // ── THE ORIEL ────────────────────────────────────────────
+
+  /// A stone balcony hung under the keep's south face. The whole north end of
+  /// the room IS the face — one unbroken sheet of glass in a dressed surround
+  /// with the nine cells showing dim behind it, which makes the only overview
+  /// in the game a thing you are looking THROUGH rather than a chart someone
+  /// left lying about. The rest is a balcony: flagged, parapeted, with the
+  /// bell-boss at the west end and glass swarf blown into the foot of the
+  /// glass.
   void _renderOriel(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    final g = _keepGroundFor<_KeepFloor>(
+      'oriel:${b.width}x${b.height}',
+      () => _buildOrielGround(b),
+    );
     canvas.drawRect(
-      room.bounds,
+      b,
       Paint()..color = _keepStone.withValues(alpha: _keepFloorAlpha),
     );
-    final face = room.prism!.glassFace!;
-    final pane = Rect.fromCenter(center: face, width: 240, height: 92);
+    _renderDressedStone(canvas, g);
+
+    // THE FACE. Stone jambs and a sill, and one sheet between them.
+    final face = Rect.fromLTRB(b.left + 34, b.top + 6, b.right - 34, b.top + 172);
+    canvas.drawRect(face, Paint()..color = _keepVoid.withValues(alpha: 0.62));
+    // The keep behind the glass — dim, because you are seeing it through a
+    // sheet, and small, because it is the whole building.
+    _renderKeepChart(canvas, Offset(face.right - 158, face.top + 14), 48);
+    // THE SHEET ITSELF, laid OVER the keep. Drawn under it, the chart read as
+    // nine bright swatches pinned to a wall; over it, the whole north end of
+    // the room is one plane of glass with a building dimly inside it.
+    canvas.drawRect(face, Paint()..color = _keepSheen.withValues(alpha: 0.09));
     canvas.drawRect(
-      pane,
+      face,
       Paint()
-        ..color = (entryDoorRevealed ? _keepVoid : _keepSheen).withValues(
-          alpha: entryDoorRevealed ? 0.9 : 0.35,
-        ),
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = _keepSheen.withValues(alpha: 0.2),
     );
-    if (!entryDoorRevealed) {
+    // Surround: a heavy sill along the bottom and two jambs, so the sheet is
+    // set in masonry rather than floating on the floor.
+    canvas.drawRect(
+      Rect.fromLTRB(face.left - 16, face.bottom, face.right + 16, face.bottom + 16),
+      Paint()..color = _keepStoneLit.withValues(alpha: 0.95),
+    );
+    for (final x in [face.left, face.right]) {
+      canvas.drawRect(
+        Rect.fromLTRB(x - 16, face.top - 6, x + 16, face.bottom + 16),
+        Paint()..color = _keepStoneDim.withValues(alpha: 0.95),
+      );
+      canvas.drawLine(
+        Offset(x - 15, face.top - 6),
+        Offset(x - 15, face.bottom + 16),
+        Paint()
+          ..strokeWidth = 1.4
+          ..color = _keepSheen.withValues(alpha: 0.12),
+      );
+    }
+
+    // THE THRESHOLD. Unbroken, it is one more stretch of the same sheet with
+    // only a faint scribed outline where the mason meant it to go; cracked,
+    // it is a hole with the crazing running away from it into the rest of the
+    // glass.
+    final at = room.prism!.glassFace!;
+    final pane = Rect.fromCenter(center: at, width: 240, height: 92);
+    if (entryDoorRevealed) {
+      canvas.drawRect(pane, Paint()..color = _keepVoid.withValues(alpha: 0.92));
+      // CLIPPED TO THE SHEET. Unclipped, the crazing radiated straight off
+      // the top of the screen and across the balcony floor — cracks running
+      // through stone the lightning never touched.
+      canvas.save();
+      canvas.clipRect(face);
+      final craze = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = _keepSheen.withValues(alpha: 0.42);
+      for (final p in g.cracks) {
+        canvas.drawPath(p, craze);
+      }
+      canvas.restore();
       canvas.drawRect(
         pane,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = _keepSheen.withValues(alpha: 0.6),
+          ..strokeWidth = 2.5
+          ..color = _keepSheen.withValues(alpha: 0.55),
+      );
+    } else {
+      canvas.drawRect(pane, Paint()..color = _keepSheen.withValues(alpha: 0.16));
+      canvas.drawRect(
+        pane,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = _keepSheen.withValues(alpha: 0.3),
+      );
+      // A slow sheen crossing the sheet, so the one thing barring the way
+      // reads as glass and not as a painted panel.
+      final sx = face.left + (prism.clock * 54) % face.width;
+      canvas.drawRect(
+        Rect.fromLTRB(sx, face.top, sx + 26, face.bottom),
+        Paint()..color = Colors.white.withValues(alpha: 0.045),
       );
     }
-    final ring = room.prism!.annealRing!;
-    canvas.drawCircle(ring, 22, Paint()..color = _keepMortar);
-    canvas.drawCircle(
-      ring,
-      22,
+
+    // THE PARAPET. This is a balcony over a long drop; the detail belongs on
+    // the rim, and the middle stays clear to walk and to be revived in.
+    _renderParapet(canvas, g);
+    _renderSwarf(canvas, g);
+    _renderTuningBoss(canvas, room.prism!.annealRing!, 22);
+  }
+
+  /// A low parapet of dressed stone with turned balusters standing in it at
+  /// uneven spacing (built once, from the room's own width).
+  void _renderParapet(Canvas canvas, _KeepFloor g) {
+    for (final p in g.props) {
+      canvas.drawPath(p.path, Paint()..color = p.color);
+    }
+  }
+
+  /// THE KEEP, SEEN THROUGH ITS OWN FACE — the only overview in the game.
+  ///
+  /// This was nine saturated swatches laid side by side, and from three feet
+  /// away it read as a paint card someone had pinned to the wall. What it is
+  /// meant to be is a BUILDING: a lit stone facade with nine glazed cells in
+  /// it, one of them dark. So the stone piers between the cells are drawn
+  /// heavy and lit, the cells are dimmer than the piers, and the sheet's own
+  /// leading runs across the whole thing — which is what says you are looking
+  /// at this through a window rather than at a diagram of it.
+  void _renderKeepChart(Canvas canvas, Offset origin, double pip) {
+    final f = _keep;
+    final facade = Rect.fromLTWH(
+      origin.dx - 9,
+      origin.dy - 9,
+      pip * 3 + 12,
+      pip * 3 + 12,
+    );
+    canvas.drawRect(
+      facade,
+      Paint()..color = _keepStoneLit.withValues(alpha: 0.95),
+    );
+    canvas.drawRect(
+      facade,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
-        ..color = _keepBrass.withValues(alpha: 0.7),
+        ..color = _keepStoneDim.withValues(alpha: 0.95),
     );
-    // The whole keep, seen from the balcony — the only overview in the game.
-    _renderKeepChart(canvas, const Offset(470, 150), 62);
-  }
-
-  void _renderKeepChart(Canvas canvas, Offset origin, double pip) {
-    final f = _keep;
     for (var i = 0; i < 9; i++) {
       final r = Rect.fromLTWH(
         origin.dx + (i % 3) * pip,
         origin.dy + (i ~/ 3) * pip,
-        pip - 6,
-        pip - 6,
+        pip - 9,
+        pip - 9,
       );
       final ch = f.chamberAt(i);
       canvas.drawRect(
@@ -1240,87 +2010,1272 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         Paint()
           ..color = ch == null
               ? _keepVoid
-              : Color(ch.argb).withValues(alpha: 0.8),
+              : Color(ch.argb).withValues(alpha: 0.62),
       );
-      canvas.drawRect(
-        r,
+      // A reveal, so each cell is a hole in a thick wall.
+      canvas.drawLine(
+        r.topLeft,
+        r.topRight,
         Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..color = _keepMortar,
+          ..strokeWidth = 2.4
+          ..color = _keepVoid.withValues(alpha: 0.5),
+      );
+      canvas.drawLine(
+        r.bottomLeft + const Offset(0, -1),
+        r.bottomRight + const Offset(0, -1),
+        Paint()
+          ..strokeWidth = 1.6
+          ..color = _keepSheen.withValues(alpha: 0.16),
       );
     }
+    // The berth, off the east frame, so the vault's one configuration is
+    // visible from the balcony before the player has ever heard of it.
+    final berth = Rect.fromLTWH(
+      facade.right + 4,
+      origin.dy + pip,
+      pip - 12,
+      pip - 9,
+    );
+    canvas.drawLine(
+      Offset(facade.right, berth.center.dy),
+      Offset(berth.left, berth.center.dy),
+      Paint()
+        ..strokeWidth = 2
+        ..color = _keepIron.withValues(alpha: 0.9),
+    );
+    canvas.drawRect(
+      berth,
+      Paint()
+        ..color = f.facetStanding
+            ? _keepVoid
+            : Color(kPrismChambers[kWaitingFacet].argb).withValues(alpha: 0.45),
+    );
+    // The sheet's leading, over the lot.
+    final lead = Paint()
+      ..strokeWidth = 2
+      ..color = _keepSheen.withValues(alpha: 0.14);
+    for (var i = 1; i < 3; i++) {
+      final x = facade.left + facade.width * i / 3 + 7;
+      canvas.drawLine(Offset(x, facade.top - 22), Offset(x, facade.bottom + 26), lead);
+    }
+    canvas.drawLine(
+      Offset(facade.left - 30, facade.center.dy + 11),
+      Offset(berth.right + 14, facade.center.dy + 11),
+      lead,
+    );
   }
 
+  // ── THE TUNING HALL ──────────────────────────────────────
+
+  /// The room the keep is TUNED in — the frame's own ribs come down the east
+  /// and west walls into the floor here, collared and turnbuckled, and the
+  /// glaziers' rack and grinding bench stand under them. It was the emptiest
+  /// room on the planet: a stone box with two circles and a crack in it.
   void _renderTuningHall(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    final g = _keepGroundFor<_KeepFloor>(
+      'hall:${b.width}x${b.height}',
+      () => _buildTuningHallGround(b),
+    );
     canvas.drawRect(
-      room.bounds,
+      b,
       Paint()..color = _keepStone.withValues(alpha: _keepFloorAlpha),
     );
-    final font = room.prism!.facetFont!;
+    _renderDressedStone(canvas, g);
+
+    // THE RIBS. Two of the keep's own frame members, brought down the side
+    // walls to where they can be reached, with iron collars at uneven heights
+    // and a turnbuckle on each. Edges only — the middle of the hall is where
+    // the party works.
+    for (final side in const [true, false]) {
+      final x = side ? b.left + 44 : b.right - 44;
+      canvas.drawRect(
+        Rect.fromLTRB(x - 22, b.top + 10, x + 22, b.bottom - 10),
+        Paint()..color = _keepStoneDim.withValues(alpha: 0.92),
+      );
+      canvas.drawLine(
+        Offset(x - 21, b.top + 10),
+        Offset(x - 21, b.bottom - 10),
+        Paint()
+          ..strokeWidth = 1.6
+          ..color = _keepSheen.withValues(alpha: 0.13),
+      );
+      for (final t in side
+          ? const [0.16, 0.44, 0.78]
+          : const [0.24, 0.58, 0.86]) {
+        final y = b.top + b.height * t;
+        canvas.drawRect(
+          Rect.fromCenter(center: Offset(x, y), width: 52, height: 15),
+          Paint()..color = _keepIron.withValues(alpha: 0.95),
+        );
+        canvas.drawRect(
+          Rect.fromCenter(center: Offset(x, y), width: 20, height: 27),
+          Paint()..color = _keepBrass.withValues(alpha: 0.45),
+        );
+        canvas.drawCircle(
+          Offset(x, y),
+          4,
+          Paint()..color = _keepStoneDim.withValues(alpha: 0.9),
+        );
+      }
+    }
+
+    // The glaziers' props: the hanging rack of graduated tuning bars and the
+    // grinding bench, both built once and both against a wall.
+    for (final p in g.props) {
+      canvas.drawPath(p.path, Paint()..color = p.color);
+    }
+
+    // THE CRACK — the Pip gate. Three strokes on top of each other: a wide
+    // soft shatter halo in the stone, the fissure itself, and the cold light
+    // of the far side showing in the deepest part of it. Drawn as one
+    // hairline it read as somebody's biro on the floor.
+    for (final p in g.cracks) {
+      canvas.drawPath(
+        p,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 13
+          ..strokeJoin = StrokeJoin.round
+          ..color = _keepStoneDim.withValues(alpha: 0.75),
+      );
+      canvas.drawPath(
+        p,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 6
+          ..strokeJoin = StrokeJoin.round
+          ..color = _keepVoid.withValues(alpha: 0.92),
+      );
+      canvas.drawPath(
+        p,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..color = _keepSheen.withValues(alpha: 0.4),
+      );
+    }
+
+    _renderFacetFont(canvas, room.prism!.facetFont!);
+    _renderSwarf(canvas, g);
+    _renderTuningBoss(canvas, room.prism!.annealRing!, 18);
+  }
+
+  /// THE FACET FONT — a basin on a fluted pedestal with a ground-glass brim,
+  /// not a filled circle. When it holds the note, the note is drawn as
+  /// concentric rings standing in the bowl.
+  void _renderFacetFont(Canvas canvas, Offset at) {
     final live = (conduitEnergy['B'] ?? 0) > 0;
-    canvas.drawCircle(
-      font,
-      26,
-      Paint()..color = (live ? _keepBrass : _keepMortar).withValues(alpha: 0.9),
+    canvas.drawRect(
+      Rect.fromCenter(center: at + const Offset(0, 40), width: 86, height: 18),
+      Paint()..color = _keepStoneDim.withValues(alpha: 0.92),
     );
-    canvas.drawCircle(
-      font,
-      26,
+    // Pedestal, fluted: five shafts, so it has a round body rather than a
+    // stick's silhouette.
+    for (final dx in const [-22.0, -11.0, 0.0, 11.0, 22.0]) {
+      canvas.drawRect(
+        Rect.fromCenter(center: at + Offset(dx, 24), width: 10, height: 42),
+        Paint()
+          ..color = (dx.abs() < 6 ? _keepStoneLit : _keepStoneDim).withValues(
+            alpha: 0.96,
+          ),
+      );
+    }
+    canvas.drawOval(
+      Rect.fromCenter(center: at, width: 84, height: 40),
+      Paint()..color = _keepStoneLit.withValues(alpha: 0.98),
+    );
+    // The bowl. A black interior made the whole font read as a ring lying on
+    // a stick; it is a shallow dish with a lit far wall now.
+    canvas.drawOval(
+      Rect.fromCenter(center: at + const Offset(0, 1), width: 62, height: 26),
+      Paint()..color = _keepStoneDim.withValues(alpha: 0.98),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at + const Offset(0, 3), width: 54, height: 20),
+      Paint()
+        ..color = (live ? _keepBrass : _keepSwarf).withValues(
+          alpha: live ? 0.88 : 0.3,
+        ),
+    );
+    canvas.drawArc(
+      Rect.fromCenter(center: at + const Offset(0, 1), width: 62, height: 26),
+      pi,
+      pi,
+      false,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2
-        ..color = _keepSheen.withValues(alpha: 0.5),
+        ..color = _keepSheen.withValues(alpha: 0.24),
     );
-    final ring = room.prism!.annealRing!;
-    canvas.drawCircle(ring, 18, Paint()..color = _keepMortar);
-    canvas.drawCircle(
-      ring,
-      18,
+    canvas.drawOval(
+      Rect.fromCenter(center: at, width: 84, height: 40),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = _keepBrass.withValues(alpha: 0.6),
+        ..strokeWidth = 2.4
+        ..color = _keepSheen.withValues(alpha: 0.45),
+    );
+    if (!live) return;
+    final note = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    for (var i = 1; i <= 3; i++) {
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: 76.0 + i * 16, height: 36.0 + i * 8),
+        note..color = _keepBrass.withValues(alpha: 0.26 - i * 0.06),
+      );
+    }
+  }
+
+  // ── PRISMALITH'S CHOIR ───────────────────────────────────
+
+  /// The keep in miniature — nine plates and a gap — and therefore the room
+  /// most at risk of being drawn as graph paper. It WAS: nine identical
+  /// outlined rectangles on a flat wash, the most schematic picture in the
+  /// game. Every plate is its own slab of ground glass now, cut and chipped
+  /// and bedded differently from its neighbours, sitting over an open well;
+  /// what the player reads at a glance is nine slabs hung over a drop, and
+  /// the gap is a hole rather than a highlighted square. The middle stays
+  /// bare, because a guardian is fought on it.
+  void _renderChoirFloor(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    final floor = room.prism!.choir!;
+    final g = _keepGroundFor<_KeepFloor>(
+      'choir:${b.width}x${b.height}',
+      () => _buildChoirGround(b, floor),
+    );
+    canvas.drawRect(
+      b,
+      Paint()..color = _keepVoid.withValues(alpha: _keepVoidAlpha),
+    );
+    // The choir's own rim: a ledge round the drop, and the stalls standing on
+    // it — a ring of ground prisms of assorted height, which is the one place
+    // in the room detail can go without getting in the fight's way.
+    canvas.drawRect(
+      Rect.fromLTRB(b.left, b.top, b.right, floor.plateRect(0).top - 4),
+      Paint()..color = _keepStoneDim.withValues(alpha: 0.75),
+    );
+    canvas.drawRect(
+      Rect.fromLTRB(b.left, floor.plateRect(6).bottom + 4, b.right, b.bottom),
+      Paint()..color = _keepStoneDim.withValues(alpha: 0.75),
+    );
+    canvas.drawRect(
+      Rect.fromLTRB(b.left, b.top, floor.plateRect(0).left - 4, b.bottom),
+      Paint()..color = _keepStoneDim.withValues(alpha: 0.75),
+    );
+    canvas.drawRect(
+      Rect.fromLTRB(floor.plateRect(2).right + 4, b.top, b.right, b.bottom),
+      Paint()..color = _keepStoneDim.withValues(alpha: 0.75),
+    );
+    for (final p in g.props) {
+      canvas.drawPath(p.path, Paint()..color = p.color);
+    }
+
+    for (var i = 0; i < 9; i++) {
+      if (i == prism.choirHollow) {
+        _renderChoirWell(canvas, floor.plateRect(i).deflate(6));
+        continue;
+      }
+      // NO TWO PLATES ARE THE SAME PLATE. The first pass deflated all nine by
+      // the same six pixels, gave them one stone tone and outlined them, and
+      // got nine identical tiles with lines scratched on them — graph paper
+      // again, in the one room on the planet where a 3×3 is unavoidable. Each
+      // slab now has its own seating depth, its own body tone, its own
+      // leadwork, its own chipped corners and its own worn face, so what the
+      // player reads is nine pieces of glass and not nine cells of a table.
+      final seat = g.plateSeats[i];
+      final r = floor.plateRect(i).deflate(seat.$1);
+      // The well it hangs over, offset so the slab has real thickness and a
+      // drop underneath it.
+      canvas.drawRect(
+        r.translate(seat.$2, seat.$3),
+        Paint()..color = _keepVoid.withValues(alpha: 0.9),
+      );
+      canvas.drawRect(r, Paint()..color = g.plateTones[i]);
+      // Its own leadwork.
+      final came = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..color = _keepVoid.withValues(alpha: 0.66);
+      final glint = Paint()
+        ..strokeWidth = 1.0
+        ..color = _keepSheen.withValues(alpha: 0.16);
+      for (final seg in g.plateCuts[i]) {
+        canvas.drawLine(seg.$1, seg.$2, came);
+        canvas.drawLine(
+          seg.$1 + const Offset(1.5, 1.5),
+          seg.$2 + const Offset(1.5, 1.5),
+          glint,
+        );
+      }
+      // Wear: where the choir has stood and where the floor has ground on
+      // itself. Cheap, and it is what makes an old slab look old.
+      for (final w in g.plateWear[i]) {
+        canvas.drawPath(w, Paint()..color = _keepSwarf.withValues(alpha: 0.032));
+      }
+      // The lead bed, on TWO sides only. A 4px stroke all the way round every
+      // plate put a box outline on each of the nine, which is the exact
+      // reading this room must not have; a plate is bedded heavily where it
+      // bears and merely ground where it does not.
+      final bed = Paint()
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.square
+        ..color = _keepIron.withValues(alpha: 0.66);
+      final arris = Paint()
+        ..strokeWidth = 1.8
+        ..color = _keepSheen.withValues(alpha: 0.24);
+      if (i.isEven) {
+        canvas.drawLine(r.topLeft, r.topRight, bed);
+        canvas.drawLine(r.topLeft, r.bottomLeft, bed);
+        canvas.drawLine(
+          r.bottomLeft + const Offset(3, -2.5),
+          r.bottomRight + const Offset(-3, -2.5),
+          arris,
+        );
+        canvas.drawLine(
+          r.topRight + const Offset(-2.5, 3),
+          r.bottomRight + const Offset(-2.5, -3),
+          arris,
+        );
+      } else {
+        canvas.drawLine(r.bottomLeft, r.bottomRight, bed);
+        canvas.drawLine(r.topRight, r.bottomRight, bed);
+        canvas.drawLine(
+          r.topLeft + const Offset(3, 2.5),
+          r.topRight + const Offset(-3, 2.5),
+          arris,
+        );
+        canvas.drawLine(
+          r.topLeft + const Offset(2.5, 3),
+          r.bottomLeft + const Offset(2.5, -3),
+          arris,
+        );
+      }
+      // Chipped corners — the damage a floor that shunts itself does to its
+      // own edges.
+      for (final c in g.plateChips[i]) {
+        canvas.drawPath(c, Paint()..color = _keepVoid.withValues(alpha: 0.85));
+      }
+    }
+    // The chips knocked off every plate edge by a floor that keeps shunting
+    // itself, drawn over the whole floor so the damage is not per-plate.
+    for (final p in g.shards) {
+      canvas.drawPath(p, Paint()..color = _keepVoid.withValues(alpha: 0.55));
+    }
+    _renderTuningBoss(canvas, room.prism!.annealRing!, 16);
+  }
+
+  /// THE GAP. The mystic's root only shows through it, so it must read as a
+  /// hole and not as a highlighted tile: the plate is gone, the bearers it
+  /// sat on are bare, and the works are a long way down.
+  void _renderChoirWell(Canvas canvas, Rect r) {
+    canvas.drawRect(r, Paint()..color = _keepVoid);
+    // PERSPECTIVE, NOT CONCENTRIC RINGS. The first attempt nested three
+    // rectangles inside the gap and produced a bullseye — a target painted on
+    // the floor, the exact failure the hollow socket upstairs already had.
+    // Four walls converging on one off-centre floor read as a shaft.
+    final far = Rect.fromCenter(
+      center: r.center + const Offset(16, 22),
+      width: r.width * 0.4,
+      height: r.height * 0.36,
+    );
+    final wall = Paint();
+    final corners = <(Offset, Offset, Offset, Offset, double)>[
+      (r.topLeft, r.topRight, far.topRight, far.topLeft, 0.34),
+      (r.bottomLeft, r.bottomRight, far.bottomRight, far.bottomLeft, 0.1),
+      (r.topLeft, r.bottomLeft, far.bottomLeft, far.topLeft, 0.24),
+      (r.topRight, r.bottomRight, far.bottomRight, far.topRight, 0.16),
+    ];
+    for (final c in corners) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(c.$1.dx, c.$1.dy)
+          ..lineTo(c.$2.dx, c.$2.dy)
+          ..lineTo(c.$3.dx, c.$3.dy)
+          ..lineTo(c.$4.dx, c.$4.dy)
+          ..close(),
+        wall..color = _keepStoneDim.withValues(alpha: c.$5),
+      );
+    }
+    canvas.drawRect(far, Paint()..color = _keepVoid);
+    // The bearers the missing plate was sitting on, still spanning the hole.
+    for (final t in const [0.32, 0.71]) {
+      final y = r.top + r.height * t;
+      canvas.drawRect(
+        Rect.fromLTRB(r.left, y - 5, r.right, y + 5),
+        Paint()..color = _keepIron.withValues(alpha: 0.62),
+      );
+      canvas.drawLine(
+        Offset(r.left, y - 4),
+        Offset(r.right, y - 4),
+        Paint()
+          ..strokeWidth = 1.4
+          ..color = _keepSheen.withValues(alpha: 0.14),
+      );
+    }
+    // The lead bed the plate was set in, left empty and catching the light.
+    canvas.drawRect(
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.5
+        ..color = _keepBrass.withValues(alpha: 0.55),
     );
   }
 
-  void _renderChoirFloor(Canvas canvas, DungeonRoom room) {
-    canvas.drawRect(
-      room.bounds,
-      Paint()..color = _keepVoid.withValues(alpha: _keepVoidAlpha),
-    );
-    final floor = room.prism!.choir!;
-    for (var i = 0; i < 9; i++) {
-      final r = floor.plateRect(i).deflate(6);
-      if (i == prism.choirHollow) {
-        canvas.drawRect(r, Paint()..color = _keepVoid);
-        canvas.drawRect(
-          r,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..color = _keepBrass.withValues(alpha: 0.6),
-        );
-        continue;
+  // ── Static geometry, built once ──────────────────────────
+
+  T _keepGroundFor<T extends _KeepGround>(String key, T Function() build) =>
+      _keepGroundCache.putIfAbsent(key, build) as T;
+
+  _KeepFloor _buildSocketBed(Rect b, int cell) {
+    final rng = _KeepRng((b.width * 31 + b.height * 17).toInt() + cell * 977);
+    final blocks = _dressedCourses(b, rng, minH: 52, maxH: 88);
+    // Rail chairs at uneven spacing: real ones are set where the bed needs
+    // them, not on a pitch.
+    final chairs = <double>[];
+    var y = 24.0;
+    while (y < b.height - 20) {
+      chairs.add(y);
+      y += rng.range(48, 84);
+    }
+    // Wear scored along the runs. Short, thin, parallel to the direction of
+    // travel and clustered where the slab actually bears.
+    final scores = <Rect>[];
+    for (final cy in _kChannelY) {
+      for (var i = 0; i < 9; i++) {
+        final x = rng.range(18, b.width - 70);
+        scores.add(Rect.fromLTWH(x, cy + rng.range(-16, 16), rng.range(24, 62), 1.6));
       }
-      canvas.drawRect(r, Paint()..color = _keepStone);
-      canvas.drawRect(
-        r,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..color = _keepMortar,
+    }
+    for (final rx in _kRailX) {
+      for (var i = 0; i < 7; i++) {
+        final yy = rng.range(18, b.height - 60);
+        scores.add(Rect.fromLTWH(rx + rng.range(-14, 14), yy, 1.6, rng.range(20, 54)));
+      }
+    }
+    // Swarf blown into the socket margin, and the shards that never got swept.
+    final swarf = <Path>[];
+    for (final c in [
+      Offset(b.width * 0.08, b.height * 0.1),
+      Offset(b.width * 0.93, b.height * 0.16),
+      Offset(b.width * 0.12, b.height * 0.9),
+      Offset(b.width * 0.86, b.height * 0.92),
+    ]) {
+      swarf.add(_blob(b.topLeft + c, rng.range(26, 54), rng.range(12, 26), rng));
+    }
+    final shards = <Path>[];
+    for (var i = 0; i < 10; i++) {
+      shards.add(
+        _shard(
+          b.topLeft + Offset(rng.range(10, b.width - 10), rng.range(10, b.height - 10)),
+          rng.range(3, 8),
+          rng,
+        ),
       );
     }
-    final ring = room.prism!.annealRing!;
-    canvas.drawCircle(ring, 16, Paint()..color = _keepMortar);
-    canvas.drawCircle(
-      ring,
-      16,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = _keepBrass.withValues(alpha: 0.6),
+    // Wedges driven into the seam to stop the keep ringing. Irregular, and
+    // never one per side.
+    final shims = <Path>[];
+    final seam = Rect.fromLTWH(26, 26, b.width - 52, b.height - 52);
+    for (var i = 0; i < 6; i++) {
+      final t = rng.next();
+      final along = rng.next() < 0.5;
+      final at = along
+          ? Offset(seam.left + t * seam.width, rng.next() < 0.5 ? seam.top : seam.bottom)
+          : Offset(rng.next() < 0.5 ? seam.left : seam.right, seam.top + t * seam.height);
+      shims.add(
+        Path()
+          ..moveTo(at.dx - 7, at.dy - 4)
+          ..lineTo(at.dx + 7, at.dy - 2)
+          ..lineTo(at.dx + 6, at.dy + 4)
+          ..lineTo(at.dx - 7, at.dy + 3)
+          ..close(),
+      );
+    }
+    return _KeepFloor(
+      blocks: blocks,
+      swarf: swarf,
+      shards: shards,
+      chairs: chairs,
+      scores: scores,
+      shims: shims,
     );
   }
+
+  _KeepFloor _buildOrielGround(Rect b) {
+    final rng = _KeepRng((b.width * 7 + b.height * 3).toInt() + 401);
+    final blocks = _dressedCourses(b, rng, minH: 58, maxH: 96);
+    final props = <_KeepProp>[];
+    // THE PARAPET — a coping along the three open sides with balusters under
+    // it at uneven spacing. The keep is above and behind; everything else out
+    // there is a long way down.
+    final coping = _keepStoneLit.withValues(alpha: 0.95);
+    final shadow = _keepStoneDim.withValues(alpha: 0.95);
+    props.add(
+      _KeepProp(
+        Path()..addRect(Rect.fromLTRB(b.left, b.bottom - 8, b.right, b.bottom)),
+        shadow,
+      ),
+    );
+    var x = b.left + rng.range(14, 30);
+    while (x < b.right - 14) {
+      final w = rng.range(8, 14);
+      final h = rng.range(15, 22);
+      final top = b.bottom - 26 - h;
+      props.add(
+        _KeepProp(
+          Path()
+            ..moveTo(x - 2, top + h)
+            ..lineTo(x, top + h * 0.62)
+            ..lineTo(x + w * 0.34, top + h * 0.4)
+            ..lineTo(x + w * 0.34, top + h * 0.2)
+            ..lineTo(x, top)
+            ..lineTo(x + w, top)
+            ..lineTo(x + w * 0.66, top + h * 0.2)
+            ..lineTo(x + w * 0.66, top + h * 0.4)
+            ..lineTo(x + w, top + h * 0.62)
+            ..lineTo(x + w + 2, top + h)
+            ..close(),
+          _keepStoneLit.withValues(alpha: 0.75),
+        ),
+      );
+      x += w + rng.range(11, 22);
+    }
+    // The coping goes on last, over the heads of the posts.
+    props.add(
+      _KeepProp(
+        Path()..addRect(Rect.fromLTRB(b.left, b.bottom - 26, b.right, b.bottom - 16)),
+        coping,
+      ),
+    );
+    props.add(
+      _KeepProp(
+        Path()..addRect(Rect.fromLTRB(b.left, b.bottom - 16, b.right, b.bottom - 12)),
+        shadow,
+      ),
+    );
+    for (final side in const [true, false]) {
+      final px = side ? b.left : b.right - 16;
+      props.add(
+        _KeepProp(
+          Path()..addRect(Rect.fromLTWH(px, b.top + 190, 16, b.height - 214)),
+          shadow,
+        ),
+      );
+      var y = b.top + 206.0;
+      while (y < b.bottom - 40) {
+        props.add(
+          _KeepProp(
+            Path()..addRect(Rect.fromLTWH(px + 3, y, 10, rng.range(16, 30))),
+            _keepSheen.withValues(alpha: 0.08),
+          ),
+        );
+        y += rng.range(34, 58);
+      }
+    }
+    // A shadow under the sighting bench, so the wall the shared renderer
+    // draws is standing on this floor rather than hovering over it.
+    props.add(
+      _KeepProp(
+        Path()..addRect(const Rect.fromLTWH(284, 216, 200, 12)),
+        _keepVoid.withValues(alpha: 0.4),
+      ),
+    );
+    // Swarf at the foot of the face — this is where the keep is ground.
+    final swarf = <Path>[];
+    for (var i = 0; i < 6; i++) {
+      swarf.add(
+        _blob(
+          Offset(b.left + rng.range(60, b.width - 60), b.top + rng.range(186, 236)),
+          rng.range(30, 74),
+          rng.range(9, 20),
+          rng,
+        ),
+      );
+    }
+    final shards = <Path>[];
+    for (var i = 0; i < 14; i++) {
+      shards.add(
+        _shard(
+          Offset(b.left + rng.range(50, b.width - 50), b.top + rng.range(180, b.height - 40)),
+          rng.range(3, 9),
+          rng,
+        ),
+      );
+    }
+    // The crazing, radiating from the threshold and running away into the
+    // rest of the sheet — built once so the crack is the same crack forever.
+    final cracks = <Path>[];
+    const face = Offset(380, 70);
+    for (var i = 0; i < 11; i++) {
+      final a = rng.range(0, pi * 2);
+      final p = Path()..moveTo(face.dx, face.dy);
+      var at = face;
+      var dir = a;
+      for (var k = 0; k < 4; k++) {
+        dir += rng.range(-0.5, 0.5);
+        at += Offset(cos(dir), sin(dir)) * rng.range(22, 62);
+        p.lineTo(at.dx, at.dy);
+      }
+      cracks.add(p);
+    }
+    return _KeepFloor(
+      blocks: blocks,
+      swarf: swarf,
+      shards: shards,
+      props: props,
+      cracks: cracks,
+    );
+  }
+
+  _KeepFloor _buildTuningHallGround(Rect b) {
+    final rng = _KeepRng((b.width * 11 + b.height * 5).toInt() + 733);
+    final blocks = _dressedCourses(b, rng, minH: 48, maxH: 82);
+    final props = <_KeepProp>[];
+    // THE RACK — graduated tuning bars hanging from a beam on the north-west
+    // wall. Their lengths grade, which is what a tuned set looks like; their
+    // spacing does not, which is what keeps it off the graph paper.
+    const beamY = 44.0;
+    props.add(
+      _KeepProp(
+        Path()..addRect(const Rect.fromLTWH(74, beamY - 7, 214, 12)),
+        _keepIron.withValues(alpha: 0.95),
+      ),
+    );
+    var x = 84.0;
+    var n = 0;
+    while (x < 280) {
+      final len = 100.0 - n * 9 + rng.range(-6, 6);
+      props.add(
+        _KeepProp(
+          Path()..addRect(Rect.fromLTWH(x, beamY + 5, 7, len)),
+          _keepSheen.withValues(alpha: 0.16 + (n % 3) * 0.05),
+        ),
+      );
+      props.add(
+        _KeepProp(
+          Path()..addRect(Rect.fromLTWH(x - 1, beamY + 5 + len, 9, 5)),
+          _keepBrass.withValues(alpha: 0.4),
+        ),
+      );
+      x += rng.range(17, 29);
+      n++;
+    }
+    // THE GRINDING BENCH — north-east. A stone bed, the wheel on its spindle,
+    // and the boxes of abrasive it is fed from.
+    props.add(
+      _KeepProp(
+        Path()..addRect(const Rect.fromLTWH(372, 52, 204, 62)),
+        _keepStoneLit.withValues(alpha: 0.95),
+      ),
+    );
+    props.add(
+      _KeepProp(
+        Path()..addRect(const Rect.fromLTWH(372, 114, 204, 14)),
+        _keepStoneDim.withValues(alpha: 0.95),
+      ),
+    );
+    props.add(
+      _KeepProp(
+        Path()..addOval(Rect.fromCircle(center: const Offset(428, 80), radius: 27)),
+        _keepIron.withValues(alpha: 0.95),
+      ),
+    );
+    props.add(
+      _KeepProp(
+        Path()..addOval(Rect.fromCircle(center: const Offset(428, 80), radius: 9)),
+        _keepBrass.withValues(alpha: 0.6),
+      ),
+    );
+    for (var i = 0; i < 4; i++) {
+      final bx = 478.0 + i * 24 + rng.range(-5, 5);
+      props.add(
+        _KeepProp(
+          Path()..addRect(Rect.fromLTWH(bx, 60 + rng.range(0, 22), 19, 22)),
+          _keepSwarf.withValues(alpha: 0.1 + (i % 2) * 0.05),
+        ),
+      );
+    }
+    // THE BLANKS. Uncut slabs leaning against the south-east wall, waiting to
+    // be ground — of assorted height and lean, because a stack of glass in a
+    // workshop is never stacked square. This corner was the last bare floor
+    // in the hall.
+    var bx = 424.0;
+    while (bx < 592) {
+      final h = rng.range(54, 96);
+      final w = rng.range(15, 27);
+      final lean = rng.range(-9, 9);
+      props.add(
+        _KeepProp(
+          Path()
+            ..moveTo(bx, 424)
+            ..lineTo(bx + w, 424)
+            ..lineTo(bx + w + lean, 424 - h)
+            ..lineTo(bx + lean, 424 - h)
+            ..close(),
+          _keepSheen.withValues(alpha: 0.07 + rng.next() * 0.09),
+        ),
+      );
+      props.add(
+        _KeepProp(
+          Path()
+            ..moveTo(bx + lean, 424 - h)
+            ..lineTo(bx + w + lean, 424 - h)
+            ..lineTo(bx + w + lean * 1.3, 425 - h - 4)
+            ..lineTo(bx + lean * 1.3, 425 - h - 4)
+            ..close(),
+          _keepSwarf.withValues(alpha: 0.16),
+        ),
+      );
+      bx += w + rng.range(4, 16);
+    }
+    // Wedges and shims scattered on the bench's floor — the glaziers' litter.
+    for (var i = 0; i < 9; i++) {
+      final at = Offset(rng.range(340, 600), rng.range(140, 210));
+      props.add(
+        _KeepProp(
+          Path()
+            ..moveTo(at.dx, at.dy)
+            ..lineTo(at.dx + rng.range(9, 17), at.dy + rng.range(-3, 3))
+            ..lineTo(at.dx + rng.range(6, 12), at.dy + rng.range(4, 8))
+            ..close(),
+          _keepBrass.withValues(alpha: 0.3),
+        ),
+      );
+    }
+    // THE CRACK. It runs out of the west wall, through the floor, and ENDS ON
+    // THE CONDUIT — the walk was originally free to wander off wherever the
+    // die sent it, which left the one gap in the fabric that a Pip can slip
+    // and the fissure that is supposed to be it in two different places.
+    // Every branch is now walked toward the conduit and lands on it.
+    const target = Offset(200, 250);
+    final cracks = <Path>[];
+    for (var i = 0; i < 3; i++) {
+      final from = Offset(b.left + rng.range(0, 18), 250 + rng.range(-58, 58));
+      final p = Path()..moveTo(from.dx, from.dy);
+      const steps = 6;
+      for (var k = 1; k <= steps; k++) {
+        final t = k / steps;
+        final on = Offset(
+          from.dx + (target.dx - from.dx) * t,
+          from.dy + (target.dy - from.dy) * t,
+        );
+        // Jitter dies away to nothing as the branch closes on the conduit.
+        final j = (1 - t) * 22;
+        p.lineTo(on.dx + rng.range(-j, j), on.dy + rng.range(-j, j));
+      }
+      cracks.add(p);
+    }
+    final swarf = <Path>[];
+    for (var i = 0; i < 5; i++) {
+      swarf.add(
+        _blob(
+          Offset(rng.range(360, 600), rng.range(120, 190)),
+          rng.range(26, 58),
+          rng.range(10, 22),
+          rng,
+        ),
+      );
+    }
+    final shards = <Path>[];
+    for (var i = 0; i < 16; i++) {
+      shards.add(
+        _shard(
+          Offset(rng.range(30, b.width - 30), rng.range(30, b.height - 30)),
+          rng.range(3, 8),
+          rng,
+        ),
+      );
+    }
+    return _KeepFloor(
+      blocks: blocks,
+      swarf: swarf,
+      shards: shards,
+      props: props,
+      cracks: cracks,
+    );
+  }
+
+  _KeepFloor _buildChoirGround(Rect b, ChoirFloor floor) {
+    final rng = _KeepRng((b.width * 3 + b.height * 13).toInt() + 191);
+    // THE STALLS — standing prisms round the rim of the drop, of assorted
+    // height and lean. A choir is a ring of things that sing; nine of them
+    // would have been another 3×3, so there are as many as the rim holds and
+    // no two are the same size.
+    final props = <_KeepProp>[];
+    final inner = Rect.fromLTRB(
+      floor.plateRect(0).left - 4,
+      floor.plateRect(0).top - 4,
+      floor.plateRect(2).right + 4,
+      floor.plateRect(6).bottom + 4,
+    );
+    void stall(Offset foot, double h, double w, double lean) {
+      props.add(
+        _KeepProp(
+          Path()
+            ..moveTo(foot.dx - w / 2, foot.dy)
+            ..lineTo(foot.dx - w / 2 + lean, foot.dy - h)
+            ..lineTo(foot.dx + w / 2 + lean, foot.dy - h)
+            ..lineTo(foot.dx + w / 2, foot.dy)
+            ..close(),
+          _keepSheen.withValues(alpha: 0.07 + rng.next() * 0.1),
+        ),
+      );
+      props.add(
+        _KeepProp(
+          Path()
+            ..moveTo(foot.dx - w / 2 + lean, foot.dy - h)
+            ..lineTo(foot.dx + w / 2 + lean, foot.dy - h)
+            ..lineTo(foot.dx + w / 2 + lean * 1.4, foot.dy - h - 5)
+            ..close(),
+          _keepBrass.withValues(alpha: 0.22),
+        ),
+      );
+    }
+
+    var x = b.left + 12;
+    while (x < b.right - 16) {
+      stall(Offset(x, inner.top - 2), rng.range(16, 46), rng.range(9, 20), rng.range(-3, 3));
+      x += rng.range(26, 52);
+    }
+    x = b.left + 20;
+    while (x < b.right - 16) {
+      stall(Offset(x, b.bottom - 4), rng.range(14, 38), rng.range(8, 18), rng.range(-3, 3));
+      x += rng.range(30, 60);
+    }
+    for (final side in const [true, false]) {
+      var y = inner.top + 30;
+      while (y < inner.bottom) {
+        final sx = side ? b.left + 24 : b.right - 24;
+        stall(Offset(sx, y), rng.range(18, 44), rng.range(9, 19), rng.range(-3, 3));
+        y += rng.range(52, 96);
+      }
+    }
+    // Per-plate everything. Seating depth, body tone, leadwork, chipped
+    // corners and worn patches are all rolled from the plate's own index, so
+    // the floor is nine different pieces of glass rather than nine copies of
+    // one — which is the only defence this room has against reading as the
+    // diagram of its own mechanic.
+    final plateCuts = <List<(Offset, Offset)>>[];
+    final plateSeats = <(double, double, double)>[];
+    final plateTones = <Color>[];
+    final plateChips = <List<Path>>[];
+    final plateWear = <List<Path>>[];
+    for (var i = 0; i < 9; i++) {
+      final pr = _KeepRng(9001 + i * 613);
+      final inset = 5.0 + pr.range(0, 5);
+      plateSeats.add((inset, pr.range(2, 7), pr.range(4, 10)));
+      plateTones.add(
+        Color.lerp(_keepStoneDim, _keepStoneLit, pr.next())!.withValues(
+          alpha: 0.78 + pr.next() * 0.2,
+        ),
+      );
+      final r = floor.plateRect(i).deflate(inset);
+      final cuts = <(Offset, Offset)>[];
+      final n = 2 + pr.i(3);
+      for (var k = 0; k < n; k++) {
+        final a = pr.range(0, pi);
+        final c = Offset(
+          r.left + pr.range(0.2, 0.8) * r.width,
+          r.top + pr.range(0.2, 0.8) * r.height,
+        );
+        final d = Offset(cos(a), sin(a)) * (r.width + r.height);
+        final seg = _clipSegment(r, c - d, c + d);
+        if (seg != null) cuts.add(seg);
+      }
+      plateCuts.add(cuts);
+      // Chips: two or three corners of each plate, never all four.
+      final chips = <Path>[];
+      final corners = [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight];
+      for (var k = 0; k < 2 + pr.i(2); k++) {
+        final c = corners[pr.i(4)];
+        final sx = c.dx == r.left ? 1.0 : -1.0;
+        final sy = c.dy == r.top ? 1.0 : -1.0;
+        final w = pr.range(9, 26);
+        chips.add(
+          Path()
+            ..moveTo(c.dx, c.dy)
+            ..lineTo(c.dx + sx * w, c.dy + sy * pr.range(2, 7))
+            ..lineTo(c.dx + sx * pr.range(2, 7), c.dy + sy * w * 0.7)
+            ..close(),
+        );
+      }
+      plateChips.add(chips);
+      final wear = <Path>[];
+      for (var k = 0; k < 2 + pr.i(3); k++) {
+        wear.add(
+          _blob(
+            Offset(
+              r.left + pr.range(0.15, 0.85) * r.width,
+              r.top + pr.range(0.15, 0.85) * r.height,
+            ),
+            pr.range(18, 52),
+            pr.range(10, 30),
+            pr,
+          ),
+        );
+      }
+      plateWear.add(wear);
+    }
+    // The chips a floor that keeps shunting itself knocks off its own edges.
+    final shards = <Path>[];
+    for (var i = 0; i < 26; i++) {
+      shards.add(
+        _shard(
+          Offset(rng.range(inner.left, inner.right), rng.range(inner.top, inner.bottom)),
+          rng.range(3, 9),
+          rng,
+        ),
+      );
+    }
+    return _KeepFloor(
+      blocks: const [],
+      shards: shards,
+      props: props,
+      plateCuts: plateCuts,
+      plateSeats: plateSeats,
+      plateTones: plateTones,
+      plateChips: plateChips,
+      plateWear: plateWear,
+    );
+  }
+
+  /// Dressed courses covering [b]. Courses are of unequal height, every
+  /// course starts off the left edge by a different amount and the blocks in
+  /// it are of unequal width — which is the whole difference between masonry
+  /// and graph paper, and the fault this planet is most prone to.
+  List<_KeepBlock> _dressedCourses(
+    Rect b,
+    _KeepRng rng, {
+    required double minH,
+    required double maxH,
+  }) {
+    final out = <_KeepBlock>[];
+    var y = b.top;
+    while (y < b.bottom - 1) {
+      final h = min(rng.range(minH, maxH), b.bottom - y);
+      var x = b.left - rng.range(10, 110);
+      while (x < b.right) {
+        final w = rng.range(52, 138);
+        final r = Rect.fromLTRB(
+          max(x, b.left),
+          y,
+          min(x + w, b.right),
+          y + h,
+        );
+        if (r.width > 7) {
+          out.add(
+            _KeepBlock(
+              r,
+              Color.lerp(_keepStoneDim, _keepStoneLit, rng.next())!.withValues(
+                alpha: 0.42,
+              ),
+            ),
+          );
+        }
+        x += w;
+      }
+      y += h;
+    }
+    return out;
+  }
+
+  /// A chamber's leadwork: the slab split by five free cuts into irregular
+  /// panes, each ground to its own depth. Cached per chamber id, never per
+  /// cell — a chamber has to be recognisable wherever the keep has put it.
+  _KeepGlass _buildChamberGlass(Rect slab, PrismChamber chamber) {
+    final glass = Color(chamber.argb);
+    final rng = _KeepRng(_keepHash(chamber.id));
+    var polys = <List<Offset>>[
+      [slab.topLeft, slab.topRight, slab.bottomRight, slab.bottomLeft],
+    ];
+    for (var k = 0; k < 5; k++) {
+      final p = Offset(
+        slab.left + rng.range(0.14, 0.86) * slab.width,
+        slab.top + rng.range(0.14, 0.86) * slab.height,
+      );
+      final a = rng.range(0, pi);
+      final n = Offset(cos(a), sin(a));
+      final next = <List<Offset>>[];
+      for (final poly in polys) {
+        for (final s in const [1.0, -1.0]) {
+          final cut = _clipHalf(poly, p, n * s);
+          if (cut.length >= 3 && _polyArea(cut) > 260) next.add(cut);
+        }
+      }
+      polys = next;
+    }
+    final panes = <Path>[];
+    final paneColours = <Color>[];
+    final arrises = <(Offset, Offset)>[];
+    for (final poly in polys) {
+      final path = Path()..moveTo(poly.first.dx, poly.first.dy);
+      for (var i = 1; i < poly.length; i++) {
+        path.lineTo(poly[i].dx, poly[i].dy);
+      }
+      path.close();
+      panes.add(path);
+      // A wide spread, so the panes read as separate pieces of glass ground
+      // to different depths rather than as one wash with lines on it.
+      //
+      // AND A LIFT TOWARD THE SHEEN, which is the fix for the two chambers
+      // alpha alone could never carry: the Black Cell came out as a hole in
+      // the socket and the Pale Cell as nothing at all, because varying the
+      // opacity of near-black or near-white glass over dark stone varies
+      // almost nothing. Ground glass really does go lighter where the wheel
+      // has been over it, so every pane is lifted as well as thinned.
+      final tone = 0.07 + rng.next() * rng.next() * 0.4;
+      paneColours.add(
+        Color.lerp(glass, _keepSheen, rng.next() * 0.4)!.withValues(
+          alpha: tone,
+        ),
+      );
+      // The wheel mark: one bright line inside each pane, all of them running
+      // the same way, which is what ground glass looks like and what a
+      // hand-drawn lattice never does.
+      final c = _polyCentre(poly);
+      final len = 7.0 + rng.next() * 13;
+      arrises.add((
+        c + Offset(-len, -len * 0.52),
+        c + Offset(len, len * 0.52),
+      ));
+    }
+    // Chips out of the slab's corners.
+    final chips = <Path>[];
+    for (final c in [slab.topLeft, slab.topRight, slab.bottomLeft, slab.bottomRight]) {
+      final s = rng.range(7, 18);
+      chips.add(
+        Path()
+          ..moveTo(c.dx, c.dy)
+          ..lineTo(
+            c.dx + (c.dx == slab.left ? s : -s),
+            c.dy + (c.dy == slab.top ? s * 0.4 : -s * 0.4),
+          )
+          ..lineTo(
+            c.dx + (c.dx == slab.left ? s * 0.4 : -s * 0.4),
+            c.dy + (c.dy == slab.top ? s : -s),
+          )
+          ..close(),
+      );
+    }
+    return _KeepGlass(
+      panes: panes,
+      paneColours: paneColours,
+      arrises: arrises,
+      chips: chips,
+      // A ground edge is always lighter than the body it was cut out of, so
+      // the jambs and the rim bevel are the chamber's own colour lifted.
+      jamb: Color.lerp(glass, _keepSheen, 0.34)!,
+      bevel: Color.lerp(glass, _keepSheen, 0.22)!.withValues(alpha: 0.34),
+    );
+  }
+
+  Path _blob(Offset at, double rx, double ry, _KeepRng rng) {
+    final p = Path();
+    for (var i = 0; i < 9; i++) {
+      final a = i * pi * 2 / 9;
+      final k = 0.65 + rng.next() * 0.55;
+      final v = at + Offset(cos(a) * rx * k, sin(a) * ry * k);
+      if (i == 0) {
+        p.moveTo(v.dx, v.dy);
+      } else {
+        p.lineTo(v.dx, v.dy);
+      }
+    }
+    return p..close();
+  }
+
+  Path _shard(Offset at, double s, _KeepRng rng) {
+    final a = rng.range(0, pi * 2);
+    return Path()
+      ..moveTo(at.dx + cos(a) * s, at.dy + sin(a) * s)
+      ..lineTo(at.dx + cos(a + 2.2) * s * 0.8, at.dy + sin(a + 2.2) * s * 0.8)
+      ..lineTo(at.dx + cos(a + 4.1) * s * 1.2, at.dy + sin(a + 4.1) * s * 1.2)
+      ..close();
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// STATIC GEOMETRY — BUILT ONCE, KEPT FOREVER
+// ─────────────────────────────────────────────────────────
+// Every stone course, drift of swarf, rail chair, wedge, stall, crack and
+// leaded pane in Vitrea is derived deterministically from its room's own
+// bounds and built the first time that room is drawn. Nothing in here is
+// re-rolled per frame: this planet renders at 60fps on a phone, and the only
+// things allowed to move are a beam glint and a sheen crossing the face.
+
+final Map<String, _KeepGround> _keepGroundCache = {};
+
+abstract class _KeepGround {}
+
+class _KeepBlock {
+  final Rect r;
+  final Color color;
+  const _KeepBlock(this.r, this.color);
+}
+
+class _KeepProp {
+  final Path path;
+  final Color color;
+  const _KeepProp(this.path, this.color);
+}
+
+class _KeepFloor extends _KeepGround {
+  final List<_KeepBlock> blocks;
+  final List<Path> swarf;
+  final List<Path> shards;
+  final List<double> chairs;
+  final List<Rect> scores;
+  final List<Path> shims;
+  final List<_KeepProp> props;
+  final List<Path> cracks;
+  final List<List<(Offset, Offset)>> plateCuts;
+  /// Per choir plate: how far it is seated in, and how far its well is offset.
+  final List<(double, double, double)> plateSeats;
+  final List<Color> plateTones;
+  final List<List<Path>> plateChips;
+  final List<List<Path>> plateWear;
+
+  _KeepFloor({
+    required this.blocks,
+    this.swarf = const [],
+    this.shards = const [],
+    this.chairs = const [],
+    this.scores = const [],
+    this.shims = const [],
+    this.props = const [],
+    this.cracks = const [],
+    this.plateCuts = const [],
+    this.plateSeats = const [],
+    this.plateTones = const [],
+    this.plateChips = const [],
+    this.plateWear = const [],
+  });
+}
+
+class _KeepGlass extends _KeepGround {
+  final List<Path> panes;
+  /// Fully resolved per-pane colours — the render loop allocates nothing.
+  final List<Color> paneColours;
+  final List<(Offset, Offset)> arrises;
+  final List<Path> chips;
+
+  /// The chamber's colour lifted toward the sheen: what a ground edge looks
+  /// like, and the only thing that lets the Black Cell show a doorway.
+  final Color jamb;
+  final Color bevel;
+
+  _KeepGlass({
+    required this.panes,
+    required this.paneColours,
+    required this.arrises,
+    required this.chips,
+    required this.jamb,
+    required this.bevel,
+  });
+}
+
+/// A tiny LCG. Deterministic from a seed and nothing else, so a room looks
+/// the same on every machine, in every run, and in the render audit.
+class _KeepRng {
+  int _s;
+  _KeepRng(int seed) : _s = (seed & 0x7fffffff) | 1;
+
+  double next() {
+    _s = (_s * 1103515245 + 12345) & 0x7fffffff;
+    return _s / 0x7fffffff;
+  }
+
+  double range(double a, double b) => a + next() * (b - a);
+  int i(int n) => (next() * n).floor() % n;
+}
+
+int _keepHash(String s) {
+  var h = 2166136261;
+  for (var i = 0; i < s.length; i++) {
+    h = ((h ^ s.codeUnitAt(i)) * 16777619) & 0x7fffffff;
+  }
+  return h;
+}
+
+/// Sutherland-Hodgman half-plane clip — keeps the side of the line through
+/// [p] with normal [n] that the normal points into. Five of these in a row
+/// turn a rectangle into a plausible leaded light.
+List<Offset> _clipHalf(List<Offset> poly, Offset p, Offset n) {
+  final out = <Offset>[];
+  for (var i = 0; i < poly.length; i++) {
+    final a = poly[i];
+    final b = poly[(i + 1) % poly.length];
+    final da = (a.dx - p.dx) * n.dx + (a.dy - p.dy) * n.dy;
+    final db = (b.dx - p.dx) * n.dx + (b.dy - p.dy) * n.dy;
+    if (da >= 0) out.add(a);
+    if ((da >= 0) != (db >= 0)) {
+      final t = da / (da - db);
+      out.add(Offset(a.dx + (b.dx - a.dx) * t, a.dy + (b.dy - a.dy) * t));
+    }
+  }
+  return out;
+}
+
+double _polyArea(List<Offset> p) {
+  var a = 0.0;
+  for (var i = 0; i < p.length; i++) {
+    final q = p[(i + 1) % p.length];
+    a += p[i].dx * q.dy - q.dx * p[i].dy;
+  }
+  return a.abs() / 2;
+}
+
+Offset _polyCentre(List<Offset> p) {
+  var x = 0.0;
+  var y = 0.0;
+  for (final v in p) {
+    x += v.dx;
+    y += v.dy;
+  }
+  return Offset(x / p.length, y / p.length);
+}
+
+/// Clip the segment [a]–[b] to [r], or null when it misses. Used to lay a
+/// free-angle came across a plate without it running off the glass.
+(Offset, Offset)? _clipSegment(Rect r, Offset a, Offset b) {
+  var t0 = 0.0;
+  var t1 = 1.0;
+  final dx = b.dx - a.dx;
+  final dy = b.dy - a.dy;
+  for (var side = 0; side < 4; side++) {
+    final double p;
+    final double q;
+    switch (side) {
+      case 0:
+        p = -dx;
+        q = a.dx - r.left;
+      case 1:
+        p = dx;
+        q = r.right - a.dx;
+      case 2:
+        p = -dy;
+        q = a.dy - r.top;
+      default:
+        p = dy;
+        q = r.bottom - a.dy;
+    }
+    if (p == 0) {
+      if (q < 0) return null;
+      continue;
+    }
+    final t = q / p;
+    if (p < 0) {
+      if (t > t1) return null;
+      if (t > t0) t0 = t;
+    } else {
+      if (t < t0) return null;
+      if (t < t1) t1 = t;
+    }
+  }
+  return (
+    Offset(a.dx + dx * t0, a.dy + dy * t0),
+    Offset(a.dx + dx * t1, a.dy + dy * t1),
+  );
 }

@@ -13390,13 +13390,33 @@ class PlanetDungeonGame extends FlameGame {
     );
   }
 
+  /// Wall rects a planet's own renderer has claimed, which the generic rock
+  /// body must not be laid over.
+  ///
+  /// This started as one special case — the Mirror Gallery's panes ARE walls,
+  /// you walk around them, but they are GLASS, and laying the grey rock over
+  /// them turned three panes of storm-glass into three grey slabs. It is
+  /// general now because the fault is: `_renderWalls` runs AFTER the planet
+  /// module, so whatever a planet draws for its own obstacles gets a flat
+  /// blue-grey bar painted on top of it.
+  ///
+  /// Verdanthos is where that became untenable. Its three obstacles are a
+  /// toppled lintel, a buttress of giant root and a fallen catafalque —
+  /// three different objects, and every one of them came out as the same
+  /// grey bar. (You can see the same bar lying across the Beacon Archive's
+  /// reading floor in the audit shots, where it reads as a UI element
+  /// someone left on the carpet.)
+  Set<Rect> _planetOwnedWalls(DungeonRoom room) {
+    if (_isCircuit) return {for (final c in room.stormCells) c.paneRect};
+    // Plant draws all three of its obstacles as what they actually are.
+    if (_isCrypt) return room.walls.toSet();
+    return const {};
+  }
+
   void _renderWalls(Canvas canvas, DungeonRoom room) {
-    // The Mirror Gallery's panes are walls — you walk around them — but they
-    // are GLASS, and the room draws them itself. Laying the generic rock body
-    // over the top turned three panes of storm-glass into three grey slabs.
-    final glass = room.stormCells.map((c) => c.paneRect).toSet();
+    final owned = _planetOwnedWalls(room);
     for (final w in room.walls) {
-      if (glass.contains(w)) continue;
+      if (owned.contains(w)) continue;
       // Soft cast shadow under the rock.
       canvas.drawRRect(
         RRect.fromRectAndRadius(

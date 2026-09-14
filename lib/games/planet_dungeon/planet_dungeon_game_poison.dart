@@ -203,6 +203,699 @@ class PlagueLash {
       t <= 1 ? Curves.easeOutCubic.transform(t) : 1 - (t - 1) * 0.9;
 }
 
+// ─────────────────────────────────────────────────────────
+// THE FABRIC OF THE HOUSE
+// ─────────────────────────────────────────────────────────
+//
+// A lazar house is a BUILDING, and a building does not change between
+// frames. Every flag, pier, arch, cot and burial slot below is laid out ONCE
+// per room — deterministically, off that room's own bounds, so a room is
+// always the same place — and then only read. What animates is a handful of
+// phases: a lamp guttering, a censer swinging, the damp creeping. That is the
+// perf toolkit rule from the other side: never rebuild sixty times a second
+// what was never going to move.
+//
+// Everything is laid against the WALLS. The middle of a monastery room is
+// where this planet does its fighting, and furniture standing in it is
+// furniture you get killed behind.
+final Map<String, _MonasteryGround> _monasteryGroundCache = {};
+
+/// ONE DRESSED STONE in a floor, as a FOUR-CORNERED POLYGON rather than a
+/// rectangle. [crack] is the angle of a split across it, negative for a whole
+/// flag.
+///
+/// The rectangles were the bug. Courses of intact rectangles with a lit top
+/// edge is precisely how this engine draws a BRICK WALL, and the first pass
+/// of this floor looked like one seen from the front — every room a masonry
+/// elevation with furniture floating over it. Jittering each corner
+/// independently means no joint in the room runs straight for more than one
+/// stone, which is the difference between a paved floor and a course of
+/// bricks, and it costs nothing because it is built once.
+class _MonFlag {
+  const _MonFlag({
+    required this.path,
+    required this.rect,
+    required this.lit0,
+    required this.lit1,
+    required this.tone,
+    required this.crack,
+    required this.hollow,
+  });
+
+  final Path path;
+  final Rect rect;
+
+  /// The lifted edge, corner to corner, so the light rakes along a stone's
+  /// own shoulder rather than along a ruled line across the room.
+  final Offset lit0;
+  final Offset lit1;
+  final double tone;
+
+  /// The split, already built. Nothing about it can change, so building it
+  /// sixty times a second is sixty times too many.
+  final Path? crack;
+  final bool hollow;
+}
+
+/// A SICKBED. Straw over an iron frame — some stripped back to the frame,
+/// one in every ward overturned, none of them square to the wall.
+class _MonCot {
+  const _MonCot({
+    required this.at,
+    required this.angle,
+    required this.stripped,
+    required this.tipped,
+  });
+
+  final Offset at;
+  final double angle;
+  final bool stripped;
+  final bool tipped;
+}
+
+/// A BURIAL SLOT cut into a wall: open and holding a bundle, or walled up
+/// with a slab and scratched with a cross.
+class _MonLoculus {
+  const _MonLoculus({required this.rect, required this.open});
+
+  final Rect rect;
+  final bool open;
+}
+
+/// One room's ground and architecture, in world coordinates.
+class _MonasteryGround {
+  // ── the ground ──
+  final List<_MonFlag> flags = [];
+  final List<(Offset, double, double)> lime = []; // at, radius, alpha
+  final List<(Offset, double)> grit = []; // at, radius
+  final List<(Offset, double, double)> straw = []; // at, angle, length
+  final List<(Offset, double)> tread = []; // the walked-smooth track
+  final List<Rect> runnels = [];
+  final List<Offset> grates = [];
+
+  // ── the building ──
+  final List<Rect> bays = []; // arched recesses over the ward doors
+  final List<Rect> piers = []; // arcade and undercroft piers
+  final List<Rect> ledgers = []; // ledger slabs sunk in the floor
+  final List<_MonLoculus> loculi = [];
+  final List<_MonCot> cots = [];
+  final List<(Rect, bool)> tables = []; // rect, plank-topped (else stone)
+  final List<(Offset, double)> casks = [];
+  final List<(Offset, double, double)> strewn = []; // abandoned bundles
+  final List<(Offset, double)> boneHeaps = []; // at, radius
+  final List<(Offset, double, double)> bones = [];
+  final List<(Offset, double, double)> leaves = []; // scattered parchment
+  final List<(Offset, double)> seeps = []; // puddles under a wet vault
+  final List<(Offset, double)> wax = []; // runs off a broken seal
+  final List<(Offset, double, int)> spills = []; // reagent stains
+  final List<(Offset, double, double)> scuff = []; // worn off the lime cross
+  final List<Offset> marks = []; // consecration crosses cut in the wall
+  final List<(Offset, double)> lamps = []; // cresset at, how far it reaches
+  Path? cross; // the almoner's lime cross, painted across the porch
+  Offset? hearth; // the fire-brick the pot stands on
+  Offset? bell; // where the bell-rope comes down
+}
+
+/// A PAINTED CROSS, as twelve points rather than two rectangles — so it can
+/// be laid down at an angle, which is how anybody actually paints one on a
+/// floor with a brush and a bucket.
+Path _monLimeCross(Offset at, double arm, double tilt) {
+  final c = cos(tilt), s = sin(tilt);
+  final w = arm * 0.24;
+  final pts = <Offset>[
+    Offset(-w, -arm),
+    Offset(w, -arm),
+    Offset(w, -w),
+    Offset(arm, -w),
+    Offset(arm, w),
+    Offset(w, w),
+    Offset(w, arm),
+    Offset(-w, arm),
+    Offset(-w, w),
+    Offset(-arm, w),
+    Offset(-arm, -w),
+    Offset(-w, -w),
+  ];
+  final p = Path();
+  for (var i = 0; i < pts.length; i++) {
+    final q = at + Offset(
+      pts[i].dx * c - pts[i].dy * s,
+      pts[i].dx * s + pts[i].dy * c,
+    );
+    i == 0 ? p.moveTo(q.dx, q.dy) : p.lineTo(q.dx, q.dy);
+  }
+  return p..close();
+}
+
+/// The room's fabric, built on first sight of it and kept.
+_MonasteryGround _monasteryGround(DungeonRoom room) {
+  final b = room.bounds;
+  final key = '${room.id}|${b.width.round()}x${b.height.round()}';
+  return _monasteryGroundCache.putIfAbsent(
+    key,
+    () => _buildMonasteryGround(room),
+  );
+}
+
+_MonasteryGround _buildMonasteryGround(DungeonRoom room) {
+  final b = room.bounds;
+  final g = _MonasteryGround();
+  // Seeded off the room's own size AND its name, so the four wards — which
+  // are the same rectangle four times — are not the same floor four times.
+  var st =
+      (b.width.round() * 7919 +
+          b.height.round() * 104729 +
+          room.id.codeUnits.fold<int>(17, (a, c) => (a * 131 + c) % 65413)) %
+      2147483647;
+  double rnd() {
+    st = (st * 1103515245 + 12345) % 2147483648;
+    return st / 2147483648;
+  }
+
+  // ── FLAGSTONES ──
+  //
+  // Laid by hand out of whatever came off the hill. Four things stop this
+  // being a lattice, and it needed all four: course depths that vary by a
+  // factor of two, a course start that is never the same as the one above,
+  // long stones that swallow the joint they would otherwise have made — and
+  // CORNERS THAT DO NOT MEET, which is the one that actually did it. Every
+  // corner is pulled a few pixels off true, so no joint in the room runs
+  // straight for more than a single stone.
+  var y = b.top - 16;
+  while (y < b.bottom) {
+    final h = 24 + rnd() * 32;
+    var x = b.left - 34 - rnd() * 70;
+    while (x < b.right) {
+      var w = 34 + rnd() * 62;
+      if (rnd() < 0.22) w += 26 + rnd() * 58; // a long stone
+      final slab = Rect.fromLTWH(x + 2.0, y + 2.0, w - 4, h - 4);
+      // A lifted flag, never put back: the bed shows through, and the hole is
+      // what tells you the floor is stones rather than a texture.
+      if (rnd() > 0.075 && slab.overlaps(b)) {
+        double j() => (rnd() - 0.5) * 6.0;
+        final tl = Offset(slab.left + j(), slab.top + j());
+        final tr = Offset(slab.right + j(), slab.top + j());
+        final br = Offset(slab.right + j(), slab.bottom + j());
+        final bl = Offset(slab.left + j(), slab.bottom + j());
+        // Split rather than sawn: a bend halfway across, so it reads as
+        // stone that gave rather than a line ruled over it.
+        Path? crack;
+        if (rnd() < 0.15) {
+          final a = rnd() * pi;
+          final c = slab.center;
+          final d = Offset(cos(a), sin(a));
+          final mid = c + Offset(-d.dy, d.dx) * 4;
+          crack = Path()
+            ..moveTo(
+              c.dx - d.dx * slab.width * 0.5,
+              c.dy - d.dy * slab.height * 0.5,
+            )
+            ..lineTo(mid.dx, mid.dy)
+            ..lineTo(
+              c.dx + d.dx * slab.width * 0.5,
+              c.dy + d.dy * slab.height * 0.5,
+            );
+        }
+        g.flags.add(
+          _MonFlag(
+            path: Path()
+              ..moveTo(tl.dx, tl.dy)
+              ..lineTo(tr.dx, tr.dy)
+              ..lineTo(br.dx, br.dy)
+              ..lineTo(bl.dx, bl.dy)
+              ..close(),
+            rect: slab,
+            lit0: tl,
+            lit1: tr,
+            tone: rnd(),
+            crack: crack,
+            hollow: rnd() < 0.13,
+          ),
+        );
+      }
+      x += w;
+    }
+    y += h;
+  }
+
+  // ── THE TREAD ──
+  //
+  // Eight hundred years of feet between the doors and whatever the room is
+  // FOR. A soft polished track, laid as overlapping pools rather than a
+  // stroke so it has no edge — the one shape in the room that is not stone,
+  // and the thing that says people lived here.
+  final anchor =
+      room.apothecary?.cistern ??
+      room.guardian?.position ??
+      room.ward?.heart ??
+      b.center;
+  for (final d in room.doors) {
+    final from = d.rect.center;
+    final phase = rnd() * 6.0;
+    const steps = 11;
+    for (var i = 0; i <= steps; i++) {
+      final u = i / steps;
+      final p = Offset.lerp(from, anchor, u)!;
+      g.tread.add((
+        p + Offset(sin(u * 4.6 + phase) * 15, cos(u * 3.7 + phase) * 12),
+        30 + rnd() * 18 - u * 8,
+      ));
+    }
+  }
+
+  // ── QUICKLIME ──
+  //
+  // Thrown where the sickness comes in and goes out — thresholds and wall
+  // feet — and never sprinkled evenly across the middle. Scattered evenly it
+  // stacked with the worn hollows into a mottle, and the floor read as
+  // blotches rather than as stone.
+  for (var i = 0; i < 13; i++) {
+    final at = i < room.doors.length
+        ? room.doors[i].rect.center +
+              Offset((rnd() - 0.5) * 96, (rnd() - 0.5) * 76)
+        : (rnd() < 0.5
+              ? Offset(b.left + 16 + rnd() * 44, b.top + rnd() * b.height)
+              : Offset(b.right - 16 - rnd() * 44, b.top + rnd() * b.height));
+    final r = 12 + rnd() * 22;
+    g.lime.add((at, r, 0.05 + rnd() * 0.06));
+    for (var k = 0; k < 6; k++) {
+      g.grit.add((
+        at + Offset((rnd() - 0.5) * r * 1.9, (rnd() - 0.5) * r * 1.2),
+        0.8 + rnd() * 1.6,
+      ));
+    }
+  }
+
+  // ── STRAW, where the sick lay ──
+  if (room.ward != null) {
+    for (var i = 0; i < 110; i++) {
+      g.straw.add((
+        Offset(b.left + rnd() * b.width, b.top + rnd() * b.height),
+        rnd() * pi,
+        6 + rnd() * 10,
+      ));
+    }
+  }
+
+  _buildMonasteryHouse(room, g, rnd);
+  return g;
+}
+
+/// The architecture proper — what each room IS, on top of the ground every
+/// room shares.
+void _buildMonasteryHouse(
+  DungeonRoom room,
+  _MonasteryGround g,
+  double Function() rnd,
+) {
+  final b = room.bounds;
+
+  if (room.id == 'lazar_gate') {
+    // THE PORCH OF A SEALED HOUSE. Everything here was carried up the hill
+    // and abandoned at the threshold: casks of lime to throw, litters that
+    // carried the sick in and came back out empty, and the great lime cross
+    // the almoner painted across the flags so that anyone coming up the road
+    // knew what the building was before they knocked on it.
+    final at = Offset(b.left + b.width * 0.40, b.top + b.height * 0.56);
+    g.cross = _monLimeCross(at, 132, -0.13);
+    for (var i = 0; i < 11; i++) {
+      g.scuff.add((
+        at + Offset((rnd() - 0.5) * 270, (rnd() - 0.5) * 250),
+        14 + rnd() * 34,
+        rnd() * pi,
+      ));
+    }
+    // Lime casks, stacked against the north wall in the two or three heaps
+    // somebody actually piled them in — a line of them at one stride apart
+    // was a row of doughnuts, which is the arithmetic of a `for` loop showing
+    // through the picture.
+    for (var heap = 0; heap < 3; heap++) {
+      final hx = b.left + 110 + heap * (150 + rnd() * 80);
+      for (var i = 0; i < 2 + (rnd() * 3).floor(); i++) {
+        g.casks.add((
+          Offset(hx + (rnd() - 0.5) * 62, b.top + 52 + rnd() * 42),
+          10 + rnd() * 6,
+        ));
+      }
+    }
+    for (var i = 0; i < 3; i++) {
+      g.cots.add(
+        _MonCot(
+          at: Offset(b.left + 52 + rnd() * 24, b.top + 196 + i * 78),
+          angle: -1.44 + (rnd() - 0.5) * 0.55,
+          stripped: true,
+          tipped: i == 2,
+        ),
+      );
+    }
+    for (var i = 0; i < 9; i++) {
+      g.strewn.add((
+        Offset(b.left + 200 + rnd() * (b.width - 300), b.bottom - 150 * rnd()),
+        rnd() * pi,
+        9 + rnd() * 11,
+      ));
+    }
+    // THE QUARANTINE DOOR ITSELF. The one fact this room exists to state is
+    // that the house was SHUT — §6.13's entry rite is a Poison alchemon
+    // softening the wax — and the east half of the porch said nothing at all
+    // until the seal that was poured down that jamb was on screen. The runs
+    // stay after it softens, because they would.
+    final out = room.doors.first.rect;
+    for (var i = 0; i < 4; i++) {
+      g.wax.add((
+        Offset(out.left - 6 - rnd() * 22, out.top - 6 + rnd() * out.height),
+        20 + rnd() * 46,
+      ));
+    }
+    // The porter's table beside it, with what he was keeping written on it.
+    g.tables.add((
+      Rect.fromLTWH(b.right - 150, b.top + b.height * 0.60, 96, 30),
+      true,
+    ));
+    g.runnels.add(Rect.fromLTWH(b.left + 30, b.bottom - 54, b.width * 0.46, 11));
+    g.grates.add(Offset(b.left + 34 + b.width * 0.46, b.bottom - 49));
+    g.lamps
+      ..add((Offset(b.right - 58, b.top + 156), 132))
+      ..add((Offset(b.left + 130, b.bottom - 96), 100));
+    return;
+  }
+
+  if (room.id == 'ambulatory') {
+    // THE WALK. A lime-washed north flank with the four ward doors set back
+    // into arched bays, a cloister arcade down the south side looking out
+    // over a garth nobody has cut in years, and the house's main runnel
+    // falling the length of the floor into a grated sump.
+    //
+    // ALL OF IT IS AGAINST THE TWO LONG WALLS. This corridor is where
+    // everything you let out of a ward is fought, and the centre of it has
+    // to stay walkable and legible from one end to the other.
+    for (final d in room.doors) {
+      if (d.rect.top > b.top + 4) continue; // the four ward doors
+      g.bays.add(
+        Rect.fromLTRB(d.rect.left - 22, b.top, d.rect.right + 22, b.top + 60),
+      );
+      for (var k = 0; k < 3; k++) {
+        g.wax.add((
+          Offset(d.rect.center.dx + (rnd() - 0.5) * 78, b.top + 58),
+          16 + rnd() * 30,
+        ));
+      }
+    }
+    // The arcade. Uneven bays, because a cloister built over two centuries
+    // is not a comb — and a comb is exactly what a loop with a fixed stride
+    // draws.
+    var x = b.left + 46.0;
+    while (x < b.right - 76) {
+      final w = 24 + rnd() * 14;
+      g.piers.add(Rect.fromLTWH(x, b.bottom - 78, w, 66));
+      x += w + 74 + rnd() * 66;
+    }
+    // The runnel dog-legs at the sump, which is what tells you it FALLS
+    // somewhere rather than being a line drawn along the floor.
+    final sump = b.left + b.width * 0.56;
+    g.runnels
+      ..add(Rect.fromLTWH(b.left + 26, b.bottom - 112, sump - b.left - 26, 12))
+      ..add(Rect.fromLTWH(sump - 12, b.bottom - 112, 12, 40));
+    g.grates.add(Offset(sump - 6, b.bottom - 66));
+    for (final lx in const [0.09, 0.31, 0.62, 0.87]) {
+      g.lamps.add((Offset(b.left + b.width * lx, b.top + 74), 128));
+    }
+    // Biers stacked at the charnel end of the walk, where they were needed
+    // most and last.
+    for (var i = 0; i < 3; i++) {
+      g.cots.add(
+        _MonCot(
+          at: Offset(b.right - 96 - i * 8.0, b.top + 150 + i * 15.0),
+          angle: 0.06 + (rnd() - 0.5) * 0.12,
+          stripped: true,
+          tipped: false,
+        ),
+      );
+    }
+    // A stone bench under the wall between each pair of bays, and the
+    // consecration crosses the bishop cut into the plaster when the house
+    // was made — twelve of them, and every one of them now has a plague
+    // behind the door it was cut beside.
+    g.tables.add((Rect.fromLTWH(b.left + 60, b.top + 132, 128, 26), false));
+    for (var i = 0; i < g.bays.length - 1; i++) {
+      final gapL = g.bays[i].right, gapR = g.bays[i + 1].left;
+      if (gapR - gapL < 110) continue;
+      final mid = (gapL + gapR) / 2;
+      g.tables.add((
+        Rect.fromLTWH(mid - 52, b.top + 62, 104, 20),
+        false,
+      ));
+      g.marks
+        ..add(Offset(mid - 34, b.top + 28))
+        ..add(Offset(mid + 36, b.top + 26));
+    }
+    // Against the arcade foot, never out in the walk: the middle of this
+    // corridor is the arena, and a bundle standing in it is one more thing
+    // to lose a plague behind.
+    for (var i = 0; i < 6; i++) {
+      g.strewn.add((
+        Offset(b.left + 120 + rnd() * (b.width - 260), b.bottom - 92 + rnd() * 10),
+        rnd() * pi,
+        8 + rnd() * 9,
+      ));
+    }
+    return;
+  }
+
+  if (room.id == 'lazar_crypt') {
+    // THE UNDERCROFT. Burial slots in ranks down both side walls, ledger
+    // slabs worn smooth in the floor, four heavy piers carrying the ward
+    // above, and water coming through every joint in the vault.
+    //
+    // The middle is EMPTY and stays empty: patient zero is fought in it.
+    for (final p in const [
+      Offset(140, 176),
+      Offset(712, 176),
+      Offset(140, 512),
+      Offset(718, 566),
+    ]) {
+      g.piers.add(
+        Rect.fromLTWH(b.left + p.dx - 21, b.top + p.dy - 26, 42, 52),
+      );
+    }
+    for (var side = 0; side < 2; side++) {
+      var y = b.top + 120 + rnd() * 40;
+      while (y < b.bottom - 130) {
+        final h = 30 + rnd() * 20;
+        final w = 34 + rnd() * 16;
+        g.loculi.add(
+          _MonLoculus(
+            rect: side == 0
+                ? Rect.fromLTWH(b.left + 10, y, w, h)
+                : Rect.fromLTWH(b.right - 10 - w, y, w, h),
+            open: rnd() < 0.55,
+          ),
+        );
+        y += h + 14 + rnd() * 34; // ranks, not a ladder
+      }
+    }
+    for (var i = 0; i < 5; i++) {
+      final ledge = Rect.fromLTWH(
+        b.left + 96 + rnd() * (b.width - 300),
+        b.top + 120 + rnd() * (b.height - 260),
+        86 + rnd() * 54,
+        44 + rnd() * 18,
+      );
+      // Never under the guardian's feet or over the cache.
+      if ((ledge.center - (room.guardian?.position ?? b.center)).distance <
+          140) {
+        continue;
+      }
+      g.ledgers.add(ledge);
+    }
+    for (var i = 0; i < 9; i++) {
+      final edge = rnd();
+      g.seeps.add((
+        edge < 0.5
+            ? Offset(b.left + 30 + rnd() * 70, b.top + 90 + rnd() * (b.height - 180))
+            : Offset(b.right - 30 - rnd() * 70, b.top + 90 + rnd() * (b.height - 180)),
+        16 + rnd() * 26,
+      ));
+    }
+    // STACKED, not scattered. Loose sticks all over the floor read as
+    // litter; an ossuary is a HEAP — everything laid the same way in the one
+    // corner where there was room for it, because somebody stacked it.
+    for (var i = 0; i < 4; i++) {
+      final c = Offset(
+        i < 2 ? b.left + 58 : b.right - 58,
+        i.isEven ? b.top + 84 : b.bottom - 92,
+      );
+      final lie = rnd() * pi;
+      g.boneHeaps.add((c, 36.0));
+      for (var k = 0; k < 6; k++) {
+        g.bones.add((
+          c + Offset((rnd() - 0.5) * 54, (rnd() - 0.5) * 30),
+          lie + (rnd() - 0.5) * 0.5,
+          13 + rnd() * 16,
+        ));
+      }
+    }
+    g.lamps
+      ..add((Offset(b.left + 88, b.top + 236), 116))
+      ..add((Offset(b.right - 84, b.top + 300), 116))
+      ..add((Offset(b.left + b.width * 0.5, b.bottom - 120), 104));
+    return;
+  }
+
+  if (room.apothecary != null) {
+    // THE WORKING ROOM. A fire-brick hearth sunk into the floor under the
+    // pot, the bottle bench along the east wall, a drying rail down the
+    // west, and everything that has ever boiled over still on the flags.
+    final c = room.apothecary!.cistern;
+    g.hearth = c;
+    g.tables
+      ..add((Rect.fromLTWH(c.dx + 132, c.dy + 18, 168, 22), true))
+      ..add((Rect.fromLTWH(b.left + 34, b.bottom - 150, 30, 116), false));
+    for (var i = 0; i < 9; i++) {
+      final a = rnd() * pi * 2;
+      final d = 44 + rnd() * 120;
+      g.spills.add((
+        c + Offset(cos(a) * d, sin(a) * d * 0.7),
+        13 + rnd() * 26,
+        (rnd() * 3).floor(),
+      ));
+    }
+    // Settling jars along the west wall, in the two clumps somebody actually
+    // stood them in. Evenly spaced down the wall they were a column of six
+    // identical ovals — the arithmetic of a `for` loop, on screen.
+    for (var clump = 0; clump < 2; clump++) {
+      final cy = b.top + 170 + clump * (128 + rnd() * 50);
+      for (var i = 0; i < 3 + (rnd() * 2).floor(); i++) {
+        g.casks.add((
+          Offset(b.left + 48 + rnd() * 34, cy + (rnd() - 0.5) * 66),
+          11 + rnd() * 7,
+        ));
+      }
+    }
+    g.runnels.add(Rect.fromLTWH(b.left + 30, b.bottom - 56, b.width * 0.55, 11));
+    g.grates.add(Offset(b.left + 34 + b.width * 0.55, b.bottom - 51));
+    g.lamps
+      ..add((Offset(b.left + 74, b.top + 96), 108))
+      ..add((Offset(b.right - 70, b.bottom - 120), 104));
+    return;
+  }
+
+  final ward = room.ward;
+  if (ward == null) return;
+
+  // ── A WARD ──
+  //
+  // Two ragged files of sickbeds down the side walls, a runnel under them
+  // that took whatever came off, and the room's own second life: this house
+  // rang a bell, kept a book, ate a meal and buried its dead, and the ward
+  // that did each of those still has the furniture for it.
+  const wy = [236.0, 312.0, 378.0];
+  for (var i = 0; i < wy.length; i++) {
+    g.cots.add(
+      _MonCot(
+        at: Offset(b.left + 62 + rnd() * 12, b.top + wy[i]),
+        angle: -1.52 + (rnd() - 0.5) * 0.28,
+        stripped: rnd() < 0.3,
+        tipped: false,
+      ),
+    );
+    g.cots.add(
+      _MonCot(
+        at: Offset(b.right - 64 - rnd() * 12, b.top + wy[i] - 14),
+        angle: 1.55 + (rnd() - 0.5) * 0.3,
+        stripped: rnd() < 0.3,
+        tipped: i == 1 && ward.id != kCryptWard,
+      ),
+    );
+  }
+  g.runnels.add(Rect.fromLTWH(b.left + 26, b.bottom - 58, b.width * 0.36, 10));
+  g.grates.add(Offset(b.left + 30 + b.width * 0.36, b.bottom - 53));
+  g.lamps
+    ..add((Offset(b.left + 40, b.top + 168), 96))
+    ..add((Offset(b.right - 40, b.top + 132), 96));
+
+  switch (ward.id) {
+    case 'ward_bell':
+      // The bell-rope comes down through the vault and is cleated off at the
+      // wall, where a brother could reach it without leaving the sick.
+      g.bell = Offset(b.left + b.width * 0.72, b.top + 52);
+      g.strewn.add((Offset(b.left + 372, b.top + 258), 0.4, 13));
+    case 'ward_scriptorium':
+      // Two desks gone over and the book they were copying all over the
+      // floor. Nobody tidied up; they got sick.
+      g.tables
+        ..add((Rect.fromLTWH(b.left + 356, b.top + 176, 86, 26), true))
+        ..add((Rect.fromLTWH(b.left + 132, b.top + 322, 74, 24), true));
+      // Where the desks went over, not all over the room. Scattered evenly
+      // the leaves read as confetti — a page falls near the book it came
+      // out of, and the drift is what says which way the desk went.
+      for (final desk in [
+        Offset(b.left + 399, b.top + 189),
+        Offset(b.left + 169, b.top + 334),
+      ]) {
+        final away = rnd() * pi * 2;
+        for (var i = 0; i < 8; i++) {
+          final d = 16 + rnd() * 96;
+          g.leaves.add((
+            desk +
+                Offset(
+                  cos(away + (rnd() - 0.5) * 1.5) * d,
+                  sin(away + (rnd() - 0.5) * 1.5) * d * 0.7,
+                ),
+            rnd() * pi,
+            6 + rnd() * 6,
+          ));
+        }
+      }
+    case 'ward_refectory':
+      // One long trestle down the middle-east of the room, benches either
+      // side, and the last meal still on it.
+      g.tables
+        ..add((Rect.fromLTWH(b.left + 330, b.top + 196, 152, 40), true))
+        ..add((Rect.fromLTWH(b.left + 322, b.top + 250, 168, 14), true));
+      for (var i = 0; i < 8; i++) {
+        g.strewn.add((
+          Offset(b.left + 336 + rnd() * 140, b.top + 190 + rnd() * 52),
+          rnd() * pi,
+          6 + rnd() * 5,
+        ));
+      }
+    case kCryptWard:
+      // The dead-house. Burial slots in the head wall in whatever ranks the
+      // masons could fit around the vault ribs, and the bones of everyone
+      // the house lost stacked where there was room for them.
+      var x = b.left + 48.0;
+      while (x < b.right - 96) {
+        final w = 40 + rnd() * 18;
+        g.loculi.add(
+          _MonLoculus(
+            rect: Rect.fromLTWH(x, b.top + 46 + rnd() * 14, w, 30 + rnd() * 12),
+            open: rnd() < 0.5,
+          ),
+        );
+        x += w + 10 + rnd() * 30;
+      }
+      // At the FOOT OF THE SLOT WALL, where whatever would not fit back in
+      // was put down. Stacked in the bottom corners they landed on top of
+      // the sickbeds, which reads as bones in the beds.
+      for (var i = 0; i < 2; i++) {
+        final c = Offset(
+          i == 0 ? b.left + 128 : b.right - 132,
+          b.top + 110 + (rnd() - 0.5) * 26,
+        );
+        final lie = rnd() * pi;
+        g.boneHeaps.add((c, 34.0));
+        for (var k = 0; k < 7; k++) {
+          g.bones.add((
+            c + Offset((rnd() - 0.5) * 52, (rnd() - 0.5) * 28),
+            lie + (rnd() - 0.5) * 0.5,
+            12 + rnd() * 15,
+          ));
+        }
+      }
+  }
+}
+
 /// Everything the Venom Monastery tracks for one run. Bundled into a single
 /// object so the shared engine class carries ONE new field for this planet.
 class VenomMonastery {
@@ -3024,6 +3717,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   void _renderMonastery(Canvas canvas, DungeonRoom room) {
     _renderLazarFloor(canvas, room);
+    // The BUILDING, between the ground and everything living on it. Walls,
+    // bays, piers, graves and furniture belong under the contagion — the
+    // plague grows over the house, not the house over the plague.
+    _renderMonasteryHouse(canvas, room);
     _renderContagion(canvas, room);
     _renderStrains(canvas, room);
     _renderMonasteryFixtures(canvas, room);
@@ -3036,6 +3733,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (room.id == 'ambulatory') _renderSickWisp(canvas, room);
     _renderWardSeals(canvas, room);
     _renderLazarGloom(canvas, room);
+    // The cressets, ON TOP of the dark they are burning against.
+    _renderLazarLamps(canvas, room);
     // AFTER the gloom. Drawn under it the burst was darkened by the very
     // thing it should be lighting — and worse, the gloom centres on the
     // PARTY, so during the cut the doorway sat in the dark ring and the
@@ -3099,16 +3798,22 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // somewhere else, the light has to be there too or it is looking into a
     // dark corner of its own making.
     final at = followAt ?? active?.position ?? b.center;
+    // WOUND BACK once the house had architecture in it to lose. At 460px and
+    // 0.80 at the rim, the gloom ate every wall, bay, pier and grave this
+    // pass built: the ambulatory is 1400 wide, so two thirds of the longest
+    // room on the planet was flat black and the room read as a box with
+    // three props in it. It is a lit interior now, not a cave — the dark
+    // still closes in, and the cressets drawn over it are what you see by.
     canvas.drawRect(
       b,
       Paint()
         ..shader = ui.Gradient.radial(
           at,
-          460,
+          540,
           [
             const Color(0x00000000),
-            const Color(0x66070A06),
-            const Color(0xCC040604),
+            const Color(0x44070A06),
+            const Color(0xA8040604),
           ],
           const [0.0, 0.58, 1.0],
         ),
@@ -3126,6 +3831,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// planet can say about what it is.
   void _renderLazarFloor(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
+    final g = _monasteryGround(room);
     canvas.drawRect(
       b,
       Paint()
@@ -3135,112 +3841,813 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         // Solid, the stage cut the background off and every room was a lit
         // box with weather happening somewhere you could not see.
         ..shader = ui.Gradient.linear(b.topCenter, b.bottomCenter, [
-          const Color(0xFF161A15).withValues(alpha: _kLazarFloorAlpha),
-          const Color(0xFF0E120E).withValues(alpha: _kLazarFloorAlpha),
+          const Color(0xFF1B2019).withValues(alpha: _kLazarFloorAlpha),
+          const Color(0xFF10140F).withValues(alpha: _kLazarFloorAlpha),
         ]),
     );
 
-    var seed = room.id.codeUnits.fold<int>(
-      131,
-      (a, c) => (a * 137 + c) % 65413,
-    );
-    double rnd() {
-      seed = (seed * 1103515245 + 12345) % 2147483648;
-      return seed / 2147483648;
-    }
-
-    // FLAGSTONES. Irregular courses — a monastery floor was laid by hand out
-    // of whatever came off the hill, and a regular grid is the one thing that
-    // reads as a diagram (the lesson Lava's floor cost three attempts).
-    var y = b.top - 10;
-    while (y < b.bottom) {
-      final h = 46 + rnd() * 26;
-      var x = b.left - 20 - rnd() * 40;
-      while (x < b.right) {
-        final w = 60 + rnd() * 70;
-        final slab = Rect.fromLTWH(x + 1.5, y + 1.5, w - 3, h - 3);
-        if (slab.overlaps(b)) {
-          canvas.drawRect(
-            slab,
-            Paint()
-              ..color = Color.lerp(
-                const Color(0xFF20241D),
-                const Color(0xFF171B16),
-                rnd(),
-              )!.withValues(alpha: _kLazarFloorAlpha),
-          );
-          // Lit top edge, so a flag is a flag and not a rectangle.
-          canvas.drawRect(
-            Rect.fromLTWH(slab.left, slab.top, slab.width, 1.6),
-            Paint()..color = const Color(0xFF2E342A).withValues(alpha: 0.6),
-          );
-          // Worn hollow in the middle of the older ones.
-          // A worn hollow, on a few. At a third of all flags these stacked
-          // with the lime into a mottle and the floor read as blotches
-          // rather than as stone.
-          if (rnd() < 0.16) {
-            canvas.drawOval(
-              slab.deflate(slab.width * 0.3),
-              Paint()..color = const Color(0xFF1A1E18).withValues(alpha: 0.5),
-            );
-          }
-        }
-        x += w;
+    // FLAGSTONES, built once (see [_buildMonasteryGround]). What this pass
+    // draws that the old one did not is BREAKAGE — cracks, knocked corners
+    // and lifted flags — because it was the intactness of every stone, more
+    // than the spacing of them, that made the old floor read as a texture.
+    final lit = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..color = const Color(0xFF333A2D).withValues(alpha: 0.30);
+    final crack = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = const Color(0xFF0A0D09).withValues(alpha: 0.8);
+    // ONE PAINT for every stone in the room. This is the longest loop on the
+    // planet — the ambulatory lays about a hundred and seventy flags — and a
+    // fresh Paint per stone per frame is an allocation bill for a floor that
+    // has not changed since the room was built.
+    final fill = Paint();
+    final hollow = Paint()
+      ..color = const Color(0xFF191E18).withValues(alpha: 0.5);
+    for (final f in g.flags) {
+      fill.color = Color.lerp(
+        const Color(0xFF272D22),
+        const Color(0xFF141911),
+        f.tone,
+      )!.withValues(alpha: _kLazarFloorAlpha);
+      canvas.drawPath(f.path, fill);
+      canvas.drawLine(f.lit0, f.lit1, lit);
+      if (f.hollow) {
+        canvas.drawOval(f.rect.deflate(f.rect.width * 0.3), hollow);
       }
-      y += h;
+      final split = f.crack;
+      if (split != null) canvas.drawPath(split, crack);
     }
 
-    // QUICKLIME, thrown down against the contagion and never swept up.
-    for (var i = 0; i < 9; i++) {
-      final at = Offset(b.left + rnd() * b.width, b.top + rnd() * b.height);
-      final r = 9 + rnd() * 17;
+    // THE TREAD. Eight hundred years of feet, polished into the stone
+    // between every door and whatever the room is for.
+    // Kept very faint: the pools overlap along the track, so anything the eye
+    // can pick out of ONE of them stacks into a chain of grey blotches.
+    final worn = Paint()
+      ..color = const Color(0xFF39412F).withValues(alpha: 0.035);
+    for (final (at, r) in g.tread) {
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: r * 2.4, height: r * 1.5),
+        worn,
+      );
+    }
+
+    // QUICKLIME, thrown at the thresholds and never swept up.
+    for (final (at, r, a) in g.lime) {
       canvas.drawOval(
         Rect.fromCenter(center: at, width: r * 2, height: r * 1.25),
-        Paint()..color = _venomBone.withValues(alpha: 0.035 + rnd() * 0.035),
+        Paint()..color = _venomBone.withValues(alpha: a),
       );
-      // A harder scatter at the middle of each throw, so it reads as
-      // something tipped out rather than a stain.
-      for (var k = 0; k < 5; k++) {
-        canvas.drawCircle(
-          at + Offset((rnd() - 0.5) * r * 1.6, (rnd() - 0.5) * r),
-          0.8 + rnd() * 1.4,
-          Paint()..color = _venomBone.withValues(alpha: 0.10 + rnd() * 0.10),
-        );
-      }
+    }
+    for (final (at, r) in g.grit) {
+      canvas.drawCircle(
+        at,
+        r,
+        Paint()..color = _venomBone.withValues(alpha: 0.14),
+      );
     }
 
     // STRAW, where the sick were laid — only in the wards.
-    if (room.ward != null) {
+    if (g.straw.isNotEmpty) {
       final straw = Paint()
         ..strokeWidth = 1.4
-        ..strokeCap = StrokeCap.round;
-      for (var i = 0; i < 90; i++) {
-        final at = Offset(b.left + rnd() * b.width, b.top + rnd() * b.height);
-        final a = rnd() * pi;
-        straw.color = const Color(
-          0xFF6E6242,
-        ).withValues(alpha: 0.10 + rnd() * 0.12);
-        canvas.drawLine(
-          at,
-          at + Offset(cos(a), sin(a)) * (6 + rnd() * 9),
-          straw,
-        );
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFF6E6242).withValues(alpha: 0.16);
+      for (final (at, a, len) in g.straw) {
+        canvas.drawLine(at, at + Offset(cos(a), sin(a)) * len, straw);
       }
     }
 
-    // THE DRAIN, down the low side. Everything in a lazar house runs somewhere.
-    final drain = Rect.fromLTWH(b.left + 18, b.bottom - 40, b.width - 36, 13);
-    canvas.drawRect(drain, Paint()..color = const Color(0xFF0A0D0A));
-    canvas.drawRect(
-      Rect.fromLTWH(drain.left, drain.top, drain.width, 1.6),
-      Paint()..color = const Color(0xFF2A3026).withValues(alpha: 0.7),
-    );
-    for (var x = drain.left + 12; x < drain.right; x += 26) {
+    // THE RUNNEL. Everything in a lazar house runs somewhere, and it is cut
+    // in the floor with a fall on it rather than ruled across the bottom of
+    // the room — the old drain was one straight strip in every single room,
+    // which is a stripe, not plumbing.
+    for (final r in g.runnels) {
+      canvas.drawRect(r, Paint()..color = const Color(0xFF090C09));
       canvas.drawRect(
-        Rect.fromLTWH(x, drain.top + 2, 3, drain.height - 4),
-        Paint()..color = const Color(0xFF232922).withValues(alpha: 0.85),
+        Rect.fromLTWH(r.left, r.top, r.width, 1.6),
+        Paint()..color = const Color(0xFF2A3026).withValues(alpha: 0.7),
+      );
+      // A wet, sour stain either side of it. This is a sick-house drain.
+      canvas.drawRect(
+        r.inflate(4),
+        Paint()..color = const Color(0xFF2C3A1C).withValues(alpha: 0.2),
       );
     }
+    for (final at in g.grates) {
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: 78, height: 48),
+        Paint()..color = const Color(0xFF20291A).withValues(alpha: 0.32),
+      );
+      final sump = Rect.fromCenter(center: at, width: 34, height: 26);
+      canvas.drawRect(sump, Paint()..color = const Color(0xFF070907));
+      for (var i = 0; i < 4; i++) {
+        canvas.drawRect(
+          Rect.fromLTWH(sump.left + 3 + i * 7.5, sump.top + 3, 3, sump.height - 6),
+          Paint()..color = _venomIron.withValues(alpha: 0.9),
+        );
+      }
+      canvas.drawRect(
+        sump,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = const Color(0xFF39412F).withValues(alpha: 0.7),
+      );
+    }
+  }
+
+  /// THE HOUSE ITSELF — what each room IS, over the ground every room shares.
+  ///
+  /// Before this the planet was flagstones with its puzzle fixtures floating
+  /// on them: no wall you could see the face of, no door set into anything,
+  /// no bed in a ward, no grave in a crypt. A quarantine monastery has to be
+  /// a BUILDING first and a board second, or the sacrifice at the middle of
+  /// it is a sacrifice of a rectangle.
+  void _renderMonasteryHouse(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
+    final g = _monasteryGround(room);
+    canvas.save();
+    canvas.clipRect(b);
+
+    _renderWallFoot(canvas, room, g);
+
+    // ── PIERS, and the arches they carry ──
+    //
+    // Drawn as a dark bay BEHIND each pair with a lit springing over it, so
+    // the arcade reads as something you can see through into the garth (or,
+    // underground, into the next vault) rather than as posts on a floor.
+    for (var i = 0; i < g.piers.length; i++) {
+      final p = g.piers[i];
+      if (i + 1 < g.piers.length && g.piers[i + 1].top == p.top) {
+        final n = g.piers[i + 1];
+        final bay = Rect.fromLTRB(p.right, p.top + 4, n.left, p.bottom);
+        // ONLY BETWEEN NEIGHBOURS. Two piers at the same height on OPPOSITE
+        // sides of a room are not an arcade bay, and treating them as one
+        // threw a 500px black bar across the top of the crypt — an arch
+        // wide enough to be a missing wall.
+        if (bay.width > 20 && bay.width < 170) {
+          // THE ARCH STANDS ON THE PIERS. Drawn as a free arc over a square
+          // hole it read as a croquet hoop hovering above the floor: the
+          // opening and its head have to be ONE shape, springing off the
+          // stone that carries it.
+          final head = Path()
+            ..moveTo(bay.left, bay.bottom)
+            ..lineTo(bay.left, bay.top)
+            ..arcToPoint(
+              Offset(bay.right, bay.top),
+              radius: Radius.circular(bay.width / 2),
+            )
+            ..lineTo(bay.right, bay.bottom)
+            ..close();
+          canvas.drawPath(head, Paint()..color = const Color(0xFF070A07));
+          canvas.drawPath(
+            head,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 2.6
+              ..color = const Color(0xFF2F362A).withValues(alpha: 0.85),
+          );
+        }
+      }
+      // A PLINTH, a shaft and a CAP. Without the base ring the free-standing
+      // piers in the crypt — which carry no arch, because the arena between
+      // them has to stay open — read as blank tablets propped on the floor.
+      // A column is three things stacked, and it needs all three to be one.
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(p.center.dx, p.bottom + 3),
+          width: p.width + 18,
+          height: 15,
+        ),
+        Paint()..color = const Color(0xFF1A1F17),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(p.center.dx, p.bottom + 6),
+          width: p.width + 18,
+          height: 12,
+        ),
+        Paint()..color = Colors.black.withValues(alpha: 0.4),
+      );
+      _stoneBlock(canvas, p, radius: 2);
+      // A chamfered cap: the one detail that stops a pier being a domino.
+      _stoneBlock(
+        canvas,
+        Rect.fromLTWH(p.left - 4, p.top - 7, p.width + 8, 9),
+        radius: 2,
+      );
+    }
+
+    // ── LEDGER SLABS ── the graves you walk over on the way to the fight.
+    //
+    // SUNK, not laid on. Drawn as a bright outlined panel they read as index
+    // cards dropped on the floor; what says "a stone set into the paving" is
+    // a dark reveal round the edge and a cut that is DARKER than the stone,
+    // because a chisel takes material away.
+    for (final l in g.ledgers) {
+      canvas.drawRect(
+        l.inflate(3),
+        Paint()..color = const Color(0xFF090C08).withValues(alpha: 0.8),
+      );
+      canvas.drawRect(l, Paint()..color = const Color(0xFF232920));
+      canvas.drawLine(
+        l.topLeft + const Offset(2, 1),
+        l.topRight + const Offset(-2, 1),
+        Paint()
+          ..strokeWidth = 1.2
+          ..color = const Color(0xFF39412F).withValues(alpha: 0.5),
+      );
+      // A cross cut into it, and a line of lettering nobody can read.
+      final c = l.center;
+      final p = Paint()
+        ..strokeWidth = 2.6
+        ..color = const Color(0xFF12160F).withValues(alpha: 0.85);
+      canvas.drawLine(c + const Offset(0, -13), c + const Offset(0, 13), p);
+      canvas.drawLine(c + const Offset(-9, -4), c + const Offset(9, -4), p);
+      canvas.drawLine(
+        Offset(l.left + 8, l.bottom - 8),
+        Offset(l.right - 8, l.bottom - 8),
+        Paint()
+          ..strokeWidth = 1.6
+          ..color = const Color(0xFF12160F).withValues(alpha: 0.6),
+      );
+    }
+
+    // ── BURIAL SLOTS ──
+    for (final s in g.loculi) {
+      _stoneBlock(canvas, s.rect.inflate(3), radius: 2);
+      canvas.drawRect(s.rect, Paint()..color = const Color(0xFF050705));
+      if (s.open) {
+        // A bundle in it, wrapped and tied — pale, so an open slot reads as
+        // occupied at a glance and a sealed one reads as shut.
+        final c = s.rect.center;
+        canvas.drawOval(
+          Rect.fromCenter(center: c, width: s.rect.width * 0.66, height: 11),
+          Paint()..color = const Color(0xFF6A6450).withValues(alpha: 0.6),
+        );
+        canvas.drawLine(
+          Offset(c.dx - 8, c.dy),
+          Offset(c.dx - 8, c.dy + 5),
+          Paint()
+            ..strokeWidth = 1.4
+            ..color = const Color(0xFF3A3628),
+        );
+      } else {
+        // Walled up, and scratched with a cross by whoever did the walling.
+        canvas.drawRect(
+          s.rect.deflate(2),
+          Paint()..color = const Color(0xFF1E241C),
+        );
+        final c = s.rect.center;
+        final p = Paint()
+          ..strokeWidth = 1.4
+          ..color = const Color(0xFF2E3628).withValues(alpha: 0.9);
+        canvas.drawLine(c + const Offset(0, -7), c + const Offset(0, 7), p);
+        canvas.drawLine(c + const Offset(-5, -2), c + const Offset(5, -2), p);
+      }
+    }
+
+    // ── THE LIME CROSS on the porch floor ──
+    final cross = g.cross;
+    if (cross != null) {
+      // NO OUTLINE. A crisp edge on it made the cross read as a decal laid
+      // over the room rather than as lime brushed onto stone — it is thin
+      // paint, scuffed back by every foot that has crossed the threshold.
+      canvas.drawPath(
+        cross,
+        Paint()..color = _venomBone.withValues(alpha: 0.10),
+      );
+      // Scuffed back off it by every foot that has crossed the threshold —
+      // a clean painted cross would read as decal rather than as paint.
+      for (final (at, r, a) in g.scuff) {
+        canvas.save();
+        canvas.translate(at.dx, at.dy);
+        canvas.rotate(a);
+        canvas.drawOval(
+          Rect.fromCenter(center: Offset.zero, width: r * 2, height: r * 0.8),
+          Paint()..color = const Color(0xFF141811).withValues(alpha: 0.5),
+        );
+        canvas.restore();
+      }
+    }
+
+    // ── THE HEARTH under the pot ──
+    final hearth = g.hearth;
+    if (hearth != null) {
+      canvas.drawCircle(
+        hearth,
+        88,
+        Paint()..color = const Color(0xFF120E0A).withValues(alpha: 0.42),
+      );
+      // Fire-brick, laid round rather than square, and burned unevenly.
+      for (var i = 0; i < 15; i++) {
+        final a = i / 15 * pi * 2 + 0.2;
+        canvas.save();
+        canvas.translate(
+          hearth.dx + cos(a) * 62,
+          hearth.dy + sin(a) * 44,
+        );
+        canvas.rotate(a + pi / 2);
+        canvas.drawRect(
+          Rect.fromCenter(center: Offset.zero, width: 24, height: 13),
+          Paint()
+            ..color = Color.lerp(
+              const Color(0xFF4A3225),
+              const Color(0xFF2A1E18),
+              (i * 7 % 11) / 11,
+            )!,
+        );
+        canvas.restore();
+      }
+      canvas.drawCircle(
+        hearth,
+        46,
+        Paint()..color = const Color(0xFF0B0906).withValues(alpha: 0.85),
+      );
+    }
+
+    // ── SPILLS ── everything that ever boiled over, still on the flags.
+    for (final (at, r, which) in g.spills) {
+      final col = switch (which) {
+        0 => _venomLive,
+        1 => _venomSick,
+        _ => const Color(0xFF6B5230),
+      };
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: r * 2.1, height: r * 1.3),
+        Paint()..color = col.withValues(alpha: 0.10),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: r * 1.2, height: r * 0.7),
+        Paint()..color = col.withValues(alpha: 0.13),
+      );
+    }
+
+    // ── SEEPS ── a vault under a ward is never dry.
+    for (final (at, r) in g.seeps) {
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: r * 2.2, height: r * 1.2),
+        Paint()..color = const Color(0xFF0A1410).withValues(alpha: 0.6),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: r * 2.2, height: r * 1.2),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..color = const Color(0xFF5C6A4A).withValues(alpha: 0.28),
+      );
+      // A ring of drips on the surface, so it reads as still being fed.
+      final k = (_time * 0.5 + at.dx * 0.01) % 1.0;
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: r * 2.0 * k, height: r * 1.1 * k),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..color = const Color(0xFF8FA37A).withValues(alpha: 0.16 * (1 - k)),
+      );
+    }
+
+    // ── FURNITURE ──
+    for (final (r, plank) in g.tables) {
+      _monTable(canvas, r, plank);
+    }
+    for (final c in g.cots) {
+      _monCot(canvas, c);
+    }
+    for (final (at, r) in g.casks) {
+      _monCask(canvas, at, r);
+    }
+    for (final (at, r) in g.boneHeaps) {
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: r * 2, height: r * 1.1),
+        Paint()..color = const Color(0xFF090C08).withValues(alpha: 0.55),
+      );
+    }
+    for (final (at, a, len) in g.bones) {
+      _monBone(canvas, at, a, len);
+    }
+    for (final (at, a, size) in g.leaves) {
+      canvas.save();
+      canvas.translate(at.dx, at.dy);
+      canvas.rotate(a);
+      canvas.drawRect(
+        Rect.fromCenter(center: Offset.zero, width: size, height: size * 1.3),
+        Paint()..color = const Color(0xFF9A9070).withValues(alpha: 0.3),
+      );
+      canvas.drawLine(
+        Offset(-size * 0.3, -size * 0.2),
+        Offset(size * 0.3, -size * 0.2),
+        Paint()
+          ..strokeWidth = 0.8
+          ..color = const Color(0xFF2A2618).withValues(alpha: 0.5),
+      );
+      canvas.restore();
+    }
+    // ── BEDDING, ROLLED AND STACKED AT THE WALL ──
+    //
+    // What a house does with a pallet somebody died on. Drawn as an oval
+    // with a stripe these read as coffee beans, and with a corner of cloth
+    // sticking out of them as acorns; what they actually are is a roll, so
+    // they are drawn as one — straight sides, a corded middle, and the straw
+    // showing at both cut ends.
+    for (final (at, a, size) in g.strewn) {
+      canvas.save();
+      canvas.translate(at.dx, at.dy);
+      canvas.rotate(a);
+      final roll = Rect.fromCenter(
+        center: Offset.zero,
+        width: size * 2.4,
+        height: size * 1.1,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(roll, Radius.circular(size * 0.5)),
+        Paint()..color = const Color(0xFF39331F),
+      );
+      for (final end in [-1.0, 1.0]) {
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(end * size * 1.1, 0),
+            width: size * 0.5,
+            height: size * 1.0,
+          ),
+          Paint()..color = const Color(0xFF6E6242).withValues(alpha: 0.55),
+        );
+      }
+      canvas.drawLine(
+        Offset(0, -size * 0.6),
+        Offset(0, size * 0.6),
+        Paint()
+          ..strokeWidth = 1.5
+          ..color = const Color(0xFF16130C),
+      );
+      canvas.restore();
+    }
+
+    // ── THE BELL-ROPE ── it comes down through the vault and is cleated off
+    // at the wall, where a brother could reach it without leaving the sick.
+    final bell = g.bell;
+    if (bell != null) {
+      final sway = sin(_time * 0.7) * 3.5;
+      canvas.drawLine(
+        bell,
+        Offset(bell.dx + sway, bell.dy + 128),
+        Paint()
+          ..strokeWidth = 3
+          ..color = const Color(0xFF6A6047).withValues(alpha: 0.8),
+      );
+      canvas.drawCircle(
+        Offset(bell.dx + sway, bell.dy + 134),
+        6,
+        Paint()..color = const Color(0xFF7D7150).withValues(alpha: 0.85),
+      );
+      _stoneBlock(
+        canvas,
+        Rect.fromCenter(center: bell, width: 42, height: 16),
+        radius: 3,
+      );
+    }
+
+    // ── THE LAMPS' IRONWORK ── the flame itself is drawn after the gloom.
+    for (final (at, _) in g.lamps) {
+      canvas.drawLine(
+        at + const Offset(0, -26),
+        at,
+        Paint()
+          ..strokeWidth = 2
+          ..color = _venomIron,
+      );
+      canvas.drawArc(
+        Rect.fromCenter(center: at, width: 22, height: 16),
+        0,
+        pi,
+        true,
+        Paint()..color = _venomBronze,
+      );
+    }
+
+    canvas.restore();
+  }
+
+  /// THE WALL FOOT. The inner face of the enclosure: lime-washed to about
+  /// the height of a man and filthy below it, with the ward doors set back
+  /// into arched bays and the wax that sealed them run down onto the floor.
+  ///
+  /// One strip of this does more for "you are indoors" than any amount of
+  /// furniture, because it is the only thing in the room that has a FACE —
+  /// everything else is seen from above.
+  void _renderWallFoot(Canvas canvas, DungeonRoom room, _MonasteryGround g) {
+    final b = room.bounds;
+    const head = 44.0;
+    canvas.drawRect(
+      Rect.fromLTWH(b.left, b.top, b.width, head),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          b.topLeft,
+          b.topLeft + const Offset(0, head),
+          [const Color(0xFF232A20), const Color(0xFF13180F)],
+        ),
+    );
+    // The lime line, where the wash stops. Grubby, and never level, because
+    // it was put on with a brush from a plank.
+    final wash = Path()..moveTo(b.left, b.top + head);
+    for (var x = b.left; x <= b.right; x += 46) {
+      wash.lineTo(x, b.top + head + sin(x * 0.031) * 2.4);
+    }
+    canvas.drawPath(
+      wash,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.6
+        ..color = _venomBone.withValues(alpha: 0.13),
+    );
+    // A thinner skirt along the other three walls, so the room is enclosed
+    // on every side rather than fronted on one.
+    final skirt = Paint()..color = const Color(0xFF161B13).withValues(alpha: 0.7);
+    canvas.drawRect(Rect.fromLTWH(b.left, b.top, 16, b.height), skirt);
+    canvas.drawRect(Rect.fromLTWH(b.right - 16, b.top, 16, b.height), skirt);
+    canvas.drawRect(Rect.fromLTWH(b.left, b.bottom - 16, b.width, 16), skirt);
+
+    // Consecration crosses, cut into the wash and painted over a dozen times.
+    for (final m in g.marks) {
+      final p = Paint()
+        ..strokeWidth = 1.6
+        ..color = _venomBone.withValues(alpha: 0.17);
+      canvas.drawLine(m + const Offset(0, -8), m + const Offset(0, 8), p);
+      canvas.drawLine(m + const Offset(-8, 0), m + const Offset(8, 0), p);
+      canvas.drawCircle(
+        m,
+        10,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = _venomBone.withValues(alpha: 0.11),
+      );
+    }
+
+    // ── THE BAYS ── each ward door set back in a round-headed recess.
+    for (final bay in g.bays) {
+      _stoneBlock(canvas, bay.inflate(4), radius: 4);
+      final mouth = Path()
+        ..moveTo(bay.left + 12, bay.bottom)
+        ..lineTo(bay.left + 12, bay.top + bay.width * 0.30)
+        ..arcToPoint(
+          Offset(bay.right - 12, bay.top + bay.width * 0.30),
+          radius: Radius.circular(bay.width * 0.42),
+        )
+        ..lineTo(bay.right - 12, bay.bottom)
+        ..close();
+      canvas.drawPath(mouth, Paint()..color = const Color(0xFF050705));
+      canvas.drawPath(
+        mouth,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2
+          ..color = const Color(0xFF333B2C).withValues(alpha: 0.9),
+      );
+      // The lintel plaque: the ward's name, cut and unreadable from here.
+      final plaque = Rect.fromLTWH(bay.center.dx - 30, bay.bottom + 3, 60, 11);
+      _stoneBlock(canvas, plaque, radius: 2);
+      canvas.drawLine(
+        Offset(plaque.left + 6, plaque.center.dy),
+        Offset(plaque.right - 6, plaque.center.dy),
+        Paint()
+          ..strokeWidth = 1.6
+          ..color = _venomBone.withValues(alpha: 0.2),
+      );
+    }
+    // WAX RUNS. Every seal in this cloister was poured hot down the jamb,
+    // and it is still there — the tell that these are not doors, they are
+    // doors that were CLOSED against something.
+    for (final (at, len) in g.wax) {
+      // Thickness off length: a long run is one that carried more wax. Fixed
+      // at three pixels each they came out as a barcode beside the door.
+      final w = 2.2 + len * 0.05;
+      canvas.drawPath(
+        Path()
+          ..moveTo(at.dx - w, at.dy)
+          ..lineTo(at.dx + w, at.dy)
+          ..lineTo(at.dx + w * 0.7, at.dy + len)
+          ..arcToPoint(
+            Offset(at.dx - w * 0.7, at.dy + len),
+            radius: Radius.circular(w * 0.8),
+          )
+          ..close(),
+        Paint()..color = const Color(0xFF7A6A3E).withValues(alpha: 0.45),
+      );
+      canvas.drawCircle(
+        Offset(at.dx, at.dy + len),
+        w * 0.95,
+        Paint()..color = const Color(0xFF8C7A48).withValues(alpha: 0.5),
+      );
+    }
+  }
+
+  /// A SICKBED: iron frame, straw pallet, and a sheet on the ones that are
+  /// still made up. Never square to the wall — a ward that had a bed epidemic
+  /// in it did not keep its beds in a line.
+  void _monCot(Canvas canvas, _MonCot c) {
+    canvas.save();
+    canvas.translate(c.at.dx, c.at.dy);
+    canvas.rotate(c.angle + (c.tipped ? 0.5 : 0));
+    const w = 64.0, h = 30.0;
+    final body = Rect.fromCenter(center: Offset.zero, width: w, height: h);
+    canvas.drawRect(
+      body.translate(3, 4),
+      Paint()..color = Colors.black.withValues(alpha: 0.35),
+    );
+    // The frame.
+    canvas.drawRect(
+      body,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = _venomIron,
+    );
+    if (c.tipped) {
+      // Gone over. Two legs in the air is all it takes to say "something
+      // happened in this room".
+      canvas.drawLine(
+        Offset(-w / 2, -h / 2),
+        Offset(-w / 2 - 12, -h / 2 - 9),
+        Paint()
+          ..strokeWidth = 3
+          ..color = _venomIron,
+      );
+      canvas.drawLine(
+        Offset(w / 2, -h / 2),
+        Offset(w / 2 + 12, -h / 2 - 9),
+        Paint()
+          ..strokeWidth = 3
+          ..color = _venomIron,
+      );
+    } else if (c.stripped) {
+      // Stripped to the webbing. LENGTHWISE — rungs across the short way
+      // made every empty cot on the planet read as a fallen ladder, which is
+      // what three of them leaning at the lazar gate actually looked like.
+      for (var i = -1; i <= 1; i++) {
+        canvas.drawLine(
+          Offset(-w / 2 + 3, i * 8.0),
+          Offset(w / 2 - 3, i * 8.0),
+          Paint()
+            ..strokeWidth = 1.6
+            ..color = const Color(0xFF4A4536).withValues(alpha: 0.8),
+        );
+      }
+      // CARRYING POLES out past both ends. A bare frame is a frame; a frame
+      // with handles is the thing two brothers picked somebody up on, and
+      // that is what is stacked at a lazar gate.
+      for (final s in const [-1.0, 1.0]) {
+        for (final o in const [-9.0, 9.0]) {
+          canvas.drawLine(
+            Offset(s * (w / 2 - 4), o),
+            Offset(s * (w / 2 + 13), o),
+            Paint()
+              ..strokeWidth = 2.6
+              ..strokeCap = StrokeCap.round
+              ..color = const Color(0xFF4B4130),
+          );
+        }
+      }
+    } else {
+      canvas.drawRect(
+        body.deflate(3),
+        Paint()..color = const Color(0xFF6B6042).withValues(alpha: 0.55),
+      );
+      // The sheet, thrown back off whoever was under it.
+      canvas.drawPath(
+        Path()
+          ..moveTo(-w / 2 + 4, -h / 2 + 4)
+          ..lineTo(6, -h / 2 + 3)
+          ..lineTo(2, h / 2 - 4)
+          ..lineTo(-w / 2 + 4, h / 2 - 4)
+          ..close(),
+        Paint()..color = _venomBone.withValues(alpha: 0.22),
+      );
+      // A bolster at the head. One pale lozenge is the whole difference
+      // between a bed and a crate.
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(-w / 2 + 10, 0),
+          width: 13,
+          height: h - 9,
+        ),
+        Paint()..color = _venomBone.withValues(alpha: 0.3),
+      );
+    }
+    // The head-board, so a cot has an end you would put a face at.
+    canvas.drawRect(
+      Rect.fromLTWH(-w / 2 - 5, -h / 2 - 3, 5, h + 6),
+      Paint()..color = _venomIron,
+    );
+    canvas.restore();
+  }
+
+  /// A TRESTLE or a stone bench, seen from above with its legs showing past
+  /// the top — the cheapest way to say "this thing stands up".
+  void _monTable(Canvas canvas, Rect r, bool plank) {
+    canvas.drawRect(
+      r.translate(3, 5),
+      Paint()..color = Colors.black.withValues(alpha: 0.35),
+    );
+    if (plank) {
+      canvas.drawRect(r, Paint()..color = const Color(0xFF473A26));
+      for (var x = r.left + 6; x < r.right - 4; x += 13) {
+        canvas.drawLine(
+          Offset(x, r.top + 1),
+          Offset(x, r.bottom - 1),
+          Paint()
+            ..strokeWidth = 1
+            ..color = const Color(0xFF2B2317).withValues(alpha: 0.7),
+        );
+      }
+      canvas.drawRect(
+        Rect.fromLTWH(r.left, r.top, r.width, 2),
+        Paint()..color = const Color(0xFF60502F).withValues(alpha: 0.8),
+      );
+      for (final x in [r.left + 8, r.right - 12]) {
+        canvas.drawRect(
+          Rect.fromLTWH(x, r.bottom, 5, 9),
+          Paint()..color = const Color(0xFF2B2317),
+        );
+      }
+    } else {
+      _stoneBlock(canvas, r, radius: 2);
+    }
+  }
+
+  /// A CASK of lime, hooped, and never standing quite upright.
+  void _monCask(Canvas canvas, Offset at, double r) {
+    canvas.drawOval(
+      Rect.fromCenter(center: at.translate(3, 5), width: r * 2.1, height: r * 1.5),
+      Paint()..color = Colors.black.withValues(alpha: 0.35),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at, width: r * 2, height: r * 1.5),
+      Paint()..color = const Color(0xFF3F3423),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at, width: r * 1.5, height: r * 1.05),
+      Paint()..color = _venomBone.withValues(alpha: 0.16),
+    );
+    canvas.drawOval(
+      Rect.fromCenter(center: at, width: r * 2, height: r * 1.5),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = const Color(0xFF5E4E33),
+    );
+  }
+
+  /// A LONG BONE. Two knuckles and a shaft: enough, at this size, and it is
+  /// what makes a charnel read as a charnel instead of as a store room.
+  void _monBone(Canvas canvas, Offset at, double a, double len) {
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    canvas.rotate(a);
+    final p = Paint()..color = const Color(0xFF7A7159).withValues(alpha: 0.5);
+    canvas.drawRect(
+      Rect.fromCenter(center: Offset.zero, width: len, height: 3.2),
+      p,
+    );
+    canvas.drawCircle(Offset(-len / 2, 0), 2.8, p);
+    canvas.drawCircle(Offset(len / 2, 0), 2.8, p);
+    canvas.restore();
+  }
+
+  /// THE LAMPS, drawn AFTER the gloom for the same reason the seal burst is:
+  /// a light source painted underneath a darkness is not a light source.
+  ///
+  /// A lazar house is lit by whatever somebody carried in and by the cressets
+  /// the brothers kept burning at the stations — and without them the gloom
+  /// ate every wall this pass built, which is the fault that made the old
+  /// rooms read as black boxes with three props in them.
+  void _renderLazarLamps(Canvas canvas, DungeonRoom room) {
+    final g = _monasteryGround(room);
+    if (g.lamps.isEmpty) return;
+    canvas.save();
+    canvas.clipRect(room.bounds);
+    for (final (at, reach) in g.lamps) {
+      final gutter = 0.86 + 0.14 * sin(_time * 6.1 + at.dx * 0.07);
+      canvas.drawCircle(
+        at,
+        reach * gutter,
+        Paint()
+          ..shader = ui.Gradient.radial(at, reach * gutter, [
+            const Color(0xFFE8C070).withValues(alpha: 0.13),
+            const Color(0xFFB08A3C).withValues(alpha: 0.05),
+            const Color(0x00000000),
+          ], const [0.0, 0.45, 1.0]),
+      );
+      // The flame itself: small, and the only warm thing on the planet.
+      canvas.drawCircle(
+        at + const Offset(0, -3),
+        3.4 * gutter,
+        Paint()..color = const Color(0xFFF7D890).withValues(alpha: 0.85),
+      );
+    }
+    canvas.restore();
   }
 
   void _renderStrains(Canvas canvas, DungeonRoom room) {
