@@ -264,12 +264,18 @@ void main() {
 
   group('objectives state WHAT, never HOW (the solution-leak rule)', () {
     test(
-      'entering twin_conduit hands over nothing, because it says nothing',
+      'entering twin_conduit names the room without handing over the method',
       () {
-        // WAS: the objective line named the goal without leaking the method.
-        // Objectives no longer speak at all, which settles the solution-leak
-        // question by removing the sentence it was about. What is pinned now is
-        // the stronger property: arriving is silent.
+        // THE SOLUTION-LEAK RULE, restored to the sentence it is about.
+        // For a while this pinned SILENCE instead, which settled the leak
+        // question by deleting the line — and cost the player any idea of
+        // where a door had put them. The line is back (§5.6: OBJECTIVE is
+        // the room-entry channel), so the rule it was written for applies
+        // again: an objective may state the goal and must never state the
+        // method. Air's twin_conduit is the room the rule was written for —
+        // it used to read "channel A with Lightning; arc B with Fire through
+        // the wind, or Lightning's own touch", the complete answer, free, at
+        // the door.
         final game = _buildGame();
         game.currentRoomId = 'storm_rune_hall';
         final door = game.currentRoom.doors.firstWhere(
@@ -279,7 +285,15 @@ void main() {
         _step(game, 0.2);
 
         expect(game.currentRoomId, 'twin_conduit');
-        expect(game.hintText, isNull);
+        expect(game.hintText, isNotNull);
+        final line = game.hintText!.toLowerCase();
+        for (final leak in ['lightning', 'fire', 'channel a', 'arc b']) {
+          expect(
+            line,
+            isNot(contains(leak)),
+            reason: 'the arrival line leaked the method: "\${game.hintText}"',
+          );
+        }
       },
     );
 

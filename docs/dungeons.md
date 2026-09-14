@@ -391,6 +391,45 @@ which is the shape all four shared. The guardian rooms keep a written
 exemption — "face X: calm it, or strike in its lulls" is a fight's rules, not
 a puzzle's answer, and it is deliberately identical on every planet.
 
+### ARRIVING IS NOT NARRATING (2026-09-14)
+
+At some point the OBJECTIVE channel stopped speaking. The "dungeon does not
+narrate" rule — written against 382 world-response lines that answered every
+tap — installed an unasked-for gate, and the room-entry line went through it
+with them; three tests were then written to pin the silence, on the reasoning
+that *crossing a threshold is not an event worth narrating.*
+
+Played, that reads as disorientation: **"sometimes I walk through doors and
+it's not intuitive where I am — it shouldn't be a secret when walking
+through."** §5.6 had it right the first time. A room naming itself as you
+enter is a LABEL, not a lesson, and it is the one thing the capsule should
+always say.
+
+Two separate causes, because the fix needed both:
+
+  · **The line was gated.** `_announceRoomEntry` goes through the unasked
+    gate now. Everything else stays behind it — a refusal is still remembered
+    rather than spoken, ambience is still dropped, insight is still Mask's to
+    give — and a live BLOCKED or INSIGHT line still outranks an arrival, so
+    walking in mid-read does not stomp the read.
+  · **124 of the 169 rooms had no name.** `kDungeonRoomLabels` covered 45,
+    so the minimap caption was blank for three quarters of the game as well.
+    Every room is named now, and the arrival line FALLS BACK to that label
+    when a room has no goal — a connective room has an identity even when it
+    wants nothing. The chart and the capsule deliberately read from the same
+    table, so one place never has two vocabularies.
+
+**What survives from the silent era is the part that was always the point:**
+an objective line may state WHAT and never HOW. The solution-leak rule is
+pinned again on the room it was written for (Air's twin conduit, which once
+read out the complete answer at the door), and `dungeon_arrival_names_test`
+walks every door of every planet and fails any arrival that says nothing.
+
+**Known wart:** `kDungeonRoomLabels` is keyed by room id ALONE, so two
+planets sharing an id share a caption. `mirror_gallery` is the only collision
+today and both really are mirror galleries; a future planet that reuses an id
+will silently inherit its name.
+
 ### THE CAPSULE CARRIES NARRATIVE ONLY — four prioritized channels
 
 Everything that is *state* rather than *speech* leaves the capsule entirely

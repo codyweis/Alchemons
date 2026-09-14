@@ -786,19 +786,21 @@ void main() {
       expect(game.hintText, isNot(contains('1/4')));
     });
 
-    test('walking in says nothing; the reading is asked for, and tiered', () {
-      // WAS: "the objective states the GOAL". Entering a room no longer
-      // announces anything at all — the dungeon does not narrate, and the
-      // capsule speaks only when the player presses HINT. What survives from
-      // the old contract is the part that matters: the reading narrows the
-      // method by Intelligence without ever naming the answer.
+    test('walking in names the room; the reading is asked for, and tiered', () {
+      // This asserted SILENCE on arrival for a while. Played, that reads as
+      // disorientation — a player cannot tell where a door put them — so the
+      // room names itself again (§5.6: OBJECTIVE is the room-entry channel).
+      // What survives from the silent era is the part that always mattered:
+      // the reading narrows the METHOD by Intelligence, and the arrival line
+      // never names the answer.
       final game = _harness(_trio());
       _walkIntoGaleEye(game);
       expect(
         game.hintText,
-        isNull,
-        reason: 'arriving in a room is not a reason to speak',
+        isNotNull,
+        reason: 'arriving in a room has to say which room',
       );
+      expect(game.hintChannel, DungeonHintChannel.objective);
 
       game.askForRoomHint();
       expect(game.hintChannel, DungeonHintChannel.insight);

@@ -24,6 +24,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/shared/companion_stance.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/planet_dungeon/burn_field.dart';
+import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_mud.dart';
@@ -2429,6 +2430,34 @@ class PlanetDungeonGame extends FlameGame {
   /// Room-entry goal line — WHAT, never HOW.
   void _setObjectiveHint(String msg, [double ttl = 4.5]) =>
       _emitHint(msg, DungeonHintChannel.objective, ttl);
+
+  /// WALKING INTO A ROOM IS NOT NARRATION.
+  ///
+  /// §5.6 specifies the OBJECTIVE channel as "on room entry, one line, WHAT
+  /// not HOW" — and it had stopped appearing entirely. The "dungeon does not
+  /// narrate" rule was aimed at 382 world-response lines that answered every
+  /// tap, and the unasked-for gate it installed swallowed the room-entry line
+  /// with them. So for a long time the only way to learn where you had just
+  /// walked was to press HINT, and the player's report is exactly what you
+  /// would predict: *"sometimes I walk through doors and it's not intuitive
+  /// where I am — it shouldn't be a secret when walking through."*
+  ///
+  /// Arriving somewhere new is the one moment a room has something to say
+  /// that is not an answer to anything. It is a label, not a lesson, and it
+  /// goes through the unasked gate. Everything else stays behind it: a
+  /// refusal is still remembered rather than spoken, ambience is still
+  /// dropped, and insight is still Mask's to give.
+  void _announceRoomEntry(String msg, [double ttl = 4.5]) {
+    // A live refusal or reading still outranks it — you may have walked in
+    // mid-read — but nothing lower can stop a new room naming itself.
+    final live = hintText != null && _hintTtl > 0;
+    if (live && DungeonHintChannel.objective.priority < hintChannel.priority) {
+      return;
+    }
+    hintText = msg;
+    hintChannel = DungeonHintChannel.objective;
+    _hintTtl = ttl;
+  }
 
   /// Run [body] with every hint it emits tagged [channel]. Used to make the
   /// whole Mask-insight call tree (`_doReveal` + the five per-planet
@@ -8990,10 +9019,17 @@ class PlanetDungeonGame extends FlameGame {
     // attempt edge that referred to its objects) is void, so the entry
     // objective is never swallowed by a refusal you already walked away from.
     _clearHints();
-    // The objective line is dropped unasked-for (§ the dungeon does not
-    // narrate) — kept as the call so a HINT press still has it to say.
-    final hint = _roomObjectiveHint(currentRoomId);
-    if (hint != null) _setObjectiveHint(hint);
+    // The room names itself as you arrive (§5.6: OBJECTIVE is the room-entry
+    // channel). This used to be dropped, which made every doorway a guess.
+    //
+    // A room with no GOAL still has an IDENTITY, and the second is what the
+    // player actually asked for: walking through a door should never be a
+    // secret. Connective rooms — Mud's hag knoll, Blood's arterial run,
+    // Crystal's nine cells, every manifold and causeway and stair — have
+    // nothing to want and used to arrive in silence. They say where you are.
+    final hint =
+        _roomObjectiveHint(currentRoomId) ?? _roomIdentityLine(currentRoomId);
+    if (hint != null) _announceRoomEntry(hint);
     _teachRoom(currentRoom);
     _maybeSpawnGuardianCombat(currentRoom);
     onChanged();
@@ -9222,6 +9258,24 @@ class PlanetDungeonGame extends FlameGame {
   /// Test seam for the objective-line audit.
   @visibleForTesting
   String? debugObjectiveHint(String roomId) => _roomObjectiveHint(roomId);
+
+  /// What a room IS, when it does not want anything — the minimap's own name
+  /// for it, said as a line. Deliberately the same source as the map caption,
+  /// so the words on arrival and the words on the chart are never two
+  /// different vocabularies for one place.
+  String? _roomIdentityLine(String roomId) {
+    final label = kDungeonRoomLabels[roomId];
+    if (label == null) return null;
+    final pretty = label
+        .split(' ')
+        .map(
+          (w) => w.isEmpty
+              ? w
+              : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+    return 'The $pretty';
+  }
 
   String? _roomObjectiveHint(String roomId) {
     final room = layout.rooms[roomId];

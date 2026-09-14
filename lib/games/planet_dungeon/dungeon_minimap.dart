@@ -16,6 +16,13 @@ import 'package:flutter/material.dart';
 /// Short display labels per room — shared by the full map nodes and the
 /// minimap caption.
 const Map<String, String> kDungeonRoomLabels = {
+  // EVERY ROOM IS NAMED. 124 of the 169 rooms had no label at all, so the
+  // minimap caption was blank for three quarters of the game — which is half
+  // of why a player reported walking through a door and not knowing where
+  // they were. The other half was the room-entry line, which had stopped
+  // appearing (see `_announceRoomEntry`). A room's label is its IDENTITY and
+  // is always available; its objective line is its GOAL and only exists when
+  // the room has one.
   // Earth — The Buried Giant.
   'barrow_gate': 'BARROW',
   'sternum_court': 'STERNUM',
@@ -65,6 +72,147 @@ const Map<String, String> kDungeonRoomLabels = {
   'twin_conduit': 'CONDUITS',
   'storm_altar': 'ALTAR',
   'guardian_summit': 'GUARDIAN',
+  // Lightning — Storm Circuit.
+  'arc_gate': 'ARC GATE',
+  'dynamo_court': 'DYNAMO',
+  'pylon_hall': 'PYLONS',
+  'capacitor_vault': 'VAULT',
+  'cloud_works': 'CLOUD WORKS',
+  'overload_maze': 'OVERLOAD',
+  'storm_core': 'CORE',
+  // Steam — Molten Labyrinth.
+  'boiler_gate': 'BOILER GATE',
+  'manifold_south': 'S MANIFOLD',
+  'ember_causeway': 'CAUSEWAY',
+  'cinder_forge': 'FORGE',
+  'manifold_north': 'N MANIFOLD',
+  'scald_cellar': 'CELLAR',
+  'crucible': 'CRUCIBLE',
+  'burst_vault': 'BURST VAULT',
+  'boiler_heart': 'HEART',
+  // Lava — Molten Reliquary.
+  'tap_head': 'TAP HEAD',
+  'switch_yard': 'SWITCH YARD',
+  'chill_house': 'CHILL HOUSE',
+  'stamp_mill': 'STAMP MILL',
+  'mold_floor': 'MOULD FLOOR',
+  'slag_reliquary': 'SLAG VAULT',
+  'pour_heart': 'POUR HEART',
+  // Poison — Venom Monastery.
+  'lazar_gate': 'LAZAR GATE',
+  'ambulatory': 'AMBULATORY',
+  'apothecary': 'APOTHECARY',
+  'ward_bell': 'BELL WARD',
+  'ward_scriptorium': 'SCRIPTORIUM',
+  'ward_refectory': 'REFECTORY',
+  'ward_charnel': 'CHARNEL',
+  'lazar_crypt': 'CRYPT',
+  // Ice — Frozen Observatory.
+  // NOTE: this map is keyed by ROOM ID ALONE, so two planets that use the
+  // same id share one label. `mirror_gallery` is the only such collision
+  // today — Lightning's and Ice's are both mirror galleries, so one name
+  // serves — but a future planet reusing an existing id will silently
+  // inherit its caption.
+  'mirror_gallery': 'MIRRORS',
+  'rime_head': 'RIME HEAD',
+  'shelf_glass': 'GLASS SHELF',
+  'shelf_lens': 'LENS SHELF',
+  'orrery_floor': 'ORRERY',
+  'cold_sump': 'SUMP',
+  'star_font': 'STAR FONT',
+  'frowyrm_hollow': 'HOLLOW',
+  // Mud — The Sinking Altar.
+  'mire_gate': 'MIRE GATE',
+  'hag_knoll': 'HAG KNOLL',
+  'reed_knoll': 'REED KNOLL',
+  'altar_knoll': 'THE ALTAR',
+  'sedge_knoll': 'SEDGE KNOLL',
+  'cairn_knoll': 'CAIRN KNOLL',
+  'lotus_knoll': 'LOTUS KNOLL',
+  'sunken_lotus': 'SUNKEN LOTUS',
+  'drowned_fane': 'DROWNED FANE',
+  'bogdrya_hollow': 'HOLLOW',
+  // Dust — Ruins of Time.
+  'ashen_gate': 'ASHEN GATE',
+  'seal_street': 'SEAL STREET',
+  'roof_walk': 'ROOF WALK',
+  'high_terrace': 'TERRACE',
+  'sand_court': 'SAND COURT',
+  'windcatch': 'WINDCATCH',
+  'undercity': 'UNDERCITY',
+  'granary': 'GRANARY',
+  'observatory': 'OBSERVATORY',
+  'kiln_cellar': 'KILN',
+  'sunken_house': 'SUNKEN HOUSE',
+  'ashdjinn_hollow': 'HOLLOW',
+  // Crystal — Prism Labyrinth.
+  'facet_gate': 'FACET GATE',
+  'keep_nw': 'NW CELL',
+  'keep_n': 'N CELL',
+  'keep_ne': 'NE CELL',
+  'keep_w': 'W CELL',
+  'keep_core': 'CORE',
+  'keep_e': 'E CELL',
+  'keep_sw': 'SW CELL',
+  'keep_s': 'S CELL',
+  'keep_se': 'SE CELL',
+  'tuning_hall': 'TUNING HALL',
+  'prismalith_choir': 'CHOIR',
+  // Plant — Verdant Crypt.
+  'root_porch': 'ROOT PORCH',
+  'mosswalk': 'MOSSWALK',
+  'fern_gallery': 'FERNS',
+  'pollen_stair': 'POLLEN STAIR',
+  'crypt_niche': 'NICHE',
+  'lantern_court': 'LANTERNS',
+  'islet': 'ISLET',
+  'gourd_hollow': 'GOURD',
+  'bloom_hall': 'BLOOM HALL',
+  'botanica_heart': 'HEART',
+  // Spirit — The Echo Grave.
+  'lych_gate': 'LYCH GATE',
+  'barrow_urn': 'URN BARROW',
+  'barrow_bell': 'BELL BARROW',
+  'barrow_veil': 'VEIL BARROW',
+  'barrow_mere': 'MERE BARROW',
+  'barrow_cairn': 'CAIRN BARROW',
+  'barrow_ash': 'ASH BARROW',
+  'barrow_watch': 'WATCH BARROW',
+  'hollow_grave': 'HOLLOW GRAVE',
+  'mourners_walk': 'MOURNERS',
+  'wraithord_grave': 'THE GRAVE',
+  // Dark — Eclipse Vault.
+  'pall_porch': 'PALL PORCH',
+  'analemma_court': 'ANALEMMA',
+  'shade_gallery': 'SHADE GALLERY',
+  'penumbral_walk': 'PENUMBRA',
+  'gnomon_stair': 'GNOMON STAIR',
+  'ossuary_ring': 'OSSUARY',
+  'abyssal_font': 'FONT',
+  'umbral_reliquary': 'UMBRAL VAULT',
+  'eclipse_nave': 'NAVE',
+  'noctryos_totality': 'TOTALITY',
+  // Light — Beacon Archive.
+  'lumen_threshold': 'THRESHOLD',
+  'shadow_court': 'SHADOW COURT',
+  'moth_gallery': 'MOTH GALLERY',
+  'dark_stacks': 'DARK STACKS',
+  'catalogue_walk': 'CATALOGUE',
+  'oculus_stair': 'OCULUS STAIR',
+  'sunless_reliquary': 'SUNLESS VAULT',
+  'reading_floor': 'READING FLOOR',
+  'solarin_oculus': 'THE OCULUS',
+  // Blood — Hemavorn.
+  'pericard_gate': 'PERICARD GATE',
+  'arterial_run': 'ARTERIAL RUN',
+  'aortic_arch': 'AORTIC ARCH',
+  'vena_crossing': 'VENA CROSSING',
+  'pulmonic_stair': 'PULMONIC STAIR',
+  'capillary_weave': 'CAPILLARIES',
+  'atrial_gallery': 'ATRIUM',
+  'myocardium': 'MYOCARDIUM',
+  'auricle_reliquary': 'AURICLE VAULT',
+  'sanguorath_systole': 'SYSTOLE',
 };
 
 const Size _fullMapCanvasSize = Size(880, 980);

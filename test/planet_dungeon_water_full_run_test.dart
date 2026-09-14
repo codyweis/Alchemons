@@ -1045,7 +1045,7 @@ void main() {
     expect(game.progressReadout?.value, 'AGROUND');
   });
 
-  test('walking through a doorway says nothing at all', () {
+  test('walking through a doorway NAMES THE ROOM, and no more', () {
     final game = _harness([_member(0, 'Water', 'pip')]);
     game.currentRoomId = 'drowned_court';
     final door = game.currentRoom.doors.firstWhere(
@@ -1056,17 +1056,28 @@ void main() {
       game.update(1 / 60);
     }
     expect(game.currentRoomId, 'ghost_gallery');
-    // WAS: the doorway announced the room's goal. It no longer announces
-    // anything — arriving somewhere is not a reason to speak, and the old
-    // no-method rule it enforced is moot once the line does not exist.
+    // THIS PINNED THE SILENCE, AND THE SILENCE WAS WRONG. For a while
+    // arriving announced nothing at all, on the reasoning that crossing a
+    // threshold is not an event worth narrating. Played, it reads as
+    // disorientation: *"sometimes I walk through doors and it's not
+    // intuitive where I am — it shouldn't be a secret when walking
+    // through."* §5.6 had it right the first time: OBJECTIVE is the
+    // room-entry channel.
+    //
+    // What survives from the silent era is the part that was always the
+    // real point — the line may name WHAT, never HOW.
     expect(
       game.hintText,
-      isNull,
-      reason: 'crossing a threshold is not an event worth narrating',
+      isNotNull,
+      reason: 'arriving somewhere new has to say where you are',
     );
-    // What the room holds is still available — the player asks for it. Note
-    // the reading IS allowed to teach method (§5.6 always let insight do
-    // that); the no-leak rule belonged to the objective line, which is gone.
+    expect(game.hintChannel, DungeonHintChannel.objective);
+    expect(
+      game.hintText!.toLowerCase(),
+      isNot(anyOf(contains('use '), contains('then '), contains('press '))),
+      reason: 'an arrival names the room; it does not hand over the method',
+    );
+    // And the method is still Mask's to give, when it is asked for.
     game.askForRoomHint();
     expect(game.hintText, isNotNull);
     expect(game.hintChannel, DungeonHintChannel.insight);
