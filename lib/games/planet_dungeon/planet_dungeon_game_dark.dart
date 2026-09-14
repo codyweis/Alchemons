@@ -1096,48 +1096,217 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     _renderVaultWipe(canvas, room);
   }
 
-  /// The change of substance. Cheap by construction: a fixed handful of
-  /// strokes derived from the room's own bounds, no allocation per frame
-  /// beyond the paints, and nothing that scales with the party or the enemies.
+  /// The change of substance, drawn over a REAL PLACE.
+  ///
+  /// This used to be the whole ground: a flat tint plus four evenly spaced
+  /// ribs in the dark state and a 5×4 lattice in the light one. It scored well
+  /// on edge-pixels — a regular lattice is nothing but edges — and it was
+  /// graph paper. Nythralor is a buried vault whose entire subject matter is
+  /// *things that cast and the floor they fall on*, and it had neither.
+  ///
+  /// What is here now is an ashlar floor with a colonnade, pierced screens,
+  /// lamp brackets, loculi and fallen shafts standing in the margins, and the
+  /// HARD-EDGED SHADOW each of them throws from the room's own light. The
+  /// geometry is built once per room from an LCG seeded on the room's bounds
+  /// and cached in [_vaultGroundCache]; per frame this is a clip, a dozen
+  /// drawPath calls over pre-built paths and a guttering flame. No
+  /// `MaskFilter.blur` anywhere — every soft edge in here is geometry and
+  /// alpha, which is the only way this planet could have been drawn at 60fps.
+  ///
+  /// THE INVERSION IS IN THE GROUND ITSELF. A quarter in CORONA is stone: a
+  /// pewter floor, the shafts of light lying pale across it, the cast shadows
+  /// dark. A quarter in UMBRA is the same room TURNED INSIDE OUT — the light
+  /// shafts are bars of nothing, the cast shadows are the only lit floor left,
+  /// and the architecture is edges on emptiness. Same geometry, exchanged
+  /// substance, which is the world rule stated as paint rather than as a lamp
+  /// going out.
   void _renderVaultGround(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
     final leaf = room.eclipse?.leaf;
     if (leaf == null) return;
-    if (vault.isDark(leaf)) {
-      // Negative space: the room is drawn as the edges of what is not there.
-      canvas.drawRect(b, Paint()..color = _kVaultVoid.withValues(alpha: 0.55));
-      final edge = Paint()
-        ..color = _kVaultViolet.withValues(alpha: 0.5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-      canvas.drawRect(b.deflate(10), edge);
-      final rib = Paint()
-        ..color = _kVaultViolet.withValues(alpha: 0.22)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5;
-      for (var i = 1; i < 5; i++) {
-        final x = b.left + b.width * i / 5;
-        canvas.drawLine(Offset(x, b.top + 24), Offset(x, b.bottom - 24), rib);
+    final g = _vaultGroundFor(room, layout);
+    final dark = vault.isDark(leaf);
+
+    // Everything is clipped to the stage the engine already laid down, so the
+    // vault's masonry ends where the island ends rather than running out over
+    // the sky (the plain floor is `b.deflate(8)` at radius 34).
+    final stage = RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(34));
+    canvas.save();
+    canvas.clipRRect(stage);
+
+    if (dark) {
+      // ── UMBRA · the room as an absence ───────────────────
+      canvas.drawRect(b, Paint()..color = _kVaultVoid.withValues(alpha: 0.52));
+      // The exchange: what the architecture shaded is now the only floor with
+      // anything on it, and the fissure's light is a bar of nothing.
+      canvas.drawPath(
+        g.shadows,
+        Paint()..color = const Color(0xFF6E5E96).withValues(alpha: 0.22),
+      );
+      canvas.drawPath(
+        g.stripes,
+        Paint()..color = _kVaultViolet.withValues(alpha: 0.17),
+      );
+      canvas.drawPath(
+        g.shaftLight,
+        Paint()..color = _kVaultVoid.withValues(alpha: 0.30),
+      );
+      // Floor texture, barely — enough that the eye can tell there is stone
+      // under it and not a hole. Contrast, not brightness.
+      canvas.drawPath(
+        g.flags,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0
+          ..color = _kVaultViolet.withValues(alpha: 0.22),
+      );
+      canvas.drawPath(
+        g.sunken,
+        Paint()..color = _kVaultVoid.withValues(alpha: 0.75),
+      );
+      // The architecture, on nothing. A thin fill first so a silhouette has
+      // MASS — an outline alone made the umbral rooms read as wireframe, which
+      // is a different failure from graph paper but the same disease.
+      canvas.drawPath(
+        g.bodies,
+        Paint()..color = _kVaultVoid.withValues(alpha: 0.55),
+      );
+      canvas.drawPath(
+        g.mouths,
+        Paint()..color = _kVaultVoid.withValues(alpha: 0.9),
+      );
+      // Stroking the FILL paths is what gives an umbral room its contours for
+      // free — one path, one call, every edge in the room.
+      canvas.drawPath(
+        g.bodies,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8
+          ..color = _kVaultViolet.withValues(alpha: 0.72),
+      );
+      canvas.drawPath(
+        g.mouths,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = _kVaultViolet.withValues(alpha: 0.5),
+      );
+      canvas.drawPath(
+        g.edges,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..color = _kVaultViolet.withValues(alpha: 0.5),
+      );
+      // The bone in a loculus, a drum's top, the nosing of a stair: the few
+      // things down here that still catch light. This is the difference
+      // between a dark place with things in it and a dark rectangle.
+      canvas.drawPath(
+        g.caps,
+        Paint()..color = const Color(0xFFBCB0DE).withValues(alpha: 0.34),
+      );
+      // A cold ring where a lamp would be. Nothing burns in the umbra.
+      for (final at in g.lamps) {
+        canvas.drawCircle(
+          at,
+          7,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..color = _kVaultViolet.withValues(alpha: 0.5),
+        );
       }
+      canvas.drawRRect(
+        stage.deflate(5),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = _kVaultViolet.withValues(alpha: 0.4),
+      );
     } else {
-      // Solid: a pewter floor with hard joints, the colour of a coin.
+      // ── CORONA · the room as stone ───────────────────────
+      // Alpha held low on every big fill: the FLOOR TRANSLUCENCY RULE means
+      // the sky shader is still the room's mood and has to come through.
       canvas.drawRect(
         b,
-        Paint()..color = _kVaultPewter.withValues(alpha: 0.13),
+        Paint()..color = _kVaultPewter.withValues(alpha: 0.30),
       );
-      final joint = Paint()
-        ..color = _kVaultBone.withValues(alpha: 0.16)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5;
-      for (var i = 1; i < 5; i++) {
-        final x = b.left + b.width * i / 5;
-        canvas.drawLine(Offset(x, b.top), Offset(x, b.bottom), joint);
+      canvas.drawPath(
+        g.flags,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = _kVaultBone.withValues(alpha: 0.13),
+      );
+      canvas.drawPath(
+        g.sunken,
+        Paint()..color = _kVaultVoid.withValues(alpha: 0.38),
+      );
+      canvas.drawPath(
+        g.shaftLight,
+        Paint()..color = _kVaultBone.withValues(alpha: 0.075),
+      );
+      canvas.drawPath(
+        g.shadows,
+        Paint()..color = _kVaultVoid.withValues(alpha: 0.46),
+      );
+      // The bars of light a pierced screen lets past. Drawn AFTER the shadow
+      // so they cut it, which is what makes the screen read as pierced.
+      canvas.drawPath(
+        g.stripes,
+        Paint()..color = _kVaultBone.withValues(alpha: 0.10),
+      );
+      canvas.drawPath(
+        g.bodies,
+        Paint()..color = const Color(0xFF1B1826).withValues(alpha: 0.85),
+      );
+      canvas.drawPath(
+        g.caps,
+        Paint()..color = _kVaultBone.withValues(alpha: 0.20),
+      );
+      canvas.drawPath(
+        g.mouths,
+        Paint()..color = _kVaultVoid.withValues(alpha: 0.85),
+      );
+      canvas.drawPath(
+        g.edges,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..color = _kVaultBone.withValues(alpha: 0.26),
+      );
+      // THE LAMPS. Three nested discs instead of a blur — the repo's one
+      // banned filter is exactly what a lamp wants, so it is faked with
+      // geometry — and the flame gutters on a cheap phase, which is the only
+      // thing in this whole ground that changes between frames.
+      for (var i = 0; i < g.lamps.length; i++) {
+        final at = g.lamps[i];
+        final gut = 0.86 + 0.14 * sin(_time * 3.1 + i * 2.2);
+        canvas.drawCircle(
+          at,
+          46 * gut,
+          Paint()..color = _kVaultEmber.withValues(alpha: 0.045),
+        );
+        canvas.drawCircle(
+          at,
+          22 * gut,
+          Paint()..color = _kVaultEmber.withValues(alpha: 0.075),
+        );
+        canvas.drawCircle(
+          at,
+          3.4 * gut,
+          Paint()..color = _kVaultEmber.withValues(alpha: 0.9),
+        );
       }
-      for (var i = 1; i < 4; i++) {
-        final y = b.top + b.height * i / 4;
-        canvas.drawLine(Offset(b.left, y), Offset(b.right, y), joint);
-      }
+      canvas.drawRRect(
+        stage.deflate(5),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = _kVaultBone.withValues(alpha: 0.16),
+      );
     }
+    canvas.restore();
   }
 
   /// A glyph at every passage the room can see, so what the eclipse has done
@@ -1384,4 +1553,991 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
       Paint()..color = _kVaultViolet.withValues(alpha: 0.55),
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// THE VAULT'S GROUND — built once, drawn forever
+// ═══════════════════════════════════════════════════════════
+//
+// Nythralor is a place you travel by shadow, so the only honest way to draw it
+// is to draw THE THINGS THAT CAST and the floor the shadow lands on. All of
+// that geometry is static: it is a function of the room's own bounds and its
+// id, so it is built once, cached, and thereafter costs a handful of drawPath
+// calls. The only per-frame arithmetic on this planet's ground is a guttering
+// flame phase.
+
+/// Every room's masonry, keyed by room id and bounds. A top-level map rather
+/// than a field because the extension that renders it cannot carry state.
+final Map<String, _VaultGround> _vaultGroundCache = {};
+
+/// One room's static architecture, pre-flattened into as few paths as the
+/// drawing needs. Merging each class of shape into ONE path is not only
+/// cheaper — it is what stops overlapping cast shadows from double-darkening
+/// where two pillars stand close together, because a single path fills once.
+class _VaultGround {
+  /// The ashlar seams and the long cracks across them (stroke).
+  final Path flags;
+
+  /// Flags that have dropped out of the floor (fill).
+  final Path sunken;
+
+  /// Every cast shadow in the room, unioned (fill). In UMBRA this is the only
+  /// lit floor there is.
+  final Path shadows;
+
+  /// The bars of light a pierced screen lets past, cut back through its own
+  /// shadow (fill).
+  final Path stripes;
+
+  /// The footprints of everything that casts (fill in CORONA, stroked for its
+  /// contours in UMBRA).
+  final Path bodies;
+
+  /// The faces turned toward the light — drum tops, the nosing of a stair
+  /// tread, the bone in a loculus (fill).
+  final Path caps;
+
+  /// Contours that are not a body's own outline: tread risers, the font's
+  /// rings, jambs, joint lines (stroke).
+  final Path edges;
+
+  /// Openings — niches, loculi, the throat of a well (fill, void).
+  final Path mouths;
+
+  /// The fissure light lying across the floor (fill). Inverted in UMBRA.
+  final Path shaftLight;
+
+  /// Lamp flames, for the one thing here that animates.
+  final List<Offset> lamps;
+
+  const _VaultGround({
+    required this.flags,
+    required this.sunken,
+    required this.shadows,
+    required this.stripes,
+    required this.bodies,
+    required this.caps,
+    required this.edges,
+    required this.mouths,
+    required this.shaftLight,
+    required this.lamps,
+  });
+}
+
+/// A tiny LCG. Deliberately not `dart:math`'s Random: the vault must look the
+/// same every time the room is entered, in the same process or a later one, so
+/// the seed is the room's own geometry and nothing else.
+class _VaultRng {
+  int _s;
+  _VaultRng(int seed) : _s = (seed.abs() * 2 + 1) & 0x7FFFFFFF;
+
+  double next() {
+    _s = (_s * 1103515245 + 12345) & 0x7FFFFFFF;
+    return _s / 0x7FFFFFFF;
+  }
+
+  double range(double a, double b) => a + next() * (b - a);
+  int pick(int n) => (next() * n).floor().clamp(0, n - 1);
+  bool chance(double p) => next() < p;
+}
+
+_VaultGround _vaultGroundFor(DungeonRoom room, DungeonLayout layout) {
+  final b = room.bounds;
+  final key = '${room.id}|${b.width.toInt()}x${b.height.toInt()}';
+  return _vaultGroundCache.putIfAbsent(key, () => _buildVaultGround(room, layout));
+}
+
+List<Offset> _rectCorners(Rect r) => [
+  r.topLeft,
+  r.topRight,
+  r.bottomRight,
+  r.bottomLeft,
+];
+
+/// The corners of a rect turned through [a] about [c] — for anything that has
+/// fallen over, which is most of what is left standing down here.
+List<Offset> _tiltedCorners(Offset c, double halfLen, double halfWid, double a) {
+  final co = cos(a), si = sin(a);
+  return [
+    for (final s in const [(-1, -1), (1, -1), (1, 1), (-1, 1)])
+      Offset(
+        c.dx + s.$1 * halfLen * co - s.$2 * halfWid * si,
+        c.dy + s.$1 * halfLen * si + s.$2 * halfWid * co,
+      ),
+  ];
+}
+
+/// Throw [corners]' shadow [len] along [dir].
+///
+/// The two corners that matter are the ones furthest apart PERPENDICULAR to
+/// the light — the silhouette edge — so the quad is stretched from those and
+/// nothing else. That is the whole of the shadow model, and it is why an
+/// oblique room still gets shadows that agree with one another: every object
+/// in a room uses the same [dir].
+///
+/// [taper] narrows the far end. The first version did not, and every drum in
+/// the room came out as a LOZENGE — body and shadow the same width and the
+/// same darkness, reading as one solid object lying on the floor rather than
+/// as a pillar and the dark it throws. A shadow that closes toward its tip is
+/// the cheapest thing that makes the difference legible.
+void _castShadow(
+  Path into,
+  List<Offset> corners,
+  Offset dir,
+  double len, {
+  double taper = 0.62,
+}) {
+  final nx = -dir.dy, ny = dir.dx;
+  var lo = corners.first, hi = corners.first;
+  var loV = double.infinity, hiV = -double.infinity;
+  for (final c in corners) {
+    final v = c.dx * nx + c.dy * ny;
+    if (v < loV) {
+      loV = v;
+      lo = c;
+    }
+    if (v > hiV) {
+      hiV = v;
+      hi = c;
+    }
+  }
+  final far = Offset((lo.dx + hi.dx) / 2, (lo.dy + hi.dy) / 2) + dir * len;
+  final half = (hi - lo) * 0.5 * taper;
+  into
+    ..moveTo(lo.dx, lo.dy)
+    ..lineTo(hi.dx, hi.dy)
+    ..lineTo(far.dx + half.dx, far.dy + half.dy)
+    ..lineTo(far.dx - half.dx, far.dy - half.dy)
+    ..close();
+}
+
+_VaultGround _buildVaultGround(DungeonRoom room, DungeonLayout layout) {
+  final b = room.bounds;
+  // Seeded from the room's own bounds, plus a content hash of its id so two
+  // rooms that happen to be the same size are not the same room. Computed by
+  // hand rather than via String.hashCode so it can never depend on anything
+  // outside this function.
+  var idHash = 7;
+  for (final u in room.id.codeUnits) {
+    idHash = (idHash * 31 + u) & 0xFFFFF;
+  }
+  final rng = _VaultRng(b.width.toInt() * 733 + b.height.toInt() * 191 + idHash);
+
+  final flags = Path();
+  final sunken = Path();
+  final shadows = Path();
+  final stripes = Path();
+  final bodies = Path();
+  final caps = Path();
+  final edges = Path();
+  final mouths = Path();
+  final shaftLight = Path();
+  final lamps = <Offset>[];
+
+  // ── THE LIGHT ──────────────────────────────────────────
+  // One direction for the whole room, always with a downward component, so the
+  // source reads as a fissure high in the north wall and every shadow in the
+  // room agrees with every other. Which way it leans varies per room; that
+  // variation is most of why the ten rooms do not look like one room.
+  final ang = rng.chance(0.5)
+      ? rng.range(1.06, 1.42)
+      : rng.range(1.72, 2.08);
+  final dir = Offset(cos(ang), sin(ang));
+
+  /// Everything standing in a room is sized against the room. Without this the
+  /// reliquary — 420×320, the smallest room on the planet — got full-size
+  /// screens whose shadows crossed the whole floor, and read as three enormous
+  /// objects in a cupboard.
+  final sizeScale = (min(b.width, b.height) / 470).clamp(0.62, 1.12);
+
+  // ── THE FLOOR ──────────────────────────────────────────
+  // Ashlar, not a lattice. Course heights vary by nearly two to one, the flags
+  // in a course vary by three to one, each course starts at a different offset
+  // and the seam itself is broken into runs with gaps — so no two joints ever
+  // line up into a column and the eye cannot find a repeat.
+  var y = b.top + rng.range(18, 54) * sizeScale;
+  while (y < b.bottom - 12) {
+    // A course seam, in runs. A continuous line across the room would read as
+    // a stripe, which is the lattice problem wearing a different hat.
+    var sx = b.left;
+    while (sx < b.right) {
+      final run = rng.range(110, 340) * sizeScale;
+      final ex = min(sx + run, b.right);
+      flags
+        ..moveTo(sx, y)
+        ..lineTo(ex, y);
+      sx = ex + (rng.chance(0.34) ? rng.range(34, 96) : 0.0);
+    }
+    final h = rng.range(46, 88) * sizeScale;
+    // The flags within the course.
+    var x = b.left + rng.range(-80, -10);
+    while (x < b.right) {
+      final w = rng.range(62, 196) * sizeScale;
+      final fx = x + w;
+      if (fx > b.left + 6 && fx < b.right - 6) {
+        flags
+          ..moveTo(fx, y + 2)
+          ..lineTo(fx, min(y + h, b.bottom) - 2);
+      }
+      // A flag that has dropped out of the floor. Twice this read wrong before
+      // it read right. A clean dark RECTANGLE — outlined or not — sits ON a
+      // floor like a hatch, it does not sink into one, so the hole is an
+      // irregular polygon now. And it got a lit lip for a while, which turned
+      // it into a small standing BLOCK in the umbra, where the hole itself is
+      // invisible and only the lip showed. A hole in a dark floor is nothing
+      // at all; that is the point of it.
+      if (rng.chance(0.055) && w > 90) {
+        final hole = Rect.fromLTWH(
+          x + 14,
+          y + 10,
+          min(w - 30, 58),
+          min(h - 22, 28),
+        ).intersect(b.deflate(18));
+        if (hole.width > 14 && hole.height > 10) {
+          final cx = hole.center;
+          sunken.addPolygon([
+            for (var k = 0; k < 6; k++)
+              cx +
+                  Offset(
+                    cos(k * pi / 3 + 0.3) * hole.width * rng.range(0.36, 0.54),
+                    sin(k * pi / 3 + 0.3) * hole.height * rng.range(0.36, 0.56),
+                  ),
+          ], true);
+        }
+      }
+      x = fx;
+    }
+    y += h;
+  }
+  // Long cracks, crossing the courses at an angle so the floor has a history
+  // that the masonry grid does not explain.
+  for (var i = 0; i < 3; i++) {
+    var p = Offset(b.left + rng.range(0, b.width), b.top + rng.range(0, 40));
+    flags.moveTo(p.dx, p.dy);
+    var a = rng.range(1.1, 2.0);
+    for (var k = 0; k < 7; k++) {
+      a += rng.range(-0.34, 0.34);
+      p += Offset(cos(a), sin(a)) * rng.range(40, 92);
+      flags.lineTo(p.dx, p.dy);
+    }
+  }
+
+  // ── WHERE NOTHING MAY STAND ────────────────────────────
+  // Fixtures, doorways and — the lesson that cost this project a polish pass
+  // before — ARRIVALS. A body landing on a pillar is a bug, so every spawn
+  // any other room aims at this one is kept clear as well.
+  final reserved = <(Offset, double)>[];
+  void reserve(Offset? p, double r) {
+    if (p != null) reserved.add((p, r));
+  }
+
+  final hall = room.eclipse;
+  reserve(hall?.analemma, 120);
+  reserve(hall?.snuffer, 80);
+  reserve(hall?.pallCurtain, 64);
+  reserve(hall?.abyss, 110);
+  reserve(hall?.shadowVane, 56);
+  reserve(room.vaultCache, 56);
+  reserve(room.guardian?.position, 140);
+  reserve(vaultGnomonIn(room.id)?.shaft, 62);
+  if (hall?.analemma != null) {
+    for (final s in kShadowStones) {
+      reserve(s.position, 40);
+    }
+  }
+  for (final an in vaultAnchorsIn(room.id)) {
+    reserve(an.ringIn(room.id), 46);
+  }
+  for (final c in room.conduits) {
+    reserve(c.position, 56);
+  }
+  if (room.id == layout.entranceRoomId) reserve(layout.entranceSpawn, 48);
+  for (final r in layout.rooms.values) {
+    for (final d in r.doors) {
+      if (d.targetRoomId == room.id) reserve(d.targetSpawn, 46);
+    }
+  }
+
+  bool blocked(Offset p, double r) {
+    if (!b.deflate(10).contains(p)) return true;
+    for (final (c, rr) in reserved) {
+      if ((p - c).distance < rr + r) return true;
+    }
+    for (final w in room.walls) {
+      if (w.inflate(r + 12).contains(p)) return true;
+    }
+    for (final d in room.doors) {
+      if (d.rect.inflate(r + 48).contains(p)) return true;
+    }
+    return false;
+  }
+
+  // ── THE THINGS THAT CAST ───────────────────────────────
+
+  /// A drum — one course of a column, the commonest thing standing in a vault
+  /// this far gone. The cap is offset INTO the light so it reads as a top face
+  /// rather than a ring.
+  void drum(Offset at, double r) {
+    final n = Offset(-dir.dy, dir.dx);
+    _castShadow(shadows, [at + n * r, at - n * r], dir, r * 3.0 + 18);
+    bodies.addOval(Rect.fromCircle(center: at, radius: r));
+    caps.addOval(
+      Rect.fromCircle(center: at - dir * (r * 0.3), radius: r * 0.58),
+    );
+    edges.addOval(Rect.fromCircle(center: at, radius: r));
+  }
+
+  /// A charnel stack — long bones laid up like cordwood, which is what an
+  /// ossuary actually is. Pale, so it is the one thing in the bone quarter
+  /// that catches light in BOTH states.
+  void boneStack(Offset at, bool horizontal) {
+    final n = 3 + rng.pick(3);
+    final spread = rng.range(24, 42);
+    for (var i = 0; i < n; i++) {
+      final t = (i / max(1, n - 1) - 0.5) * spread;
+      // Staggered ALONG the bone and spaced ACROSS it, with almost no angular
+      // jitter. The first version jittered the angle by a fifth of a radian
+      // and the stack came out as a pale scribble — bones lie parallel,
+      // because that is how anyone stacks them.
+      final c = horizontal
+          ? at + Offset(rng.range(-11, 11), t)
+          : at + Offset(t, rng.range(-11, 11));
+      final len = rng.range(19, 27) * sizeScale;
+      final bar = _tiltedCorners(
+        c,
+        len,
+        2.1,
+        (horizontal ? 0.0 : pi / 2) + rng.range(-0.07, 0.07),
+      );
+      caps.addPolygon(bar, true);
+    }
+    final foot = Rect.fromCenter(
+      center: at,
+      width: horizontal ? 56 : spread + 22,
+      height: horizontal ? spread + 22 : 56,
+    );
+    _castShadow(shadows, _rectCorners(foot), dir, 22, taper: 0.5);
+  }
+
+  /// A squared pier. Shorter and heavier than a drum; what a vault puts under
+  /// the springing of an arch.
+  void pier(Offset at, double w, double h) {
+    final r = Rect.fromCenter(center: at, width: w, height: h);
+    _castShadow(shadows, _rectCorners(r), dir, (w + h) * 0.9 + 14);
+    bodies.addRect(r);
+    caps.addRect(Rect.fromLTWH(r.left + 2, r.top, r.width - 4, 3.5));
+  }
+
+  /// Spall. Two or three chips, because a floor with nothing loose on it has
+  /// never had anything happen to it.
+  void rubble(Offset at) {
+    for (var i = 0; i < 2 + rng.pick(2); i++) {
+      final c = at + Offset(rng.range(-26, 26), rng.range(-18, 18));
+      final r = rng.range(4, 11);
+      final pts = [
+        for (var k = 0; k < 4; k++)
+          c +
+              Offset(
+                cos(k * pi / 2 + 0.4) * r * rng.range(0.6, 1.3),
+                sin(k * pi / 2 + 0.4) * r * rng.range(0.6, 1.3),
+              ),
+      ];
+      _castShadow(shadows, pts, dir, r * 1.6);
+      bodies.addPolygon(pts, true);
+    }
+  }
+
+  /// A PIERCED SCREEN, and the reason this planet needed one: the bars of
+  /// light between its slots are the most unambiguous way to say *this object
+  /// is casting* without drawing a diagram of it. The slab is drawn as the
+  /// pieces between the slots, and its shadow is cut by them.
+  void screen(Offset at, bool horizontal) {
+    // Clamped to the room it stands in, or a screen near a corner gets half of
+    // itself sliced off by the stage clip and reads as a broken wall.
+    final room2edge = horizontal
+        ? min(at.dx - b.left, b.right - at.dx)
+        : min(at.dy - b.top, b.bottom - at.dy);
+    final span = min(rng.range(62, 118) * sizeScale, room2edge * 1.7);
+    if (span < 42) {
+      rubble(at);
+      return;
+    }
+    final th = rng.range(9, 14) * sizeScale;
+    final len = span * 1.15 + 40;
+    final full = horizontal
+        ? Rect.fromCenter(center: at, width: span, height: th)
+        : Rect.fromCenter(center: at, width: th, height: span);
+    _castShadow(shadows, _rectCorners(full), dir, len);
+    // Slots, unevenly spaced — a screen carved by hand, not stamped.
+    final n = 3 + rng.pick(3);
+    var t = 0.0;
+    final pieces = <double>[];
+    for (var i = 0; i < n; i++) {
+      final solid = rng.range(0.06, 0.20);
+      final slot = rng.range(0.05, 0.13);
+      pieces..add(t)..add(t + solid);
+      t += solid + slot;
+      if (t > 0.94) break;
+    }
+    pieces..add(min(t, 0.96))..add(1.0);
+    for (var i = 0; i + 1 < pieces.length; i += 2) {
+      final a0 = pieces[i], a1 = pieces[i + 1];
+      final part = horizontal
+          ? Rect.fromLTRB(
+              full.left + full.width * a0,
+              full.top,
+              full.left + full.width * a1,
+              full.bottom,
+            )
+          : Rect.fromLTRB(
+              full.left,
+              full.top + full.height * a0,
+              full.right,
+              full.top + full.height * a1,
+            );
+      bodies.addRect(part);
+      caps.addRect(Rect.fromLTWH(part.left + 1, part.top, part.width - 2, 2.5));
+    }
+    // And the light between them.
+    for (var i = 1; i + 1 < pieces.length; i += 2) {
+      final a0 = pieces[i], a1 = pieces[i + 1];
+      final gap = horizontal
+          ? Rect.fromLTRB(
+              full.left + full.width * a0,
+              full.top,
+              full.left + full.width * a1,
+              full.bottom,
+            )
+          : Rect.fromLTRB(
+              full.left,
+              full.top + full.height * a0,
+              full.right,
+              full.top + full.height * a1,
+            );
+      _castShadow(stripes, _rectCorners(gap), dir, len);
+    }
+  }
+
+  /// A shaft that came down. A long tilted body with a drum still attached at
+  /// one end, and a low shadow, because it is lying on the floor.
+  void fallen(Offset at) {
+    final a = rng.range(0, pi);
+    final hl = rng.range(38, 74) * sizeScale;
+    final hw = rng.range(7, 12) * sizeScale;
+    final c = _tiltedCorners(at, hl, hw, a);
+    _castShadow(shadows, c, dir, rng.range(16, 30));
+    bodies.addPolygon(c, true);
+    edges.addPolygon(c, true);
+    final end = at + Offset(cos(a), sin(a)) * hl;
+    bodies.addOval(Rect.fromCircle(center: end, radius: hw + 3));
+    caps.addOval(Rect.fromCircle(center: end, radius: hw * 0.55));
+  }
+
+  /// A LOCULUS — a mouth in the wall with something in it. An absence, so it
+  /// casts nothing; what it does instead is give a wall a depth, which is the
+  /// one thing a top-down room usually cannot say.
+  void loculus(Offset at, bool horizontal) {
+    final w = horizontal ? rng.range(38, 62) : rng.range(22, 30);
+    final h = horizontal ? rng.range(22, 30) : rng.range(38, 62);
+    final r = Rect.fromCenter(center: at, width: w, height: h);
+    mouths.addRect(r);
+    // JAMBS. A mouth drawn as a void rect on a void floor is invisible in the
+    // umbra — which is exactly the trap a dark planet sets — so the opening
+    // gets built sides, and they are real bodies with real contours.
+    if (horizontal) {
+      bodies
+        ..addRect(Rect.fromLTWH(r.left - 5, r.top - 4, 5, r.height + 8))
+        ..addRect(Rect.fromLTWH(r.right, r.top - 4, 5, r.height + 8));
+    } else {
+      bodies
+        ..addRect(Rect.fromLTWH(r.left - 4, r.top - 5, r.width + 8, 5))
+        ..addRect(Rect.fromLTWH(r.left - 4, r.bottom, r.width + 8, 5));
+    }
+    edges.addRect(r.inflate(3));
+    // Bone, catching what little light reaches in.
+    for (var i = 0; i < 2; i++) {
+      caps.addRect(
+        horizontal
+            ? Rect.fromLTWH(r.left + 5, r.top + 6 + i * 8.0, r.width - 10, 2.8)
+            : Rect.fromLTWH(r.left + 6 + i * 8.0, r.top + 5, 2.8, r.height - 10),
+      );
+    }
+  }
+
+  /// A wall bracket with a lamp in it. Corona burns it; umbra leaves the ring.
+  void bracket(Offset at) {
+    if (lamps.length >= 4) {
+      rubble(at);
+      return;
+    }
+    lamps.add(at);
+    final stem = Rect.fromCenter(center: at, width: 7, height: 16);
+    bodies.addRect(stem);
+    edges.addOval(Rect.fromCircle(center: at, radius: 9));
+  }
+
+  // ── PLACING THEM ───────────────────────────────────────
+  // Along the four walls, in the MARGIN, so the middle of every room stays
+  // walkable — the guardian's arena and the hub-ish courts most of all. The
+  // step is irregular, the depth into the room is irregular, and one station
+  // in five is skipped outright: cluster and gap, never a rank.
+  final palette = switch (room.id) {
+    // The threshold. Arch piers, a screen or two, and what is left of the
+    // tympanum that is already authored as a wall.
+    'pall_porch' => const [0, 0, 1, 2, 3, 4, 6],
+    // The court keeps a wide floor for the dial; only the perimeter is built.
+    'analemma_court' => const [0, 0, 0, 1, 4, 6],
+    // The long gallery, and the mercy shrine. Screens everywhere.
+    'shade_gallery' => const [0, 0, 2, 2, 3, 5, 6],
+    // "Leaning where the colonnade breaks" — drums, and the ones that fell.
+    'penumbral_walk' => const [0, 0, 0, 3, 3, 4, 6],
+    'gnomon_stair' => const [0, 1, 1, 3, 4, 4, 6],
+    // The bone quarter: loculi in every wall, and the bones out of them.
+    'ossuary_ring' => const [5, 5, 7, 7, 1, 3, 4, 6],
+    'abyssal_font' => const [1, 1, 2, 4, 4, 6],
+    // A vault for reliquaries: mouths and screens, in a small room.
+    'umbral_reliquary' => const [5, 5, 7, 2, 1, 6],
+    'eclipse_nave' => const [0, 0, 2, 2, 4, 6, 6],
+    // The arena. Heavy piers only, and they stand well back.
+    'noctryos_totality' => const [1, 1, 0, 3, 4, 6],
+    _ => const [0, 1, 2, 4, 6],
+  };
+
+  void place(int type, Offset at, bool horizontal) {
+    switch (type) {
+      case 0:
+        drum(at, rng.range(11, 20) * sizeScale);
+      case 1:
+        pier(at, rng.range(24, 42) * sizeScale, rng.range(20, 34) * sizeScale);
+      case 2:
+        screen(at, horizontal);
+      case 3:
+        fallen(at);
+      case 4:
+        rubble(at);
+      case 5:
+        loculus(at, horizontal);
+      case 7:
+        boneStack(at, horizontal);
+      default:
+        bracket(at);
+    }
+  }
+
+  for (var wall = 0; wall < 4; wall++) {
+    final horizontal = wall.isEven;
+    final len = horizontal ? b.width : b.height;
+    // Small rooms get a proportionally tighter step, or the reliquary ends up
+    // with three objects in it.
+    final scale = (len / 700).clamp(0.52, 1.15);
+    var t = rng.range(34, 110) * scale;
+    while (t < len - 30) {
+      final type = palette[rng.pick(palette.length)];
+      // Loculi and lamp brackets belong ON the wall — but not so far onto it
+      // that the stage's rounded clip eats them, which is what 7px did.
+      final onWall = type == 5 || type == 6;
+      final depth = onWall ? rng.range(17, 26) : rng.range(26, 70);
+      final at = switch (wall) {
+        0 => Offset(b.left + t, b.top + depth),
+        1 => Offset(b.right - depth, b.top + t),
+        2 => Offset(b.left + t, b.bottom - depth),
+        _ => Offset(b.left + depth, b.top + t),
+      };
+      t += rng.range(62, 158) * scale;
+      if (rng.chance(0.15)) continue; // skip cells
+      if (blocked(at, onWall ? 20 : 34)) continue;
+      reserved.add((at, onWall ? 20 : 26));
+      place(type, at, horizontal);
+    }
+  }
+
+  // A SECOND PASS, out on the open floor — but only ever things that are
+  // LYING DOWN. Nothing in this dungeon's interior collides, so a standing
+  // pillar in the middle of a room would be a pillar the party walks straight
+  // through; a toppled shaft and a scatter of spall are walked OVER, which is
+  // what a player expects of them anyway. It is also what stops the rooms
+  // reading as a built rim around an empty middle.
+  final loose = switch (room.id) {
+    'noctryos_totality' => 0, // the arena fights in its middle
+    'eclipse_nave' => 3, // the rite happens in the aisle
+    'abyssal_font' => 3,
+    'umbral_reliquary' => 5,
+    _ => 5 + rng.pick(5),
+  };
+  var placed = 0;
+  // Three tries per piece: a room whose middle is mostly reserved (the font,
+  // the court) would otherwise come out empty simply because the first dart
+  // landed on the fixture.
+  for (var i = 0; i < loose * 3 && placed < loose; i++) {
+    final at = Offset(
+      b.left + rng.range(70, b.width - 70),
+      b.top + rng.range(70, b.height - 70),
+    );
+    if (blocked(at, 46)) continue;
+    reserved.add((at, 40));
+    placed++;
+    // Weighted toward the big form. An even split filled every room with
+    // confetti — a dozen little chip clusters and nothing to read at distance.
+    if (rng.chance(0.72)) {
+      fallen(at);
+    } else {
+      rubble(at);
+    }
+  }
+
+  // ── WHAT EACH ROOM ACTUALLY IS ─────────────────────────
+  // The perimeter pass gives every room a built edge; this gives each one the
+  // single piece of architecture it is named after.
+  switch (room.id) {
+    case 'gnomon_stair':
+      // A STAIR, descending to the gulf under the last step (the door at
+      // x 200–310 on the south wall). Treads narrow as they go down and each
+      // carries a lit nosing and a riser shadow, which is what makes a flight
+      // read as a flight from above.
+      var w = 330.0;
+      var ty = b.bottom - 214;
+      for (var i = 0; i < 7; i++) {
+        final r = Rect.fromCenter(
+          center: Offset(255, ty),
+          width: w,
+          height: 24,
+        );
+        shadows.addRect(Rect.fromLTWH(r.left, r.bottom - 7, r.width, 9));
+        caps.addRect(Rect.fromLTWH(r.left + 6, r.top, r.width - 12, 3));
+        edges.addRect(r);
+        ty += 27;
+        w -= 26;
+      }
+
+    case 'abyssal_font':
+      // Three steps down to the abyss — a font is a basin, and a basin is
+      // rings. Each step is a PAIR of contours (tread and riser) with a break
+      // in it, which is what makes a ring read as stone rather than as a
+      // target painted on the floor.
+      //
+      // The first version put the lit lip into `caps`, which is a FILL path:
+      // `Path.addArc` on a fill closes the arc into a chord, so every step
+      // came out as a big pale crescent smeared across the room. Anything arc
+      // shaped has to live in a stroked path.
+      final c = room.eclipse!.abyss!;
+      for (var i = 0; i < 3; i++) {
+        final r = 86.0 + i * 42;
+        final gap = rng.range(0, pi * 2);
+        final sweep = pi * 2 - rng.range(0.35, 0.9);
+        edges
+          ..addArc(Rect.fromCircle(center: c, radius: r), gap, sweep)
+          ..addArc(Rect.fromCircle(center: c, radius: r - 9), gap, sweep);
+        // Joints in the tread, unevenly spaced round the ring.
+        var a = gap + 0.2;
+        while (a < gap + sweep - 0.2) {
+          edges
+            ..moveTo(c.dx + cos(a) * (r - 9), c.dy + sin(a) * (r - 9))
+            ..lineTo(c.dx + cos(a) * r, c.dy + sin(a) * r);
+          a += rng.range(0.34, 0.78);
+        }
+        // The nosing the light actually reaches, as a short lit bar rather
+        // than a filled arc.
+        for (var k = -2; k <= 2; k++) {
+          final aa = ang + pi + k * 0.22;
+          caps.addPolygon(
+            _tiltedCorners(
+              c + Offset(cos(aa), sin(aa)) * (r - 4.5),
+              5.5,
+              2.0,
+              aa + pi / 2,
+            ),
+            true,
+          );
+        }
+      }
+
+    case 'eclipse_nave':
+      // A NAVE: two arcades running the length of the room with the aisle
+      // between them left open, because the rite happens in it. Spacing is
+      // deliberately uneven and two bays are missing — a colonnade at even
+      // pitch is the graph-paper failure with capitals on.
+      for (final row in const [138.0, 430.0]) {
+        var x = 78.0;
+        while (x < b.right - 60) {
+          final at = Offset(x, row + rng.range(-7, 7));
+          x += rng.range(88, 138);
+          if (rng.chance(0.22)) continue;
+          if (blocked(at, 26)) continue;
+          if (rng.chance(0.18)) {
+            fallen(at);
+          } else {
+            drum(at, rng.range(14, 21));
+          }
+        }
+      }
+
+    case 'noctryos_totality':
+      // The arena's ring of piers, standing on an ellipse well outside the
+      // fighting floor. Angles are jittered and the north sector is left out
+      // for the rood door, so it reads as a ruined ring rather than a dial.
+      final c = Offset(b.center.dx, b.center.dy + 18);
+      for (var i = 0; i < 11; i++) {
+        final a = -pi / 2 + 0.62 + (i / 11) * (pi * 2 - 1.24) + rng.range(-0.1, 0.1);
+        final at = c + Offset(cos(a) * (b.width * 0.42), sin(a) * (b.height * 0.40));
+        if (blocked(at, 30)) continue;
+        reserved.add((at, 26));
+        if (rng.chance(0.24)) {
+          fallen(at);
+        } else {
+          pier(at, rng.range(28, 44), rng.range(26, 40));
+        }
+      }
+
+    case 'shade_gallery':
+      // The dry well shaft goes down from this room's south wall; the well
+      // itself stands in the floor beside it as a throat with a stone kerb —
+      // coursed, because a well is built out of small blocks.
+      final at = Offset(b.left + b.width * 0.18, b.bottom - 128);
+      mouths.addOval(Rect.fromCircle(center: at, radius: 29));
+      edges
+        ..addOval(Rect.fromCircle(center: at, radius: 30))
+        ..addOval(Rect.fromCircle(center: at, radius: 41));
+      var wa = rng.range(0, 1.0);
+      while (wa < pi * 2) {
+        edges
+          ..moveTo(at.dx + cos(wa) * 30, at.dy + sin(wa) * 30)
+          ..lineTo(at.dx + cos(wa) * 41, at.dy + sin(wa) * 41);
+        wa += rng.range(0.44, 0.86);
+      }
+      // The kerb catches the light on one side only.
+      for (var k = -2; k <= 2; k++) {
+        final aa = ang + pi + k * 0.3;
+        caps.addPolygon(
+          _tiltedCorners(
+            at + Offset(cos(aa), sin(aa)) * 35.5,
+            6.0,
+            2.6,
+            aa + pi / 2,
+          ),
+          true,
+        );
+      }
+      _castShadow(
+        shadows,
+        _rectCorners(Rect.fromCircle(center: at, radius: 41)),
+        dir,
+        26,
+        taper: 0.5,
+      );
+
+    case 'pall_porch':
+      // THE ARCH. The porch is the first room of the planet and the only one
+      // whose fiction is a doorway, and it had no doorway in it — just debris
+      // on a floor. Two great piers flank the pall arch on the east wall with
+      // a lintel across their heads, so arriving reads as standing in front of
+      // a way in. Placed by hand rather than by the perimeter walk, because
+      // this is the one thing in the room whose position means something.
+      for (final py in const [126.0, 336.0]) {
+        final r = Rect.fromCenter(center: Offset(632, py), width: 46, height: 62);
+        _castShadow(shadows, _rectCorners(r), dir, 62, taper: 0.58);
+        bodies.addRect(r);
+        caps.addRect(Rect.fromLTWH(r.left + 4, r.top, r.width - 8, 4.5));
+        edges.addRect(r.deflate(7));
+      }
+      // The lintel that used to sit across them, down on the floor well clear
+      // of the doorway — it must NOT be drawn between the piers, because the
+      // party walks that line to reach the arch and a bar across it reads as
+      // "shut" in a room whose whole first beat is the pall coming off.
+      final lintel = _tiltedCorners(const Offset(534, 392), 88, 12, 0.42);
+      _castShadow(shadows, lintel, dir, 24, taper: 0.5);
+      bodies.addPolygon(lintel, true);
+      edges.addPolygon(lintel, true);
+      // The threshold: worn paving laid across the approach, so the way out
+      // has a floor that is different from the floor around it.
+      for (var i = 0; i < 4; i++) {
+        edges.addRect(
+          Rect.fromLTWH(648.0 + i * 13, 168.0 + i * 4, 11, 124 - i * 8.0),
+        );
+      }
+
+    case 'ossuary_ring':
+      // A CHARNEL WALL. The perimeter pass alone left the bone quarter as the
+      // barest room on the planet and the darkest — the exact trap a dark
+      // planet sets, where "atmospherically sparse" and "nothing is drawn" are
+      // the same picture. What it wanted was the thing it is named after:
+      // loculi stacked in tiers, with the bones out of half of them.
+      for (final side in const [true, false]) {
+        final y0 = side ? b.top + 30 : b.bottom - 30;
+        var x = b.left + rng.range(40, 130);
+        while (x < b.right - 50) {
+          final tiers = 1 + rng.pick(3);
+          for (var t = 0; t < tiers; t++) {
+            final at = Offset(x, y0 + (side ? 1 : -1) * (t * 34.0 + 8));
+            x += rng.range(-6, 6);
+            if (blocked(at, 20)) continue;
+            if (rng.chance(0.22)) continue;
+            reserved.add((at, 18));
+            if (rng.chance(0.42)) {
+              boneStack(at, true);
+            } else {
+              loculus(at, true);
+            }
+          }
+          x += rng.range(64, 128);
+        }
+      }
+
+    case 'umbral_reliquary':
+      // The room that is only here in the dark. Whatever the vault is keeping
+      // stands on a stepped plinth rather than on the bare floor — the same
+      // rule the rest of this pass follows: everything is standing ON
+      // something.
+      final c = room.vaultCache;
+      if (c != null) {
+        // Drawn as SOLID steps, not as outlines. The first attempt was three
+        // nested stroked rectangles and it read as a selection box sitting on
+        // the floor — an interface element, in the one room whose whole point
+        // is that it is a real room you can only be in half the time.
+        final base = Rect.fromCenter(center: c, width: 84, height: 60);
+        _castShadow(shadows, _rectCorners(base), dir, 34, taper: 0.55);
+        for (var i = 0; i < 2; i++) {
+          final r = Rect.fromCenter(
+            center: c + Offset(0, i * 3.0),
+            width: 84 - i * 24,
+            height: 60 - i * 18,
+          );
+          bodies.addRect(r);
+          caps.addRect(Rect.fromLTWH(r.left + 3, r.top, r.width - 6, 3.0));
+        }
+      }
+      // THE RACKS. This is the room §5.5 calls the vault trick — a room that
+      // is not there while the Deep stands in light — and after the perimeter
+      // pass it was still the barest room on the planet, because a small room
+      // gets few stations. What it wanted was the one thing it is FOR:
+      // somewhere to keep things.
+      //
+      // Drawn as a continuous stone rack with cells cut into it, rather than
+      // as loose dark squares (which is what the first attempt was, and it
+      // read as buckshot). The cells are of two or three different heights and
+      // one in five is solid, so a columbarium — which really is a grid —
+      // still does not come out as graph paper.
+      for (final west in const [true, false]) {
+        final rack = west
+            ? Rect.fromLTWH(b.left + 12, b.top + 46, 46, b.height - 108)
+            : Rect.fromLTWH(b.left + 76, b.top + 12, b.width - 190, 40);
+        if (rack.width < 40 || rack.height < 40) continue;
+        bodies.addRect(rack);
+        _castShadow(shadows, _rectCorners(rack), dir, 26, taper: 0.5);
+        var t = (west ? rack.top : rack.left) + 6;
+        final end = (west ? rack.bottom : rack.right) - 6;
+        while (t < end - 14) {
+          final cell = rng.range(20, 40);
+          if (t + cell > end) break;
+          if (!rng.chance(0.2)) {
+            final r = west
+                ? Rect.fromLTWH(rack.left + 6, t, rack.width - 12, cell)
+                : Rect.fromLTWH(t, rack.top + 6, cell, rack.height - 12);
+            mouths.addRect(r);
+            edges.addRect(r);
+            // What is still in it, catching the little light there is.
+            if (rng.chance(0.5)) {
+              caps.addRect(
+                Rect.fromCenter(
+                  center: r.center,
+                  width: min(r.width - 8, 13),
+                  height: min(r.height - 8, 13),
+                ),
+              );
+            }
+          }
+          t += cell + rng.range(5, 12);
+        }
+      }
+
+    case 'analemma_court':
+      // The dial's own pavement: a wide ring of radial joints under the
+      // analemma, which is the one place in the vault where the FLOOR is the
+      // instrument. It stays a joint pattern, never a fill, so the star's four
+      // stones keep the contrast.
+      final c = room.eclipse!.analemma!;
+      edges.addOval(Rect.fromCircle(center: c, radius: 150));
+      edges.addOval(Rect.fromCircle(center: c, radius: 162));
+      for (var i = 0; i < 24; i++) {
+        // Hour marks, deliberately UNEVEN in length — an analemma is a figure
+        // of eight, not a clock face.
+        final a = i * pi / 12;
+        final inner = 150.0;
+        final outer = 162.0 + (i % 3 == 0 ? 9 : 0);
+        edges
+          ..moveTo(c.dx + cos(a) * inner, c.dy + sin(a) * inner)
+          ..lineTo(c.dx + cos(a) * outer, c.dy + sin(a) * outer);
+      }
+  }
+
+  // ── SOCKETS ────────────────────────────────────────────
+  // A gnomon is the one piece of architecture on this planet that the player
+  // actually handles, and it was standing on nothing. It gets a collar and a
+  // plinth in the floor — the shadow bar itself stays where it belongs, in
+  // `_renderVaultObjects`, because that bar is the mechanic and not scenery.
+  final gn = vaultGnomonIn(room.id);
+  if (gn != null) {
+    edges
+      ..addOval(Rect.fromCircle(center: gn.shaft, radius: 34))
+      ..addOval(Rect.fromCircle(center: gn.shaft, radius: 24));
+    var ga = rng.range(0, 1.0);
+    while (ga < pi * 2) {
+      edges
+        ..moveTo(gn.shaft.dx + cos(ga) * 24, gn.shaft.dy + sin(ga) * 24)
+        ..lineTo(gn.shaft.dx + cos(ga) * 34, gn.shaft.dy + sin(ga) * 34);
+      ga += rng.range(0.5, 1.0);
+    }
+  }
+  final vane = room.eclipse?.shadowVane;
+  if (vane != null) {
+    // The arena's vane is set into a floor plate, squared so it does not read
+    // as one more ring in a room full of them. It has to be a PLATE and not
+    // two stroked squares — the outline version read as a selection box drawn
+    // over the floor, which on the one object the guardian fight is fought
+    // around is the worst place to look like interface.
+    final plate = Rect.fromCenter(center: vane, width: 86, height: 86);
+    bodies.addRect(plate);
+    mouths.addRect(Rect.fromCenter(center: vane, width: 58, height: 58));
+    edges.addRect(plate.deflate(6));
+    for (final c in _rectCorners(plate.deflate(9))) {
+      caps.addOval(Rect.fromCircle(center: c, radius: 3.2));
+    }
+  }
+
+  // ── THE FISSURE ────────────────────────────────────────
+  // One or two bands of light lying across the floor from high in the wall the
+  // light comes from. This is the whole reason the floor texture is visible at
+  // all in a corona room, and in an umbra room it is the bar of nothing that
+  // says the vault has been turned over.
+  final shafts = sizeScale < 0.8 ? 1 : 1 + rng.pick(2);
+  for (var i = 0; i < shafts; i++) {
+    final w = rng.range(58, 132) * sizeScale;
+    // Walk the band back up the light direction until it is off the room, so
+    // it always enters through a wall rather than starting in mid-floor.
+    final hit = Offset(
+      b.left + rng.range(b.width * 0.15, b.width * 0.85),
+      b.top + rng.range(b.height * 0.1, b.height * 0.5),
+    );
+    final start = hit - dir * (b.height + 200);
+    final end = hit + dir * (b.height + 400);
+    final n = Offset(-dir.dy, dir.dx);
+    shaftLight.addPolygon([
+      start + n * (w * 0.38),
+      start - n * (w * 0.38),
+      end - n * (w * 0.5),
+      end + n * (w * 0.5),
+    ], true);
+  }
+
+  return _VaultGround(
+    flags: flags,
+    sunken: sunken,
+    shadows: shadows,
+    stripes: stripes,
+    bodies: bodies,
+    caps: caps,
+    edges: edges,
+    mouths: mouths,
+    shaftLight: shaftLight,
+    lamps: lamps,
+  );
 }
