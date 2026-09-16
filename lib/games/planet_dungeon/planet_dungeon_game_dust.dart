@@ -1086,10 +1086,8 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
 
   // ── The ground the whole planet stands on ────────────────
 
-  _RuinsGround _ruinsGround(DungeonRoom room) => _ruinsGroundCache.putIfAbsent(
-    room.id,
-    () => _buildRuinsGround(room),
-  );
+  _RuinsGround _ruinsGround(DungeonRoom room) =>
+      _ruinsGroundCache.putIfAbsent(room.id, () => _buildRuinsGround(room));
 
   /// THE DECK. Bed, paving, and what the wind has done to it.
   void _renderRuinsDeck(Canvas canvas, DungeonRoom room, _RuinsGround g) {
@@ -1187,10 +1185,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     // DUCKBOARDS. Below the streets the traffic is diggers' feet, and they
     // walk on planks laid over the spoil.
     for (final d in g.boards) {
-      canvas.drawRect(
-        d,
-        Paint()..color = _kDustTimber.withValues(alpha: 0.42),
-      );
+      canvas.drawRect(d, Paint()..color = _kDustTimber.withValues(alpha: 0.42));
       for (var x = d.left + 5; x < d.right - 3; x += 13) {
         canvas.drawLine(
           Offset(x, d.top + 1),
@@ -1264,9 +1259,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
   void _renderCutFace(Canvas canvas, DungeonRoom room, _RuinsGround g) {
     final b = room.bounds.deflate(8);
     canvas.save();
-    canvas.clipRRect(
-      RRect.fromRectAndRadius(b, const Radius.circular(34)),
-    );
+    canvas.clipRRect(RRect.fromRectAndRadius(b, const Radius.circular(34)));
     const bands = [
       (0.0, 0.26, Color(0xFF4C3A24)),
       (0.26, 0.48, Color(0xFF6A5031)),
@@ -1474,8 +1467,18 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     // bright crest where the last barrowful landed.
     final path = Path()
       ..moveTo(at.dx - w / 2, at.dy)
-      ..quadraticBezierTo(at.dx - w * 0.22, at.dy - h, at.dx + w * 0.05, at.dy - h)
-      ..quadraticBezierTo(at.dx + w * 0.3, at.dy - h * 0.92, at.dx + w / 2, at.dy)
+      ..quadraticBezierTo(
+        at.dx - w * 0.22,
+        at.dy - h,
+        at.dx + w * 0.05,
+        at.dy - h,
+      )
+      ..quadraticBezierTo(
+        at.dx + w * 0.3,
+        at.dy - h * 0.92,
+        at.dx + w / 2,
+        at.dy,
+      )
       ..close();
     canvas.drawPath(
       path,
@@ -1651,8 +1654,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         );
         canvas.drawRect(
           st,
-          Paint()
-            ..color = _kDustStone.withValues(alpha: 0.74 - v * 0.08),
+          Paint()..color = _kDustStone.withValues(alpha: 0.74 - v * 0.08),
         );
         canvas.drawRect(
           Rect.fromLTWH(st.left, st.top, st.width, 4),
@@ -1747,7 +1749,12 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       for (final seg in run.$2) {
         _drawMasonry(
           canvas,
-          Rect.fromLTWH(b.left + seg.$1, run.$1 + (seg.$1 % 13) - 6, seg.$2, 22),
+          Rect.fromLTWH(
+            b.left + seg.$1,
+            run.$1 + (seg.$1 % 13) - 6,
+            seg.$2,
+            22,
+          ),
           6,
           false,
         );
@@ -1796,8 +1803,10 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       // The keystone, and the two voussoirs either side of it.
       for (final a in [pi * 1.32, pi * 1.5, pi * 1.68]) {
         canvas.drawLine(
-          cr.center + Offset(cos(a) * cr.width * 0.44, sin(a) * cr.height * 0.44),
-          cr.center + Offset(cos(a) * cr.width * 0.56, sin(a) * cr.height * 0.56),
+          cr.center +
+              Offset(cos(a) * cr.width * 0.44, sin(a) * cr.height * 0.44),
+          cr.center +
+              Offset(cos(a) * cr.width * 0.56, sin(a) * cr.height * 0.56),
           Paint()
             ..strokeWidth = a == pi * 1.5 ? 4 : 2
             ..color = _kDustUmber.withValues(alpha: 0.45),
@@ -1806,7 +1815,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     }
     // THE LIGHTWELL. A grating over a hole, with the dark of the excavation
     // deck showing through its bars: the two Z-layers, in one object.
-    final lw = Rect.fromCenter(center: const Offset(700, 400), width: 66, height: 46);
+    final lw = Rect.fromCenter(
+      center: const Offset(700, 400),
+      width: 66,
+      height: 46,
+    );
     canvas.drawRect(
       lw,
       Paint()..color = const Color(0xFF0E0A06).withValues(alpha: 0.9),
@@ -1840,7 +1853,12 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       Paint()..color = const Color(0xFF0F0B07).withValues(alpha: 0.55),
     );
     // The retaining wall, with the batter courses a terrace wall is built in.
-    final w = Rect.fromLTRB(b.left + 10, b.bottom - 62, b.right - 10, b.bottom - 38);
+    final w = Rect.fromLTRB(
+      b.left + 10,
+      b.bottom - 62,
+      b.right - 10,
+      b.bottom - 38,
+    );
     canvas.drawRect(w, Paint()..color = _kDustStone.withValues(alpha: 0.72));
     canvas.drawRect(
       Rect.fromLTWH(w.left, w.top, w.width, 6),
@@ -1909,10 +1927,17 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     );
     // PITHOI half-buried along the wall — storage jars the terrace was for.
     for (var i = 0; i < 4; i++) {
-      final at = Offset(128 + i * 63.0 + (i.isEven ? 0 : 14), 120 + (i % 3) * 19.0);
+      final at = Offset(
+        128 + i * 63.0 + (i.isEven ? 0 : 14),
+        120 + (i % 3) * 19.0,
+      );
       final rr = 16.0 + (i % 2) * 5;
       canvas.drawOval(
-        Rect.fromCenter(center: at.translate(3, 5), width: rr * 2.1, height: rr * 1.5),
+        Rect.fromCenter(
+          center: at.translate(3, 5),
+          width: rr * 2.1,
+          height: rr * 1.5,
+        ),
         Paint()..color = Colors.black.withValues(alpha: 0.25),
       );
       canvas.drawOval(
@@ -1920,7 +1945,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         Paint()..color = _kDustBrick.withValues(alpha: 0.8),
       );
       canvas.drawOval(
-        Rect.fromCenter(center: at.translate(0, -rr * 0.45), width: rr * 1.2, height: rr * 0.6),
+        Rect.fromCenter(
+          center: at.translate(0, -rr * 0.45),
+          width: rr * 1.2,
+          height: rr * 0.6,
+        ),
         Paint()..color = const Color(0xFF150F09).withValues(alpha: 0.8),
       );
     }
@@ -2016,11 +2045,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     for (var i = 4; i >= 1; i--) {
       final k = i / 4.0;
       canvas.drawRect(
-        Rect.fromCenter(
-          center: c,
-          width: 60 + 230 * k,
-          height: 46 + 170 * k,
-        ),
+        Rect.fromCenter(center: c, width: 60 + 230 * k, height: 46 + 170 * k),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.6
@@ -2029,7 +2054,12 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     }
     // The corners, drawn as real converging lines so it reads as perspective
     // rather than as four boxes.
-    for (final s in [const Offset(-1, -1), Offset(1, -1), Offset(-1, 1), Offset(1, 1)]) {
+    for (final s in [
+      const Offset(-1, -1),
+      Offset(1, -1),
+      Offset(-1, 1),
+      Offset(1, 1),
+    ]) {
       canvas.drawLine(
         c + Offset(s.dx * 145, s.dy * 108),
         c + Offset(s.dx * 30, s.dy * 23),
@@ -2041,7 +2071,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     // Daylight at the top of the shaft, and the column of it coming down.
     for (var i = 3; i >= 1; i--) {
       canvas.drawRect(
-        Rect.fromCenter(center: c, width: 60.0 * i * 0.62, height: 46.0 * i * 0.62),
+        Rect.fromCenter(
+          center: c,
+          width: 60.0 * i * 0.62,
+          height: 46.0 * i * 0.62,
+        ),
         Paint()..color = _kDustPale.withValues(alpha: 0.07),
       );
     }
@@ -2128,7 +2162,12 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     // direction rather than as an empty rectangle.
     final rail = Path()..moveTo(b.left + 30, 226);
     for (var x = b.left + 30.0; x < b.right - 120; x += 120) {
-      rail.quadraticBezierTo(x + 60, 226 + sin(x * 0.011) * 26, x + 120, 232 + sin(x * 0.008) * 34);
+      rail.quadraticBezierTo(
+        x + 60,
+        226 + sin(x * 0.011) * 26,
+        x + 120,
+        232 + sin(x * 0.008) * 34,
+      );
     }
     // Sleepers first, at whatever spacing they were laid at.
     var sx = b.left + 44.0;
@@ -2257,18 +2296,30 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       if (p.$3) {
         // Still capped: a stone lid with its lifting slot.
         canvas.drawOval(
-          Rect.fromCenter(center: at.translate(0, -3), width: r * 1.72, height: r * 1.26),
+          Rect.fromCenter(
+            center: at.translate(0, -3),
+            width: r * 1.72,
+            height: r * 1.26,
+          ),
           Paint()..color = _kDustStone.withValues(alpha: 0.72),
         );
         canvas.drawRect(
-          Rect.fromCenter(center: at.translate(0, -3), width: r * 0.5, height: 5),
+          Rect.fromCenter(
+            center: at.translate(0, -3),
+            width: r * 0.5,
+            height: 5,
+          ),
           Paint()..color = const Color(0xFF140E08).withValues(alpha: 0.8),
         );
       } else {
         // Open: the grain went to chaff a thousand years ago, and what is
         // left has spilled out over the lip in a fan.
         canvas.drawArc(
-          Rect.fromCenter(center: at.translate(0, 4), width: r * 1.6, height: r * 1.1),
+          Rect.fromCenter(
+            center: at.translate(0, 4),
+            width: r * 1.6,
+            height: r * 1.1,
+          ),
           0,
           pi,
           true,
@@ -2297,7 +2348,12 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         Path()
           ..moveTo(at.dx - w / 2, at.dy + 20)
           ..quadraticBezierTo(at.dx - w * 0.62, at.dy - 14, at.dx, at.dy - 18)
-          ..quadraticBezierTo(at.dx + w * 0.6, at.dy - 12, at.dx + w / 2, at.dy + 20)
+          ..quadraticBezierTo(
+            at.dx + w * 0.6,
+            at.dy - 12,
+            at.dx + w / 2,
+            at.dy + 20,
+          )
           ..close(),
         Paint()..color = const Color(0xFF6B5B40).withValues(alpha: 0.85),
       );
@@ -2343,7 +2399,12 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         // A shadow cast DOWN from each beam, so it reads as something over
         // your head and not as a plank lying on the floor.
         canvas.drawRect(
-          Rect.fromLTWH(room.bounds.left + 10, y + 11, room.bounds.width - 20, 12),
+          Rect.fromLTWH(
+            room.bounds.left + 10,
+            y + 11,
+            room.bounds.width - 20,
+            12,
+          ),
           Paint()..color = Colors.black.withValues(alpha: 0.16),
         );
         canvas.drawRect(
@@ -2469,7 +2530,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     );
     for (var i = 1; i < 5; i++) {
       canvas.drawOval(
-        Rect.fromCenter(center: c.translate(0, -i * 5.0), width: 186.0 - i * 30, height: 128.0 - i * 22),
+        Rect.fromCenter(
+          center: c.translate(0, -i * 5.0),
+          width: 186.0 - i * 30,
+          height: 128.0 - i * 22,
+        ),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.4
@@ -2501,14 +2566,21 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     // WASTERS — the pots that slumped in the firing, stacked where they were
     // thrown out.
     for (var i = 0; i < 7; i++) {
-      final at = Offset(320 + (i % 3) * 42.0 + (i ~/ 3) * 17, 106 + (i ~/ 3) * 66.0 + (i % 3) * 13);
+      final at = Offset(
+        320 + (i % 3) * 42.0 + (i ~/ 3) * 17,
+        106 + (i ~/ 3) * 66.0 + (i % 3) * 13,
+      );
       final rr = 12.0 + (i % 3) * 4;
       canvas.drawOval(
         Rect.fromCenter(center: at, width: rr * 2, height: rr * 1.5),
         Paint()..color = _kDustBrick.withValues(alpha: 0.62),
       );
       canvas.drawArc(
-        Rect.fromCenter(center: at.translate(0, -rr * 0.3), width: rr * 1.3, height: rr * 0.8),
+        Rect.fromCenter(
+          center: at.translate(0, -rr * 0.3),
+          width: rr * 1.3,
+          height: rr * 0.8,
+        ),
         pi,
         pi,
         false,
@@ -2530,7 +2602,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       canvas.rotate(0.3 + (i % 5) * 0.22);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset.zero, width: 34.0 - (i % 3) * 6, height: 9),
+          Rect.fromCenter(
+            center: Offset.zero,
+            width: 34.0 - (i % 3) * 6,
+            height: 9,
+          ),
           const Radius.circular(4),
         ),
         Paint()..color = _kDustTimber.withValues(alpha: 0.9),
@@ -2607,8 +2683,15 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     );
 
     // THE HEARTH, with a thousand years of undisturbed ash in it.
-    final hearth = Rect.fromCenter(center: Offset(b.center.dx, b.top + 52), width: 92, height: 44);
-    canvas.drawRect(hearth, Paint()..color = _kDustBrick.withValues(alpha: 0.72));
+    final hearth = Rect.fromCenter(
+      center: Offset(b.center.dx, b.top + 52),
+      width: 92,
+      height: 44,
+    );
+    canvas.drawRect(
+      hearth,
+      Paint()..color = _kDustBrick.withValues(alpha: 0.72),
+    );
     canvas.drawRect(
       hearth.deflate(8),
       Paint()..color = const Color(0xFF221C16).withValues(alpha: 0.9),
@@ -2620,7 +2703,10 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     // THE SHELF, with its jars still sealed and still standing in a row —
     // the only orderly row of anything on this planet, and it earns it.
     final shelf = Rect.fromLTWH(b.right - 118, 108, 96, 9);
-    canvas.drawRect(shelf, Paint()..color = _kDustTimber.withValues(alpha: 0.85));
+    canvas.drawRect(
+      shelf,
+      Paint()..color = _kDustTimber.withValues(alpha: 0.85),
+    );
     for (var i = 0; i < 4; i++) {
       final at = Offset(shelf.left + 14 + i * 23.0, shelf.top - 12);
       canvas.drawOval(
@@ -2697,10 +2783,9 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       canvas.drawPath(
         lobe,
         Paint()
-          ..color = (i.isEven
-                  ? const Color(0xFF5A472C)
-                  : const Color(0xFF4A3A24))
-              .withValues(alpha: 0.88),
+          ..color =
+              (i.isEven ? const Color(0xFF5A472C) : const Color(0xFF4A3A24))
+                  .withValues(alpha: 0.88),
       );
       canvas.drawPath(
         g.hollowCrests[i],
@@ -2729,7 +2814,10 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     // WHAT THE STORM HAS UNCOVERED AND RE-BURIED, over and over: the ribs of
     // something that was standing here, mostly still under.
     for (var i = 0; i < 5; i++) {
-      final at = Offset(150 + i * 34.0 + (i % 2) * 16, 540 + (i % 3) * 22.0 - i * 7);
+      final at = Offset(
+        150 + i * 34.0 + (i % 2) * 16,
+        540 + (i % 3) * 22.0 - i * 7,
+      );
       canvas.drawArc(
         Rect.fromCenter(center: at, width: 26, height: 78),
         pi * 1.16,
@@ -2779,7 +2867,12 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
           // them — this square has been MEASURED, which is the fiction the
           // whole planet's verb comes out of.
           final peg = Paint()..color = _kDustDeep.withValues(alpha: 0.8);
-          for (final c in [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft]) {
+          for (final c in [
+            r.topLeft,
+            r.topRight,
+            r.bottomRight,
+            r.bottomLeft,
+          ]) {
             canvas.drawCircle(c, 3.4, peg);
           }
           // Chalked string on two sides only, in dashes. A closed rectangle
@@ -2828,7 +2921,12 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
           // The step cut into the side to climb out by.
           for (var i = 0; i < 3; i++) {
             canvas.drawRect(
-              Rect.fromLTWH(r.left + 14.0 + i * 6, r.bottom - 26.0 + i * 6, 30, 5),
+              Rect.fromLTWH(
+                r.left + 14.0 + i * 6,
+                r.bottom - 26.0 + i * 6,
+                30,
+                5,
+              ),
               Paint()..color = _kDustOchre.withValues(alpha: 0.34),
             );
           }
@@ -2889,7 +2987,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         ink,
       );
       for (var t = 0; t < 4; t++) {
-        canvas.drawCircle(Offset(-4.0 + t * 2.8, -13.5 - (t == 0 ? 1 : 0)), 1.5, ink);
+        canvas.drawCircle(
+          Offset(-4.0 + t * 2.8, -13.5 - (t == 0 ? 1 : 0)),
+          1.5,
+          ink,
+        );
       }
       canvas.restore();
     }
@@ -2922,10 +3024,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       Paint()..color = const Color(0xFF564733).withValues(alpha: 0.42),
     );
     for (final p in g.yardFlags) {
-      canvas.drawPath(
-        p,
-        Paint()..color = _kDustStone.withValues(alpha: 0.3),
-      );
+      canvas.drawPath(p, Paint()..color = _kDustStone.withValues(alpha: 0.3));
     }
     // CHALKED STRING between pegs — the survey grid, drawn as string rather
     // than as cell borders, so it lies OVER the ground instead of dividing it.
@@ -2934,11 +3033,19 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       ..color = _kDustPale.withValues(alpha: 0.22);
     for (var c = 0; c <= f.cols; c++) {
       final x = yard.left + c * f.cell;
-      canvas.drawLine(Offset(x, yard.top - 6), Offset(x, yard.bottom + 6), chalk);
+      canvas.drawLine(
+        Offset(x, yard.top - 6),
+        Offset(x, yard.bottom + 6),
+        chalk,
+      );
     }
     for (var r = 0; r <= f.rows; r++) {
       final y = yard.top + r * f.cell;
-      canvas.drawLine(Offset(yard.left - 6, y), Offset(yard.right + 6, y), chalk);
+      canvas.drawLine(
+        Offset(yard.left - 6, y),
+        Offset(yard.right + 6, y),
+        chalk,
+      );
     }
     final peg = Paint()..color = _kDustDeep.withValues(alpha: 0.75);
     for (var c = 0; c <= f.cols; c++) {
@@ -3174,7 +3281,9 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         canvas.drawOval(
           Rect.fromCenter(
             center: rings,
-            width: (96.0 - i * 22) * (i == 2 ? 1 : cos(turn + i).abs() * 0.5 + 0.6),
+            width:
+                (96.0 - i * 22) *
+                (i == 2 ? 1 : cos(turn + i).abs() * 0.5 + 0.6),
             height: 40.0 + i * 20,
           ),
           Paint()
@@ -3261,8 +3370,18 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       canvas.drawPath(
         Path()
           ..moveTo(r.left - 16, r.bottom + 8)
-          ..quadraticBezierTo(r.center.dx, r.bottom + 26, r.right + 16, r.bottom + 8)
-          ..quadraticBezierTo(r.center.dx, r.bottom - 2, r.left - 16, r.bottom + 8)
+          ..quadraticBezierTo(
+            r.center.dx,
+            r.bottom + 26,
+            r.right + 16,
+            r.bottom + 8,
+          )
+          ..quadraticBezierTo(
+            r.center.dx,
+            r.bottom - 2,
+            r.left - 16,
+            r.bottom + 8,
+          )
           ..close(),
         Paint()..color = const Color(0xFF4A3A24).withValues(alpha: 0.7),
       );
@@ -3426,19 +3545,15 @@ Path _dustQuad(
   double tilt,
   double Function() rnd,
 ) {
-  const corners = [
-    Offset(-1, -1),
-    Offset(1, -1),
-    Offset(1, 1),
-    Offset(-1, 1),
-  ];
+  const corners = [Offset(-1, -1), Offset(1, -1), Offset(1, 1), Offset(-1, 1)];
   final p = Path();
   for (var i = 0; i < 4; i++) {
     final o = Offset(
       corners[i].dx * w / 2 + (rnd() - 0.5) * 6,
       corners[i].dy * h / 2 + (rnd() - 0.5) * 5,
     );
-    final q = c +
+    final q =
+        c +
         Offset(
           o.dx * cos(tilt) - o.dy * sin(tilt),
           o.dx * sin(tilt) + o.dy * cos(tilt),
@@ -3465,10 +3580,7 @@ Path _dustBlob(
     pts.add(c + Offset(cos(a) * rx * k, sin(a) * ry * k));
   }
   final p = Path()
-    ..moveTo(
-      (pts[0].dx + pts[n - 1].dx) / 2,
-      (pts[0].dy + pts[n - 1].dy) / 2,
-    );
+    ..moveTo((pts[0].dx + pts[n - 1].dx) / 2, (pts[0].dy + pts[n - 1].dy) / 2);
   for (var i = 0; i < n; i++) {
     final nx = pts[(i + 1) % n];
     p.quadraticBezierTo(
@@ -3558,9 +3670,8 @@ _RuinsGround _buildRuinsGround(DungeonRoom room) {
 
   /// Claim the ground a standing thing occupies, so the next one cannot be
   /// put on top of it.
-  void take(Offset p, double w, double h) => keepStanding.add(
-    Rect.fromCenter(center: p, width: w, height: h),
-  );
+  void take(Offset p, double w, double h) =>
+      keepStanding.add(Rect.fromCenter(center: p, width: w, height: h));
 
   // ── THE CUT FACE (excavation deck only) ────────────────
   if (under) {
@@ -3620,7 +3731,11 @@ _RuinsGround _buildRuinsGround(DungeonRoom room) {
   final fw = under ? 58.0 : 92.0;
   final fh = under ? 30.0 : 54.0;
   var course = 0;
-  for (var y = b.top + g.faceHeight + 12; paved && y < b.bottom - 18; y += fh + 9) {
+  for (
+    var y = b.top + g.faceHeight + 12;
+    paved && y < b.bottom - 18;
+    y += fh + 9
+  ) {
     final off = (course.isEven ? 0.0 : fw * 0.45) + rnd() * 14;
     for (var x = b.left + 14 + off; x < b.right - 30; x += fw + 11) {
       final c = Offset(x + fw / 2, y + fh / 2);
@@ -3691,7 +3806,8 @@ _RuinsGround _buildRuinsGround(DungeonRoom room) {
   final bearing = (b.width > b.height ? 0.12 : 1.4) + rnd() * 0.3;
   for (var cluster = 0; cluster < 5; cluster++) {
     final ox = b.left + 40 + rnd() * (b.width - 80);
-    final oy = b.top + g.faceHeight + 30 + rnd() * (b.height - g.faceHeight - 70);
+    final oy =
+        b.top + g.faceHeight + 30 + rnd() * (b.height - g.faceHeight - 70);
     final n = 2 + (rnd() * 3).floor();
     for (var i = 0; i < n; i++) {
       final start = Offset(
@@ -3705,7 +3821,8 @@ _RuinsGround _buildRuinsGround(DungeonRoom room) {
       final steps = 2 + (len / 60).floor();
       for (var k = 1; k <= steps; k++) {
         final t = k / steps;
-        final mid = start +
+        final mid =
+            start +
             Offset(cos(bearing), sin(bearing)) * (len * (t - 0.5 / steps)) +
             Offset(-sin(bearing), cos(bearing)) * (amp * (k.isEven ? 1 : -1));
         final end = start + Offset(cos(bearing), sin(bearing)) * (len * t);
@@ -3774,7 +3891,9 @@ _RuinsGround _buildRuinsGround(DungeonRoom room) {
     final at = Offset(
       hug
           ? b.left + 44 + rnd() * (b.width - 88)
-          : (rnd() < 0.5 ? b.left + 40 + rnd() * 60 : b.right - 100 + rnd() * 60),
+          : (rnd() < 0.5
+                ? b.left + 40 + rnd() * 60
+                : b.right - 100 + rnd() * 60),
       hug
           ? (rnd() < 0.5
                 ? b.top + g.faceHeight + 30 + rnd() * 60
@@ -3822,8 +3941,14 @@ _RuinsGround _buildRuinsGround(DungeonRoom room) {
     }
     final boards = (b.width / 420).clamp(1, 3).toInt();
     for (var i = 0; i < boards; i++) {
-      final y = b.top + g.faceHeight + 60 + rnd() * (b.height - g.faceHeight - 140);
-      final r = Rect.fromLTWH(b.left + 30 + rnd() * 60, y, 120 + rnd() * 180, 24);
+      final y =
+          b.top + g.faceHeight + 60 + rnd() * (b.height - g.faceHeight - 140);
+      final r = Rect.fromLTWH(
+        b.left + 30 + rnd() * 60,
+        y,
+        120 + rnd() * 180,
+        24,
+      );
       if (!clear(r.center, 40)) continue;
       g.boards.add(r);
       take(r.center, r.width + 20, r.height + 24);
@@ -3853,12 +3978,7 @@ _RuinsGround _buildRuinsGround(DungeonRoom room) {
       b.top + g.faceHeight + 16 + rnd() * (b.height - g.faceHeight - 36),
     );
     if (!clear(at, 10)) continue;
-    g.sherds.add((
-      at: at,
-      a: rnd() * pi,
-      s: 4 + rnd() * 6,
-      pale: rnd() < 0.35,
-    ));
+    g.sherds.add((at: at, a: rnd() * pi, s: 4 + rnd() * 6, pale: rnd() < 0.35));
   }
 
   // ── THE OBSERVATORY'S FLOOR AND ROOF ───────────────────
@@ -3891,10 +4011,24 @@ _RuinsGround _buildRuinsGround(DungeonRoom room) {
   // ── ASHDJINN'S BANK ────────────────────────────────────
   if (room.guardian != null) {
     final c = room.bounds.center;
-    final outer = _dustBlob(c, b.width * 0.56, b.height * 0.56, rnd, wobble: 0.2, n: 13);
+    final outer = _dustBlob(
+      c,
+      b.width * 0.56,
+      b.height * 0.56,
+      rnd,
+      wobble: 0.2,
+      n: 13,
+    );
     // Gently wobbled: at 0.24 this came out a lopsided amoeba the size of
     // the room, which read as a puddle rather than as the floor of a cut.
-    final inner = _dustBlob(c, b.width * 0.40, b.height * 0.38, rnd, wobble: 0.09, n: 17);
+    final inner = _dustBlob(
+      c,
+      b.width * 0.40,
+      b.height * 0.38,
+      rnd,
+      wobble: 0.09,
+      n: 17,
+    );
     g.bankRing = Path.combine(ui.PathOperation.difference, outer, inner);
     g.bankCrest = inner;
     g.bankInner = inner;
@@ -3934,7 +4068,11 @@ _RuinsGround _buildRuinsGround(DungeonRoom room) {
     // floor rather than beside one.
     var row = 0;
     for (var y = yard.top + 8; y < yard.bottom - 10; y += 46) {
-      for (var x = yard.left + (row.isEven ? 10 : 46); x < yard.right - 24; x += 74) {
+      for (
+        var x = yard.left + (row.isEven ? 10 : 46);
+        x < yard.right - 24;
+        x += 74
+      ) {
         if (rnd() < 0.34) continue;
         g.yardFlags.add(
           _dustQuad(
@@ -4055,15 +4193,32 @@ _RuinsGround _buildRuinsGround(DungeonRoom room) {
       mrow++;
     }
     // BARED: the hole, and the rim of spoil the digging threw up round it.
-    geo.lip = _dustBlob(r.center, r.width * 0.52, r.height * 0.54, rnd, wobble: 0.16);
-    geo.pit = _dustBlob(r.center, r.width * 0.44, r.height * 0.44, rnd, wobble: 0.13);
+    geo.lip = _dustBlob(
+      r.center,
+      r.width * 0.52,
+      r.height * 0.54,
+      rnd,
+      wobble: 0.16,
+    );
+    geo.pit = _dustBlob(
+      r.center,
+      r.width * 0.44,
+      r.height * 0.44,
+      rnd,
+      wobble: 0.13,
+    );
     // DRIFTED: a dune with a combed windward face and a hard slip face east.
     final k = 0.3 + rnd() * 0.16;
     final peak = Offset(r.left + r.width * k, r.top + 6 + rnd() * 8);
     final shoulder = Offset(r.right - 10 - rnd() * 14, r.top + 22 + rnd() * 10);
     geo.dune = Path()
       ..moveTo(r.left, r.bottom)
-      ..quadraticBezierTo(r.left + r.width * k * 0.4, r.top + 30, peak.dx, peak.dy)
+      ..quadraticBezierTo(
+        r.left + r.width * k * 0.4,
+        r.top + 30,
+        peak.dx,
+        peak.dy,
+      )
       ..quadraticBezierTo(
         (peak.dx + shoulder.dx) / 2,
         peak.dy - 5,

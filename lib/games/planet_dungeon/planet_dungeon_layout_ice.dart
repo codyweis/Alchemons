@@ -9,9 +9,9 @@
 //
 //     rime_head  (L0, the mouth)        ── the throat ──┐
 //        │ flue A ──► shelf_glass  (the vault)          │
-//     mirror_gallery (L1, Star 1)                       │ (one-way plunge)
+//     mirror_gallery (L1, Star 0)                       │ (one-way plunge)
 //        │ flue B ──► shelf_lens   (the 13th telescope) │
-//     orrery_floor  (L2, Star 0)                        │
+//     orrery_floor  (L2, Star 1)                        │
 //        │ flue C                                       │
 //     cold_sump  (the bottom, mercy)  ◄─────────────────┘
 //        │  the RIMEFALL climbs back to the mouth
@@ -96,8 +96,18 @@ class RimeFlue {
   /// out to [headRoom], never down to [footRoom]. Null = a plain drop.
   final String? shelfRoom;
 
-  /// Where the mouth sits inside [headRoom] (the freeze verb's reach).
+  /// Where the SHAFT's mouth sits inside [headRoom] — the hole that goes
+  /// down a level, and the one the freeze verb works on.
   final Offset headPos;
+
+  /// Where the LEDGE CHUTE's mouth sits, for the two flues that have a ledge.
+  ///
+  /// TWO MOUTHS, NEVER ONE (2026-09-15, from play). The shaft and the chute
+  /// used to be the same hole with two doors on one rect, of which the module
+  /// kept one live — *"you go through the same door and end up in 2 spots"*.
+  /// They are separate openings now, each with ONE destination for the whole
+  /// run and its own snow, and nothing couples them.
+  final Offset? chutePos;
 
   /// False for the throat: the melt-fall's own gullet takes no frost from
   /// above. Its counterpart is the rimefall, frozen from BELOW.
@@ -111,6 +121,7 @@ class RimeFlue {
     required this.headRoom,
     required this.footRoom,
     required this.headPos,
+    this.chutePos,
     this.shelfRoom,
     this.freezable = true,
     this.isThroat = false,
@@ -127,6 +138,7 @@ const List<RimeFlue> kRimeFlues = [
     footRoom: 'mirror_gallery',
     shelfRoom: 'shelf_glass',
     headPos: Offset(655, 470),
+    chutePos: Offset(445, 470),
   ),
   RimeFlue(
     id: 'flue_b',
@@ -134,12 +146,13 @@ const List<RimeFlue> kRimeFlues = [
     footRoom: 'orrery_floor',
     shelfRoom: 'shelf_lens',
     headPos: Offset(755, 548),
+    chutePos: Offset(555, 548),
   ),
   RimeFlue(
     id: 'flue_c',
     headRoom: 'orrery_floor',
     footRoom: 'cold_sump',
-    headPos: Offset(450, 610),
+    headPos: Offset(450, 620),
   ),
   // The throat: a straight plunge from the mouth to the sump. Never freezable
   // from above; the rimefall is its answer from below.
@@ -170,7 +183,7 @@ RimeFlue? rimeFlueForShelf(String shelfRoom) {
 }
 
 // ─────────────────────────────────────────────────────────
-// STAR 0 — THE STANDING ORRERY
+// STAR 1 (index 1) — THE STANDING ORRERY
 // ─────────────────────────────────────────────────────────
 
 /// The orrery floor, as a grid of cells.
@@ -188,9 +201,27 @@ RimeFlue? rimeFlueForShelf(String shelfRoom) {
 /// along until it finds stone. Laying ice therefore takes away the footing
 /// you need to shove from, which is the whole difficulty.
 class OrreryGrid {
-  /// Row art, one string per row. `.` stone · `#` pillar · `S` socket ·
-  /// `B` a star-block's starting cell (on stone).
+  /// Row art, one string per row. `.` stone · `#` pillar · `B` a star-block's
+  /// starting cell (on stone) · and a SOCKET as the direction its kerb opens
+  /// to: `>` east · `<` west · `^` north · `v` south.
+  ///
+  /// THE SKY TURNS ONE WAY (2026-09-15). A kerb takes a block only if the
+  /// block is running WITH the orbit it sits on — east along the top, west
+  /// along the bottom — and stops it dead at the lip otherwise. Sockets used
+  /// to take anything from any side, which made the whole floor a five-shove
+  /// formality: the nearest block was always already lined up with the
+  /// nearest kerb. Now the approach is the puzzle.
   final List<String> art;
+
+  /// WHICH BLOCK EACH KERB IS CUT FOR, as `row * cols + col` → block index
+  /// (blocks are numbered in the order their `B` cells are read, row by row).
+  ///
+  /// A kerb takes ONLY its own block, and only from the direction its orbit
+  /// turns. Both halves are cut into the stone — the figure on the kerb is
+  /// the figure on the block — because a rule you cannot see is not a puzzle,
+  /// it is a secret. Any-block sockets made the floor a five-shove
+  /// formality; owned ones make the shortest solution TEN.
+  final Map<int, int> kerbOwner;
 
   /// Top-left of cell (0,0) in room coordinates.
   final Offset origin;
@@ -198,7 +229,12 @@ class OrreryGrid {
   /// Cell size in px (square).
   final double cell;
 
-  const OrreryGrid({required this.art, required this.origin, this.cell = 92});
+  const OrreryGrid({
+    required this.art,
+    required this.origin,
+    this.kerbOwner = const {},
+    this.cell = 92,
+  });
 
   int get rows => art.length;
   int get cols => art.first.length;
@@ -208,14 +244,30 @@ class OrreryGrid {
 }
 
 // ─────────────────────────────────────────────────────────
-// STAR 1 — THE TWELVE MIRRORS
+// STAR 0 (index 0) — THE MIRROR GALLERY
 // ─────────────────────────────────────────────────────────
 
-/// The gallery's ring of frames. Ice SILVERS a frame (element-only) and the
-/// ceiling's star-chart shows in it — but a silvered frame THAWS and clouds
-/// over again, so the star is a lap against your own melt (§6: "solve before
-/// mirrors thaw"). One frame, the LODESTONE, is black glass no frost will
-/// take: only Light's second sight strikes into it, and it never thaws.
+/// The gallery's ring of frames, and the still pool they stand around.
+///
+/// THE CHART ASSEMBLES IN THE WATER. The ceiling's chart is one closed figure
+/// of 24 stars running right around the ring, and it is never seen directly.
+/// Silvering a frame throws that frame's stretch of it into the pool, and
+/// frost comes off as easily as it goes on, so the water is a workbench.
+///
+/// Neighbouring frames OVERLAP — two stars apiece, five covered — so no frame
+/// can be judged on its own. Where two silvered frames disagree about where a
+/// star hangs, the line FORKS, and a fork names a PAIR, never a frame. The
+/// answer is chained out from the LODESTONE, the one frame known true, by
+/// choosing what to put in the water and what to take out. Some frames are
+/// hung false and the star is won by leaving exactly those out; no two of
+/// them are ever side by side, or a stretch of chart would have no cover.
+///
+/// And the water answers a LIGHT hand and nothing else: standing at the rim
+/// it shows that hand the stretch ACROSS the ring, and the water closes again
+/// behind it. Reading is therefore a thing you are DOING, with the one hand
+/// the entrance and the lodestone also want — walk it to see, switch to Ice
+/// to work the frames, switch back to check. Air's sweep off the cold vent
+/// stills the whole surface for a while: the one way to see it all at once.
 class MirrorRing {
   final Offset center;
   final double radius;
@@ -303,16 +355,22 @@ const DungeonLayout iceLayout = DungeonLayout(
   entranceSpawn: Offset(140, 300),
   title: 'THE FROZEN OBSERVATORY',
   descentTitle: 'Glacius Shaft',
+  // STARS NUMBER IN THE ORDER YOU MEET THEM (2026-09-15, from play). The
+  // gallery is L1 and the orrery L2, but the orrery was Star 0 — so the first
+  // pip lit for the room you reached second. It had been ordered that way by
+  // a house habit of making Star 0 the ungated one; §4's actual rule is only
+  // that SOME star is earnable by any trio, and the orrery is that star at
+  // either index.
   stars: [
+    DungeonStarSpec(
+      name: 'Mirror Star',
+      earnAnnouncement:
+          'The Mirror Star is yours, the chart closes and the sky stands',
+    ),
     DungeonStarSpec(
       name: 'Orrery Star',
       earnAnnouncement:
           'The Orrery Star is yours, the sky stands still and true',
-    ),
-    DungeonStarSpec(
-      name: 'Mirror Star',
-      earnAnnouncement:
-          'The Mirror Star is yours. Twelve glasses hold the chart at once',
     ),
     DungeonStarSpec(name: 'Frost Star'),
   ],
@@ -320,9 +378,9 @@ const DungeonLayout iceLayout = DungeonLayout(
   entranceRevealDoor: DungeonDoorRef('rime_head', 'mirror_gallery'),
   finaleDoor: DungeonDoorRef('cold_sump', 'star_font'),
   riteAnnouncement:
-      'Orrery and Mirror are won, the font grinds open below the sump',
+      'Mirror and Orrery are won, the font grinds open below the sump',
   finaleSealedHint:
-      'The font is shut, it answers only the Orrery and Mirror stars',
+      'The font is shut, it answers only the Mirror and Orrery stars',
   guardianSealedHint:
       'The hollow is iced over, nothing in there stirs until the font is sung',
   mercyShrineRoomId: 'cold_sump',
@@ -334,13 +392,22 @@ const DungeonLayout iceLayout = DungeonLayout(
     'a Light Mask, to read what my dark glass keeps;',
     'and a Air Wing, to turn my last breath down the throat.',
   ],
+  // THE PRIMER HAS TO TEACH THE STATES, not just the trade. It said what the
+  // choice COSTS and never that a hole has three conditions — so a player who
+  // rode the same mouth twice and landed in two different rooms read it as
+  // one door with two exits, which is unreadable and is not what it is: only
+  // one destination is ever live, and which one is written on the snow.
+  // Three sentences, one per thing you can see. Nothing here is a hidden
+  // resource and nothing is coupled to anything else (2026-09-15): a shaft
+  // is a shaft, a chute is a chute, and what they do is written on them.
   primer: [
-    'Every flue is either your ladder home or the only way onto its shelf.',
-    'Never both, and you commit at its head.',
+    'A shaft goes down, and only down, unless you freeze the snow in it into steps.',
+    'Ride one and it is bare ice for good, and will never take frost again.',
+    'A ledge has its own chute, and the snow in it comes down with you.',
   ],
   // §4 budget: TWO hard gates, one per star that has one, each on a different
-  // entry slot. Star 0 (the orrery) is deliberately UNGATED so any trio of
-  // Ice/Light/Air progresses on a first descent. The freeze verb — the
+  // entry slot. The ORRERY (Star 1, index 1) is deliberately UNGATED so any
+  // trio of Ice/Light/Air progresses on a first descent. The freeze verb — the
   // planet's whole grammar — is element-only Ice everywhere, always.
   familyGates: [
     DungeonFamilyGate(
@@ -368,17 +435,18 @@ const DungeonLayout iceLayout = DungeonLayout(
         Rect.fromLTWH(300, 150, 160, 34), // the old sighting bench
       ],
       doors: [
-        // Flue A, ridden past its shelf (scoured) or walked as a stair.
+        // THE SHAFT — down a level, always. Ridden it is bare for good;
+        // frozen it is a stair you can climb.
         DungeonDoor(
           rect: Rect.fromLTWH(600, 496, 110, 24),
           targetRoomId: 'mirror_gallery',
           targetSpawn: Offset(760, 120),
         ),
-        // Flue A's DRIFT ride — the same mouth. Exactly one of this pair is
-        // ever live (the module hides the other), so the lip reads as one
-        // hole in the floor that behaves differently depending on its snow.
+        // THE LEDGE CHUTE — its own mouth, its own snow, and it goes exactly
+        // one place. The snow is what makes it a ramp; ridden, it is a bare
+        // slot and nothing gets into it again.
         DungeonDoor(
-          rect: Rect.fromLTWH(600, 496, 110, 24),
+          rect: Rect.fromLTWH(390, 496, 110, 24),
           targetRoomId: 'shelf_glass',
           targetSpawn: Offset(210, 110),
         ),
@@ -407,21 +475,21 @@ const DungeonLayout iceLayout = DungeonLayout(
           targetRoomId: 'rime_head',
           targetSpawn: Offset(655, 430),
         ),
-        // Down flue B, past its shelf.
+        // The shaft, down a level.
         DungeonDoor(
           rect: Rect.fromLTWH(700, 576, 110, 24),
           targetRoomId: 'orrery_floor',
-          targetSpawn: Offset(450, 130),
+          targetSpawn: Offset(450, 62),
         ),
-        // Down flue B, braked onto its shelf.
+        // The lens niche's own chute, 90px clear of it.
         DungeonDoor(
-          rect: Rect.fromLTWH(700, 576, 110, 24),
+          rect: Rect.fromLTWH(500, 576, 110, 24),
           targetRoomId: 'shelf_lens',
           targetSpawn: Offset(210, 110),
         ),
       ],
       rime: IceShaft(
-        starIndex: 1,
+        starIndex: 0,
         mirrors: MirrorRing(
           center: Offset(400, 300),
           radius: 216,
@@ -440,7 +508,7 @@ const DungeonLayout iceLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(155, 0, 110, 24),
           targetRoomId: 'rime_head',
-          targetSpawn: Offset(655, 430),
+          targetSpawn: Offset(445, 420),
         ),
       ],
       vaultCache: Offset(210, 230),
@@ -454,19 +522,34 @@ const DungeonLayout iceLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(155, 0, 110, 24),
           targetRoomId: 'mirror_gallery',
-          targetSpawn: Offset(755, 470),
+          targetSpawn: Offset(555, 498),
         ),
       ],
       rime: IceShaft(telescope: Offset(210, 220)),
     ),
 
     // ── L2 · THE ORRERY FLOOR (Star 0) ────────────────────
-    // 8×5 of 92px from (60,150) → 736×460 inside a 900×660 room.
+    // 8×5 of 92px from (60,110) → 736×460 inside a 900×660 room, which
+    // leaves a margin on all four sides: the floor is reached ACROSS its
+    // edge (see the module's `_orreryStandCell`), and the bottom margin is
+    // wide enough that flue C's mouth no longer sits on top of the socket
+    // in the last row — the hole you fall down and the kerb you seat a
+    // block in were drawn over one another and answered the same button.
     // `B` blocks start on stone; `S` sockets are kerbed and seat whatever
     // slides into them; `#` pillars stop a glide dead.
     'orrery_floor': DungeonRoom(
       id: 'orrery_floor',
       bounds: Rect.fromLTWH(0, 0, 900, 660),
+      // The four iron standards, as SOLID. They stop a sliding star-block
+      // dead, and a body walked straight through them — a cast-iron column
+      // you can stand inside is not a pillar, it is a decal. Inset inside
+      // their cells so the floor's own squares stay walkable round them.
+      walls: [
+        Rect.fromLTWH(162, 212, 72, 72), // cell (1,1)
+        Rect.fromLTWH(622, 212, 72, 72), // cell (6,1)
+        Rect.fromLTWH(162, 396, 72, 72), // cell (1,3)
+        Rect.fromLTWH(622, 396, 72, 72), // cell (6,3)
+      ],
       doors: [
         // Up flue B — a stair only.
         DungeonDoor(
@@ -482,10 +565,14 @@ const DungeonLayout iceLayout = DungeonLayout(
         ),
       ],
       rime: IceShaft(
-        starIndex: 0,
+        starIndex: 1,
         orrery: OrreryGrid(
-          origin: Offset(60, 150),
-          art: ['..S..S..', '.#....#.', '.B....B.', '.#....#.', '...BS...'],
+          origin: Offset(60, 110),
+          art: ['..>..>..', '.#....#.', '.B....B.', '.#....#.', '...B<...'],
+          // (2,0) is the west block's, (5,0) the east block's, (4,4) the
+          // south block's — each one the socket you would think was "its"
+          // nearest, and each one reachable only the long way round.
+          kerbOwner: {2: 0, 5: 1, 36: 2},
         ),
       ),
     ),
@@ -505,7 +592,7 @@ const DungeonLayout iceLayout = DungeonLayout(
         DungeonDoor(
           rect: Rect.fromLTWH(395, 0, 110, 24),
           targetRoomId: 'orrery_floor',
-          targetSpawn: Offset(450, 520),
+          targetSpawn: Offset(560, 598),
         ),
         // The rite, behind both stars.
         DungeonDoor(
@@ -561,6 +648,12 @@ const DungeonLayout iceLayout = DungeonLayout(
     // in the shaft above. It eats your way home while you fight it.
     'frowyrm_hollow': DungeonRoom(
       id: 'frowyrm_hollow',
+      // The fight's whole verb is a pillar of hoarfrost standing in the room,
+      // and it is DOWN when you walk in — so the room taught itself nothing
+      // and drew almost nothing. One line, once, on the insight channel.
+      teach:
+          'The wyrm slows only while the hoarfrost stands, and every strike '
+          'it lands takes the pillar down again.',
       bounds: Rect.fromLTWH(0, 0, 900, 640),
       doors: [
         DungeonDoor(

@@ -24,17 +24,47 @@ import 'package:flame/flame.dart' show Flame;
 import 'package:flame/sprite.dart';
 import 'package:flame/widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 
-class _ErrorIndicator extends StatelessWidget {
-  final String error;
-
-  const _ErrorIndicator({required this.error});
+class _SpriteLoadingIndicator extends StatelessWidget {
+  const _SpriteLoadingIndicator();
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final accent = colors.primary;
+
     return Center(
-      child: Icon(AppIcons.broken_image, size: 48, color: Colors.grey),
+      child: SizedBox.square(
+        dimension: 38,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: accent.withValues(alpha: 0.07),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.12),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+            ),
+            SizedBox.square(
+              dimension: 34,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.6,
+                color: accent.withValues(alpha: 0.72),
+                backgroundColor: accent.withValues(alpha: 0.10),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -152,12 +182,12 @@ class _CreatureSpriteState extends State<CreatureSprite>
   Widget build(BuildContext context) {
     // Error state
     if (_loadError != null) {
-      return _ErrorIndicator(error: _loadError!);
+      return const _SpriteLoadingIndicator();
     }
 
     // Loading state
     if (_spriteAnimation == null) {
-      return Icon(AppIcons.science, size: 50);
+      return const _SpriteLoadingIndicator();
     }
 
     // Prismatic trumps everything - even albino

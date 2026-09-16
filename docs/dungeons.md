@@ -315,7 +315,7 @@ new. The ledger grows with every build:
 | **Lightning** | beam routing/reflection via rotatable mirrors (+ *(rework)* negative constraints, provably unique) · element STATIONING pads · decoy-pad deduction · *(rework)* zero-sum power routing (power here = dark there) |
 | **Steam** | global resource economy (spend/condense/stoke one shared budget) · sacrifice-the-whole-budget vault |
 | **Poison** (BUILT 2026-08-24) | **diagnosis-by-behaviour** (a strain is identified by how it MOVES, not by a label or a clue — CLAIMED: no other planet may make observation-of-motion the read) · **forced partial sacrifice** (a budget that provably covers all but one target, so the question is which one you abandon — CLAIMED, and distinct from Steam's spend-it-all: here the shortfall is structural and the choice is named) |
-| **Ice** (BUILT 2026-08-24) | **one-way descent with an engineered return** (traversal that consumes the route behind you; the ladder home is something you must have built on the way down — CLAIMED) · **treasure-or-ladder exclusivity** (each edit serves one of two purposes and you commit before you know which you need) · costly full-state reset valve as the anti-softlock (a pattern, not a claim — reusable) |
+| **Ice** (BUILT 2026-08-24) | **reading a room only through a reflection whose content depends on WHERE YOU STAND** (the pool holds the quarter of sky opposite the party and nowhere else; the room is walked to be read, and what is learned is recorded across the ring from where it was seen — CLAIMED 2026-09-15; distinct from Poison's diagnosis-by-behaviour, which reads MOTION, and from Light's occlusion, where the player places the shadow) · **one-way descent with an engineered return** (traversal that consumes the route behind you; the ladder home is something you must have built on the way down — CLAIMED) · ~~treasure-or-ladder exclusivity~~ (RETIRED 2026-09-15: it was one hole with two doors, and played as "the same door sends me to two places". The ledge has its own chute now and nothing is coupled — the seat is free again for a later planet, and any taker must make the exclusivity VISIBLE) · costly full-state reset valve as the anti-softlock (a pattern, not a claim — reusable) |
 | **Lava** (BUILT 2026-08-24) | **production-line re-routing** (program a path, then spend a limited fungible charge down it; what the charge BECOMES is decided by where it went — CLAIMED) · **the dual-purpose product** (the thing you cast is both a road and a plug, so ordering falls out of physics rather than instruction — this is how Lava stays out of Fire's order-memory seat; any planet reusing it must derive the order, never hand it over) |
 | **Mud** (BUILT 2026-08-24) | **terraforming-as-map-authoring** (the player authors the EDGES, not the rooms; the question is the SHAPE left behind — CLAIMED, and deliberately ORDER-INDEPENDENT: A-then-B lands on the same fen as B-then-A, pinned by a test, which is what keeps it out of Air's ordering seat) · **drainage as the cost function** (hardening a crossing drowns its neighbours up- and downstream, so you choose what to KEEP and the physics decides what dies — distinct from Poison's triage, where you choose what to abandon) |
 | **Dust** (BUILT 2026-08-24) | **conservation as the cost function** (one object owns every write, and every mutator is a PAIRED TRANSFER — dig here, heap there, atomically, so the total cannot leak; CLAIMED: no other planet may make a conserved quantity the puzzle) · **Z-layer swap driven by load count** (0 bared = the street is a pit and the cellar opens · 1 = plain street · 2 drifted = a dune-wall, and a ramp opens instead — the layer you are on is a CONSEQUENCE of the ledger, not a toggle; Spirit's living/ghost layer swap is a different reading and stays free) · **the inverted vault verb** (the buried house is the one thing digging cannot reach — you bury it HARDER until the weight cracks the wall) |
@@ -523,6 +523,62 @@ do the teaching.
 named ONLY at its hard gate; verse/riddle voice is reserved for the descent
 card and the Lost Maxims; hint lines are one short clause, no stacked
 sentences.
+
+## 5.7 Doorway standard — WHAT IS OPENED STAYS OPENED
+
+**A door that a one-time act opened must never ask for that act again.** If
+the player solved it, they solved it: the entry rite, a star gate, a rite sung
+at an altar, a ward turned, a burst disc blown, a graft laid. Walking back
+into a room does not re-seal it, leaving the planet does not re-seal it, and
+dying does not re-seal it — the entry reveal in particular is KNOWLEDGE and
+rides in `discoveredClouds`, so it survives a wipe and a session.
+
+Pinned for all seventeen by `test/dungeon_unlocks_stay_unlocked_test.dart`:
+the entry rite survives a party wipe, conduits latch and never run back down
+(§9.1 retired the decay timers), and a finale door with both stars banked and
+the mystic roused is open — with **no per-planet exemptions**, which the test
+started with and did not need.
+
+**THE ONE LEGITIMATE EXCEPTION IS A STATE, AND IT IS NOT AN UNLOCK.** Six
+planets re-gate space on purpose, and on every one of them the gate is a world
+state the player authors and can author back: Water's tide, Ice's flues, Dark's
+flip, Mud's fords, Crystal's sliding chambers, Blood's beats. A tide that shuts
+a passage has not "re-locked a door you unlocked" — the passage was never
+unlocked, it is open while the water stands there, and the whole puzzle is
+knowing that. The test of whether an author is on the right side of this line:
+
+  · **Can the player put it back?** A state gate is reversible by playing —
+    turn the tide, freeze another flue, flip the maze. An unlock that re-locks
+    leaves the player re-doing a puzzle they have already answered, which is
+    the one thing that is never interesting.
+  · **Did the closing cost them something they chose?** Ice is the model: a
+    flue is a ladder or a shelf and never both, and when Frowyrm scours a stair
+    the roar SAYS SO in the same beat. A way that shuts silently is a bug even
+    when the rule behind it is sound.
+  · **Would a returning player be confused or annoyed?** If the answer is
+    annoyed, it is an unlock wearing a state's clothes.
+
+**A CLOSING WAS NOT ANNOUNCING ITSELF, ON EITHER PLANET THAT HAS ONE
+(2026-09-15, found in play).** `passThroughDoor` calls the per-planet transit
+hook and `_clearHints()` one line later, so Ice's thaw and Mud's heave set
+their line and had it wiped inside the same call, and the room's own entry
+line took the slot. Both planets' one world-scale act has been silent since it
+was built. Transit lines are parked in `_transitLine` now and announced after
+the clear, outranking the room-entry line on the arrival they belong to.
+
+**AND A WARNING NOBODY IS SHOWN IS NOT A WARNING.** The first instinct was to
+warn at the foot of the rimefall on the BLOCKED channel — which §5.6 holds
+back until the hint button asks, so it would never have been read. Unasked,
+only two things speak: a room-entry line and a ONE-TIME TEACH. A price that
+must be known before it is paid is therefore a teach, keyed and persisted like
+any other: said once in a lifetime, at the object, and only when there is
+something to lose (an empty shaft costs nothing to reset, so it says nothing).
+
+And one rule that binds both kinds: **a closing announces itself.** Every place
+in the game that takes a route back — the thaw, Frowyrm's roar, Mud's heave,
+the tide falling — says what it took, on the BLOCKED or ambient channel, at
+the moment it happens. The player may lose a road; they may never find out by
+walking into it.
 
 ## 6. Per-planet matrix
 
@@ -885,9 +941,22 @@ or it drifts into Water's seat.
    moon_well, leviathan_depths.
 5. **Ice — Frozen Observatory** · Ice+Light+Air · Icemane/Lightmask/Airwing ·
    *the solution is visible only through reflection.*
-   S1 Icemane freezes floors; slide star-blocks into orbit sockets. S2 Lightmask
-   reveals star lines through telescopes (reflection shows truth). S3 Airwing
-   redirects cold winds; **Ice+Light→Air**, **Air+Ice→Water**; solve before mirrors thaw.
+   **Stars number in the order the shaft reaches them (2026-09-15):** the
+   gallery is L1 and banks Star 1 (index 0); the orrery is L2 and banks Star
+   2 (index 1). It was the other way round, from a house habit of making
+   index 0 the ungated star — but §4's rule is only that SOME star is
+   earnable by any trio, and the orrery is still that star at index 1.
+   The orrery: Ice glazes a ROAD and the star-block runs it to the end (Light
+   melts a glaze back); a kerbed socket catches whatever slides in. THE MIRROR
+   GALLERY — the chart is on a ceiling of glacier ice and is never read
+   directly: the still pool shows the quarter of sky OPPOSITE where you stand
+   and etches it on the frame across the ring, so one lap of the rim puts the
+   whole sky on the walls. Every figure appears twice save one, and silvering
+   the stranger is the star. Light+Mask wakes the pool (the marquee gate);
+   Air's sweep stills the water wide enough to read three quarters at once.
+   S3 Airwing turns the last breath down the throat at the rite.
+   (S2 REPLACED 2026-09-15 — it used to be a lap against a melt clock, which
+   is a dexterity puzzle and Blood's claimed ledger seat besides.)
 6. **Steam — The Molten Labyrinth** · Steam+Earth+Fire · Steampip/Earthhorn/Firemask ·
    *the boiler holds only so much — spend the ring wisely.* **(BUILT — first
    planet under the §5.5 mandate: topology = PRESSURE RING-MAIN, no hub.)**
@@ -1883,9 +1952,9 @@ been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
 **SEVEN of seventeen (2026-09-03): Fire · Air · Water · Earth · Lightning ·
-Steam · Lava.** **MUD has had the whole pass except the device session
-(2026-09-13) and is deliberately NOT promoted until it has been played —
-see its entry below.** This list is mirrored in code as `kPolishedDungeons`
+Steam · Lava.** **MUD (2026-09-13) and ICE (2026-09-15) have each had the
+whole pass except the device session, and are deliberately NOT promoted until
+they have been played — see their entries below.** This list is mirrored in code as `kPolishedDungeons`
 (`lib/games/cosmic/cosmic_data.dart`), and it is what decides whether a planet
 offers DESCEND or the coming-soon placard — the other ten keep their gate
 ritual and cannot be descended. Promoting a planet is one line there, pinned
@@ -2339,7 +2408,7 @@ of work below as a finished pass.
 | **Dark** | ✅ | ⬜ a wait | ⬜ | ⬜ |
 | **Light** | ✅ | ⬜ a restriction | ⬜ | ⬜ |
 | **Blood** | ✅ | ⬜ rhythm, one verb | ⬜ | ⬜ |
-| **Ice** | ✅ | ⬜ (§7 table) | ⬜ | ⬜ |
+| **Ice** | ✅ | ⬜ (§7 table) | ✅ | ⬜ **the gate** — see its entry |
 
 Blood additionally still has GENERIC FIXTURES — its ostia, cocks, balance,
 drum and vagal node are circles, rings and bars standing on very good
@@ -2402,6 +2471,308 @@ shared work landed, so a returning file could silently REVERT a change
 master had made to it in the meantime (Ice came back with the sound funnel
 undone). A per-file merge is only safe if you diff it against what master
 did to that file, not only against what the agent changed.
+
+### ◐ ICE — the pass, minus the device session (2026-09-15)
+
+**The suite was green over a run-ending softlock, and that is the whole
+lesson again.** Thirty tests, a full no-strand proof over 122 shaft states,
+an authored orrery solution walked move by move — and one shove of the west
+star-block put it in column 0, where no cell exists to push it back from and
+no socket stands. **1,718 of the 2,330 reachable boards could never be
+solved**, and the only way out of one was a party wipe. The proof the planet
+already had was about the PARTY (`solveShaftDescent`); nobody had asked the
+same question about the STAR.
+
+  · ✅ **THE ORRERY CANNOT BE SHOVED INTO A DEAD BOARD.** A pusher may now
+    stand one cell OFF the floor — the margin was always there, it was only
+    `_orreryCellAt` that refused to name a cell out there — which takes the
+    dead boards to **0 of 7,140**, pinned by `solveOrreryBoards()` in the
+    module and a test that demands zero. The rimefall's thaw resets the
+    blocks and the glass with the stairs as well (a full-state valve that
+    resets half the state is half a valve), and an earned star is never
+    given back.
+  · ✅ **THE HOLE YOU FALL DOWN AND THE KERB YOU SEAT A BLOCK IN WERE THE
+    SAME 66px.** Flue C's mouth sat on top of the last row's socket, so Ice
+    standing on the kerb froze the flue instead of glazing, and every other
+    element was told "only Ice sets this fall into a stair" and lost its
+    shove. The floor moved up 40px, the mouth down, and a body standing
+    inside the floor's own edge now works the FLOOR — the mouth is worked
+    from the margin, where it is the only thing there.
+  · ✅ **THE FOUR IRON STANDARDS ARE SOLID.** They stop a sliding block dead
+    and a body walked straight through them. (Star-blocks stay passable: the
+    authored solution stands on a block's own cell to glaze past it.)
+  · ✅ **STAR 1 IS NO LONGER A FOOT-RACE.** See §9.10.
+  · ✅ **THE BOSS ROOM DREW NOTHING AND TAUGHT NOTHING.** Frowyrm's hoarfrost
+    pillar — the fight's only verb, and the thing its lull is gated on —
+    starts SHATTERED, and shattered was five 16px stumps in wall-colour: a
+    smudge in a dark hollow. It is a broken pillar now, bright fracture faces
+    on a lit socket with the GHOST of the whole pillar standing over it, so
+    the room says what it is missing. Insight in that room fell through to
+    the flue line (the one room whose verb is not a flue was the one room the
+    hint button would not discuss); it reads the fight now, and the room
+    teaches itself once on arrival.
+  · ✅ **THE PENALTY WAS INVERTED.** Every strike beat scours a stair — which
+    costs a party that rode everything down exactly nothing, so the only
+    player Frowyrm ever punished was the one who had done what the planet
+    asks. With no stair standing it takes the RIMEFALL instead, which has to
+    be re-frozen. Never a strand: Ice re-freezes it from the sump at any time.
+  · ✅ **TWO IDENTICAL HOLES, OPPOSITE RULES.** The mouth's floor carries flue
+    A and the THROAT, and both were drawn as heaped snow — one a ride you can
+    freeze into your way home, the other the melt-fall's gullet that takes no
+    frost and plunges past every level to the bottom. The throat is running
+    water down a wet black pipe now, with its own ambient line, and the entry
+    cap plates BOTH holes while the floor is sealed (one plate over one of two
+    identical holes read as "that one is blocked, take the other").
+  · ✅ **THE VAULT'S ONLY CLUE WAS A SPECK.** The cache is visible in exactly
+    one place in the dungeon — the gallery's pool — and it was a 13px dot in a
+    432px black disc. It is a lit thing standing on a LEDGE hanging in the
+    reflected shaft, with rays, so it reads as a light up there rather than as
+    a coin down here (Water's moon-well lesson).
+  · ✅ **THE RITE'S PLINTHS WERE INDEX CARDS** (§7.10): flat rectangles with a
+    bright outline round them. Blocks now — top face, near face, courses, and
+    the only bright line along the front edge where the two meet.
+  · ✅ **SOUNDS**: one `_cue` in the whole planet became seventeen — the cap,
+    every freeze, the ride that scours, the thaw, the block's run and its
+    seat, every quarter read, the lodestone, the mark, the sweep, the font,
+    the pillar.
+  · ✅ **THE FULL MAP DRAWS THE SHAFT.** Ice had no atlas entry and fell back
+    to the derived layout; the levels descend the middle of the chart now,
+    each shelf hangs off its flue, and the throat runs down past every level
+    to the sump.
+  · ✅ **A STATES RENDER HARNESS** (`planet_dungeon_ice_states_render_test`):
+    every flue state, the pool dead and reading, a road laid, the pillar up
+    and down — asserted to be DIFFERENT PICTURES, which is Mud's lesson about
+    a checksum that passes on a change nobody can see.
+  · ✅ **THE FIRST TWO FAULTS THE DEVICE FOUND (2026-09-15), and both were
+    the room refusing to talk.** *"Why does Light thaw, and why does it only
+    work on the right one?"* — the cap seals the WHOLE floor and both holes
+    are drawn plated, but the verb answered at one of them, so pressing Light
+    at the other did nothing, said nothing, and taught the player that the
+    ELEMENT was wrong rather than the spot. Either plate is the same plate
+    now; the wrong hand is refused at both; insight at a sealed mouth reads
+    the plate instead of falling through to the flue line; and the floor names
+    the black ice once, when you first walk up to a hole (not on arrival,
+    where it would talk over the primer). *"I froze the top left, went
+    through, came back, and it is not frozen any more"* — the thaw, working
+    exactly as designed and completely silently: see §5.7.
+
+  · ✅ **"YOU GO THROUGH THE SAME DOOR AND END UP IN TWO SPOTS"** (device,
+    2026-09-15) — **TWO MOUTHS NOW, AND THE TRADE IS GONE.** The flue was one
+    hole carrying two doors on one rect, of which the module kept exactly one
+    live; the layout test even exempted identical rects for it, on the
+    argument that it reads as ONE opening that behaves differently depending
+    on its snow. Played, it reads as one door with two exits, which is not a
+    thing a player can hold in their head.
+
+    The first fix was to TELL it better — primer, ambient, a line on the ride.
+    That was the wrong instinct and the author said so: the second attempt
+    tried to keep the exclusivity by making the two mouths share one heap of
+    snow, and the verdict was *"spending snow or whatever this free vs cost is
+    makes no sense and there's nothing showing that or intuitive about it, so
+    probably remove that."* **An invisible shared resource is not a mechanic,
+    it is a rule you have to be told.** So:
+
+      · A head has TWO OPENINGS, each with ONE destination for the whole run
+        and its own visible snow: the **shaft** (down a level, and the only
+        thing frost turns into a stair) and the **ledge chute** (into the
+        pocket, and nowhere else).
+      · Nothing couples them. Freezing the shaft does not shut the chute;
+        riding the chute does not touch the shaft.
+      · A chute is a RAMP OF SNOW. Ride it and the snow comes down after you,
+        and a bare slot is no ramp — which keeps the vault trick §5.5 asks
+        for ("enterable only from a slide you can't repeat") as a physical
+        fact rather than a bookkeeping rule.
+      · **What is lost is the ledger's "treasure-or-ladder exclusivity" row**
+        — the two purposes are no longer one edit. Ice keeps its CLAIMED row,
+        one-way descent with an engineered return, which was always the
+        stronger half: the shaft must be frozen on the way down or there is no
+        way back up it, and a ridden shaft is bare forever.
+      · **Light drinks ONE PLATE AT A TIME.** Every hole in the mouth's floor
+        carries its own black ice, melted separately and persisted separately.
+        One press opening the whole floor taught that the holes were one
+        thing, which is precisely the misreading the room has to prevent.
+
+    The drawn mouths differ in kind, not just in state: the shaft is a wide
+    black hole (heaped / stepped / bare), the chute is a smaller canted slot
+    with its snow spilling over the lip toward the pocket it feeds, and the
+    throat is running water. Pinned by the states-render harness, which now
+    demands six distinguishable pictures of that one floor.
+
+  · ✅ **WHERE YOU STAND TELLS YOU HOW TO SOLVE IT — both stars now**
+    (author, 2026-09-15: *"I want the place we are standing to give us hints
+    on how to solve the puzzle, like mirrors"*). The gallery already had it —
+    the pool holds the quarter opposite you and nowhere else — and the orrery
+    had nothing: you laid glass, shoved, and found out. Stand behind a block
+    now and **the floor draws the run it would take**, dashed, with the cell
+    it would stop on ringed — gold and kerbed if it seats, pale if it does
+    not, and the cells it would CRACK behind it crossed out in red. It is the
+    same deterministic walk the shove performs (`_orreryRun`, shared by both,
+    so the preview and the shove can never disagree), shown before you spend
+    anything: §8's plan-then-commit, and the Spire's wind preview precedent.
+    **Knowing the answer and having it are now the same thing on this planet.**
+
+  · ✅ **THE HINTS WERE TOO WORDY** — §5.6 says one short clause and this
+    planet was writing paragraphs. Every line cut, the tiers hardest: the
+    lodestone's rule went from 43 words to 13.
+
+  · ✅ **THE LODESTONE STOPPED PRETENDING TO BE DATA.** Lit, it held two
+    identical figures side by side as a worked example of the rule — and a
+    frame carrying figures, in a room whose entire puzzle is comparing
+    figures, reads as a CLUE. The author went looking for what it meant; it
+    meant nothing. It is a lamp now and looks like one: a warm face, a glow,
+    no chart, and no engraved plate under it.
+
+  · ⬜ **THE MAXIM IS STILL THE §7 TABLE ENTRY.** Star-Walker is a sighting at
+    the thirteenth telescope gated on the Mirror Star and a shelf you can only
+    fall onto — a real commitment, but one press at the end of it. It has not
+    had the treatment §9.6/§9.8/§9.9 describe.
+  · ⬜ **CARRIED, AND IT IS THE PROMOTION GATE: the device playtest.** Same
+    sentence as Mud's, for the same reason. `Ice` stays out of
+    `kPolishedDungeons` until it has been played.
+
+### §9.11 THE STANDING ORRERY — solid, directional, and it slides (2026-09-15)
+
+Played, the floor was *"too easy"*, its star-blocks were walk-through, and
+they teleported to the end of their run. All three are the same fault in
+different clothes: **the one object you take hold of was not behaving like an
+object.**
+
+  · **SOLID.** A block you can stand inside is a decal. It stops a body now
+    (its lump, not its whole cell, so you can still slip round it).
+  · **AND THEREFORE JAMMABLE.** Three solid blocks can be packed into a corner
+    where each stands on the only square the next could be pushed from —
+    **151 of 7,140 reachable boards**. The answer is not a rule against it:
+    it is **THE CRANK**, off the board at the east wall, which Light turns to
+    put every loose block back on its standard and take the road up. Free,
+    instant, local — a re-plan, never a re-descent — and it leaves SEATED
+    blocks alone, so it undoes your working and not your progress. The search
+    now asserts `startDead == false` rather than `dead == 0`: jams exist and
+    are recoverable, which is the honest shape of this floor.
+    (First built at the CENTRE of the grid, where its 66px reach covered four
+    playable cells: Ice glazing near the middle was told "the crank answers
+    Light", and Light melting there reset the whole floor instead of trimming
+    one cell. **A lever that overlaps the board is a lever you pull by
+    accident.** It answers only from off the floor now.)
+  · **A KERB OPENS ONE WAY.** The sky turns one way, so a socket takes a block
+    only if it is running WITH its orbit — east along the top, west along the
+    bottom — and stops it dead at the lip otherwise. Sockets used to take
+    anything from any side, which made the floor a five-shove formality: the
+    nearest block was always already lined up with the nearest kerb. The
+    minimum is **8 shoves** now, every one of them an approach, and the lip is
+    drawn cut away on the side it opens with the orbit's arrow beside it.
+  · **A GLAZE THROWS A ROAD** — three cells down the way you face, because the
+    longer routes at one cell a press are a grind and not a puzzle.
+  · **AND LIGHT TAKES THE WHOLE SHEET, NOT A CELL.** Played once more, the
+    verdict was *"still a bit too easy, especially being able to melt
+    individual pieces"* — and that is exactly right: per-cell melting let you
+    lay any road at all and whittle it down afterwards, so **"where does this
+    road END" — the only real question on this floor — never had to be
+    answered before you laid it.** Light melts the connected sheet it touches
+    now. A road is planned, and the way to make a short one is to throw it at
+    something that stops it: an edge, a standard, a kerb, a block.
+  · **AND A KERB IS CUT FOR ONE BLOCK.** Each socket bears a figure and takes
+    only the block that carries the same one — so the sockets cannot be
+    traded between blocks, and each block's route is its own problem. With
+    the one-way orbits that takes the minimum from **8 shoves to TEN**, none
+    of them a nudge into the nearest hole: the block you would expect to seat
+    first has to be walked out to the west wall, up it, and brought back east
+    into its kerb. The figure is cut into the kerb's stone and onto the block,
+    because a rule you cannot see is a secret, not a puzzle.
+  · **AND IT SLIDES.** Eased along its run, with spray off the leading edge.
+    The board moves at once underneath, so nothing can desync off a drawing.
+  · **A BLOCK IN REACH SAYS SO** — a cold ring under it when you are close,
+    brighter and breathing on the one your facing would actually shove.
+
+### §9.10 THE MIRROR GALLERY — the chart assembles in the water (2026-09-15)
+
+Star 1 was rebuilt four times in one day. The first three are worth keeping
+on the record, because each one failed for a reason that generalises.
+
+  1. **A lap against a melt clock.** Silver eleven frames inside 13 seconds.
+     A lap is ~7.2s at the engine's 187.5px/s, so it was not even tight — it
+     was **walking speed as a puzzle**, and it sat in Blood's claimed rhythm
+     seat besides.
+  2. **"Silver the figure with no twin"**, read by walking the rim (the
+     author's own suggestion, and the right instinct). It played as *"I just
+     tap every one with Ice until I get a star."* **The answer was one of
+     eleven, so eleven presses beat thinking.** A deduction is only a
+     deduction when brute force costs more than reasoning.
+  3. **Claim versus truth, per frame** — each frame cut with the quarter of
+     sky it claimed, the water holding what was really there. Brute force was
+     dead (the answer was a set) and it still was not a puzzle: **eleven
+     independent comparisons, in any order, none affecting any other.** A
+     checklist with good art is a checklist. *Nothing you learned changed
+     what you did next, and nothing you did changed what you could learn.*
+
+**THE FIX IN ONE LINE: make the evidence RELATIONAL.** If a single look can
+settle a single frame, you have a list of chores. If a look settles a
+*relation between two* frames, the parts have to talk to each other, and the
+player has to reason across them.
+
+**What it is now.** The ceiling's chart is one closed figure of 24 stars
+running right round the ring; it is never seen directly.
+
+  · **Silvering a frame throws its stretch of chart into the pool**, and
+    frost comes off as easily as it goes on. The water is a workbench, free
+    to rearrange, all day, for nothing.
+  · **Neighbouring frames overlap** — two stars each, five covered — so no
+    frame can be judged alone. Where two silvered frames disagree about where
+    a star hangs, the line **FORKS**: two lines out of one star.
+  · **A fork names a pair, never a frame.** One false frame forks against
+    both neighbours; two false frames set apart fork independently; and
+    pulling a TRUE frame out can quiet a fork just as well as pulling the
+    false one. So the evidence never spells the answer — you chain it.
+  · **The LODESTONE is the anchor**, and this is the first version where the
+    marquee gate is load-bearing: Light+Mask strikes it, it hangs true, its
+    stretch goes into the water, and every other frame is judged outward from
+    it. Without it the room is not solvable, only guessable.
+  · **THE LIGHT HAND IS A LAMP, AND THE LAMP IS WHERE YOU LEFT IT**
+    (author, 2026-09-15). The pool is black glass to every other hand. A
+    Light CREATURE — wherever it is standing, active or not — is shown the
+    stretch ACROSS the ring from it, and the water closes again behind it as
+    it walks. So **reading is a thing you are doing**, and the lamp is a thing
+    you PARK: stand it on the rim, take Ice round the frames, and the stretch
+    it is holding stays readable while you work. Three passes to get there:
+    built sticky first (opened water staying open), which turns the read into
+    a chore you clear and stop thinking about; then tied to the ACTIVE hand,
+    which meant the water went black the moment you switched to Ice to act on
+    what you had just seen. Tied to the light-bearer's POSITION it is finally
+    both — a read you perform, and one you can set down.
+
+    Three tunings from the same session, all of them felt rather than
+    reasoned: the reach **eases off** at its edge (star-by-star snapping read
+    as jaggy while walking), it is **narrower** than it was (42° full, dark by
+    62°), and standing the lamp **over the pool itself shows nothing** — a
+    lamp on the water has no far side to be reflected from, and the room may
+    not hand you the whole chart for standing in the middle of it.
+
+    **AIR's sweep** stills the whole surface for 12s and is the one way to see
+    it all at once: help, never a gate.
+  · **BANKING IT LIGHTS THE CHART UP.** The answer to this room is a PICTURE
+    the player assembled out of twelve frames and a walked lamp, and it used
+    to be banked with a line of prose. A cold fire runs once round the ring,
+    each star flaring as it arrives and the whole figure holding bright behind
+    it — and the solved chart then STAYS readable without the lamp, because a
+    trophy you have to keep walking a light round is not one.
+
+**AND THE STAR PAYOUT LOOKS LIKE THE REST OF THE GAME AGAIN (2026-09-15).**
+The dungeon reward popup (and the raid one, and the elemental cache payout
+that was deliberately matched to them) still carried a warm brown palette of
+its own — panel `14120E`, amber `C4A35A`, border `74613A` — while cosmic and
+survival had moved to black grounds and brighter ink. A star payout therefore
+read as a screen from an older game than the one that opened it. All three
+alias onto `CosmicScreenStyles` now: one set of tokens, and the dialogs cannot
+drift apart again. (The in-dungeon HUD is still on its own browns — it is
+in-world chrome rather than a dialog, and worth judging on its own terms.)
+  · The star: **the chart covered end to end with nothing forking.** Some
+    frames are hung false and are won by leaving them OUT; no two of them are
+    ever adjacent, or a stretch would have no cover and the room would have
+    no answer. Pinned by a test that enumerates all 2,048 sets a player can
+    put in the water and checks what wins.
+
+**And what it costs to be wrong: nothing.** No frost is ever spent, there is
+no feedback until the chart closes, and silvering the whole ring — the brute
+force move — always fails, because a false frame in the water always forks.
 
 ### ◐ MUD — the pass, minus the device session (2026-09-13)
 
@@ -3897,7 +4268,9 @@ the bone leaves the vault almost sideways and turns down late. Use those.
   or the only way onto its treasure shelf, never both, and you commit at its
   head on the way down. The cache is visible only as a glow in the gallery's
   mirror-pool, and the ride that reaches it scours the drift that caught you.
-  Frowyrm eats your stairs as you fight it.
+  Frowyrm eats your stairs as you fight it — and if you left no stairs, the
+  rimefall instead (2026-09-15: the roar used to cost a rider nothing, so the
+  only player it punished was the one who had built the ladder home).
   NOTE: the spec as literally written is a STRANDING MACHINE — the same
   search with the valve removed reports 120 of 122 reachable states
   strandable. Shipped with the RIMEFALL: Ice freezes it from the sump

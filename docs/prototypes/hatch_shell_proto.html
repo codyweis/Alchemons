@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helical Shell Prototype</title>
+<style>
+  :root{
+    --bg:#0b0a0f; --panel:#141220; --line:#2a2438;
+    --ink:#e8e0d0; --dim:#9d93aa; --amber:#e0a038; --amber-dim:#8a6524;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;
+    display:flex; gap:14px; padding:14px; align-items:flex-start;
+  }
+  #stageWrap{flex:0 0 auto;display:flex;flex-direction:column;gap:8px;align-items:center}
+  canvas{
+    background:#07060b; border:1px solid var(--line); border-radius:6px;
+    display:block; touch-action:none;
+  }
+  #panel{
+    flex:1 1 auto; min-width:280px; max-width:430px; max-height:calc(100vh - 28px);
+    overflow-y:auto; background:var(--panel); border:1px solid var(--line);
+    border-radius:6px; padding:12px;
+  }
+  h2{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);
+     margin:16px 0 8px;border-bottom:1px solid var(--line);padding-bottom:5px}
+  h2:first-child{margin-top:0}
+  .row{display:grid;grid-template-columns:104px 1fr 48px;gap:8px;align-items:center;margin:5px 0}
+  .row label{color:var(--dim);font-size:11px}
+  .row output{text-align:right;color:var(--amber);font-size:11px}
+  input[type=range]{width:100%;accent-color:var(--amber);height:16px}
+  select,button{
+    background:#1d1930;color:var(--ink);border:1px solid var(--line);
+    border-radius:4px;padding:5px 9px;font:inherit;cursor:pointer;
+  }
+  button:hover,select:hover{border-color:var(--amber-dim)}
+  button.on{background:var(--amber);color:#1a1205;border-color:var(--amber)}
+  #transport{display:flex;gap:8px;align-items:center;width:100%}
+  #scrub{flex:1;accent-color:var(--amber)}
+  #hud{display:flex;justify-content:space-between;width:100%;color:var(--dim);font-size:11px}
+  #phase{color:var(--amber);letter-spacing:.1em;text-transform:uppercase}
+  .chk{display:flex;gap:7px;align-items:center;margin:5px 0;color:var(--dim);font-size:11px}
+  .chk input{accent-color:var(--amber)}
+  .note{color:var(--dim);font-size:10.5px;line-height:1.5;margin:8px 0 0}
+  .warn{color:#e07850}
+</style>
+</head>
+<body>
+
+<div id="stageWrap">
+  <canvas id="c"></canvas>
+  <div id="transport">
+    <button id="play">▶</button>
+    <input id="scrub" type="range" min="0" max="1" step="0.001" value="0">
+    <button id="loop" class="on">loop</button>
+  </div>
+  <div id="hud">
+    <span id="phase">scatter</span>
+    <span id="stats">—</span>
+  </div>
+</div>
+
+<div id="panel">
+  <h2>Species &amp; rarity</h2>
+  <div class="row" style="grid-template-columns:104px 1fr">
+    <label>species</label><select id="spec"></select>
+  </div>
+  <div class="row" style="grid-template-columns:104px 1fr">
+    <label>rarity</label><select id="rare">
+      <option value="normal">normal</option>
+      <option value="variant">variant</option>
+      <option value="prismatic">prismatic</option>
+    </select>
+  </div>
+  <div class="row" style="grid-template-columns:104px 1fr">
+    <label>faction</label><select id="fact"></select>
+  </div>
+  <div class="row"><label>prism rate</label><input type="range" id="prism" min="0" max="0.6" step="0.01" value="0.16"><output></output></div>
+  <p class="note">Species sets the shell's architecture and rewrites the sliders below — tune from there. Rarity layers on top of any species/element pair.</p>
+
+  <h2>Fusion</h2>
+  <div class="row" style="grid-template-columns:104px 1fr">
+    <label>parent A</label><select id="elemA"></select>
+  </div>
+  <div class="row" style="grid-template-columns:104px 1fr">
+    <label>parent B</label><select id="elemB"></select>
+  </div>
+  <div class="row" style="grid-template-columns:104px 1fr">
+    <label>result</label><select id="elemR"></select>
+  </div>
+  <div class="chk"><input type="checkbox" id="behav" checked><label for="behav">per-element strand behavior</label></div>
+  <div class="row"><label>split</label><input type="range" id="split" min="0" max="0.5" step="0.01" value="0.26"><output></output></div>
+  <div class="row"><label>cluster drift</label><input type="range" id="orbit" min="0" max="0.09" step="0.002" value="0.018"><output></output></div>
+  <div class="row"><label>cluster churn</label><input type="range" id="cSpin" min="0" max="1.2" step="0.02" value="0.26"><output></output></div>
+  <div class="row"><label>braid</label><input type="range" id="braid" min="0" max="4" step="0.05" value="1.5"><output></output></div>
+  <div class="row"><label>fuse at</label><input type="range" id="tFuse" min="0.2" max="0.95" step="0.01" value="0.82"><output></output></div>
+  <div class="row"><label>fuse span</label><input type="range" id="fuseSpan" min="0.02" max="0.4" step="0.01" value="0.10"><output></output></div>
+
+  <h2>Genesis</h2>
+  <div class="row"><label>mote hold</label><input type="range" id="tMote" min="0" max="0.5" step="0.01" value="0.17"><output></output></div>
+  <div class="row"><label>string by</label><input type="range" id="tString" min="0.05" max="0.7" step="0.01" value="0.33"><output></output></div>
+  <div class="row"><label>mote size</label><input type="range" id="moteW" min="1" max="8" step="0.1" value="3.4"><output></output></div>
+  <div class="row"><label>wander</label><input type="range" id="wander" min="0" max="0.12" step="0.002" value="0.034"><output></output></div>
+  <div class="row"><label>mote twinkle</label><input type="range" id="twink" min="0" max="1" step="0.02" value="0.45"><output></output></div>
+  <div class="row"><label>sprout stagger</label><input type="range" id="gStag" min="0" max="0.9" step="0.02" value="0.55"><output></output></div>
+  <div class="row"><label>flow</label><input type="range" id="flow" min="0" max="0.06" step="0.001" value="0.016"><output></output></div>
+  <div class="row"><label>flow waves</label><input type="range" id="flowF" min="0.5" max="4" step="0.1" value="1.6"><output></output></div>
+
+  <h2>Shell form</h2>
+  <div class="row"><label>strands</label><input type="range" id="N" min="16" max="180" step="2" value="80"><output></output></div>
+  <div class="row"><label>samples</label><input type="range" id="M" min="8" max="56" step="2" value="30"><output></output></div>
+  <div class="row"><label>turns</label><input type="range" id="turns" min="0.3" max="4" step="0.05" value="1"><output></output></div>
+  <div class="row"><label>radius</label><input type="range" id="R" min="0.05" max="0.45" step="0.005" value="0.185"><output></output></div>
+  <div class="row"><label>height</label><input type="range" id="H" min="0.2" max="1.2" step="0.01" value="0.60"><output></output></div>
+  <div class="row"><label>point top</label><input type="range" id="pTop" min="0.3" max="2.2" step="0.05" value="0.5"><output></output></div>
+  <div class="row"><label>point base</label><input type="range" id="pBot" min="0.3" max="2.2" step="0.05" value="0.60"><output></output></div>
+  <div class="row"><label>thickness</label><input type="range" id="shellT" min="0" max="0.5" step="0.01" value="0.19"><output></output></div>
+  <div class="row"><label>coverage</label><input type="range" id="cover" min="0" max="0.35" step="0.01" value="0.14"><output></output></div>
+
+  <h2>Motion</h2>
+  <div class="row"><label>weave</label><input type="range" id="weave" min="0" max="0.5" step="0.02" value="0"><output></output></div>
+  <div class="row"><label>twist</label><input type="range" id="twAmp" min="0" max="3" step="0.02" value="0.72"><output></output></div>
+  <div class="row"><label>twist waves</label><input type="range" id="twFreq" min="0.2" max="8" step="0.1" value="1"><output></output></div>
+  <div class="row"><label>twist speed</label><input type="range" id="twSpd" min="0" max="2" step="0.01" value="0.81"><output></output></div>
+  <div class="row"><label>breathe</label><input type="range" id="brAmp" min="0" max="0.35" step="0.01" value="0.05"><output></output></div>
+  <div class="row"><label>breathe rate</label><input type="range" id="brSpd" min="0" max="1.5" step="0.02" value="0.44"><output></output></div>
+  <div class="row"><label>waist roam</label><input type="range" id="waist" min="0" max="0.4" step="0.01" value="0.1"><output></output></div>
+
+  <h2>Depth &amp; stroke</h2>
+  <div class="row"><label>buckets</label><input type="range" id="buckets" min="1" max="8" step="1" value="2"><output></output></div>
+  <div class="row"><label>back alpha</label><input type="range" id="aBack" min="0" max="1" step="0.01" value="0.17"><output></output></div>
+  <div class="row"><label>front alpha</label><input type="range" id="aFront" min="0" max="1" step="0.01" value="0.95"><output></output></div>
+  <div class="row"><label>min width</label><input type="range" id="wMin" min="0.3" max="4" step="0.1" value="0.9"><output></output></div>
+  <div class="row"><label>max width</label><input type="range" id="wMax" min="0.5" max="9" step="0.1" value="3.2"><output></output></div>
+  <div class="chk"><input type="checkbox" id="ribbon" checked><label for="ribbon">ribbon double-stroke (dark edge + bright core)</label></div>
+  <div class="row"><label>accent mix</label><input type="range" id="accent" min="0" max="0.5" step="0.01" value="0.14"><output></output></div>
+  <div class="row"><label>yaw speed</label><input type="range" id="yaw" min="-1.5" max="1.5" step="0.05" value="0.45"><output></output></div>
+
+  <h2>Timeline</h2>
+  <div class="row"><label>converge end</label><input type="range" id="tConv" min="0.2" max="0.9" step="0.01" value="0.69"><output></output></div>
+  <div class="row"><label>unravel at</label><input type="range" id="tUnrav" min="0.55" max="0.98" step="0.01" value="0.85"><output></output></div>
+  <div class="row"><label>swirl</label><input type="range" id="swirl" min="0" max="3" step="0.05" value="1.1"><output></output></div>
+  <div class="row"><label>radius lag</label><input type="range" id="rLag" min="0" max="1" step="0.02" value="0.4"><output></output></div>
+  <div class="row"><label>counter-spin</label><input type="range" id="counter" min="0" max="1" step="0.02" value="0.4"><output></output></div>
+  <div class="row"><label>stagger</label><input type="range" id="stag" min="0" max="0.6" step="0.01" value="0.33"><output></output></div>
+  <div class="row"><label>overshoot</label><input type="range" id="over" min="0" max="0.5" step="0.01" value="0.18"><output></output></div>
+  <div class="row"><label>burst reach</label><input type="range" id="burst" min="0.1" max="1.2" step="0.02" value="0.34"><output></output></div>
+  <div class="row"><label>duration s</label><input type="range" id="dur" min="1.5" max="12" step="0.1" value="6.6"><output></output></div>
+  <div class="row"><label>reveal bloom</label><input type="range" id="bloom" min="0" max="1.6" step="0.02" value="0.62"><output></output></div>
+  <div class="row"><label>reveal size</label><input type="range" id="revR" min="0.05" max="0.45" step="0.005" value="0.20"><output></output></div>
+  <div class="chk"><input type="checkbox" id="silh" checked><label for="silh">silhouette reveal on unravel</label></div>
+
+  <h2>Export</h2>
+  <button id="dump">copy tuned constants</button>
+  <button id="reset">reset to defaults</button>
+  <p class="note">Numbers here port straight to the Dart painter. <span class="warn">paths/frame</span> in the HUD is the real budget — that's how many <code>drawPath</code> calls Flutter makes per frame. Aim under ~300.</p>
+</div>
+
+<script>
+const ELEMENTS = {
+  fire:      {id:'T001', c:['#FF7E57','#FF8C00','#FFD700']},
+  water:     {id:'T002', c:['#1574A1','#38BDF8','#7DD3FC']},
+  earth:     {id:'T003', c:['#94502B','#B45309','#E7C9B0']},
+  air:       {id:'T004', c:['#CEDAB1','#A5F3FC','#67E8F9']},
+  steam:     {id:'T005', c:['#6C838E','#93C5FD','#FCA5A5']},
+  lava:      {id:'T006', c:['#631C1C','#F97316','#FB923C']},
+  lightning: {id:'T007', c:['#E3B325','#FEF08A','#FDE047']},
+  mud:       {id:'T008', c:['#48321F','#8D6E63','#B08968']},
+  ice:       {id:'T009', c:['#93E8FF','#BAE6FD','#93C5FD']},
+  dust:      {id:'T010', c:['#D6C6AC','#F5F5F4','#D6D3D1']},
+  crystal:   {id:'T011', c:['#B6AEFF','#E9D5FF','#C4B5FD']},
+  plant:     {id:'T012', c:['#76CF82','#A7F3D0','#86EFAC']},
+  poison:    {id:'T013', c:['#472CBE','#A7F3D0','#34D399']},
+  spirit:    {id:'T014', c:['#FFFFFF','#E9D5FF','#BEA9FF']},
+  dark:      {id:'T015', c:['#211A33','#433061','#7C5CBF']},
+  light:     {id:'T016', c:['#FFF1B7','#FFF7ED','#FCD34D']},
+  blood:     {id:'T017', c:['#B91C1C','#EF4444','#FCA5A5']},
+};
+
+// Per-element strand behavior. Every field is a cheap modifier on the helix —
+// this whole table ports to Dart as a const map.
+const B = {
+  fire:      {turns:1.15, taper:0.38, flick:0.55, wave:0.05, waveF:5, rise:-0.05, wMul:1.0,  aMul:1.0},
+  water:     {turns:1.30, taper:0.05, flick:0.00, wave:0.10, waveF:2, rise:0.00,  wMul:1.1,  aMul:1.0},
+  earth:     {turns:0.75, taper:0.10, flick:0.00, wave:0.00, waveF:0, rise:0.04,  wMul:1.7,  aMul:0.95, step:7},
+  air:       {turns:2.10, taper:0.20, flick:0.10, wave:0.13, waveF:3, rise:-0.03, wMul:0.75, aMul:0.8},
+  steam:     {turns:1.70, taper:0.45, flick:0.25, wave:0.11, waveF:2, rise:-0.07, wMul:0.8,  aMul:0.65, fray:0.5},
+  lava:      {turns:0.85, taper:0.12, flick:0.30, wave:0.06, waveF:2, rise:0.06,  wMul:1.8,  aMul:1.0,  sag:0.10},
+  lightning: {turns:1.40, taper:0.15, flick:0.70, wave:0.00, waveF:0, rise:0.00,  wMul:0.9,  aMul:1.0,  kink:9},
+  mud:       {turns:0.70, taper:0.15, flick:0.00, wave:0.04, waveF:2, rise:0.05,  wMul:1.9,  aMul:0.8,  sag:0.14},
+  ice:       {turns:1.00, taper:0.05, flick:0.00, wave:0.00, waveF:0, rise:0.00,  wMul:1.0,  aMul:1.0,  facet:6},
+  dust:      {turns:1.60, taper:0.50, flick:0.35, wave:0.09, waveF:4, rise:-0.02, wMul:0.6,  aMul:0.6},
+  crystal:   {turns:1.05, taper:0.05, flick:0.00, wave:0.00, waveF:0, rise:0.00,  wMul:1.1,  aMul:1.0,  planes:7},
+  plant:     {turns:1.35, taper:0.10, flick:0.00, wave:0.07, waveF:2, rise:0.00,  wMul:1.05, aMul:1.0,  tendril:0.5},
+  poison:    {turns:1.25, taper:0.18, flick:0.15, wave:0.14, waveF:6, rise:-0.03, wMul:1.0,  aMul:0.9},
+  spirit:    {turns:1.45, taper:0.30, flick:0.20, wave:0.16, waveF:1, rise:-0.04, wMul:0.7,  aMul:0.55, breathe:0.16},
+  dark:      {turns:1.20, taper:0.12, flick:0.00, wave:0.05, waveF:2, rise:0.00,  wMul:1.2,  aMul:0.7,  rim:1},
+  light:     {turns:1.10, taper:0.08, flick:0.10, wave:0.03, waveF:2, rise:-0.02, wMul:1.0,  aMul:1.15, bloom:1},
+  blood:     {turns:1.15, taper:0.14, flick:0.00, wave:0.05, waveF:2, rise:0.02,  wMul:1.3,  aMul:1.0,  pulse:0.09},
+};
+
+/* ---------- deterministic hash (same form as the Dart seed helpers) ---------- */
+function h(i, salt){
+  const x = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const easeOutCubic=t=>1-Math.pow(1-t,3);
+const easeInOutCubic=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+const easeInCubic=t=>t*t*t;
+
+function hexToRgb(x){return [parseInt(x.slice(1,3),16),parseInt(x.slice(3,5),16),parseInt(x.slice(5,7),16)];}
+function mixRgb(a,b,t){return [lerp(a[0],b[0],t),lerp(a[1],b[1],t),lerp(a[2],b[2],t)];}
+function rgba(c,a){return `rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a.toFixed(3)})`;}
+
+/* --------------------------- LAYER 1: SPECIES ---------------------------
+   The 7 fusion families each get the shell's ARCHITECTURE. Element decides
+   the material, rarity decides the treatment — they compose, so this is
+   7 + 17 + 3 authored cases rather than 7 x 17 x 3.
+   Form intent follows each family's combat identity.                      */
+const SPECIES = {
+  // Ricochet: small, fast, bouncy. Tight and over-wound.
+  // Ricochet: a skinny column. No egg taper at all — straight sided.
+  pip:  {N:92,  turns:1.60, R:0.105, H:0.464, pTop:0.55, pBot:0.68, shellT:0.11, cover:0.05, f:{cyl:0.5, cap:0.18}},
+  // Beams: bilateral, swept. Pinched on the axis so two lobes read as wings.
+  // A core shell flanked by two swept lobes — winged, but still a shell.
+  wing: {N:108, turns:1.05, R:0.150, H:0.54, pTop:0.60, pBot:0.60, shellT:0.13, cover:0.10,
+         f:{wingFrac:0.58, wingW:0.42, wingH:1.80, wingTilt:0.52, wingOut:0.98, wingY:-0.03},
+         m:{weave:0, twAmp:2.5, twFreq:0.5, twSpd:0.34, brAmp:0, brSpd:0, waist:0}},
+  // A tall sweeping crest whose strands curl outward and fall at the tips.
+  horn: {N:84,  turns:1.00, R:0.170, H:0.80, pTop:1.70, pBot:0.50, shellT:0.16, cover:0.08,
+         f:{spire:0.50, sweep:0.55},
+         m:{weave:0, twAmp:0.42, twFreq:0.2, twSpd:0.2, brAmp:0, brSpd:0, waist:0}},
+  // Broad, heavy, visibly ribbed like plate armour — the original horn form.
+  mane: {N:68,  turns:0.55, R:0.220, H:0.52, pTop:0.55, pBot:0.50, shellT:0.24, cover:0.10,
+         f:{rib:9, ribDepth:0.11},
+         m:{twAmp:1}},
+  // Skyfall meteors: heavy base, blunt crown — mass collected at the bottom.
+  let:  {N:90,  turns:1.10, R:0.190, H:0.60, pTop:0.45, pBot:0.95, shellT:0.18, cover:0.14, f:{}},
+  // Traps: a ring with an open aperture through the middle — you see through it.
+  mask: {N:96,  turns:1.00, R:0.215, H:0.60, pTop:0.60, pBot:0.60, shellT:0.10, cover:0.04,
+         f:{hole:0.64, wrap:1, coil:3.0, aspect:1.10},    // hole>0.5 => real aperture
+         m:{weave:0, twAmp:0.2, twFreq:2.3, twSpd:1, brAmp:0.05, brSpd:0.44, waist:0.1}},
+  // Support companion: a main shell plus its own small satellite.
+  // Support companion: one hourglass — two bulbs joined through a real neck.
+  kin:  {N:92,  turns:1.60, R:0.170, H:0.72, pTop:0.70, pBot:0.70, shellT:0.13, cover:0.03,
+         f:{bulbs:2, neck:0.30, neckW:0.16},
+         m:{weave:0, twAmp:1.5, twFreq:4, twSpd:1, brAmp:0.05, brSpd:0.44, waist:0.1}},
+  // MYSTIC — the rarest, and the family brief is WORLDS, so it is not an egg.
+  // A true sphere built from meridians AND parallels, wearing a tilted
+  // orbital halo. It is the only species that breaks the shell's own rules.
+  mystic:{N:128, turns:1.00, R:0.215, H:0.43, pTop:0.50, pBot:0.50, shellT:0.05, cover:0.02,
+          f:{sphere:1, ringFrac:0.40, haloFrac:0.16, haloR:1.62, haloTilt:1.09, haloWob:0.05}},
+};
+
+// Baseline motion. A species with no `m` block is reset to THIS, not left
+// with whatever the sliders happen to hold — otherwise picking kin and then
+// let would leave let running kin's motion, and species order would silently
+// change the result.
+const MOTION_DEFAULT = {weave:0, twAmp:0.72, twFreq:1, twSpd:0.81,
+                        brAmp:0.05, brSpd:0.44, waist:0.1};
+
+/* --------------------------- LAYER 3: RARITY --------------------------- */
+const FACTIONS = {
+  Volcanic:'#FF5722', Oceanic:'#2196F3', Earthen:'#795548',
+  Verdant:'#4CAF50',  Arcane:'#9C27B0',  Bloodborn:'#FF5252',
+};
+// Hue rotation in turns. Prismatic cycles each strand through the spectrum.
+function hueRotate(rgb, turn){
+  const r=rgb[0]/255, g=rgb[1]/255, b=rgb[2]/255;
+  const mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn;
+  let h=0;
+  if(d){ h = mx===r ? ((g-b)/d + (g<b?6:0)) : mx===g ? ((b-r)/d+2) : ((r-g)/d+4); h/=6; }
+  const l=(mx+mn)/2;
+  const sat = d===0 ? 0 : d/(1-Math.abs(2*l-1));
+  h=(h+turn)%1; if(h<0)h+=1;
+  const c=(1-Math.abs(2*l-1))*sat, x=c*(1-Math.abs((h*6)%2-1)), m=l-c/2;
+  let rr,gg,bb; const seg=Math.floor(h*6)%6;
+  if(seg===0){rr=c;gg=x;bb=0;} else if(seg===1){rr=x;gg=c;bb=0;}
+  else if(seg===2){rr=0;gg=c;bb=x;} else if(seg===3){rr=0;gg=x;bb=c;}
+  else if(seg===4){rr=x;gg=0;bb=c;} else {rr=c;gg=0;bb=x;}
+  return [(rr+m)*255,(gg+m)*255,(bb+m)*255];
+}
+
+/* ------------------- fusion: blending two elements ------------------- */
+const B_DEFAULTS = {turns:1, taper:0, flick:0, wave:0, waveF:0, rise:0, wMul:1, aMul:1,
+                    step:0, sag:0, kink:0, facet:0, planes:0, tendril:0, breathe:0,
+                    pulse:0, fray:0, rim:0, bloom:0};
+// Every behavior field is a scalar, so two elements blend by plain lerp.
+// This is what lets A and B resolve into the child without a special case.
+function blendB(b1, b2, t){
+  const out = {};
+  for (const k in B_DEFAULTS){
+    const v1 = (b1 && b1[k]!==undefined) ? b1[k] : B_DEFAULTS[k];
+    const v2 = (b2 && b2[k]!==undefined) ? b2[k] : B_DEFAULTS[k];
+    out[k] = lerp(v1, v2, t);
+  }
+  return out;
+}
+function blendPalette(p1, p2, t){
+  return [0,1,2].map(i => mixRgb(p1[i], p2[i], t));
+}
+function paletteOf(name){ return ELEMENTS[name].c.map(hexToRgb); }
+
+/* ---------------------------- state ---------------------------- */
+// Every control persists, so a reload never costs a tuning session.
+const PKEY = 'alchemons.shellproto.v17';
+let PREFS = {};
+try { PREFS = JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch(e) { PREFS = {}; }
+let saveT = null;
+function savePrefs(){
+  clearTimeout(saveT);
+  saveT = setTimeout(()=>{
+    try { localStorage.setItem(PKEY, JSON.stringify(PREFS)); } catch(e) {}
+  }, 200);
+}
+
+const U = {};
+let S = [];        // strand definitions; declared early — the slider wiring
+                   // below calls buildStrands() during initial sync.
+['N','M','turns','R','H','pTop','pBot','shellT','cover','buckets','aBack','aFront',
+ 'wMin','wMax','accent','yaw','tConv','tUnrav','stag','over','burst','dur','bloom','revR',
+ 'split','braid','tFuse','fuseSpan',
+ 'tMote','tString','moteW','wander','twink','gStag','flow','flowF',
+ 'swirl','rLag','counter','orbit','cSpin','prism',
+ 'weave','twAmp','twFreq','twSpd','brAmp','brSpd','waist']
+ .forEach(k=>{
+   const el = document.getElementById(k);
+   const out = el.parentElement.querySelector('output');
+   if (PREFS[k] !== undefined) el.value = PREFS[k];
+   const sync=()=>{
+     U[k]=parseFloat(el.value); out.textContent=el.value;
+     PREFS[k]=el.value; savePrefs();
+     if(k==='N'||k==='M') buildStrands();
+   };
+   el.addEventListener('input',sync); sync();
+ });
+const selA = document.getElementById('elemA');
+const selB = document.getElementById('elemB');
+const selR = document.getElementById('elemR');
+[selA,selB,selR].forEach((sel,i)=>{
+  if (i===2){ const o=document.createElement('option'); o.value='__auto'; o.textContent='auto (A ⊕ B)'; sel.appendChild(o); }
+  Object.keys(ELEMENTS).forEach(k=>{
+    const o=document.createElement('option'); o.value=k; o.textContent=k; sel.appendChild(o);
+  });
+});
+const specSel = document.getElementById('spec');
+Object.keys(SPECIES).forEach(k=>{
+  const o=document.createElement('option'); o.value=k; o.textContent=k; specSel.appendChild(o);
+});
+const factSel = document.getElementById('fact');
+Object.keys(FACTIONS).forEach(k=>{
+  const o=document.createElement('option'); o.value=k; o.textContent=k; factSel.appendChild(o);
+});
+// Applying a species writes its architecture into the sliders, so it is a
+// starting point you can tune rather than a locked mode.
+function applySpecies(name){
+  const sp = SPECIES[name]; if(!sp) return;
+  ['N','turns','R','H','pTop','pBot','shellT','cover'].forEach(k=>{
+    if (sp[k]===undefined) return;
+    const el=document.getElementById(k);
+    el.value = sp[k]; el.dispatchEvent(new Event('input'));
+  });
+  // Per-species motion, applied over the baseline so selection order never
+  // matters: a species without an `m` block always lands back on the default.
+  const mo = Object.assign({}, MOTION_DEFAULT, sp.m || {});
+  ['weave','twAmp','twFreq','twSpd','brAmp','brSpd','waist'].forEach(k=>{
+    const el=document.getElementById(k);
+    el.value = mo[k]; el.dispatchEvent(new Event('input'));
+  });
+}
+specSel.value = PREFS.spec || 'let';
+specSel.addEventListener('change',()=>{
+  PREFS.spec=specSel.value; savePrefs(); applySpecies(specSel.value);
+});
+['rare','fact'].forEach(k=>{
+  const el=document.getElementById(k);
+  if (PREFS[k]) el.value = PREFS[k];
+  el.addEventListener('change',()=>{PREFS[k]=el.value;savePrefs();});
+});
+
+selA.value = PREFS.elemA || 'water';
+selB.value = PREFS.elemB || 'fire';
+selR.value = PREFS.elemR || '__auto';
+[['elemA',selA],['elemB',selB],['elemR',selR]].forEach(([k,sel])=>{
+  sel.addEventListener('change',()=>{PREFS[k]=sel.value;savePrefs();});
+});
+['behav','ribbon','silh'].forEach(k=>{
+  const el=document.getElementById(k);
+  if (PREFS[k]!==undefined) el.checked = PREFS[k];
+  el.addEventListener('change',()=>{PREFS[k]=el.checked;savePrefs();});
+});
+
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+function fit(){
+  // Clamp: a short/reflowing pane produced a negative size, which made
+  // createRadialGradient throw and killed the render loop.
+  const H = Math.max(260, Math.min(window.innerHeight-90, 900));
+  const W = Math.max(160, Math.round(H*0.6));
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cv.logicalW=W; cv.logicalH=H;
+}
+fit(); addEventListener('resize',fit);
+
+/* ------------------------- strand definitions ------------------------- */
+function buildStrands(){
+  const n = U.N|0;
+  S = new Array(n);
+  const GOLD = 2.399963229728653;
+  for(let k=0;k<n;k++){
+    S[k] = {
+      th0:   k*GOLD % (Math.PI*2),
+      tMul:  0.82 + h(k,1)*0.40,          // per-strand turn variance
+      rOff:  1 + (h(k,2)-0.5),            // scaled by shellT at eval time
+      accent: h(k,3),                      // compared against accent mix
+      vJit:  [h(k,4), h(k,5)],             // coverage trim at each pole
+      t0:    h(k,6),                       // convergence stagger
+      bAng:  h(k,7)*Math.PI*2,             // burst direction
+      bCurl: (h(k,8)-0.5)*2.2,             // trail curvature
+      bLen:  0.35 + h(k,9)*0.85,           // trail length
+      bR0:   0.10 + h(k,10)*0.30,          // trail start radius
+      wob:   h(k,11)*Math.PI*2,            // wave phase
+      spin:  (h(k,12)-0.5)*2,              // unravel spin
+      hue:   h(k,13),                      // palette position
+      grp:   h(k,14) < 0.5 ? 0 : 1,       // which parent this strand came from
+      role:  h(k,19),                     // meridian / parallel / halo draw
+      weav:  h(k,21),                     // counter-wound family draw
+      roleV: 0.10 + h(k,20)*0.80,         // which latitude a parallel sits at
+      wPh:   h(k,15)*Math.PI*2,           // wander phase
+      wSp:   0.6 + h(k,16)*1.6,           // wander speed
+      tw:    h(k,17),                     // twinkle offset
+      gLead: h(k,18),                     // stagger for the mote->string draw
+    };
+  }
+}
+buildStrands();
+
+/* ------------------------- pose evaluation ------------------------- */
+// Formed pose: a helix on an ovoid, projected orthographically.
+// Returns [screenX, screenY, depth] with depth in 0..1 (0 = far, 1 = near).
+function helix(st, s, yaw, b, cx, cy, span, time, braid, f){
+  // ---- shared motion, resolved BEFORE the structural branches ----------
+  // These used to sit below the early returns, so the torus, the halo, the
+  // parallels and the horns received no twist, no breathing and no waist
+  // roam at all — they only span with yaw. That is why mask looked dead.
+  const br    = 1 + U.brAmp*Math.sin(time*U.brSpd*Math.PI*2);
+  const wob   = U.waist*Math.sin(time*0.61 + 0.7);
+  const twist = (x) => U.twAmp*Math.sin(Math.PI*2*(x*U.twFreq - time*U.twSpd));
+
+  // ---- species architecture -------------------------------------------
+  // HALO: a tilted orbital band. Its own parameterisation entirely — it does
+  // not live on the shell surface, it orbits it.
+  if (f.haloFrac && st.role < f.haloFrac){
+    const a  = st.th0 + s*Math.PI*2 + yaw + twist(s)*0.5;
+    const rr = U.R * f.haloR * (1 + f.haloWob*Math.sin(s*Math.PI*4 + time*0.8)) / br;
+    const px = Math.cos(a)*rr, pz = Math.sin(a)*rr;
+    const ct = Math.cos(f.haloTilt), stl = Math.sin(f.haloTilt);
+    const y2 = -pz*stl, z2 = pz*ct;
+    return [cx + px*span, cy + y2*span, clamp(z2/(rr||1)*0.5 + 0.5, 0, 1)];
+  }
+  // PARALLEL: a latitude ring rather than a pole-to-pole meridian.
+  if (f.ringFrac && st.role < f.haloFrac + f.ringFrac){
+    const vR = st.roleV;
+    const p0 = lerp(U.pTop, U.pBot, clamp(vR + wob, 0, 1));
+    const rr = Math.pow(Math.max(Math.sin(Math.PI*vR),1e-4), p0) * U.R
+             * (1 + U.shellT*st.rOff*0.5) / br;
+    const a  = st.th0 + s*Math.PI*2 + yaw + braid + twist(vR);
+    return [cx + Math.cos(a)*rr*span, cy + (vR-0.5)*U.H*br*span,
+            (Math.sin(a)+1)*0.5];
+  }
+
+  // HORNS (mane): a pair of curved tapering tubes rather than a shell.
+  if (f.horns){
+    const n = f.horns;
+    // A squat skull the horns actually grow out of. Without it they float.
+    if (f.baseFrac && st.role > 1 - f.baseFrac){
+      const vv = s;
+      const rr = Math.pow(Math.max(Math.sin(Math.PI*vv),1e-4), 0.55) * U.R
+               * f.baseScale * (1 + U.shellT*st.rOff);
+      const a  = st.th0 + U.turns*Math.PI*2*vv + yaw + braid;
+      return [cx + Math.cos(a)*rr*span,
+              cy + ((vv-0.5)*U.H*f.baseH + f.baseY)*span, (Math.sin(a)+1)*0.5];
+    }
+    const idx  = Math.floor(st.role/(1-(f.baseFrac||0))*n) % n;
+    const side = n===1 ? 0 : (idx*2/(n-1) - 1);
+    const u    = s;                                 // 0 at base, 1 at tip
+    // Lateral: leans out, then curls back in near the tip. A single power
+    // term only ever flared outward, which is what made it a wishbone.
+    const lat = f.hornBase + f.hornCurve*Math.pow(u,1.5) - f.hornCurl*Math.pow(u,3.2);
+    const hx  = Math.sin(f.hornSpread) * side * lat * U.R;
+    // Start at the TOP of the skull and rise from there. The old form put the
+    // base below the skull's lower edge, so every horn drew straight through
+    // the mass it was supposed to grow out of.
+    const skullTop = f.baseY - U.H*f.baseH*0.5;
+    const hy  = (skullTop - u*f.hornLen*U.H) * br;
+    const tube= f.hornTube * Math.pow(1-u, 1.15) * U.R * (1 + U.shellT*st.rOff);
+    const ph  = st.th0 + braid + u*f.hornTwist*Math.PI*2 + yaw + twist(u);
+    return [cx + (hx + Math.cos(ph)*tube)*span, cy + hy*span, (Math.sin(ph)+1)*0.5];
+  }
+  // HOLE (mask): a torus facing the camera, so the aperture is visible.
+  if (f.hole){
+    const rt = U.R * (1 - f.hole);                  // tube radius
+    const Rm = U.R * f.hole;                        // major radius
+    // The ring sweep and the tube get their own phase of the same wave, so
+    // the aperture breathes and the coil travels instead of holding still.
+    const ang = st.th0 + s*Math.PI*2*f.wrap + yaw + braid + twist(s);
+    const tub = st.th0*2.7 + s*Math.PI*2*f.coil + twist(s*1.6)*0.8;
+    const rr  = (Rm + rt*Math.cos(tub) * (1 + U.shellT*st.rOff)) / br;
+    return [cx + Math.cos(ang)*rr*span,
+            cy + Math.sin(ang)*rr*f.aspect*br*span,
+            clamp(Math.sin(tub)*0.5 + 0.5, 0, 1)];
+  }
+
+  const vA = U.cover*st.vJit[0], vB = 1 - U.cover*st.vJit[1];
+  let v = lerp(vA, vB, s);
+
+  if (b.facet >= 1.5) v = Math.round(v*b.facet)/b.facet; // ice: flat facets
+  if (b.taper) v = lerp(v, v*(1-b.taper*0.5), s*s);      // fire/steam: short tops
+
+  // egg profile — exponent blends top→base so the two ends differ
+  const p = lerp(U.pTop, U.pBot, clamp(v + wob, 0, 1));
+  let r;
+  if (f.bulbs){
+    // Two lobes from one profile, plus a neck floor near the waist so the
+    // halves are joined by material rather than stacked with a gap. Strands
+    // run continuously through the neck, which is what reads as connected.
+    const lobe = Math.pow(Math.abs(Math.sin(Math.PI*v*f.bulbs)), p);
+    const neck = f.neck * Math.exp(-Math.pow((v-0.5)/f.neckW, 2));
+    r = U.R * Math.max(lobe, neck);
+  } else {
+    r = Math.pow(Math.max(Math.sin(Math.PI*v), 1e-4), p) * U.R;
+  }
+  if (f.cyl){
+    // f.cyl is a MIX toward a straight column, not a switch. At 1.0 it was a
+    // literal pipe; blending keeps a slender taper with some organic swell.
+    const e = Math.min(v, 1-v) / Math.max(f.cap, 1e-4);
+    const col = U.R * (e < 1 ? Math.sqrt(Math.max(e,0)) : 1);
+    r = lerp(r, col, f.cyl);
+  }
+
+  r *= (1 + U.shellT * st.rOff) / br;
+
+  // Angle is resolved BEFORE the shaping terms that depend on it. Pinching by
+  // st.th0 (the strand's starting phase) only scaled whole strands — it never
+  // produced a pinch at a fixed angle, which is why the wing had no lobes.
+  // Counter-wound family. Strands winding opposite ways cross into a lattice,
+  // which is the weave in the reference — it is not one family being sheared.
+  const dirW = st.weav < U.weave ? -1 : 1;
+  let th = st.th0 + (U.turns*(b.turns||1))*st.tMul * Math.PI*2 * v * dirW + yaw;
+  // Travelling torsional wave: the band direction reverses as it passes,
+  // which is what makes the whole shell look like it is spinning through
+  // itself rather than simply rotating.
+  th += twist(v);
+  if (b.kink > 0.1)   th += Math.sin(s*b.kink*Math.PI)*0.09;
+  if (b.planes >= 2){ const stp=Math.PI*2/b.planes; th = Math.round(th/stp)*stp; }
+  if (f.clump) th += f.clumpGap*Math.sin(th*f.clump)/f.clump;
+  th += braid;
+
+  if (f.ribDepth)  r *= 1 + f.ribDepth*Math.sin(v*Math.PI*2*f.rib);        // horn
+  if (f.spire)     r *= 1 - f.spire*Math.pow(1-v, 3);                      // crest
+  if (f.sweep && s > 0.66){                                               // mane fall
+    const e = (s-0.66)/0.34;
+    r *= 1 + f.sweep*e*e;
+  }
+  if (b.wave)    r *= 1 + b.wave * Math.sin(s*Math.PI*2*b.waveF + st.wob + time*1.6);
+  if (b.breathe) r *= 1 + b.breathe * Math.sin(time*0.9 + st.wob);
+  if (b.pulse)   r *= 1 + b.pulse * Math.pow(Math.max(0,Math.sin(time*2.6)),3);
+
+  if (b.tendril && s>0.82){ const e=(s-0.82)/0.18; r *= 1+b.tendril*e*e; th += e*e*1.1; }
+
+  let y = (v-0.5)*U.H*br;
+  if (b.rise) y += b.rise*(1-v)*0.35;
+  if (b.sag)  y += b.sag*Math.sin(Math.PI*v)*0.5;
+
+  if (f.sweep && s > 0.66){ const e=(s-0.66)/0.34; y += f.sweep*e*e*0.10; }
+  if (f.satFrac && st.role > 1 - f.satFrac){                               // kin: companion
+    const sc = f.satScale;
+    return [cx + f.satX*span + Math.cos(th)*r*sc*span,
+            cy + f.satY*span + y*sc*span, (Math.sin(th)+1)*0.5];
+  }
+  // WING: some strands wrap a core shell, the rest wrap two narrow lobes that
+  // are squashed, tilted and pushed out to either side. Same wrapped-strand
+  // maths as every other species — a feather fan read as a different family.
+  if (f.wingFrac && st.role > 1 - f.wingFrac){
+    const side = st.vJit[0] >= 0.5 ? 1 : -1;
+    const bx = Math.cos(th)*r*f.wingW;
+    const by = y*f.wingH;
+    const a  = side*f.wingTilt, ca = Math.cos(a), sa = Math.sin(a);
+    return [cx + (bx*ca - by*sa + side*f.wingOut*U.R)*span,
+            cy + (bx*sa + by*ca + f.wingY*U.H)*span, (Math.sin(th)+1)*0.5];
+  }
+
+  const baseY = f.stackY || 0;                                            // kin: primary
+  return [cx + Math.cos(th)*r*span, cy + (y + baseY)*span, (Math.sin(th)+1)*0.5];
+}
+
+// Scattered pose: where the burst already throws things — a curved trail.
+// `grow` is the mote->string draw: at 0 every sample collapses onto the head,
+// so a round-capped stroke renders as a single dot with no special case. As it
+// rises the tail is literally drawn out of the particle.
+function scatter(st, s, ox, oy, span, grow, time, flowAmp, spin){
+  const sg = s * grow;
+  const a = st.bAng + sg*st.bCurl + spin;
+  const rad = (st.bR0 + sg*st.bLen) * U.burst;
+  // Motes drift hardest, but the drift never fully dies — a strand frozen in
+  // place between sprouting and converging was the static-looking gap.
+  const w = U.wander * (1 - 0.65*grow) * span;
+  const wx = Math.cos(time*st.wSp + st.wPh) * w;
+  const wy = Math.sin(time*st.wSp*0.83 + st.wPh*1.7) * w;
+  // Travelling wave down the length, perpendicular to the trail: a drawn
+  // string behaves like a filament in a current instead of a dead line.
+  const fa = Math.sin(s*Math.PI*2*U.flowF + time*2.4 + st.wPh) * flowAmp * span;
+  return [ox + Math.cos(a)*rad*span + wx - Math.sin(a)*fa,
+          oy + Math.sin(a)*rad*span + wy + Math.cos(a)*fa, 0.5];
+}
+
+/* ------------------------------ draw ------------------------------ */
+let runsDrawn = 0;
+const pathPool = [];   // stands in for Dart's preallocated Path list
+
+function drawFrame(t, time){
+  const W = cv.logicalW, Hh = cv.logicalH;
+  const span = Math.min(W, Hh);
+  const cx = W/2, cy = Hh*0.47;
+  ctx.clearRect(0,0,W,Hh);
+
+  const F = (SPECIES[specSel.value] || SPECIES.let).f || {};
+  const rarity = document.getElementById('rare').value;
+  const factionRgb = hexToRgb(FACTIONS[factSel.value] || '#FF5722');
+  const useB = document.getElementById('behav').checked;
+  const nameA = selA.value, nameB = selB.value;
+  const nameR = selR.value === '__auto' ? null : selR.value;
+
+  const palA = paletteOf(nameA), palB = paletteOf(nameB);
+  const palR = nameR ? paletteOf(nameR) : blendPalette(palA, palB, 0.5);
+  const behA = useB ? (B[nameA]||{}) : {};
+  const behB = useB ? (B[nameB]||{}) : {};
+  const behR = useB ? (nameR ? (B[nameR]||{}) : blendB(B[nameA], B[nameB], 0.5)) : {};
+
+  // How far the two parents have resolved into the child, 0..1.
+  const fuse = clamp((t - U.tFuse) / U.fuseSpan, 0, 1);
+  const fuseE = easeInOutCubic(fuse);
+
+  // Blended once per frame, not per strand.
+  const bA = blendB(behA, behR, fuseE);
+  const bB = blendB(behB, behR, fuseE);
+  const pA = blendPalette(palA, palR, fuseE);
+  const pB = blendPalette(palB, palR, fuseE);
+  // LAYER 3 — rarity. Variant hands the accent strands to the faction colour,
+  // so a variant reads as foreign threads running through the same creature.
+  const acc = rarity==='variant' ? factionRgb : palR[2];
+  const accMix = rarity==='variant' ? Math.max(U.accent, 0.32) : U.accent;
+
+  // The two parent clusters start apart and close on centre during scatter.
+  // The two clouds HOLD their separation. Nothing walks them together — an
+  // approach drift was a rigid slide, and revolving them around each other
+  // read as choreography. The coming-together IS the converge phase, where
+  // the polar vortex carries every strand in at once.
+  const sep = U.split * span;
+  const axis = -0.34;
+  // Each cloud floats on its own slow, unrelated drift, so "held apart" does
+  // not mean "pinned". Driven by wall clock, not the timeline, and with
+  // different phases and rates per cloud so they never move in concert.
+  const dr = U.orbit * span;
+  const dA = [Math.sin(time*0.61)*dr,        Math.cos(time*0.43 + 1.9)*dr];
+  const dB = [Math.sin(time*0.47 + 2.7)*dr,  Math.cos(time*0.55 + 0.6)*dr];
+  const originA = [cx + Math.cos(axis)*sep + dA[0],         cy + Math.sin(axis)*sep*0.75 + dA[1]];
+  const originB = [cx + Math.cos(axis+Math.PI)*sep + dB[0], cy + Math.sin(axis+Math.PI)*sep*0.75 + dB[1]];
+  // Gentle continuous churn about each cloud's own centre — a rate, not a
+  // timeline-driven sweep, so it never accelerates into a spin.
+  const spinA =  U.cSpin * time * 0.30;
+  const spinB = -U.cSpin * time * 0.26;
+
+  const yaw = time * U.yaw;
+  const buckets = U.buckets|0;
+  const M = U.M|0;
+  const ribbon = document.getElementById('ribbon').checked;
+
+  // background vignette — stands in for the cinematic's dark barrier
+  const g = ctx.createRadialGradient(cx,cy,0,cx,cy,span*0.8);
+  g.addColorStop(0, rgba(mixRgb(palR[0],[0,0,0],0.78), 0.55));
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,Hh);
+
+  const runs = [];
+
+  for(let k=0;k<S.length;k++){
+    const st = S[k];
+    // Which parent this strand belongs to. Both halves land on the SAME
+    // shell — they interleave rather than occupying separate regions, which
+    // is what reads as "merged" instead of "two things side by side".
+    const isB = st.grp === 1;
+    const b   = isB ? bB : bA;
+    const pal = isB ? pB : pA;
+    const org = isB ? originB : originA;
+    const spin = isB ? spinB : spinA;
+    // Opposite pre-twist per parent, unwound as the fuse completes.
+    const braid = (isB ? 1 : -1) * U.braid * (1 - fuseE);
+
+    // --- per-strand phase weights -------------------------------------
+    // Mote -> string. The stagger delays each strand's START and holds the
+    // duration fixed, so they finish at different times. Shortening the span
+    // instead made every strand complete on the same frame.
+    const gTotal = Math.max(0.02, U.tString - U.tMote);
+    const gDur   = Math.max(0.02, gTotal * (1 - U.gStag));
+    const gStart = U.tMote + st.gLead * gTotal * U.gStag;
+    const gEnd   = gStart + gDur;
+    const grow = easeOutCubic(clamp((t - gStart) / gDur, 0, 1));
+
+    // Converge begins when THIS strand finishes sprouting, not when the whole
+    // field does — that overlap is what removes the frozen gap between the
+    // two beats.
+    const window = Math.max(0.02, U.tConv - gEnd);
+    const lead = gEnd + st.t0 * U.stag * window;
+    const cSpan = window * (1 - st.t0 * U.stag);
+    let form = clamp((t - lead)/cSpan, 0, 1);
+    form = easeInOutCubic(form);
+    // cinch: a short overshoot past the surface, then settle
+    const cinch = t>U.tConv && t<U.tConv+0.12
+      ? Math.sin((t-U.tConv)/0.12*Math.PI)*U.over : 0;
+
+    let unrav = 0;
+    if (t > U.tUnrav){
+      unrav = clamp((t-U.tUnrav)/(1-U.tUnrav) - st.t0*0.25, 0, 1);
+      unrav = easeInCubic(unrav);
+    }
+    if (unrav >= 1) continue;
+
+    // --- build the polyline -------------------------------------------
+    const flowAmp = U.flow * grow * (1 - form);   // per strand, not per sample
+    const pts = new Array(M);
+    for(let j=0;j<M;j++){
+      const s = j/(M-1);
+      const H1 = helix(st, s, yaw, b, cx, cy, span, time, braid, F);
+      let x,y,d;
+      if (form < 1){
+        const S0 = scatter(st, s, org[0], org[1], span, grow, time, flowAmp, spin);
+        // Converge in POLAR space about the shell centre, not in x/y.
+        // A Cartesian lerp is a straight line, so every strand slid to its
+        // slot on its own track. Orbiting a shared centre makes them move
+        // as one system — drawn in, rather than placed.
+        const sx = S0[0]-cx, sy = S0[1]-cy;
+        const hx = H1[0]-cx, hy = H1[1]-cy;
+        const rS = Math.hypot(sx,sy), rH = Math.hypot(hx,hy);
+        const aS = Math.atan2(sy,sx);
+        let da = Math.atan2(hy,hx) - aS;
+        while (da >  Math.PI) da -= Math.PI*2;
+        while (da < -Math.PI) da += Math.PI*2;
+
+        // Extra orbit, scaled by how far out the strand starts. The sin()
+        // envelope is zero at both ends, so the strand still lands exactly
+        // on its slot however hard it swirls on the way in.
+        const dirMul = isB ? lerp(1,-1,U.counter) : 1;
+        const extra = U.swirl * (rS/(span*0.5)) * dirMul;
+        const a = aS + da*form + extra*Math.sin(Math.PI*form);
+
+        // Radius contracts later than the angle sweeps, so a strand circles
+        // at distance before it drops in instead of running straight at it.
+        const r = lerp(rS, rH, Math.pow(form, 1 + U.rLag*2));
+
+        x = cx + Math.cos(a)*r;
+        y = cy + Math.sin(a)*r;
+        d = lerp(S0[2], H1[2], form);
+      } else { x=H1[0]; y=H1[1]; d=H1[2]; }
+
+      if (cinch){ x += (x-cx)*cinch*0.10; y += (y-cy)*cinch*0.10; }
+
+      if (unrav>0){
+        // peel outward past the camera while spinning off-axis
+        const dx=x-cx, dy=y-cy;
+        const push = 1 + unrav*2.6;
+        const sp = st.spin*unrav*0.9;
+        const cs=Math.cos(sp), sn=Math.sin(sp);
+        x = cx + (dx*cs - dy*sn)*push;
+        y = cy + (dx*sn + dy*cs)*push;
+        d = lerp(d, 1, unrav*0.6);
+      }
+      pts[j]=[x,y,d];
+    }
+
+    // --- split into depth runs ----------------------------------------
+    const isAcc = st.accent < accMix;
+    let cRgb = isAcc ? acc : mixRgb(pal[0], pal[1], st.hue);
+    if (rarity==='prismatic'){
+      cRgb = hueRotate(cRgb, st.hue + time*U.prism);
+    }
+    let flick = 1;
+    if (b.flick) flick = 1 - b.flick*0.5*(0.5+0.5*Math.sin(time*7 + st.wob*3));
+    // Motes twinkle before they are drawn out into line.
+    const twinkle = grow >= 1 ? 1
+      : 1 - U.twink*(1-grow)*(0.5+0.5*Math.sin(time*5.5 + st.tw*Math.PI*2));
+    const bright = Math.max(lerp(0.28, 1, form), 0.8*(1-grow));
+    const fade = (1-unrav) * (b.aMul||1) * flick * twinkle * bright;
+    // A dot needs weight to read as a particle; a string does not.
+    const moteW = lerp(U.moteW, 1, grow);
+
+    let runStart = 0, curB = clamp(Math.floor(pts[0][2]*buckets),0,buckets-1);
+    for(let j=1;j<=M;j++){
+      const bk = j<M ? clamp(Math.floor(pts[j][2]*buckets),0,buckets-1) : -1;
+      if (bk!==curB || j===M){
+        if (j-runStart >= 2){
+          let md=0; for(let q=runStart;q<j;q++) md+=pts[q][2];
+          md/= (j-runStart);
+          runs.push({a:runStart, b:j, pts, d:md, rgb:cRgb, fade, isAcc,
+                     w:(b.wMul||1)*moteW});
+        }
+        runStart = j-1; curB = bk;
+      }
+    }
+  }
+
+  runs.sort((p,q)=>p.d-q.d);
+  runsDrawn = runs.length;
+
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  for(const r of runs){
+    const alpha = lerp(U.aBack, U.aFront, r.d) * r.fade;
+    if (alpha < 0.012) continue;
+    const w = lerp(U.wMin, U.wMax, r.d) * r.w;
+
+    ctx.beginPath();
+    const p = r.pts;
+    ctx.moveTo(p[r.a][0], p[r.a][1]);
+    for(let j=r.a+1;j<r.b-1;j++){
+      const mx=(p[j][0]+p[j+1][0])/2, my=(p[j][1]+p[j+1][1])/2;
+      ctx.quadraticCurveTo(p[j][0],p[j][1],mx,my);
+    }
+    ctx.lineTo(p[r.b-1][0], p[r.b-1][1]);
+
+    if (ribbon){
+      // wide dark edge, then narrow bright core — fakes a flat ribbon face
+      ctx.strokeStyle = rgba(mixRgb(r.rgb,[0,0,0],0.55), alpha*0.85);
+      ctx.lineWidth = w*1.9; ctx.stroke();
+      ctx.strokeStyle = rgba(mixRgb(r.rgb,[255,255,255], r.isAcc?0.18:0.34), alpha);
+      ctx.lineWidth = w*0.62; ctx.stroke();
+    } else {
+      ctx.strokeStyle = rgba(r.rgb, alpha);
+      ctx.lineWidth = w; ctx.stroke();
+    }
+  }
+
+  // --- silhouette reveal ---------------------------------------------
+  if (document.getElementById('silh').checked && t > U.tUnrav){
+    const u = easeOutCubic(clamp((t-U.tUnrav)/(1-U.tUnrav)*1.35,0,1));
+    const rr = span*U.revR*u;
+    const sg = ctx.createRadialGradient(cx,cy,0,cx,cy,rr*2.4);
+    sg.addColorStop(0, rgba(mixRgb(acc,[255,255,255],0.55), 0.85*u*U.bloom));
+    sg.addColorStop(0.42, rgba(acc, 0.35*u*U.bloom));
+    sg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(cx,cy,rr*2.4,0,7); ctx.fill();
+
+    // Hot core — light, not a dark mass. In the real cinematic the creature
+    // sprite sits here; a dark fill read as a shadow disc, so the stand-in
+    // is now the bloom the sprite will emerge out of.
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    const cg = ctx.createRadialGradient(cx,cy,0,cx,cy,rr*0.95);
+    cg.addColorStop(0,   rgba([255,255,255], 0.72*u*U.bloom));
+    cg.addColorStop(0.35,rgba(mixRgb(acc,[255,255,255],0.6), 0.42*u*U.bloom));
+    cg.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(cx,cy,rr*0.95,0,7); ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* ---------------------------- transport ---------------------------- */
+let playing=true, t=0, last=performance.now(), clock=0, ms=0;
+const scrub=document.getElementById('scrub');
+const playBtn=document.getElementById('play');
+const loopBtn=document.getElementById('loop');
+playBtn.addEventListener('click',()=>{playing=!playing;playBtn.textContent=playing?'▮▮':'▶';playBtn.classList.toggle('on',playing);});
+loopBtn.addEventListener('click',()=>loopBtn.classList.toggle('on'));
+scrub.addEventListener('input',()=>{t=parseFloat(scrub.value);playing=false;playBtn.textContent='▶';playBtn.classList.remove('on');});
+playBtn.classList.add('on'); playBtn.textContent='▮▮';
+
+function phaseName(t){
+  if (t < U.tMote)   return 'motes';
+  if (t < U.tString) return 'drawing out';
+  if (t < U.tConv) return 'converge';
+  if (t < U.tConv+0.12) return 'cinch';
+  if (t < U.tUnrav) return 'hold';
+  return 'unravel + reveal';
+}
+
+function frame(now){
+  const dt = Math.min((now-last)/1000, 0.05); last=now; clock+=dt;
+  if (playing){
+    t += dt/U.dur;
+    if (t>1){ if(loopBtn.classList.contains('on')) t=0; else {t=1;playing=false;playBtn.textContent='▶';playBtn.classList.remove('on');} }
+    scrub.value=t;
+  }
+  const t0=performance.now();
+  drawFrame(t, clock);
+  ms = ms*0.9 + (performance.now()-t0)*0.1;
+  document.getElementById('phase').textContent = phaseName(t);
+  document.getElementById('stats').textContent =
+    `${runsDrawn} paths/frame · ${ms.toFixed(1)}ms · t=${t.toFixed(2)}`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+document.getElementById('reset').addEventListener('click',()=>{
+  try { localStorage.removeItem(PKEY); } catch(e) {}
+  location.reload();
+});
+
+/* ----------------------------- export ----------------------------- */
+document.getElementById('dump').addEventListener('click',()=>{
+  const txt =
+`// tuned in shell_proto.html — ${selA.value} + ${selB.value} -> ${selR.value==='__auto'?'auto blend':selR.value}
+// total duration: ${U.dur}s
+static const int    kStrands      = ${U.N|0};
+static const int    kSamples      = ${U.M|0};
+static const double kTurns        = ${U.turns};
+static const double kRadius       = ${U.R};   // × shortestSide
+static const double kHeight       = ${U.H};
+static const double kPointTop     = ${U.pTop};
+static const double kPointBase    = ${U.pBot};
+static const double kShellThick   = ${U.shellT};
+static const double kCoverage     = ${U.cover};
+static const int    kDepthBuckets = ${U.buckets|0};
+static const double kAlphaBack    = ${U.aBack};
+static const double kAlphaFront   = ${U.aFront};
+static const double kWidthMin     = ${U.wMin};
+static const double kWidthMax     = ${U.wMax};
+static const double kAccentMix    = ${U.accent};
+static const double kYawSpeed     = ${U.yaw};
+static const double kConvergeEnd  = ${U.tConv};
+static const double kUnravelAt    = ${U.tUnrav};
+static const double kStagger      = ${U.stag};
+static const double kOvershoot    = ${U.over};
+static const double kBurstReach   = ${U.burst};
+static const double kRevealBloom  = ${U.bloom};
+static const double kRevealSize   = ${U.revR};
+static const double kSplit        = ${U.split};   // parent cluster separation
+static const double kBraid        = ${U.braid};   // opposite pre-twist per parent
+static const double kFuseAt       = ${U.tFuse};
+static const double kFuseSpan     = ${U.fuseSpan};
+static const double kMoteHold     = ${U.tMote};
+static const double kStringBy     = ${U.tString};
+static const double kMoteWidth    = ${U.moteW};
+static const double kMoteWander   = ${U.wander};
+static const double kMoteTwinkle  = ${U.twink};
+static const double kSproutStagger= ${U.gStag};
+static const double kFlow         = ${U.flow};
+static const double kFlowWaves    = ${U.flowF};
+static const double kSwirl        = ${U.swirl};
+static const double kRadiusLag    = ${U.rLag};
+static const double kCounterSpin  = ${U.counter};
+static const double kClusterDrift = ${U.orbit};
+static const double kClusterChurn = ${U.cSpin};
+// species: ${specSel.value}   rarity: ${document.getElementById('rare').value}
+static const double kPrismRate    = ${U.prism};
+static const double kWeave        = ${U.weave};
+static const double kTwistAmp     = ${U.twAmp};
+static const double kTwistWaves   = ${U.twFreq};
+static const double kTwistSpeed   = ${U.twSpd};
+static const double kBreathe      = ${U.brAmp};
+static const double kBreatheRate  = ${U.brSpd};
+static const double kWaistRoam    = ${U.waist};
+// observed: ${runsDrawn} drawPath calls/frame`;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const bt=document.getElementById('dump'); const o=bt.textContent;
+    bt.textContent='copied ✓'; setTimeout(()=>bt.textContent=o,1200);
+  });
+});
+</script>
+</body>
+</html>

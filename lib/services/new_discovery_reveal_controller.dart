@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/widgets/nav_bar.dart';
@@ -9,6 +10,22 @@ import 'package:flutter/rendering.dart';
 /// via extraction. The card flies into the CREATURES bottom-nav icon, the app
 /// switches to the creatures tab, and the new species tile is briefly
 /// highlighted in the catalog.
+/// A snapshot of a result card, taken while the card is still on screen so the
+/// flight can be played later.
+///
+/// The batch ceremony needs exactly this: it cannot fly a card at the moment
+/// the card is dismissed, because that would switch sections in the middle of
+/// the run. It captures each new discovery as it goes and flies them all once
+/// the last card is done.
+class DiscoveryFlightCapture {
+  DiscoveryFlightCapture({required this.image, required this.srcRect});
+
+  final ui.Image image;
+  final Rect srcRect;
+
+  void dispose() => image.dispose();
+}
+
 class NewDiscoveryReveal {
   NewDiscoveryReveal._();
   static final NewDiscoveryReveal instance = NewDiscoveryReveal._();
@@ -44,6 +61,107 @@ class NewDiscoveryReveal {
   /// Returns as soon as the overlay snapshot is in place (or a fallback path
   /// is taken), so the caller can immediately dismiss the source dialog
   /// without a visible gap. The animation itself completes independently.
+  /// Rasterise the card so it can be flown now or later. Null means the card
+  /// could not be captured and the caller should fall back to a plain reveal.
+  Future<DiscoveryFlightCapture?> captureCard({
+    required BuildContext context,
+    required GlobalKey cardBoundaryKey,
+  }) async {
+    final cardCtx = cardBoundaryKey.currentContext;
+    if (cardCtx == null) return null;
+    final boundary = cardCtx.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) return null;
+    final srcRect = boundary.localToGlobal(Offset.zero) & boundary.size;
+    try {
+      final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 2.0;
+      final image = await boundary.toImage(pixelRatio: math.min(dpr, 1.75));
+      return DiscoveryFlightCapture(image: image, srcRect: srcRect);
+    } catch (_) {
+      // toImage can fail mid-frame; the caller falls back to a plain reveal.
+      return null;
+    }
+  }
+
+  /// Reveal several new species one after another, flying each captured card
+  /// at its own tile and waiting for it to land before starting the next.
+  ///
+  /// The section switch happens once, on the first entry. Everything after it
+  /// is the catalog scrolling from one new entry to the next.
+  Future<void> playCapturedSequence({
+    required BuildContext context,
+    required List<({DiscoveryFlightCapture? capture, String creatureId})>
+    entries,
+  }) async {
+    for (final e in entries) {
+      if (!context.mounted) {
+        e.capture?.dispose();
+        continue;
+      }
+      await _flyCapture(
+        context: context,
+        capture: e.capture,
+        creatureId: e.creatureId,
+        awaitLanding: true,
+      );
+      if (!context.mounted) continue;
+      // Let the highlight sit before moving on, so each entry reads as its
+      // own arrival rather than the grid jumping between them.
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+    }
+  }
+
+  Future<void> _flyCapture({
+    required BuildContext context,
+    required DiscoveryFlightCapture? capture,
+    required String creatureId,
+    bool awaitLanding = false,
+  }) async {
+    final overlayState = Overlay.maybeOf(context, rootOverlay: true);
+    final navRect = _rectOf(databaseNavKey);
+
+    void revealOnly() {
+      pendingRevealCreatureId.value = creatureId;
+      onSwitchSection?.call(NavSection.creatures);
+    }
+
+    if (capture == null || overlayState == null || navRect == null) {
+      capture?.dispose();
+      revealOnly();
+      if (awaitLanding) {
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+      }
+      return;
+    }
+
+    pendingRevealCreatureId.value = creatureId;
+    onSwitchSection?.call(NavSection.creatures);
+    await WidgetsBinding.instance.endOfFrame;
+    await Future<void>.delayed(kRevealScrollSettle);
+    if (!context.mounted) {
+      capture.dispose();
+      return;
+    }
+
+    final landed = Completer<void>();
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _FilingAwayOverlay(
+        image: capture.image,
+        startRect: capture.srcRect,
+        endRect: _rectOf(revealTileKey) ?? navRect,
+        endRectResolver: () => _rectOf(revealTileKey),
+        onComplete: () {
+          entry.remove();
+          capture.dispose();
+          revealTileKey = null;
+          if (!landed.isCompleted) landed.complete();
+        },
+      ),
+    );
+    overlayState.insert(entry);
+    if (awaitLanding) await landed.future;
+  }
+
   Future<void> playFilingAway({
     required BuildContext context,
     required GlobalKey cardBoundaryKey,

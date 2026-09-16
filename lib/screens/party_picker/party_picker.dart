@@ -577,7 +577,12 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                     final confirmed = await showDialog<bool>(
                       context: ctx,
                       barrierDismissible: false,
-                      builder: (_) => DeployConfirmDialog(theme: theme),
+                      builder: (_) => DeployConfirmDialog(
+                        theme: theme,
+                        partyCount: count,
+                        maxSize: party.maxSize,
+                        availableCount: allInstances.length,
+                      ),
                     );
                     if (confirmed != true) return;
                   }

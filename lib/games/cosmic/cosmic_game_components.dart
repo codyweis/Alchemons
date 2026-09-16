@@ -25,7 +25,14 @@ class ShipComponent {
   Offset pos;
   double angle = -pi / 2; // pointing up initially
 
-  void render(Canvas canvas, double elapsed, {String? skin}) {
+  /// Whether this frame paints the blurred halos. Survival flies with it
+  /// off: its arena already paints hundreds of things a frame and blur is
+  /// the jank source there. The big halos are skipped rather than drawn
+  /// sharp — unblurred they read as hard discs — and the small flares stay.
+  bool _glow = true;
+
+  void render(Canvas canvas, double elapsed, {String? skin, bool glow = true}) {
+    _glow = glow;
     canvas.save();
     canvas.translate(pos.dx, pos.dy);
     canvas.rotate(angle + pi / 2); // adjust so 0 = up
@@ -54,7 +61,7 @@ class ShipComponent {
     final glowPaint = Paint()
       ..color = const Color(0x7000CFFF).withValues(alpha: 0.55 * enginePulse)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
-    canvas.drawCircle(const Offset(0, 18), 9, glowPaint);
+    if (_glow) canvas.drawCircle(const Offset(0, 18), 9, glowPaint);
 
     // Twin engine plumes
     for (final x in const [-5.5, 5.5]) {
@@ -191,7 +198,7 @@ class ShipComponent {
     final glowPaint = Paint()
       ..color = const Color(0x708B00FF).withValues(alpha: 0.55 + phase * 0.06)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
-    canvas.drawCircle(const Offset(0, 18), 8, glowPaint);
+    if (_glow) canvas.drawCircle(const Offset(0, 18), 8, glowPaint);
 
     for (final x in const [-5.0, 5.0]) {
       canvas.drawCircle(
@@ -293,7 +300,9 @@ class ShipComponent {
     final hullGlow = Paint()
       ..color = const Color(0x66D2A7FF)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
-    canvas.drawLine(const Offset(0, -23), const Offset(0, 9), hullGlow);
+    if (_glow) {
+      canvas.drawLine(const Offset(0, -23), const Offset(0, 9), hullGlow);
+    }
 
     final outlinePaint = Paint()
       ..color = const Color(0x889945FF)
@@ -336,7 +345,7 @@ class ShipComponent {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.4
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    canvas.drawCircle(const Offset(0, -1), 18.5, haloPaint);
+    if (_glow) canvas.drawCircle(const Offset(0, -1), 18.5, haloPaint);
     canvas.drawCircle(
       const Offset(0, -1),
       12.5,
@@ -350,7 +359,7 @@ class ShipComponent {
     final flarePaint = Paint()
       ..color = const Color(0x85FF9A00).withValues(alpha: 0.62 + phase * 0.07)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
-    canvas.drawCircle(const Offset(0, 18), 12, flarePaint);
+    if (_glow) canvas.drawCircle(const Offset(0, 18), 12, flarePaint);
     for (final x in const [-8.0, 0.0, 8.0]) {
       canvas.drawCircle(
         Offset(x, 16),
@@ -382,7 +391,9 @@ class ShipComponent {
         3.2,
         Paint()
           ..color = const Color(0x55FFD95C)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+          ..maskFilter = _glow
+              ? const MaskFilter.blur(BlurStyle.normal, 7)
+              : null,
       );
     }
 
@@ -530,7 +541,7 @@ class ShipComponent {
     final flameGlow = Paint()
       ..color = const Color(0x88FF5A1F).withValues(alpha: 0.58 + phase * 0.07)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
-    canvas.drawCircle(const Offset(0, 19), 12, flameGlow);
+    if (_glow) canvas.drawCircle(const Offset(0, 19), 12, flameGlow);
 
     for (final x in const [-6.5, 6.5]) {
       canvas.drawCircle(
@@ -576,7 +587,9 @@ class ShipComponent {
           flare,
           Paint()
             ..color = const Color(0x55FF8A00)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+            ..maskFilter = _glow
+                ? const MaskFilter.blur(BlurStyle.normal, 5)
+                : null,
         );
       }
     }
@@ -703,7 +716,7 @@ class ShipComponent {
     final prismGlow = Paint()
       ..color = const Color(0x6698F5FF).withValues(alpha: 0.48 + phase * 0.05)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
-    canvas.drawCircle(const Offset(0, 18), 10, prismGlow);
+    if (_glow) canvas.drawCircle(const Offset(0, 18), 10, prismGlow);
 
     // Floating shard motes
     for (var i = 0; i < 5; i++) {

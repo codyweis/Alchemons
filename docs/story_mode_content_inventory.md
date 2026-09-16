@@ -51,13 +51,13 @@ Generated from authored text found in the repo.
 - [Success Dialog] Fusion Successful!
 - Your new Alchemon is cultivating in the chamber.
 
-## Post-Planet Wilderness Beat
+## Post-Cosmic Wilderness Beat
 
 - Source: `lib/screens/scenes/scene_page.dart`
-- Reachability: Reachable once after the first cosmic planet-entry story has happened, on first visit to valley/sky/swamp/volcano.
+- Reachability: Reachable once on the first Field visit after returning from cosmic space; legacy saves may also qualify through the first planetary revelation.
 
-- [Dialog] Self Deception
-- Does reality dictate beauty?
+- [Dialog] The Beautiful Lie
+- I created this world to hide my shame from the death of Alchemons. I filled it with a perception of life and called that beauty. But beauty does not make it true.
 
 ## Cosmic: First Planet Entry
 

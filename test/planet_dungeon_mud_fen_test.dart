@@ -608,6 +608,30 @@ void main() {
       }
     });
 
+    test('THE HEAVE IS SPOKEN on the arrival it happens on', () {
+      // The Ice precedent, same cause: the line was set by the transit hook
+      // and wiped by `_clearHints()` one line later inside the same
+      // `passThroughDoor`, so the fen's one world-scale act was silent and
+      // the player found out by looking at a map they no longer had.
+      final game = _harness(_idealTrio());
+      game.entryDoorRevealed = true;
+      game.beginRun(); // spend any one-time teach first
+      _drag(game, 'add_neck', 'hag_knoll');
+      final fane = game.layout.rooms['drowned_fane']!;
+      final up = fane.doors.firstWhere((d) => d.targetRoomId == 'mire_gate');
+      game.currentRoomId = 'drowned_fane';
+      game.setActive(mud);
+      _act(game, mud, 'drowned_fane', fane.fen!.sough!);
+
+      game.passThroughDoor(up);
+      expect(game.currentRoomId, 'mire_gate');
+      expect(
+        game.hintText,
+        contains('heaves'),
+        reason: 'the room named itself over the top of the heave',
+      );
+    });
+
     test('a banked star survives the heave', () {
       final game = _harness(_idealTrio());
       game.earnStar(0);
@@ -690,9 +714,13 @@ void main() {
           ..lastSafe = head;
       }
       game.setActive(mud);
-      expect(game.bogDoomedByHand, isEmpty,
-          reason: 'open water has nothing left to pull on, so it costs '
-              'nothing and must not say it would');
+      expect(
+        game.bogDoomedByHand,
+        isEmpty,
+        reason:
+            'open water has nothing left to pull on, so it costs '
+            'nothing and must not say it would',
+      );
     });
 
     test('standing nowhere near a crossing promises nothing', () {
@@ -730,8 +758,11 @@ void main() {
       // and flashed at the creature, and the capsule says it when the player
       // presses HINT. What matters here is that there IS an answer — before,
       // the press fell through to the wordless puff and stored nothing.
-      expect(game.hintHasAnswer, isTrue,
-          reason: 'the stone said nothing at all when pressed');
+      expect(
+        game.hintHasAnswer,
+        isTrue,
+        reason: 'the stone said nothing at all when pressed',
+      );
       expect(game.refusalFlash, greaterThan(0));
       game.askForRoomHint();
       hints.add(game.hintText ?? '');
@@ -742,8 +773,11 @@ void main() {
       final game = _harness(_idealTrio())..entryDoorRevealed = true;
       game.currentRoomId = 'mire_gate';
       expect(game.progressReadout?.label, 'SARSEN');
-      expect(game.progressReadout?.value, 'no road',
-          reason: 'an unbuilt fen has no road home, and should say so');
+      expect(
+        game.progressReadout?.value,
+        'no road',
+        reason: 'an unbuilt fen has no road home, and should say so',
+      );
 
       // The authored southern road, one crossing at a time.
       _drag(game, 'tarn_head', 'mire_gate');
@@ -771,8 +805,9 @@ void main() {
       final layout = kPlanetDungeonLayouts['Mud']!;
       final fane = layout.rooms['drowned_fane']!;
       for (final knollId in kBogKnollIds) {
-        final down = layout.rooms[knollId]!.doors
-            .firstWhere((d) => d.targetRoomId == 'drowned_fane');
+        final down = layout.rooms[knollId]!.doors.firstWhere(
+          (d) => d.targetRoomId == 'drowned_fane',
+        );
         final up = fane.doors.firstWhere((d) => d.targetRoomId == knollId);
         expect(
           up.rect.contains(down.targetSpawn),
@@ -790,8 +825,9 @@ void main() {
       // Down the gate's wallow, and stand exactly where it puts you.
       game.entryDoorRevealed = true;
       _drag(game, 'tarn_head', 'mire_gate');
-      final down = layout.rooms['mire_gate']!.doors
-          .firstWhere((d) => d.targetRoomId == 'drowned_fane');
+      final down = layout.rooms['mire_gate']!.doors.firstWhere(
+        (d) => d.targetRoomId == 'drowned_fane',
+      );
       game.setActive(mud);
       game.passThroughDoor(down);
       expect(game.currentRoomId, 'drowned_fane');
@@ -808,8 +844,11 @@ void main() {
       for (var tick = 0; tick < 240; tick++) {
         game.update(1 / 60);
       }
-      expect(game.currentRoomId, 'drowned_fane',
-          reason: 'the hatch is shut, so standing on it is standing still');
+      expect(
+        game.currentRoomId,
+        'drowned_fane',
+        reason: 'the hatch is shut, so standing on it is standing still',
+      );
       expect(game.bog.field.heaves, 0);
       expect(game.bog.field.hardened, contains('tarn_head'));
     });
@@ -824,9 +863,13 @@ void main() {
         fane,
         fane.doors.firstWhere((d) => d.targetRoomId == 'mire_gate'),
       );
-      expect(game.bog.field.soughFreed, isFalse,
-          reason: 'if a heave left the sough open, the next wallow down would '
-              'drop you onto an OPEN hatch and heave again on its own');
+      expect(
+        game.bog.field.soughFreed,
+        isFalse,
+        reason:
+            'if a heave left the sough open, the next wallow down would '
+            'drop you onto an OPEN hatch and heave again on its own',
+      );
     });
   });
 
@@ -870,10 +913,16 @@ void main() {
         maxSeen = max(maxSeen, f.drownedCount);
         if (f.fenAtFullDrown) full.add(sh);
       }
-      expect(maxSeen, kMaxDrowned,
-          reason: 'six of nine is the most water this fen can carry');
-      expect(full, hasLength(1),
-          reason: 'the secret has to demand ONE shape, not a family of them');
+      expect(
+        maxSeen,
+        kMaxDrowned,
+        reason: 'six of nine is the most water this fen can carry',
+      );
+      expect(
+        full,
+        hasLength(1),
+        reason: 'the secret has to demand ONE shape, not a family of them',
+      );
       expect(full.single, {'cor_neck', 'add_neck', 'tarn_neck'});
     });
 
@@ -882,10 +931,19 @@ void main() {
       // full drown drowns every one the choir needs. That opposition is the
       // whole design: you cannot hold the secret's fen and a star's at once,
       // and the heave is the only way between them.
-      final f = BogField()..hardened.addAll({'cor_neck', 'add_neck', 'tarn_neck'});
-      for (final need in const ['cor_tail', 'add_tail', 'tarn_head', 'tarn_tail']) {
-        expect(f.stateOf(need), BogFordState.drowned,
-            reason: '$need is what the choir wants, and full drown takes it');
+      final f = BogField()
+        ..hardened.addAll({'cor_neck', 'add_neck', 'tarn_neck'});
+      for (final need in const [
+        'cor_tail',
+        'add_tail',
+        'tarn_head',
+        'tarn_tail',
+      ]) {
+        expect(
+          f.stateOf(need),
+          BogFordState.drowned,
+          reason: '$need is what the choir wants, and full drown takes it',
+        );
       }
       for (final k in kMoorKnollIds) {
         expect(f.isDry(k), isFalse);
@@ -898,8 +956,11 @@ void main() {
       final fen = game.layout.rooms['drowned_fane']!.fen!;
       // The fen as it opens: no drag anywhere, so the lead is dry.
       _act(game, water, 'drowned_fane', fen.leadHead!);
-      expect(game.bog.cutsFound, isFalse,
-          reason: 'the secret must not be workable before its own condition');
+      expect(
+        game.bog.cutsFound,
+        isFalse,
+        reason: 'the secret must not be workable before its own condition',
+      );
       _act(game, plant, 'drowned_fane', fen.sinkPit!);
       expect(game.bog.seedSet, isFalse);
     });
@@ -926,8 +987,11 @@ void main() {
 
       // 4 before 3 · a pour with nothing in the sink changes nothing.
       _act(game, mud, 'drowned_fane', fen.peatCuts![0]);
-      expect(game.bog.poured, isEmpty,
-          reason: 'the beats have to be a CHAIN, not three keys in a lock');
+      expect(
+        game.bog.poured,
+        isEmpty,
+        reason: 'the beats have to be a CHAIN, not three keys in a lock',
+      );
 
       // 3 · the seed.
       _act(game, water, 'drowned_fane', fen.sinkPit!);

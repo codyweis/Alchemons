@@ -18,6 +18,7 @@ import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_movement.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/cosmic_game.dart' show ShipComponent;
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
@@ -1318,6 +1319,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   static const double _orbAlchemyRingRadius = 160.0;
   static const double _orbGravityRadius = 720.0;
   static const double _orbShipOrbitRadius = 270.0;
+  double _idleOrbitRadius = _orbShipOrbitRadius;
+
+  /// Simulation multiplier selected by the player. The screen pauses the
+  /// engine for decisions, so those overlays never inherit fast-forward.
+  double timeScale = 1.0;
 
   final List<CosmicPartyMember> party;
   final void Function(SoundCue cue)? onSound;
@@ -1328,7 +1334,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final void Function(MysticSpecialCastEvent event)? onMysticSpecialCast;
   final SurvivalUpgradeState upgradeState;
   final SurvivalVisualQuality visualQuality;
+
+  /// A cosmic ship design id ('skin_phantom', …); null flies the standard
+  /// survival hull.
   String? shipSkin;
+  final ShipComponent _skinnedShip = ShipComponent(pos: Offset.zero);
 
   // Camera
   static const double _introZoomStart = 0.85;
@@ -1614,7 +1624,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     'Air',
   };
 
-
   /// Slots whose Mystic has already cast this deployment. A Mystic's world is
   /// cast ONCE — the ability comes back only by recalling and redeploying it,
   /// which costs the field.
@@ -1869,6 +1878,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void update(double dt) {
     super.update(dt);
     if (!_started || isGameOver || gamePaused) return;
+    dt *= timeScale.clamp(1.0, 2.0);
     final soundHpBefore = ship.currentHp + orb.currentHp;
 
     _rebuildEnemySpatialGrid();
@@ -2054,6 +2064,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             sin(ship.angle) * ship.speed * inputScale * plagueMove * dt,
       );
       _dragTarget = null;
+      _rememberCurrentOrbitRadius();
     } else if (_dragTarget != null) {
       final dir = _dragTarget! - ship.position;
       final dist = dir.distance;
@@ -2066,6 +2077,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ship.position.dy + ny * move,
         );
         ship.angle = atan2(ny, nx);
+        _rememberCurrentOrbitRadius();
       } else {
         shipIsIdle = true;
       }
@@ -2125,7 +2137,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     if (!shipIsIdle || dist > _orbGravityRadius) return;
 
-    final radialError = dist - _orbShipOrbitRadius;
+    final radialError = dist - _idleOrbitRadius;
     final radialSpeed = radialError.clamp(-90.0, 90.0) * 0.82;
     final tangent = Offset(-dir.dy, dir.dx);
     final orbitSpeed = 52.0 + 8.0 * sin(stats.timeElapsed * 0.7);
@@ -2133,6 +2145,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     ship.position += (dir * radialSpeed + tangent * orbitSpeed) * dt;
     ship.angle = atan2(tangent.dy, tangent.dx);
     _dragTarget = ship.position;
+  }
+
+  void _rememberCurrentOrbitRadius() {
+    final distance = (ship.position - orb.position).distance;
+    final maxRadius = (_arenaRadius - 110.0).clamp(220.0, 560.0);
+    _idleOrbitRadius = distance.clamp(150.0, maxRadius);
   }
 
   void _fireShipAt(Offset targetPos) {
@@ -4413,24 +4431,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           if (_pipMudPuffCount < kPipMudTrailBudget) {
             _pipMudPuffCount++;
             _appendCompanionProjectile(
-            Projectile(
-              position: enemy.position,
-              angle: 0,
-              element: 'Mud',
-              damage: 0,
-              life: 5.5,
-              speedMultiplier: 0,
-              stationary: true,
-              piercing: true,
-              radiusMultiplier: 1.1,
-              visualScale: 1.0,
-              visualStyle: ProjectileVisualStyle.sigil,
-              abilityFamily: 'pip',
-              tickEffect: AbilityEffectKind.slow,
-              effectPower: 1.0,
-              effectRadius: 38,
-              effectDuration: 1.2,
-            ),
+              Projectile(
+                position: enemy.position,
+                angle: 0,
+                element: 'Mud',
+                damage: 0,
+                life: 5.5,
+                speedMultiplier: 0,
+                stationary: true,
+                piercing: true,
+                radiusMultiplier: 1.1,
+                visualScale: 1.0,
+                visualStyle: ProjectileVisualStyle.sigil,
+                abilityFamily: 'pip',
+                tickEffect: AbilityEffectKind.slow,
+                effectPower: 1.0,
+                effectRadius: 38,
+                effectDuration: 1.2,
+              ),
             );
           }
         }
@@ -7451,7 +7469,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           position: centre + Offset(cos(a), sin(a)) * r,
           // Slow enough to read as floating rather than as projectiles that
           // happen to be orange.
-          velocity: Offset(cos(drift), sin(drift)) * (10 + _rng.nextDouble() * 16),
+          velocity:
+              Offset(cos(drift), sin(drift)) * (10 + _rng.nextDouble() * 16),
           ownerSlot: comp.slotIndex,
           seed: _rng.nextDouble() * 6.28,
         ),
@@ -7460,7 +7479,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   /// Whether this companion's Mystic world is already out.
-  bool isMysticFieldSpent(int slotIndex) => _mysticSpentSlots.contains(slotIndex);
+  bool isMysticFieldSpent(int slotIndex) =>
+      _mysticSpentSlots.contains(slotIndex);
 
   /// How many embers a slot currently has burning — drives the slot readout so
   /// the disabled ability reads as "your world is out there" rather than as a
@@ -7868,7 +7888,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final Map<int, int> _mysticWorldIgnitions = {};
 
   @visibleForTesting
-  int mysticWorldIgnitions(int slotIndex) => _mysticWorldIgnitions[slotIndex] ?? 0;
+  int mysticWorldIgnitions(int slotIndex) =>
+      _mysticWorldIgnitions[slotIndex] ?? 0;
 
   @visibleForTesting
   double? mysticMawRadius(int slotIndex) {
@@ -8028,7 +8049,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
       if (r.rise < 1) r.rise = min(1.0, r.rise + dt * 2.6);
       r.life -= dt;
-      if (r.strikeCooldown > 0) r.strikeCooldown = max(0.0, r.strikeCooldown - dt);
+      if (r.strikeCooldown > 0) {
+        r.strikeCooldown = max(0.0, r.strikeCooldown - dt);
+      }
 
       // Hunt. A revenant fights whatever it used to stand beside, and ignores
       // the orb entirely — it is ours now.
@@ -8074,12 +8097,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final comp = activeCompanions[slot];
     if (comp == null || comp.isDead) return;
 
-    final share = 0.10 * _mysticWorldPower(slot) * _hornStatScale(
-      _effectiveStrength(slot) * 0.5 + _effectiveBeauty(slot) * 0.5,
-      perPoint: 0.14,
-      min: 0.75,
-      max: 1.85,
-    );
+    final share =
+        0.10 *
+        _mysticWorldPower(slot) *
+        _hornStatScale(
+          _effectiveStrength(slot) * 0.5 + _effectiveBeauty(slot) * 0.5,
+          perPoint: 0.14,
+          min: 0.75,
+          max: 1.85,
+        );
     final drawn = dealt * share;
     _healOrb(drawn * 0.72, sourceSlot: slot);
     // The Mystic keeps a cut. It is the one standing in the blood.
@@ -8426,7 +8452,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticVines.removeWhere((v) => v.dead);
   }
 
-
   // ── AIR: the tornado ────────────────────────────────────────────────────
 
   void _raiseMysticTornado(CosmicSurvivalCompanion comp) {
@@ -8583,7 +8608,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // Drawn slowly inward as well as around, so the crowd gathers rather
         // than orbiting at a fixed distance forever.
         final pull = dist - (14.0 + 26.0 * closeness) * storm.dt;
-        enemy.position = centre + Offset(cos(angle), sin(angle)) * max(26.0, pull);
+        enemy.position =
+            centre + Offset(cos(angle), sin(angle)) * max(26.0, pull);
       }
 
       // A boss is too heavy to be carried, but the water still drags on it.
@@ -8643,7 +8669,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // stays floor.
       final place = _rng.nextDouble() * 2 * pi;
       final away = 0.26 + _rng.nextDouble() * 0.52;
-      final mid = centre + Offset(cos(place), sin(place)) * (_arenaRadius * away);
+      final mid =
+          centre + Offset(cos(place), sin(place)) * (_arenaRadius * away);
       final bearing = _rng.nextDouble() * pi;
       final dir = Offset(cos(bearing), sin(bearing));
       final normal = Offset(-dir.dy, dir.dx);
@@ -8817,7 +8844,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (dist > reach) continue;
       final dir = dist > 0.01
           ? delta / dist
-          : Offset(cos(_rng.nextDouble() * 2 * pi), sin(_rng.nextDouble() * 2 * pi));
+          : Offset(
+              cos(_rng.nextDouble() * 2 * pi),
+              sin(_rng.nextDouble() * 2 * pi),
+            );
       // Hardest on whatever is closest to the orb, which is the thing the vent
       // is for. A uniform shove would move the far ranks as much as the ones
       // actually on top of what is being defended.
@@ -8920,7 +8950,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     final beauty = _effectiveBeauty(slot);
     final chance =
-        (0.16 * _hornStatScale(beauty, perPoint: 0.10, min: 0.7, max: 1.8) *
+        (0.16 *
+                _hornStatScale(beauty, perPoint: 0.10, min: 0.7, max: 1.8) *
                 _mysticWorldPower(slot))
             .clamp(0.05, 0.55);
     if (_rng.nextDouble() > chance) return;
@@ -9071,8 +9102,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Exposed because the effect is a factor on a damage roll, which leaves
   /// nothing on the field to observe afterwards.
   @visibleForTesting
-  double debugWeightMultiplier(EnemyTier tier) =>
-      _mysticWeightMultiplier(tier);
+  double debugWeightMultiplier(EnemyTier tier) => _mysticWeightMultiplier(tier);
 
   /// Rolls the haze against one enemy, as the fire path does.
   ///
@@ -9090,7 +9120,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     final intel = _effectiveIntelligence(slot);
     final chance =
-        (0.22 * _hornStatScale(intel, perPoint: 0.09, min: 0.7, max: 1.7) *
+        (0.22 *
+                _hornStatScale(intel, perPoint: 0.09, min: 0.7, max: 1.7) *
                 _mysticWorldPower(slot))
             .clamp(0.08, 0.60);
     if (_rng.nextDouble() > chance) return false;
@@ -9131,7 +9162,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // Outside the arena entirely, up and to one side. It is a thing on the
         // horizon rather than a thing in the fight, and the player watches it
         // get closer to going off.
-        position: orb.position + Offset(_arenaRadius * 0.62, -_arenaRadius * 0.78),
+        position:
+            orb.position + Offset(_arenaRadius * 0.62, -_arenaRadius * 0.78),
         // Faster with beauty and with the surge: the whole ability is the wait.
         period: max(18.0, 46.0 / (scale * _mysticWorldPower(comp.slotIndex))),
       ),
@@ -9173,7 +9205,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (!ship.isDead) {
       final shipBefore = ship.currentHp;
       ship.currentHp = ship.maxHp;
-      _recordHeal(ship.currentHp - shipBefore, target: 1, sourceSlot: slotIndex);
+      _recordHeal(
+        ship.currentHp - shipBefore,
+        target: 1,
+        sourceSlot: slotIndex,
+      );
     }
     for (final comp in activeCompanions.values) {
       if (comp.isDead) continue;
@@ -9201,7 +9237,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _strikeMysticLightning(int slotIndex, CosmicSurvivalCompanion owner) {
     // Bosses stand in the same pool as everything else, so whether a strike
     // lands on one is luck — which is what makes it land.
-    final live = [for (final e in enemies) if (!e.isDead) e];
+    final live = [
+      for (final e in enemies)
+        if (!e.isDead) e,
+    ];
     final bosses = allLivingBosses.toList();
     final total = live.length + bosses.length;
     if (total == 0) return;
@@ -9240,8 +9279,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     final intel = _effectiveIntelligence(charge.ownerSlot);
     final scale = _hornStatScale(intel, perPoint: 0.15, min: 0.8, max: 2.0);
-    final damage =
-        max(8.0, owner.elemAtk * 5.5 * scale * _mysticWorldPower(charge.ownerSlot));
+    final damage = max(
+      8.0,
+      owner.elemAtk * 5.5 * scale * _mysticWorldPower(charge.ownerSlot),
+    );
     const splash = 78.0;
 
     var hitBoss = false;
@@ -9363,8 +9404,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticStrikes[slotIndex] = (_mysticStrikes[slotIndex] ?? 0) + 1;
     final strength = _effectiveStrength(slotIndex);
     final scale = _hornStatScale(strength, perPoint: 0.12, min: 0.8, max: 1.8);
-    final damage =
-        max(5.0, owner.elemAtk * 2.0 * scale * _mysticWorldPower(slotIndex));
+    final damage = max(
+      5.0,
+      owner.elemAtk * 2.0 * scale * _mysticWorldPower(slotIndex),
+    );
     // Arena-wide: the ground is the ground. A radius would make it a big
     // explosion, which every other family already has several of.
     _mysticQuakes.add(
@@ -9384,7 +9427,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       enemy.knockbackVelocity = Offset.zero;
     }
     for (final boss in allLivingBosses) {
-      damageBoss(damage, attackElement: 'Earth', sourceSlotIndex: slotIndex, target: boss);
+      damageBoss(
+        damage,
+        attackElement: 'Earth',
+        sourceSlotIndex: slotIndex,
+        target: boss,
+      );
       _stunBoss(boss, 0.7);
     }
     // The quake is the whole arena moving. A ring drawn on the floor can only
@@ -9396,7 +9444,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   // ── POISON: the ship's wake ─────────────────────────────────────────────
 
-  void _trailMysticPoison(int slotIndex, CosmicSurvivalCompanion owner, double dt) {
+  void _trailMysticPoison(
+    int slotIndex,
+    CosmicSurvivalCompanion owner,
+    double dt,
+  ) {
     if (ship.isDead) return;
     final last = _mysticPoisonLastDrop[slotIndex];
     if (last == null) {
@@ -9460,7 +9512,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final reach = pool.radius * pool.spreadEase;
       _visitEnemiesNear(pool.position, reach, (enemy) {
         if (enemy.isDead) return false;
-        if (!_withinRange(pool.position, enemy.position, reach + enemy.radius)) {
+        if (!_withinRange(
+          pool.position,
+          enemy.position,
+          reach + enemy.radius,
+        )) {
           return false;
         }
         _applyAbilityEffectToEnemy(
@@ -10138,13 +10194,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       canvas.drawRect(
         viewportRect,
         Paint()
-          ..shader = ui.Gradient.radial(centre, reach, [
-            tint.withValues(alpha: 0.0),
-            (under ?? tint).withValues(
-              alpha: (under ?? tint).a * env01 * 0.45 * breath,
-            ),
-            edge,
-          ], const [0.0, 0.55, 1.0]),
+          ..shader = ui.Gradient.radial(
+            centre,
+            reach,
+            [
+              tint.withValues(alpha: 0.0),
+              (under ?? tint).withValues(
+                alpha: (under ?? tint).a * env01 * 0.45 * breath,
+              ),
+              edge,
+            ],
+            const [0.0, 0.55, 1.0],
+          ),
       );
     }
   }
@@ -10161,9 +10222,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final vh = size.y / _currentZoom;
     final f = _mysticSkyFlash.clamp(0.0, 1.0);
     canvas.drawRect(
-      Rect.fromLTWH(ship.position.dx - vw / 2, ship.position.dy - vh / 2, vw, vh),
-      Paint()
-        ..color = const Color(0xFFBFE0FF).withValues(alpha: 0.20 * f * f),
+      Rect.fromLTWH(
+        ship.position.dx - vw / 2,
+        ship.position.dy - vh / 2,
+        vw,
+        vh,
+      ),
+      Paint()..color = const Color(0xFFBFE0FF).withValues(alpha: 0.20 * f * f),
     );
   }
 
@@ -17197,19 +17262,22 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ember.position,
           r * 3.0,
           Paint()
-            ..color = const Color(0xFFFF6A1E).withValues(alpha: 0.10 * a * glow),
+            ..color = const Color(
+              0xFFFF6A1E,
+            ).withValues(alpha: 0.10 * a * glow),
         );
         canvas.drawCircle(
           ember.position,
           r,
-          Paint()
-            ..color = const Color(0xFFFF8A2B).withValues(alpha: 0.85 * a),
+          Paint()..color = const Color(0xFFFF8A2B).withValues(alpha: 0.85 * a),
         );
         canvas.drawCircle(
           ember.position,
           r * 0.45,
           Paint()
-            ..color = const Color(0xFFFFE2A8).withValues(alpha: 0.95 * a * glow),
+            ..color = const Color(
+              0xFFFFE2A8,
+            ).withValues(alpha: 0.95 * a * glow),
         );
       }
     }
@@ -18954,6 +19022,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
 
+    if (shipSkin != null) {
+      _renderSkinnedHull(canvas, elapsed, ghostMode);
+      canvas.restore();
+      _renderShipHpBar(canvas, p);
+      return;
+    }
+
     canvas.rotate(a + pi / 2);
 
     final enginePulse = ghostMode
@@ -19074,7 +19149,33 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
 
     canvas.restore();
+    _renderShipHpBar(canvas, p);
+  }
 
+  /// A forged cosmic design, drawn by the cosmic ship painter so the hull
+  /// looks the same in both modes — minus the blur, which survival cannot
+  /// afford every frame. Canvas is already translated to the ship.
+  void _renderSkinnedHull(Canvas canvas, double elapsed, bool ghostMode) {
+    _skinnedShip.angle = ship.angle;
+    if (ghostMode) {
+      // Only while respawning, so the layer is not an every-frame cost.
+      canvas.saveLayer(
+        const Rect.fromLTRB(-40, -40, 40, 60),
+        Paint()..color = Colors.white.withValues(alpha: 0.45),
+      );
+    }
+    _skinnedShip.render(canvas, elapsed, skin: shipSkin, glow: false);
+    if (ghostMode) canvas.restore();
+    if (ship.hitFlash > 0) {
+      canvas.drawCircle(
+        Offset.zero,
+        20,
+        Paint()..color = Colors.white.withValues(alpha: 0.45 * ship.hitFlash),
+      );
+    }
+  }
+
+  void _renderShipHpBar(Canvas canvas, Offset p) {
     final barW = 30.0;
     final barY = p.dy + 18;
     canvas.drawRect(

@@ -2,11 +2,13 @@ import 'package:alchemons/audio/audio.dart';
 // lib/games/cosmic_survival/cosmic_survival_base_command_screen.dart
 //
 // Base Command — persistent cosmic survival upgrade screen.
-// Three sections: Orb Skins, Guardian Power-ups, Base Abilities.
+// Sections: Orb Skins, Ship, Guardian Power-ups, Base Abilities.
 // The legacy standalone survival runtime has been removed; this shared upgrade
 // panel remains for cosmic survival progression.
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/cosmic/cosmic_game.dart' show ShipComponent;
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_ship_loadout.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
@@ -91,17 +93,26 @@ class _CosmicSurvivalBaseCommandScreenState
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _silverBalance = 0;
+  int _goldBalance = 0;
   Map<String, int> _currencies = {};
   bool _purchasing = false;
+  SurvivalShipLoadout? _shipLoadout;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: widget.hideAbilities ? 2 : 3,
+      length: widget.hideAbilities ? 3 : 4,
       vsync: this,
     );
     _loadCurrencies();
+    _loadShipLoadout();
+  }
+
+  Future<void> _loadShipLoadout() async {
+    final loadout = await SurvivalShipLoadout.load();
+    if (!mounted) return;
+    setState(() => _shipLoadout = loadout);
   }
 
   Future<void> _loadCurrencies() async {
@@ -111,6 +122,7 @@ class _CosmicSurvivalBaseCommandScreenState
     setState(() {
       _currencies = currencies;
       _silverBalance = currencies['silver'] ?? 0;
+      _goldBalance = currencies['gold'] ?? 0;
     });
   }
 
@@ -136,6 +148,7 @@ class _CosmicSurvivalBaseCommandScreenState
                     controller: _tabController,
                     children: [
                       _buildOrbSkinsTab(svc, shopService),
+                      _buildShipTab(),
                       _buildGuardianTab(svc),
                       if (!widget.hideAbilities) _buildAbilitiesTab(svc),
                     ],
@@ -199,7 +212,8 @@ class _CosmicSurvivalBaseCommandScreenState
               ],
             ),
           ),
-          // Silver display
+          // Balances. Gold sits beside silver because this screen spends both:
+          // orb skins are priced in gold, everything else in silver.
           _PlateBox(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             accentColor: const Color(0xFFC0C0C0),
@@ -213,6 +227,18 @@ class _CosmicSurvivalBaseCommandScreenState
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     color: Color(0xFFC0C0C0),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const CoinIcon(kind: CoinKind.gold, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  _fmtNum(_goldBalance),
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: Color(0xFFFFC94A),
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
                   ),
@@ -255,6 +281,10 @@ class _CosmicSurvivalBaseCommandScreenState
           const Tab(
             icon: Icon(AppIcons.blur_circular_rounded, size: 16),
             text: 'ORB',
+          ),
+          const Tab(
+            icon: Icon(AppIcons.rocket_launch_rounded, size: 16),
+            text: 'SHIP',
           ),
           const Tab(
             icon: Icon(AppIcons.person_rounded, size: 16),
@@ -304,6 +334,7 @@ class _CosmicSurvivalBaseCommandScreenState
                 isOwned: state.ownedSkins.contains(orbDef.skin),
                 isEquipped: state.equippedSkin == orbDef.skin,
                 costLabel: _compactCostLabel(effectiveCost),
+                costCoin: _coinForCost(effectiveCost),
                 canPurchase: canAfford && canPurchase,
                 purchasing: _purchasing,
                 onPurchase: () => _purchaseOrb(svc, shopService, orbDef.skin),
@@ -316,6 +347,73 @@ class _CosmicSurvivalBaseCommandScreenState
     );
   }
 
+  // ── Ship Tab ─────────────────────────────────────────────────────────────
+
+  Widget _buildShipTab() {
+    final loadout = _shipLoadout;
+    if (loadout == null) return const SizedBox.shrink();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _EtchedDivider(label: 'SHIP HULLS'),
+          const SizedBox(height: 12),
+          Text(
+            'Choose the hull you fly into the arena. New designs are forged '
+            'at your home planet in cosmic space.',
+            style: _T.body,
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _ShipHullCard(
+              skinId: null,
+              name: 'Standard Hull',
+              description:
+                  'The ship you launched with. Twin cyan engines and a '
+                  'broad-winged frame.',
+              isUnlocked: true,
+              isEquipped: loadout.selectedSkin == null,
+              onEquip: () => _selectShip(null),
+            ),
+          ),
+          ...SurvivalShipLoadout.designs.map((recipe) {
+            final unlocked = loadout.unlockedSkins.contains(recipe.id);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _ShipHullCard(
+                skinId: recipe.id,
+                name: recipe.name,
+                description: recipe.description,
+                isUnlocked: unlocked,
+                isEquipped: loadout.selectedSkin == recipe.id,
+                forgeCost: unlocked
+                    ? null
+                    : recipe.ingredients.entries
+                          .map((e) => '${e.value} ${e.key}')
+                          .join(' · '),
+                onEquip: () => _selectShip(recipe.id),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _selectShip(String? skinId) async {
+    final loadout = _shipLoadout;
+    if (loadout == null) return;
+    setState(() {
+      _shipLoadout = SurvivalShipLoadout(
+        unlockedSkins: loadout.unlockedSkins,
+        selectedSkin: skinId,
+      );
+    });
+    await SurvivalShipLoadout.select(skinId);
+  }
+
   ShopOffer? _orbOfferForDef(OrbBaseDef def) {
     for (final offer in ShopService.allOffers) {
       if (offer.id == def.shopId) return offer;
@@ -325,7 +423,9 @@ class _CosmicSurvivalBaseCommandScreenState
 
   Map<String, int> _orbEffectiveCost(ShopService shopService, OrbBaseDef def) {
     final offer = _orbOfferForDef(def);
-    if (offer == null) return {'silver': def.cost};
+    // Orbs are priced in gold; the fallback has to agree with the offers
+    // or a missing offer would silently change the currency.
+    if (offer == null) return {'gold': def.cost};
     return shopService.getEffectiveCost(offer);
   }
 
@@ -364,6 +464,13 @@ class _CosmicSurvivalBaseCommandScreenState
         }
         return key.replaceAll('_', ' ');
     }
+  }
+
+  /// The coin shown on a buy button, taken from the price itself. Hardcoding
+  /// it is how the orb cards ended up showing silver for a gold price.
+  CoinKind _coinForCost(Map<String, int> cost) {
+    if (cost.containsKey('gold')) return CoinKind.gold;
+    return CoinKind.silver;
   }
 
   String _compactCostLabel(Map<String, int> cost) {
@@ -954,6 +1061,7 @@ class _OrbSkinCard extends StatelessWidget {
   final bool isOwned;
   final bool isEquipped;
   final String costLabel;
+  final CoinKind costCoin;
   final bool canPurchase;
   final bool purchasing;
   final VoidCallback onPurchase;
@@ -964,6 +1072,7 @@ class _OrbSkinCard extends StatelessWidget {
     required this.isOwned,
     required this.isEquipped,
     required this.costLabel,
+    required this.costCoin,
     required this.canPurchase,
     required this.purchasing,
     required this.onPurchase,
@@ -1070,7 +1179,7 @@ class _OrbSkinCard extends StatelessWidget {
               _ForgeButton(
                 label: costLabel,
                 icon: AppIcons.paid_rounded,
-                coin: CoinKind.silver,
+                coin: costCoin,
                 onTap: (purchasing || !canPurchase) ? null : onPurchase,
                 loading: purchasing,
                 color: def.primaryColor,
@@ -1080,6 +1189,171 @@ class _OrbSkinCard extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Ship Hull Card ─────────────────────────────────────────────────────────
+
+Color _shipAccent(String? skinId) => switch (skinId) {
+  'skin_phantom' => const Color(0xFFB56CFF),
+  'skin_solar' => const Color(0xFFFFC940),
+  'skin_inferno' => const Color(0xFFFF6A2B),
+  'skin_crystal' => const Color(0xFF7FE7FF),
+  _ => const Color(0xFF4FC3F7),
+};
+
+class _ShipHullCard extends StatelessWidget {
+  final String? skinId;
+  final String name;
+  final String description;
+  final bool isUnlocked;
+  final bool isEquipped;
+
+  /// What the design costs to forge in cosmic space; null once it is built.
+  final String? forgeCost;
+  final VoidCallback onEquip;
+
+  const _ShipHullCard({
+    required this.skinId,
+    required this.name,
+    required this.description,
+    required this.isUnlocked,
+    required this.isEquipped,
+    required this.onEquip,
+    this.forgeCost,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _shipAccent(skinId);
+    return GestureDetector(
+      onTap: context.soundAction((isUnlocked && !isEquipped) ? onEquip : null),
+      child: Opacity(
+        opacity: isUnlocked ? 1.0 : 0.55,
+        child: _PlateBox(
+          highlight: isEquipped,
+          accentColor: accent,
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: _C.bg1,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: isEquipped
+                        ? accent.withValues(alpha: 0.45)
+                        : _C.borderDim,
+                  ),
+                ),
+                child: isUnlocked
+                    ? CustomPaint(painter: _ShipPreviewPainter(skinId))
+                    : const Icon(
+                        AppIcons.lock_rounded,
+                        color: _C.textMuted,
+                        size: 22,
+                      ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.toUpperCase(),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: isEquipped ? accent : _C.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(description, style: _T.body),
+                    if (forgeCost != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'FORGE IN COSMIC SPACE',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          color: _C.amber,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        forgeCost!,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          color: _C.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    if (isEquipped) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: accent,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'EQUIPPED',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: accent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A still of the hull, painted by the same code that flies it.
+class _ShipPreviewPainter extends CustomPainter {
+  final String? skinId;
+  const _ShipPreviewPainter(this.skinId);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Hulls are ~40 units tall with a trail below; nudge up so the body,
+    // not the exhaust, sits in the middle of the frame.
+    final scale = size.shortestSide / 64;
+    canvas.save();
+    canvas.translate(size.width / 2, size.height / 2 - 6 * scale);
+    canvas.scale(scale * 1.15);
+    // Unblurred, as survival flies it.
+    ShipComponent(
+      pos: Offset.zero,
+    ).render(canvas, 0, skin: skinId, glow: false);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ShipPreviewPainter old) => old.skinId != skinId;
 }
 
 // ── Generic Upgrade Card (Guardian Stats) ──────────────────────────────────

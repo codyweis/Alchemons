@@ -1,3 +1,4 @@
+import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -218,6 +219,90 @@ class BracketCard extends StatelessWidget {
         padding: padding,
         child: child,
       ),
+    );
+  }
+}
+
+
+/// Top-of-list control chip in the bracket-frame language: a soft
+/// accent-washed pill that grows corner brackets when it is the active
+/// control.
+///
+/// Lives here rather than in a single screen because the specimens grid and
+/// the per-species specimens sheet both present the same row of controls, and
+/// when each kept its own copy the two drifted apart -- the sheet was still
+/// wearing rounded borders and a hard-coded teal while the grid had moved to
+/// brackets.
+class BracketControlChip extends StatelessWidget {
+  const BracketControlChip({
+    super.key,
+    required this.label,
+    required this.accentColor,
+    required this.selected,
+    required this.onTap,
+    required this.theme,
+    this.labelFontSize = 10.5,
+    this.leading,
+    this.trailing,
+    this.showBracketWhenSelected = false,
+  });
+
+  final String label;
+  final Color accentColor;
+  final bool selected;
+  final VoidCallback onTap;
+  final FactionTheme theme;
+  final double labelFontSize;
+  final Widget? leading;
+  final Widget? trailing;
+  final bool showBracketWhenSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.fromTheme(theme);
+    final tokens = ForgeTokens(theme);
+    final displayColor = tokens.readableAccent(accentColor);
+
+    final fillColor = selected
+        ? displayColor.withValues(alpha: palette.isDark ? 0.13 : 0.10)
+        : Colors.transparent;
+    final textColor = selected ? displayColor : palette.muted;
+
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      color: fillColor,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 5)],
+          Text(
+            label,
+            style: bracketText(
+              context,
+              labelFontSize,
+              textColor,
+              weight: selected ? FontWeight.w800 : FontWeight.w600,
+              letterSpacing: 0.6,
+            ),
+          ),
+          if (trailing != null) ...[const SizedBox(width: 4), trailing!],
+        ],
+      ),
+    );
+
+    return GestureDetector(
+      onTap: context.soundAction(onTap),
+      behavior: HitTestBehavior.opaque,
+      child: showBracketWhenSelected && selected
+          ? CustomPaint(
+              painter: BracketFramePainter(
+                color: displayColor,
+                bracketSize: 6,
+                strokeWidth: 1.1,
+              ),
+              child: content,
+            )
+          : content,
     );
   }
 }

@@ -19,6 +19,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
@@ -101,6 +102,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   String? _filterFamily;
   bool _filterPrismatic = false;
   bool _filterFavorites = false;
+  bool _filterHasStamina = false;
   String? _filterVariant;
   InstancePurityFilter _filterPurity = InstancePurityFilter.all;
 
@@ -164,6 +166,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     'filterFamily': _filterFamily,
     'filterPrismatic': _filterPrismatic,
     'filterFavorites': _filterFavorites,
+    'filterHasStamina': _filterHasStamina,
     'filterVariant': _filterVariant,
     'filterPurity': _filterPurity.name,
     'detailMode': _detailMode.name,
@@ -184,6 +187,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     _filterPrismatic = p['filterPrismatic'] ?? _filterPrismatic;
     _filterFavorites =
         p['filterFavorites'] ?? (p['filterLocked'] ?? _filterFavorites);
+    _filterHasStamina = p['filterHasStamina'] ?? _filterHasStamina;
     _filterVariant = p['filterVariant'];
     _filterPurity = InstancePurityFilter.values.firstWhere(
       (e) => e.name == (p['filterPurity'] ?? _filterPurity.name),
@@ -317,6 +321,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   bool get _hasAdvancedFilters =>
       _filterPrismatic ||
       _filterFavorites ||
+      _filterHasStamina ||
       _filterPurity != InstancePurityFilter.all ||
       _filterVariant != null ||
       _filterSize != null ||
@@ -337,6 +342,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   void _resetAllControls({required bool clearSearch}) {
     _filterPrismatic = false;
     _filterFavorites = false;
+    _filterHasStamina = false;
     _filterType = null;
     _filterFamily = null;
     _filterVariant = null;
@@ -431,11 +437,15 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     List<CreatureInstance> instances,
     CreatureCatalog repo,
   ) {
+    final stamina = context.read<StaminaService>();
     return instances.where((inst) {
       if ((widget.favoritesOnly || _filterFavorites) && !inst.isFavorite) {
         return false;
       }
       if (_filterPrismatic && !inst.isPrismaticSkin) {
+        return false;
+      }
+      if (_filterHasStamina && stamina.computeState(inst).bars <= 0) {
         return false;
       }
       if (_filterNature != null &&
@@ -489,6 +499,20 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
         SortBy.potentialBeauty => compareNums(
           b.statBeautyPotential,
           a.statBeautyPotential,
+        ),
+        SortBy.combinedPotential => compareNums(
+          b.statSpeedPotential +
+              b.statIntelligencePotential +
+              b.statStrengthPotential +
+              b.statBeautyPotential,
+          a.statSpeedPotential +
+              a.statIntelligencePotential +
+              a.statStrengthPotential +
+              a.statBeautyPotential,
+        ),
+        SortBy.staminaHigh => compareNums(
+          context.read<StaminaService>().computeState(b).bars,
+          context.read<StaminaService>().computeState(a).bars,
         ),
       };
 
@@ -667,7 +691,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    _TopControlChip(
+                    BracketControlChip(
                       label: _sortBy == SortBy.oldest ? 'OLDEST' : 'NEWEST',
                       accentColor: widget.theme.primary,
                       labelFontSize: 10.5,
@@ -680,7 +704,15 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       }),
                       theme: widget.theme,
                     ),
-                    _TopControlChip(
+                    BracketControlChip(
+                      label: 'STAMINA ↓',
+                      accentColor: const Color(0xFF34D399),
+                      labelFontSize: 10.5,
+                      selected: _sortBy == SortBy.staminaHigh,
+                      onTap: () => _mutate(() => _sortBy = SortBy.staminaHigh),
+                      theme: widget.theme,
+                    ),
+                    BracketControlChip(
                       label: _sortBy == SortBy.levelLow ? 'LV ↓' : 'LV ↑',
                       accentColor: const Color(0xFFFDE047),
                       labelFontSize: 10.5,
@@ -694,12 +726,13 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       }),
                       theme: widget.theme,
                     ),
-                    _TopControlChip(
+                    BracketControlChip(
                       label: switch (_sortBy) {
                         _ when _sortBy.isStatSort => '${_sortBy.shortLabel} ↓',
                         _ => 'STAT',
                       },
                       accentColor: switch (_sortBy) {
+                        SortBy.combinedPotential => const Color(0xFF67E8F9),
                         _ when _sortBy.statFamily == 'intelligence' =>
                           const Color(0xFFC084FC),
                         _ when _sortBy.statFamily == 'strength' => const Color(
@@ -722,7 +755,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       }),
                       theme: widget.theme,
                     ),
-                    _TopControlChip(
+                    BracketControlChip(
                       label: switch (_detailMode) {
                         InstanceDetailMode.genetics => 'GENETICS',
                         InstanceDetailMode.enhancement => 'ENHANCE',
@@ -749,7 +782,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       }),
                       theme: widget.theme,
                     ),
-                    _TopControlChip(
+                    BracketControlChip(
                       label: 'FILTERS',
                       accentColor: widget.theme.primary,
                       labelFontSize: 10.5,
@@ -872,6 +905,9 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                 filterFavorites: _filterFavorites,
                 onToggleFavorites: () =>
                     _mutate(() => _filterFavorites = !_filterFavorites),
+                filterHasStamina: _filterHasStamina,
+                onToggleHasStamina: () =>
+                    _mutate(() => _filterHasStamina = !_filterHasStamina),
                 showSortRow: false,
                 showClearChip: false,
                 showInactiveBrackets: false,
@@ -979,84 +1015,6 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
           ],
         );
       },
-    );
-  }
-}
-
-/// Top-row control pill. These chips almost always reflect a current state
-/// (sort direction, view mode, etc.) so they're nearly always `selected:true`
-/// — which used to make the whole row read as a wall of bracket frames.
-///
-/// New behavior: the bracket frame only renders when [showBracketWhenSelected]
-/// is true. Sort/view toggles use a soft accent-washed pill; the FILTERS
-/// trigger sets [showBracketWhenSelected] so the bracket appears when the
-/// popover is open.
-class _TopControlChip extends StatelessWidget {
-  const _TopControlChip({
-    required this.label,
-    required this.accentColor,
-    required this.selected,
-    required this.onTap,
-    required this.theme,
-    this.labelFontSize = 10.5,
-    this.trailing,
-    this.showBracketWhenSelected = false,
-  });
-
-  final String label;
-  final Color accentColor;
-  final bool selected;
-  final VoidCallback onTap;
-  final FactionTheme theme;
-  final double labelFontSize;
-  final Widget? trailing;
-  final bool showBracketWhenSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.fromTheme(theme);
-    final tokens = ForgeTokens(theme);
-    final displayColor = tokens.readableAccent(accentColor);
-
-    final fillColor = selected
-        ? displayColor.withValues(alpha: palette.isDark ? 0.13 : 0.10)
-        : Colors.transparent;
-    final textColor = selected ? displayColor : palette.muted;
-
-    final content = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-      color: fillColor,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: bracketText(
-              context,
-              labelFontSize,
-              textColor,
-              weight: selected ? FontWeight.w800 : FontWeight.w600,
-              letterSpacing: 0.6,
-            ),
-          ),
-          if (trailing != null) ...[const SizedBox(width: 4), trailing!],
-        ],
-      ),
-    );
-
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      behavior: HitTestBehavior.opaque,
-      child: showBracketWhenSelected && selected
-          ? CustomPaint(
-              painter: BracketFramePainter(
-                color: displayColor,
-                bracketSize: 6,
-                strokeWidth: 1.1,
-              ),
-              child: content,
-            )
-          : content,
     );
   }
 }

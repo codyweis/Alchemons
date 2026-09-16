@@ -183,6 +183,10 @@ class ConstellationEffectsService extends ChangeNotifier {
     return _unlockedSkillIds.contains('extraction_instant_reload');
   }
 
+  bool hasBatchExtraction() {
+    return _unlockedSkillIds.contains('extraction_batch_extraction');
+  }
+
   /// Check if 24/7 black market is unlocked
   bool has24x7BlackMarket() {
     return _unlockedSkillIds.contains('extraction_all_day_market');

@@ -1148,7 +1148,8 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     // laid at a different century, so no two are the same size and none of
     // them line up. They come out of a recursive split of the room (see
     // `_buildCryptGround`) precisely so that they CANNOT tile.
-    final shadow = Paint()..color = const Color(0xFF000000).withValues(alpha: 0.30);
+    final shadow = Paint()
+      ..color = const Color(0xFF000000).withValues(alpha: 0.30);
     for (var i = 0; i < g.slabs.length; i++) {
       final tone = g.slabTone[i];
       // At tiny each slab is a mesa you stand on top of, so it throws a real
@@ -1161,8 +1162,11 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       canvas.drawPath(
         g.slabs[i],
         Paint()
-          ..color = Color.lerp(_kCryptStoneCold, _kCryptStone, tone)!
-              .withValues(alpha: 0.36),
+          ..color = Color.lerp(
+            _kCryptStoneCold,
+            _kCryptStone,
+            tone,
+          )!.withValues(alpha: 0.36),
       );
       // The lit upper edge. One stroke, clipped to the slab so it reads as
       // the top face catching the light rather than an outline round it.
@@ -1245,8 +1249,15 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
         ..strokeWidth = tiny ? 5 : 1.4
         ..color = _kCryptSeam.withValues(alpha: tiny ? 0.55 : 0.26);
       for (var k = -1; k <= 1; k++) {
-        final o = Offset(-dy / len * k * (tiny ? 13 : 7), dx / len * k * (tiny ? 13 : 7));
-        canvas.drawLine(c + o - Offset(dx / 2, dy / 2), c + o + Offset(dx / 2, dy / 2), p);
+        final o = Offset(
+          -dy / len * k * (tiny ? 13 : 7),
+          dx / len * k * (tiny ? 13 : 7),
+        );
+        canvas.drawLine(
+          c + o - Offset(dx / 2, dy / 2),
+          c + o + Offset(dx / 2, dy / 2),
+          p,
+        );
       }
     }
 
@@ -1283,8 +1294,7 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     for (var i = 0; i < g.moss.length; i++) {
       canvas.drawPath(
         g.moss[i],
-        Paint()
-          ..color = _kCryptMoss.withValues(alpha: tiny ? 0.30 : 0.26),
+        Paint()..color = _kCryptMoss.withValues(alpha: tiny ? 0.30 : 0.26),
       );
       if (tiny) {
         final c = g.mossCentre[i];
@@ -1465,19 +1475,11 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
         Paint()..color = _kCryptSeam.withValues(alpha: 0.22),
       );
       canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(c.dx, c.dy - h),
-          width: 26,
-          height: 13,
-        ),
+        Rect.fromCenter(center: Offset(c.dx, c.dy - h), width: 26, height: 13),
         Paint()..color = _kCryptStoneCold.withValues(alpha: 0.85),
       );
       canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(c.dx, c.dy - h),
-          width: 26,
-          height: 13,
-        ),
+        Rect.fromCenter(center: Offset(c.dx, c.dy - h), width: 26, height: 13),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.4
@@ -1600,8 +1602,11 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       canvas.drawRect(
         r,
         Paint()
-          ..color = Color.lerp(_kCryptStoneCold, _kCryptStone, 0.30)!
-              .withValues(alpha: 0.80),
+          ..color = Color.lerp(
+            _kCryptStoneCold,
+            _kCryptStone,
+            0.30,
+          )!.withValues(alpha: 0.80),
       );
       // RISER then NOSING. A flight seen from above is a stack of identical
       // bars and nothing else — the descent only appears when each tread has
@@ -2099,11 +2104,12 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
     canvas.drawRRect(
       RRect.fromRectAndRadius(lid, const Radius.circular(3)),
       Paint()
-        ..shader = ui.Gradient.linear(lid.topCenter, lid.bottomCenter, const [
-          Color(0xFF7E7961),
-          Color(0xFF4E5040),
-          Color(0xFF20241A),
-        ], const [0.0, 0.5, 1.0]),
+        ..shader = ui.Gradient.linear(
+          lid.topCenter,
+          lid.bottomCenter,
+          const [Color(0xFF7E7961), Color(0xFF4E5040), Color(0xFF20241A)],
+          const [0.0, 0.5, 1.0],
+        ),
     );
     // The chamfer round the lid's top face.
     canvas.drawRect(
@@ -2255,7 +2261,11 @@ extension VerdantCryptDungeon on PlanetDungeonGame {
       final c = g.seeds[i];
       final r = 7.0 + (i % 4) * 2.5 + sin(t * 0.8 + i) * 0.6;
       canvas.drawOval(
-        Rect.fromCenter(center: c.translate(1, 3), width: r * 2, height: r * 1.5),
+        Rect.fromCenter(
+          center: c.translate(1, 3),
+          width: r * 2,
+          height: r * 1.5,
+        ),
         Paint()..color = const Color(0xFF000000).withValues(alpha: 0.25),
       );
       canvas.drawOval(
@@ -2982,7 +2992,10 @@ _CryptGround _buildCryptGround(DungeonRoom room) {
     final reach = arena ? 0.46 + rnd() * 0.18 : 0.52 + rnd() * 0.30;
     final z =
         b.center +
-        Offset(cos(ang) * b.width * 0.5 * reach, sin(ang) * b.height * 0.5 * reach);
+        Offset(
+          cos(ang) * b.width * 0.5 * reach,
+          sin(ang) * b.height * 0.5 * reach,
+        );
     final mid = Offset.lerp(a, z, 0.5)!;
     // A hard control offset, perpendicular-ish: a root that grew round
     // something, not one that was surveyed.

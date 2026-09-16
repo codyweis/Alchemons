@@ -78,6 +78,11 @@ enum SoundCue {
   breedingStart('assets/audio/sounds/sfx_breeding_start.wav'),
   harvestCollect('assets/audio/sounds/sfx_harvest_collect.wav'),
   extractionComplete('assets/audio/sounds/sfx_extraction_complete.wav'),
+  /// The whole hatching ceremony, scored to the cinematic's own beats rather
+  /// than fired as separate hits: hum and motes, the chord assembling, the
+  /// burst at 3.85s, and the silhouette's bell cluster at 5.24s. One cue, so
+  /// the ceremony cannot drift out of sync with itself.
+  extractionCeremony('assets/audio/sounds/sfx_extraction_ceremony.wav'),
   extractionReactionStart(
     'assets/audio/sounds/sfx_extraction_reaction_start.wav',
   ),
@@ -158,6 +163,7 @@ enum SoundCue {
     SoundCue.combatDefeat ||
     SoundCue.combatVictory ||
     SoundCue.survivalBossArrive ||
+    SoundCue.extractionCeremony ||
     SoundCue.extractionReactionStart ||
     SoundCue.extractionReactionBurst ||
     SoundCue.extractionCreatureReveal ||

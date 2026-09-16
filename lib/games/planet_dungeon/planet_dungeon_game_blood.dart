@@ -1679,9 +1679,7 @@ Path _heartLoop(Rect r, double Function() rnd, double jitter) {
     final l = d.distance;
     final nrm = Offset(-d.dy / l, d.dx / l);
     for (var i = 0; i < n; i++) {
-      pts.add(
-        Offset.lerp(a, z, i / n)! + nrm * ((rnd() - 0.5) * 2 * jitter),
-      );
+      pts.add(Offset.lerp(a, z, i / n)! + nrm * ((rnd() - 0.5) * 2 * jitter));
     }
   }
 
@@ -1784,7 +1782,12 @@ void _heartLining(_HeartGround g, Rect b, double Function() rnd) {
   );
 
   final fib = Path();
-  void comb(double along0, double along1, Offset Function(double) at, Offset dir) {
+  void comb(
+    double along0,
+    double along1,
+    Offset Function(double) at,
+    Offset dir,
+  ) {
     var t = along0 + rnd() * 40;
     while (t < along1) {
       if (rnd() > 0.20) {
@@ -1801,10 +1804,30 @@ void _heartLining(_HeartGround g, Rect b, double Function() rnd) {
     }
   }
 
-  comb(b.left + 26, b.right - 26, (t) => Offset(t, b.top + 26), const Offset(0, 1));
-  comb(b.left + 26, b.right - 26, (t) => Offset(t, b.bottom - 26), const Offset(0, -1));
-  comb(b.top + 40, b.bottom - 40, (t) => Offset(b.left + 26, t), const Offset(1, 0));
-  comb(b.top + 40, b.bottom - 40, (t) => Offset(b.right - 26, t), const Offset(-1, 0));
+  comb(
+    b.left + 26,
+    b.right - 26,
+    (t) => Offset(t, b.top + 26),
+    const Offset(0, 1),
+  );
+  comb(
+    b.left + 26,
+    b.right - 26,
+    (t) => Offset(t, b.bottom - 26),
+    const Offset(0, -1),
+  );
+  comb(
+    b.top + 40,
+    b.bottom - 40,
+    (t) => Offset(b.left + 26, t),
+    const Offset(1, 0),
+  );
+  comb(
+    b.top + 40,
+    b.bottom - 40,
+    (t) => Offset(b.right - 26, t),
+    const Offset(-1, 0),
+  );
   g.pieces.add(
     _HeartPiece(fib, _kHeartCrimson, stroke: 2.0, alpha: 0.34, swell: 1),
   );
@@ -1907,7 +1930,12 @@ void _heartPools(
 /// VASA VASORUM — the vessels that feed the vessel. A fine tracery growing
 /// out of the wall itself, which is what stops the rim reading as a painted
 /// border: the wall has a supply, so it is tissue.
-void _heartVasa(_HeartGround g, Rect b, double Function() rnd, {int trees = 5}) {
+void _heartVasa(
+  _HeartGround g,
+  Rect b,
+  double Function() rnd, {
+  int trees = 5,
+}) {
   final p = Path();
   for (var i = 0; i < trees; i++) {
     final side = (rnd() * 4).floor();
@@ -2025,7 +2053,13 @@ void _buildRun(_HeartGround g, Rect b, double Function() rnd) {
       _HeartPiece(dark[i], _kHeartInk, stroke: widths[i] + 7, alpha: 0.40),
     );
     g.pieces.add(
-      _HeartPiece(lit[i], _kHeartMeat, stroke: widths[i], alpha: 0.50, swell: 1),
+      _HeartPiece(
+        lit[i],
+        _kHeartMeat,
+        stroke: widths[i],
+        alpha: 0.50,
+        swell: 1,
+      ),
     );
   }
   // Elastic laminae: a few long ridges running the LENGTH of the run, which

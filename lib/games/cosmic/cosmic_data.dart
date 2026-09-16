@@ -4020,7 +4020,7 @@ const List<BossTemplate> kBossTemplates = [
   BossTemplate(
     name: 'Void Leviathan',
     element: 'Dark',
-    radius: 150,
+    radius: 120,
     health: 150,
     speed: 20,
     preferredType: BossType.bulwark,
@@ -4030,7 +4030,7 @@ const List<BossTemplate> kBossTemplates = [
   BossTemplate(
     name: 'Prism Devourer',
     element: 'Crystal',
-    radius: 150,
+    radius: 120,
     health: 136,
     speed: 24,
     preferredType: BossType.warden,
@@ -4040,7 +4040,7 @@ const List<BossTemplate> kBossTemplates = [
   BossTemplate(
     name: 'Solar Behemoth',
     element: 'Light',
-    radius: 150,
+    radius: 120,
     health: 162,
     speed: 18,
     preferredType: BossType.carrier,

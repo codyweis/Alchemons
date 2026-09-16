@@ -20,6 +20,7 @@ import 'package:provider/provider.dart';
 
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/models/potential_genetics.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/services/stamina_service.dart';
@@ -87,6 +88,18 @@ class InstanceCard extends StatelessWidget {
     final hasPotentialAnalyzer = context
         .watch<ConstellationEffectsService>()
         .hasPotentialAnalyzer();
+    final hasDominantAnalyzer = context
+        .watch<ConstellationEffectsService>()
+        .hasDominantAnalyzer();
+    final dominants = hasDominantAnalyzer
+        ? DominantStats.decode(instance.dominantStats) ??
+              DominantStats.fromPotentials(
+                speed: instance.statSpeedPotential,
+                intelligence: instance.statIntelligencePotential,
+                strength: instance.statStrengthPotential,
+                beauty: instance.statBeautyPotential,
+              )
+        : null;
     final genetics = decodeGenetics(instance.geneticsJson);
     final sd = species.spriteData;
     final rarityColor = BreedConstants.getRarityColor(species.rarity);
@@ -123,6 +136,7 @@ class InstanceCard extends StatelessWidget {
               selectionNumber: selectionNumber,
               creatureName: species.name,
               showPotentials: hasPotentialAnalyzer,
+              dominants: dominants,
             ),
             InstanceDetailMode.stats => _StatsBlock(
               instance: instance,
@@ -130,6 +144,7 @@ class InstanceCard extends StatelessWidget {
               selectionNumber: selectionNumber,
               creatureName: species.name,
               showPotentials: hasPotentialAnalyzer,
+              dominants: dominants,
             ),
             InstanceDetailMode.genetics => _GeneticsBlock(
               instance: instance,
@@ -377,6 +392,7 @@ class _StatsBlock extends StatelessWidget {
   final int? selectionNumber;
   final String creatureName;
   final bool showPotentials;
+  final DominantStats? dominants;
 
   const _StatsBlock({
     required this.instance,
@@ -384,6 +400,7 @@ class _StatsBlock extends StatelessWidget {
     required this.selectionNumber,
     required this.creatureName,
     required this.showPotentials,
+    required this.dominants,
   });
 
   @override
@@ -412,6 +429,7 @@ class _StatsBlock extends StatelessWidget {
                 potentialValue: showPotentials
                     ? instance.statSpeedPotential
                     : null,
+                isDominant: dominants?.contains(StatKind.speed) ?? false,
               ),
             ),
             const SizedBox(width: 4),
@@ -423,6 +441,7 @@ class _StatsBlock extends StatelessWidget {
                 potentialValue: showPotentials
                     ? instance.statIntelligencePotential
                     : null,
+                isDominant: dominants?.contains(StatKind.intelligence) ?? false,
               ),
             ),
           ],
@@ -438,6 +457,7 @@ class _StatsBlock extends StatelessWidget {
                 potentialValue: showPotentials
                     ? instance.statStrengthPotential
                     : null,
+                isDominant: dominants?.contains(StatKind.strength) ?? false,
               ),
             ),
             const SizedBox(width: 4),
@@ -449,6 +469,7 @@ class _StatsBlock extends StatelessWidget {
                 potentialValue: showPotentials
                     ? instance.statBeautyPotential
                     : null,
+                isDominant: dominants?.contains(StatKind.beauty) ?? false,
               ),
             ),
           ],
@@ -463,12 +484,14 @@ class _StatTile extends StatelessWidget {
   final String label;
   final double currentValue;
   final double? potentialValue;
+  final bool isDominant;
 
   const _StatTile({
     required this.color,
     required this.label,
     required this.currentValue,
     required this.potentialValue,
+    this.isDominant = false,
   });
 
   @override
@@ -495,7 +518,7 @@ class _StatTile extends StatelessWidget {
                   style: bracketText(
                     context,
                     10,
-                    palette.muted,
+                    isDominant ? t.dominant : palette.muted,
                     weight: FontWeight.w700,
                     letterSpacing: 0.6,
                   ),

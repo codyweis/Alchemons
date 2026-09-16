@@ -36,7 +36,7 @@ Alchemons occupy the tension between companions and specimens. Collection offers
 - **First planetary descent.** The live dungeon remains frozen behind layered Valley art. Tap to dissolve the mask, then acknowledge the awakening and presence. Completion persists only after acknowledgment, so interruption does not lose the reveal. Reduced-motion mode skips the dissolve motion.
 - **First relic and first Mystic.** Added presence passages state what the guardian resisted and distinguish it from the collected creature. Existing altar quotes remain.
 - **First extraction.** The original two-to-one passage is introduced as an older remembered ritual, so it does not falsely describe the starter vial's creation.
-- **Return to wilderness.** Existing Self Deception dialogue now responds to the actual new revelation milestone while respecting its old flag for legacy saves.
+- **Return to wilderness.** The first Field entry after returning from real cosmic space reveals that the alchemist created the beautiful wilderness as a perception of life to hide his shame over dead Alchemons. Legacy first-planet flags still preserve this beat for older saves.
 - **Ending.** Existing passages remain, with additional relapse-oriented text and an explicit same-companion transformation preview before selection.
 
 The suggested blinking-eyes effect on the home page remains an optional presentation idea, not part of this implementation. It should be staged alongside the existing starter modal rather than racing it.

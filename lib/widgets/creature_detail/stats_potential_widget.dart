@@ -4,6 +4,7 @@
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/potential_genetics.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
@@ -304,6 +305,9 @@ class StatPotentialBlock extends StatelessWidget {
     if (instanceId == null) {
       return const SizedBox.shrink();
     }
+    final showDominants = context
+        .watch<ConstellationEffectsService>()
+        .hasDominantAnalyzer();
 
     return FutureBuilder<CreatureInstance?>(
       future: _getInstance(context),
@@ -324,16 +328,17 @@ class StatPotentialBlock extends StatelessWidget {
               beauty: 60,
             );
 
-        // Falls back to the instance's own best two, which is what every
-        // pre-Dominants creature is.
-        final dominants =
-            DominantStats.decode(instance.dominantStats) ??
-            DominantStats.fromPotentials(
-              speed: instance.statSpeedPotential,
-              intelligence: instance.statIntelligencePotential,
-              strength: instance.statStrengthPotential,
-              beauty: instance.statBeautyPotential,
-            );
+        // Dominants stay hidden until the analyzer is unlocked. Once visible,
+        // pre-Dominants creatures fall back to their own best two Potentials.
+        final dominants = showDominants
+            ? DominantStats.decode(instance.dominantStats) ??
+                  DominantStats.fromPotentials(
+                    speed: instance.statSpeedPotential,
+                    intelligence: instance.statIntelligencePotential,
+                    strength: instance.statStrengthPotential,
+                    beauty: instance.statBeautyPotential,
+                  )
+            : null;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,7 +350,7 @@ class StatPotentialBlock extends StatelessWidget {
               potential: instance.statSpeedPotential,
               baseStat: base.speed,
               enhancementRank: instance.statSpeedEnhancement,
-              isDominant: dominants.contains(StatKind.speed),
+              isDominant: dominants?.contains(StatKind.speed) ?? false,
             ),
             const SizedBox(height: 14),
             StatPotentialBar(
@@ -355,7 +360,7 @@ class StatPotentialBlock extends StatelessWidget {
               potential: instance.statIntelligencePotential,
               baseStat: base.intelligence,
               enhancementRank: instance.statIntelligenceEnhancement,
-              isDominant: dominants.contains(StatKind.intelligence),
+              isDominant: dominants?.contains(StatKind.intelligence) ?? false,
             ),
             const SizedBox(height: 14),
             StatPotentialBar(
@@ -365,7 +370,7 @@ class StatPotentialBlock extends StatelessWidget {
               potential: instance.statStrengthPotential,
               baseStat: base.strength,
               enhancementRank: instance.statStrengthEnhancement,
-              isDominant: dominants.contains(StatKind.strength),
+              isDominant: dominants?.contains(StatKind.strength) ?? false,
             ),
             const SizedBox(height: 14),
             StatPotentialBar(
@@ -375,7 +380,7 @@ class StatPotentialBlock extends StatelessWidget {
               potential: instance.statBeautyPotential,
               baseStat: base.beauty,
               enhancementRank: instance.statBeautyEnhancement,
-              isDominant: dominants.contains(StatKind.beauty),
+              isDominant: dominants?.contains(StatKind.beauty) ?? false,
             ),
 
             const SizedBox(height: 12),

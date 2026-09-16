@@ -100,7 +100,11 @@ TextStyle _body(
 // ─────────────────────────────────────────────────────────────────────────────
 
 class MysticAltarScreen extends StatefulWidget {
-  const MysticAltarScreen({super.key});
+  const MysticAltarScreen({super.key, this.revealReady});
+
+  /// Set true once the altar's state has loaded, for an entry portal covering
+  /// this screen (VoidPortal.pushThroughGlyphs).
+  final ValueNotifier<bool>? revealReady;
 
   @override
   State<MysticAltarScreen> createState() => _MysticAltarScreenState();
@@ -136,11 +140,17 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
   Map<String, String> _mysticNames = {};
   bool _loading = true;
 
+  late final RevealWhenReady _revealWhenReady;
+
   // ── lifecycle ─────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
+    _revealWhenReady = RevealWhenReady(
+      widget.revealReady,
+      () => mounted && !_loading,
+    );
     // Arriving earns the task; collecting it happens in the journal.
     OnboardingTaskService.recordArrival(context, 'rite');
     _bgCtrl = AnimationController(
@@ -165,6 +175,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
 
   @override
   void dispose() {
+    _revealWhenReady.dispose();
     _bgCtrl.dispose();
     _snapCtrl.dispose();
     _relicFlashCtrl.dispose();
@@ -1720,11 +1731,7 @@ class _WheelTrackPainter extends CustomPainter {
 /// thing about the altar being awake without drawing a galaxy, and the glow
 /// is layered flat discs.
 class _AltarEye extends StatefulWidget {
-  const _AltarEye({
-    required this.rate,
-    required this.surge,
-    this.size = 92,
-  });
+  const _AltarEye({required this.rate, required this.surge, this.size = 92});
 
   /// How fast the altar is running: it wakes a little with every completed
   /// ritual, and surges hard while a portal is being discovered.
@@ -1817,8 +1824,7 @@ class _VoidPulsePainter extends CustomPainter {
   /// Golden-ratio spacing. A plain `i * k % 1` hash put every third mote at
   /// almost the same angle and almost the same phase, so they travelled in
   /// visible little clumps of three.
-  static double _h(int i, int salt) =>
-      (i * 0.6180339887 + salt * 0.3178) % 1.0;
+  static double _h(int i, int salt) => (i * 0.6180339887 + salt * 0.3178) % 1.0;
 
   @override
   void paint(Canvas canvas, Size size) {

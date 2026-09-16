@@ -7,11 +7,13 @@ enum InstancePurityFilter {
   all,
   elemental,
   species,
-  pure;
+  pure,
+  mixed;
 
   InstancePurityFilter next() => switch (this) {
     InstancePurityFilter.all => InstancePurityFilter.pure,
-    InstancePurityFilter.pure => InstancePurityFilter.elemental,
+    InstancePurityFilter.pure => InstancePurityFilter.mixed,
+    InstancePurityFilter.mixed => InstancePurityFilter.elemental,
     InstancePurityFilter.elemental => InstancePurityFilter.species,
     InstancePurityFilter.species => InstancePurityFilter.all,
   };
@@ -21,6 +23,7 @@ enum InstancePurityFilter {
     InstancePurityFilter.elemental => 'ELEMENTAL',
     InstancePurityFilter.species => 'SPECIES',
     InstancePurityFilter.pure => 'PURE',
+    InstancePurityFilter.mixed => 'MIXED',
   };
 }
 
@@ -110,6 +113,7 @@ bool matchesPurityFilter(
     InstancePurityFilter.elemental => status.isElementallyPure,
     InstancePurityFilter.species => status.isSpeciesPure,
     InstancePurityFilter.pure => status.isPure,
+    InstancePurityFilter.mixed => !status.isPure,
   };
 }
 

@@ -1259,7 +1259,9 @@ class CosmicSurvivalSpawner {
 
   double _survivalBossRadius(BossTemplate template) {
     if (template.isTitanic) {
-      return (template.radius * 0.64).clamp(84.0, 104.0);
+      // Titanic templates were 150 at 0.64; they shrank to 120 for open space
+      // and this keeps survival's titans the size they were (96).
+      return (template.radius * 0.8).clamp(84.0, 104.0);
     }
     return (template.radius * 0.9).clamp(24.0, 46.0);
   }

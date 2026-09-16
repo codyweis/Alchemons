@@ -153,6 +153,15 @@ class _MapScreenState extends State<MapScreen>
     'arcane': 'Arcane Expanse',
   };
 
+  /// The element whose portal twist each region's entry borrows.
+  static const Map<String, String> _biomePortalElements = {
+    'valley': 'plant',
+    'sky': 'air',
+    'volcano': 'fire',
+    'swamp': 'mud',
+    'arcane': 'spirit',
+  };
+
   Future<void> _handlePeekRegion(String biomeId) async {
     if (widget.isTutorial) return;
 
@@ -636,6 +645,16 @@ class _MapScreenState extends State<MapScreen>
     if (result == null) return;
     selectedParty = (result as List).cast<PartyMember>();
 
+    if (!widget.isTutorial) {
+      final wildFusions = await db.inventoryDao.getItemQty(InvKeys.wildFusion);
+      if (!context.mounted) return;
+      final proceed = await _confirmExpeditionReadiness(
+        context,
+        wildFusionCount: wildFusions,
+      );
+      if (!context.mounted || !proceed) return;
+    }
+
     // consume entry (skip during tutorial)
     if (!widget.isTutorial) {
       await access.markEntered(biomeId);
@@ -666,7 +685,11 @@ class _MapScreenState extends State<MapScreen>
     // go to biome scene
     if (!context.mounted) return;
 
-    await VoidPortal.pushLandscape<bool>(
+    // The glyph portal is the loading screen: it turns the phone to
+    // landscape while covered and holds until the scene is built. Each
+    // region borrows the palette and twist of the element it feels like.
+    final ready = ValueNotifier<bool>(false);
+    await VoidPortal.pushThroughGlyphs<bool>(
       context,
       page: ScenePage(
         scene: scene,
@@ -674,8 +697,128 @@ class _MapScreenState extends State<MapScreen>
         party: selectedParty,
         isTutorial: widget.isTutorial,
         onNavigateSection: widget.onNavigateSection,
+        revealReady: ready,
       ),
+      title: _biomeDisplayNames[biomeId] ?? biomeId,
+      element: _biomePortalElements[biomeId] ?? '',
+      ready: ready,
+      orientation: const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ],
+      returnOrientation: const [
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ],
     );
+  }
+
+  Future<bool> _confirmExpeditionReadiness(
+    BuildContext context, {
+    required int wildFusionCount,
+  }) async {
+    // The short-party warning used to live here, on the way INTO the field,
+    // where there was nothing left to do about it. It now sits in the deploy
+    // confirmation inside the party picker, which is the screen that can
+    // actually act on it — and which knows both the real party limit and
+    // whether the player owns enough creatures to fill it. It also said "of 5"
+    // while SelectedPartyNotifier.defaultMaxSize has always been 4.
+    final warnings = <String>[
+      if (wildFusionCount <= 0)
+        'You have no Wild Fusions, so you cannot fuse with a wild specimen.',
+    ];
+    if (warnings.isEmpty) return true;
+
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: theme.isDark ? t.bg1 : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+              side: BorderSide(color: t.amber.withValues(alpha: 0.55)),
+            ),
+            title: Row(
+              children: [
+                Icon(AppIcons.warning_amber_rounded, color: t.amber, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'EXPEDITION CHECK',
+                    style: TextStyle(
+                      color: theme.text,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final warning in warnings) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: Container(
+                          width: 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: t.amber,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          warning,
+                          style: TextStyle(
+                            color: theme.textMuted,
+                            fontSize: 12,
+                            height: 1.4,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                Text(
+                  'Enter anyway?',
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(
+                  'GO BACK',
+                  style: TextStyle(color: theme.textMuted),
+                ),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: t.amber),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('ENTER ANYWAY'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   void _showToast(
@@ -1538,7 +1681,6 @@ class _InfoDialog extends StatelessWidget {
     );
   }
 }
-
 
 /// The confirm dialog's buttons, in the shape the rest of the game's
 /// confirmations use.

@@ -23,6 +23,8 @@ enum SortBy {
   potentialIntelligence,
   potentialStrength,
   potentialBeauty,
+  combinedPotential,
+  staminaHigh,
 }
 
 extension SortByX on SortBy {
@@ -38,7 +40,8 @@ extension SortByX on SortBy {
     SortBy.potentialSpeed ||
     SortBy.potentialIntelligence ||
     SortBy.potentialStrength ||
-    SortBy.potentialBeauty => true,
+    SortBy.potentialBeauty ||
+    SortBy.combinedPotential => true,
     _ => false,
   };
 
@@ -53,6 +56,8 @@ extension SortByX on SortBy {
     SortBy.potentialIntelligence => 'pINT',
     SortBy.potentialStrength => 'pSTR',
     SortBy.potentialBeauty => 'pBEA',
+    SortBy.combinedPotential => 'pTOTAL',
+    SortBy.staminaHigh => 'STAMINA',
     SortBy.levelHigh || SortBy.levelLow => 'LV',
     SortBy.newest => 'NEWEST',
     SortBy.oldest => 'OLDEST',
@@ -75,6 +80,12 @@ extension SortByX on SortBy {
     SortBy.potentialIntelligence => instance.statIntelligencePotential,
     SortBy.potentialStrength => instance.statStrengthPotential,
     SortBy.potentialBeauty => instance.statBeautyPotential,
+    SortBy.combinedPotential =>
+      instance.statSpeedPotential +
+          instance.statIntelligencePotential +
+          instance.statStrengthPotential +
+          instance.statBeautyPotential,
+    SortBy.staminaHigh => instance.staminaBars.toDouble(),
     _ => 0,
   };
 
@@ -89,6 +100,7 @@ extension SortByX on SortBy {
             SortBy.potentialStrength,
             SortBy.statBeauty,
             SortBy.potentialBeauty,
+            SortBy.combinedPotential,
           ]
         : const [
             SortBy.statSpeed,
@@ -212,6 +224,15 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
               return OrderingTerm.desc(t.statStrengthPotential);
             case SortBy.potentialBeauty:
               return OrderingTerm.desc(t.statBeautyPotential);
+            case SortBy.combinedPotential:
+              return OrderingTerm.desc(
+                t.statSpeedPotential +
+                    t.statIntelligencePotential +
+                    t.statStrengthPotential +
+                    t.statBeautyPotential,
+              );
+            case SortBy.staminaHigh:
+              return OrderingTerm.desc(t.staminaBars);
           }
         },
       ]);

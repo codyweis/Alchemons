@@ -1499,6 +1499,20 @@ extension CosmicGameWorldSystems on CosmicGame {
     }
   }
 
+  /// Remove the active boss without a kill. A lair it was fought at goes back
+  /// to waiting — otherwise the lair stays 'fighting' forever: never drawn,
+  /// never re-armed, and still counted as a live lair encounter.
+  void _despawnActiveBoss() {
+    activeBoss = null;
+    bossProjectiles.clear();
+    _bossLeashTimer = 0;
+    for (final lair in bossLairs) {
+      if (lair.state == BossLairState.fighting) {
+        lair.state = BossLairState.waiting;
+      }
+    }
+  }
+
   void _spawnBossFromLair(BossLair lair) {
     lair.state = BossLairState.fighting;
 
@@ -1575,6 +1589,9 @@ extension CosmicGameWorldSystems on CosmicGame {
     final sy = matchingPlanet.position.dy + sin(angle) * orbitDist;
     final pos = _wrap(Offset(sx, sy));
     if (isHomeRecoveryArea(pos)) return;
+    // A roaming boss is a local encounter. One rolled at a planet across the
+    // map would only sit dormant until the leash removed it.
+    if (_wrappedDistanceSq(pos, ship.pos) > CosmicGame._bossLeashDistSq) return;
 
     final healthScale = CosmicBalance.bossHealthScale(lvl);
     final speedScale = CosmicBalance.bossSpeedScale(lvl);

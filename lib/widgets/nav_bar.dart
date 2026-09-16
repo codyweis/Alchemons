@@ -40,6 +40,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
 
   late final AnimationController _expandController;
   late final Animation<double> _expandAnimation;
+  late final AnimationController _tutorialPulseController;
 
   static bool _navIconsCached = false;
   int? _activePointer;
@@ -57,8 +58,12 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   /// ready ten seconds late costs nothing.
   bool _cultivationReady = false;
   StreamSubscription<List<IncubatorSlot>>? _slotSub;
+  StreamSubscription<bool>? _extractionTutorialSub;
+  StreamSubscription<bool>? _fieldTutorialSub;
   Timer? _readyTicker;
   List<IncubatorSlot> _slots = const [];
+  bool _extractionComplete = false;
+  bool _fieldTutorialComplete = false;
 
   @override
   void didChangeDependencies() {
@@ -75,6 +80,19 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
           _slots = slots;
           _refreshCultivationReady();
         });
+    final settings = context.read<AlchemonsDatabase>().settingsDao;
+    _extractionTutorialSub ??= settings.watchExtractionTutorialState().listen((
+      value,
+    ) {
+      if (mounted && value != _extractionComplete) {
+        setState(() => _extractionComplete = value);
+      }
+    });
+    _fieldTutorialSub ??= settings.watchFieldTutorialState().listen((value) {
+      if (mounted && value != _fieldTutorialComplete) {
+        setState(() => _fieldTutorialComplete = value);
+      }
+    });
     _readyTicker ??= Timer.periodic(
       const Duration(seconds: 20),
       (_) => _refreshCultivationReady(),
@@ -103,6 +121,10 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
       parent: _expandController,
       curve: Curves.easeOutCubic,
     );
+    _tutorialPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
     NewDiscoveryReveal.instance.databaseNavKey = _creaturesIconKey;
   }
 
@@ -117,8 +139,11 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   @override
   void dispose() {
     _slotSub?.cancel();
+    _extractionTutorialSub?.cancel();
+    _fieldTutorialSub?.cancel();
     _readyTicker?.cancel();
     _expandController.dispose();
+    _tutorialPulseController.dispose();
     if (identical(
       NewDiscoveryReveal.instance.databaseNavKey,
       _creaturesIconKey,
@@ -339,6 +364,10 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                           label: 'HOME',
                           theme: theme,
                           isDisabled: isDisabled,
+                          highlight:
+                              _extractionComplete &&
+                              !_fieldTutorialComplete &&
+                              widget.current != NavSection.home,
                         ),
                         _buildNavButton(
                           section: NavSection.breed,
@@ -400,13 +429,14 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     required bool isDisabled,
     Key? iconKey,
     bool showDot = false,
+    bool highlight = false,
   }) {
     final isActive = widget.current == section;
     final double opacity = isDisabled ? 0.5 : 1.0;
 
     final Color? iconColor = null;
     return AnimatedBuilder(
-      animation: _expandAnimation,
+      animation: Listenable.merge([_expandAnimation, _tutorialPulseController]),
       builder: (context, child) {
         final bool shouldExpand = isActive && !isDisabled;
 
@@ -420,15 +450,38 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
             ? (40.0 + (_expandAnimation.value * 40))
             : 55.0;
 
+        final tutorialPulse = highlight
+            ? Curves.easeInOut.transform(_tutorialPulseController.value)
+            : 0.0;
         return Transform.translate(
           offset: Offset(0, verticalOffset),
           child: GestureDetector(
             onTap: context.soundAction(
               () => _handleTap(section, isDisabled: isDisabled),
             ),
-            child: SizedBox(
+            child: Container(
               width: size,
               height: size,
+              decoration: highlight
+                  ? BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: (theme?.accent ?? Colors.amber).withValues(
+                          alpha: 0.55 + tutorialPulse * 0.4,
+                        ),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (theme?.accent ?? Colors.amber).withValues(
+                            alpha: 0.18 + tutorialPulse * 0.28,
+                          ),
+                          blurRadius: 10 + tutorialPulse * 12,
+                          spreadRadius: tutorialPulse * 3,
+                        ),
+                      ],
+                    )
+                  : null,
               child: Opacity(
                 opacity: opacity,
                 child: OverflowBox(

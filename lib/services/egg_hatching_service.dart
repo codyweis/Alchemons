@@ -72,15 +72,30 @@ class HatchingResult {
   final String? message;
   final IconData? icon;
   final Color? color;
+  final String? instanceId;
+  final String? creatureId;
+  final bool isNewDiscovery;
 
   const HatchingResult({
     required this.success,
     this.message,
     this.icon,
     this.color,
+    this.instanceId,
+    this.creatureId,
+    this.isNewDiscovery = false,
   });
 
-  factory HatchingResult.success() => const HatchingResult(success: true);
+  factory HatchingResult.success({
+    String? instanceId,
+    String? creatureId,
+    bool isNewDiscovery = false,
+  }) => HatchingResult(
+    success: true,
+    instanceId: instanceId,
+    creatureId: creatureId,
+    isNewDiscovery: isNewDiscovery,
+  );
 
   factory HatchingResult.failure(
     String message, {
@@ -97,6 +112,37 @@ class HatchingResult {
 }
 
 /// Service class for handling egg hatching and extraction
+
+/// Everything the ceremony needs to draw one egg, derived in ONE place.
+///
+/// The batch grid runs several ceremonies at once and must dress each of them
+/// exactly as the single-extraction ceremony would. Re-deriving hint type,
+/// purity and parent elements at the call site is how the two drift apart, so
+/// both paths read these from [EggHatching.ceremonyParamsFor].
+class HatchCeremonyParams {
+  const HatchCeremonyParams({
+    required this.parentATypeId,
+    required this.parentBTypeId,
+    required this.resultTypeId,
+    required this.paletteMain,
+    required this.silhouette,
+    required this.hintType,
+    required this.variantColor,
+    required this.pureElementTypeId,
+    required this.mutationFamily,
+  });
+
+  final String parentATypeId;
+  final String? parentBTypeId;
+  final String? resultTypeId;
+  final Color paletteMain;
+  final ImageProvider? silhouette;
+  final HatchHintType hintType;
+  final Color? variantColor;
+  final String? pureElementTypeId;
+  final String? mutationFamily;
+}
+
 class EggHatching {
   EggHatching._();
   static OverlayEntry? _activeDiscoveryOverlay;
@@ -119,10 +165,62 @@ class EggHatching {
   /// Main hatching orchestration
 
   /// Main hatching orchestration (starters = exact write, others = finalize path)
+
+  /// Ceremony dressing for a finished specimen. See [HatchCeremonyParams].
+  static HatchCeremonyParams ceremonyParamsFor({
+    required CreatureInstance instance,
+    required Creature offspring,
+  }) {
+    // Parent elements come from the stored parentage when there is any; a
+    // wild or legacy specimen falls back to its own elements, which is what
+    // the single ceremony does too.
+    final types = <String>[];
+    final raw = instance.parentageJson;
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final payload = jsonDecode(raw) as Map<String, dynamic>;
+        for (final key in const ['parentA', 'parentB']) {
+          final p = payload[key] as Map<String, dynamic>?;
+          final t = p?['types'] as List<dynamic>?;
+          if (t != null && t.isNotEmpty) types.add(t.first.toString());
+        }
+      } catch (_) {}
+    }
+
+    HatchHintType hintType = HatchHintType.normal;
+    Color? variantColor;
+    final variantFaction = instance.variantFaction;
+    if (instance.isPrismaticSkin == true) {
+      hintType = HatchHintType.prismatic;
+    } else if (variantFaction != null && variantFaction.isNotEmpty) {
+      hintType = HatchHintType.variant;
+      variantColor = _getVariantColor(variantFaction);
+    }
+
+    String? pureElementTypeId;
+    final purity = classifyInstancePurity(instance, species: offspring);
+    if (purity.isElementallyPure && purity.elementLineage.isNotEmpty) {
+      pureElementTypeId = purity.elementLineage.keys.first;
+    }
+
+    return HatchCeremonyParams(
+      parentATypeId: types.isNotEmpty ? types[0] : offspring.types.first,
+      parentBTypeId: types.length > 1 ? types[1] : offspring.types.last,
+      resultTypeId: offspring.types.isNotEmpty ? offspring.types.first : null,
+      paletteMain: BreedConstants.getRarityColor(offspring.rarity),
+      silhouette: AssetImage('assets/images/${offspring.image}'),
+      hintType: hintType,
+      variantColor: variantColor,
+      pureElementTypeId: pureElementTypeId,
+      mutationFamily: offspring.mutationFamily,
+    );
+  }
+
   static Future<HatchingResult> performHatching({
     required BuildContext context,
     required IncubatorSlot slot,
     required Map<String, bool> undiscoveredCache,
+    bool showPresentation = true,
   }) async {
     final repo = context.read<CreatureCatalog>();
     final gameData = context.read<GameDataService>();
@@ -186,8 +284,13 @@ class EggHatching {
         undiscoveredCache: undiscoveredCache,
         isPrismatic: hp.isPrismaticSkin,
         variantFaction: hp.lineage.variantFaction,
+        showPresentation: showPresentation,
       );
-      return HatchingResult.success();
+      return HatchingResult.success(
+        instanceId: createdId,
+        creatureId: offspring.id,
+        isNewDiscovery: isNewDiscovery,
+      );
     }
 
     // Non-starter branch: existing finalize path
@@ -252,8 +355,13 @@ class EggHatching {
       undiscoveredCache: undiscoveredCache,
       isPrismatic: hp.isPrismaticSkin,
       variantFaction: hp.lineage.variantFaction,
+      showPresentation: showPresentation,
     );
-    return HatchingResult.success();
+    return HatchingResult.success(
+      instanceId: instanceId,
+      creatureId: offspring.id,
+      isNewDiscovery: isNewDiscovery,
+    );
   }
 
   static Map<String, double> _deriveLevelOneStats(
@@ -542,6 +650,7 @@ class EggHatching {
     required Map<String, bool> undiscoveredCache,
     bool isPrismatic = false,
     String? variantFaction,
+    bool showPresentation = true,
   }) async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
@@ -667,6 +776,13 @@ class EggHatching {
         );
     final cinematicQuality = await CinematicQualityService().getQuality();
 
+    if (!showPresentation) {
+      await recipeDiscoveryFuture.catchError(
+        (_) => EncyclopediaDiscoveryResult.none,
+      );
+      return;
+    }
+
     try {
       // ✅ still use the original context for the cinematic if you want
       if (!context.mounted) return;
@@ -674,14 +790,22 @@ class EggHatching {
         context: context,
         parentATypeId: types.isNotEmpty ? types[0] : offspring.types.first,
         parentBTypeId: types.length > 1 ? types[1] : offspring.types.last,
+        // The element being hatched INTO -- the shell fuses both parent
+        // palettes into this one at 82% of its arc.
+        resultTypeId: offspring.types.isNotEmpty
+            ? offspring.types.first
+            : null,
         paletteMain: primaryHue,
         creatureSilhouette: silhouette,
-        // 6400, down from 7200: the ceremony was carrying a long still tail
-        // after the silhouette landed, and the trim comes out of that.
-        totalDuration: const Duration(milliseconds: 6400),
+        // The shell owns the first 80% of this and its arc is 6.6s, matching
+        // the prototype; the remaining 20% is the whiteout and the silhouette
+        // reveal. At 6400 the shell's arc was compressed to 5.1s.
+        totalDuration: const Duration(milliseconds: kHatchCeremonyMs),
         hintType: hintType,
         variantColor: variantColor,
         pureElementTypeId: pureElementTypeId,
+        // Drives which shell architecture the ceremony builds.
+        mutationFamily: family,
         quality: cinematicQuality,
       );
     } catch (e) {
@@ -851,11 +975,36 @@ class EggHatching {
   // EXTRACTION RESULT DIALOG
   // ============================================================================
 
+  /// The normal single-extraction result card.
+  ///
+  /// Public so the batch ceremony can present the SAME card per specimen
+  /// instead of growing a second, lesser version of it that drifts. It awaits
+  /// its own dialog, so calling it in a loop is what "one at a time" means --
+  /// the card's own CTA is the Next button.
+  static Future<void> showExtractionResult(
+    BuildContext context,
+    String instanceId,
+    bool isNewDiscovery, {
+    required CinematicQuality cinematicQuality,
+    void Function(DiscoveryFlightCapture? capture)? onDeferDiscoveryFlight,
+  }) => _showExtractionResult(
+    context,
+    instanceId,
+    isNewDiscovery,
+    cinematicQuality: cinematicQuality,
+    onDeferDiscoveryFlight: onDeferDiscoveryFlight,
+  );
+
   static Future<void> _showExtractionResult(
     BuildContext context,
     String instanceId,
     bool isNewDiscovery, {
     required CinematicQuality cinematicQuality,
+    /// When set, the card is captured and handed back INSTEAD of flying to the
+    /// catalog. The batch ceremony uses this: flying on each card would switch
+    /// sections partway through the run, which is what made the discovery
+    /// animation play before the player had seen every specimen.
+    void Function(DiscoveryFlightCapture? capture)? onDeferDiscoveryFlight,
   }) async {
     final offspring = await _effectiveFromInstance(context, instanceId);
 
@@ -1155,9 +1304,11 @@ class EggHatching {
                                           scanComplete,
                                           fc,
                                           const Color(0xFF0EA5E9),
-                                          isDominant: showDominants && hatchDominants.contains(
-                                            StatKind.speed,
-                                          ),
+                                          isDominant:
+                                              showDominants &&
+                                              hatchDominants.contains(
+                                                StatKind.speed,
+                                              ),
                                           showPotential: showPotential,
                                         ),
                                         _buildCompactStatRow(
@@ -1167,9 +1318,11 @@ class EggHatching {
                                           scanComplete,
                                           fc,
                                           const Color(0xFFA855F7),
-                                          isDominant: showDominants && hatchDominants.contains(
-                                            StatKind.intelligence,
-                                          ),
+                                          isDominant:
+                                              showDominants &&
+                                              hatchDominants.contains(
+                                                StatKind.intelligence,
+                                              ),
                                           showPotential: showPotential,
                                         ),
                                         _buildCompactStatRow(
@@ -1179,9 +1332,11 @@ class EggHatching {
                                           scanComplete,
                                           fc,
                                           const Color(0xFFC0392B),
-                                          isDominant: showDominants && hatchDominants.contains(
-                                            StatKind.strength,
-                                          ),
+                                          isDominant:
+                                              showDominants &&
+                                              hatchDominants.contains(
+                                                StatKind.strength,
+                                              ),
                                           showPotential: showPotential,
                                         ),
                                         _buildCompactStatRow(
@@ -1191,9 +1346,11 @@ class EggHatching {
                                           scanComplete,
                                           fc,
                                           const Color(0xFFF59E0B),
-                                          isDominant: showDominants && hatchDominants.contains(
-                                            StatKind.beauty,
-                                          ),
+                                          isDominant:
+                                              showDominants &&
+                                              hatchDominants.contains(
+                                                StatKind.beauty,
+                                              ),
                                           showPotential: showPotential,
                                         ),
                                       ],
@@ -1532,13 +1689,31 @@ class EggHatching {
                                             });
 
                                             if (isNewDiscovery) {
-                                              await NewDiscoveryReveal.instance
-                                                  .playFilingAway(
-                                                    context: context,
-                                                    cardBoundaryKey:
-                                                        cardBoundaryKey,
-                                                    creatureId: offspring.id,
-                                                  );
+                                              if (onDeferDiscoveryFlight !=
+                                                  null) {
+                                                // Capture while the card is
+                                                // still mounted; the batch
+                                                // flies it once every card has
+                                                // been seen.
+                                                onDeferDiscoveryFlight(
+                                                  await NewDiscoveryReveal
+                                                      .instance
+                                                      .captureCard(
+                                                        context: context,
+                                                        cardBoundaryKey:
+                                                            cardBoundaryKey,
+                                                      ),
+                                                );
+                                              } else {
+                                                await NewDiscoveryReveal
+                                                    .instance
+                                                    .playFilingAway(
+                                                      context: context,
+                                                      cardBoundaryKey:
+                                                          cardBoundaryKey,
+                                                      creatureId: offspring.id,
+                                                    );
+                                              }
                                             }
 
                                             if (resultRoute != null &&
@@ -2102,29 +2277,29 @@ class EggHatching {
             // the game hides — and it is the first place a new specimen's
             // Potential could ever be read, so it undid the gate entirely.
             if (showPotential) ...[
-            const SizedBox(width: 7),
-            Text.rich(
-              TextSpan(
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.textMuted,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                ),
-                children: [
-                  const TextSpan(text: 'P '),
-                  TextSpan(
-                    text: potentialRating.toString(),
-                    style: TextStyle(
-                      color: _potentialTierColor(potentialRating),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
+              const SizedBox(width: 7),
+              Text.rich(
+                TextSpan(
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: fc.textMuted,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
+                  children: [
+                    const TextSpan(text: 'P '),
+                    TextSpan(
+                      text: potentialRating.toString(),
+                      style: TextStyle(
+                        color: _potentialTierColor(potentialRating),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+                maxLines: 1,
               ),
-              maxLines: 1,
-            ),
             ],
           ],
         ],

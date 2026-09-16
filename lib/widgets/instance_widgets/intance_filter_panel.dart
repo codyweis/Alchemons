@@ -116,6 +116,8 @@ class InstanceFiltersPanel extends StatelessWidget {
 
   final bool filterFavorites;
   final VoidCallback? onToggleFavorites;
+  final bool filterHasStamina;
+  final VoidCallback? onToggleHasStamina;
   final bool showSortRow;
   final bool showFilterRow;
   final bool showClearChip;
@@ -144,6 +146,8 @@ class InstanceFiltersPanel extends StatelessWidget {
     required this.natureOptions,
     this.filterFavorites = false,
     this.onToggleFavorites,
+    this.filterHasStamina = false,
+    this.onToggleHasStamina,
     this.showSortRow = true,
     this.showFilterRow = true,
     this.showClearChip = true,
@@ -154,6 +158,7 @@ class InstanceFiltersPanel extends StatelessWidget {
   bool get _hasActiveFilters =>
       filterPrismatic ||
       filterFavorites ||
+      filterHasStamina ||
       filterNature != null ||
       sizeValueText != null ||
       tintValueText != null ||
@@ -255,6 +260,15 @@ class InstanceFiltersPanel extends StatelessWidget {
           onTap: onToggleFavorites!,
           showInactiveFrame: showInactiveBrackets,
         ),
+      if (onToggleHasStamina != null)
+        _ToggleChip(
+          icon: AppIcons.bolt_rounded,
+          label: 'HAS STAMINA',
+          active: filterHasStamina,
+          activeColor: const Color(0xFF34D399),
+          onTap: onToggleHasStamina!,
+          showInactiveFrame: showInactiveBrackets,
+        ),
     ];
 
     return Column(
@@ -308,6 +322,15 @@ class InstanceFiltersPanel extends StatelessWidget {
                       ),
                     );
                   },
+                ),
+                const SizedBox(width: 6),
+                _SortChip(
+                  label: 'STAMINA ↓',
+                  selected: sortBy == SortBy.staminaHigh,
+                  onTap: context.soundTap(
+                    () => onSortChanged(SortBy.staminaHigh),
+                  ),
+                  showInactiveFrame: showInactiveBrackets,
                 ),
               ],
             ),
@@ -373,6 +396,9 @@ class _StatCycleChip extends StatelessWidget {
     final isStat = currentStat.isStatSort;
     if (!isStat) return (AppIcons.bar_chart_rounded, 'STAT', null);
     final label = '${currentStat.shortLabel} ↓';
+    if (currentStat == SortBy.combinedPotential) {
+      return (AppIcons.auto_graph_rounded, label, const Color(0xFF67E8F9));
+    }
     return switch (currentStat.statFamily) {
       'speed' => (AppIcons.speed, label, const Color(0xFFFDE047)),
       'intelligence' => (AppIcons.psychology, label, const Color(0xFFC084FC)),

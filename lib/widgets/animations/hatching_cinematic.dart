@@ -1,19 +1,11 @@
 import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
-import 'dart:math';
-import 'dart:ui' as ui;
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
+import 'package:alchemons/widgets/animations/hatch_shell.dart';
 import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
-
-class _GeoCache {
-  ui.Picture? flower;
-  ui.Picture? cube;
-  Size? size;
-  Color? color;
-}
 
 /// Small helper to evaluate an Interval-like curve without allocating
 /// CurvedAnimation objects every frame.
@@ -23,6 +15,44 @@ double _intervalValue(double t, double begin, double end, Curve curve) {
   final localT = (t - begin) / (end - begin);
   return curve.transform(localT.clamp(0.0, 1.0));
 }
+
+/// Fraction of the ceremony the shell owns. Raised from 0.80: the tail left
+/// 1.65s with no shell on screen — the silhouette fading in over nothing, then
+/// simply sitting there — which is what made the ceremony end static.
+const double _kShellWindow = 0.88;
+
+/// Where the ceremony begins dissolving: the frame the silhouette's scale-in
+/// lands on, which is also where the shell's arc ends. Past here nothing moves
+/// under its own power.
+const double _kDissolveFrom = 0.840;
+
+/// Where the ceremony hands over to the next screen. The dissolve above
+/// reaches zero exactly here, so the handover happens on an empty frame.
+///
+/// This is the prototype's own ending: its strands fade to zero alpha across
+/// the unravel, so the arc finishes on nothing rather than on a picture. A
+/// handover onto an empty frame cannot be seen as a cut, because there is no
+/// image left to cut away from.
+///
+/// Popping at [_kDissolveFrom] instead -- with the ceremony still at full
+/// brightness -- is what produced the hard seam: `await Navigator.push`
+/// completes when the pop BEGINS, not when its reverse transition ends, so the
+/// result dialog opened on top of a cinematic that had not faded yet, and
+/// covered the fade entirely. Roughly 0.035 of the timeline (~260ms) separates
+/// the two so the dissolve has time to actually land.
+const double _kHandoverAt = 0.865;
+
+/// Length of the shell's own arc, matching the prototype's 6.6s default.
+/// [_kHatchCeremonyMs] is derived so the arc keeps that duration.
+const double _kShellSeconds = 6.6;
+
+/// Total ceremony length. Every window below is a fraction of this, so this
+/// number paces the whole ceremony: at 7000 the shell's arc lands in 6.16s of
+/// wall clock while [_kShellSeconds] still advances its motion clock to 6.6,
+/// which runs the prototype's arc about 7% fast. That is the intended trade --
+/// the ceremony reads as tightened rather than truncated, and nothing is cut.
+/// Was 7500, which put the handover at 6.86s.
+const int kHatchCeremonyMs = 7000;
 
 /// Enum for special hatch types that get visual hints
 enum HatchHintType { normal, variant, prismatic }
@@ -40,12 +70,21 @@ Future<void> playHatchingCinematicAlchemy({
   required BuildContext context,
   required String parentATypeId,
   String? parentBTypeId,
+
+  /// The element the egg is hatching INTO. This is the prototype's third
+  /// palette (`elemR`): at [HatchShellTuning.fuseAt] both parent palettes
+  /// blend into it, so the shell is already wearing the offspring's colour by
+  /// the time it unravels. Without it the fuse resolves to a flat single
+  /// colour and the ceremony has no colour identity at its climax.
+  String? resultTypeId,
   required Color paletteMain,
   ImageProvider? creatureSilhouette,
-  Duration totalDuration = const Duration(milliseconds: 7200),
+  Duration totalDuration = const Duration(milliseconds: kHatchCeremonyMs),
   HatchHintType hintType = HatchHintType.normal,
   Color? variantColor, // For variant hints
   String? pureElementTypeId, // Elementally pure lineage -> purity treatment
+  String?
+  mutationFamily, // Drives the shell's architecture (7 families + mystic)
   CinematicQuality quality = CinematicQuality.cinematic,
 }) async {
   await Navigator.of(context).push(
@@ -59,70 +98,88 @@ Future<void> playHatchingCinematicAlchemy({
       // the dark now.
       transitionsBuilder: (_, animation, __, child) =>
           FadeTransition(opacity: animation, child: child),
-      pageBuilder: (_, __, ___) => _HatchingCinematicPage(
+      pageBuilder: (_, __, ___) => HatchingCeremonyView(
         parentATypeId: parentATypeId,
         parentBTypeId: parentBTypeId,
+        resultTypeId: resultTypeId,
         paletteMain: paletteMain,
         creatureSilhouette: creatureSilhouette,
         totalDuration: totalDuration,
         hintType: hintType,
         variantColor: variantColor,
         pureElementTypeId: pureElementTypeId,
+        mutationFamily: mutationFamily,
         quality: quality,
       ),
     ),
   );
 }
 
-class _HatchingCinematicPage extends StatefulWidget {
+/// The ceremony itself, independent of how it is presented.
+///
+/// [playHatchingCinematicAlchemy] pushes this as a full-screen route, but the
+/// batch extraction runs several at once inside a grid, so the widget must not
+/// assume it owns the screen or the navigator. Two hooks make that work:
+/// [onComplete] replaces the self-pop at handover, and [playSound] lets a grid
+/// keep ONE ceremony cue for the whole batch instead of firing seven.
+class HatchingCeremonyView extends StatefulWidget {
   final String parentATypeId;
   final String? parentBTypeId;
+  final String? resultTypeId;
   final Color paletteMain;
   final ImageProvider? creatureSilhouette;
   final Duration totalDuration;
   final HatchHintType hintType;
   final Color? variantColor;
   final String? pureElementTypeId;
+  final String? mutationFamily;
   final CinematicQuality quality;
 
-  const _HatchingCinematicPage({
+  /// Called at the handover instead of popping the route. Null means this is a
+  /// route and should pop itself.
+  final VoidCallback? onComplete;
+
+  /// False for grid cells after the first, so a batch plays one cue.
+  final bool playSound;
+
+  /// Grid cells have no SKIP of their own -- the batch owns that control.
+  final bool showSkip;
+
+  const HatchingCeremonyView({
+    super.key,
     required this.parentATypeId,
+    this.resultTypeId,
     required this.paletteMain,
     this.parentBTypeId,
     this.creatureSilhouette,
-    this.totalDuration = const Duration(milliseconds: 7200),
+    this.totalDuration = const Duration(milliseconds: kHatchCeremonyMs),
     this.hintType = HatchHintType.normal,
     this.variantColor,
     this.pureElementTypeId,
+    this.mutationFamily,
     this.quality = CinematicQuality.cinematic,
+    this.onComplete,
+    this.playSound = true,
+    this.showSkip = true,
   });
 
   @override
-  State<_HatchingCinematicPage> createState() => _HatchingCinematicPageState();
+  State<HatchingCeremonyView> createState() => _HatchingCeremonyViewState();
 }
 
-class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
+class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
     with TickerProviderStateMixin {
   late AnimationController _timeline;
-  late AnimationController _flashCtrl;
-  late AnimationController _explosionCtrl;
-  late AnimationController _hintJoltCtrl; // For special hint effects
-  late Animation<double> _explosionAnim;
-  late Animation<double> _hintJoltAnim;
-
-  late Animation<double> _coreScale;
-  late Animation<double> _coreOpacity;
-  late Animation<double> _shockwave;
-  late Animation<double> _secondaryShockwave;
 
   late Animation<double> _reveal;
   late Animation<double> _revealScale;
 
-  late final _geoCache = _GeoCache();
-  double _fxScale = 1.0;
+  /// Guards the handover so it fires exactly once, whether it is reached by
+  /// the timeline running out or by SKIP jumping it forward.
+  bool _handedOver = false;
+
   bool _reducedEffects = false;
   AudioController? _audio;
-  bool _reactionStarted = false;
 
   // Element tint for the purity treatment (null = not an elementally pure
   // lineage). Resolved once from the shared element configs so it matches
@@ -135,9 +192,40 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     return cfg.colors.length > 1 ? cfg.colors[1] : cfg.colors.first;
   }();
 
-  // Track hint jolt triggers
-  int _hintJoltCount = 0;
-  static const int _maxHintJolts = 3;
+  // Shell: built once per ceremony, buffers reused every frame.
+  HatchShellModel? _shellModel;
+  // Deliberately NOT _reducedEffects: that is a screen-size heuristic — any
+  // phone under 430 logical px trips it — tuned for the old particle counts,
+  // and it was silently handing every handset the degraded shell. The shell
+  // follows the user's own cinematic-quality setting instead.
+  HatchShellModel _shell() => _shellModel ??= _buildShellModel();
+
+  HatchShellModel _buildShellModel() => HatchShellModel(
+    species: hatchShellSpeciesFor(widget.mutationFamily),
+    reduced: widget.quality == CinematicQuality.performance,
+  );
+
+  /// The shell wants an element's FULL three-colour palette, not one colour:
+  /// strands mix between entries 0 and 1, and entry 2 is the bright accent.
+  static List<Color> _elementPalette(String? typeId, Color fallback) {
+    final cfg = typeId == null ? null : ElementalConfigs.getConfig(typeId);
+    final c = cfg?.colors ?? const <Color>[];
+    if (c.length >= 3) return [c[0], c[1], c[2]];
+    if (c.length == 2) return [c[0], c[1], c[1]];
+    if (c.length == 1) return [c[0], c[0], c[0]];
+    return [fallback, fallback, fallback];
+  }
+
+  ShellRarity get _shellRarity {
+    switch (widget.hintType) {
+      case HatchHintType.prismatic:
+        return ShellRarity.prismatic;
+      case HatchHintType.variant:
+        return ShellRarity.variant;
+      case HatchHintType.normal:
+        return ShellRarity.normal;
+    }
+  }
 
   /// Take away the cover the nursery raised over the dialog-to-cinematic
   /// seam, but not until this route is opaque — pulled early it would reveal
@@ -164,62 +252,21 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
   @override
   void initState() {
     super.initState();
-    _dropHatchCurtainWhenVisible();
+    // The curtain covers the dialog-to-cinematic seam of the FULL SCREEN
+    // ceremony. A grid cell sits inside a route that is already up, so
+    // lowering it from here would uncover the nursery mid-batch.
+    if (widget.onComplete == null) {
+      _dropHatchCurtainWhenVisible();
+    }
 
     _timeline = AnimationController(
       vsync: this,
       duration: widget.totalDuration,
     );
-    _flashCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 180),
-    );
-    _explosionCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 450),
-    );
-    _hintJoltCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-
-    _explosionAnim = CurvedAnimation(
-      parent: _explosionCtrl,
-      curve: Curves.easeOutCubic,
-    );
-    _hintJoltAnim = CurvedAnimation(
-      parent: _hintJoltCtrl,
-      curve: Curves.easeOutBack,
-    );
 
     // === Timeline keyed ranges (compressed for snappier feel) ===
-    _coreOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _timeline,
-        curve: const Interval(0.15, 0.55, curve: Curves.easeInOutCubic),
-      ),
-    );
-
-    _coreScale = Tween<double>(begin: 0.0, end: 1.4).animate(
-      CurvedAnimation(
-        parent: _timeline,
-        curve: const Interval(0.20, 0.55, curve: Curves.easeOutExpo),
-      ),
-    );
 
     // Faster shockwaves
-    _shockwave = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _timeline,
-        curve: const Interval(0.65, 0.82, curve: Curves.easeOutCubic),
-      ),
-    );
-    _secondaryShockwave = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _timeline,
-        curve: const Interval(0.68, 0.85, curve: Curves.easeOutQuad),
-      ),
-    );
 
     // THE SILHOUETTE, later and shorter. It used to land at 0.80 and then sit
     // there fully revealed for the last fifth of the run — a second and a
@@ -229,47 +276,113 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     _reveal = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _timeline,
-        curve: const Interval(0.84, 0.95, curve: Curves.easeOut),
+        // The shell's unravel runs 0.748 -> 0.88 of the ceremony. The
+        // silhouette lands inside that window so it is revealed BY the
+        // explosion and swept straight on into the whiteout, instead of
+        // arriving after the motion has stopped.
+        curve: const Interval(0.748, 0.840, curve: Curves.easeOut),
       ),
     );
-    _revealScale = Tween<double>(begin: 1.6, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _timeline,
-        curve: const Interval(0.84, 0.95, curve: Curves.easeOutBack),
-      ),
-    );
+    // Two stages: scales in with the explosion, then keeps drifting outward
+    // through the whiteout. A single tween settled at 1.0 and held, which is
+    // a frozen frame however short the tail is.
+    // The springy settle belongs INSIDE the first item, not on the animation
+    // driving the sequence. easeOutBack overshoots past 1.0, and a
+    // TweenSequence asserts its input is within [0, 1] -- driving it with an
+    // overshooting curve crashes the moment the pop peaks.
+    _revealScale =
+        TweenSequence<double>([
+          // Weighted 50/50 so the scale-in lands at t = 0.88, exactly where
+          // the reveal completes and the fade starts -- it used to run to
+          // 0.9424, past the point the silhouette had visually settled.
+          TweenSequenceItem(
+            tween: Tween<double>(
+              begin: 1.6,
+              end: 1.0,
+            ).chain(CurveTween(curve: Curves.easeOutBack)),
+            weight: 79,
+          ),
+          // 1.0 -> 1.28, LINEAR, across the whole fade. Two things were wrong
+          // before. The range was 1.0 -> 1.09, which is not movement anyone
+          // can see. And the curve was easeIn, which is slow-start: it spent
+          // the visible half of the fade travelling 1.0 -> 1.09 and saved the
+          // real motion for the last quarter, by which point the silhouette
+          // is nearly transparent. Raising the range without fixing the curve
+          // changed nothing on screen.
+          //
+          // Constant velocity means every frame of the fade-out has visible
+          // movement in it, weighted to where the silhouette is still opaque
+          // enough to read. Do not put an ease on this: the opacity is already
+          // ramping linearly, and any slow-start curve here re-creates the
+          // fades-without-moving that this is here to prevent.
+          TweenSequenceItem(
+            tween: Tween<double>(begin: 1.0, end: 1.28),
+            weight: 21,
+          ),
+        ]).animate(
+          CurvedAnimation(
+            parent: _timeline,
+            // Ends on the handover, not on the controller. The whole 1.0 ->
+            // 1.28 drift is spent inside the dissolve window, so the
+            // silhouette is visibly swelling for every frame of the fade
+            // rather than creeping through 8% of it and leaving the rest
+            // unplayed.
+            curve: const Interval(0.748, _kHandoverAt),
+          ),
+        );
 
-    _timeline.addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
-        Navigator.of(context).pop();
+    // Hand over to the next screen the instant the silhouette's scale-in
+    // lands, rather than waiting for the controller to run out 900ms later.
+    //
+    // Everything after _kHandoverAt was the ceremony watching itself finish:
+    // the shell's arc is over, the reveal is complete, and the scale-in has
+    // settled, so the only thing left was a fade. Fading a motionless
+    // silhouette is what read as "it stops and you can see it stop", and no
+    // amount of retuning the fade curve fixed that, because the problem was
+    // that the frame was still on screen at all.
+    //
+    // The route's own 200ms reverse FadeTransition now does the exit, and it
+    // runs over a silhouette that is still drifting outward -- so the
+    // ceremony is gone before it ever settles, and the next screen is already
+    // coming up underneath.
+    void handOver() {
+      if (_handedOver || !mounted) return;
+      if (_timeline.value < _kHandoverAt) return;
+      _handedOver = true;
+      _timeline.removeListener(handOver);
+      final done = widget.onComplete;
+      if (done != null) {
+        done();
+        return;
       }
-    });
+      Navigator.of(context).pop();
+    }
 
-    // Trigger flash + explosion at BURST (0.55)
-    _timeline.addListener(() {
-      final t = _timeline.value;
-      final chargeAt = (0.55 - 1600 / widget.totalDuration.inMilliseconds)
-          .clamp(0.0, 0.55);
-      if (!_reactionStarted && t >= chargeAt) {
-        _reactionStarted = true;
-        context.sound(SoundCue.extractionReactionStart, owner: this);
-      }
-      if (t >= 0.55 && !_flashCtrl.isAnimating && _flashCtrl.value == 0) {
-        context.sound(SoundCue.extractionReactionBurst, owner: this);
-        _flashCtrl.forward(from: 0);
-        _explosionCtrl.forward(from: 0);
-      }
+    _timeline.addListener(handOver);
 
-      // Trigger hint jolts during aftermath phase (0.65-0.80)
-      if (widget.hintType != HatchHintType.normal) {
-        _maybeFireHintJolt(t);
-      }
-    });
+    // Allocate the shell's buffers and decode the silhouette BEFORE the
+    // timeline starts. Both used to happen lazily on the first frame that
+    // needed them, which put a multi-megabyte allocation and an image decode
+    // inside the opening beat — measured as repeated 0.1-0.4s stalls between
+    // t=0.02 and t=0.21.
+    _shellModel = _buildShellModel();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final size = MediaQuery.of(context).size;
-      _buildPictures(size, widget.paletteMain, _geoCache);
-      setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final silhouette = widget.creatureSilhouette;
+      if (silhouette != null && mounted) {
+        try {
+          await precacheImage(silhouette, context);
+        } catch (_) {
+          // A missing asset must not stop the ceremony.
+        }
+      }
+      if (!mounted) return;
+      // Started on the same frame as the timeline, after the silhouette has
+      // been precached -- the decode above can cost a frame or two, and a cue
+      // fired before it would land ahead of the visuals it is scored to.
+      if (widget.playSound) {
+        context.sound(SoundCue.extractionCeremony, owner: this);
+      }
       _timeline.forward(from: 0.0);
     });
   }
@@ -302,88 +415,13 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     };
 
     final combinedScale = (scale * qualityMultiplier).clamp(0.10, 2.45);
-    _fxScale = combinedScale;
     _reducedEffects = combinedScale < 0.90;
-  }
-
-  void _maybeFireHintJolt(double t) {
-    if (_hintJoltCount >= _maxHintJolts) return;
-
-    // Fire jolts at specific points during aftermath
-    final joltTimes = [0.68, 0.73, 0.78];
-    if (_hintJoltCount < joltTimes.length && t >= joltTimes[_hintJoltCount]) {
-      _hintJoltCount++;
-      _hintJoltCtrl.forward(from: 0);
-    }
-  }
-
-  void _buildPictures(Size size, Color base, _GeoCache cache) {
-    if (cache.size == size && cache.color == base) return;
-
-    final center = Offset(size.width / 2, size.height / 2);
-    final outer = size.shortestSide * 0.20; // Slightly smaller
-    final innerR = size.shortestSide * 0.11;
-
-    // Flower
-    {
-      final rec = ui.PictureRecorder();
-      final c = Canvas(rec);
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = base
-        ..isAntiAlias = true;
-      c.save();
-      c.translate(center.dx, center.dy);
-      for (int i = 0; i < 6; i++) {
-        final a = i * pi / 3;
-        final off = Offset(cos(a) * outer * 0.5, sin(a) * outer * 0.5);
-        c.drawCircle(off, outer * 0.44, p);
-      }
-      c.restore();
-      cache.flower = rec.endRecording();
-    }
-
-    // Cube
-    {
-      final rec = ui.PictureRecorder();
-      final c = Canvas(rec);
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8
-        ..color = base;
-      c.save();
-      c.translate(center.dx, center.dy);
-      final pts = <Offset>[];
-      for (int i = 0; i < 6; i++) {
-        final a = i * pi / 3;
-        pts.add(Offset(cos(a) * innerR, sin(a) * innerR));
-      }
-      for (int i = 0; i < pts.length; i++) {
-        for (int j = i + 1; j < pts.length; j++) {
-          c.drawLine(pts[i], pts[j], p);
-        }
-      }
-      final inner = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = base;
-      c.drawCircle(Offset.zero, innerR * 0.55, inner);
-      c.restore();
-      cache.cube = rec.endRecording();
-    }
-
-    cache.size = size;
-    cache.color = base;
   }
 
   @override
   void dispose() {
     _audio?.stopSoundOwner(this);
     _timeline.dispose();
-    _flashCtrl.dispose();
-    _explosionCtrl.dispose();
-    _hintJoltCtrl.dispose();
     super.dispose();
   }
 
@@ -391,20 +429,33 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
   Widget build(BuildContext context) {
     const bg = Colors.black;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: RepaintBoundary(
+    // A grid cell is a widget, not a screen -- seven Scaffolds would each add
+    // their own layout and Material chrome for nothing.
+    final embedded = widget.onComplete != null;
+    final content = RepaintBoundary(
         child: AnimatedBuilder(
           animation: _timeline,
           builder: (context, _) {
             final t = _timeline.value;
             final highQualityEffects = !_reducedEffects;
 
+            // The shell runs its whole arc — motes, strings, converge, cinch,
+            // hold, UNRAVEL — inside the first 80% of the ceremony, because
+            // the whiteout begins at 0.80. Feeding it the raw timeline meant
+            // its unravel (which starts at 0.85) was faded out before it ever
+            // played, so the ceremony appeared to stop at the held shell.
+            final shellT = (t / _kShellWindow).clamp(0.0, 1.0);
+            // Motion is paced in the prototype's own seconds so twist and
+            // breathing read at the rate they were tuned at.
+            final shellClock = shellT * _kShellSeconds;
+
             // Whiteout at reveal
+            // Starts the moment the shell's explosion finishes, so the
+            // silhouette is carried out by it rather than left on screen.
             final whiteout = _intervalValue(
               t,
-              0.80,
               0.88,
+              0.97,
               Curves.easeInOutCubic,
             );
 
@@ -413,77 +464,25 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                 _intervalValue(t, 0.00, 0.30, Curves.easeOutCubic) *
                 (1.0 - whiteout);
 
-            // Charge-in progress
-            final chargeInProgress = t < 0.25
-                ? Curves.easeOutCubic.transform(t / 0.25)
-                : 1.0;
-
-            // Particle speed profile
-            final baseSpeed = t < 0.30
-                ? 0.9
-                : (t < 0.55 ? 0.6 : (t < 0.65 ? 2.8 : 1.0));
-            final speed =
-                (t < 0.30
-                    ? ui.lerpDouble(0.2, baseSpeed, chargeInProgress)!
-                    : baseSpeed) *
-                (highQualityEffects && t >= 0.52 && t < 0.74 ? 1.14 : 1.0);
-
-            // Geometry opacity
-            double geoOpacity;
-            if (t < 0.28) {
-              geoOpacity = _intervalValue(t, 0.12, 0.28, Curves.easeOutCubic);
-            } else if (t < 0.55) {
-              geoOpacity = 1.0;
-            } else {
-              // Held longer and eased out rather than cut at 0.70: the line
-              // art used to be gone before the burst had resolved, leaving
-              // the accents on top of nothing.
-              final fadeOut = _intervalValue(
-                t,
-                0.58,
-                0.82,
-                Curves.easeInOutCubic,
-              );
-              geoOpacity = 1.0 - fadeOut;
-            }
-
-            // Particle count. This is a one-off fullscreen ceremony rather
-            // than something on a scrolling grid, so it can carry a denser
-            // field than the chambers do.
-            int baseParticleCount = (t >= 0.55 && t < 0.65) ? 130 : 88;
-            if (highQualityEffects && t >= 0.50 && t < 0.72) {
-              baseParticleCount += 30;
-            }
-            final maxParticles = highQualityEffects ? 300 : 240;
-            baseParticleCount = (baseParticleCount * _fxScale).round().clamp(
-              6,
-              maxParticles,
-            );
-            if (t < 0.25) {
-              baseParticleCount = ui
-                  .lerpDouble(
-                    0,
-                    baseParticleCount.toDouble(),
-                    chargeInProgress,
-                  )!
-                  .round();
-            }
-            if (t > 0.88) {
-              final fadeT = ((t - 0.88) / 0.12).clamp(0.0, 1.0);
-              baseParticleCount = (baseParticleCount * (1.0 - fadeT)).round();
-            }
-            final tertiaryShockwaveT = highQualityEffects
-                ? _intervalValue(t, 0.71, 0.90, Curves.easeOutQuart)
-                : 0.0;
-
-            // Global fade
+            // Global fade. It begins at 0.88 -- the instant the shell's arc
+            // ends and the silhouette's reveal completes -- because the
+            // scale-in has visually settled by then and the 1.0 -> 1.09 drift
+            // after it is too small to read as motion. Starting at 0.92 left
+            // the silhouette sitting motionless at full opacity on the
+            // whiteout for a beat before anything moved again, which is the
+            // frozen frame the ceremony keeps being accused of.
+            //
+            // The dissolve. Linear, and pinned to reach zero exactly on
+            // [_kHandoverAt] so the screen is empty on the frame we navigate.
+            // Keep these two constants locked together: if the fade finishes
+            // early the ceremony sits on black waiting, and if it finishes late
+            // the handover cuts a visible image away.
             double globalFade = 1.0;
-            if (t > 0.92) {
+            if (t > _kDissolveFrom) {
               globalFade =
                   1.0 -
-                  Curves.easeInCubic.transform(
-                    ((t - 0.92) / 0.08).clamp(0.0, 1.0),
-                  );
+                  ((t - _kDissolveFrom) / (_kHandoverAt - _kDissolveFrom))
+                      .clamp(0.0, 1.0);
             }
 
             return Opacity(
@@ -493,63 +492,95 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                 children: [
                   ColoredBox(color: bg.withValues(alpha: 0.98)),
 
-                  // Particles
-                  if (t > 0.02)
-                    RepaintBoundary(
-                      child: IgnorePointer(
-                        child: AlchemyBrewingParticleSystem(
-                          parentATypeId: widget.parentATypeId,
-                          parentBTypeId: widget.parentBTypeId,
-                          particleCount: baseParticleCount,
-                          speedMultiplier: speed,
-                          // NOT fusion. That flag drives the particle system
-                          // into its idle mode: 2.5s in, it discards the count
-                          // entirely and keeps twelve orbital motes, which is
-                          // why this ceremony looked empty for two thirds of
-                          // its run and why raising the count did nothing.
-                          // The ceremony's core, geometry and burst are drawn
-                          // by this page's own painter, so the system is only
-                          // needed for the field it was already failing to
-                          // provide.
-                          fusion: false,
-                          pureElementTypeId: widget.pureElementTypeId,
-                          fromCinematic: true,
-                        ),
+                  // Ambient motes: the field the shell lives in. Drifting
+                  // for the whole ceremony, behind and in front of the shell.
+                  RepaintBoundary(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _timeline,
+                        builder: (context, child) {
+                          return CustomPaint(
+                            painter: HatchShellAmbientPainter(
+                              t: t,
+                              clock: shellClock,
+                              tint: widget.paletteMain,
+                              accent:
+                                  widget.variantColor ??
+                                  _pureColor ??
+                                  widget.paletteMain,
+                              reduced: _reducedEffects,
+                              opacity: 1.0 - whiteout,
+                            ),
+                          );
+                        },
                       ),
-                    )
-                  else
-                    const SizedBox.expand(),
+                    ),
+                  ),
+
+                  // The shell itself — one drawVertices call.
+                  RepaintBoundary(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _timeline,
+                        builder: (context, child) {
+                          return CustomPaint(
+                            painter: HatchShellPainter(
+                              t: shellT,
+                              clock: shellClock,
+                              model: _shell(),
+                              paletteA: _elementPalette(
+                                widget.parentATypeId,
+                                widget.paletteMain,
+                              ),
+                              paletteB: _elementPalette(
+                                widget.parentBTypeId ?? widget.parentATypeId,
+                                widget.paletteMain,
+                              ),
+                              // resultTypeId first: pureElementTypeId is only
+                              // non-null for elementally pure lineages, so
+                              // every ordinary hatch was fusing into
+                              // [paletteMain] repeated three times -- a flat
+                              // colour standing in for an element palette.
+                              paletteResult: _elementPalette(
+                                widget.resultTypeId ?? widget.pureElementTypeId,
+                                _pureColor ?? widget.paletteMain,
+                              ),
+                              behaviorA: ShellElementBehavior.of(
+                                widget.parentATypeId,
+                              ),
+                              behaviorB: ShellElementBehavior.of(
+                                widget.parentBTypeId ?? widget.parentATypeId,
+                              ),
+                              behaviorResult: ShellElementBehavior.of(
+                                widget.resultTypeId ??
+                                    widget.pureElementTypeId ??
+                                    widget.parentATypeId,
+                              ),
+                              rarity: _shellRarity,
+                              reduced:
+                                  widget.quality ==
+                                  CinematicQuality.performance,
+                              opacity: 1.0 - whiteout,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
 
                   // Core + Geometry + Effects
                   RepaintBoundary(
                     child: IgnorePointer(
                       child: AnimatedBuilder(
-                        animation: Listenable.merge([
-                          _timeline,
-                          _flashCtrl,
-                          _explosionCtrl,
-                          _hintJoltCtrl,
-                        ]),
+                        animation: Listenable.merge([_timeline]),
                         builder: (context, child) {
                           return CustomPaint(
                             painter: _CoreAndGeometryPainter(
                               t: t,
                               palette: widget.paletteMain,
-                              geoOpacity: geoOpacity,
-                              coreOpacity: _coreOpacity.value,
-                              coreScale: _coreScale.value,
-                              shockwaveT: _shockwave.value,
-                              secondaryShockwaveT: _secondaryShockwave.value,
-                              tertiaryShockwaveT: tertiaryShockwaveT,
-                              explosionT: _explosionAnim.value,
                               vignette: vignetteIntensity,
                               whiteout: whiteout,
-                              flowerPic: _geoCache.flower,
-                              cubePic: _geoCache.cube,
                               // Hint system
-                              hintType: widget.hintType,
-                              hintJoltT: _hintJoltAnim.value,
-                              variantColor: widget.variantColor,
                               pureColor: _pureColor,
                               reducedEffects: _reducedEffects,
                               highQualityEffects: highQualityEffects,
@@ -617,6 +648,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                     ),
 
                   // Skip button
+                  if (widget.showSkip)
                   Positioned(
                     bottom: 24,
                     right: 24,
@@ -655,8 +687,9 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
             );
           },
         ),
-      ),
     );
+    if (embedded) return content;
+    return Scaffold(backgroundColor: Colors.transparent, body: content);
   }
 }
 
@@ -757,22 +790,10 @@ class _SilhouetteReveal extends StatelessWidget {
 class _CoreAndGeometryPainter extends CustomPainter {
   final double t;
   final Color palette;
-  final double geoOpacity;
-  final double coreOpacity;
-  final double coreScale;
-  final double shockwaveT;
-  final double secondaryShockwaveT;
-  final double tertiaryShockwaveT;
-  final double explosionT;
   final double vignette;
   final double whiteout;
-  final ui.Picture? _flowerPic;
-  final ui.Picture? _cubePic;
 
   // Hint system
-  final HatchHintType hintType;
-  final double hintJoltT;
-  final Color? variantColor;
 
   // Purity treatment: non-null for elementally pure lineages.
   final Color? pureColor;
@@ -780,72 +801,19 @@ class _CoreAndGeometryPainter extends CustomPainter {
   final bool reducedEffects;
   final bool highQualityEffects;
 
-  // Rainbow colors for prismatic
-  static const _rainbowColors = [
-    Color(0xFFFF6B6B), // Red
-    Color(0xFFFF9F43), // Orange
-    Color(0xFFFFE66D), // Yellow
-    Color(0xFF4ECDC4), // Cyan
-    Color(0xFF6B5BFF), // Purple
-    Color(0xFFFF6B9D), // Pink
-  ];
-
   _CoreAndGeometryPainter({
     required this.t,
     required this.palette,
-    required this.geoOpacity,
-    required this.coreOpacity,
-    required this.coreScale,
-    required this.shockwaveT,
-    required this.secondaryShockwaveT,
-    required this.tertiaryShockwaveT,
-    required this.explosionT,
     required this.vignette,
     required this.whiteout,
-    required ui.Picture? flowerPic,
-    required ui.Picture? cubePic,
-    this.hintType = HatchHintType.normal,
-    this.hintJoltT = 0,
-    this.variantColor,
     this.pureColor,
     this.reducedEffects = false,
     this.highQualityEffects = false,
-  }) : _flowerPic = flowerPic,
-       _cubePic = cubePic;
-
-  // Cheap deterministic hash for star mote placement (no allocations).
-  static double _hash(int n) {
-    final v = sin(n * 127.1) * 43758.5453;
-    return v - v.floorToDouble();
-  }
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final base = palette;
-
-    // Background star motes: sparse twinkling points that give the black
-    // void depth. Fixed positions (hashed), sin flicker, fade out at whiteout.
-    // Cheap (plain circles), so phones get a thinned count rather than none.
-    if (whiteout < 1.0) {
-      final envelope =
-          _intervalValue(t, 0.02, 0.18, Curves.easeOut) * (1.0 - whiteout);
-      if (envelope > 0.01) {
-        final moteCount = highQualityEffects ? 70 : (reducedEffects ? 26 : 44);
-        final motePaint = Paint()..style = PaintingStyle.fill;
-        for (int i = 0; i < moteCount; i++) {
-          final mx = _hash(i * 3 + 1) * size.width;
-          final my = _hash(i * 3 + 2) * size.height;
-          final tw = 0.5 + 0.5 * sin(t * 4 * pi + i * 1.7);
-          motePaint.color = Color.lerp(
-            Colors.white,
-            base,
-            0.35,
-          )!.withValues(alpha: (0.08 + 0.20 * tw) * envelope);
-          canvas.drawCircle(Offset(mx, my), 0.7 + 1.1 * tw, motePaint);
-        }
-      }
-    }
 
     // Vignette
     if (vignette > 0) {
@@ -864,236 +832,11 @@ class _CoreAndGeometryPainter extends CustomPainter {
     }
 
     // Sacred Geometry
-    if (geoOpacity > 0 && (_flowerPic != null || _cubePic != null)) {
-      final rot1 =
-          2 * pi * Curves.easeOutCubic.transform((t - 0.30).clamp(0.0, .5) * 2);
-      final rot2 =
-          -2 *
-          pi *
-          Curves.easeOutCubic.transform((t - 0.38).clamp(0.0, .5) * 2);
-      if (reducedEffects) {
-        if (_flowerPic != null) {
-          canvas.save();
-          canvas.translate(center.dx, center.dy);
-          canvas.rotate(rot1);
-          canvas.translate(-center.dx, -center.dy);
-          canvas.drawPicture(_flowerPic);
-          canvas.restore();
-        }
-      } else {
-        final geoRadius = size.shortestSide * 0.26;
-        final geoBounds = Rect.fromCircle(center: center, radius: geoRadius);
-        final opacityPaint = Paint()
-          ..color = Color.fromRGBO(255, 255, 255, geoOpacity);
-
-        canvas.saveLayer(geoBounds, opacityPaint);
-
-        if (_flowerPic != null) {
-          canvas.save();
-          canvas.translate(center.dx, center.dy);
-          canvas.rotate(rot1);
-          canvas.translate(-center.dx, -center.dy);
-          canvas.drawPicture(_flowerPic);
-          canvas.restore();
-        }
-
-        if (_cubePic != null) {
-          canvas.save();
-          canvas.translate(center.dx, center.dy);
-          canvas.rotate(rot2);
-          canvas.translate(-center.dx, -center.dy);
-          canvas.drawPicture(_cubePic);
-          canvas.restore();
-        }
-
-        canvas.restore();
-      }
-    }
-
     // Purity seal: a slow counter-rotating ticked ring with three triangle
     // seals, in the pure element's color, framing the sacred geometry.
-    if (pureColor != null && geoOpacity > 0.01) {
-      final sealR = size.shortestSide * 0.31;
-      final rot = -t * 2 * pi * 0.55;
-      final sealAlpha = 0.55 * geoOpacity;
-      final ringPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = pureColor!.withValues(alpha: sealAlpha * 0.7);
-      canvas.drawCircle(center, sealR, ringPaint);
-
-      final tickPaint = Paint()
-        ..strokeWidth = 1.0
-        ..strokeCap = StrokeCap.round
-        ..color = pureColor!.withValues(alpha: sealAlpha);
-      for (int i = 0; i < 24; i++) {
-        final a = rot + i * 2 * pi / 24;
-        final len = i % 6 == 0 ? 7.0 : 3.0;
-        final ca = cos(a);
-        final sa = sin(a);
-        canvas.drawLine(
-          center + Offset(ca * sealR, sa * sealR),
-          center + Offset(ca * (sealR + len), sa * (sealR + len)),
-          tickPaint,
-        );
-      }
-
-      // Three outward-pointing triangle seals (alchemical purity marks).
-      final sealPaint = Paint()
-        ..style = PaintingStyle.fill
-        ..color = pureColor!.withValues(alpha: sealAlpha);
-      for (int k = 0; k < 3; k++) {
-        final a = rot + k * 2 * pi / 3;
-        final tip = center + Offset(cos(a), sin(a)) * (sealR + 14);
-        final baseL =
-            center + Offset(cos(a - 0.045), sin(a - 0.045)) * (sealR + 4);
-        final baseR =
-            center + Offset(cos(a + 0.045), sin(a + 0.045)) * (sealR + 4);
-        final tri = Path()
-          ..moveTo(tip.dx, tip.dy)
-          ..lineTo(baseL.dx, baseL.dy)
-          ..lineTo(baseR.dx, baseR.dy)
-          ..close();
-        canvas.drawPath(tri, sealPaint);
-      }
-    }
-
     // Core Orb
-    if (coreOpacity > 0 || coreScale > 0) {
-      final radiusBase = size.shortestSide * 0.08;
-      final r = radiusBase * (0.6 + coreScale);
-
-      // Explosion glow
-      if (explosionT > 0) {
-        final explosionGlow = Paint()
-          ..shader = RadialGradient(
-            colors: [
-              base.withValues(alpha: 0.4 * (1 - explosionT)),
-              base.withValues(alpha: 0.0),
-            ],
-            stops: const [0.1, 1.0],
-          ).createShader(Rect.fromCircle(center: center, radius: r * 4));
-        canvas.drawCircle(center, r * 4, explosionGlow);
-      }
-
-      // Outer glow
-      final glow = Paint()
-        ..shader = RadialGradient(
-          colors: [
-            base.withValues(alpha: 0.18 * coreOpacity),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 1.0],
-        ).createShader(Rect.fromCircle(center: center, radius: r * 2.4));
-      canvas.drawCircle(center, r * 2.2, glow);
-
-      // Orb
-      final orb = Paint()
-        ..shader = RadialGradient(
-          colors: [
-            base.withValues(alpha: 0.55 * coreOpacity),
-            base.withValues(alpha: 0.0),
-          ],
-          stops: const [0.5, 1.0],
-        ).createShader(Rect.fromCircle(center: center, radius: r));
-      canvas.drawCircle(center, r, orb);
-
-      // Ember orbiters: small motes circling the charging core with short
-      // trails — makes the charge-up feel alive instead of a static glow.
-      if (t < 0.66 && coreOpacity > 0.05) {
-        final orbCount = reducedEffects ? 5 : 9;
-        final fadeOut = 1.0 - _intervalValue(t, 0.58, 0.66, Curves.easeIn);
-        final emberPaint = Paint()..style = PaintingStyle.fill;
-        for (int i = 0; i < orbCount; i++) {
-          final a = t * 2 * pi * (2.0 + (i % 3) * 0.8) + i * 2 * pi / orbCount;
-          final orbR = r * (1.45 + 0.45 * sin(i * 2.1 + t * 10));
-          emberPaint.color = base.withValues(
-            alpha: 0.75 * coreOpacity * fadeOut,
-          );
-          canvas.drawCircle(
-            center + Offset(cos(a) * orbR, sin(a) * orbR),
-            1.5 + (i % 3) * 0.5,
-            emberPaint,
-          );
-          // trailing mote
-          final ta = a - 0.20;
-          emberPaint.color = base.withValues(
-            alpha: 0.30 * coreOpacity * fadeOut,
-          );
-          canvas.drawCircle(
-            center + Offset(cos(ta) * orbR, sin(ta) * orbR),
-            1.0,
-            emberPaint,
-          );
-        }
-      }
-
-      // Rays near peak
-      if (coreScale > 1.0) {
-        final rays = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = base.withValues(alpha: 0.2 * coreOpacity);
-        final k = (coreScale - 1.0).clamp(0.0, 0.4) / 0.4;
-        for (int i = 0; i < 8; i++) {
-          final a = (i * 2 * pi / 8) + (t * 1.5);
-          final r1 = r * (0.4 + 0.2 * sin(i));
-          final r2 = r * (1.0 + 0.7 * k);
-          canvas.drawLine(
-            center + Offset(cos(a) * r1, sin(a) * r1),
-            center + Offset(cos(a) * r2, sin(a) * r2),
-            rays,
-          );
-        }
-      }
-    }
-
     // === HINT JOLTS ===
-    if (hintJoltT > 0 && hintType != HatchHintType.normal) {
-      _drawHintJolt(canvas, size, center);
-    }
-
     // Shockwaves
-    _drawShockwave(canvas, size, center, palette, shockwaveT, 0.60, 8, 1, 0.5);
-    _drawShockwave(
-      canvas,
-      size,
-      center,
-      palette,
-      secondaryShockwaveT,
-      0.70,
-      5,
-      0.5,
-      0.35,
-    );
-    if (highQualityEffects) {
-      _drawShockwave(
-        canvas,
-        size,
-        center,
-        palette,
-        tertiaryShockwaveT,
-        0.78,
-        4,
-        0.8,
-        0.24,
-      );
-    }
-    // Pure lineages ride an extra element-colored wave out of the burst.
-    if (pureColor != null) {
-      _drawShockwave(
-        canvas,
-        size,
-        center,
-        pureColor!,
-        secondaryShockwaveT,
-        0.66,
-        3,
-        0.6,
-        0.5,
-      );
-    }
-
     // Radial speed-lines at the burst: a quick accent that sells the impact.
     //
     // These were evenly spaced, all the same length, width and alpha, which
@@ -1101,85 +844,12 @@ class _CoreAndGeometryPainter extends CustomPainter {
     // sacred geometry that fades at 0.55, so the frame went from line art to
     // a bare cross sitting on nothing. Now each spoke has its own angle,
     // reach and weight, and they are gone by 0.42 rather than lingering.
-    if (explosionT > 0 && explosionT < 0.42) {
-      final fade = 1.0 - explosionT / 0.42;
-      final n = highQualityEffects ? 22 : (reducedEffects ? 10 : 16);
-      final linePaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round;
-      // Stable per-spoke spread, so the burst is the same shape every run.
-      double seed(int i, int salt) => ((i * 43 + salt * 37) % 100) / 100.0;
-
-      for (int i = 0; i < n; i++) {
-        final jitter = (seed(i, 1) - 0.5) * (2 * pi / n) * 1.8;
-        final a = i * 2 * pi / n + jitter + 0.35;
-        final ca = cos(a);
-        final sa = sin(a);
-        final r1 = size.shortestSide * (0.10 + 0.45 * explosionT);
-        final r2 =
-            r1 +
-            size.shortestSide *
-                0.11 *
-                (0.45 + seed(i, 2) * 1.1) *
-                (1.0 - explosionT);
-        linePaint
-          ..strokeWidth = 0.9 + seed(i, 3) * 1.2
-          ..color = palette.withValues(
-            alpha: fade * 0.38 * (0.5 + seed(i, 4) * 0.5),
-          );
-        canvas.drawLine(
-          center + Offset(ca * r1, sa * r1),
-          center + Offset(ca * r2, sa * r2),
-          linePaint,
-        );
-      }
-    }
-
     // Explosion particles.
     //
     // These used to sit at evenly spaced angles all at the same radius and the
     // same size, which draws a ring of dots expanding in lockstep rather than
     // anything being thrown. Each one now gets its own angle jitter, reach,
     // size and rate, so the front is ragged and the field thins as it goes.
-    if (explosionT > 0 && explosionT < 0.75) {
-      final particlePaint = Paint()
-        ..style = PaintingStyle.fill
-        ..isAntiAlias = true;
-
-      final burstParticleCount = reducedEffects
-          ? 26
-          : (highQualityEffects ? 64 : 42);
-      // Stable per-shard spread, so the burst is the same shape every run
-      // instead of reshuffling.
-      double seed(int i, int salt) => ((i * 47 + salt * 29) % 100) / 100.0;
-
-      for (int i = 0; i < burstParticleCount; i++) {
-        final spread = (seed(i, 1) - 0.5) * (2 * pi / burstParticleCount) * 2.4;
-        final angle = (i * 2 * pi / burstParticleCount) + spread + (t * 0.5);
-
-        // Some shards outrun the rest.
-        final reach = 0.07 + seed(i, 2) * 0.17;
-        // ...and they slow as they go, rather than travelling flat.
-        final travel = Curves.easeOutCubic.transform(explosionT);
-        final distance = size.shortestSide * reach * travel;
-        final particlePos =
-            center + Offset(cos(angle) * distance, sin(angle) * distance);
-
-        // Staggered fade so the field thins out unevenly.
-        final life = (1.0 - explosionT) * (0.55 + seed(i, 3) * 0.45);
-        if (life <= 0.02) continue;
-
-        final particleSize = ui.lerpDouble(
-          (highQualityEffects ? 3.4 : 3.0) * (0.55 + seed(i, 4) * 0.9),
-          0.8,
-          explosionT,
-        )!;
-
-        particlePaint.color = palette.withValues(alpha: life * 0.8);
-        canvas.drawCircle(particlePos, particleSize, particlePaint);
-      }
-    }
-
     // Whiteout — tinted faintly toward the palette (or pure element) so the
     // flash feels like the creature's light, not a camera flash.
     if (whiteout > 0) {
@@ -1194,145 +864,12 @@ class _CoreAndGeometryPainter extends CustomPainter {
     }
   }
 
-  void _drawHintJolt(Canvas canvas, Size size, Offset center) {
-    final maxRadius = size.shortestSide * 0.55;
-    final joltRadius = maxRadius * hintJoltT;
-    final joltAlpha = (1.0 - hintJoltT).clamp(0.0, 1.0);
-
-    if (hintType == HatchHintType.prismatic) {
-      // Rainbow gradient ring for prismatic
-      final ringPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = ui.lerpDouble(20, 4, hintJoltT)!
-        ..shader = SweepGradient(
-          colors: _rainbowColors,
-          startAngle: t * pi * 2,
-          endAngle: t * pi * 2 + pi * 2,
-        ).createShader(Rect.fromCircle(center: center, radius: joltRadius))
-        ..isAntiAlias = true;
-
-      if (reducedEffects) {
-        canvas.drawCircle(
-          center,
-          joltRadius,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = ui.lerpDouble(12, 3, hintJoltT)!
-            ..color = _rainbowColors[((t * 6) % 6).floor()].withValues(
-              alpha: joltAlpha * 0.85,
-            ),
-        );
-      } else {
-        // Apply alpha via saveLayer
-        canvas.saveLayer(
-          Rect.fromCircle(center: center, radius: joltRadius + 20),
-          Paint()..color = Color.fromRGBO(255, 255, 255, joltAlpha * 0.8),
-        );
-        canvas.drawCircle(center, joltRadius, ringPaint);
-        canvas.restore();
-      }
-
-      // Inner glow with shifting rainbow
-      final colorIndex = ((t * 6) % 6).floor();
-      final glowColor = _rainbowColors[colorIndex];
-      final innerGlow = Paint()
-        ..shader =
-            RadialGradient(
-              colors: [
-                glowColor.withValues(alpha: 0.3 * joltAlpha),
-                glowColor.withValues(alpha: 0.0),
-              ],
-            ).createShader(
-              Rect.fromCircle(center: center, radius: joltRadius * 0.5),
-            );
-      canvas.drawCircle(center, joltRadius * 0.5, innerGlow);
-
-      // Sparkle particles in rainbow colors
-      final sparkleCount = reducedEffects ? 6 : 12;
-      for (int i = 0; i < sparkleCount; i++) {
-        final angle = (i * 2 * pi / sparkleCount) + (t * 3);
-        final dist = joltRadius * 0.7;
-        final pos = center + Offset(cos(angle) * dist, sin(angle) * dist);
-        final sparkleColor = _rainbowColors[i % _rainbowColors.length];
-        final sparklePaint = Paint()
-          ..color = sparkleColor.withValues(alpha: joltAlpha * 0.9)
-          ..style = PaintingStyle.fill;
-        canvas.drawCircle(pos, 3 * (1 - hintJoltT) + 1, sparklePaint);
-      }
-    } else if (hintType == HatchHintType.variant && variantColor != null) {
-      // Variant color ring
-      final ringPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = ui.lerpDouble(16, 3, hintJoltT)!
-        ..color = variantColor!.withValues(alpha: joltAlpha * 0.85)
-        ..isAntiAlias = true;
-      canvas.drawCircle(center, joltRadius, ringPaint);
-
-      // Variant inner glow
-      final innerGlow = Paint()
-        ..shader =
-            RadialGradient(
-              colors: [
-                variantColor!.withValues(alpha: 0.35 * joltAlpha),
-                variantColor!.withValues(alpha: 0.0),
-              ],
-            ).createShader(
-              Rect.fromCircle(center: center, radius: joltRadius * 0.6),
-            );
-      canvas.drawCircle(center, joltRadius * 0.6, innerGlow);
-
-      // Variant sparkles
-      for (int i = 0; i < 8; i++) {
-        final angle = (i * 2 * pi / 8) + (t * 2.5);
-        final dist = joltRadius * 0.65;
-        final pos = center + Offset(cos(angle) * dist, sin(angle) * dist);
-        final sparklePaint = Paint()
-          ..color = variantColor!.withValues(alpha: joltAlpha * 0.85)
-          ..style = PaintingStyle.fill;
-        canvas.drawCircle(pos, 4 * (1 - hintJoltT) + 1.5, sparklePaint);
-      }
-    }
-  }
-
-  void _drawShockwave(
-    Canvas canvas,
-    Size size,
-    Offset center,
-    Color color,
-    double t,
-    double maxRatio,
-    double startStroke,
-    double endStroke,
-    double maxOpacity,
-  ) {
-    if (t <= 0) return;
-    final maxR = size.shortestSide * maxRatio;
-    final r = ui.lerpDouble(0, maxR, t)!;
-    final alpha = (1.0 - t).clamp(0.0, 1.0);
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = ui.lerpDouble(startStroke, endStroke, t)!
-      ..color = color.withValues(alpha: maxOpacity * alpha)
-      ..isAntiAlias = true;
-    canvas.drawCircle(center, r, ring);
-  }
-
   @override
   bool shouldRepaint(covariant _CoreAndGeometryPainter old) {
     return t != old.t ||
         palette != old.palette ||
-        geoOpacity != old.geoOpacity ||
-        coreOpacity != old.coreOpacity ||
-        coreScale != old.coreScale ||
-        shockwaveT != old.shockwaveT ||
-        secondaryShockwaveT != old.secondaryShockwaveT ||
-        tertiaryShockwaveT != old.tertiaryShockwaveT ||
-        explosionT != old.explosionT ||
         vignette != old.vignette ||
         whiteout != old.whiteout ||
-        hintType != old.hintType ||
-        hintJoltT != old.hintJoltT ||
-        variantColor != old.variantColor ||
         pureColor != old.pureColor ||
         reducedEffects != old.reducedEffects ||
         highQualityEffects != old.highQualityEffects;

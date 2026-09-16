@@ -1040,7 +1040,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       }
     }
     canvas.drawRect(
-      Rect.fromLTRB(r.left + 20, r.center.dy - 5, r.right - 20, r.center.dy + 5),
+      Rect.fromLTRB(
+        r.left + 20,
+        r.center.dy - 5,
+        r.right - 20,
+        r.center.dy + 5,
+      ),
       Paint()..color = _keepIron.withValues(alpha: 0.45),
     );
     // The grating: heavy bars ONE WAY, because a mesh is a grid and this
@@ -1289,11 +1294,19 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       Paint()..color = _keepStoneDim.withValues(alpha: 0.6),
     );
     canvas.drawRect(
-      Rect.fromCenter(center: kChamberHeart + const Offset(0, 31), width: 82, height: 16),
+      Rect.fromCenter(
+        center: kChamberHeart + const Offset(0, 31),
+        width: 82,
+        height: 16,
+      ),
       Paint()..color = _keepStoneLit.withValues(alpha: 0.85),
     );
     canvas.drawRect(
-      Rect.fromCenter(center: kChamberHeart + const Offset(0, 22), width: 56, height: 13),
+      Rect.fromCenter(
+        center: kChamberHeart + const Offset(0, 22),
+        width: 56,
+        height: 13,
+      ),
       Paint()..color = _keepIron.withValues(alpha: 0.95),
     );
     // A standing shard, drawn as a hard prism — never a soft glow. Three
@@ -1387,7 +1400,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   /// nothing; it is a crated slab now, still strapped, standing on the
   /// berth's own runners with the packing straw of ground glass around it.
   void _renderWaitingFacet(Canvas canvas, Color glass) {
-    final crate = Rect.fromCenter(center: kChamberHeart, width: 150, height: 112);
+    final crate = Rect.fromCenter(
+      center: kChamberHeart,
+      width: 150,
+      height: 112,
+    );
     canvas.drawRect(crate, Paint()..color = glass.withValues(alpha: 0.3));
     canvas.drawRect(
       crate,
@@ -1520,7 +1537,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     // The berth chain, in the three sockets that can see the berth's mouth.
     if (keepNeighbours(kKeepMouthCell).contains(cell) ||
         cell == kKeepMouthCell) {
-      _renderBerthChain(canvas, f.facetStanding || f.hollowCell == kKeepMouthCell);
+      _renderBerthChain(
+        canvas,
+        f.facetStanding || f.hollowCell == kKeepMouthCell,
+      );
     }
     if (cell == kKeepBeamRow.first) _renderWestLamp(canvas, f.lampLit);
     if (cell == kKeepBeamRow.last) _renderEastRose(canvas);
@@ -1585,9 +1605,15 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       final tip = at + d * (4.0 + i * 9);
       canvas.drawPath(
         Path()
-          ..moveTo(tip.dx - d.dx * 8 + side.dx * 10, tip.dy - d.dy * 8 + side.dy * 10)
+          ..moveTo(
+            tip.dx - d.dx * 8 + side.dx * 10,
+            tip.dy - d.dy * 8 + side.dy * 10,
+          )
           ..lineTo(tip.dx, tip.dy)
-          ..lineTo(tip.dx - d.dx * 8 - side.dx * 10, tip.dy - d.dy * 8 - side.dy * 10),
+          ..lineTo(
+            tip.dx - d.dx * 8 - side.dx * 10,
+            tip.dy - d.dy * 8 - side.dy * 10,
+          ),
         tread,
       );
     }
@@ -1610,11 +1636,19 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   /// which read as a button.)
   void _renderTuningBoss(Canvas canvas, Offset at, double r) {
     canvas.drawRect(
-      Rect.fromCenter(center: at + Offset(0, r * 0.72), width: r * 2.7, height: r * 0.9),
+      Rect.fromCenter(
+        center: at + Offset(0, r * 0.72),
+        width: r * 2.7,
+        height: r * 0.9,
+      ),
       Paint()..color = _keepStoneDim.withValues(alpha: 0.9),
     );
     canvas.drawRect(
-      Rect.fromCenter(center: at + Offset(0, r * 0.45), width: r * 2.1, height: r * 0.7),
+      Rect.fromCenter(
+        center: at + Offset(0, r * 0.45),
+        width: r * 2.1,
+        height: r * 0.7,
+      ),
       Paint()..color = _keepStoneLit.withValues(alpha: 0.9),
     );
     canvas.drawCircle(at, r, Paint()..color = _keepIron);
@@ -1653,7 +1687,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   void _renderBerthChain(Canvas canvas, bool taut) {
     final tone = (taut ? _keepBrass : _keepIron).withValues(alpha: 0.92);
     canvas.drawRect(
-      Rect.fromCenter(center: kBerthChain + const Offset(0, -54), width: 34, height: 10),
+      Rect.fromCenter(
+        center: kBerthChain + const Offset(0, -54),
+        width: 34,
+        height: 10,
+      ),
       Paint()..color = _keepIron,
     );
     final link = Paint()
@@ -1687,7 +1725,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   /// comes from somewhere.
   void _renderWestLamp(Canvas canvas, bool lit) {
     canvas.drawRect(
-      Rect.fromCenter(center: kWestLamp + const Offset(-8, 0), width: 16, height: 46),
+      Rect.fromCenter(
+        center: kWestLamp + const Offset(-8, 0),
+        width: 16,
+        height: 46,
+      ),
       Paint()..color = _keepIron.withValues(alpha: 0.95),
     );
     final hood = Path()
@@ -1696,7 +1738,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       ..lineTo(kWestLamp.dx + 18, kWestLamp.dy + 13)
       ..lineTo(kWestLamp.dx - 4, kWestLamp.dy + 22)
       ..close();
-    canvas.drawPath(hood, Paint()..color = _keepStoneDim.withValues(alpha: 0.95));
+    canvas.drawPath(
+      hood,
+      Paint()..color = _keepStoneDim.withValues(alpha: 0.95),
+    );
     canvas.drawPath(
       hood,
       Paint()
@@ -1731,7 +1776,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       23,
       Paint()..color = _keepStoneDim.withValues(alpha: 0.9),
     );
-    canvas.drawCircle(kEastRose, 19, Paint()..color = want.withValues(alpha: 0.35));
+    canvas.drawCircle(
+      kEastRose,
+      19,
+      Paint()..color = want.withValues(alpha: 0.35),
+    );
     final tracery = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6
@@ -1791,7 +1840,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       board.bottomLeft + const Offset(3.5, -3.5),
       board.bottomRight + const Offset(-3.5, -3.5),
     ]) {
-      canvas.drawCircle(c, 1.8, Paint()..color = _keepBrass.withValues(alpha: 0.5));
+      canvas.drawCircle(
+        c,
+        1.8,
+        Paint()..color = _keepBrass.withValues(alpha: 0.5),
+      );
     }
     for (var i = 0; i < 9; i++) {
       final r = Rect.fromLTWH(
@@ -1872,7 +1925,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     _renderDressedStone(canvas, g);
 
     // THE FACE. Stone jambs and a sill, and one sheet between them.
-    final face = Rect.fromLTRB(b.left + 34, b.top + 6, b.right - 34, b.top + 172);
+    final face = Rect.fromLTRB(
+      b.left + 34,
+      b.top + 6,
+      b.right - 34,
+      b.top + 172,
+    );
     canvas.drawRect(face, Paint()..color = _keepVoid.withValues(alpha: 0.62));
     // The keep behind the glass — dim, because you are seeing it through a
     // sheet, and small, because it is the whole building.
@@ -1891,7 +1949,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     // Surround: a heavy sill along the bottom and two jambs, so the sheet is
     // set in masonry rather than floating on the floor.
     canvas.drawRect(
-      Rect.fromLTRB(face.left - 16, face.bottom, face.right + 16, face.bottom + 16),
+      Rect.fromLTRB(
+        face.left - 16,
+        face.bottom,
+        face.right + 16,
+        face.bottom + 16,
+      ),
       Paint()..color = _keepStoneLit.withValues(alpha: 0.95),
     );
     for (final x in [face.left, face.right]) {
@@ -1937,7 +2000,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
           ..color = _keepSheen.withValues(alpha: 0.55),
       );
     } else {
-      canvas.drawRect(pane, Paint()..color = _keepSheen.withValues(alpha: 0.16));
+      canvas.drawRect(
+        pane,
+        Paint()..color = _keepSheen.withValues(alpha: 0.16),
+      );
       canvas.drawRect(
         pane,
         Paint()
@@ -2056,7 +2122,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       ..color = _keepSheen.withValues(alpha: 0.14);
     for (var i = 1; i < 3; i++) {
       final x = facade.left + facade.width * i / 3 + 7;
-      canvas.drawLine(Offset(x, facade.top - 22), Offset(x, facade.bottom + 26), lead);
+      canvas.drawLine(
+        Offset(x, facade.top - 22),
+        Offset(x, facade.bottom + 26),
+        lead,
+      );
     }
     canvas.drawLine(
       Offset(facade.left - 30, facade.center.dy + 11),
@@ -2100,9 +2170,8 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
           ..strokeWidth = 1.6
           ..color = _keepSheen.withValues(alpha: 0.13),
       );
-      for (final t in side
-          ? const [0.16, 0.44, 0.78]
-          : const [0.24, 0.58, 0.86]) {
+      for (final t
+          in side ? const [0.16, 0.44, 0.78] : const [0.24, 0.58, 0.86]) {
         final y = b.top + b.height * t;
         canvas.drawRect(
           Rect.fromCenter(center: Offset(x, y), width: 52, height: 15),
@@ -2311,7 +2380,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       // Wear: where the choir has stood and where the floor has ground on
       // itself. Cheap, and it is what makes an old slab look old.
       for (final w in g.plateWear[i]) {
-        canvas.drawPath(w, Paint()..color = _keepSwarf.withValues(alpha: 0.032));
+        canvas.drawPath(
+          w,
+          Paint()..color = _keepSwarf.withValues(alpha: 0.032),
+        );
       }
       // The lead bed, on TWO sides only. A 4px stroke all the way round every
       // plate put a box outline on each of the nine, which is the exact
@@ -2445,13 +2517,17 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     for (final cy in _kChannelY) {
       for (var i = 0; i < 9; i++) {
         final x = rng.range(18, b.width - 70);
-        scores.add(Rect.fromLTWH(x, cy + rng.range(-16, 16), rng.range(24, 62), 1.6));
+        scores.add(
+          Rect.fromLTWH(x, cy + rng.range(-16, 16), rng.range(24, 62), 1.6),
+        );
       }
     }
     for (final rx in _kRailX) {
       for (var i = 0; i < 7; i++) {
         final yy = rng.range(18, b.height - 60);
-        scores.add(Rect.fromLTWH(rx + rng.range(-14, 14), yy, 1.6, rng.range(20, 54)));
+        scores.add(
+          Rect.fromLTWH(rx + rng.range(-14, 14), yy, 1.6, rng.range(20, 54)),
+        );
       }
     }
     // Swarf blown into the socket margin, and the shards that never got swept.
@@ -2462,13 +2538,16 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       Offset(b.width * 0.12, b.height * 0.9),
       Offset(b.width * 0.86, b.height * 0.92),
     ]) {
-      swarf.add(_blob(b.topLeft + c, rng.range(26, 54), rng.range(12, 26), rng));
+      swarf.add(
+        _blob(b.topLeft + c, rng.range(26, 54), rng.range(12, 26), rng),
+      );
     }
     final shards = <Path>[];
     for (var i = 0; i < 10; i++) {
       shards.add(
         _shard(
-          b.topLeft + Offset(rng.range(10, b.width - 10), rng.range(10, b.height - 10)),
+          b.topLeft +
+              Offset(rng.range(10, b.width - 10), rng.range(10, b.height - 10)),
           rng.range(3, 8),
           rng,
         ),
@@ -2482,8 +2561,14 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       final t = rng.next();
       final along = rng.next() < 0.5;
       final at = along
-          ? Offset(seam.left + t * seam.width, rng.next() < 0.5 ? seam.top : seam.bottom)
-          : Offset(rng.next() < 0.5 ? seam.left : seam.right, seam.top + t * seam.height);
+          ? Offset(
+              seam.left + t * seam.width,
+              rng.next() < 0.5 ? seam.top : seam.bottom,
+            )
+          : Offset(
+              rng.next() < 0.5 ? seam.left : seam.right,
+              seam.top + t * seam.height,
+            );
       shims.add(
         Path()
           ..moveTo(at.dx - 7, at.dy - 4)
@@ -2545,13 +2630,17 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     // The coping goes on last, over the heads of the posts.
     props.add(
       _KeepProp(
-        Path()..addRect(Rect.fromLTRB(b.left, b.bottom - 26, b.right, b.bottom - 16)),
+        Path()..addRect(
+          Rect.fromLTRB(b.left, b.bottom - 26, b.right, b.bottom - 16),
+        ),
         coping,
       ),
     );
     props.add(
       _KeepProp(
-        Path()..addRect(Rect.fromLTRB(b.left, b.bottom - 16, b.right, b.bottom - 12)),
+        Path()..addRect(
+          Rect.fromLTRB(b.left, b.bottom - 16, b.right, b.bottom - 12),
+        ),
         shadow,
       ),
     );
@@ -2587,7 +2676,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     for (var i = 0; i < 6; i++) {
       swarf.add(
         _blob(
-          Offset(b.left + rng.range(60, b.width - 60), b.top + rng.range(186, 236)),
+          Offset(
+            b.left + rng.range(60, b.width - 60),
+            b.top + rng.range(186, 236),
+          ),
           rng.range(30, 74),
           rng.range(9, 20),
           rng,
@@ -2598,7 +2690,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     for (var i = 0; i < 14; i++) {
       shards.add(
         _shard(
-          Offset(b.left + rng.range(50, b.width - 50), b.top + rng.range(180, b.height - 40)),
+          Offset(
+            b.left + rng.range(50, b.width - 50),
+            b.top + rng.range(180, b.height - 40),
+          ),
           rng.range(3, 9),
           rng,
         ),
@@ -2678,13 +2773,15 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     );
     props.add(
       _KeepProp(
-        Path()..addOval(Rect.fromCircle(center: const Offset(428, 80), radius: 27)),
+        Path()
+          ..addOval(Rect.fromCircle(center: const Offset(428, 80), radius: 27)),
         _keepIron.withValues(alpha: 0.95),
       ),
     );
     props.add(
       _KeepProp(
-        Path()..addOval(Rect.fromCircle(center: const Offset(428, 80), radius: 9)),
+        Path()
+          ..addOval(Rect.fromCircle(center: const Offset(428, 80), radius: 9)),
         _keepBrass.withValues(alpha: 0.6),
       ),
     );
@@ -2836,19 +2933,34 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
 
     var x = b.left + 12;
     while (x < b.right - 16) {
-      stall(Offset(x, inner.top - 2), rng.range(16, 46), rng.range(9, 20), rng.range(-3, 3));
+      stall(
+        Offset(x, inner.top - 2),
+        rng.range(16, 46),
+        rng.range(9, 20),
+        rng.range(-3, 3),
+      );
       x += rng.range(26, 52);
     }
     x = b.left + 20;
     while (x < b.right - 16) {
-      stall(Offset(x, b.bottom - 4), rng.range(14, 38), rng.range(8, 18), rng.range(-3, 3));
+      stall(
+        Offset(x, b.bottom - 4),
+        rng.range(14, 38),
+        rng.range(8, 18),
+        rng.range(-3, 3),
+      );
       x += rng.range(30, 60);
     }
     for (final side in const [true, false]) {
       var y = inner.top + 30;
       while (y < inner.bottom) {
         final sx = side ? b.left + 24 : b.right - 24;
-        stall(Offset(sx, y), rng.range(18, 44), rng.range(9, 19), rng.range(-3, 3));
+        stall(
+          Offset(sx, y),
+          rng.range(18, 44),
+          rng.range(9, 19),
+          rng.range(-3, 3),
+        );
         y += rng.range(52, 96);
       }
     }
@@ -2867,9 +2979,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       final inset = 5.0 + pr.range(0, 5);
       plateSeats.add((inset, pr.range(2, 7), pr.range(4, 10)));
       plateTones.add(
-        Color.lerp(_keepStoneDim, _keepStoneLit, pr.next())!.withValues(
-          alpha: 0.78 + pr.next() * 0.2,
-        ),
+        Color.lerp(
+          _keepStoneDim,
+          _keepStoneLit,
+          pr.next(),
+        )!.withValues(alpha: 0.78 + pr.next() * 0.2),
       );
       final r = floor.plateRect(i).deflate(inset);
       final cuts = <(Offset, Offset)>[];
@@ -2923,7 +3037,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     for (var i = 0; i < 26; i++) {
       shards.add(
         _shard(
-          Offset(rng.range(inner.left, inner.right), rng.range(inner.top, inner.bottom)),
+          Offset(
+            rng.range(inner.left, inner.right),
+            rng.range(inner.top, inner.bottom),
+          ),
           rng.range(3, 9),
           rng,
         ),
@@ -2958,19 +3075,16 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       var x = b.left - rng.range(10, 110);
       while (x < b.right) {
         final w = rng.range(52, 138);
-        final r = Rect.fromLTRB(
-          max(x, b.left),
-          y,
-          min(x + w, b.right),
-          y + h,
-        );
+        final r = Rect.fromLTRB(max(x, b.left), y, min(x + w, b.right), y + h);
         if (r.width > 7) {
           out.add(
             _KeepBlock(
               r,
-              Color.lerp(_keepStoneDim, _keepStoneLit, rng.next())!.withValues(
-                alpha: 0.42,
-              ),
+              Color.lerp(
+                _keepStoneDim,
+                _keepStoneLit,
+                rng.next(),
+              )!.withValues(alpha: 0.42),
             ),
           );
         }
@@ -3027,23 +3141,27 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       // has been over it, so every pane is lifted as well as thinned.
       final tone = 0.07 + rng.next() * rng.next() * 0.4;
       paneColours.add(
-        Color.lerp(glass, _keepSheen, rng.next() * 0.4)!.withValues(
-          alpha: tone,
-        ),
+        Color.lerp(
+          glass,
+          _keepSheen,
+          rng.next() * 0.4,
+        )!.withValues(alpha: tone),
       );
       // The wheel mark: one bright line inside each pane, all of them running
       // the same way, which is what ground glass looks like and what a
       // hand-drawn lattice never does.
       final c = _polyCentre(poly);
       final len = 7.0 + rng.next() * 13;
-      arrises.add((
-        c + Offset(-len, -len * 0.52),
-        c + Offset(len, len * 0.52),
-      ));
+      arrises.add((c + Offset(-len, -len * 0.52), c + Offset(len, len * 0.52)));
     }
     // Chips out of the slab's corners.
     final chips = <Path>[];
-    for (final c in [slab.topLeft, slab.topRight, slab.bottomLeft, slab.bottomRight]) {
+    for (final c in [
+      slab.topLeft,
+      slab.topRight,
+      slab.bottomLeft,
+      slab.bottomRight,
+    ]) {
       final s = rng.range(7, 18);
       chips.add(
         Path()
@@ -3131,6 +3249,7 @@ class _KeepFloor extends _KeepGround {
   final List<_KeepProp> props;
   final List<Path> cracks;
   final List<List<(Offset, Offset)>> plateCuts;
+
   /// Per choir plate: how far it is seated in, and how far its well is offset.
   final List<(double, double, double)> plateSeats;
   final List<Color> plateTones;
@@ -3156,6 +3275,7 @@ class _KeepFloor extends _KeepGround {
 
 class _KeepGlass extends _KeepGround {
   final List<Path> panes;
+
   /// Fully resolved per-pane colours — the render loop allocates nothing.
   final List<Color> paneColours;
   final List<(Offset, Offset)> arrises;

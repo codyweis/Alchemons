@@ -17,7 +17,7 @@ import 'package:alchemons/games/planet_dungeon/dungeon_popup_chrome.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/raid_rewards.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
-import 'package:alchemons/games/planet_dungeon/planet_dungeon_descent.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_portal.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_reward_popup.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
@@ -283,9 +283,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   bool get _isRaid => widget.raid != null;
   bool _showRaidReward = false;
 
-  // Descent intro: a dive through the planet's storm clouds that doubles as
+  // Descent intro: a glyph portal spelling the dungeon's name that doubles as
   // the loading screen (no spinner, no route gap).
-  static const double _descentSeconds = 1.7;
+  static const double _descentSeconds = kPortalSeconds;
   late final Ticker _introTicker;
   // Drives ONLY the descent painter/title — a full setState per frame here
   // used to rebuild the whole screen (including the live game) at 60fps.
@@ -1413,9 +1413,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// Same chrome as the space-view raid strip — hard edges, bracketed corners,
   /// an ember accent rail — so the raid reads as one thing across both views.
 
-  /// The descent: diving through the planet's cloud deck — element-tinted
-  /// cloud rings rushing past, converging wind lines, and the dungeon's
-  /// title card in HUD chrome. Doubles as the loading screen.
+  /// The descent: a portal of alchemical glyphs spelling the dungeon's name,
+  /// rushing past as a tunnel with one elemental twist per planet, under the
+  /// dungeon's title card in HUD chrome. Doubles as the loading screen.
   Widget _descentIntro() {
     final accent = elementColor(widget.element);
     // KeyedSubtree + a GlobalKey: when `_ready` flips, the screen's root
@@ -1444,10 +1444,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // The atmospheric dive (DescentPainter in
+          // planet_dungeon_descent.dart) is stashed, not deleted — swap it
+          // back here to restore it.
           CustomPaint(
-            painter: DescentPainter(
+            painter: PortalPainter(
               elapsed: elapsed,
               element: widget.element,
+              title: kPlanetDungeonLayouts[widget.element]?.descentTitle ?? '',
               accent: accent,
             ),
           ),

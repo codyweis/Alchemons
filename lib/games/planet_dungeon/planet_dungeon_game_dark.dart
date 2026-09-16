@@ -1130,7 +1130,10 @@ extension EclipseVaultDungeon on PlanetDungeonGame {
     // Everything is clipped to the stage the engine already laid down, so the
     // vault's masonry ends where the island ends rather than running out over
     // the sky (the plain floor is `b.deflate(8)` at radius 34).
-    final stage = RRect.fromRectAndRadius(b.deflate(8), const Radius.circular(34));
+    final stage = RRect.fromRectAndRadius(
+      b.deflate(8),
+      const Radius.circular(34),
+    );
     canvas.save();
     canvas.clipRRect(stage);
 
@@ -1644,7 +1647,10 @@ class _VaultRng {
 _VaultGround _vaultGroundFor(DungeonRoom room, DungeonLayout layout) {
   final b = room.bounds;
   final key = '${room.id}|${b.width.toInt()}x${b.height.toInt()}';
-  return _vaultGroundCache.putIfAbsent(key, () => _buildVaultGround(room, layout));
+  return _vaultGroundCache.putIfAbsent(
+    key,
+    () => _buildVaultGround(room, layout),
+  );
 }
 
 List<Offset> _rectCorners(Rect r) => [
@@ -1656,7 +1662,12 @@ List<Offset> _rectCorners(Rect r) => [
 
 /// The corners of a rect turned through [a] about [c] — for anything that has
 /// fallen over, which is most of what is left standing down here.
-List<Offset> _tiltedCorners(Offset c, double halfLen, double halfWid, double a) {
+List<Offset> _tiltedCorners(
+  Offset c,
+  double halfLen,
+  double halfWid,
+  double a,
+) {
   final co = cos(a), si = sin(a);
   return [
     for (final s in const [(-1, -1), (1, -1), (1, 1), (-1, 1)])
@@ -1721,7 +1732,9 @@ _VaultGround _buildVaultGround(DungeonRoom room, DungeonLayout layout) {
   for (final u in room.id.codeUnits) {
     idHash = (idHash * 31 + u) & 0xFFFFF;
   }
-  final rng = _VaultRng(b.width.toInt() * 733 + b.height.toInt() * 191 + idHash);
+  final rng = _VaultRng(
+    b.width.toInt() * 733 + b.height.toInt() * 191 + idHash,
+  );
 
   final flags = Path();
   final sunken = Path();
@@ -1739,9 +1752,7 @@ _VaultGround _buildVaultGround(DungeonRoom room, DungeonLayout layout) {
   // source reads as a fissure high in the north wall and every shadow in the
   // room agrees with every other. Which way it leans varies per room; that
   // variation is most of why the ten rooms do not look like one room.
-  final ang = rng.chance(0.5)
-      ? rng.range(1.06, 1.42)
-      : rng.range(1.72, 2.08);
+  final ang = rng.chance(0.5) ? rng.range(1.06, 1.42) : rng.range(1.72, 2.08);
   final dir = Offset(cos(ang), sin(ang));
 
   /// Everything standing in a room is sized against the room. Without this the
@@ -1975,11 +1986,15 @@ _VaultGround _buildVaultGround(DungeonRoom room, DungeonLayout layout) {
     for (var i = 0; i < n; i++) {
       final solid = rng.range(0.06, 0.20);
       final slot = rng.range(0.05, 0.13);
-      pieces..add(t)..add(t + solid);
+      pieces
+        ..add(t)
+        ..add(t + solid);
       t += solid + slot;
       if (t > 0.94) break;
     }
-    pieces..add(min(t, 0.96))..add(1.0);
+    pieces
+      ..add(min(t, 0.96))
+      ..add(1.0);
     for (var i = 0; i + 1 < pieces.length; i += 2) {
       final a0 = pieces[i], a1 = pieces[i + 1];
       final part = horizontal
@@ -2059,7 +2074,12 @@ _VaultGround _buildVaultGround(DungeonRoom room, DungeonLayout layout) {
       caps.addRect(
         horizontal
             ? Rect.fromLTWH(r.left + 5, r.top + 6 + i * 8.0, r.width - 10, 2.8)
-            : Rect.fromLTWH(r.left + 6 + i * 8.0, r.top + 5, 2.8, r.height - 10),
+            : Rect.fromLTWH(
+                r.left + 6 + i * 8.0,
+                r.top + 5,
+                2.8,
+                r.height - 10,
+              ),
       );
     }
   }
@@ -2277,8 +2297,10 @@ _VaultGround _buildVaultGround(DungeonRoom room, DungeonLayout layout) {
       // for the rood door, so it reads as a ruined ring rather than a dial.
       final c = Offset(b.center.dx, b.center.dy + 18);
       for (var i = 0; i < 11; i++) {
-        final a = -pi / 2 + 0.62 + (i / 11) * (pi * 2 - 1.24) + rng.range(-0.1, 0.1);
-        final at = c + Offset(cos(a) * (b.width * 0.42), sin(a) * (b.height * 0.40));
+        final a =
+            -pi / 2 + 0.62 + (i / 11) * (pi * 2 - 1.24) + rng.range(-0.1, 0.1);
+        final at =
+            c + Offset(cos(a) * (b.width * 0.42), sin(a) * (b.height * 0.40));
         if (blocked(at, 30)) continue;
         reserved.add((at, 26));
         if (rng.chance(0.24)) {
@@ -2333,7 +2355,11 @@ _VaultGround _buildVaultGround(DungeonRoom room, DungeonLayout layout) {
       // a way in. Placed by hand rather than by the perimeter walk, because
       // this is the one thing in the room whose position means something.
       for (final py in const [126.0, 336.0]) {
-        final r = Rect.fromCenter(center: Offset(632, py), width: 46, height: 62);
+        final r = Rect.fromCenter(
+          center: Offset(632, py),
+          width: 46,
+          height: 62,
+        );
         _castShadow(shadows, _rectCorners(r), dir, 62, taper: 0.58);
         bodies.addRect(r);
         caps.addRect(Rect.fromLTWH(r.left + 4, r.top, r.width - 8, 4.5));

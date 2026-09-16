@@ -1,9 +1,12 @@
 import 'package:alchemons/audio/audio.dart';
 // lib/widgets/instance_widgets/instances_sheet.dart
 //
-// REDESIGNED INSTANCES SHEET
-// Aesthetic: Scorched Forge — matches survival / boss / formation / dialog
-// Only the chrome (search bar, filters pill, detail mode toggle) is restyled.
+// INSTANCES SHEET
+// Aesthetic: bracket-frame — the same language as AllSpecimensPage, the
+// "SELECT SPECIMEN" page reached from fusion. Both surfaces list the same
+// InstanceCard grid, so their chrome has to read as one screen: square
+// corners, corner brackets instead of borders, bracketText, palette.muted.
+// Only the chrome (search bar, filters chip, detail mode chip) is styled here.
 // All grid/card child widgets, logic, filtering, sorting, and state preserved.
 //
 
@@ -27,26 +30,9 @@ import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/harvest_rate.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/app_icons.dart';
-
-// ──────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS  (inline — no import needed, keeps file self-contained)
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _C {
-  static const textSecondary = Color(0xFF8A7B6A);
-}
-
-class _T {
-  static const label = TextStyle(
-    fontFamily: 'monospace',
-    color: _C.textSecondary,
-    fontSize: 12,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 1.6,
-  );
-}
 
 String _normalizeInstancesPrefsScope(String value) {
   return value.replaceAll(RegExp(r'[^a-zA-Z0-9_]+'), '_');
@@ -88,6 +74,7 @@ class InstancesSheet extends StatefulWidget {
 
 class _InstancesSheetState extends State<InstancesSheet> {
   ForgeTokens get t => ForgeTokens(widget.theme);
+  BracketPalette get _palette => BracketPalette.fromTheme(widget.theme);
 
   SortBy _sortBy = SortBy.newest;
 
@@ -100,6 +87,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
   String? _filterNature;
   bool _filterPrismatic = false;
   bool _filterFavorites = false;
+  bool _filterHasStamina = false;
   String? _filterVariant;
   InstancePurityFilter _filterPurity = InstancePurityFilter.all;
 
@@ -145,6 +133,8 @@ class _InstancesSheetState extends State<InstancesSheet> {
     'filterTint': _filterTint,
     'filterNature': _filterNature,
     'filterPrismatic': _filterPrismatic,
+    'filterFavorites': _filterFavorites,
+    'filterHasStamina': _filterHasStamina,
     'filterVariant': _filterVariant,
     'filterPurity': _filterPurity.name,
     'detailMode': _detailMode.name,
@@ -161,6 +151,8 @@ class _InstancesSheetState extends State<InstancesSheet> {
     _filterTint = p['filterTint'];
     _filterNature = p['filterNature'];
     _filterPrismatic = p['filterPrismatic'] ?? _filterPrismatic;
+    _filterFavorites = p['filterFavorites'] ?? _filterFavorites;
+    _filterHasStamina = p['filterHasStamina'] ?? _filterHasStamina;
     _filterVariant = p['filterVariant'];
     _filterPurity = InstancePurityFilter.values.firstWhere(
       (e) => e.name == (p['filterPurity'] ?? _filterPurity.name),
@@ -273,6 +265,9 @@ class _InstancesSheetState extends State<InstancesSheet> {
 
             visible = visible.where((inst) {
               if (_filterFavorites && inst.isFavorite != true) return false;
+              if (_filterHasStamina && stamina.computeState(inst).bars <= 0) {
+                return false;
+              }
               if (_filterPrismatic && inst.isPrismaticSkin != true) {
                 return false;
               }
@@ -355,6 +350,20 @@ class _InstancesSheetState extends State<InstancesSheet> {
                   (a, b) =>
                       b.statBeautyPotential.compareTo(a.statBeautyPotential),
                 );
+              case SortBy.combinedPotential:
+                double total(CreatureInstance i) =>
+                    i.statSpeedPotential +
+                    i.statIntelligencePotential +
+                    i.statStrengthPotential +
+                    i.statBeautyPotential;
+                visible.sort((a, b) => total(b).compareTo(total(a)));
+              case SortBy.staminaHigh:
+                visible.sort(
+                  (a, b) => stamina
+                      .computeState(b)
+                      .bars
+                      .compareTo(stamina.computeState(a).bars),
+                );
             }
 
             final hasFiltersActive = _isHarvestMode
@@ -364,6 +373,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                       _sortBy != SortBy.newest
                 : _filterPrismatic ||
                       _filterFavorites ||
+                      _filterHasStamina ||
                       _filterPurity != InstancePurityFilter.all ||
                       _filterVariant != null ||
                       _filterSize != null ||
@@ -423,9 +433,13 @@ class _InstancesSheetState extends State<InstancesSheet> {
                       filterFavorites: _filterFavorites,
                       onToggleFavorites: () =>
                           _mutate(() => _filterFavorites = !_filterFavorites),
+                      filterHasStamina: _filterHasStamina,
+                      onToggleHasStamina: () =>
+                          _mutate(() => _filterHasStamina = !_filterHasStamina),
                       onClearAll: () => _mutate(() {
                         _filterPrismatic = false;
                         _filterFavorites = false;
+                        _filterHasStamina = false;
                         _filterPurity = InstancePurityFilter.all;
                         _filterVariant = null;
                         _filterSize = null;
@@ -551,58 +565,73 @@ class _InstancesSheetState extends State<InstancesSheet> {
     );
   }
 
+  /// Bracket-framed search, matching AllSpecimensPage's header field: no
+  /// border radius, corner brackets, a faint surface wash rather than a filled
+  /// box. Sizes are a touch smaller than the full page's because this sits in
+  /// a sheet rather than an app bar.
   Widget _buildSearchField() {
-    return Container(
-      height: 36,
-      decoration: BoxDecoration(
-        color: t.bg2,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: t.borderDim),
+    final palette = _palette;
+    final accent = bracketReadableAccent(widget.theme);
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: palette.line.withValues(alpha: 0.55),
+        bracketSize: 8,
+        strokeWidth: 1.0,
       ),
-      child: Row(
-        children: [
-          Padding(
-            padding: EdgeInsets.only(left: 10),
-            child: Icon(AppIcons.search_rounded, size: 14, color: t.textMuted),
-          ),
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: t.textPrimary,
-                fontSize: 12,
-                letterSpacing: 0.4,
-              ),
-              decoration: InputDecoration(
-                isCollapsed: true,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 10,
+      child: Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        color: palette.isDark
+            ? Colors.white.withValues(alpha: 0.03)
+            : Colors.black.withValues(alpha: 0.025),
+        child: Row(
+          children: [
+            Icon(AppIcons.search_rounded, size: 14, color: palette.muted),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                cursorColor: accent,
+                style: bracketText(
+                  context,
+                  12.5,
+                  palette.ink,
+                  weight: FontWeight.w600,
+                  letterSpacing: 0.2,
                 ),
-                hintText: 'SEARCH TRAITS / NATURE / LV',
-                hintStyle: _T.label.copyWith(fontSize: 12, letterSpacing: 0.8),
-              ),
-              onChanged: (val) => _mutate(() => _searchText = val),
-            ),
-          ),
-          if (_searchText.isNotEmpty)
-            GestureDetector(
-              onTap: context.soundAction(() {
-                _searchController.clear();
-                _mutate(() => _searchText = '');
-              }),
-              child: Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: Icon(
-                  AppIcons.close_rounded,
-                  size: 13,
-                  color: t.textMuted,
+                decoration: InputDecoration(
+                  isCollapsed: true,
+                  border: InputBorder.none,
+                  hintText: 'SEARCH TRAITS / NATURE / LV',
+                  hintStyle: bracketText(
+                    context,
+                    12.5,
+                    palette.muted,
+                    weight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
                 ),
+                onChanged: (val) => _mutate(() => _searchText = val),
               ),
             ),
-        ],
+            if (_searchText.isNotEmpty)
+              GestureDetector(
+                onTap: context.soundAction(() {
+                  _searchController.clear();
+                  _mutate(() => _searchText = '');
+                }),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Icon(
+                    AppIcons.close_rounded,
+                    size: 13,
+                    color: palette.muted,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -614,109 +643,70 @@ class _InstancesSheetState extends State<InstancesSheet> {
       InstanceDetailMode.enhancement => 'ENH',
       InstanceDetailMode.info => 'STATS',
     };
-    // Each mode gets a distinct accent so it's not just a text change
-    final color = switch (_detailMode) {
-      InstanceDetailMode.stats => t.amberBright,
-      InstanceDetailMode.genetics => const Color(0xFF34D399), // teal-green
-      InstanceDetailMode.enhancement => const Color(0xFF38BDF8), // sky
-      InstanceDetailMode.info => t.amberBright,
+    // The accent comes from the faction theme now. The old hard-coded
+    // 0xFF34D399 teal and 0xFF38BDF8 sky were the loudest tell that this sheet
+    // predated the bracket language -- they belonged to no palette.
+    final accent = switch (_detailMode) {
+      InstanceDetailMode.stats => widget.theme.accent,
+      InstanceDetailMode.genetics => widget.theme.accentSoft,
+      InstanceDetailMode.enhancement => widget.theme.accentSoft,
+      InstanceDetailMode.info => widget.theme.accent,
     };
 
-    return GestureDetector(
-      onTap: context.soundAction(
-        () => _mutate(() {
-          _detailMode = switch (_detailMode) {
-            InstanceDetailMode.stats => InstanceDetailMode.genetics,
-            InstanceDetailMode.genetics => InstanceDetailMode.stats,
-            // This sheet never offers Enhancement; the arm exists only to keep
-            // the switch total.
-            InstanceDetailMode.enhancement => InstanceDetailMode.genetics,
-            InstanceDetailMode.info => InstanceDetailMode.genetics,
-          };
-        }),
-      ),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: t.bg3,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: color.withValues(alpha: 0.5)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(1),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.4,
-              ),
-            ),
-          ],
+    return SizedBox(
+      height: 36,
+      child: Center(
+        child: BracketControlChip(
+          label: label,
+          accentColor: accent,
+          selected: true,
+          showBracketWhenSelected: true,
+          theme: widget.theme,
+          labelFontSize: 11,
+          onTap: () => _mutate(() {
+            _detailMode = switch (_detailMode) {
+              InstanceDetailMode.stats => InstanceDetailMode.genetics,
+              InstanceDetailMode.genetics => InstanceDetailMode.stats,
+              // This sheet never offers Enhancement; the arm exists only to
+              // keep the switch total.
+              InstanceDetailMode.enhancement => InstanceDetailMode.genetics,
+              InstanceDetailMode.info => InstanceDetailMode.genetics,
+            };
+          }),
         ),
       ),
     );
   }
 
   Widget _buildFiltersToggle(bool hasFiltersActive) {
-    return GestureDetector(
-      onTap: context.soundAction(
-        () => _mutate(() => _filtersOpen = !_filtersOpen),
-      ),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: hasFiltersActive ? t.amber.withValues(alpha: 0.12) : t.bg2,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: hasFiltersActive ? t.borderAccent : t.borderDim,
+    final palette = _palette;
+    return SizedBox(
+      height: 36,
+      child: Center(
+        child: BracketControlChip(
+          label: 'FILTER',
+          accentColor: widget.theme.accent,
+          selected: hasFiltersActive || _filtersOpen,
+          showBracketWhenSelected: true,
+          theme: widget.theme,
+          labelFontSize: 11,
+          leading: Icon(
+            AppIcons.filter_list_rounded,
+            size: 13,
+            color: hasFiltersActive || _filtersOpen
+                ? bracketReadableAccent(widget.theme, color: widget.theme.accent)
+                : palette.muted,
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              AppIcons.filter_list_rounded,
-              size: 14,
-              color: hasFiltersActive ? t.amberBright : t.textSecondary,
-            ),
-            const SizedBox(width: 5),
-            Text(
-              'FILTER',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.4,
-                color: hasFiltersActive ? t.amberBright : t.textSecondary,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              _filtersOpen
-                  ? AppIcons.keyboard_arrow_up_rounded
-                  : AppIcons.keyboard_arrow_down_rounded,
-              size: 14,
-              color: hasFiltersActive ? t.amberBright : t.textMuted,
-            ),
-          ],
+          trailing: Icon(
+            _filtersOpen
+                ? AppIcons.keyboard_arrow_up_rounded
+                : AppIcons.keyboard_arrow_down_rounded,
+            size: 13,
+            color: hasFiltersActive || _filtersOpen
+                ? bracketReadableAccent(widget.theme, color: widget.theme.accent)
+                : palette.muted,
+          ),
+          onTap: () => _mutate(() => _filtersOpen = !_filtersOpen),
         ),
       ),
     );

@@ -127,8 +127,7 @@ class ConstellationCatalog {
   static const dominantAnalyzer = ConstellationSkill(
     id: 'breeder_dominant_analyzer',
     name: 'Dominant Analyzer',
-    description:
-        'Reveal which two stats an Alchemon passes down most reliably',
+    description: 'Reveal which two stats an Alchemon passes down most reliably',
     tree: ConstellationTree.breeder,
     pointsCost: 6,
     prerequisites: ['breeder_potential_analyzer'],
@@ -474,6 +473,17 @@ class ConstellationCatalog {
     tier: 5,
   );
 
+  static const batchExtraction = ConstellationSkill(
+    id: 'extraction_batch_extraction',
+    name: 'Constellation Extraction',
+    description:
+        'Extract every ready chamber in one staged constellation ceremony',
+    tree: ConstellationTree.extraction,
+    pointsCost: 18,
+    prerequisites: ['extraction_instant_reload'],
+    tier: 6,
+  );
+
   static const allDayBlackMarket = ConstellationSkill(
     id: 'extraction_all_day_market',
     name: '24/7 Black Market',
@@ -591,6 +601,7 @@ class ConstellationCatalog {
     resourceAlchemy,
     wildernessPreview,
     instantReload,
+    batchExtraction,
     allDayBlackMarket,
     salePriceBoost1,
     salePriceBoost2,

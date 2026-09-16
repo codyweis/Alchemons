@@ -676,12 +676,17 @@ class ShopService extends ChangeNotifier {
       limit: PurchaseLimit.once,
     ),
     ShopOffer(
-      id: 'unlock.fusion_slot.5',
-      name: 'Fusion Slot (Step 5)',
+      // Step SIX. This shipped as a second 'unlock.fusion_slot.5', and because
+      // PurchaseLimit.once resolves against _purchaseCounts[offerId], buying
+      // the 250g step marked this one bought too -- the eighth chamber existed
+      // in the list and could never be purchased. Two unlocked slots ship with
+      // the save and each step adds one, so six steps is what makes eight.
+      id: 'unlock.fusion_slot.6',
+      name: 'Fusion Slot (Step 6)',
       description:
           'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
       icon: AppIcons.biotech_rounded,
-      cost: const {'gold': 500}, // 5th purchase: 500 gold
+      cost: const {'gold': 500}, // 6th purchase: 500 gold
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -1080,7 +1085,8 @@ class ShopService extends ChangeNotifier {
         (_purchaseCounts['unlock.fusion_slot.2'] ?? 0) +
         (_purchaseCounts['unlock.fusion_slot.3'] ?? 0) +
         (_purchaseCounts['unlock.fusion_slot.4'] ?? 0) +
-        (_purchaseCounts['unlock.fusion_slot.5'] ?? 0);
+        (_purchaseCounts['unlock.fusion_slot.5'] ?? 0) +
+        (_purchaseCounts['unlock.fusion_slot.6'] ?? 0);
   }
 
   // ---- DAILY ELEMENT→GOLD EXCHANGE (5,000 → 1 gold) ----
@@ -1487,6 +1493,7 @@ class ShopService extends ChangeNotifier {
       case 'unlock.fusion_slot.3':
       case 'unlock.fusion_slot.4':
       case 'unlock.fusion_slot.5':
+      case 'unlock.fusion_slot.6':
         // One purchase = one slot
         for (int i = 0; i < qty; i++) {
           await _db.incubatorDao.purchaseFusionSlot();

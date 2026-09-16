@@ -143,6 +143,7 @@ class EchoGrave3D {
 class GraveGround {
   final List<Rect> cuts = [];
   final List<double> cutAngle = [];
+
   /// Which of the cuts have lost their marker in the living world.
   final List<bool> fallen = [];
   final List<Offset> tussocks = [];
@@ -619,31 +620,51 @@ extension EchoGraveDungeon on PlanetDungeonGame {
 
     if (!wake.undugDrawn) {
       if (e != 'Water') {
-        _spawnAlchemyBurst(pos, producedElement: e, particleCount: 8,
-            intensity: 0.5);
+        _spawnAlchemyBurst(
+          pos,
+          producedElement: e,
+          particleCount: 8,
+          intensity: 0.5,
+        );
         _setBlockedHint('Black water, standing in a hole nobody finished');
         return true;
       }
       wake.undugDrawn = true;
-      _spawnAlchemyBurst(pos, producedElement: 'Water', particleCount: 22,
-          intensity: 0.9);
+      _spawnAlchemyBurst(
+        pos,
+        producedElement: 'Water',
+        particleCount: 22,
+        intensity: 0.9,
+      );
       return true;
     }
     if (!wake.undugLit) {
       if (e != 'Crystal') {
-        _spawnAlchemyBurst(pos, producedElement: e, particleCount: 8,
-            intensity: 0.5);
+        _spawnAlchemyBurst(
+          pos,
+          producedElement: e,
+          particleCount: 8,
+          intensity: 0.5,
+        );
         _setBlockedHint('It is too dark in there to read anything');
         return true;
       }
       wake.undugLit = true;
-      _spawnAlchemyBurst(pos, producedElement: 'Crystal', particleCount: 22,
-          intensity: 0.9);
+      _spawnAlchemyBurst(
+        pos,
+        producedElement: 'Crystal',
+        particleCount: 22,
+        intensity: 0.9,
+      );
       return true;
     }
     if (e != 'Spirit') {
-      _spawnAlchemyBurst(pos, producedElement: e, particleCount: 8,
-          intensity: 0.5);
+      _spawnAlchemyBurst(
+        pos,
+        producedElement: e,
+        particleCount: 8,
+        intensity: 0.5,
+      );
       _setBlockedHint('The slot is uncut, there is no name here to tell');
       return true;
     }
@@ -666,8 +687,12 @@ extension EchoGraveDungeon on PlanetDungeonGame {
         .firstWhere((i) => !wake.namesTold.contains(i), orElse: () => -1);
     if (next < 0) return false;
     wake.namesTold.add(next);
-    _spawnAlchemyBurst(pos, producedElement: 'Spirit', particleCount: 26,
-        intensity: 1.0);
+    _spawnAlchemyBurst(
+      pos,
+      producedElement: 'Spirit',
+      particleCount: 26,
+      intensity: 1.0,
+    );
     _cue(SoundCue.dungeonSwitch);
     if (wake.namesTold.length >= 3) {
       // THE RITE OF THREE pays this out (see `beginMaximRite`).
@@ -987,15 +1012,14 @@ extension EchoGraveDungeon on PlanetDungeonGame {
     // The kerb: a low wall of set stones round the round's edge.
     final kerbs = (b.width / 90).clamp(4, 14).toInt();
     for (var i = 0; i < kerbs; i++) {
-      g.kerb.add(Offset(b.left + 20 + (b.width - 40) * i / (kerbs - 1), b.bottom));
+      g.kerb.add(
+        Offset(b.left + 20 + (b.width - 40) * i / (kerbs - 1), b.bottom),
+      );
     }
     final tufts = (b.width * b.height / 24000).clamp(6, 28).toInt();
     for (var i = 0; i < tufts; i++) {
       g.tussocks.add(
-        Offset(
-          b.left + rnd() * b.width,
-          b.top + rnd() * b.height,
-        ),
+        Offset(b.left + rnd() * b.width, b.top + rnd() * b.height),
       );
     }
     return g;
@@ -1234,7 +1258,9 @@ extension EchoGraveDungeon on PlanetDungeonGame {
       );
       canvas.drawOval(mound, Paint()..color = _graveMoss);
       canvas.drawOval(
-        mound.deflate(mound.height * 0.18).shift(Offset(0, -mound.height * .12)),
+        mound
+            .deflate(mound.height * 0.18)
+            .shift(Offset(0, -mound.height * .12)),
         Paint()..color = Color.lerp(_graveMoss, _graveTurf, 0.45)!,
       );
       // The kerb: stones set on end round the foot, thinning at the sides.

@@ -4,6 +4,8 @@ import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -11,6 +13,7 @@ import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/nursery/brewing_card_widget.dart';
+import 'package:alchemons/widgets/nursery/batch_extraction_ceremony.dart';
 import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:alchemons/widgets/nursery/egg_extraction_dialog.dart';
 import 'package:alchemons/widgets/cold_storage_glyph.dart';
@@ -51,6 +54,7 @@ class _NurseryTabState extends State<NurseryTab> {
   bool _suspendNurseryAnimations = false;
   int _animationPauseHolds = 0;
   CinematicQuality _cinematicQuality = CinematicQuality.cinematic;
+  bool _debugToolsEnabled = DebugSettingsService.toolsVisible;
   Offset? _swipeStartGlobalPosition;
   bool _fusionSwipeTriggered = false;
 
@@ -66,6 +70,16 @@ class _NurseryTabState extends State<NurseryTab> {
     CinematicQualityService.qualityNotifier.addListener(
       _handleCinematicQualityChanged,
     );
+    DebugSettingsService.enabledNotifier.addListener(_handleDebugToolsChanged);
+    DebugSettingsService().isEnabled();
+  }
+
+  void _handleDebugToolsChanged() {
+    if (!mounted) return;
+    final enabled = DebugSettingsService.toolsVisible;
+    if (enabled != _debugToolsEnabled) {
+      setState(() => _debugToolsEnabled = enabled);
+    }
   }
 
   void _handleCinematicQualityChanged() {
@@ -86,6 +100,9 @@ class _NurseryTabState extends State<NurseryTab> {
   void dispose() {
     CinematicQualityService.qualityNotifier.removeListener(
       _handleCinematicQualityChanged,
+    );
+    DebugSettingsService.enabledNotifier.removeListener(
+      _handleDebugToolsChanged,
     );
     _nextReadyTimer?.cancel();
     super.dispose();
@@ -219,6 +236,9 @@ class _NurseryTabState extends State<NurseryTab> {
     // provides reactive updates without re-subscribing on every build.
     final db = context.read<AlchemonsDatabase>();
     final theme = context.read<FactionTheme>();
+    final canBatchExtract =
+        _debugToolsEnabled ||
+        context.watch<ConstellationEffectsService>().hasBatchExtraction();
 
     return StreamBuilder<List<IncubatorSlot>>(
       stream: db.incubatorDao.watchSlots(),
@@ -251,11 +271,13 @@ class _NurseryTabState extends State<NurseryTab> {
         final totalUnlocked = activeSlots.length + unlockedEmptySlots.length;
         Duration? nextReady;
         bool anyReady = false;
+        final readySlots = <IncubatorSlot>[];
         for (final s in activeSlots) {
           final rem = _remainingFor(s.hatchAtUtcMs!);
           if (rem.inSeconds <= 0) {
             anyReady = true;
-            break;
+            readySlots.add(s);
+            continue;
           }
           if (nextReady == null || rem < nextReady) nextReady = rem;
         }
@@ -280,12 +302,25 @@ class _NurseryTabState extends State<NurseryTab> {
                     theme.text,
                     trailing: totalUnlocked == 0
                         ? null
-                        : _ChamberStatusBadge(
-                            activeCount: activeSlots.length,
-                            totalCount: totalUnlocked,
-                            nextReady: nextReady,
-                            anyReady: anyReady,
-                            theme: theme,
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (canBatchExtract && readySlots.length > 1) ...[
+                                _BatchExtractButton(
+                                  count: readySlots.length,
+                                  theme: theme,
+                                  onTap: () => _extractAllReady(readySlots),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              _ChamberStatusBadge(
+                                activeCount: activeSlots.length,
+                                totalCount: totalUnlocked,
+                                nextReady: nextReady,
+                                anyReady: anyReady,
+                                theme: theme,
+                              ),
+                            ],
                           ),
                   ),
                   const SizedBox(height: 12),
@@ -310,6 +345,46 @@ class _NurseryTabState extends State<NurseryTab> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _extractAllReady(List<IncubatorSlot> readySlots) async {
+    if (readySlots.length < 2 || !mounted) return;
+    final confirmed = await _showConfirmDialog(
+      'CONSTELLATION EXTRACTION',
+      'Extract all ${readySlots.length} ready chambers in one ceremony? Each specimen will still be revealed and analyzed individually.',
+      confirmLabel: 'EXTRACT ALL',
+      accent: const Color(0xFF67E8F9),
+      artwork: const Icon(
+        AppIcons.auto_awesome_rounded,
+        color: Color(0xFF67E8F9),
+        size: 58,
+      ),
+    );
+    if (!mounted || !confirmed) return;
+
+    _acquireBackgroundAnimationPause();
+    int? completed;
+    try {
+      completed = await showGeneralDialog<int>(
+        context: context,
+        barrierDismissible: false,
+        barrierLabel: 'batch extraction',
+        barrierColor: Colors.black,
+        pageBuilder: (_, __, ___) => BatchExtractionCeremony(
+          slots: List<IncubatorSlot>.from(readySlots),
+          undiscoveredCache: _undiscoveredCache,
+        ),
+      );
+    } finally {
+      _releaseBackgroundAnimationPause();
+    }
+    if (!mounted || (completed ?? 0) <= 0) return;
+    widget.onHatchComplete();
+    _showToast(
+      '$completed specimen${completed == 1 ? '' : 's'} extracted',
+      icon: AppIcons.auto_awesome_rounded,
+      color: const Color(0xFF34D399),
     );
   }
 
@@ -479,7 +554,12 @@ class _NurseryTabState extends State<NurseryTab> {
             children: [
               Container(width: 3, height: 16, color: color),
               const SizedBox(width: 8),
+              // Give the label first claim on the available width. With equal
+              // flex, the decorative rule consumed half of this row and
+              // truncated "Active cultivation" on phone layouts even though
+              // there was ample room for the full title.
               Flexible(
+                flex: 5,
                 child: Text(
                   formatted,
                   maxLines: 1,
@@ -1507,6 +1587,53 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
 // ─────────────────────────────────────────────────────────────────────────────
 // CHAMBER STATUS BADGE
 // ─────────────────────────────────────────────────────────────────────────────
+
+class _BatchExtractButton extends StatelessWidget {
+  const _BatchExtractButton({
+    required this.count,
+    required this.theme,
+    required this.onTap,
+  });
+
+  final int count;
+  final FactionTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFF67E8F9);
+    return GestureDetector(
+      onTap: context.soundAction(onTap),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: accent.withValues(alpha: 0.65)),
+          boxShadow: [
+            BoxShadow(color: accent.withValues(alpha: 0.14), blurRadius: 10),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(AppIcons.auto_awesome_rounded, color: accent, size: 13),
+            const SizedBox(width: 5),
+            Text(
+              'EXTRACT ALL $count',
+              style: const TextStyle(
+                color: accent,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _ChamberStatusBadge extends StatelessWidget {
   const _ChamberStatusBadge({

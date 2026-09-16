@@ -342,10 +342,9 @@ Path _monLimeCross(Offset at, double arm, double tilt) {
   ];
   final p = Path();
   for (var i = 0; i < pts.length; i++) {
-    final q = at + Offset(
-      pts[i].dx * c - pts[i].dy * s,
-      pts[i].dx * s + pts[i].dy * c,
-    );
+    final q =
+        at +
+        Offset(pts[i].dx * c - pts[i].dy * s, pts[i].dx * s + pts[i].dy * c);
     i == 0 ? p.moveTo(q.dx, q.dy) : p.lineTo(q.dx, q.dy);
   }
   return p..close();
@@ -390,12 +389,12 @@ _MonasteryGround _buildMonasteryGround(DungeonRoom room) {
   // the DARK BED showing through between stones, because a floor is stones
   // separated by shadow and a wall is stones separated by highlight.
   final colX = <double>[];
-  for (var x = b.left - 90.0; x < b.right + 110; ) {
+  for (var x = b.left - 90.0; x < b.right + 110;) {
     colX.add(x);
     x += 84 + rnd() * 74;
   }
   final rowY = <double>[];
-  for (var y = b.top - 80.0; y < b.bottom + 100; ) {
+  for (var y = b.top - 80.0; y < b.bottom + 100;) {
     rowY.add(y);
     y += 72 + rnd() * 68;
   }
@@ -605,7 +604,9 @@ void _buildMonasteryHouse(
       Rect.fromLTWH(b.right - 150, b.top + b.height * 0.60, 96, 30),
       true,
     ));
-    g.runnels.add(Rect.fromLTWH(b.left + 30, b.bottom - 54, b.width * 0.46, 11));
+    g.runnels.add(
+      Rect.fromLTWH(b.left + 30, b.bottom - 54, b.width * 0.46, 11),
+    );
     g.grates.add(Offset(b.left + 34 + b.width * 0.46, b.bottom - 49));
     g.lamps
       ..add((Offset(b.right - 58, b.top + 156), 132))
@@ -674,10 +675,7 @@ void _buildMonasteryHouse(
       final gapL = g.bays[i].right, gapR = g.bays[i + 1].left;
       if (gapR - gapL < 110) continue;
       final mid = (gapL + gapR) / 2;
-      g.tables.add((
-        Rect.fromLTWH(mid - 52, b.top + 62, 104, 20),
-        false,
-      ));
+      g.tables.add((Rect.fromLTWH(mid - 52, b.top + 62, 104, 20), false));
       g.marks
         ..add(Offset(mid - 34, b.top + 28))
         ..add(Offset(mid + 36, b.top + 26));
@@ -687,7 +685,10 @@ void _buildMonasteryHouse(
     // to lose a plague behind.
     for (var i = 0; i < 6; i++) {
       g.strewn.add((
-        Offset(b.left + 120 + rnd() * (b.width - 260), b.bottom - 92 + rnd() * 10),
+        Offset(
+          b.left + 120 + rnd() * (b.width - 260),
+          b.bottom - 92 + rnd() * 10,
+        ),
         rnd() * pi,
         8 + rnd() * 9,
       ));
@@ -707,9 +708,7 @@ void _buildMonasteryHouse(
       Offset(140, 512),
       Offset(718, 566),
     ]) {
-      g.piers.add(
-        Rect.fromLTWH(b.left + p.dx - 21, b.top + p.dy - 26, 42, 52),
-      );
+      g.piers.add(Rect.fromLTWH(b.left + p.dx - 21, b.top + p.dy - 26, 42, 52));
     }
     for (var side = 0; side < 2; side++) {
       var y = b.top + 120 + rnd() * 40;
@@ -745,8 +744,14 @@ void _buildMonasteryHouse(
       final edge = rnd();
       g.seeps.add((
         edge < 0.5
-            ? Offset(b.left + 30 + rnd() * 70, b.top + 90 + rnd() * (b.height - 180))
-            : Offset(b.right - 30 - rnd() * 70, b.top + 90 + rnd() * (b.height - 180)),
+            ? Offset(
+                b.left + 30 + rnd() * 70,
+                b.top + 90 + rnd() * (b.height - 180),
+              )
+            : Offset(
+                b.right - 30 - rnd() * 70,
+                b.top + 90 + rnd() * (b.height - 180),
+              ),
         16 + rnd() * 26,
       ));
     }
@@ -805,7 +810,9 @@ void _buildMonasteryHouse(
         ));
       }
     }
-    g.runnels.add(Rect.fromLTWH(b.left + 30, b.bottom - 56, b.width * 0.55, 11));
+    g.runnels.add(
+      Rect.fromLTWH(b.left + 30, b.bottom - 56, b.width * 0.55, 11),
+    );
     g.grates.add(Offset(b.left + 34 + b.width * 0.55, b.bottom - 51));
     g.lamps
       ..add((Offset(b.left + 74, b.top + 96), 108))
@@ -3981,7 +3988,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       canvas.drawRect(sump, Paint()..color = const Color(0xFF070907));
       for (var i = 0; i < 4; i++) {
         canvas.drawRect(
-          Rect.fromLTWH(sump.left + 3 + i * 7.5, sump.top + 3, 3, sump.height - 6),
+          Rect.fromLTWH(
+            sump.left + 3 + i * 7.5,
+            sump.top + 3,
+            3,
+            sump.height - 6,
+          ),
           Paint()..color = _venomIron.withValues(alpha: 0.9),
         );
       }
@@ -4212,10 +4224,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       for (var i = 0; i < 15; i++) {
         final a = i / 15 * pi * 2 + 0.2;
         canvas.save();
-        canvas.translate(
-          hearth.dx + cos(a) * 62,
-          hearth.dy + sin(a) * 44,
-        );
+        canvas.translate(hearth.dx + cos(a) * 62, hearth.dy + sin(a) * 44);
         canvas.rotate(a + pi / 2);
         canvas.drawRect(
           Rect.fromCenter(center: Offset.zero, width: 24, height: 13),
@@ -4453,7 +4462,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     );
     // A thinner skirt along the other three walls, so the room is enclosed
     // on every side rather than fronted on one.
-    final skirt = Paint()..color = const Color(0xFF10161A).withValues(alpha: 0.8);
+    final skirt = Paint()
+      ..color = const Color(0xFF10161A).withValues(alpha: 0.8);
     canvas.drawRect(Rect.fromLTWH(b.left, b.top, 16, b.height), skirt);
     canvas.drawRect(Rect.fromLTWH(b.right - 16, b.top, 16, b.height), skirt);
     canvas.drawRect(Rect.fromLTWH(b.left, b.bottom - 16, b.width, 16), skirt);
@@ -4675,7 +4685,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// A CASK of lime, hooped, and never standing quite upright.
   void _monCask(Canvas canvas, Offset at, double r) {
     canvas.drawOval(
-      Rect.fromCenter(center: at.translate(3, 5), width: r * 2.1, height: r * 1.5),
+      Rect.fromCenter(
+        center: at.translate(3, 5),
+        width: r * 2.1,
+        height: r * 1.5,
+      ),
       Paint()..color = Colors.black.withValues(alpha: 0.35),
     );
     canvas.drawOval(
@@ -4729,11 +4743,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         at,
         reach * gutter,
         Paint()
-          ..shader = ui.Gradient.radial(at, reach * gutter, [
-            const Color(0xFFE8C070).withValues(alpha: 0.13),
-            const Color(0xFFB08A3C).withValues(alpha: 0.05),
-            const Color(0x00000000),
-          ], const [0.0, 0.45, 1.0]),
+          ..shader = ui.Gradient.radial(
+            at,
+            reach * gutter,
+            [
+              const Color(0xFFE8C070).withValues(alpha: 0.13),
+              const Color(0xFFB08A3C).withValues(alpha: 0.05),
+              const Color(0x00000000),
+            ],
+            const [0.0, 0.45, 1.0],
+          ),
       );
       // The flame itself: small, and the only warm thing on the planet.
       canvas.drawCircle(

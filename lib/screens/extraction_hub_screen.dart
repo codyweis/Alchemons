@@ -361,6 +361,15 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
   Future<void> _collectAll(List<BiomeFarmState> farms) async {
     HapticFeedback.mediumImpact();
     final completed = farms.where((f) => f.completed).toList();
+    final reloadPlans = [
+      for (final farm in completed)
+        if (farm.activeJob != null)
+          _ChamberReloadPlan(
+            biome: farm.biome,
+            activeElementId: farm.activeElementId,
+            job: farm.activeJob!,
+          ),
+    ];
     if (completed.isNotEmpty) {
       await CampaignJournalService.mark(
         context.read<AlchemonsDatabase>().settingsDao,
@@ -418,6 +427,56 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
         behavior: SnackBarBehavior.floating,
         showCloseIcon: true,
         duration: const Duration(seconds: 3),
+      ),
+    );
+
+    if (reloadPlans.isEmpty || !mounted) return;
+    final constellations = context.read<ConstellationEffectsService>();
+    if (!constellations.hasInstantReload()) return;
+
+    final shouldReload = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ReloadAllDialog(
+        count: reloadPlans.length,
+        theme: context.read<FactionTheme>(),
+      ),
+    );
+    if (shouldReload != true || !mounted) return;
+
+    final db = context.read<AlchemonsDatabase>();
+    var reloaded = 0;
+    for (final plan in reloadPlans) {
+      final instance = await db.creatureDao.getInstance(
+        plan.job.creatureInstanceId,
+      );
+      if (instance == null) continue;
+
+      final elementId = plan.activeElementId;
+      if (elementId != null && elementId.isNotEmpty) {
+        await _svc.setActiveElement(plan.biome, elementId);
+      }
+      final ok = await _svc.startJob(
+        biome: plan.biome,
+        creatureInstanceId: plan.job.creatureInstanceId,
+        duration: Duration(milliseconds: plan.job.durationMs),
+        ratePerMinute: plan.job.ratePerMinute,
+      );
+      if (ok) reloaded++;
+    }
+    if (!mounted) return;
+
+    if (reloaded > 0) HapticFeedback.mediumImpact();
+    final failed = reloadPlans.length - reloaded;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          failed == 0
+              ? 'Reloaded $reloaded chamber${reloaded == 1 ? '' : 's'}!'
+              : 'Reloaded $reloaded of ${reloadPlans.length} chambers.',
+        ),
+        behavior: SnackBarBehavior.floating,
+        showCloseIcon: true,
+        backgroundColor: failed == 0 ? null : Colors.orange.shade700,
       ),
     );
   }
@@ -593,6 +652,18 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
   }
 }
 
+class _ChamberReloadPlan {
+  const _ChamberReloadPlan({
+    required this.biome,
+    required this.activeElementId,
+    required this.job,
+  });
+
+  final Biome biome;
+  final String? activeElementId;
+  final HarvestJob job;
+}
+
 // ---------------------------------------------------------------------------
 // _ExtractionBay
 // ---------------------------------------------------------------------------
@@ -723,6 +794,144 @@ class _CollectAllBanner extends StatelessWidget {
                 compact: true,
                 minHeight: 38,
                 onTap: context.soundTap(onCollectAll),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReloadAllDialog extends StatelessWidget {
+  const _ReloadAllDialog({required this.count, required this.theme});
+
+  final int count;
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: Container(
+          decoration: BoxDecoration(
+            color: t.bg1,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: t.borderAccent, width: 1),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 3,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: t.amber,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Icon(
+                    AppIcons.refresh_rounded,
+                    color: t.amberBright,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'COLLECTION COMPLETE',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: t.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(height: 1, color: t.borderMid),
+              const SizedBox(height: 14),
+              Text(
+                'Reload all $count chamber${count == 1 ? '' : 's'} with the same specimens and settings?',
+                style: TextStyle(
+                  color: t.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: context.soundAction(
+                        () => Navigator.pop(context, false),
+                      ),
+                      child: Container(
+                        height: 42,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: t.bg2,
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(color: t.borderDim),
+                        ),
+                        child: Text(
+                          'NOT NOW',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: context.soundAction(
+                        () => Navigator.pop(context, true),
+                      ),
+                      child: Container(
+                        height: 42,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              t.amberDim.withValues(alpha: 0.45),
+                              t.amber.withValues(alpha: 0.35),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(
+                            color: t.amber.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        child: Text(
+                          'RELOAD ALL',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t.amberBright,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

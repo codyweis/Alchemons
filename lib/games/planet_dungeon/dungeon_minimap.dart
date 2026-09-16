@@ -297,6 +297,20 @@ const Map<String, Map<String, Offset>> _fullMapNodePositionsByElement = {
     'boiler_heart': Offset(0.50, 0.64),
     'burst_vault': Offset(0.78, 0.86),
   },
+  // Ice draws its true topology too: a SHAFT. The levels descend the middle
+  // of the chart, each shelf hangs off the flue that brakes you onto it, and
+  // the throat runs down the left past every level to the sump — which is
+  // what it does, and the one thing the chart has to say about this planet.
+  'Ice': {
+    'rime_head': Offset(0.38, 0.07),
+    'shelf_glass': Offset(0.72, 0.20),
+    'mirror_gallery': Offset(0.38, 0.33),
+    'shelf_lens': Offset(0.72, 0.46),
+    'orrery_floor': Offset(0.38, 0.59),
+    'cold_sump': Offset(0.38, 0.82),
+    'star_font': Offset(0.64, 0.90),
+    'frowyrm_hollow': Offset(0.88, 0.96),
+  },
 };
 
 /// Full-map section auras (wing groupings) per planet element.
@@ -1072,9 +1086,8 @@ class _DungeonFullMapPainter extends CustomPainter {
             door.targetRoomId == game.currentRoomId;
         paint
           ..strokeWidth = 1.25
-          ..color =
-              (active ? const Color(0xFF5BC8E8) : const Color(0xFF74613A))
-                  .withValues(alpha: active ? 0.62 : 0.34);
+          ..color = (active ? const Color(0xFF5BC8E8) : const Color(0xFF74613A))
+              .withValues(alpha: active ? 0.62 : 0.34);
         // PALUSIA'S EDGES ARE THE PUZZLE. Every other planet's door graph is
         // a constant and the chart is a reminder of where things are; this
         // one is authored by the player, one irreversible drag at a time,

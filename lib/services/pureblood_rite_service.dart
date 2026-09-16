@@ -21,6 +21,7 @@ class PurebloodChallenge {
   final String? requiredTintLabel;
   final String? requiredNature;
   final String? requiredVariantFaction;
+  final double? minBeautyPotentialExclusive;
   final int goldReward;
   final int stageIndex;
 
@@ -36,6 +37,7 @@ class PurebloodChallenge {
     required this.requiredTintLabel,
     required this.requiredNature,
     this.requiredVariantFaction,
+    this.minBeautyPotentialExclusive,
     required this.goldReward,
     required this.stageIndex,
   });
@@ -72,6 +74,11 @@ class PurebloodChallenge {
     if (requiredVariantFaction != null) {
       requirements.add('${_labelize(requiredVariantFaction!)} variant');
     }
+    if (minBeautyPotentialExclusive != null) {
+      requirements.add(
+        'Beauty Potential ${(minBeautyPotentialExclusive! + 1).round()}+',
+      );
+    }
 
     if (requirements.isEmpty) {
       return 'Any $requiredFamily specimen may answer this rite.';
@@ -103,6 +110,11 @@ class PurebloodChallenge {
     }
     if (requiredVariantFaction != null) {
       lines.add('Variant — ${_labelize(requiredVariantFaction!)}');
+    }
+    if (minBeautyPotentialExclusive != null) {
+      lines.add(
+        'Beauty Potential — ${(minBeautyPotentialExclusive! + 1).round()}+',
+      );
     }
     lines.add('+$goldReward Gold Awarded');
     return lines;
@@ -260,6 +272,7 @@ class PurebloodRiteService {
       requiredElement: 'Ice',
       requireElementalPurity: true,
       requireSpeciesPurity: true,
+      minBeautyPotentialExclusive: 75,
     ),
     _ChallengeBlueprint(
       title: 'Giant Airhorn',
@@ -383,6 +396,7 @@ class PurebloodRiteService {
       requiredTint: blueprint.requiredTint,
       requiredTintLabel: blueprint.requiredTintLabel,
       requiredNature: blueprint.requiredNature,
+      minBeautyPotentialExclusive: blueprint.minBeautyPotentialExclusive,
       goldReward: _goldRewardForStage(clamped),
       stageIndex: clamped,
     );
@@ -478,6 +492,9 @@ class PurebloodRiteService {
         challenge.requiredVariantFaction == null ||
         instance.variantFaction?.trim().toLowerCase() ==
             challenge.requiredVariantFaction!.trim().toLowerCase();
+    final matchesBeautyPotential =
+        challenge.minBeautyPotentialExclusive == null ||
+        instance.statBeautyPotential > challenge.minBeautyPotentialExclusive!;
     final isProtected = instance.locked || instance.isFavorite == true;
 
     if (!matchesFamily) {
@@ -536,6 +553,12 @@ class PurebloodRiteService {
     if (!matchesVariant && challenge.requiredVariantFaction != null) {
       missing.add('${_labelize(challenge.requiredVariantFaction!)} variant');
     }
+    if (!matchesBeautyPotential &&
+        challenge.minBeautyPotentialExclusive != null) {
+      missing.add(
+        'Beauty Potential ${(challenge.minBeautyPotentialExclusive! + 1).round()}+',
+      );
+    }
 
     if (missing.isNotEmpty) {
       return PurebloodSacrificeCheck(
@@ -582,7 +605,9 @@ class PurebloodRiteService {
         active.requireSpeciesPurity != challenge.requireSpeciesPurity ||
         active.requiredSize != challenge.requiredSize ||
         active.requiredTint != challenge.requiredTint ||
-        active.requiredNature != challenge.requiredNature) {
+        active.requiredNature != challenge.requiredNature ||
+        active.minBeautyPotentialExclusive !=
+            challenge.minBeautyPotentialExclusive) {
       throw const PurebloodRiteException(
         'The rite has shifted. Reopen the altar and try again.',
       );
@@ -969,6 +994,7 @@ class _ChallengeBlueprint {
   final String? requiredTint;
   final String? requiredTintLabel;
   final String? requiredNature;
+  final double? minBeautyPotentialExclusive;
 
   const _ChallengeBlueprint({
     required this.title,
@@ -981,6 +1007,7 @@ class _ChallengeBlueprint {
     this.requiredTint,
     this.requiredTintLabel,
     this.requiredNature,
+    this.minBeautyPotentialExclusive,
   });
 }
 

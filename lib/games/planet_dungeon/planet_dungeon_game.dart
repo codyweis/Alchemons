@@ -389,6 +389,7 @@ class PlanetDungeonGame extends FlameGame {
     _cuesEmitted++;
     onSound?.call(cue);
   }
+
   final void Function(int starIndex) onStarEarned;
   final void Function(String cloudId)? onCloudDiscovered;
 
@@ -1695,14 +1696,51 @@ class PlanetDungeonGame extends FlameGame {
   /// Whether the sump's melt-fall stands as the climb home.
   bool rimefallFrozen = false;
 
+  /// Ledge chutes that have been ridden. A chute is a ramp of snow into a
+  /// pocket; the snow goes down with you, and a bare slot is no ramp.
+  final Set<String> spentChutes = {};
+
+  /// Which of the mouth's plates of black ice Light has drunk. EACH HOLE IS
+  /// ITS OWN (2026-09-15, from play): one press used to open the whole floor,
+  /// which taught that the holes were one thing when the planet's first
+  /// lesson is that they are not.
+  final Set<String> meltedCaps = {};
+
   /// How many times THE THAW has run (the rimefall's price, and a readout).
   int shaftThaws = 0;
 
-  /// Frames currently showing the chart, and each one's remaining hold.
-  final Set<int> silveredMirrors = {};
-  final Map<int, double> mirrorThaw = {};
+  /// THE MIRROR GALLERY. Every frame is ENGRAVED with the quarter of sky it
+  /// claims to hold. The sky itself is never read directly: the pool shows
+  /// the quarter OPPOSITE wherever you stand, so the truth about a frame is
+  /// only ever seen from across the room. Some frames lie, and silvering
+  /// exactly the liars is the star.
+  /// THE CHART — one closed figure of 24 stars running round the ring, as
+  /// radii (a fraction of the pool's own radius). Rolled per run, and never
+  /// seen except in the water.
+  final List<double> mirrorChart = [];
+
+  /// How far each frame is hung out of true: 0 for an honest frame, 1..3 for
+  /// one that puts its stretch of the chart in the wrong place.
+  final Map<int, int> frameOffset = {};
+
+  /// The frames whose stretch of chart is in the water right now.
+  final Set<int> silveredFrames = {};
+
+  /// Seconds left of the chart's own light-up, run once when the Mirror Star
+  /// is banked: the whole figure you assembled, shown whole.
+  double chartTriumph = 0;
+
   bool lodestoneLit = false;
   double mirrorSweep = 0; // Air-sweep cooldown
+  double poolStill = 0; // an Air sweep's stilled water, while it lasts
+
+  /// A star-block on the move: which block, the cells it is running from and
+  /// to, and how far along it is (0..1). Render only — the board is already
+  /// at the destination, so nothing can desync.
+  int? orrerySlideId;
+  int orrerySlideFrom = 0;
+  int orrerySlideTo = 0;
+  double orrerySlideT = 0;
 
   /// The orrery: glazed cells, block positions and seated blocks, all as
   /// `row * cols + col` indices into the authored grid.
@@ -2507,6 +2545,28 @@ class PlanetDungeonGame extends FlameGame {
       _emitHint(msg, DungeonHintChannel.insight, ttl);
 
   /// Wipe the capsule and all attempt memory (room reset, party wipe, debug).
+  /// THE WORLD TOOK SOMETHING ON THE WAY THROUGH.
+  ///
+  /// A per-planet transit hook (Ice's thaw, Mud's heave) announces a thing
+  /// that happened to the WHOLE WORLD as the party stepped through a door —
+  /// and it was announcing it into the void: `passThroughDoor` calls the hook
+  /// first and `_clearHints()` one line later, so the line was set and wiped
+  /// in the same call and the room's own entry line took the slot. Both
+  /// planets' one irreversible act has therefore been silent since it was
+  /// built, which is exactly the fault §5.7 names: a closing the player finds
+  /// out about by walking into it.
+  ///
+  /// Parked here, survives the clear, and outranks the room-entry line on the
+  /// arrival it belongs to — the room is named on the minimap anyway, and
+  /// what just happened to the shaft is the more urgent sentence.
+  String? _transitLine;
+  double _transitTtl = 0;
+
+  void _announceTransit(String msg, [double ttl = 6.0]) {
+    _transitLine = msg;
+    _transitTtl = ttl;
+  }
+
   void _clearHints() {
     hintText = null;
     _hintTtl = 0;
@@ -2805,6 +2865,7 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCircuit && _circuitBlocksAt(p, room)) return true;
     if (_isVapor && _steamBlocksAt(p, room)) return true;
     if (_isFoundry && _foundryBlocksAt(p, room)) return true;
+    if (_isShaft && _shaftBlocksAt(p, room)) return true;
     return !_onSolidGround(p, room);
   }
 
@@ -2925,9 +2986,7 @@ class PlanetDungeonGame extends FlameGame {
               room.tideZones.any(
                 (z) => _zoneFlooded(z) && z.rect.contains(a.position),
               );
-          _cue(
-            wet ? SoundCue.dungeonStepWater : SoundCue.dungeonStepStone,
-          );
+          _cue(wet ? SoundCue.dungeonStepWater : SoundCue.dungeonStepStone);
         }
       } else {
         _soundStepDistance = 0;
@@ -8933,6 +8992,8 @@ class PlanetDungeonGame extends FlameGame {
     // Lava: a channel is not a floor — running metal blocks walkers AND
     // gliders until something is cast across it.
     if (_isFoundry && _foundryBlocksAt(center, room)) return true;
+    // Ice: a star-block is a lump of frozen sky, and nothing walks through it.
+    if (_isShaft && _shaftBlocksAt(center, room)) return true;
     // When walking, you can't leave solid ground (gaps / open sky block you).
     if (!flightActive && !_onSolidGround(center, room)) return true;
     return false;
@@ -9027,9 +9088,15 @@ class PlanetDungeonGame extends FlameGame {
     // secret. Connective rooms — Mud's hag knoll, Blood's arterial run,
     // Crystal's nine cells, every manifold and causeway and stair — have
     // nothing to want and used to arrive in silence. They say where you are.
-    final hint =
-        _roomObjectiveHint(currentRoomId) ?? _roomIdentityLine(currentRoomId);
-    if (hint != null) _announceRoomEntry(hint);
+    final transit = _transitLine;
+    if (transit != null) {
+      _transitLine = null;
+      _announceRoomEntry(transit, _transitTtl);
+    } else {
+      final hint =
+          _roomObjectiveHint(currentRoomId) ?? _roomIdentityLine(currentRoomId);
+      if (hint != null) _announceRoomEntry(hint);
+    }
     _teachRoom(currentRoom);
     _maybeSpawnGuardianCombat(currentRoom);
     onChanged();
@@ -13464,6 +13531,10 @@ class PlanetDungeonGame extends FlameGame {
     if (_isCircuit) return {for (final c in room.stormCells) c.paneRect};
     // Plant draws all three of its obstacles as what they actually are.
     if (_isCrypt) return room.walls.toSet();
+    // So does Ice: the orrery's four walls ARE its iron standards, drawn by
+    // the module. Made solid 2026-09-15 (a cast-iron column you can stand
+    // inside is a decal), and the generic rock promptly drew over them.
+    if (_isShaft) return room.walls.toSet();
     return const {};
   }
 
@@ -13500,11 +13571,12 @@ class PlanetDungeonGame extends FlameGame {
       canvas.drawRRect(
         rock,
         Paint()
-          ..shader = ui.Gradient.linear(w.topCenter, w.bottomCenter, [
-            crown,
-            body,
-            foot,
-          ], const [0.0, 0.55, 1.0]),
+          ..shader = ui.Gradient.linear(
+            w.topCenter,
+            w.bottomCenter,
+            [crown, body, foot],
+            const [0.0, 0.55, 1.0],
+          ),
       );
       // Top highlight (lit from above) — the cue that says this stands up.
       canvas.drawRRect(

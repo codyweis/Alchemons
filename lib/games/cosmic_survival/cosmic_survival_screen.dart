@@ -7,6 +7,7 @@ import 'package:alchemons/services/campaign_journal_service.dart';
 // team selection (5 slots), HUD overlay, power-up selection, game over.
 
 import 'dart:async';
+import 'package:alchemons/navigation/world_transition.dart';
 import 'dart:math';
 
 import 'components/cosmic_survival_game_over_panel.dart';
@@ -21,6 +22,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_base_command_screen.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_ship_loadout.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/potential_soul.dart';
@@ -516,6 +518,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   bool _showPauseMenu = false;
   bool _showJoystick = true;
   bool _largeJoystick = true;
+
+  /// The forged cosmic hull picked in Base Command; null is the standard one.
+  String? _shipSkin;
   SurvivalVisualQuality _visualQuality = SurvivalVisualQuality.performance;
   final DebugSettingsService _debugSettings = DebugSettingsService();
   bool _debugToolsEnabled = DebugSettingsService.toolsVisible;
@@ -608,6 +613,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       setState(() => _familyPage = _familyPageController.page ?? 0);
     });
     unawaited(_loadControlPreferences());
+    unawaited(_loadShipSkin());
     CinematicQualityService.qualityNotifier.addListener(_handleQualityChanged);
     DebugSettingsService.enabledNotifier.addListener(_handleDebugToolsChanged);
     unawaited(_loadDebugTools());
@@ -658,6 +664,12 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       _showJoystick = prefs.getBool('cosmic_survival_joystick_enabled') ?? true;
       _largeJoystick = prefs.getBool('cosmic_survival_large_joystick') ?? true;
     });
+  }
+
+  Future<void> _loadShipSkin() async {
+    final loadout = await SurvivalShipLoadout.load();
+    if (!mounted) return;
+    setState(() => _shipSkin = loadout.selectedSkin);
   }
 
   SurvivalVisualQuality _toSurvivalVisualQuality(CinematicQuality quality) {
@@ -885,7 +897,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       _party = trimmed;
     });
 
-    _startGame(trimmed);
+    _enterGameThroughPortal(trimmed);
   }
 
   Future<List<CosmicPartyMember>?> _buildParty(List<String> instanceIds) async {
@@ -1050,12 +1062,60 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     setState(() {
       _party = party;
     });
-    _startGame(party);
+    _enterGameThroughPortal(party);
   }
 
   // ── Start Game ──────────────────────────────────────────
 
-  void _startGame(List<CosmicPartyMember> party) {
+  /// Enter a run through the glyph portal. The game is built and mounted
+  /// while the portal covers the lobby, but held with its engine paused so
+  /// no wave starts where the player cannot see it, and released — engine,
+  /// wave announcement, music — the moment the portal begins to fade.
+  void _enterGameThroughPortal(List<CosmicPartyMember> party) {
+    final ready = ValueNotifier<bool>(false);
+    RevealWhenReady? reporter;
+    unawaited(
+      VoidPortal.coverWithGlyphs(
+        context,
+        title: 'Survival Mode',
+        element: 'dark',
+        ready: ready,
+        onCovered: () async {
+          if (!mounted) {
+            ready.value = true;
+            return;
+          }
+          _startGame(party, heldForPortal: true);
+          reporter = RevealWhenReady(
+            ready,
+            () => mounted && (_game?.isAttached ?? false),
+          );
+        },
+        onReveal: () {
+          reporter?.dispose();
+          if (mounted) _releaseHeldRun();
+        },
+      ),
+    );
+  }
+
+  /// The portal has started to fade: let the held run go.
+  void _releaseHeldRun() {
+    final game = _game;
+    if (game == null) return;
+    game.resumeEngine();
+    _presentRunStart(game);
+  }
+
+  /// The run's opening beats — only once the player can see the arena.
+  void _presentRunStart(CosmicSurvivalGame game) {
+    _showWaveAnnouncementForWave(game.spawner.currentWave);
+    unawaited(context.read<AudioController>().playSurvivalMusic());
+  }
+
+  /// [heldForPortal]: the game mounts with its engine paused and the run's
+  /// opening beats wait for [_releaseHeldRun].
+  void _startGame(List<CosmicPartyMember> party, {bool heldForPortal = false}) {
     final upgradeSvc = context.read<SurvivalUpgradeService>();
     _mysticOverlayController.clear();
 
@@ -1071,7 +1131,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       onMysticSpecialCast: _mysticOverlayController.spawn,
       upgradeState: upgradeSvc.state,
       visualQuality: _visualQuality,
+      shipSkin: _shipSkin,
     );
+    // Flame starts its loop on attach unless already paused.
+    if (heldForPortal) game.pauseEngine();
 
     _bossAnnouncementTimer?.cancel();
     _waveAnnouncementTimer?.cancel();
@@ -1093,8 +1156,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     });
 
     game.startGame();
+    // Set even when held, so the HUD timer below doesn't announce wave 1
+    // behind the portal.
     _lastAnnouncedWave = game.spawner.currentWave;
-    _showWaveAnnouncementForWave(game.spawner.currentWave);
+    if (!heldForPortal) _showWaveAnnouncementForWave(game.spawner.currentWave);
 
     // Start HUD refresh timer (10fps)
     _hudTimer?.cancel();
@@ -1111,7 +1176,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       _liveUiTick.value++;
     });
 
-    unawaited(context.read<AudioController>().playSurvivalMusic());
+    if (!heldForPortal) {
+      unawaited(context.read<AudioController>().playSurvivalMusic());
+    }
   }
 
   // ── Wave Intermission (Power-Ups) ──────────────────────
@@ -1842,10 +1909,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                       ],
                     ),
                   ),
-                  _PauseStatusPill(
-                    label: statusLabel,
-                    color: statusColor,
-                  ),
+                  _PauseStatusPill(label: statusLabel, color: statusColor),
                 ],
               ),
               const SizedBox(height: 12),
@@ -2301,6 +2365,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   ),
                 );
                 await _loadSilver();
+                await _loadShipSkin();
               }),
               child: CustomPaint(
                 painter: _BracketFramePainter(
@@ -3006,6 +3071,38 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 color: _C.teal,
                 onTap: context.soundTap(_cycleZoomLevel),
               ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: context.soundAction(() {
+                  setState(() {
+                    game.timeScale = game.timeScale >= 2 ? 1 : 2;
+                  });
+                  HapticFeedback.selectionClick();
+                }),
+                child: Container(
+                  height: 32,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 9),
+                  decoration: BoxDecoration(
+                    color: game.timeScale >= 2
+                        ? _C.teal.withValues(alpha: 0.18)
+                        : _C.bg1.withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: game.timeScale >= 2 ? _C.teal : _C.borderDim,
+                    ),
+                  ),
+                  child: Text(
+                    game.timeScale >= 2 ? '2×' : '1×',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: game.timeScale >= 2 ? _C.teal : _C.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
               const SizedBox(width: 8),
               // Ship HP
               if (game.isLoaded) ...[
@@ -3154,23 +3251,21 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                             _PauseVitalBar(
                               label: 'ORB',
                               value: game.orb.hpPercent,
-                              readout:
-                                  '${(game.orb.hpPercent * 100).round()}%',
+                              readout: '${(game.orb.hpPercent * 100).round()}%',
                               tint: _C.amberBright,
                               critical: game.orb.hpPercent < 0.34,
                             ),
                             const SizedBox(height: 8),
                             _PauseVitalBar(
                               label: 'SHIP',
-                              value: game.ship.isDead
-                                  ? 0
-                                  : game.ship.hpPercent,
+                              value: game.ship.isDead ? 0 : game.ship.hpPercent,
                               readout: game.ship.isDead
                                   ? 'DOWN'
                                   : '${(game.ship.hpPercent * 100).round()}%',
                               tint: _C.teal,
                               critical:
-                                  game.ship.isDead || game.ship.hpPercent < 0.34,
+                                  game.ship.isDead ||
+                                  game.ship.hpPercent < 0.34,
                             ),
                             const SizedBox(height: 8),
                             _PauseVitalBar(
@@ -3349,15 +3444,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                             color: _C.bg1,
                                             border: Border.all(
                                               color: powerUpAccentColor(
-                                              entry.def,
-                                            ).withValues(alpha: 0.55),
+                                                entry.def,
+                                              ).withValues(alpha: 0.55),
                                             ),
                                           ),
                                           child: _PausePowerUpChipContent(
                                             name: entry.def.name,
-                                            tint: powerUpAccentColor(
-                                              entry.def,
-                                            ),
+                                            tint: powerUpAccentColor(entry.def),
                                             level: level,
                                             maxStacks: entry.def.maxStacks,
                                             showLevel: entry.def.showLevel,
@@ -4189,10 +4282,7 @@ class _PauseVitalBar extends StatelessWidget {
                     height: 14,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [
-                          color.withValues(alpha: 0.75),
-                          color,
-                        ],
+                        colors: [color.withValues(alpha: 0.75), color],
                       ),
                     ),
                   ),

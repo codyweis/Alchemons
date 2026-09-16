@@ -40,7 +40,21 @@ class _CosmicOrbWidgetState extends State<CosmicOrbWidget> {
             onTap: () async {
               HapticFeedback.lightImpact();
               if (!context.mounted) return;
-              VoidPortal.push(context, page: const CosmicScreen());
+              // The glyph portal is the loading screen: it holds until the
+              // cosmos is built behind it.
+              final ready = ValueNotifier<bool>(false);
+              VoidPortal.pushThroughGlyphs<void>(
+                context,
+                page: CosmicScreen(revealReady: ready),
+                title: 'The Cosmos',
+                ready: ready,
+                palette: const [
+                  Color(0xFFE4C16A), // amber
+                  Color(0xFF5BC8E8), // teal
+                  Color(0xFFB6AEFF), // starlight violet
+                ],
+                tint: const Color(0xFF4A3A8C),
+              );
             },
           ),
         );
@@ -67,7 +81,14 @@ class ConstellationPointsWidget extends StatelessWidget {
         return GestureDetector(
           onTap: context.soundAction(() {
             HapticFeedback.lightImpact();
-            VoidPortal.push(context, page: const ConstellationScreen());
+            final ready = ValueNotifier<bool>(false);
+            VoidPortal.pushThroughGlyphs<void>(
+              context,
+              page: ConstellationScreen(revealReady: ready),
+              title: 'The Constellations',
+              element: 'light',
+              ready: ready,
+            );
           }),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

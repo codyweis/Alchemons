@@ -395,6 +395,9 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
     final hasLineageAnalyzer = context
         .watch<ConstellationEffectsService>()
         .hasLineageAnalyzer();
+    final hasPotentialAnalyzer = context
+        .watch<ConstellationEffectsService>()
+        .hasPotentialAnalyzer();
     if (!hasLineageAnalyzer) {
       return Scaffold(
         backgroundColor: _kVoid,
@@ -464,6 +467,8 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                   Expanded(
                     child: stageIndex == null
                         ? _buildLoading(context)
+                        : stageIndex == 10 && !hasPotentialAnalyzer
+                        ? _buildPotentialLockedContent(context)
                         : challenge == null
                         ? _buildCompletedContent(
                             context: context,
@@ -542,6 +547,55 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen>
                 label: 'Return',
                 onTap: context.soundTap(() => Navigator.of(context).maybePop()),
                 primary: false,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPotentialLockedContent(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _SoulOrb(
+              size: 72,
+              color: _kSoulBlue,
+              child: const Icon(
+                AppIcons.auto_graph_rounded,
+                color: _kIvory,
+                size: 30,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'The Eleventh Rite Waits',
+              textAlign: TextAlign.center,
+              style: _fell(context, 27, _kIvory, ls: 0.6),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'The altar now judges what a specimen may become, not only the bloodline it carries.',
+              textAlign: TextAlign.center,
+              style: _bask(context, 13, _kIvoryDim),
+            ),
+            const SizedBox(height: 22),
+            _HkPanel(
+              accentColor: _kSoulBlue,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _HkTag(label: 'REQUIREMENT', color: _kSoulBlue),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Unlock Potential Analyzer in the Breeder constellation tree. The next offering requires Beauty Potential 76+.',
+                    style: _bask(context, 13, _kIvoryDim),
+                  ),
+                ],
               ),
             ),
           ],

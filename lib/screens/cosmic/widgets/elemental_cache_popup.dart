@@ -1,3 +1,4 @@
+import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/cosmic/widgets/elemental_cache_popup.dart
 //
@@ -16,14 +17,20 @@ import 'package:flutter/material.dart';
 
 /// The house popup palette, matched to the dungeon reward popup so a cache
 /// payout does not read as a screen from a different game.
+/// THE HOUSE POPUP PALETTE. These were a warm brown set of their own
+/// (panel 14120E, amber C4A35A, border 74613A) while cosmic and survival
+/// moved to black grounds and brighter ink — so a star payout read as a
+/// screen from an older game than the one that opened it. Aliases onto
+/// `CosmicScreenStyles` now: one set of tokens, and the dialogs cannot drift
+/// apart again.
 class _C {
-  static const panel = Color(0xFF14120E);
-  static const panelDeep = Color(0xFF0B0A07);
-  static const amber = Color(0xFFC4A35A);
-  static const amberBright = Color(0xFFE4C16A);
-  static const border = Color(0xFF74613A);
-  static const text = Color(0xFFE8DFC8);
-  static const muted = Color(0xFF9C9078);
+  static const panel = CosmicScreenStyles.bg1;
+  static const panelDeep = CosmicScreenStyles.bg0;
+  static const amber = CosmicScreenStyles.amber;
+  static const amberBright = CosmicScreenStyles.amberBright;
+  static const border = CosmicScreenStyles.borderAccent;
+  static const text = CosmicScreenStyles.textPrimary;
+  static const muted = CosmicScreenStyles.textSecondary;
 }
 
 class _RewardLine {

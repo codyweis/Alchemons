@@ -1204,11 +1204,7 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         ..strokeCap = StrokeCap.round;
       for (var i = 0; i < 3; i++) {
         final a = -pi / 2 + i * 2 * pi / 3 + 0.4;
-        canvas.drawLine(
-          b.post,
-          b.post + Offset(cos(a), sin(a)) * 26,
-          leg,
-        );
+        canvas.drawLine(b.post, b.post + Offset(cos(a), sin(a)) * 26, leg);
         canvas.drawCircle(
           b.post + Offset(cos(a), sin(a)) * 26,
           3,
@@ -1282,7 +1278,11 @@ extension BeaconArchiveDungeon on PlanetDungeonGame {
         // A carved figure, not a token: a shouldered block with a head.
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromCenter(center: e.position + const Offset(0, 3), width: 15, height: 20),
+            Rect.fromCenter(
+              center: e.position + const Offset(0, 3),
+              width: 15,
+              height: 20,
+            ),
             const Radius.circular(4),
           ),
           Paint()..color = _kArchiveStone.withValues(alpha: read ? 0.40 : 0.80),
@@ -1716,7 +1716,10 @@ void _archPaving(_ArchDraft d, _ArchRng rng, Rect r) {
       if (rng.chance(0.72)) {
         d.joint
           ..moveTo(x, y + drift)
-          ..lineTo(x + w * rng.range(0.7, 1.0), y + drift + rng.range(-1.5, 1.5));
+          ..lineTo(
+            x + w * rng.range(0.7, 1.0),
+            y + drift + rng.range(-1.5, 1.5),
+          );
       }
       // Polish: a single bright edge along one side of about half the slabs,
       // which is what makes a floor read as mirror-stone rather than tile.
@@ -1900,7 +1903,13 @@ void _archCase(
 /// A pier, a column, a plinth. Base, drum, and the hard little shadow that
 /// says the thing has height.
 void _archPier(_ArchDraft d, _ArchRng rng, Offset c, double r) {
-  _archQuad(d.cast, c + Offset(3, r * 1.0), r * 2.1, r * 2.1, rng.range(-0.1, 0.1));
+  _archQuad(
+    d.cast,
+    c + Offset(3, r * 1.0),
+    r * 2.1,
+    r * 2.1,
+    rng.range(-0.1, 0.1),
+  );
   _archQuad(d.stoneFill, c, r * 2.1, r * 2.1, rng.range(-0.08, 0.08));
   d.stoneEdge.addOval(Rect.fromCircle(center: c, radius: r));
   d.stoneFill.addOval(Rect.fromCircle(center: c, radius: r * 0.82));
@@ -2130,7 +2139,11 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
       _archQuad(d.stoneFill, const Offset(680, 260), 44, 150, 0);
       d.wells.addRRect(
         RRect.fromRectAndRadius(
-          Rect.fromCenter(center: const Offset(682, 260), width: 26, height: 122),
+          Rect.fromCenter(
+            center: const Offset(682, 260),
+            width: 26,
+            height: 122,
+          ),
           const Radius.circular(9),
         ),
       );
@@ -2186,9 +2199,16 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
       );
       // THE ROOST. Cocoons hung off the arcading, and a floor of wings.
       for (var i = 0; i < 14; i++) {
-        final c = Offset(rng.range(60, 750), rng.chance(0.5) ? rng.range(66, 92) : rng.range(420, 448));
+        final c = Offset(
+          rng.range(60, 750),
+          rng.chance(0.5) ? rng.range(66, 92) : rng.range(420, 448),
+        );
         d.litter.addOval(
-          Rect.fromCenter(center: c, width: rng.range(7, 14), height: rng.range(12, 22)),
+          Rect.fromCenter(
+            center: c,
+            width: rng.range(7, 14),
+            height: rng.range(12, 22),
+          ),
         );
       }
       // Two carrels off the walk, a case gone over, and the gallery's own
@@ -2337,9 +2357,7 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
       }
       // The ghost of the oculus on the landing — the only light in the heart,
       // and it is not enough to read by.
-      d.sheen.addOval(
-        Rect.fromCenter(center: c, width: 250, height: 170),
-      );
+      d.sheen.addOval(Rect.fromCenter(center: c, width: 250, height: 170));
       d.gleam.addOval(Rect.fromCenter(center: c, width: 250, height: 170));
       // The hall's own plan, inlaid in brass at the foot of the stair: five
       // sectors and two bands, worn to nothing on the side people walk.
@@ -2407,7 +2425,9 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
           final at = along
               ? c + Offset(off, desk[3] * rng.range(0.75, 1.15))
               : c + Offset(desk[2] * rng.range(0.75, 1.15), off);
-          d.timber.addOval(Rect.fromCircle(center: at, radius: rng.range(8, 11)));
+          d.timber.addOval(
+            Rect.fromCircle(center: at, radius: rng.range(8, 11)),
+          );
         }
         // A chained book, and the chain.
         if (rng.chance(0.7)) {
@@ -2437,7 +2457,11 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
       _archQuad(d.stoneFill, const Offset(226, 280), 58, 160, 0);
       d.wells.addRRect(
         RRect.fromRectAndRadius(
-          Rect.fromCenter(center: const Offset(230, 280), width: 34, height: 132),
+          Rect.fromCenter(
+            center: const Offset(230, 280),
+            width: 34,
+            height: 132,
+          ),
           const Radius.circular(10),
         ),
       );
@@ -2509,14 +2533,16 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
       }
       // THE OCULUS, inlaid: the eye overhead, as a ring of pale stone in the
       // floor directly under it.
-      d.sheen.addOval(
-        Rect.fromCenter(center: o, width: 330, height: 250),
-      );
+      d.sheen.addOval(Rect.fromCenter(center: o, width: 330, height: 250));
       d.gleam.addOval(Rect.fromCenter(center: o, width: 330, height: 250));
       d.gleam.addOval(Rect.fromCenter(center: o, width: 274, height: 206));
       // THE PILLARS' FOOTINGS — the three the fight is about, drawn as stone
       // in the floor so they read as part of the building.
-      for (final p in const [Offset(200, 430), Offset(450, 500), Offset(700, 430)]) {
+      for (final p in const [
+        Offset(200, 430),
+        Offset(450, 500),
+        Offset(700, 430),
+      ]) {
         _archQuad(d.stoneEdge, p, 62, 62, 0);
         _archQuad(d.stoneEdge, p, 46, 46, 0.78);
       }
@@ -2552,7 +2578,8 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
   // mood and has to keep showing through the archive's floor.
   canvas.drawPath(
     d.field,
-    Paint()..color = (glass ? _kArchGlass : _kArchMirror).withValues(alpha: 0.58),
+    Paint()
+      ..color = (glass ? _kArchGlass : _kArchMirror).withValues(alpha: 0.58),
   );
   canvas.drawPath(d.wells, Paint()..color = _kArchWell.withValues(alpha: 0.40));
   canvas.drawPath(
@@ -2632,7 +2659,10 @@ _ArchiveGround _buildArchiveGround(String roomId, Rect bounds) {
     stackLine: stackLine,
     motes: [
       for (var i = 0; i < 20; i++)
-        Offset(rng.range(bounds.left, bounds.right), rng.range(bounds.top, bounds.bottom)),
+        Offset(
+          rng.range(bounds.left, bounds.right),
+          rng.range(bounds.top, bounds.bottom),
+        ),
     ],
   );
 }

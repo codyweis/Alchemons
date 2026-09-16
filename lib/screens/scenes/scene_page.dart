@@ -94,7 +94,13 @@ class ScenePage extends StatefulWidget {
     this.cosmicElementName,
     this.showCosmicDesolationPopup = false,
     this.onNavigateSection,
+    this.revealReady,
   });
+
+  /// Set true once the scene's game is loaded and attached, so an entry
+  /// transition covering this page (VoidPortal.pushThroughGlyphs) reveals a
+  /// built scene.
+  final ValueNotifier<bool>? revealReady;
 
   @override
   State<ScenePage> createState() => _ScenePageState();
@@ -105,6 +111,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     r'^(LET|PIP|MAN|HOR|MSK|WNG|KIN)13$',
   );
   late SceneGame _game;
+
+  late final RevealWhenReady _revealWhenReady;
   late EncounterService _encounters;
   bool _resolverHooked = false;
   bool _tutorialDialogShown = false;
@@ -158,6 +166,13 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     _game = SceneGame(
       scene: widget.scene,
       transparentBackground: widget.isCosmicPlanetEntry,
+    );
+
+    // An entry portal is covering this page: tell it when the scene is
+    // built. Flame only attaches its render box once the game has loaded.
+    _revealWhenReady = RevealWhenReady(
+      widget.revealReady,
+      () => mounted && _game.isAttached,
     );
 
     // 🆕 Enable tutorial mode if this is tutorial
@@ -337,23 +352,31 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     const eligibleScenes = {'valley', 'sky', 'swamp', 'volcano'};
     if (!eligibleScenes.contains(widget.sceneId)) return;
 
-    // Only eligible after first-time planet-entry story has happened.
+    final settings = _db.settingsDao;
+    final truthRevealPending =
+        await settings.getSetting('wilderness_truth_reveal_pending_v1') == '1';
+
+    // New saves hear this on their first Field entry after returning from
+    // real cosmic space. The planet-revelation flags preserve reachability
+    // for saves created before that return marker existed.
     const planetStorySeenKey = 'cosmic_planet_pathway_intro_seen_v1';
     final prefs = await SharedPreferences.getInstance();
     final planetStorySeen =
         (prefs.getBool(planetStorySeenKey) ?? false) ||
         await _db.settingsDao.getSetting('campaign_revelation_seen_v1') == '1';
-    if (!planetStorySeen || !mounted) return;
+    if (!truthRevealPending && !planetStorySeen || !mounted) return;
 
-    final settings = _db.settingsDao;
     const key = 'wilderness_post_planet_story_seen';
     final seen = (await settings.getSetting(key)) == '1';
     if (seen || !mounted) return;
 
     await LandscapeDialog.show(
       context,
-      title: 'Self Deception',
-      message: 'Does reality dictate beauty?',
+      title: 'The Beautiful Lie',
+      message:
+          'I created this world to hide my shame from the death of Alchemons. '
+          'I filled it with a perception of life and called that beauty. '
+          'But beauty does not make it true.',
       typewriter: true,
       kind: LandscapeDialogKind.info,
       showIcon: false,
@@ -361,6 +384,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       barrierDismissible: false,
     );
     await settings.setSetting(key, '1');
+    await settings.deleteSetting('wilderness_truth_reveal_pending_v1');
   }
 
   // 🆕 Guarantee a LET spawn for tutorial
@@ -482,6 +506,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _revealWhenReady.dispose();
     try {
       if (_isCosmicPlanetMode) {
         unawaited(
@@ -509,9 +534,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     // be left several ways and all of them mean the same thing.
     if (OpeningWildernessService.coreScenes.contains(widget.sceneId)) {
       unawaited(
-        CosmicMemoryTutorialService.recordBiomeExitIfEligible(
-          _db.settingsDao,
-        ),
+        CosmicMemoryTutorialService.recordBiomeExitIfEligible(_db.settingsDao),
       );
     }
 

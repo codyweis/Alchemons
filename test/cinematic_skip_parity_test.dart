@@ -41,22 +41,63 @@ void main() {
     }
   });
 
-  test('the silhouette does not hold to the end of the run', () {
-    // It landed at 0.80 and sat fully revealed for the last fifth — a second
-    // and a half of still frame at the end of a cinematic.
-    expect(hatch, contains('Interval(0.84, 0.95'));
+  // These used to assert on literal window strings, which meant every timing
+  // tweak broke them for no reason and they spent most of their life red. They
+  // now pull the constants out of the source and assert the RELATIONSHIPS
+  // between them -- which is what actually has to hold for the ceremony not to
+  // end on a still frame. Retuning the numbers is free; breaking the ordering
+  // is not.
+  double constant(String src, String name) {
+    final match = RegExp('$name\\s*=\\s*([0-9.]+)').firstMatch(src);
+    expect(match, isNotNull, reason: '$name should still exist');
+    return double.parse(match!.group(1)!);
+  }
+
+  test('the silhouette lands before the ceremony starts dissolving', () {
+    // The reveal is the only Interval driven with easeOut.
+    final reveal = RegExp(
+      r'Interval\(([0-9.]+),\s*([0-9.]+),\s*curve: Curves\.easeOut\)',
+    ).firstMatch(hatch);
+    expect(reveal, isNotNull, reason: 'the silhouette reveal window');
+
+    final revealEnd = double.parse(reveal!.group(2)!);
+    final dissolveFrom = constant(hatch, '_kDissolveFrom');
+
     expect(
-      hatch.contains('Interval(0.80, 0.92'),
-      isFalse,
-      reason: 'the old reveal window',
+      revealEnd,
+      lessThanOrEqualTo(dissolveFrom),
+      reason: 'the scale-in has to finish before the fade starts, or the '
+          'silhouette is still arriving while it leaves',
     );
   });
 
-  test('and the ceremony is shorter for it', () {
+  test('it hands over on an empty frame, before the timeline runs out', () {
+    final dissolveFrom = constant(hatch, '_kDissolveFrom');
+    final handover = constant(hatch, '_kHandoverAt');
+
+    expect(
+      dissolveFrom,
+      lessThan(handover),
+      reason: 'there has to be a dissolve window, not a cut',
+    );
+    expect(
+      handover,
+      lessThan(1.0),
+      reason: 'waiting for the controller to complete is what left a '
+          'motionless silhouette on screen at the end',
+    );
+  });
+
+  test('and the ceremony is shorter than it was', () {
+    // The service no longer hard-codes a duration; it takes the cinematic's
+    // own constant, so there is one number to change instead of two that can
+    // disagree.
     final service = File(
       'lib/services/egg_hatching_service.dart',
     ).readAsStringSync();
-    expect(service, contains('milliseconds: 6400'));
-    expect(service.contains('milliseconds: 7200'), isFalse);
+    expect(service, contains('kHatchCeremonyMs'));
+
+    final ceremonyMs = constant(hatch, 'kHatchCeremonyMs');
+    expect(ceremonyMs, lessThan(7500));
   });
 }

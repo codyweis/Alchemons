@@ -89,6 +89,9 @@ class _MainShellState extends State<MainShell> {
   NavSection _currentSection = NavSection.home;
   final Set<int> _warmedNavigationIndexes = {0};
   bool _warmingNavigation = true;
+
+  /// True once the warm-up splash has finished fading out and is unmounted.
+  bool _splashFaded = false;
   String _warmupStatus = 'Preparing home';
   double _warmupProgress = 0.76;
 
@@ -316,11 +319,26 @@ class _MainShellState extends State<MainShell> {
               theme: theme,
             ),
           ),
-          if (_warmingNavigation)
+          // The splash dissolves into home rather than cutting: touches pass
+          // through the moment warm-up ends, and it unmounts once faded.
+          if (!_splashFaded)
             Positioned.fill(
-              child: AlchemonsSplash(
-                status: _warmupStatus,
-                progress: _warmupProgress,
+              child: IgnorePointer(
+                ignoring: !_warmingNavigation,
+                child: AnimatedOpacity(
+                  opacity: _warmingNavigation ? 1 : 0,
+                  duration: const Duration(milliseconds: 450),
+                  curve: Curves.easeOut,
+                  onEnd: () {
+                    if (mounted && !_warmingNavigation) {
+                      setState(() => _splashFaded = true);
+                    }
+                  },
+                  child: AlchemonsSplash(
+                    status: _warmupStatus,
+                    progress: _warmupProgress,
+                  ),
+                ),
               ),
             ),
         ],
@@ -458,6 +476,7 @@ class _AnimatedPurebloodRiteIconState extends State<_AnimatedPurebloodRiteIcon>
   bool _checkingSeen = false;
   bool _resolvedSeen = false;
   bool _isPulsing = false;
+  bool _isNew = false;
 
   @override
   void initState() {
@@ -504,8 +523,8 @@ class _AnimatedPurebloodRiteIconState extends State<_AnimatedPurebloodRiteIcon>
         return;
       }
 
-      await db.settingsDao.setSetting(_seenKey, '1');
       _resolvedSeen = true;
+      _isNew = true;
       if (!mounted || !widget.enabled) {
         return;
       }
@@ -525,13 +544,14 @@ class _AnimatedPurebloodRiteIconState extends State<_AnimatedPurebloodRiteIcon>
     try {
       _ctrl.stop();
       _ctrl.reset();
-      await _ctrl.forward();
-      await Future.delayed(const Duration(milliseconds: 160));
-      if (!mounted) {
-        return;
+      for (var i = 0; i < 3; i++) {
+        _ctrl.reset();
+        await _ctrl.forward();
+        if (i < 2) {
+          await Future.delayed(const Duration(milliseconds: 120));
+          if (!mounted) return;
+        }
       }
-      _ctrl.reset();
-      await _ctrl.forward();
     } catch (_) {
       // Ignore animation interruptions during navigation/lifecycle changes.
     } finally {
@@ -555,29 +575,66 @@ class _AnimatedPurebloodRiteIconState extends State<_AnimatedPurebloodRiteIcon>
         return Transform.scale(
           scale: _scale.value,
           child: GestureDetector(
-            onTap: context.soundAction(widget.onTap),
+            onTap: context.soundAction(() async {
+              if (_isNew) {
+                final db = context.read<AlchemonsDatabase>();
+                await db.settingsDao.setSetting(_seenKey, '1');
+                if (mounted) setState(() => _isNew = false);
+              }
+              widget.onTap();
+            }),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 68,
-                  height: 68,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(
-                          0xFFB91C1C,
-                        ).withValues(alpha: 0.28 + pulse * 0.30),
-                        blurRadius: 22 + pulse * 14,
-                        spreadRadius: 2 + pulse * 3,
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 68,
+                      height: 68,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFFB91C1C,
+                            ).withValues(alpha: 0.28 + pulse * 0.30),
+                            blurRadius: 22 + pulse * 14,
+                            spreadRadius: 2 + pulse * 3,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: Image.asset(
-                    'assets/images/ui/sacrificeicon.png',
-                    fit: BoxFit.contain,
-                  ),
+                      child: Image.asset(
+                        'assets/images/ui/sacrificeicon.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    if (_isNew)
+                      Positioned(
+                        right: -8,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFB91C1C),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white70),
+                          ),
+                          child: const Text(
+                            'NEW',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 Transform.translate(
                   offset: const Offset(0, -6),
@@ -651,6 +708,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _harvestNotificationStateHydrated = false;
 
   bool _isFieldTutorialActive = false;
+
   /// Held from setup so teardown never has to consult the provider tree.
   WildernessSpawnService? _spawnServiceForTeardown;
 
@@ -862,8 +920,7 @@ class _HomeScreenState extends State<HomeScreen>
     // remember anything, so this is the whole schedule rebuilt from state.
     await _rehydrateEggSchedules();
     if (!mounted) return;
-    await context.read<AlchemonsDatabase>().biomeDao
-        .syncHarvestNotifications();
+    await context.read<AlchemonsDatabase>().biomeDao.syncHarvestNotifications();
     if (!mounted) return;
     await _checkWildernessNotifications();
   }
@@ -2140,9 +2197,17 @@ class _HomeScreenState extends State<HomeScreen>
                                       GestureDetector(
                                         onTap: context.soundAction(() {
                                           HapticFeedback.heavyImpact();
-                                          VoidPortal.push(
+                                          final ready = ValueNotifier<bool>(
+                                            false,
+                                          );
+                                          VoidPortal.pushThroughGlyphs<void>(
                                             context,
-                                            page: const MysticAltarScreen(),
+                                            page: MysticAltarScreen(
+                                              revealReady: ready,
+                                            ),
+                                            title: 'The Mystic Altar',
+                                            element: 'crystal',
+                                            ready: ready,
                                           );
                                         }),
                                         child: Column(
@@ -2177,9 +2242,11 @@ class _HomeScreenState extends State<HomeScreen>
                                         onPulse: _playHomeShake,
                                         onTap: () {
                                           HapticFeedback.heavyImpact();
-                                          VoidPortal.push(
+                                          VoidPortal.pushThroughGlyphs<void>(
                                             context,
                                             page: const PurebloodRiteScreen(),
+                                            title: 'The Pureblood Rite',
+                                            element: 'blood',
                                           );
                                         },
                                       ),
@@ -2310,8 +2377,7 @@ class _HomeScreenState extends State<HomeScreen>
         // of what you just did does not need to be acknowledged to be read.
         showGameSnack(
           context,
-          'Cosmic combat: summon to a slot, magnet to follow or hold, '
-          'abilities on cooldown',
+          'Cosmic combat: summon to a slot, link the tether to follow or unlink it to hold, and arm the bottom-right cannon for auto-fire',
           icon: AppIcons.auto_awesome,
           duration: const Duration(seconds: 6),
         );

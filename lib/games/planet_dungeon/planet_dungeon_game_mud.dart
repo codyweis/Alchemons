@@ -369,10 +369,13 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (!_isBog) return;
     if (!_isRisenWallowDoor(from, door)) return;
     _fen.heave();
-    _setHint(
+    // A TRANSIT line: as a plain hint this was wiped by the very door it
+    // reports on (the fen's one world-scale act, silent since it was built —
+    // the Ice precedent, same cause).
+    _announceTransit(
       'The sough lets go and the whole fen heaves, every road you dragged '
       'is soup again',
-      4.6,
+      7.0,
     );
   }
 
@@ -542,7 +545,10 @@ extension SinkingAltarFen on PlanetDungeonGame {
   Offset _sarsenStandsAt() {
     final room = layout.rooms[_fen.sarsenKnoll];
     final b = room?.bounds ?? currentRoom.bounds;
-    return Offset(b.center.dx, _fen.sarsenKnoll == kSarsenHomeKnoll ? 150 : 140);
+    return Offset(
+      b.center.dx,
+      _fen.sarsenKnoll == kSarsenHomeKnoll ? 150 : 140,
+    );
   }
 
   /// The socket's bog-resin cap — **Plant+Mud→Poison** eats it (§6.8). The
@@ -743,14 +749,22 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (!bog.cutsFound) {
       if ((a.position - lead).distance > _kFenReach) return false;
       if (e != 'Water') {
-        _spawnAlchemyBurst(lead, producedElement: e, particleCount: 8,
-            intensity: 0.5);
+        _spawnAlchemyBurst(
+          lead,
+          producedElement: e,
+          particleCount: 8,
+          intensity: 0.5,
+        );
         _setHint('Black water, and something under it that will not show');
         return true;
       }
       bog.cutsFound = true;
-      _spawnAlchemyBurst(lead, producedElement: 'Water', particleCount: 20,
-          intensity: 0.9);
+      _spawnAlchemyBurst(
+        lead,
+        producedElement: 'Water',
+        particleCount: 20,
+        intensity: 0.9,
+      );
       return true;
     }
 
@@ -761,15 +775,23 @@ extension SinkingAltarFen on PlanetDungeonGame {
       if (!bog.seedSet) {
         // Pouring into a sink with nothing in it teaches what is missing
         // without naming it: the peat goes down and the hole takes it.
-        _spawnAlchemyBurst(cuts[i], producedElement: 'Mud', particleCount: 8,
-            intensity: 0.5);
+        _spawnAlchemyBurst(
+          cuts[i],
+          producedElement: 'Mud',
+          particleCount: 8,
+          intensity: 0.5,
+        );
         _setHint('The cut pours, the sink swallows it, and nothing changes');
         return true;
       }
       final braid = e != 'Mud';
       if (braid && !_bogBraidReady(a)) {
-        _spawnAlchemyBurst(cuts[i], producedElement: e, particleCount: 8,
-            intensity: 0.5);
+        _spawnAlchemyBurst(
+          cuts[i],
+          producedElement: e,
+          particleCount: 8,
+          intensity: 0.5,
+        );
         _setHint('The lip holds, this hand has no drag in it');
         return true;
       }
@@ -787,8 +809,13 @@ extension SinkingAltarFen on PlanetDungeonGame {
       bog.smearAt = cuts[i];
       bog.smearLost = const [];
       _cue(SoundCue.dungeonSwitch);
-      _spawnAlchemyBurst(cuts[i], producedElement: 'Mud',
-          reagentElements: const ['Water'], particleCount: 22, intensity: 1.0);
+      _spawnAlchemyBurst(
+        cuts[i],
+        producedElement: 'Mud',
+        reagentElements: const ['Water'],
+        particleCount: 22,
+        intensity: 1.0,
+      );
       if (bog.poured.length == cuts.length) {
         // ── 5 · buried utterly, and it blooms ──
         beginMaximRite(kMudNoLotusEggId, sink);
@@ -807,14 +834,22 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if ((a.position - sink).distance > _kFenReach) return false;
     if (bog.seedSet) return false;
     if (e != 'Plant') {
-      _spawnAlchemyBurst(sink, producedElement: e, particleCount: 8,
-          intensity: 0.5);
+      _spawnAlchemyBurst(
+        sink,
+        producedElement: e,
+        particleCount: 8,
+        intensity: 0.5,
+      );
       _setHint('The sink is clean to the bottom, and holds nothing');
       return true;
     }
     bog.seedSet = true;
-    _spawnAlchemyBurst(sink, producedElement: 'Plant', particleCount: 18,
-        intensity: 0.8);
+    _spawnAlchemyBurst(
+      sink,
+      producedElement: 'Plant',
+      particleCount: 18,
+      intensity: 0.8,
+    );
     return true;
   }
 
@@ -971,9 +1006,11 @@ extension SinkingAltarFen on PlanetDungeonGame {
     // not one (§5.6 AMBIENT; §7 rule 5, wordless past the first nudge).
     final sink = room.fen?.sinkPit;
     if (sink != null && (a.position - sink).distance < 110) {
-      _setAmbientHint(_fen.fenAtFullDrown
-          ? 'The cut is running, and it runs away from the fane'
-          : 'An old cut, dug for something, going nowhere now');
+      _setAmbientHint(
+        _fen.fenAtFullDrown
+            ? 'The cut is running, and it runs away from the fane'
+            : 'An old cut, dug for something, going nowhere now',
+      );
     }
   }
 
@@ -1506,13 +1543,12 @@ extension SinkingAltarFen on PlanetDungeonGame {
   static const Color _fenOak = Color(0xFF16110C);
   static const Color _fenCotton = Color(0xFFD8D2BA);
 
-  FenGround _bogGround(DungeonRoom room) =>
-      bog.ground.putIfAbsent(
-        room.id,
-        () => room.fen?.knoll != null
-            ? _buildBogGround(room)
-            : _buildDrownedGround(room),
-      );
+  FenGround _bogGround(DungeonRoom room) => bog.ground.putIfAbsent(
+    room.id,
+    () => room.fen?.knoll != null
+        ? _buildBogGround(room)
+        : _buildDrownedGround(room),
+  );
 
   /// UNDER THE FEN. The fane, the bowl and the hollow are not knolls and had
   /// no business drawing moss caps, cotton-grass and standing pools — this is
@@ -1649,11 +1685,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       final c = g.panCentres[i];
       final ph = ((t * 0.35 + i * 0.2) % 1.0);
       canvas.drawOval(
-        Rect.fromCenter(
-          center: c,
-          width: 28 + ph * 74,
-          height: 15 + ph * 38,
-        ),
+        Rect.fromCenter(center: c, width: 28 + ph * 74, height: 15 + ph * 38),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.6
@@ -1812,8 +1844,13 @@ extension SinkingAltarFen on PlanetDungeonGame {
       final ry = rx * (0.42 + rnd() * 0.22);
       g.hummocks.add(_blobPath(c, rx, ry, rnd, wobble: 0.22));
       g.mossCaps.add(
-        _blobPath(c.translate(0, -ry * 0.30), rx * 0.72, ry * 0.5, rnd,
-            wobble: 0.26),
+        _blobPath(
+          c.translate(0, -ry * 0.30),
+          rx * 0.72,
+          ry * 0.5,
+          rnd,
+          wobble: 0.26,
+        ),
       );
     }
 
@@ -2260,7 +2297,12 @@ extension SinkingAltarFen on PlanetDungeonGame {
         ..color = const Color(0xFF5E5B52),
     );
     // The watercourse's mark, cut into the face and picked out in its ink.
-    _drawSloughMark(canvas, at.translate(0, -2), ink, kSloughOrder[ford.slough] ?? 0);
+    _drawSloughMark(
+      canvas,
+      at.translate(0, -2),
+      ink,
+      kSloughOrder[ford.slough] ?? 0,
+    );
     // …and the notches: how far down this water the crossing lies.
     for (var i = 0; i <= ford.index; i++) {
       canvas.drawLine(
@@ -2653,10 +2695,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     // The bowl.
     final bowl = Rect.fromCenter(center: basin, width: 66, height: 24);
     canvas.drawOval(bowl, Paint()..color = _fenPeat.withValues(alpha: 0.95));
-    canvas.drawOval(
-      bowl.deflate(3),
-      Paint()..color = const Color(0xFF17140F),
-    );
+    canvas.drawOval(bowl.deflate(3), Paint()..color = const Color(0xFF17140F));
     if (holding) {
       // Still water, right to the rim, and the sky in it.
       canvas.drawOval(
@@ -2681,11 +2720,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       // SODDEN GROUND DRINKS IT. A shallow lick of water in the bottom and
       // a bead running out under the plinth — the bowl is losing it.
       canvas.drawOval(
-        Rect.fromCenter(
-          center: basin.translate(0, 4),
-          width: 34,
-          height: 8,
-        ),
+        Rect.fromCenter(center: basin.translate(0, 4), width: 34, height: 8),
         Paint()..color = const Color(0xFF2E4A4E).withValues(alpha: 0.55),
       );
       final t = (bog.clock * 0.6) % 1.0;
@@ -2753,11 +2788,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
         );
       }
       canvas.drawOval(
-        Rect.fromCenter(
-          center: c.translate(-14, -12),
-          width: 26,
-          height: 11,
-        ),
+        Rect.fromCenter(center: c.translate(-14, -12), width: 26, height: 11),
         Paint()..color = const Color(0xFF9A7638).withValues(alpha: 0.35),
       );
     } else if (!_fen.sarsenSeated) {
@@ -2851,11 +2882,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       for (var i = 0; i < 3; i++) {
         final t = ((bog.clock * 0.5 + i / 3) % 1.0);
         canvas.drawOval(
-          Rect.fromCenter(
-            center: at,
-            width: 30 + t * 60,
-            height: 16 + t * 32,
-          ),
+          Rect.fromCenter(center: at, width: 30 + t * 60, height: 16 + t * 32),
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2
@@ -2997,9 +3024,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(trench, const Radius.circular(6)),
-        Paint()..color = poured
-            ? const Color(0xFF17140F)
-            : const Color(0xFF3E3322),
+        Paint()
+          ..color = poured ? const Color(0xFF17140F) : const Color(0xFF3E3322),
       );
       if (!poured) {
         // Turves still stacked on the lip, and the lip itself unbroken.
@@ -3041,11 +3067,12 @@ extension SinkingAltarFen on PlanetDungeonGame {
     );
     canvas.drawOval(
       Rect.fromCenter(center: sink, width: 116, height: 62),
-      Paint()..color = Color.lerp(
-        const Color(0xFF10262B),
-        const Color(0xFF1B1409),
-        k,
-      )!,
+      Paint()
+        ..color = Color.lerp(
+          const Color(0xFF10262B),
+          const Color(0xFF1B1409),
+          k,
+        )!,
     );
     if (k < 0.98) {
       // Water still: a sheen, and the bottom showing through.
@@ -3091,11 +3118,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
           Paint()..color = const Color(0xFFF2D7E6).withValues(alpha: 0.75),
         );
       }
-      canvas.drawCircle(
-        sink,
-        9,
-        Paint()..color = const Color(0xFFF7E9A8),
-      );
+      canvas.drawCircle(sink, 9, Paint()..color = const Color(0xFFF7E9A8));
     }
   }
 

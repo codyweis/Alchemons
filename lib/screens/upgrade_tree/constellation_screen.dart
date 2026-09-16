@@ -48,7 +48,11 @@ TextStyle _constellationDisplay(
 }
 
 class ConstellationScreen extends StatefulWidget {
-  const ConstellationScreen({super.key});
+  const ConstellationScreen({super.key, this.revealReady});
+
+  /// Set true once the constellation game is attached, for an entry portal
+  /// covering this screen (VoidPortal.pushThroughGlyphs).
+  final ValueNotifier<bool>? revealReady;
 
   @override
   State<ConstellationScreen> createState() => _ConstellationScreenState();
@@ -70,9 +74,15 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
   int _currentPoints = 0;
   Set<String> _currentUnlocked = const {};
 
+  late final RevealWhenReady _revealWhenReady;
+
   @override
   void initState() {
     super.initState();
+    _revealWhenReady = RevealWhenReady(
+      widget.revealReady,
+      () => mounted && (_game?.isAttached ?? false),
+    );
     // Arriving earns the task; collecting it happens in the journal.
     OnboardingTaskService.recordArrival(context, 'constellation');
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -82,6 +92,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
 
   @override
   void dispose() {
+    _revealWhenReady.dispose();
     super.dispose();
   }
 

@@ -7,8 +7,31 @@ import 'package:alchemons/widgets/app_icons.dart';
 // ---------- DEPLOY CONFIRM DIALOG ----------
 
 class DeployConfirmDialog extends StatelessWidget {
-  const DeployConfirmDialog({super.key, required this.theme});
+  const DeployConfirmDialog({
+    super.key,
+    required this.theme,
+    this.partyCount = 0,
+    this.maxSize = 0,
+    this.availableCount = 0,
+  });
   final FactionTheme theme;
+
+  /// How many are being deployed, the most that can be, and how many the
+  /// player actually owns. The short-party warning lives here rather than on
+  /// the way into the field, so it appears while there is still a picker open
+  /// to act on it.
+  final int partyCount;
+  final int maxSize;
+  final int availableCount;
+
+  /// Only worth saying when the player could actually field a full team.
+  /// Telling someone with three creatures that they are short of four is
+  /// noise they cannot act on.
+  bool get _shortHanded =>
+      maxSize > 0 && partyCount < maxSize && availableCount >= maxSize;
+
+  @visibleForTesting
+  bool get shortHandedForTest => _shortHanded;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +93,34 @@ class DeployConfirmDialog extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (_shortHanded) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          AppIcons.warning_amber_rounded,
+                          color: t.amberBright,
+                          size: 15,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Deploying $partyCount of $maxSize. You have enough '
+                            'creatures to fill the team.',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: t.amberBright,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              height: 1.45,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                  ],
                   Text(
                     'Creatures in the wild are unique and will not be there again after leaving.',
                     style: TextStyle(

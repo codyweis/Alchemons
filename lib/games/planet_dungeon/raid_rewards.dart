@@ -1,3 +1,4 @@
+import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/audio/audio.dart';
 // lib/games/planet_dungeon/raid_rewards.dart
 //
@@ -85,12 +86,18 @@ Future<List<RaidRewardEntry>> grantRaidRewards({
 // POPUP
 // ─────────────────────────────────────────────────────────
 
+/// THE HOUSE POPUP PALETTE. These were a warm brown set of their own
+/// (panel 14120E, amber C4A35A, border 74613A) while cosmic and survival
+/// moved to black grounds and brighter ink — so a star payout read as a
+/// screen from an older game than the one that opened it. Aliases onto
+/// `CosmicScreenStyles` now: one set of tokens, and the dialogs cannot drift
+/// apart again.
 class _C {
   static const bg = Color(0xFF0B0909);
   static const text = Color(0xFFEDE3CF);
   static const muted = Color(0xFF9A8F7A);
-  static const amberBright = Color(0xFFE4C16A);
-  static const border = Color(0xFF74613A);
+  static const amberBright = CosmicScreenStyles.amberBright;
+  static const border = CosmicScreenStyles.borderAccent;
   static const danger = Color(0xFFB8503F);
 }
 

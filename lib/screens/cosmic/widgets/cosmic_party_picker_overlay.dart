@@ -4,6 +4,8 @@ import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/models/stat_system.dart';
@@ -89,6 +91,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
   SortBy _sortBy = SortBy.levelHigh;
   bool _filterPrismatic = false;
   bool _filterFavorites = false;
+  bool _filterHasStamina = false;
 
   @override
   void initState() {
@@ -175,6 +178,10 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
     if (_filterFavorites) {
       list = list.where((ci) => ci.isFavorite).toList();
     }
+    if (_filterHasStamina) {
+      final stamina = context.read<StaminaService>();
+      list = list.where((ci) => stamina.computeState(ci).bars > 0).toList();
+    }
 
     // Anything already in another slot is not assignable. The target slot's
     // own occupant stays listed so the tile reads as "currently equipped"
@@ -222,11 +229,25 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
           return b.statStrengthPotential.compareTo(a.statStrengthPotential);
         case SortBy.potentialBeauty:
           return b.statBeautyPotential.compareTo(a.statBeautyPotential);
+        case SortBy.combinedPotential:
+          return _combinedPotential(b).compareTo(_combinedPotential(a));
+        case SortBy.staminaHigh:
+          final stamina = context.read<StaminaService>();
+          return stamina
+              .computeState(b)
+              .bars
+              .compareTo(stamina.computeState(a).bars);
       }
     });
 
     _filteredInstances = list;
   }
+
+  double _combinedPotential(CreatureInstance instance) =>
+      instance.statSpeedPotential +
+      instance.statIntelligencePotential +
+      instance.statStrengthPotential +
+      instance.statBeautyPotential;
 
   Future<void> _assign(CreatureInstance ci) async {
     final slot = _effectiveTarget;
@@ -278,10 +299,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          SizedBox(
-                            width: railWidth,
-                            child: _rackRail(short),
-                          ),
+                          SizedBox(width: railWidth, child: _rackRail(short)),
                           Container(
                             width: 1,
                             color: CosmicScreenStyles.borderDim,
@@ -333,7 +351,11 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
           ),
           if (!short) ...[
             const SizedBox(width: 10),
-            Container(width: 1, height: 12, color: CosmicScreenStyles.borderMid),
+            Container(
+              width: 1,
+              height: 12,
+              color: CosmicScreenStyles.borderMid,
+            ),
             const SizedBox(width: 10),
             Flexible(
               child: Text(
@@ -536,7 +558,9 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
       opacity: locked ? 0.55 : 1,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: locked ? null : context.soundAction(() => _selectSlot(slotIndex)),
+        onTap: locked
+            ? null
+            : context.soundAction(() => _selectSlot(slotIndex)),
         child: Container(
           height: rowHeight,
           decoration: BoxDecoration(
@@ -794,6 +818,9 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
   /// Sort chips scroll; the two filter toggles stay pinned. Five chips plus
   /// two toggles in a plain Row overflowed on anything narrower than a tablet.
   Widget _filterRow(bool short) {
+    final hasPotentialAnalyzer =
+        context.watch<ConstellationEffectsService?>()?.hasPotentialAnalyzer() ??
+        false;
     return Row(
       children: [
         Expanded(
@@ -802,10 +829,18 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             children: [
               _sortChip('LV', SortBy.levelHigh),
-              _sortChip('SPD', SortBy.statSpeed),
-              _sortChip('STR', SortBy.statStrength),
-              _sortChip('INT', SortBy.statIntelligence),
-              _sortChip('BEA', SortBy.statBeauty),
+              _sortChip(
+                _sortBy.isStatSort ? _sortBy.shortLabel : 'STAT',
+                _sortBy,
+                selected: _sortBy.isStatSort,
+                action: () => setState(() {
+                  _sortBy = _sortBy.nextStatSort(
+                    includePotential: hasPotentialAnalyzer,
+                  );
+                  _applyFilters();
+                }),
+              ),
+              _sortChip('STAM', SortBy.staminaHigh),
             ],
           ),
         ),
@@ -815,6 +850,16 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
           CosmicScreenStyles.amberBright,
           () => setState(() {
             _filterFavorites = !_filterFavorites;
+            _applyFilters();
+          }),
+        ),
+        const SizedBox(width: 5),
+        _filterToggle(
+          AppIcons.bolt_rounded,
+          _filterHasStamina,
+          const Color(0xFF34D399),
+          () => setState(() {
+            _filterHasStamina = !_filterHasStamina;
             _applyFilters();
           }),
         ),
@@ -1419,21 +1464,31 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
         return 'pINT ${ci.statIntelligencePotential.round()}';
       case SortBy.potentialBeauty:
         return 'pBEA ${ci.statBeautyPotential.round()}';
+      case SortBy.combinedPotential:
+        return 'pTOTAL ${_combinedPotential(ci).round()}';
+      case SortBy.staminaHigh:
+        return 'STAM ${context.read<StaminaService>().computeState(ci).bars}';
       default:
         return '';
     }
   }
 
-  Widget _sortChip(String label, SortBy sort) {
-    final active = _sortBy == sort;
+  Widget _sortChip(
+    String label,
+    SortBy sort, {
+    bool? selected,
+    VoidCallback? action,
+  }) {
+    final active = selected ?? _sortBy == sort;
     return Padding(
       padding: const EdgeInsets.only(right: 5),
       child: GestureDetector(
         onTap: context.soundAction(
-          () => setState(() {
-            _sortBy = sort;
-            _applyFilters();
-          }),
+          action ??
+              () => setState(() {
+                _sortBy = sort;
+                _applyFilters();
+              }),
         ),
         child: Container(
           alignment: Alignment.center,

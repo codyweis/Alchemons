@@ -605,6 +605,20 @@ class CosmicGame extends FlameGame with PanDetector {
   double _bossSpawnTimer = 0;
   static const double _bossSpawnInterval = 22.5;
 
+  /// A boss only thinks — moves, fires, calls escorts, pulses its colossal
+  /// trait — while the ship is within this range. Past it the boss is dormant:
+  /// its attacks were audible and its escort packs kept filling the enemy cap
+  /// from the far side of the map. Every attack range is well inside this.
+  static const double _bossEngageDist = 1400.0;
+  static const double _bossEngageDistSq = _bossEngageDist * _bossEngageDist;
+
+  /// A boss the ship has left this far behind for [_bossLeashGrace] seconds is
+  /// despawned (a lair it came from goes back to waiting). Matches the enemy
+  /// cull so nothing vanishes on screen.
+  static const double _bossLeashDistSq = _enemyCullDistSq;
+  static const double _bossLeashGrace = 5.0;
+  double _bossLeashTimer = 0;
+
   // Boss lairs (always at least 1 on the map)
   late List<BossLair> bossLairs;
 
@@ -6140,7 +6154,16 @@ class CosmicGame extends FlameGame with PanDetector {
         activeBoss = null;
         bossProjectiles.clear(); // remove lingering projectiles
       } else {
-        _updateBossAI(activeBoss!, dt);
+        final bossDistSq = _wrappedDistanceSq(activeBoss!.position, ship.pos);
+        if (!sandboxMode && bossDistSq > _bossLeashDistSq) {
+          _bossLeashTimer += dt;
+          if (_bossLeashTimer >= _bossLeashGrace) _despawnActiveBoss();
+        } else {
+          _bossLeashTimer = 0;
+        }
+        if (activeBoss != null && bossDistSq <= _bossEngageDistSq) {
+          _updateBossAI(activeBoss!, dt);
+        }
       }
     }
 
@@ -6156,8 +6179,7 @@ class CosmicGame extends FlameGame with PanDetector {
         _shipInvincible = 3.0; // 3s invincibility on respawn
         // Clear nearby threats
         enemies.clear();
-        activeBoss = null;
-        bossProjectiles.clear();
+        _despawnActiveBoss();
         // Cancel any active whirl
         if (activeWhirl != null && activeWhirl!.state == WhirlState.active) {
           activeWhirl!.state = WhirlState.dormant;

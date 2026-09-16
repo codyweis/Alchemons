@@ -18,13 +18,17 @@
 //    it run. Glass is slick underfoot too, so the road you lay takes away the
 //    footing you need to shove from. ELEMENT-ONLY, all three elements used:
 //    this is the star §4 guarantees to any trio of the right elements.
-//  • Star 1 (Mirror) — THE TWELVE MIRRORS, on L1. ICE silvers a frame and the
-//    ceiling's chart shows in it; a silvered frame THAWS and clouds over
-//    again (§6: "solve before mirrors thaw"). The star wants all twelve
-//    showing AT ONCE, so it is a lap against your own melt. AIR's sweep from
-//    the cold vent renews every silvered frame at a cooldown. The LODESTONE
-//    takes no frost: Light+MASK strikes into it (the planet's marquee gate)
-//    and it never thaws again.
+//  • Star 1 (Mirror) — THE MIRROR GALLERY, on L1. WHAT YOU CAN SEE DEPENDS
+//    ON WHERE YOU STAND: the chart is on a ceiling of glacier ice and is
+//    never read directly, only in the still pool — which shows the quarter of
+//    sky OPPOSITE the party and etches it on the frame that quarter belongs
+//    to, across the ring. Walk the rim and the whole sky comes up on the
+//    walls; the chart carries every figure twice save ONE, and ICE silvers
+//    the stranger's frame to bank it. The LODESTONE takes no frost:
+//    Light+MASK strikes it (the planet's marquee gate) and that is what wakes
+//    the water at all. AIR's sweep off the cold vent stills the pool wide
+//    enough to read three quarters at once — it saves walking and can never
+//    fail you. Nothing in this room melts, and nothing in it is timed.
 //  • Rite (Star Font) — conduit A is Air+WING (the second gate), conduit B is
 //    the cold font, element-only Ice.
 //  • Star 2 (Frost) — MYS09 FROWYRM. §7: the guardian fights WITH the
@@ -45,6 +49,14 @@ part of 'planet_dungeon_game.dart';
 /// Ice's lost maxim discovery id (the screen pays 20 gold on first find).
 const String kIceStarWalkerEggId = 'egg:ice_star_walker';
 
+/// How long the chart's light-up runs when the Mirror Star is banked.
+const double _kChartTriumphSeconds = 3.2;
+
+/// Stars in the gallery's chart: TWO TO A FRAME, so every frame shares stars
+/// with its neighbours and no frame can ever be judged on its own. That
+/// overlap is the whole engine of the room — evidence about a PAIR.
+const int kIceChartStars = 24;
+
 // ── Device-tunable knobs ───────────────────────────────────
 // Ice has never been on a device; every number the feel depends on is named
 // here so a tuning pass is edit-one-block.
@@ -53,17 +65,21 @@ const String kIceStarWalkerEggId = 'egg:ice_star_walker';
 /// the font or the hoarfrost pillar to act on it.
 const double _kShaftReach = 66.0;
 
-/// Seconds a silvered mirror holds before it clouds over. Authored against
-/// the ring: 11 frames at ~113px apart is ~8.3s of walking at 150px/s, so a
-/// clean lap fits with margin and a wandering one does not.
-const double _kMirrorHoldSeconds = 13.0;
-
-/// Seconds an Air sweep takes to re-arm. Long enough that the sweep is a
-/// decision, short enough that it is never the reason you failed.
-const double _kMirrorSweepCooldown = 9.0;
+/// Seconds an Air sweep takes to re-arm, and how long the water it stilled
+/// stays wide enough to hold a whole quarter of sky. The sweep only ever
+/// saves walking: nothing about the gallery can time out.
+const double _kMirrorSweepCooldown = 14.0;
+const double _kPoolStillSeconds = 12.0;
 
 /// How close a creature must stand to a mirror frame to work it.
 const double _kMirrorReach = 60.0;
+
+/// Seconds a star-block takes to cross one cell of glass. It used to arrive
+/// instantly, which made the one moving thing on the floor a teleport.
+const double _kSlidePerCell = 0.13;
+
+/// How many cells of road one glaze throws down the way you are facing.
+const int _kGlazeReach = 3;
 
 /// px/sec a body is carried while it stands on glazed floor. Slick, not
 /// violent: you can fight it, you just cannot stop on it.
@@ -88,12 +104,25 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (final f in kRimeFlues) {
       flueState[f.id] = RimeFlueState.drift;
     }
+    spentChutes.clear();
+    // Knowledge, not run state: a plate Light has drunk stays drunk, across a
+    // death and across a session (the engine's own entry reveal, per mouth).
+    meltedCaps
+      ..clear()
+      ..addAll(
+        discoveredClouds
+            .where((c) => c.startsWith(_kCapDiscoveryPrefix))
+            .map((c) => c.substring(_kCapDiscoveryPrefix.length)),
+      );
     rimefallFrozen = false;
     shaftThaws = 0;
-    silveredMirrors.clear();
-    mirrorThaw.clear();
+    mirrorChart.clear();
+    frameOffset.clear();
+    silveredFrames.clear();
+    chartTriumph = 0;
     lodestoneLit = false;
     mirrorSweep = 0;
+    poolStill = 0;
     orreryGlass.clear();
     orreryBlocks.clear();
     orrerySeated.clear();
@@ -104,17 +133,57 @@ extension FrozenObservatory on PlanetDungeonGame {
 
   /// The shaft, back to the state it opened in. Called by THE THAW when the
   /// rimefall carries you out at the top — and only there.
+  ///
+  /// THE ORRERY GOES WITH IT. The valve is the planet's anti-softlock (§5.5:
+  /// "costly full-state reset valve"), and a shaft whose STAIRS reset while
+  /// its star-blocks stayed where a bad shove left them was only half a
+  /// valve. An earned star is never given back — once the orrery stands, the
+  /// thaw leaves it standing.
   void _thawShaft() {
     for (final f in kRimeFlues) {
       flueState[f.id] = RimeFlueState.drift;
     }
+    spentChutes.clear(); // the chutes fill with snow again, and are ramps
     rimefallFrozen = false;
     shaftThaws++;
+    final orreryStar = _orreryRoom?.rime?.starIndex;
+    if (orreryStar != null && !hasStar(orreryStar)) {
+      orreryGlass.clear();
+      orreryBlocks.clear();
+      orrerySeated.clear();
+      _seedOrrery();
+    }
   }
 
   // ── The flue graph ───────────────────────────────────────
 
   RimeFlueState _flue(String id) => flueState[id] ?? RimeFlueState.drift;
+
+  static const String _kCapDiscoveryPrefix = 'rune:ice_cap:';
+
+  /// Every opening in a room's floor, as (id, where it is). A head carries
+  /// its SHAFT and, where there is a ledge, that ledge's own CHUTE.
+  List<(String, Offset)> _iceMouths(String roomId) => [
+    for (final f in kRimeFlues)
+      if (f.headRoom == roomId) ...[
+        ('${f.id}:shaft', f.headPos),
+        if (f.chutePos != null) ('${f.id}:chute', f.chutePos!),
+      ],
+  ];
+
+  /// The mouth a door belongs to, so a plate hides exactly its own hole.
+  String? _mouthIdFor(DungeonRoom room, DungeonDoor door) {
+    final leg = _flueLeg(room, door);
+    if (leg == null) return null;
+    final (flue, which) = leg;
+    return switch (which) {
+      'down' => '${flue.id}:shaft',
+      'shelf' => '${flue.id}:chute',
+      _ => null,
+    };
+  }
+
+  bool _capMelted(String mouthId) => meltedCaps.contains(mouthId);
 
   /// The flue this door travels, and whether the door is the DOWN leg, the
   /// SHELF leg, or the UP leg. Null when the door is not part of the shaft
@@ -138,23 +207,16 @@ extension FrozenObservatory on PlanetDungeonGame {
   /// (the shelf landing and the long drop). Exactly one is ever live, so the
   /// lip reads as a single hole that behaves differently depending on its
   /// snow. The whole head floor also stays shut until Light melts the cap.
+  /// EVERY HOLE IS ITS OWN HOLE. A plate of black ice hides exactly the mouth
+  /// it froze over, and a ledge chute is shut once its snow has gone down
+  /// with you — which is the only reason a mouth ever stops existing.
   bool _iceDoorHidden(DungeonRoom room, DungeonDoor door) {
     if (!_isShaft) return false;
-    if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
-      // The mouth is glazed over: every hole in this floor is invisible.
-      return _flueLeg(room, door) != null;
-    }
-    final leg = _flueLeg(room, door);
-    if (leg == null) return false;
-    final (flue, which) = leg;
-    final state = _flue(flue.id);
-    if (which == 'shelf') return state != RimeFlueState.drift;
-    if (which == 'down') {
-      // While the drift still stands, the fall is braked onto the shelf —
-      // the long drop does not exist yet.
-      return flue.shelfRoom != null && state == RimeFlueState.drift;
-    }
-    return false;
+    final mouth = _mouthIdFor(room, door);
+    if (mouth == null) return false;
+    if (room.rime?.iceCap != null && !_capMelted(mouth)) return true;
+    return mouth.endsWith(':chute') &&
+        spentChutes.contains(mouth.split(':').first);
   }
 
   /// The UP leg of a flue is the whole planet: it exists only if you made it.
@@ -192,20 +254,42 @@ extension FrozenObservatory on PlanetDungeonGame {
       if (flue.isThroat) {
         // THE THAW — the price of the only ladder that is always there.
         _thawShaft();
-        _setHint(
+        _cue(SoundCue.dungeonWallBreak);
+        // A TRANSIT line, not a hint: set as a hint it was wiped by the door
+        // it was reporting on, and this planet's one world-scale act has
+        // been silent since it was built.
+        _announceTransit(
           'The rimefall carries you out, and behind you the whole shaft '
-          'lets go: every stair you cut is water again',
-          4.6,
+          'lets go: every stair you cut is water again, and the orrery '
+          'sits back down where it first stood',
+          7.0,
         );
       }
       return;
     }
-    // A ride. The first one cuts the snow away for good.
+    // A ride spends the snow of THE MOUTH YOU RODE, and nothing else.
+    if (which == 'shelf') {
+      if (spentChutes.add(flue.id)) {
+        _cue(SoundCue.dungeonHazardTrigger);
+        _announceTransit(
+          'The chute sets you down on the ledge, and its snow comes down '
+          'after you. There is no ramp in that slot now',
+          6.0,
+        );
+      }
+      return;
+    }
     if (_flue(flue.id) == RimeFlueState.drift) {
       flueState[flue.id] = RimeFlueState.scoured;
-      if (which == 'shelf') {
-        _setHint('The drift brakes you onto a ledge, and goes with you', 3.4);
-      }
+      _cue(SoundCue.dungeonHazardTrigger); // the snow going out from under you
+      // THE MOMENT THE HOLE CHANGES IS THE MOMENT TO SAY SO. This is where a
+      // player learns that a ridden chute is a different chute, and it is the
+      // one beat where the lesson cannot be missed.
+      _announceTransit(
+        'The snow goes out from under you as you ride, and the shaft is bare '
+        'behind you. Nothing will take frost in it again',
+        5.5,
+      );
     }
   }
 
@@ -220,6 +304,17 @@ extension FrozenObservatory on PlanetDungeonGame {
   /// Every Ice verb, in priority order. Returns true when one was consumed.
   bool _tryShaftVerb(DungeonCreature a) {
     if (!_isShaft) return false;
+    // A BODY STANDING ON THE ORRERY IS WORKING THE ORRERY. Flue C's mouth is
+    // a verb target 66px wide in the same corner of the room as the last
+    // row's socket: standing on the kerb to glaze or shove, Ice froze the
+    // flue instead and every other element was told "only Ice sets this fall
+    // into a stair" and lost its shove. The floor wins inside its own edge;
+    // the mouth is worked from the margin, where it is the only thing there.
+    final g = _orrery;
+    if (g != null && _tryOrreryCrank(a)) return true;
+    if (g != null && _orreryCellAt(g, a.position) != null && _tryOrrery(a)) {
+      return true;
+    }
     return _tryIceCap(a) ||
         _tryRimefall(a) ||
         _tryFreezeFlue(a) ||
@@ -231,20 +326,48 @@ extension FrozenObservatory on PlanetDungeonGame {
         _tryOrrery(a);
   }
 
-  /// The entry rite: Light melts the cap of old black ice over the mouth.
+  /// The entry rite: Light drinks the black ice off ONE hole at a time.
+  ///
+  /// EVERY MOUTH IS PLATED SEPARATELY (2026-09-15, from play). One press used
+  /// to open the whole floor — which is the opposite of what the first room
+  /// has to teach, because the planet's first lesson is that these holes are
+  /// not the same hole. You open the one you are standing at, and the others
+  /// stay black until you go and open them too.
   bool _tryIceCap(DungeonCreature a) {
-    final cap = currentRoom.rime?.iceCap;
-    if (cap == null || entryDoorRevealed) return false;
-    if ((a.position - cap).distance > _kShaftReach) return false;
+    if (currentRoom.rime?.iceCap == null) return false;
+    String? mouth;
+    for (final m in _iceMouths(currentRoomId)) {
+      if (_capMelted(m.$1)) continue;
+      if ((a.position - m.$2).distance <= _kShaftReach) {
+        mouth = m.$1;
+        break;
+      }
+    }
+    if (mouth == null) return false;
     if (a.member.element != 'Light') {
-      _setBlockedHint('Only Light thaws this cap');
+      // WHAT is missing, in one clause (§5.6) — the WHY is the floor's own
+      // one-time teach and Mask's to repeat.
+      _setBlockedHint('Frost only thickens this black ice, it wants Light');
       return true;
     }
-    entryDoorRevealed = true;
-    _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId); // persist it
-    _setHint('Light drinks the black ice, the floor opens its mouths');
+    meltedCaps.add(mouth);
+    _discoverCloud('$_kCapDiscoveryPrefix$mouth'); // per mouth, and persisted
+    if (!entryDoorRevealed) {
+      entryDoorRevealed = true;
+      _discoverCloud(PlanetDungeonGame.entryDoorDiscoveryId);
+    }
+    _cue(SoundCue.dungeonGateOpen);
+    final left = _iceMouths(
+      currentRoomId,
+    ).where((m) => !_capMelted(m.$1)).length;
+    _setHint(
+      left == 0
+          ? 'Light drinks the last of the black ice, the floor is open'
+          : 'Light drinks the plate, and this hole is open. $left more are not',
+    );
+    final at = _iceMouths(currentRoomId).firstWhere((m) => m.$1 == mouth).$2;
     _spawnAlchemyBurst(
-      cap,
+      at,
       producedElement: 'Water',
       reagentElements: const ['Light', 'Ice'],
       particleCount: 30,
@@ -273,6 +396,7 @@ extension FrozenObservatory on PlanetDungeonGame {
           _setBlockedHint('Bare glass. Frost finds nothing to hold');
         case RimeFlueState.drift:
           flueState[f.id] = RimeFlueState.stair;
+          _cue(SoundCue.elementIce);
           _setHint('The fall sets, a stair, and the shelf under it is shut');
           _spawnAlchemyBurst(
             f.headPos,
@@ -301,6 +425,7 @@ extension FrozenObservatory on PlanetDungeonGame {
       return true;
     }
     rimefallFrozen = true;
+    _cue(SoundCue.elementIce);
     _setHint('The rimefall locks, one long stair, all the way to the mouth');
     _spawnAlchemyBurst(
       pos,
@@ -331,6 +456,7 @@ extension FrozenObservatory on PlanetDungeonGame {
       return true;
     }
     conduitEnergy['B'] = double.infinity;
+    _cue(SoundCue.dungeonSwitch);
     _setHint('The cold font takes the frost and holds it');
     _spawnAlchemyBurst(
       pos,
@@ -355,6 +481,7 @@ extension FrozenObservatory on PlanetDungeonGame {
       return true;
     }
     hoarfrostWhole = true;
+    _cue(SoundCue.elementIce);
     _setHint('The hoarfrost stands again, and the wyrm slows to look at it');
     _spawnAlchemyBurst(
       pos,
@@ -365,68 +492,264 @@ extension FrozenObservatory on PlanetDungeonGame {
     return true;
   }
 
-  // ── Star 1 · THE TWELVE MIRRORS ──────────────────────────
+  // ── Star 1 · THE MIRROR GALLERY ──────────────────────────
+  //
+  // THE CHART ASSEMBLES IN THE WATER.
+  //
+  // The ceiling's chart is ONE closed figure running right around the ring,
+  // and it is never seen directly. Silvering a frame throws that frame's
+  // stretch of it into the pool; frost comes off as easily as it goes on, so
+  // the water is a workbench you rearrange for nothing.
+  //
+  // Neighbouring frames OVERLAP, and that is the whole engine. Where two
+  // silvered frames cover the same star they either put it in the same place
+  // or they do not, and a disagreement FORKS in the water — two lines out of
+  // one star. A fork says *one of the frames covering this star is hung
+  // false*; it never says which. So no single look answers a frame: you chain
+  // out from the LODESTONE, which is the one frame known true, by choosing
+  // what to put in the water and what to take out.
+  //
+  // The star is the chart covered end to end with nothing forking.
+  //
+  // (Three earlier cuts of this room: a lap against a melt clock — walking
+  // speed as a puzzle, and Blood's ledger seat; then "silver the figure that
+  // has no twin", which played as *"I just tap every one with Ice"*; then
+  // per-frame claim-versus-sky, which was eleven independent comparisons —
+  // a checklist, not a puzzle. Evidence about a PAIR rather than an item is
+  // what finally made the parts talk to each other.)
 
   MirrorRing? get _mirrorRing => currentRoom.rime?.mirrors;
 
-  /// Frames that are showing the chart right now.
-  int get mirrorsShowing => silveredMirrors.length + (lodestoneLit ? 1 : 0);
+  /// Which stars frame [i] covers: its own two, and one either side of them.
+  /// Five apiece, so a frame left out of the water is still covered by its
+  /// neighbours — which is what makes "leave the false ones out" a workable
+  /// answer rather than a hole in the chart.
+  List<int> chartStarsOf(int i) => [
+    for (var k = -2; k <= 2; k++) (2 * i + k + kIceChartStars) % kIceChartStars,
+  ];
+
+  /// This run's chart, and which frames are hung false.
+  void _rollMirrorChart(MirrorRing ring) {
+    final rng = Random();
+    mirrorChart
+      ..clear()
+      ..addAll([
+        for (var k = 0; k < kIceChartStars; k++) 0.42 + rng.nextDouble() * 0.46,
+      ]);
+    frameOffset.clear();
+    for (var i = 0; i < ring.count; i++) {
+      frameOffset[i] = 0;
+    }
+    // THE FALSE FRAMES. Never the lodestone (it is the anchor the whole room
+    // is chained from) and NEVER TWO SIDE BY SIDE — two adjacent frames left
+    // out would leave a stretch of chart nothing covers, and the puzzle would
+    // have no answer at all.
+    final want = 3 + rng.nextInt(3);
+    final placed = <int>{};
+    var guard = 0;
+    while (placed.length < want && guard++ < 200) {
+      final i = 1 + rng.nextInt(ring.count - 1);
+      if (i == ring.lodestoneIndex) continue;
+      if (placed.contains((i - 1) % ring.count)) continue;
+      if (placed.contains((i + 1) % ring.count)) continue;
+      placed.add(i);
+      // How far off it is hung. Always enough to see, never so far that the
+      // fork leaves the water.
+      frameOffset[i] = 1 + rng.nextInt(3);
+    }
+    silveredFrames
+      ..clear()
+      ..add(ring.lodestoneIndex);
+  }
+
+  /// Frames hung false — the set the star is won by leaving OUT.
+  Set<int> get mirrorFalseFrames => {
+    for (final e in frameOffset.entries)
+      if (e.value != 0) e.key,
+  };
+
+  /// Where frame [i] puts star [k], as a fraction of the pool's radius. A
+  /// frame hung true puts it where it belongs; a false one puts it out.
+  double chartRadiusFor(int i, int k) {
+    if (mirrorChart.isEmpty) return 0.5;
+    final base = mirrorChart[k % kIceChartStars];
+    final off = frameOffset[i] ?? 0;
+    return off == 0 ? base : (base + 0.16 * off).clamp(0.30, 1.0);
+  }
+
+  /// The frames in the water that cover star [k].
+  List<int> _coversOf(int k) => [
+    for (final i in silveredFrames)
+      if (chartStarsOf(i).contains(k)) i,
+  ];
+
+  /// Is star [k] held in one place by everything that can see it?
+  bool chartStarAgreed(int k) {
+    final covers = _coversOf(k);
+    if (covers.isEmpty) return false;
+    final first = chartRadiusFor(covers.first, k);
+    return covers.every((i) => (chartRadiusFor(i, k) - first).abs() < 0.001);
+  }
+
+  /// How much of the chart is whole — the readout, and the win condition.
+  int get chartStarsWhole {
+    var n = 0;
+    for (var k = 0; k < kIceChartStars; k++) {
+      if (chartStarAgreed(k)) n++;
+    }
+    return n;
+  }
+
+  void _updateMirrors(DungeonRoom room, double dt) {
+    if (mirrorSweep > 0) mirrorSweep = max(0.0, mirrorSweep - dt);
+    if (poolStill > 0) poolStill = max(0.0, poolStill - dt);
+    if (chartTriumph > 0) chartTriumph = max(0.0, chartTriumph - dt);
+    final ring = room.rime?.mirrors;
+    final idx = room.rime?.starIndex;
+    if (ring == null || idx == null || hasStar(idx)) return;
+    if (mirrorChart.isEmpty) _rollMirrorChart(ring);
+  }
+
+  /// THE LIGHT HAND IS A LAMP, AND THE LAMP IS WHERE YOU LEFT IT.
+  ///
+  /// The pool is black glass. What reads it is the LIGHT creature — wherever
+  /// it is standing, active or not — and what it reads is the stretch ACROSS
+  /// the ring from it, because that is what a reflection does. Park it
+  /// somewhere and it keeps showing you that stretch while you take Ice round
+  /// the frames; to look elsewhere, go back and walk the lamp.
+  ///
+  /// Returns how brightly star [k] is read, 0..1, easing off at the edge of
+  /// the lamp's reach so the water does not snap open and shut as it walks.
+  double chartStarLight(MirrorRing ring, int k) {
+    if (poolStill > 0) return 1.0; // Air stilled the whole surface
+    // SOLVED, AND IT STAYS LIT. The chart you put together is the trophy, and
+    // a trophy you have to keep walking a lamp round is not one.
+    final idx = currentRoom.rime?.starIndex;
+    if (chartTriumph > 0 || (idx != null && hasStar(idx))) return 1.0;
+    DungeonCreature? lamp;
+    for (final c in creatures) {
+      if (c.alive && c.member.element == 'Light') {
+        lamp = c;
+        break;
+      }
+    }
+    if (lamp == null) return 0;
+    final d = lamp.position - ring.center;
+    // OVER THE WATER ITSELF, NOTHING. A lamp standing on the pool has no far
+    // side to be reflected from, and the room may not hand you the whole
+    // chart for standing in the middle of it.
+    if (d.distance < ring.radius * 0.5) return 0;
+    final look = atan2(-d.dy, -d.dx);
+    final ang = -pi / 2 + (2 * pi * k) / kIceChartStars;
+    var diff = (ang - look).abs() % (2 * pi);
+    if (diff > pi) diff = 2 * pi - diff;
+    const inner = pi * 42 / 180;
+    const outer = pi * 62 / 180;
+    if (diff <= inner) return 1;
+    if (diff >= outer) return 0;
+    return 1 - (diff - inner) / (outer - inner);
+  }
+
+  /// Whether the water shows star [k] at all — the rule the room is reasoned
+  /// about with; the render uses the brightness above.
+  bool chartStarVisible(MirrorRing ring, int k) => chartStarLight(ring, k) > 0;
 
   bool _tryMirrorFrame(DungeonCreature a) {
     final ring = _mirrorRing;
     if (ring == null || hasStar(currentRoom.rime!.starIndex!)) return false;
     for (var i = 0; i < ring.count; i++) {
       if ((a.position - ring.frameAt(i)).distance > _kMirrorReach) continue;
-      if (i == ring.lodestoneIndex) {
-        if (lodestoneLit) return false;
-        final req = const DungeonInteractionRequirement(
-          element: 'Light',
-          requiredFamily: DungeonAbility.insight,
-        );
-        switch (evaluateInteraction(a.member, req)) {
-          case InteractionResult.passed:
-          case InteractionResult.passedViaRecipe:
-            lodestoneLit = true;
-            _setHint('The lodestone takes a light of its own, and keeps it');
-            _spawnAlchemyBurst(
-              ring.frameAt(i),
-              producedElement: 'Light',
-              reagentElements: const ['Ice'],
-              particleCount: 26,
-            );
-          case InteractionResult.blockedFamily:
-            // "The seal remembers" (§4): the chip stamps on first refusal.
-            final gate = layout.familyGateFor('mirror_lodestone');
-            if (gate != null) {
-              _stampFamilyGate(gate);
-            } else {
-              _setBlockedHint('Only Light\'s second sight strikes this glass');
-            }
-          case InteractionResult.blockedElement:
-          case InteractionResult.blockedStat:
-            _setBlockedHint('This glass takes no frost, it answers Light');
-        }
-        return true;
-      }
+      if (i == ring.lodestoneIndex) return _strikeLodestone(a, ring, i);
       if (a.member.element != 'Ice') {
         _setBlockedHint('Only Ice silvers a frame');
         return true;
       }
-      silveredMirrors.add(i);
-      mirrorThaw[i] = _kMirrorHoldSeconds;
-      _spawnAlchemyBurst(
-        ring.frameAt(i),
-        producedElement: 'Ice',
-        reagentElements: [a.member.element],
-        particleCount: 12,
-      );
-      _checkMirrorStar();
+      if (!lodestoneLit) {
+        _setBlockedHint('The water is dead black, and holds nothing');
+        return true;
+      }
+      // NOTHING IS SPENT. The water is a workbench: put a stretch of chart in
+      // it, take it out again, cost nothing either way.
+      _cue(SoundCue.dungeonSwitch);
+      if (!silveredFrames.add(i)) {
+        silveredFrames.remove(i);
+      } else {
+        _spawnAlchemyBurst(
+          ring.frameAt(i),
+          producedElement: 'Ice',
+          reagentElements: [a.member.element],
+          particleCount: 12,
+        );
+      }
+      _checkMirrorStar(ring);
       return true;
     }
     return false;
   }
 
-  /// Air's sweep off the cold vent: every silvered frame is renewed at once.
+  /// The chart, covered end to end, with nothing forking.
+  void _checkMirrorStar(MirrorRing ring) {
+    final idx = currentRoom.rime?.starIndex;
+    if (idx == null || hasStar(idx)) return;
+    if (chartStarsWhole < kIceChartStars) return;
+    // THE LIGHT-UP. Twelve frames, a lamp walked round and round, and the
+    // answer is a picture — so the room shows you the picture, whole, once.
+    chartTriumph = _kChartTriumphSeconds;
+    _setHint('The chart closes, and every star stands in one place');
+    earnStar(idx);
+  }
+
+  /// The lodestone: black glass no frost will take, and the planet's marquee
+  /// gate. Struck, it lights the water and puts the one stretch of chart you
+  /// can trust into it — the anchor everything else is chained from.
+  bool _strikeLodestone(DungeonCreature a, MirrorRing ring, int i) {
+    if (lodestoneLit) {
+      _setAmbientHint('Black glass, holding a light of its own');
+      return true;
+    }
+    const req = DungeonInteractionRequirement(
+      element: 'Light',
+      requiredFamily: DungeonAbility.insight,
+    );
+    switch (evaluateInteraction(a.member, req)) {
+      case InteractionResult.passed:
+      case InteractionResult.passedViaRecipe:
+        lodestoneLit = true;
+        if (mirrorChart.isEmpty) _rollMirrorChart(ring);
+        silveredFrames.add(i);
+        _cue(SoundCue.dungeonGateOpen);
+        _inHintChannel(
+          DungeonHintChannel.insight,
+          () => _forceHint(
+            'The water wakes, and this glass hangs true. Only the light '
+            'reads it, and only from across.',
+            5.0,
+          ),
+        );
+        _spawnAlchemyBurst(
+          ring.frameAt(i),
+          producedElement: 'Light',
+          reagentElements: const ['Ice'],
+          particleCount: 26,
+        );
+      case InteractionResult.blockedFamily:
+        // "The seal remembers" (§4): the chip stamps on first refusal.
+        final gate = layout.familyGateFor('mirror_lodestone');
+        if (gate != null) {
+          _stampFamilyGate(gate);
+        } else {
+          _setBlockedHint('Only Light\'s second sight strikes this glass');
+        }
+      case InteractionResult.blockedElement:
+      case InteractionResult.blockedStat:
+        _setBlockedHint('This glass takes no frost, it answers Light');
+    }
+    return true;
+  }
+
+  /// Air's sweep off the cold vent: the rime goes off the water and it lies
+  /// still, whole, for a while — the only way to see the entire chart from
+  /// one place. It saves walking and can never fail you.
   bool _tryMirrorSweep(DungeonCreature a) {
     final ring = _mirrorRing;
     if (ring == null || hasStar(currentRoom.rime!.starIndex!)) return false;
@@ -440,10 +763,9 @@ extension FrozenObservatory on PlanetDungeonGame {
       return true;
     }
     mirrorSweep = _kMirrorSweepCooldown;
-    for (final i in silveredMirrors) {
-      mirrorThaw[i] = _kMirrorHoldSeconds;
-    }
-    _setHint('A cold sweep goes round the ring, every glass holds again');
+    poolStill = _kPoolStillSeconds;
+    _cue(SoundCue.elementAir);
+    _setHint('The rime goes off the water, and it lies still, whole');
     _spawnAlchemyBurst(
       ring.vent,
       producedElement: 'Air',
@@ -452,48 +774,6 @@ extension FrozenObservatory on PlanetDungeonGame {
       intensity: 1.15,
     );
     return true;
-  }
-
-  void _checkMirrorStar() {
-    final ring = _mirrorRing;
-    final idx = currentRoom.rime?.starIndex;
-    if (ring == null || idx == null || hasStar(idx)) return;
-    if (mirrorsShowing < ring.count) return;
-    _setHint('Twelve glasses hold the chart at once, the sky admits it');
-    earnStar(idx);
-  }
-
-  /// The thaw clock. Frames cloud over one by one; the ring's own resentment
-  /// (a rime wisp) only shows up once the gallery is nearly read, so an early
-  /// fumble is quiet and a late one costs.
-  void _updateMirrors(DungeonRoom room, double dt) {
-    if (mirrorSweep > 0) mirrorSweep = max(0.0, mirrorSweep - dt);
-    final ring = room.rime?.mirrors;
-    final idx = room.rime?.starIndex;
-    if (ring == null || idx == null || hasStar(idx)) return;
-    if (silveredMirrors.isEmpty) return;
-    final lost = <int>[];
-    for (final i in silveredMirrors) {
-      final left = (mirrorThaw[i] ?? 0) - dt;
-      mirrorThaw[i] = left;
-      if (left <= 0) lost.add(i);
-    }
-    if (lost.isEmpty) return;
-    final wasNearly = mirrorsShowing >= ring.count - 3;
-    for (final i in lost) {
-      silveredMirrors.remove(i);
-      mirrorThaw.remove(i);
-    }
-    if (wasNearly) {
-      spawnWispWave(
-        element: 'Ice',
-        center: ring.frameAt(lost.first),
-        count: 1,
-        unstable: true,
-        announce: false,
-      );
-      _setHint('A glass clouds over, the ring will not be half-read', 2.6);
-    }
   }
 
   // ── Star 0 · THE STANDING ORRERY ─────────────────────────
@@ -520,7 +800,32 @@ extension FrozenObservatory on PlanetDungeonGame {
   }
 
   bool _orreryPillar(OrreryGrid g, int c, int r) => g.art[r][c] == '#';
-  bool _orrerySocket(OrreryGrid g, int c, int r) => g.art[r][c] == 'S';
+
+  /// A socket, and the one direction of travel its kerb opens to.
+  bool _orrerySocket(OrreryGrid g, int c, int r) =>
+      _orrerySocketDir(g, c, r) != null;
+
+  (int, int)? _orrerySocketDir(OrreryGrid g, int c, int r) =>
+      switch (g.art[r][c]) {
+        '>' => (1, 0),
+        '<' => (-1, 0),
+        '^' => (0, -1),
+        'v' => (0, 1),
+        'S' => (0, 0), // a legacy any-way kerb; no planet authors one now
+        _ => null,
+      };
+
+  /// Will this kerb take block [id] arriving travelling [dir]? It wants its
+  /// OWN block, running WITH its orbit. Anything else stops at the lip.
+  bool _orreryKerbOpens(OrreryGrid g, int c, int r, (int, int) dir, {int? id}) {
+    final want = _orrerySocketDir(g, c, r);
+    if (want == null) return false;
+    final owner = g.kerbOwner[r * g.cols + c];
+    if (owner != null && id != null && owner != id) return false;
+    if (want.$1 == 0 && want.$2 == 0) return true;
+    return want == dir;
+  }
+
   bool _orreryGlazed(OrreryGrid g, int c, int r) =>
       orreryGlass.contains(r * g.cols + c);
 
@@ -539,6 +844,25 @@ extension FrozenObservatory on PlanetDungeonGame {
     return (c, r);
   }
 
+  /// The cell a creature is ACTING FROM, which is not the same question as
+  /// which cell it is standing on: the floor has a margin all the way round
+  /// and a body may stand in it.
+  ///
+  /// THE HALO IS LOAD-BEARING, NOT A CONVENIENCE. While a pusher had to stand
+  /// ON the grid, a block in column 0 could only ever be shoved along column
+  /// 0 — there is no cell west of it to push from — and neither edge column
+  /// carries a socket. One shove was enough to put a star-block somewhere it
+  /// could never leave, with no reset but a party wipe: 1,718 of the 2,330
+  /// reachable boards could never be solved. Standing one cell off the floor
+  /// (which the room's margin has always allowed) takes that to 0 of 7,140 —
+  /// see `solveOrreryBoards`, which pins exactly that.
+  (int, int)? _orreryStandCell(OrreryGrid g, Offset p) {
+    final c = ((p.dx - g.origin.dx) / g.cell).floor();
+    final r = ((p.dy - g.origin.dy) / g.cell).floor();
+    if (c < -1 || r < -1 || c > g.cols || r > g.rows) return null;
+    return (c, r);
+  }
+
   /// The quarter a creature is facing, as a grid step. The orrery's verbs all
   /// act on the cell IN FRONT of you (Steam's `_targetCell` convention): one
   /// unambiguous target means glazing never eats a shove you meant, and it
@@ -551,20 +875,85 @@ extension FrozenObservatory on PlanetDungeonGame {
         : (dy >= 0 ? (0, 1) : (0, -1));
   }
 
+  /// Where the floor's CRANK stands: off the board entirely, in the margin at
+  /// the east wall. It was first put in the MIDDLE of the grid, which laid
+  /// its 66px reach over four playable cells — so Ice glazing near the centre
+  /// was told "the crank answers Light", and Light melting there reset the
+  /// whole floor instead of trimming one cell off a road. A lever that
+  /// overlaps the board is a lever you pull by accident.
+  Offset _orreryCrankAt(OrreryGrid g) => Offset(
+    g.origin.dx + g.cols * g.cell + 50,
+    g.origin.dy + g.rows * g.cell / 2,
+  );
+
+  /// THE CRANK — and the reason star-blocks can be SOLID at all.
+  ///
+  /// Blocks used to be walk-through. Made solid (a thing you push should not
+  /// be a floor decal), three of them can be shoved into a corner where each
+  /// one blocks the only square the next would be pushed from: 151 of the
+  /// 7,140 reachable boards are jammed like that, and a jam that costs the
+  /// run is the exact thing this game does not do. Light at the armature
+  /// sends every unseated block back to its standard and takes the glass up.
+  /// Free, instant, local — a re-plan, never a re-descent. Seated blocks stay
+  /// seated: it undoes your working, not your progress.
+  bool _tryOrreryCrank(DungeonCreature a) {
+    final g = _orrery;
+    final room = currentRoom;
+    if (g == null || room.rime?.starIndex == null) return false;
+    if (hasStar(room.rime!.starIndex!)) return false;
+    // A BODY ON THE FLOOR IS WORKING THE FLOOR: the crank only answers from
+    // the margin, where nothing else does.
+    if (_orreryCellAt(g, a.position) != null) return false;
+    final hub = _orreryCrankAt(g);
+    if ((a.position - hub).distance > _kShaftReach) return false;
+    if (a.member.element != 'Light') {
+      _setBlockedHint('The crank answers Light');
+      return true;
+    }
+    final seatedCells = {for (final id in orrerySeated) orreryBlocks[id]!};
+    orreryGlass.clear();
+    var id = 0;
+    final home = <int, int>{};
+    for (var r = 0; r < g.rows; r++) {
+      for (var c = 0; c < g.cols; c++) {
+        if (g.art[r][c] == 'B') home[id++] = r * g.cols + c;
+      }
+    }
+    for (final e in home.entries) {
+      if (orrerySeated.contains(e.key)) continue;
+      if (seatedCells.contains(e.value)) continue;
+      orreryBlocks[e.key] = e.value;
+    }
+    orrerySlideId = null;
+    _cue(SoundCue.dungeonSwitch);
+    _setHint('The crank turns, and the loose sky goes back to its standards');
+    _spawnAlchemyBurst(
+      hub,
+      producedElement: 'Light',
+      reagentElements: const ['Ice'],
+      particleCount: 24,
+    );
+    return true;
+  }
+
   bool _tryOrrery(DungeonCreature a) {
     final g = _orrery;
     final idx = currentRoom.rime?.starIndex;
     if (g == null || idx == null || hasStar(idx)) return false;
-    final here = _orreryCellAt(g, a.position);
+    final here = _orreryStandCell(g, a.position);
     if (here == null) return false;
     final step = _orreryFacing(a);
     var c = here.$1 + step.$1;
     var r = here.$2 + step.$2;
     // Facing off the edge of the floor: fall back to the cell underfoot, so a
-    // creature pinned against the wall is never verbless.
+    // creature pinned against the wall is never verbless. A body standing in
+    // the margin has no cell underfoot to fall back to, so it simply has no
+    // orrery verb from there — it can still reach ONTO the floor, which is
+    // the whole point of the halo.
     if (c < 0 || r < 0 || c >= g.cols || r >= g.rows) {
       c = here.$1;
       r = here.$2;
+      if (c < 0 || r < 0 || c >= g.cols || r >= g.rows) return false;
     }
     final block = _orreryBlockAt(g, c, r);
     if (block != null && !orrerySeated.contains(block)) {
@@ -578,13 +967,27 @@ extension FrozenObservatory on PlanetDungeonGame {
       );
       return true;
     }
-    final key = r * g.cols + c;
     if (a.member.element == 'Ice') {
-      if (orreryGlass.contains(key)) {
+      // THE COLD RUNS OUT ACROSS THE FLOOR. One cell per press turned the
+      // long routes into a pressing grind, so a glaze throws a road up to
+      // `_kGlazeReach` cells in the direction you face, stopping at anything
+      // solid. Light still melts ONE cell, which is how a road is trimmed to
+      // stop a block exactly where you want it.
+      var laid = 0;
+      var cc = c, rr = r;
+      for (var n = 0; n < _kGlazeReach; n++) {
+        if (cc < 0 || rr < 0 || cc >= g.cols || rr >= g.rows) break;
+        if (_orreryPillar(g, cc, rr) || _orrerySocket(g, cc, rr)) break;
+        if (_orreryBlockAt(g, cc, rr) != null) break;
+        if (orreryGlass.add(rr * g.cols + cc)) laid++;
+        cc += step.$1;
+        rr += step.$2;
+      }
+      if (laid == 0) {
         _setBlockedHint('Already glass');
         return true;
       }
-      orreryGlass.add(key);
+      _cue(SoundCue.elementIce);
       _spawnAlchemyBurst(
         g.centerAt(c, r),
         producedElement: 'Ice',
@@ -593,11 +996,30 @@ extension FrozenObservatory on PlanetDungeonGame {
       );
       return true;
     }
+    final key = r * g.cols + c;
     if (a.member.element == 'Light') {
-      if (!orreryGlass.remove(key)) {
+      if (!orreryGlass.contains(key)) {
         _setBlockedHint('Bare stone \u2014 there is nothing here to melt');
         return true;
       }
+      // THE WHOLE SHEET GOES. Melting ONE cell let you lay any road at all
+      // and then trim it to the exact length you wanted, which meant the
+      // question "where does this road END" — the only real question on this
+      // floor — never had to be answered before you laid it. Light takes the
+      // whole connected sheet now: a road is planned, not whittled.
+      final gone = <int>{};
+      final queue = [key];
+      while (queue.isNotEmpty) {
+        final k = queue.removeLast();
+        if (!orreryGlass.contains(k) || !gone.add(k)) continue;
+        final kc = k % g.cols, kr = k ~/ g.cols;
+        for (final d in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
+          final nc = kc + d.$1, nr = kr + d.$2;
+          if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rows) continue;
+          queue.add(nr * g.cols + nc);
+        }
+      }
+      orreryGlass.removeAll(gone);
       _spawnAlchemyBurst(
         g.centerAt(c, r),
         producedElement: 'Water',
@@ -613,7 +1035,57 @@ extension FrozenObservatory on PlanetDungeonGame {
   /// this loop: a star-block is frozen sky, so it only crosses GLASS, and it
   /// keeps going until the glass runs out. A socket's kerb catches it whether
   /// the socket is glazed or not.
-  bool _shoveBlock(OrreryGrid g, int id, (int, int) dir) {
+  /// Half the width of a star-block's body, for walking into it. The drawn
+  /// lump is ~52px across in a 92px cell, so the solid part is the lump and
+  /// not the cell: you can still squeeze past a block along the cell's edge.
+  static const double _kBlockHalf = 24;
+
+  /// STAR-BLOCKS ARE SOLID (2026-09-15, from play). They were walk-through,
+  /// kept that way because an authored solution stood on a block's own cell
+  /// to glaze past it — which no player would ever think to do, and which
+  /// made the one thing you push feel like a floor decal. Nothing in the
+  /// solution needs it (every glaze and every shove is made from an open
+  /// neighbour), and `solveOrreryBoards` is re-proved with bodies that cannot
+  /// stand in a block.
+  bool _shaftBlocksAt(Offset center, DungeonRoom room) {
+    final g = room.rime?.orrery;
+    if (g == null) return false;
+    final reach = _kBlockHalf + PlanetDungeonGame._radius;
+    for (final cell in orreryBlocks.values) {
+      final p = g.centerAt(cell % g.cols, cell ~/ g.cols);
+      if ((center.dx - p.dx).abs() < reach &&
+          (center.dy - p.dy).abs() < reach) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// A block that slides onto a body puts the body out of its way, into the
+  /// cell it just left — the one place on the board guaranteed to be clear.
+  void _clearBodiesOffBlock(OrreryGrid g, int fromCell, int toCell) {
+    final to = g.centerAt(toCell % g.cols, toCell ~/ g.cols);
+    final from = g.centerAt(fromCell % g.cols, fromCell ~/ g.cols);
+    final reach = _kBlockHalf + PlanetDungeonGame._radius;
+    for (final c in creatures) {
+      if ((c.position.dx - to.dx).abs() < reach &&
+          (c.position.dy - to.dy).abs() < reach) {
+        c
+          ..position = from
+          ..lastSafe = from;
+      }
+    }
+  }
+
+  /// Where block [id] would END UP if it were shoved [dir], given the glass
+  /// that is down right now. ONE walk, used by the shove and by the preview
+  /// the floor draws under your feet — they cannot disagree about the run,
+  /// because they are the same run.
+  ({List<int> travelled, int cell, bool seats, bool moved}) _orreryRun(
+    OrreryGrid g,
+    int id,
+    (int, int) dir,
+  ) {
     final cell = orreryBlocks[id]!;
     var c = cell % g.cols;
     var r = cell ~/ g.cols;
@@ -626,8 +1098,11 @@ extension FrozenObservatory on PlanetDungeonGame {
       if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rows) break;
       if (_orreryPillar(g, nc, nr)) break;
       if (_orreryBlockAt(g, nc, nr) != null) break;
-      // A socket's kerb catches whatever slides into it, glazed or not.
+      // A KERB OPENS ONE WAY. Running with the orbit, the block drops in and
+      // seats, glazed or not; running against it, the lip stops it dead in
+      // the cell before — which is what makes the APPROACH the puzzle.
       if (_orrerySocket(g, nc, nr)) {
+        if (!_orreryKerbOpens(g, nc, nr, dir, id: id)) break;
         c = nc;
         r = nr;
         moved = true;
@@ -642,11 +1117,35 @@ extension FrozenObservatory on PlanetDungeonGame {
       moved = true;
       travelled.add(nr * g.cols + nc);
     }
+    return (
+      travelled: travelled,
+      cell: r * g.cols + c,
+      seats: seated,
+      moved: moved,
+    );
+  }
+
+  bool _shoveBlock(OrreryGrid g, int id, (int, int) dir) {
+    final startCell = orreryBlocks[id]!;
+    final run = _orreryRun(g, id, dir);
+    final travelled = run.travelled;
+    final moved = run.moved;
+    final seated = run.seats;
+    final c = run.cell % g.cols;
+    final r = run.cell ~/ g.cols;
     if (!moved) {
       _setBlockedHint('Too heavy for bare stone');
       return true;
     }
     orreryBlocks[id] = r * g.cols + c;
+    // IT SLIDES. The board moves at once (nothing can desync off a render),
+    // and the drawing runs the block along its road.
+    orrerySlideId = id;
+    orrerySlideFrom = startCell;
+    orrerySlideTo = orreryBlocks[id]!;
+    orrerySlideT = 0;
+    _clearBodiesOffBlock(g, startCell, orreryBlocks[id]!);
+    _cue(SoundCue.dungeonBlockMove);
     if (seated) {
       orrerySeated.add(id);
       _setHint('The block takes the kerb and settles into its socket');
@@ -656,6 +1155,7 @@ extension FrozenObservatory on PlanetDungeonGame {
         reagentElements: const ['Ice'],
         particleCount: 20,
       );
+      _cue(SoundCue.dungeonSwitch);
       if (orrerySeated.length >= orreryBlocks.length) {
         _setHint(
           'Every socket is filled \u2014 the orrery stands still and true',
@@ -748,8 +1248,88 @@ extension FrozenObservatory on PlanetDungeonGame {
 
   // ── Per-frame ────────────────────────────────────────────
 
+  /// The plate over the mouth, named ONCE in a lifetime, at the hole.
+  static const String kIceBlackIceId = 'teach:ice_black_ice';
+
+  /// WHY WILL NOTHING I DO TOUCH THIS?
+  ///
+  /// The entry rite is the one puzzle a player meets before they have learned
+  /// a single rule of this planet, and the room answered that question with
+  /// silence: an unasked refusal is held back for the hint button (§5.6), and
+  /// the plate itself cannot say what it wants. So the floor says it, once,
+  /// when you first walk up to a hole — not on arrival, where it would talk
+  /// over the primer, which is the rule of the whole shaft and outranks it.
+  void _teachBlackIce(DungeonCreature a, DungeonRoom room) {
+    final cap = room.rime?.iceCap;
+    if (cap == null || entryDoorRevealed) return;
+    if (discoveredClouds.contains(kIceBlackIceId)) return;
+    final near =
+        (a.position - cap).distance < 120 ||
+        kRimeFlues.any(
+          (f) =>
+              f.headRoom == room.id && (a.position - f.headPos).distance < 120,
+        );
+    if (!near) return;
+    _discoverCloud(kIceBlackIceId);
+    _forceHint(
+      'Every hole in this floor has its own plate of old black ice. Frost '
+      'only thickens them, and Light drinks them, one at a time.',
+      6.0,
+    );
+  }
+
+  /// The price of the rimefall, said ONCE in a lifetime, at the foot of it.
+  static const String kIceRimefallPriceId = 'teach:ice_rimefall_price';
+
+  /// THE PRICE IS TOLD BEFORE IT IS PAID, not after.
+  ///
+  /// The rimefall is one step through a doorway and it resets the whole
+  /// shaft. The line that says so fires on the way THROUGH — the right moment
+  /// to learn what happened and the wrong one to decide — so a party standing
+  /// at the foot of it with work behind them is told while they can still
+  /// walk away.
+  ///
+  /// It is a TEACH, not a refusal: §5.6's silence rule holds every unasked
+  /// blocked line back until the hint button asks for it, and a warning
+  /// nobody is shown is not a warning. A one-time teach is the one exception
+  /// the rule makes, and this is exactly the shape it is for — once ever,
+  /// persisted, never a nag.
+  void _warnRimefallPrice(DungeonCreature a, DungeonRoom room) {
+    if (room.rime?.rimefall == null || !rimefallFrozen) return;
+    if (discoveredClouds.contains(kIceRimefallPriceId)) return;
+    final door = room.doors
+        .where((d) => d.targetRoomId == layout.entranceRoomId)
+        .firstOrNull;
+    if (door == null || !door.rect.inflate(130).contains(a.position)) return;
+    // Nothing cut, nothing to lose: the one climb that is free says nothing,
+    // and the line is saved for the first time it actually costs.
+    final standing = kRimeFlues.any((f) => _flue(f.id) != RimeFlueState.drift);
+    if (!standing && orreryGlass.isEmpty && orrerySeated.isEmpty) return;
+    _discoverCloud(kIceRimefallPriceId);
+    _forceHint(
+      'Climb here and the shaft lets go behind you: every stair you cut, and '
+      'the orrery with them.',
+      6.0,
+    );
+  }
+
   void _updateShaft(DungeonCreature a, DungeonRoom room, double dt) {
     if (!_isShaft) return;
+    if (orrerySlideId != null) {
+      final g = room.rime?.orrery;
+      final cells = g == null
+          ? 1
+          : ((orrerySlideTo % g.cols - orrerySlideFrom % g.cols).abs() +
+                    (orrerySlideTo ~/ g.cols - orrerySlideFrom ~/ g.cols).abs())
+                .clamp(1, 99);
+      orrerySlideT += dt / (_kSlidePerCell * cells);
+      if (orrerySlideT >= 1) {
+        orrerySlideT = 0;
+        orrerySlideId = null;
+      }
+    }
+    _teachBlackIce(a, room);
+    _warnRimefallPrice(a, room);
     _updateMirrors(room, dt);
     _updateGlideFooting(a, room, dt);
     if (_hoarfrostDown > 0) _hoarfrostDown = max(0.0, _hoarfrostDown - dt);
@@ -781,6 +1361,14 @@ extension FrozenObservatory on PlanetDungeonGame {
 
   /// The roar reaches up the shaft and takes a stair with it. Scoured, not
   /// thawed: what Frowyrm breaks stays broken — the rimefall is the answer.
+  ///
+  /// AND IF THERE IS NO STAIR, IT TAKES THE RIMEFALL. The roar used to cost
+  /// nothing at all to a party that had ridden everything down, so the only
+  /// player it ever punished was the one who had done what the planet asks
+  /// and built the ladder home. A party with no stairs is standing on the
+  /// valve instead, so that is what the wyrm breaks: the fall runs again and
+  /// has to be re-frozen. Never a strand — Ice re-freezes it from the sump
+  /// at any time, which is the whole point of it.
   void _shatterOneStair() {
     for (final f in kRimeFlues) {
       if (_flue(f.id) != RimeFlueState.stair) continue;
@@ -788,6 +1376,11 @@ extension FrozenObservatory on PlanetDungeonGame {
       _cue(SoundCue.elementIce);
       _setHint('Frowyrm roars up the shaft, a stair goes out from under it');
       return;
+    }
+    if (rimefallFrozen) {
+      rimefallFrozen = false;
+      _cue(SoundCue.elementIce);
+      _setHint('Frowyrm roars, and far above the rimefall breaks and runs');
     }
   }
 
@@ -800,9 +1393,9 @@ extension FrozenObservatory on PlanetDungeonGame {
     final ring = room?.rime?.mirrors;
     if (ring != null && !hasStar(room!.rime!.starIndex!)) {
       return DungeonProgressReadout(
-        label: 'MIRRORS',
-        value: '$mirrorsShowing/${ring.count}',
-        fraction: mirrorsShowing / ring.count,
+        label: 'CHART',
+        value: '$chartStarsWhole/$kIceChartStars',
+        fraction: chartStarsWhole / kIceChartStars,
       );
     }
     if (room?.rime?.orrery != null && !hasStar(room!.rime!.starIndex!)) {
@@ -844,7 +1437,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     final ring = room.rime?.mirrors;
     if (ring != null) {
       if (hasStar(room.rime!.starIndex!)) return null;
-      return 'The Mirror Gallery. Twelve frames, and none of them showing';
+      return 'The Mirror Gallery. A chart in the water, and most of it gone';
     }
     if (room.rime?.orrery != null) {
       if (hasStar(room.rime!.starIndex!)) return null;
@@ -860,13 +1453,48 @@ extension FrozenObservatory on PlanetDungeonGame {
 
   /// AMBIENT is flavour only (§5.6): no mechanics, no elements, no families.
   void _shaftAmbientHint(DungeonCreature a, DungeonRoom room) {
+    final cap = room.rime?.iceCap;
+    if (cap != null && !entryDoorRevealed) {
+      final near =
+          (a.position - cap).distance < 110 ||
+          kRimeFlues.any(
+            (f) =>
+                f.headRoom == room.id &&
+                (a.position - f.headPos).distance < 110,
+          );
+      if (near) {
+        _setAmbientHint('Black ice, old enough to have gone the colour of it');
+        return;
+      }
+    }
     for (final f in kRimeFlues) {
       if (f.headRoom != room.id) continue;
+      final chute = f.chutePos;
+      if (chute != null && (a.position - chute).distance <= _kShaftReach) {
+        _setAmbientHint(
+          spentChutes.contains(f.id)
+              ? 'An empty slot, swept out to the bare ice'
+              : 'Snow banked to the lip, and spilling away over the side',
+        );
+        return;
+      }
       if ((a.position - f.headPos).distance > _kShaftReach) continue;
+      if (f.isThroat) {
+        // The gullet the whole glacier drains through. It says WHAT it is;
+        // what that costs you is the shaft's earned reading.
+        _setAmbientHint(
+          rimefallFrozen
+              ? 'The gullet stands white, top to bottom'
+              : 'Meltwater, pouring away into the dark',
+        );
+        return;
+      }
+      // Flavour that carries the SHAPE of the fall (§5.6 allows no mechanics
+      // here, but what the snow is like is what the snow is like).
       _setAmbientHint(switch (_flue(f.id)) {
-        RimeFlueState.drift => 'Soft snow, heaped over a long dark',
+        RimeFlueState.drift => 'Soft snow, heaped deep enough to catch a body',
         RimeFlueState.scoured =>
-          'Polished to a shine, and going nowhere but down',
+          'Swept to bare ice, nothing left in it to catch on',
         RimeFlueState.stair => 'Cut steps, holding',
       });
       return;
@@ -877,6 +1505,15 @@ extension FrozenObservatory on PlanetDungeonGame {
         rimefallFrozen
             ? 'The fall stands, white and silent'
             : 'Water comes down here without ever stopping',
+      );
+      return;
+    }
+    final pillar = room.rime?.hoarfrost;
+    if (pillar != null && (a.position - pillar).distance < 110) {
+      _setAmbientHint(
+        hoarfrostWhole
+            ? 'Feathered rime, grown taller than a man'
+            : 'A broken stump, and its shards all round it',
       );
     }
   }
@@ -889,25 +1526,24 @@ extension FrozenObservatory on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'The blocks are frozen sky. Stone will not carry them',
         1 =>
-          'Glaze a road and a block runs it to the end; a kerbed socket '
-              'catches whatever slides in',
+          'A kerb opens one way only, and the arrow cut beside it says '
+              'which way',
         _ =>
-          'Lay the run one cell short of the turn: the block stops where '
-              'the glass does, and a socket takes it whether it is glazed or '
-              'not. Mind your own footing. Glass carries you too',
+          'Stand behind a block and the floor draws its run. The crank at '
+              'the east wall puts every loose block back on its standard',
       });
       return;
     }
     if (room.rime?.mirrors != null) {
       _setInsightHint(switch (tier) {
-        0 => 'Frost holds a picture in the glass, but not for long',
+        0 => 'Black glass, and something under it that will not show',
         1 =>
-          'The ring wants every frame showing at once, and one frame '
-              'will never take frost at all',
+          'The water answers a light, and shows it the far side. Frost on a '
+              'glass puts a stretch of chart in the water',
         _ =>
-          'Silver the ring in one lap; the black frame answers a reading '
-              'eye, not a cold hand, and once lit it never clouds. A cold '
-              'sweep off the vent renews the whole ring',
+          'Build out from the black glass, which hangs true. Where the line '
+              'forks, one of the two frames over that star is false: take one '
+              'out and look again',
       });
       return;
     }
@@ -918,16 +1554,50 @@ extension FrozenObservatory on PlanetDungeonGame {
       );
       return;
     }
+    // THE SEALED MOUTH READS THE PLATE. Insight here fell through to the
+    // shaft line, which is about flues — and there is no flue to be had until
+    // the floor is open, so the one question the player actually has ("why
+    // will nothing I do touch this?") went unanswered by the hint button too.
+    if (room.rime?.iceCap != null && !entryDoorRevealed) {
+      _setInsightHint(switch (tier) {
+        0 => 'The floor is plated over, and the plate is not new',
+        1 =>
+          'Black ice takes no frost — cold is what made it. It wants the '
+              'opposite',
+        _ =>
+          'Light drinks black ice, one plate at a time. Every hole in this '
+              'floor has its own, and no two of them go to the same place',
+      });
+      return;
+    }
+    // THE HOLLOW READS THE FIGHT, not the shaft. Insight here used to fall
+    // through to the flue line, so the one room whose verb is not a flue was
+    // the one room the hint button would not talk about.
+    if (room.rime?.hoarfrost != null) {
+      _setInsightHint(switch (tier) {
+        0 =>
+          'The cold thing in the corner is the only thing here that is not the wyrm',
+        1 =>
+          'The wyrm will not hold still in front of a standing pillar of '
+              'hoarfrost, and it knows it',
+        _ =>
+          'Raise the hoarfrost and the lull opens; every strike it lands '
+              'shatters the pillar again, and the roar goes up the shaft and '
+              'takes a stair — or, if you left none, the rimefall itself',
+      });
+      return;
+    }
     // Anywhere in the shaft, insight reads the SHAFT — which is the planet.
     _setInsightHint(switch (tier) {
       0 => 'What goes down here does not come back the same way',
       1 =>
-        'Fresh snow brakes a fall onto a ledge and is gone; frost turns '
-            'the same fall into steps you can climb, one or the other',
+        'A shaft full of snow can be frozen into steps, and then it climbs '
+            'as well as drops. Ride it instead and that is gone',
       _ =>
-        'A ridden flue is bare for good and takes no frost. The fall at '
-            'the very bottom is the exception: it freezes from below, climbs '
-            'to the mouth, and the whole shaft lets go behind you',
+        'A ridden shaft is bare for good and takes no frost, so the way '
+            'home is whatever you froze on the way down. The fall at the very '
+            'bottom is the exception: it freezes from below, climbs to the '
+            'mouth, and the whole shaft lets go behind you',
     });
   }
 
@@ -977,30 +1647,43 @@ extension FrozenObservatory on PlanetDungeonGame {
     final rooms = layout.rooms.keys.toList()..sort();
     final head = layout.entranceRoomId;
 
-    // A state is encoded as 'room|f0f1f2f3|R'.
-    String enc(String room, List<RimeFlueState> st, bool fall) =>
-        '$room|${st.map((s) => s.index).join()}|${fall ? 1 : 0}';
+    // A state is 'room|shaft states|chutes spent|rimefall'.
+    String enc(String room, List<RimeFlueState> st, List<bool> ch, bool fall) =>
+        '$room|${st.map((s) => s.index).join()}|'
+        '${ch.map((c) => c ? 1 : 0).join()}|${fall ? 1 : 0}';
 
-    /// Every move out of one state, as (room, flueStates, rimefallFrozen).
-    List<(String, List<RimeFlueState>, bool)> moves(
+    /// Every move out of one state. TWO MOUTHS PER HEAD and nothing couples
+    /// them: the shaft always goes down (and its snow decides only whether
+    /// you can come back up), the chute always goes to its ledge, and riding
+    /// a chute spends that chute alone.
+    List<(String, List<RimeFlueState>, List<bool>, bool)> moves(
       String room,
       List<RimeFlueState> st,
+      List<bool> ch,
       bool fall, {
       required bool rimefallEnabled,
     }) {
-      final out = <(String, List<RimeFlueState>, bool)>[];
+      final out = <(String, List<RimeFlueState>, List<bool>, bool)>[];
       for (var i = 0; i < flues.length; i++) {
         final f = flues[i];
-        // Down / shelf, from the head.
         if (f.headRoom == room) {
+          // The shaft, down. Always possible; a drift is spent by the ride.
           if (st[i] == RimeFlueState.drift) {
-            final next = [...st]..[i] = RimeFlueState.scoured;
-            out.add((f.shelfRoom ?? f.footRoom, next, fall));
+            out.add((
+              f.footRoom,
+              [...st]..[i] = RimeFlueState.scoured,
+              ch,
+              fall,
+            ));
             if (f.freezable) {
-              out.add((room, [...st]..[i] = RimeFlueState.stair, fall));
+              out.add((room, [...st]..[i] = RimeFlueState.stair, ch, fall));
             }
           } else {
-            out.add((f.footRoom, st, fall));
+            out.add((f.footRoom, st, ch, fall));
+          }
+          // The ledge chute, while its snow is still in it.
+          if (f.shelfRoom != null && !ch[i]) {
+            out.add((f.shelfRoom!, st, [...ch]..[i] = true, fall));
           }
         }
         // Up, from the foot.
@@ -1011,21 +1694,22 @@ extension FrozenObservatory on PlanetDungeonGame {
               out.add((
                 f.headRoom,
                 List.filled(flues.length, RimeFlueState.drift),
+                List.filled(flues.length, false),
                 false,
               ));
             }
           } else if (st[i] == RimeFlueState.stair) {
-            out.add((f.headRoom, st, fall));
+            out.add((f.headRoom, st, ch, fall));
           }
         }
       }
       // Freeze the rimefall (Ice, at the sump — always available).
       if (rimefallEnabled && !fall) {
         for (final f in flues) {
-          if (f.isThroat && f.footRoom == room) out.add((room, st, true));
+          if (f.isThroat && f.footRoom == room) out.add((room, st, ch, true));
         }
       }
-      // Plain doors that are not part of the shaft at all: the shelves'
+      // Plain doors that are not part of the shaft at all: the ledges'
       // scramble-out and the rite/guardian wing, both two-way in the layout.
       final r = layout.rooms[room]!;
       for (final d in r.doors) {
@@ -1038,7 +1722,7 @@ extension FrozenObservatory on PlanetDungeonGame {
             isFlue = true;
           }
         }
-        if (!isFlue) out.add((d.targetRoomId, st, fall));
+        if (!isFlue) out.add((d.targetRoomId, st, ch, fall));
       }
       return out;
     }
@@ -1047,16 +1731,17 @@ extension FrozenObservatory on PlanetDungeonGame {
     Set<String> reach(
       String room,
       List<RimeFlueState> st,
+      List<bool> ch,
       bool fall, {
       required bool rimefallEnabled,
     }) {
-      final seen = <String>{enc(room, st, fall)};
+      final seen = <String>{enc(room, st, ch, fall)};
       final hit = <String>{room};
-      final queue = [(room, st, fall)];
+      final queue = [(room, st, ch, fall)];
       while (queue.isNotEmpty) {
-        final (rm, s, fl) = queue.removeLast();
-        for (final m in moves(rm, s, fl, rimefallEnabled: rimefallEnabled)) {
-          final k = enc(m.$1, m.$2, m.$3);
+        final (rm, s, c, fl) = queue.removeLast();
+        for (final m in moves(rm, s, c, fl, rimefallEnabled: rimefallEnabled)) {
+          final k = enc(m.$1, m.$2, m.$3, m.$4);
           if (!seen.add(k)) continue;
           hit.add(m.$1);
           queue.add(m);
@@ -1066,15 +1751,20 @@ extension FrozenObservatory on PlanetDungeonGame {
     }
 
     // Enumerate every state the player can actually get into from the mouth.
-    final start = (head, List.filled(flues.length, RimeFlueState.drift), false);
-    final live = <String, (String, List<RimeFlueState>, bool)>{
-      enc(start.$1, start.$2, start.$3): start,
+    final start = (
+      head,
+      List.filled(flues.length, RimeFlueState.drift),
+      List.filled(flues.length, false),
+      false,
+    );
+    final live = <String, (String, List<RimeFlueState>, List<bool>, bool)>{
+      enc(start.$1, start.$2, start.$3, start.$4): start,
     };
     final queue = [start];
     while (queue.isNotEmpty) {
-      final (rm, s, fl) = queue.removeLast();
-      for (final m in moves(rm, s, fl, rimefallEnabled: true)) {
-        final k = enc(m.$1, m.$2, m.$3);
+      final (rm, s, c, fl) = queue.removeLast();
+      for (final m in moves(rm, s, c, fl, rimefallEnabled: true)) {
+        final k = enc(m.$1, m.$2, m.$3, m.$4);
         if (live.containsKey(k)) continue;
         live[k] = m;
         queue.add(m);
@@ -1089,9 +1779,9 @@ extension FrozenObservatory on PlanetDungeonGame {
         if (f.shelfRoom != null) f.shelfRoom!,
     ];
     for (final st in live.values) {
-      final all = reach(st.$1, st.$2, st.$3, rimefallEnabled: true);
+      final all = reach(st.$1, st.$2, st.$3, st.$4, rimefallEnabled: true);
       if (all.length < rooms.length) strandable++;
-      final bare = reach(st.$1, st.$2, st.$3, rimefallEnabled: false);
+      final bare = reach(st.$1, st.$2, st.$3, st.$4, rimefallEnabled: false);
       if (bare.length < rooms.length) without++;
       if (shelves.any((s) => !bare.contains(s))) shelfLosable++;
     }
@@ -1101,6 +1791,186 @@ extension FrozenObservatory on PlanetDungeonGame {
       strandableWithoutRimefall: without,
       shelfLosable: shelfLosable,
     );
+  }
+
+  // ── THE ORRERY IS NEVER A DEAD BOARD ─────────────────────
+
+  /// Exhaustive search over every board the orrery can be shoved into.
+  ///
+  /// The shaft has a proof that it cannot strand a PARTY (`solveShaftDescent`)
+  /// and had none that it cannot strand a STAR, which is the same fault in a
+  /// smaller room: a star-block shoved somewhere it can never leave is a run
+  /// ended, quietly, with the suite green over it. It reports the number of
+  /// reachable boards and how many of them can no longer be solved. **`dead`
+  /// must be zero.**
+  ///
+  /// Glass is treated as free, because it is: Ice lays it and Light takes it
+  /// back, anywhere, at no cost, so the reachable boards are decided by the
+  /// SHOVES alone.
+  ///
+  /// `dead` IS NO LONGER ZERO, and that is deliberate: with star-blocks made
+  /// solid, three of them can be packed into a corner where each blocks the
+  /// square the next would be pushed from (151 of 7,140 boards). The answer
+  /// is not to forbid the jam — it is the armature, which puts every loose
+  /// block back on its standard for nothing. What must hold is `startDead ==
+  /// false`: the board the armature restores is always solvable. What a shove can do is [_orreryRuns] — the same walk
+  /// `_shoveBlock` performs, minus the glass that decides where it stops.
+  ({int boards, int dead, bool startDead}) solveOrreryBoards() {
+    final g = _orreryRoom?.rime?.orrery;
+    if (g == null) return (boards: 0, dead: 0, startDead: false);
+    final start = <int>[
+      for (var r = 0; r < g.rows; r++)
+        for (var c = 0; c < g.cols; c++)
+          if (g.art[r][c] == 'B') r * g.cols + c,
+    ];
+
+    // A board is the blocks' cells plus which of them are seated, normalised
+    // so two boards that differ only in which block is which are one board.
+    String enc(List<int> cells, Set<int> seated) {
+      final pairs = [
+        for (var i = 0; i < cells.length; i++)
+          '${cells[i]}${seated.contains(i) ? 'S' : ''}',
+      ]..sort();
+      return pairs.join(',');
+    }
+
+    List<(List<int>, Set<int>)> moves(List<int> cells, Set<int> seated) {
+      final out = <(List<int>, Set<int>)>[];
+      for (var i = 0; i < cells.length; i++) {
+        if (seated.contains(i)) continue;
+        final c = cells[i] % g.cols;
+        final r = cells[i] ~/ g.cols;
+        for (final dir in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
+          // The pusher stands on the far side — on the floor or in its halo,
+          // and never inside an iron standard (they are walls).
+          final pc = c - dir.$1, pr = r - dir.$2;
+          if (pc < -1 || pr < -1 || pc > g.cols || pr > g.rows) continue;
+          if (pc >= 0 &&
+              pr >= 0 &&
+              pc < g.cols &&
+              pr < g.rows &&
+              (_orreryPillar(g, pc, pr) || cells.contains(pr * g.cols + pc))) {
+            continue; // standards and star-blocks are both solid now
+          }
+          for (final run in _orreryRuns(g, cells, seated, i, dir)) {
+            // Every cell of glass that run needs has to be LAYABLE: Ice must
+            // be able to stand in an open neighbour of it, facing it.
+            if (!_orreryRunLayable(g, cells, run.$1, i, dir)) continue;
+            final next = [...cells]..[i] = run.$1;
+            out.add((next, run.$2 ? {...seated, i} : seated));
+          }
+        }
+      }
+      return out;
+    }
+
+    final startSeated = <int>{};
+    final live = <String, (List<int>, Set<int>)>{
+      enc(start, startSeated): (start, startSeated),
+    };
+    final edges = <String, List<String>>{};
+    final queue = [(start, startSeated)];
+    while (queue.isNotEmpty) {
+      final (cells, seated) = queue.removeLast();
+      final key = enc(cells, seated);
+      final outs = <String>[];
+      for (final m in moves(cells, seated)) {
+        final k = enc(m.$1, m.$2);
+        outs.add(k);
+        if (live.containsKey(k)) continue;
+        live[k] = m;
+        queue.add(m);
+      }
+      edges[key] = outs;
+    }
+
+    // Walk the graph backwards from every solved board: anything the reverse
+    // search never reaches can never be solved again.
+    final back = <String, List<String>>{};
+    for (final e in edges.entries) {
+      for (final to in e.value) {
+        (back[to] ??= []).add(e.key);
+      }
+    }
+    final good = <String>{
+      for (final e in live.entries)
+        if (e.value.$2.length == e.value.$1.length) e.key,
+    };
+    final fringe = [...good];
+    while (fringe.isNotEmpty) {
+      for (final from in back[fringe.removeLast()] ?? const <String>[]) {
+        if (good.add(from)) fringe.add(from);
+      }
+    }
+    return (
+      boards: live.length,
+      dead: live.length - good.length,
+      startDead: !good.contains(enc(start, startSeated)),
+    );
+  }
+
+  /// Whether every cell of glass a run to [endCell] needs can actually be
+  /// laid, with all the star-blocks where they are and solid.
+  bool _orreryRunLayable(
+    OrreryGrid g,
+    List<int> cells,
+    int endCell,
+    int i,
+    (int, int) dir,
+  ) {
+    bool standable(int c, int r) {
+      if (c < -1 || r < -1 || c > g.cols || r > g.rows) return false;
+      if (c < 0 || r < 0 || c >= g.cols || r >= g.rows) return true; // margin
+      if (_orreryPillar(g, c, r)) return false;
+      return !cells.contains(r * g.cols + c);
+    }
+
+    var c = cells[i] % g.cols;
+    var r = cells[i] ~/ g.cols;
+    while (true) {
+      c += dir.$1;
+      r += dir.$2;
+      final k = r * g.cols + c;
+      if (_orrerySocket(g, c, r)) return true; // a kerb needs no glass
+      final ok =
+          standable(c + 1, r) ||
+          standable(c - 1, r) ||
+          standable(c, r + 1) ||
+          standable(c, r - 1);
+      if (!ok) return false;
+      if (k == endCell) return true;
+    }
+  }
+
+  /// Every cell a shove of block [i] in [dir] can END on, with whether that
+  /// end is a socket. One entry per length of glass the player might lay.
+  List<(int, bool)> _orreryRuns(
+    OrreryGrid g,
+    List<int> cells,
+    Set<int> seated,
+    int i,
+    (int, int) dir,
+  ) {
+    final out = <(int, bool)>[];
+    var c = cells[i] % g.cols;
+    var r = cells[i] ~/ g.cols;
+    while (true) {
+      final nc = c + dir.$1, nr = r + dir.$2;
+      if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rows) break;
+      if (_orreryPillar(g, nc, nr)) break;
+      if (cells.contains(nr * g.cols + nc)) break;
+      if (_orrerySocket(g, nc, nr)) {
+        // A kerb that does not open to THIS block, THIS way, is a wall.
+        if (_orreryKerbOpens(g, nc, nr, dir, id: i)) {
+          out.add((nr * g.cols + nc, true));
+        }
+        break;
+      }
+      out.add((nr * g.cols + nc, false));
+      c = nc;
+      r = nr;
+    }
+    return out;
   }
 
   // ── Rendering ────────────────────────────────────────────
@@ -1192,11 +2062,18 @@ extension FrozenObservatory on PlanetDungeonGame {
   }
 
   void _renderFlueMouths(Canvas canvas, DungeonRoom room) {
+    // THE LEDGE CHUTES FIRST — a different kind of hole, drawn differently,
+    // and never the same hole as the shaft beside it.
+    for (final f in kRimeFlues) {
+      if (f.headRoom != room.id || f.chutePos == null) continue;
+      if (room.rime?.iceCap != null && !_capMelted('${f.id}:chute')) continue;
+      _drawLedgeChute(canvas, f.chutePos!, spentChutes.contains(f.id));
+    }
     for (final f in kRimeFlues) {
       if (f.headRoom != room.id) continue;
       // The collar is masonry and is always there; what is IN it is the
       // planet's whole state, so the cap hides the hole and not the kerb.
-      if (room.id == layout.entranceRoomId && !entryDoorRevealed) continue;
+      if (room.rime?.iceCap != null && !_capMelted('${f.id}:shaft')) continue;
       final r = Rect.fromCenter(center: f.headPos, width: 118, height: 84);
       final state = f.isThroat && rimefallFrozen
           ? RimeFlueState.stair
@@ -1206,6 +2083,46 @@ extension FrozenObservatory on PlanetDungeonGame {
         r.deflate(2),
         Paint()..color = const Color(0xFF050D14).withValues(alpha: 0.92),
       );
+      // THE THROAT IS NOT A FLUE AND MUST NEVER LOOK LIKE ONE. Both holes in
+      // the mouth's floor were heaped snow: one is a ride you can freeze into
+      // your way home, the other is the melt-fall's own gullet, takes no
+      // frost from above and plunges past every level to the bottom. Drawn as
+      // what it is — running water going down a wet black pipe — so the
+      // difference is on screen before you step in it, not after.
+      if (f.isThroat && !rimefallFrozen) {
+        canvas.save();
+        canvas.clipPath(Path()..addOval(r.deflate(2)));
+        final water = Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 2.2;
+        for (var i = 0; i < 13; i++) {
+          final x = r.left + 10 + i * (r.width - 20) / 12;
+          final t = (_time * 1.9 + i * 0.37) % 1.0;
+          final y = r.top + 6 + t * (r.height - 12);
+          water.color = _kIcePale.withValues(alpha: 0.16 + (1 - t) * 0.5);
+          canvas.drawLine(Offset(x, y), Offset(x, y + 16), water);
+        }
+        canvas.drawArc(
+          r.deflate(8),
+          -2.7,
+          1.9,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3
+            ..color = Colors.white.withValues(alpha: 0.34),
+        );
+        canvas.restore();
+        // The kerb, and nothing else: no snow, no steps, no polish.
+        canvas.drawOval(
+          r,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 7
+            ..color = _kShaftStone.withValues(alpha: 0.85),
+        );
+        continue;
+      }
       switch (state) {
         case RimeFlueState.drift:
           // HEAPED SNOW filling the hole to its lip. Drawn as ONE wind-blown
@@ -1320,6 +2237,139 @@ extension FrozenObservatory on PlanetDungeonGame {
     }
   }
 
+  /// OLD BLACK ICE — a plate that froze in place over a mouth, not a
+  /// lozenge. Irregular, near-black, crazed white where it has been working
+  /// against the kerb for a few centuries.
+  void _drawBlackIce(Canvas canvas, Offset p) {
+    // OLD BLACK ICE — a plate that froze in place over the mouth, not a
+    // lozenge. Irregular, near-black, crazed white where it has been
+    // working against the kerb for a few centuries.
+    final plate = Path();
+    for (var i = 0; i < 11; i++) {
+      final a = i * pi * 2 / 11;
+      final k = 1 + sin(i * 2.7) * 0.16;
+      final q = p + Offset(cos(a) * 78 * k, sin(a) * 40 * k);
+      i == 0 ? plate.moveTo(q.dx, q.dy) : plate.lineTo(q.dx, q.dy);
+    }
+    plate.close();
+    canvas.drawPath(
+      plate,
+      Paint()..color = const Color(0xFF060D14).withValues(alpha: 0.94),
+    );
+    final craze = Path();
+    for (var i = 0; i < 5; i++) {
+      final a = i * 1.31;
+      craze
+        ..moveTo(p.dx, p.dy)
+        ..lineTo(p.dx + cos(a) * 70, p.dy + sin(a) * 34)
+        ..moveTo(p.dx + cos(a) * 34, p.dy + sin(a) * 17)
+        ..lineTo(p.dx + cos(a + 0.9) * 52, p.dy + sin(a + 0.9) * 26);
+    }
+    canvas.drawPath(
+      craze,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3
+        ..color = _kIcePale.withValues(alpha: 0.4),
+    );
+    canvas.drawPath(
+      plate,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = _kIcePale.withValues(alpha: 0.3),
+    );
+  }
+
+  /// A LEDGE CHUTE. Deliberately not a shaft: narrower, canted, and with its
+  /// snow visibly running OFF to one side into the pocket it feeds, so the
+  /// two holes at a head can never be mistaken for one hole in two moods.
+  /// Spent, it is an empty slot with nothing in it to ride.
+  void _drawLedgeChute(Canvas canvas, Offset p, bool spent) {
+    final r = Rect.fromCenter(center: p, width: 86, height: 58);
+    canvas.drawOval(
+      r.deflate(2),
+      Paint()..color = const Color(0xFF050D14).withValues(alpha: 0.92),
+    );
+    if (!spent) {
+      // The snow, heaped to the lip and spilling away downhill.
+      final ramp = Path()
+        ..moveTo(r.left + 6, r.bottom - 8)
+        ..quadraticBezierTo(
+          r.center.dx - 10,
+          r.top + 8,
+          r.right - 10,
+          r.top + 20,
+        )
+        ..lineTo(r.right - 6, r.bottom - 10)
+        ..close();
+      canvas.drawPath(ramp, Paint()..color = _kIceWhite.withValues(alpha: 0.6));
+      canvas.drawPath(
+        ramp,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = Colors.white.withValues(alpha: 0.7),
+      );
+      // The tongue of snow going over the lip, which is where you go.
+      final tongue = Path()
+        ..moveTo(r.right - 14, r.top + 22)
+        ..lineTo(r.right + 26, r.top + 34)
+        ..lineTo(r.right + 22, r.bottom - 4)
+        ..lineTo(r.right - 10, r.bottom - 10)
+        ..close();
+      canvas.drawPath(
+        tongue,
+        Paint()..color = _kIceWhite.withValues(alpha: 0.34),
+      );
+    } else {
+      // Bare. One cold highlight down the far wall and nothing to ride.
+      canvas.drawArc(
+        r.deflate(8),
+        0.6,
+        2.0,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..color = _kIcePale.withValues(alpha: 0.45),
+      );
+    }
+    canvas.drawOval(
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..color = _kShaftStone.withValues(alpha: 0.85),
+    );
+  }
+
+  /// WHAT THE FLOOR SHOWS YOU FROM WHERE YOU STAND — the orrery's half of
+  /// this planet's one idea (the gallery's is the pool). Stand behind a block
+  /// and the road it would take is drawn in front of it, with the cell it
+  /// would stop on marked, before you spend a thing.
+  ///
+  /// Not a hint and not a tier of Mask's reading: it is the same
+  /// deterministic walk the shove performs, shown early. That is what
+  /// plan-then-commit means — knowing the answer and having it are the same.
+  ({int block, List<int> path, int stop, bool seats})? _orreryPreview(
+    OrreryGrid g,
+  ) {
+    final a = active;
+    if (a == null) return null;
+    final here = _orreryStandCell(g, a.position);
+    if (here == null) return null;
+    final step = _orreryFacing(a);
+    final c = here.$1 + step.$1;
+    final r = here.$2 + step.$2;
+    if (c < 0 || r < 0 || c >= g.cols || r >= g.rows) return null;
+    final id = _orreryBlockAt(g, c, r);
+    if (id == null || orrerySeated.contains(id)) return null;
+    final run = _orreryRun(g, id, step);
+    if (!run.moved) return null;
+    return (block: id, path: run.travelled, stop: run.cell, seats: run.seats);
+  }
+
   void _renderOrrery(Canvas canvas, DungeonRoom room) {
     final g = room.rime?.orrery;
     if (g == null) return;
@@ -1395,27 +2445,148 @@ extension FrozenObservatory on PlanetDungeonGame {
       );
     }
 
+    // THE RUN, FROM WHERE YOU ARE STANDING. Drawn under the furniture, so the
+    // sockets and the blocks stay the loudest things in the room (§7.9).
+    final preview = hasStar(room.rime?.starIndex ?? -1)
+        ? null
+        : _orreryPreview(g);
+    if (preview != null) {
+      final cell = orreryBlocks[preview.block]!;
+      final from = g.centerAt(cell % g.cols, cell ~/ g.cols);
+      final to = g.centerAt(preview.stop % g.cols, preview.stop ~/ g.cols);
+      final col = preview.seats ? const Color(0xFFE9C46A) : _kIcePale;
+      // A dashed road, so it reads as a projection and never as laid glass.
+      final d = to - from;
+      final len = d.distance;
+      if (len > 1) {
+        final unit = d / len;
+        final dash = Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 3
+          ..color = col.withValues(alpha: preview.seats ? 0.75 : 0.42);
+        for (var t = 14.0; t < len - 10; t += 26) {
+          canvas.drawLine(from + unit * t, from + unit * (t + 13), dash);
+        }
+      }
+      // Where it stops: a kerb-ring if it seats, an open mark if it does not.
+      canvas.drawCircle(
+        to,
+        preview.seats ? 30 : 22,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = preview.seats ? 3.5 : 2.2
+          ..color = col.withValues(alpha: preview.seats ? 0.9 : 0.5),
+      );
+      if (!preview.seats) {
+        // The road it would crack behind it, marked as loss, not as gain.
+        final crack = Paint()
+          ..strokeWidth = 1.6
+          ..color = const Color(0xFFC0392B).withValues(alpha: 0.38);
+        for (final k in preview.path) {
+          final p = g.centerAt(k % g.cols, k ~/ g.cols);
+          canvas.drawLine(
+            p + const Offset(-9, -9),
+            p + const Offset(9, 9),
+            crack,
+          );
+          canvas.drawLine(
+            p + const Offset(9, -9),
+            p + const Offset(-9, 9),
+            crack,
+          );
+        }
+      }
+    }
+
     for (var r = 0; r < g.rows; r++) {
       for (var c = 0; c < g.cols; c++) {
         final ch = g.art[r][c];
         final p = g.centerAt(c, r);
         if (ch == '#') {
           _drawIronStandard(canvas, p);
-        } else if (ch == 'S') {
-          _drawOrrerySocket(canvas, p, g.cell);
+        } else {
+          final dir = _orrerySocketDir(g, c, r);
+          if (dir != null) {
+            _drawOrrerySocket(canvas, p, g.cell, dir);
+            // WHOSE KERB THIS IS, cut into the stone inside the ring — the
+            // same figure the block carries.
+            final owner = g.kerbOwner[r * g.cols + c];
+            if (owner != null) {
+              _drawStarFigure(
+                canvas,
+                Rect.fromCenter(center: p, width: 26, height: 26),
+                owner,
+                _kShaftBrassLit.withValues(alpha: 0.75),
+                1.6,
+              );
+            }
+          }
         }
       }
     }
 
+    _drawOrreryCrank(canvas, _orreryCrankAt(g));
+
     for (final e in orreryBlocks.entries) {
       final c = e.value % g.cols;
       final r = e.value ~/ g.cols;
-      _drawStarBlock(
-        canvas,
-        g.centerAt(c, r),
-        e.key,
-        orrerySeated.contains(e.key),
-      );
+      var at = g.centerAt(c, r);
+      if (orrerySlideId == e.key) {
+        // Running its road: eased, so it leaves heavily and settles.
+        final from = g.centerAt(
+          orrerySlideFrom % g.cols,
+          orrerySlideFrom ~/ g.cols,
+        );
+        at = Offset.lerp(
+          from,
+          at,
+          Curves.easeOutCubic.transform(orrerySlideT.clamp(0.0, 1.0)),
+        )!;
+        // Spray off the leading edge while it runs.
+        final d = (at - from);
+        if (d.distance > 1) {
+          final u = d / d.distance;
+          for (var i = 0; i < 3; i++) {
+            canvas.drawCircle(
+              at - u * (26 + i * 9.0) + Offset(u.dy, -u.dx) * (i - 1) * 7,
+              2.6 - i * 0.6,
+              Paint()..color = Colors.white.withValues(alpha: 0.4 - i * 0.11),
+            );
+          }
+        }
+      }
+      // IN REACH, AND IT SAYS SO. A star-block is the one thing on this floor
+      // you take hold of, and it looked exactly the same whether you could
+      // work it or were standing across the room from it. Near: a cold ring
+      // under it. The one your facing would actually shove: brighter, and
+      // breathing, because that is the block the press will take.
+      final act = active;
+      if (act != null && !orrerySeated.contains(e.key)) {
+        final near = (act.position - at).distance;
+        if (near < 150) {
+          final targeted = preview?.block == e.key;
+          final k = targeted
+              ? 0.85 + 0.15 * sin(_time * 4.2)
+              : (1 - (near / 150)).clamp(0.0, 1.0) * 0.5;
+          canvas.drawCircle(
+            at + const Offset(0, 6),
+            30 + (targeted ? 5 : 0),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = targeted ? 3 : 2
+              ..color = (targeted ? Colors.white : _kIcePale).withValues(
+                alpha: 0.7 * k,
+              ),
+          );
+          canvas.drawCircle(
+            at + const Offset(0, 6),
+            38 + (targeted ? 6 : 0),
+            Paint()
+              ..color = const Color(0xFF9FE9FF).withValues(alpha: 0.10 * k),
+          );
+        }
+      }
+      _drawStarBlock(canvas, at, e.key, orrerySeated.contains(e.key));
     }
   }
 
@@ -1493,7 +2664,7 @@ extension FrozenObservatory on PlanetDungeonGame {
   /// A socket was a gold circle. Something is meant to be SEATED in one, so
   /// it is a kerbed cup: a stone rim proud of the floor, three brass seating
   /// lugs, and a dark bed the block drops into.
-  void _drawOrrerySocket(Canvas canvas, Offset p, double cell) {
+  void _drawOrrerySocket(Canvas canvas, Offset p, double cell, (int, int) dir) {
     final r = cell * 0.34;
     canvas.drawCircle(
       p,
@@ -1539,11 +2710,156 @@ extension FrozenObservatory on PlanetDungeonGame {
         brass,
       );
     }
+
+    // WHICH WAY THE KERB OPENS. The lip is cut away on one side only — the
+    // side a block running with the orbit comes in on — and the orbit's own
+    // direction is scored on the floor beside it. Without this the rule is
+    // invisible and the room is a guessing game.
+    if (dir.$1 == 0 && dir.$2 == 0) return;
+    final d = Offset(dir.$1.toDouble(), dir.$2.toDouble());
+    final gate = p - d * (r + 2);
+    // The gap in the kerb: erase the rim on the approach side.
+    canvas.drawCircle(
+      gate,
+      9,
+      Paint()..color = _kShaftDark.withValues(alpha: 0.95),
+    );
+    // And the arrow, pointing the way the sky turns here.
+    final tail = gate - d * 15;
+    final head = gate + d * 3;
+    final wing = Offset(-d.dy, d.dx) * 7;
+    final arrow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 2.6
+      ..color = _kShaftBrassLit.withValues(alpha: 0.9);
+    canvas.drawLine(tail, head, arrow);
+    canvas.drawLine(head, head - d * 7 + wing, arrow);
+    canvas.drawLine(head, head - d * 7 - wing, arrow);
   }
 
   /// A star-block is a lump of FROZEN SKY, so it must not be a white box: a
   /// faceted chunk with a shadow under it, one lit face, and the star showing
   /// through from inside. Seated, it takes the sockets' brass.
+  /// The floor's crank: a squat iron pedestal with a brass handle, standing
+  /// off the board at the east wall. Pulled by Light, it puts every loose
+  /// star-block back on its standard.
+  /// THE FIGURE ALPHABET. Six little star-shapes, used wherever this planet
+  /// has to say "this one and that one are the same one" — the orrery's
+  /// blocks and the kerbs cut for them. Ordinary shapes on purpose: they are
+  /// identity, never difficulty.
+  static const List<List<Offset>> _kStarFigures = [
+    [Offset(0.14, 0.18), Offset(0.52, 0.42), Offset(0.24, 0.84)],
+    [
+      Offset(0.10, 0.30),
+      Offset(0.32, 0.66),
+      Offset(0.52, 0.26),
+      Offset(0.76, 0.64),
+      Offset(0.92, 0.22),
+    ],
+    [
+      Offset(0.12, 0.72),
+      Offset(0.40, 0.78),
+      Offset(0.66, 0.60),
+      Offset(0.84, 0.24),
+    ],
+    [
+      Offset(0.50, 0.10),
+      Offset(0.50, 0.86),
+      Offset(0.16, 0.48),
+      Offset(0.86, 0.48),
+    ],
+    [
+      Offset(0.18, 0.80),
+      Offset(0.22, 0.44),
+      Offset(0.50, 0.18),
+      Offset(0.82, 0.36),
+    ],
+    [
+      Offset(0.46, 0.12),
+      Offset(0.80, 0.46),
+      Offset(0.48, 0.88),
+      Offset(0.16, 0.48),
+    ],
+  ];
+
+  /// Figure [f] drawn to fill [box].
+  void _drawStarFigure(
+    Canvas canvas,
+    Rect box,
+    int f,
+    Color color,
+    double stroke,
+  ) {
+    final n = f % _kStarFigures.length;
+    final pts = [
+      for (final q in _kStarFigures[n])
+        Offset(box.left + q.dx * box.width, box.top + q.dy * box.height),
+    ];
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = stroke
+      ..color = color.withValues(alpha: (color.a * 0.75).clamp(0.0, 1.0));
+    final path = Path();
+    if (n == 3) {
+      path
+        ..moveTo(pts[0].dx, pts[0].dy)
+        ..lineTo(pts[1].dx, pts[1].dy)
+        ..moveTo(pts[2].dx, pts[2].dy)
+        ..lineTo(pts[3].dx, pts[3].dy);
+    } else {
+      path.moveTo(pts.first.dx, pts.first.dy);
+      for (final q in pts.skip(1)) {
+        path.lineTo(q.dx, q.dy);
+      }
+      if (n == 5) path.close();
+    }
+    canvas.drawPath(path, line);
+    for (final q in pts) {
+      canvas.drawCircle(q, stroke * 1.4, Paint()..color = color);
+    }
+  }
+
+  void _drawOrreryCrank(Canvas canvas, Offset p) {
+    canvas.drawOval(
+      Rect.fromCenter(center: p + const Offset(0, 26), width: 62, height: 18),
+      Paint()..color = _kShaftDark.withValues(alpha: 0.4),
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(p.dx - 22, p.dy + 26)
+        ..lineTo(p.dx - 14, p.dy - 10)
+        ..lineTo(p.dx + 14, p.dy - 10)
+        ..lineTo(p.dx + 22, p.dy + 26)
+        ..close(),
+      Paint()..color = _kShaftStone.withValues(alpha: 0.95),
+    );
+    canvas.drawLine(
+      Offset(p.dx - 14, p.dy - 10),
+      Offset(p.dx + 14, p.dy - 10),
+      Paint()
+        ..color = _kShaftStoneLit.withValues(alpha: 0.7)
+        ..strokeWidth = 2,
+    );
+    final handle = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 4.5
+      ..color = _kShaftBrassLit.withValues(alpha: 0.95);
+    canvas.drawLine(Offset(p.dx, p.dy - 10), Offset(p.dx, p.dy - 34), handle);
+    canvas.drawLine(
+      Offset(p.dx, p.dy - 34),
+      Offset(p.dx + 20, p.dy - 42),
+      handle,
+    );
+    canvas.drawCircle(
+      Offset(p.dx + 20, p.dy - 42),
+      5,
+      Paint()..color = _kShaftBrassLit,
+    );
+  }
+
   void _drawStarBlock(Canvas canvas, Offset p, int id, bool seated) {
     // Deterministic per block, so a given block always has the same facets.
     final t = id * 1.7;
@@ -1582,7 +2898,16 @@ extension FrozenObservatory on PlanetDungeonGame {
         ..strokeWidth = 1.4
         ..color = (seated ? Colors.white : _kIceDeep).withValues(alpha: 0.4),
     );
-    _drawStarGlyph(canvas, p, 11, seated ? Colors.white : _kIceDeep);
+    // THE BLOCK'S OWN FIGURE — the same one cut into the kerb it belongs to.
+    // Every block used to carry the same generic star, so "which socket is
+    // this one's" was unanswerable by looking.
+    _drawStarFigure(
+      canvas,
+      Rect.fromCenter(center: p + const Offset(0, 1), width: 26, height: 26),
+      id,
+      (seated ? _kShaftDark : _kIceDeep).withValues(alpha: 0.9),
+      1.7,
+    );
   }
 
   void _renderMirrorRing(Canvas canvas, DungeonRoom room) {
@@ -1606,23 +2931,56 @@ extension FrozenObservatory on PlanetDungeonGame {
       Paint()..color = const Color(0xFF060F16).withValues(alpha: 0.86),
     );
     canvas.save();
-    canvas.clipPath(Path()..addOval(Rect.fromCircle(center: ring.center, radius: pool)));
+    canvas.clipPath(
+      Path()..addOval(Rect.fromCircle(center: ring.center, radius: pool)),
+    );
     for (final s in ground.reflection) {
       canvas.drawPath(s.path, s.paint);
     }
     if (!discoveredClouds.contains(_vaultCacheId)) {
+      // THE VAULT, AND IT IS THE ONLY PLACE IT IS EVER SHOWN. A 13px dot in
+      // a big dark pool is a speck; what has to read is a LEDGE up there
+      // with something lit standing on it, hanging in the reflected shaft.
       final bob = sin(_time * 1.2) * 4;
       final glow = ring.center + Offset(ring.radius * 0.52, -46 + bob);
+      canvas.drawPath(
+        Path()
+          ..moveTo(glow.dx - 46, glow.dy + 20)
+          ..lineTo(glow.dx - 30, glow.dy + 9)
+          ..lineTo(glow.dx + 32, glow.dy + 11)
+          ..lineTo(glow.dx + 44, glow.dy + 22)
+          ..close(),
+        Paint()..color = _kIcePale.withValues(alpha: 0.30),
+      );
+      for (var i = 3; i >= 1; i--) {
+        canvas.drawCircle(
+          glow,
+          10.0 + i * 7,
+          Paint()
+            ..color = const Color(
+              0xFF00E5FF,
+            ).withValues(alpha: 0.07 + i * 0.05),
+        );
+      }
       canvas.drawCircle(
         glow,
-        13,
-        Paint()..color = const Color(0xFF00E5FF).withValues(alpha: 0.34),
+        7,
+        Paint()..color = Colors.white.withValues(alpha: 0.82),
       );
-      canvas.drawCircle(
-        glow,
-        5,
-        Paint()..color = Colors.white.withValues(alpha: 0.7),
-      );
+      // Four short rays, so it reads as a LIGHT and not as a coin lying in
+      // the water (Water's moon-well lesson, §6).
+      final ray = Paint()
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 2
+        ..color = const Color(0xFF9FF4FF).withValues(alpha: 0.5);
+      for (var i = 0; i < 4; i++) {
+        final a = i * pi / 2 + 0.3;
+        canvas.drawLine(
+          glow + Offset(cos(a), sin(a)) * 11,
+          glow + Offset(cos(a), sin(a)) * (20 + sin(_time * 2 + i) * 3),
+          ray,
+        );
+      }
     }
     canvas.restore();
     // The water's own surface: one slow shear of light across the black.
@@ -1642,11 +3000,131 @@ extension FrozenObservatory on PlanetDungeonGame {
     // water. Air's sweep is cast from here and it used to be nothing at all.
     _drawColdVent(canvas, ring.vent);
 
+    // THE CHART, AS FAR AS THE WATER HAS IT. Every silvered frame draws its
+    // own five stars and the strokes between them; where two frames disagree
+    // about where a star hangs, BOTH are drawn and the line forks. A fork is
+    // the whole evidence of this room and it names a pair, never a frame.
+    final a = active;
+    if (lodestoneLit && a != null && mirrorChart.isNotEmpty) {
+      canvas.drawCircle(
+        ring.center,
+        pool,
+        Paint()..color = const Color(0xFF040A10).withValues(alpha: 0.55),
+      );
+      Offset star(int i, int k) {
+        final ang = -pi / 2 + (2 * pi * k) / kIceChartStars;
+        final rad = chartRadiusFor(i, k) * pool;
+        return ring.center + Offset(cos(ang) * rad, sin(ang) * rad);
+      }
+
+      final line = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 2.2;
+      for (final f in silveredFrames) {
+        final own = chartStarsOf(f);
+        for (var n = 0; n < own.length - 1; n++) {
+          final k = own[n], k2 = own[n + 1];
+          // THE LAMP'S REACH EASES. A stretch of chart comes up and goes down
+          // as the light walks instead of snapping on and off at a hard edge.
+          final lit = min(chartStarLight(ring, k), chartStarLight(ring, k2));
+          if (lit <= 0.01) continue;
+          final agreed = chartStarAgreed(k) && chartStarAgreed(k2);
+          line.color = (agreed ? _kIceWhite : _kIcePale).withValues(
+            alpha: (agreed ? 0.9 : 0.75) * lit,
+          );
+          canvas.drawLine(star(f, k), star(f, k2), line);
+        }
+        for (final k in own) {
+          final lit = chartStarLight(ring, k);
+          if (lit <= 0.01) continue;
+          final agreed = chartStarAgreed(k);
+          canvas.drawCircle(
+            star(f, k),
+            agreed ? 3.4 : 4.2,
+            Paint()
+              ..color = (agreed ? Colors.white : _kShaftBrassLit).withValues(
+                alpha: 0.95 * lit,
+              ),
+          );
+        }
+      }
+    }
+
+    // THE LIGHT-UP. The Mirror Star is a PICTURE you assembled out of
+    // twelve frames and a walked lamp, and it was banked with a line of
+    // prose and nothing else. A cold fire runs once round the ring, each
+    // star taking it as the sweep reaches it, and the whole chart holds
+    // bright behind it — the only moment in this room where the water
+    // shows everything without being asked.
+    if (chartTriumph > 0) {
+      final t = 1 - (chartTriumph / _kChartTriumphSeconds);
+      final sweep =
+          -pi / 2 +
+          2 * pi * Curves.easeInOutCubic.transform((t / 0.72).clamp(0.0, 1.0));
+      for (var k = 0; k < kIceChartStars; k++) {
+        final ang = -pi / 2 + (2 * pi * k) / kIceChartStars;
+        var passed = (sweep - ang) % (2 * pi);
+        if (passed < 0) passed += 2 * pi;
+        if (passed > pi * 1.98) continue; // not reached yet
+        // Each star flares as the fire arrives and settles to a hold.
+        final age = (passed / (pi * 0.5)).clamp(0.0, 1.0);
+        final flare = (1 - age) * (1 - age);
+        final p =
+            ring.center +
+            Offset(
+              cos(ang) * mirrorChart[k] * pool,
+              sin(ang) * mirrorChart[k] * pool,
+            );
+        canvas.drawCircle(
+          p,
+          4 + flare * 13,
+          Paint()
+            ..color = const Color(
+              0xFFBFF3FF,
+            ).withValues(alpha: 0.10 + flare * 0.5),
+        );
+        canvas.drawCircle(
+          p,
+          3.2,
+          Paint()..color = Colors.white.withValues(alpha: 0.75 + 0.25 * flare),
+        );
+      }
+      // The fire itself, running the rim of the water.
+      if (t < 0.74) {
+        canvas.drawArc(
+          Rect.fromCircle(center: ring.center, radius: pool * 0.92),
+          sweep - 0.34,
+          0.34,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 3.4
+            ..color = const Color(0xFFDFF6FF).withValues(alpha: 0.85),
+        );
+      }
+      // And one slow ring outward as it closes.
+      if (t > 0.7) {
+        final k = ((t - 0.7) / 0.3).clamp(0.0, 1.0);
+        canvas.drawCircle(
+          ring.center,
+          pool * (0.2 + k * 0.95),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.5 * (1 - k)
+            ..color = const Color(0xFFDFF6FF).withValues(alpha: 0.55 * (1 - k)),
+        );
+      }
+    }
+
     for (var i = 0; i < ring.count; i++) {
       final p = ring.frameAt(i);
       final lode = i == ring.lodestoneIndex;
-      final showing = lode ? lodestoneLit : silveredMirrors.contains(i);
-      final frame = Rect.fromCenter(center: p, width: 46, height: 66);
+      // Sized so the etched figure survives the SURVEY (0.62 zoom): the ring
+      // is compared by standing still and looking at the whole room, and a
+      // glyph you cannot resolve from there is not a clue.
+      final frame = Rect.fromCenter(center: p, width: 54, height: 76);
       // A stand. A mirror that stands in a gallery stands on something; these
       // were floating outlines.
       canvas.drawPath(
@@ -1665,55 +3143,79 @@ extension FrozenObservatory on PlanetDungeonGame {
           ..color = _kShaftStoneLit.withValues(alpha: 0.55)
           ..strokeWidth = 2.4,
       );
-      if (!showing) {
+      // WHAT A FRAME SHOWS, and it is two different things at once:
+      //  · its ENGRAVING, cut into the stone plate under the glass, which is
+      //    its claim about the sky and is legible from anywhere in the room;
+      //  · its GLASS, which is black until the water has shown you the sky
+      //    over it, then holds that sky — and which you SILVER to call the
+      //    frame a liar.
+      final glass = frame.deflate(4);
+      if (lode) {
         canvas.drawRect(
-          frame.deflate(4),
+          glass,
           Paint()
-            ..color = (lode ? Colors.black : _kIceDeep).withValues(alpha: 0.8),
+            ..color = (lodestoneLit ? const Color(0xFFFFF0C4) : Colors.black)
+                .withValues(alpha: lodestoneLit ? 0.82 : 0.9),
         );
-      } else {
-        canvas.drawRect(
-          frame.deflate(4),
-          Paint()
-            ..color = (lode ? const Color(0xFFFFF0C4) : _kIceWhite).withValues(
-              alpha: 0.8,
-            ),
-        );
-        // The chart, showing: three points and a joining line, so a silvered
-        // frame is visibly holding a PICTURE and not just a lit panel.
-        final inner = frame.deflate(8);
-        final chart = Paint()
-          ..color = _kIceDeep.withValues(alpha: 0.55)
-          ..strokeWidth = 1.2;
-        canvas.drawLine(inner.topLeft + const Offset(3, 12), inner.center, chart);
-        canvas.drawLine(
-          inner.center,
-          inner.bottomRight - const Offset(5, 14),
-          chart,
-        );
-        for (final q in [
-          inner.topLeft + const Offset(3, 12),
-          inner.center,
-          inner.bottomRight - const Offset(5, 14),
-        ]) {
-          canvas.drawCircle(q, 2.2, Paint()..color = _kIceDeep);
-        }
-        // The thaw is READ off the frame, not off a line of prose: the silver
-        // drains from the bottom as the hold runs out.
-        if (!lode) {
-          final left = ((mirrorThaw[i] ?? 0) / _kMirrorHoldSeconds).clamp(
-            0.0,
-            1.0,
+        if (lodestoneLit) {
+          // A LAMP, NOT A CLUE. It used to hold two figures side by side as a
+          // worked example of the rule, and a frame carrying figures in a
+          // room whose whole puzzle is figures reads as DATA — the player
+          // hunts for what it means, and it means nothing. It is the thing
+          // that lights the water and it looks like it: a warm face, a glow,
+          // no chart, and no engraved plate under it either.
+          canvas.drawCircle(
+            glass.center,
+            glass.width * 0.32,
+            Paint()..color = const Color(0xFFFFF6DA).withValues(alpha: 0.95),
           );
-          final in2 = frame.deflate(4);
+          for (var k = 3; k >= 1; k--) {
+            canvas.drawCircle(
+              glass.center,
+              glass.width * (0.32 + k * 0.1),
+              Paint()..color = const Color(0xFFFFE9A8).withValues(alpha: 0.10),
+            );
+          }
+        }
+      } else {
+        // A FRAME IS A SWITCH NOW, not a second place to read the chart: it
+        // is either throwing its stretch into the water or it is not. The
+        // reading all happens in the pool, which is where this room's one
+        // idea lives.
+        final silvered = silveredFrames.contains(i);
+        canvas.drawRect(
+          glass,
+          Paint()
+            ..color = (silvered ? _kIceWhite : const Color(0xFF0A1A22))
+                .withValues(alpha: silvered ? 0.88 : 0.9),
+        );
+        if (silvered) {
+          // Frost, and the cold running off it toward the water.
           canvas.drawRect(
-            Rect.fromLTWH(
-              in2.left,
-              in2.bottom - in2.height * (1 - left),
-              in2.width,
-              in2.height * (1 - left),
-            ),
-            Paint()..color = _kIceDeep.withValues(alpha: 0.72),
+            glass,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 3
+              ..color = Colors.white.withValues(alpha: 0.9),
+          );
+          for (var n = 0; n < 3; n++) {
+            final y = glass.top + glass.height * (n + 1) / 4;
+            canvas.drawLine(
+              Offset(glass.left + 5, y),
+              Offset(glass.right - 5, y - 4),
+              Paint()
+                ..strokeWidth = 1.3
+                ..color = _kIcePale.withValues(alpha: 0.55),
+            );
+          }
+        } else {
+          // Dark glass still catches the room: one cold slash, no picture.
+          canvas.drawLine(
+            glass.topLeft + const Offset(4, 18),
+            glass.topRight + const Offset(-6, 40),
+            Paint()
+              ..color = _kIcePale.withValues(alpha: 0.18)
+              ..strokeWidth = 2,
           );
         }
       }
@@ -1735,8 +3237,6 @@ extension FrozenObservatory on PlanetDungeonGame {
     }
   }
 
-  /// The gallery's cold vent — an iron rose set in the floor with hoar
-  /// growing off its spokes.
   void _drawColdVent(Canvas canvas, Offset c) {
     canvas.drawCircle(
       c,
@@ -1789,53 +3289,19 @@ extension FrozenObservatory on PlanetDungeonGame {
     final ice = room.rime;
     if (ice == null) return;
 
-    final cap = ice.iceCap;
-    if (cap != null && !entryDoorRevealed) {
-      // OLD BLACK ICE — a plate that froze in place over the mouth, not a
-      // lozenge. Irregular, near-black, crazed white where it has been
-      // working against the kerb for a few centuries.
-      final plate = Path();
-      for (var i = 0; i < 11; i++) {
-        final a = i * pi * 2 / 11;
-        final k = 1 + sin(i * 2.7) * 0.16;
-        final q = cap + Offset(cos(a) * 78 * k, sin(a) * 40 * k);
-        i == 0 ? plate.moveTo(q.dx, q.dy) : plate.lineTo(q.dx, q.dy);
+    if (ice.iceCap != null) {
+      // One plate per hole, and each is drunk on its own.
+      for (final m in _iceMouths(room.id)) {
+        if (!_capMelted(m.$1)) _drawBlackIce(canvas, m.$2);
       }
-      plate.close();
-      canvas.drawPath(
-        plate,
-        Paint()..color = const Color(0xFF060D14).withValues(alpha: 0.94),
-      );
-      final craze = Path();
-      for (var i = 0; i < 5; i++) {
-        final a = i * 1.31;
-        craze
-          ..moveTo(cap.dx, cap.dy)
-          ..lineTo(cap.dx + cos(a) * 70, cap.dy + sin(a) * 34)
-          ..moveTo(cap.dx + cos(a) * 34, cap.dy + sin(a) * 17)
-          ..lineTo(cap.dx + cos(a + 0.9) * 52, cap.dy + sin(a + 0.9) * 26);
-      }
-      canvas.drawPath(
-        craze,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.3
-          ..color = _kIcePale.withValues(alpha: 0.4),
-      );
-      canvas.drawPath(
-        plate,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..color = _kIcePale.withValues(alpha: 0.3),
-      );
     }
-
     final fall = ice.rimefall;
     if (fall != null) _drawRimefall(canvas, fall);
 
     final font = ice.coldFont;
-    if (font != null) _drawColdFont(canvas, font, (conduitEnergy['B'] ?? 0) > 0);
+    if (font != null) {
+      _drawColdFont(canvas, font, (conduitEnergy['B'] ?? 0) > 0);
+    }
 
     final pillar = ice.hoarfrost;
     if (pillar != null) _drawHoarfrost(canvas, pillar, hoarfrostWhole);
@@ -1929,7 +3395,9 @@ extension FrozenObservatory on PlanetDungeonGame {
       for (var i = 0; i < 7; i++) {
         final y = r.top - 24 + ((_time * 150 + i * 33) % (r.height + 34));
         final t = ((y - r.top + 24) / (r.height + 24)).clamp(0.0, 1.0);
-        final x = r.center.dx + (r.left + 16 + i * 14.0 - r.center.dx) * (1 + t * 0.5);
+        final x =
+            r.center.dx +
+            (r.left + 16 + i * 14.0 - r.center.dx) * (1 + t * 0.5);
         canvas.drawLine(
           Offset(x, y),
           Offset(x, y + 22 + t * 20),
@@ -1957,8 +3425,10 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (var i = 2; i >= 0; i--) {
       canvas.drawPath(
         _shaftOctagon(p + Offset(0, i * 5.0), 54.0 - i * 9, 30.0 - i * 5),
-        Paint()..color = (i.isEven ? _kShaftStone : _kShaftStoneLit)
-            .withValues(alpha: 0.55 + i * 0.1),
+        Paint()
+          ..color = (i.isEven ? _kShaftStone : _kShaftStoneLit).withValues(
+            alpha: 0.55 + i * 0.1,
+          ),
       );
     }
     canvas.drawOval(
@@ -1994,10 +3464,38 @@ extension FrozenObservatory on PlanetDungeonGame {
     );
     const heights = [96.0, 70.0, 118.0, 58.0, 84.0];
     const offsets = [-26.0, -8.0, 6.0, 22.0, 34.0];
+    if (!whole) {
+      // A SHATTERED PILLAR IS STILL THE LOUDEST THING IN THIS ROOM. It used
+      // to be five 16px stumps in wall-colour, which in a dark hollow is a
+      // smudge — and it is the only thing in the boss room you can press.
+      // What stands in for it: the socket it grew out of, lit; the broken
+      // shafts, bright, with their fracture faces showing; and the GHOST of
+      // the pillar that belongs here, so the room says what it is missing.
+      final ghost = Path()
+        ..moveTo(p.dx - 34, p.dy + 48)
+        ..lineTo(p.dx - 16, p.dy - 62)
+        ..lineTo(p.dx + 10, p.dy - 74)
+        ..lineTo(p.dx + 30, p.dy + 48)
+        ..close();
+      canvas.drawPath(
+        ghost,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = _kIceWhite.withValues(alpha: 0.26),
+      );
+      canvas.drawOval(
+        Rect.fromCenter(center: p + const Offset(0, 46), width: 78, height: 22),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = _kIceWhite.withValues(alpha: 0.5),
+      );
+    }
     for (var i = 0; i < 5; i++) {
-      final h = whole ? heights[i] : 16.0 + i * 3;
-      final x = p.dx + offsets[i];
-      final w = whole ? 12.0 + (i % 3) * 4 : 14.0;
+      final h = whole ? heights[i] : 44.0 + (i % 3) * 12;
+      final x = p.dx + offsets[i] * (whole ? 1.0 : 1.35);
+      final w = whole ? 12.0 + (i % 3) * 4 : 17.0;
       canvas.drawPath(
         Path()
           ..moveTo(x - w, p.dy + 48)
@@ -2008,8 +3506,18 @@ extension FrozenObservatory on PlanetDungeonGame {
         Paint()
           ..color = whole
               ? _kIceWhite.withValues(alpha: 0.86 - (i % 3) * 0.12)
-              : const Color(0xFF35505E).withValues(alpha: 0.7),
+              : _kIcePale.withValues(alpha: 0.82 - (i % 3) * 0.1),
       );
+      if (!whole) {
+        // The fracture face: where the shaft was taken off, catching light.
+        canvas.drawLine(
+          Offset(x - w, p.dy + 48 - h),
+          Offset(x + w * 0.5, p.dy + 48 - h * 0.86),
+          Paint()
+            ..color = Colors.white.withValues(alpha: 0.85)
+            ..strokeWidth = 2.4,
+        );
+      }
       if (whole) {
         canvas.drawLine(
           Offset(x - w * 0.6, p.dy + 44),
@@ -2048,11 +3556,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (final dx in [-30.0, 0.0, 30.0]) {
       canvas.drawLine(p + Offset(dx, 62), p + const Offset(0, 4), wood);
     }
-    canvas.drawCircle(
-      p + const Offset(0, 4),
-      9,
-      Paint()..color = _kShaftBrass,
-    );
+    canvas.drawCircle(p + const Offset(0, 4), 9, Paint()..color = _kShaftBrass);
     // The declination arc: the instrument's graduations, which is what makes
     // this an observatory's telescope and not a spyglass on a stand.
     final arcRect = Rect.fromCircle(center: p + const Offset(0, 4), radius: 40);
@@ -2452,16 +3956,17 @@ void _shaftChips(_ShaftGround g, Rect b, _ShaftRnd rnd, int n) {
       final a = k * pi * 2 / 9;
       final kk = 1 + sin(k * 2.3 + i) * 0.18;
       final x = cos(a) * rx * kk, y = sin(a) * ry * kk;
-      pts.add(c + Offset(x * cos(rot) - y * sin(rot), x * sin(rot) + y * cos(rot)));
+      pts.add(
+        c + Offset(x * cos(rot) - y * sin(rot), x * sin(rot) + y * cos(rot)),
+      );
     }
     g.fill(_shaftPoly(pts), _kShaftMilk.withValues(alpha: 0.07));
     g.stroke(
-      Path()
-        ..addArc(
-          Rect.fromCenter(center: c, width: rx * 2, height: ry * 2),
-          rot + 3.3,
-          2.2,
-        ),
+      Path()..addArc(
+        Rect.fromCenter(center: c, width: rx * 2, height: ry * 2),
+        rot + 3.3,
+        2.2,
+      ),
       _kShaftMilk.withValues(alpha: 0.22),
       1.3,
     );
@@ -2491,7 +3996,10 @@ Path _shaftBloom(Offset c, double r, _ShaftRnd rnd) {
   final side = rnd.i(4);
   switch (side) {
     case 0:
-      return (Offset(rnd.range(b.left, b.right), b.top + rnd.range(4, band)), 0);
+      return (
+        Offset(rnd.range(b.left, b.right), b.top + rnd.range(4, band)),
+        0,
+      );
     case 1:
       return (
         Offset(b.right - rnd.range(4, band), rnd.range(b.top, b.bottom)),
@@ -2503,7 +4011,10 @@ Path _shaftBloom(Offset c, double r, _ShaftRnd rnd) {
         2,
       );
     default:
-      return (Offset(b.left + rnd.range(4, band), rnd.range(b.top, b.bottom)), 3);
+      return (
+        Offset(b.left + rnd.range(4, band), rnd.range(b.top, b.bottom)),
+        3,
+      );
   }
 }
 
@@ -2705,10 +4216,8 @@ void _shaftOrbit(
   for (var i = 0; i <= 48; i++) {
     final a = i * pi * 2 / 48;
     final x = cos(a) * rx, y = sin(a) * ry;
-    final q = c + Offset(
-      x * cos(rot) - y * sin(rot),
-      x * sin(rot) + y * cos(rot),
-    );
+    final q =
+        c + Offset(x * cos(rot) - y * sin(rot), x * sin(rot) + y * cos(rot));
     i == 0 ? p.moveTo(q.dx, q.dy) : p.lineTo(q.dx, q.dy);
   }
   p.close();
@@ -2749,7 +4258,12 @@ void _shaftStarfield(
       lines.lineTo(pts[i].dx, pts[i].dy);
     }
   }
-  g.stroke(lines, _kShaftIce.withValues(alpha: alpha * 0.45), 1.0, layer: layer);
+  g.stroke(
+    lines,
+    _kShaftIce.withValues(alpha: alpha * 0.45),
+    1.0,
+    layer: layer,
+  );
 }
 
 // ── Per-room construction ────────────────────────────────
@@ -2783,7 +4297,10 @@ _ShaftGround _buildShaftGround(DungeonRoom room) {
   // budget of a room is meant to be a rounding error.
   for (var i = 0; i < 14; i++) {
     g.glints.add(
-      Offset(rnd.range(b.left + 16, b.right - 16), rnd.range(b.top + 16, b.bottom - 16)),
+      Offset(
+        rnd.range(b.left + 16, b.right - 16),
+        rnd.range(b.top + 16, b.bottom - 16),
+      ),
     );
     g.glintPhase.add(rnd.range(0, pi * 2));
   }
@@ -2830,8 +4347,17 @@ void _groundRimeHead(_ShaftGround g, Rect b, _ShaftRnd rnd, String roomId) {
   // with its plumb arm still hanging. The layout puts a wall there and it had
   // nothing on it; this is what the wall is FOR.
   final q = Offset(b.left + 380, b.top + 184);
-  _shaftArc(g, q, 62, -pi + 0.1, pi / 2 - 0.2,
-      ticks: 18, width: 2.4, color: _kShaftBrassLit, alpha: 0.6);
+  _shaftArc(
+    g,
+    q,
+    62,
+    -pi + 0.1,
+    pi / 2 - 0.2,
+    ticks: 18,
+    width: 2.4,
+    color: _kShaftBrassLit,
+    alpha: 0.6,
+  );
   g.stroke(
     Path()
       ..moveTo(q.dx, q.dy)
@@ -2944,7 +4470,12 @@ void _groundMirrorGallery(
     final k1 = min(k + w, pi * 2);
     kerb
       ..moveTo(ring.center.dx + cos(k) * pr, ring.center.dy + sin(k) * pr)
-      ..arcTo(Rect.fromCircle(center: ring.center, radius: pr), k, k1 - k, false)
+      ..arcTo(
+        Rect.fromCircle(center: ring.center, radius: pr),
+        k,
+        k1 - k,
+        false,
+      )
       ..lineTo(
         ring.center.dx + cos(k1) * (pr + 15),
         ring.center.dy + sin(k1) * (pr + 15),
@@ -3191,8 +4722,16 @@ void _groundStarFont(_ShaftGround g, Rect b, _ShaftRnd rnd) {
       ..lineTo(gnomon.dx + cos(a) * 292, gnomon.dy + sin(a) * 292);
   }
   g.stroke(hours, _kShaftBrass.withValues(alpha: 0.34), 1.6);
-  _shaftArc(g, gnomon, 300, -pi * 0.95, pi * 0.9,
-      ticks: 36, width: 2.2, tickLen: 12);
+  _shaftArc(
+    g,
+    gnomon,
+    300,
+    -pi * 0.95,
+    pi * 0.9,
+    ticks: 36,
+    width: 2.2,
+    tickLen: 12,
+  );
   g.fill(
     Path()..addOval(Rect.fromCenter(center: gnomon, width: 62, height: 30)),
     _kShaftStone.withValues(alpha: 0.8),
@@ -3220,28 +4759,58 @@ void _groundStarFont(_ShaftGround g, Rect b, _ShaftRnd rnd) {
   g.stroke(lem, _kShaftBrassLit.withValues(alpha: 0.55), 2.4);
   g.stroke(marks, _kShaftBrassLit.withValues(alpha: 0.4), 1.3);
 
-  // The two plinths the rite stands on: stepped stone, not octagonal discs —
-  // a disc beside a disc is what made the lobes read as lenses.
+  // THE TWO PLINTHS THE RITE STANDS ON. They were flat rectangles with a
+  // bright outline round them, which is §7.10's index card: an outlined slab
+  // lying on a floor has no height, whatever it is made of. Each one is a
+  // BLOCK now — a top face you look slightly down onto, a near face below it
+  // in its own shade, courses cut across that face, and the only bright line
+  // on the whole thing along the front edge where the two faces meet.
   for (final p in [
     Offset(b.left + 200, b.top + 250),
     Offset(b.left + 440, b.top + 250),
   ]) {
-    for (var i = 1; i >= 0; i--) {
-      final r = Rect.fromCenter(
-        center: p + Offset(0, i * 6.0),
-        width: 108 - i * 22,
-        height: 66 - i * 14,
-      );
-      g.fill(
-        Path()..addRect(r),
-        (i == 0 ? _kShaftStoneLit : _kShaftStone).withValues(alpha: 0.4),
-      );
-      g.stroke(
-        Path()..addRect(r),
-        _kShaftStoneLit.withValues(alpha: 0.4),
-        1.6,
-      );
+    const w = 112.0, d = 30.0, h = 34.0;
+    final front = p.dy + d / 2;
+    g.fill(
+      Path()..addOval(
+        Rect.fromCenter(
+          center: Offset(p.dx, front + h + 4),
+          width: w + 22,
+          height: 20,
+        ),
+      ),
+      _kShaftDark.withValues(alpha: 0.34),
+    );
+    // The near face, and the courses in it.
+    g.fill(
+      Path()
+        ..addRect(Rect.fromLTRB(p.dx - w / 2, front, p.dx + w / 2, front + h)),
+      _kShaftStone.withValues(alpha: 0.72),
+    );
+    final courses = Path();
+    for (final x in [-w / 6, w / 6]) {
+      courses
+        ..moveTo(p.dx + x, front + 2)
+        ..lineTo(p.dx + x, front + h - 2);
     }
+    g.stroke(courses, _kShaftDark.withValues(alpha: 0.30), 1.4);
+    // The top face: narrower at the back, because you are above it.
+    g.fill(
+      Path()
+        ..moveTo(p.dx - w / 2, front)
+        ..lineTo(p.dx - w / 2 + 14, front - d)
+        ..lineTo(p.dx + w / 2 - 14, front - d)
+        ..lineTo(p.dx + w / 2, front)
+        ..close(),
+      _kShaftStoneLit.withValues(alpha: 0.62),
+    );
+    g.stroke(
+      Path()
+        ..moveTo(p.dx - w / 2, front)
+        ..lineTo(p.dx + w / 2, front),
+      _kShaftMilk.withValues(alpha: 0.5),
+      2.0,
+    );
   }
 
   // The chart on the ceiling this font answers to, cut into its floor.
@@ -3275,7 +4844,11 @@ void _groundFrowyrmHollow(_ShaftGround g, Rect b, _ShaftRnd rnd) {
     final c = b.center + Offset(rnd.range(-260, 260), rnd.range(-180, 180));
     final r = rnd.range(180, 460);
     final a0 = rnd.range(0, pi * 2);
-    scour.addArc(Rect.fromCircle(center: c, radius: r), a0, rnd.range(0.5, 1.4));
+    scour.addArc(
+      Rect.fromCircle(center: c, radius: r),
+      a0,
+      rnd.range(0.5, 1.4),
+    );
   }
   g.stroke(scour, _kShaftMilk.withValues(alpha: 0.10), 3.0);
 
@@ -3343,7 +4916,12 @@ void _groundFrowyrmHollow(_ShaftGround g, Rect b, _ShaftRnd rnd) {
   }
   y = b.top + rnd.range(130, 200);
   while (y < b.bottom - 110) {
-    column(b.right - rnd.range(14, 56), y, rnd.range(12, 26), rnd.range(50, 92));
+    column(
+      b.right - rnd.range(14, 56),
+      y,
+      rnd.range(12, 26),
+      rnd.range(50, 92),
+    );
     y += rnd.range(88, 150);
   }
   g.fill(body, _kShaftIce.withValues(alpha: 0.26));
@@ -3365,7 +4943,12 @@ void _groundFrowyrmHollow(_ShaftGround g, Rect b, _ShaftRnd rnd) {
 /// you came through fringes the top, the ice is clear enough to see the
 /// fractures deep in it, and the outer edge has broken away — which is the
 /// whole reason nothing can climb to one of these.
-void _groundShelf(_ShaftGround g, Rect b, _ShaftRnd rnd, {required bool vault}) {
+void _groundShelf(
+  _ShaftGround g,
+  Rect b,
+  _ShaftRnd rnd, {
+  required bool vault,
+}) {
   _shaftFoliation(g, b, rnd, 0.34);
   _shaftCraze(g, b, rnd, 9, 0.18);
   _shaftChips(g, b, rnd, 10);
@@ -3393,7 +4976,9 @@ void _groundShelf(_ShaftGround g, Rect b, _ShaftRnd rnd, {required bool vault}) 
   // is the only way in.
   final teeth = Path();
   final void_ = Path()
-    ..addRect(Rect.fromLTRB(b.left + 10, b.bottom - 40, b.right - 10, b.bottom));
+    ..addRect(
+      Rect.fromLTRB(b.left + 10, b.bottom - 40, b.right - 10, b.bottom),
+    );
   g.fill(void_, _kShaftDark.withValues(alpha: 0.55));
   var tx = b.left + 10;
   while (tx < b.right - 10) {
@@ -3415,16 +5000,22 @@ void _groundShelf(_ShaftGround g, Rect b, _ShaftRnd rnd, {required bool vault}) 
     final arch = Path()
       ..moveTo(n.dx - 62, n.dy + 62)
       ..lineTo(n.dx - 62, n.dy - 16)
-      ..arcToPoint(Offset(n.dx + 62, n.dy - 16), radius: const Radius.circular(62))
+      ..arcToPoint(
+        Offset(n.dx + 62, n.dy - 16),
+        radius: const Radius.circular(62),
+      )
       ..lineTo(n.dx + 62, n.dy + 62)
       ..close();
     g.fill(arch, _kShaftDark.withValues(alpha: 0.6));
     g.stroke(arch, _kShaftStoneLit.withValues(alpha: 0.45), 3.0);
     g.fill(
-      Path()
-        ..addOval(
-          Rect.fromCenter(center: n + const Offset(0, 58), width: 118, height: 26),
+      Path()..addOval(
+        Rect.fromCenter(
+          center: n + const Offset(0, 58),
+          width: 118,
+          height: 26,
         ),
+      ),
       _kShaftStone.withValues(alpha: 0.7),
     );
     // Old crates the ice has taken, stacked to one side.
@@ -3438,7 +5029,10 @@ void _groundShelf(_ShaftGround g, Rect b, _ShaftRnd rnd, {required bool vault}) 
         width: w,
         height: h,
       );
-      g.fill(Path()..addRect(r), const Color(0xFF3B3222).withValues(alpha: 0.7));
+      g.fill(
+        Path()..addRect(r),
+        const Color(0xFF3B3222).withValues(alpha: 0.7),
+      );
       g.stroke(
         Path()
           ..addRect(r.deflate(5))
@@ -3458,7 +5052,10 @@ void _groundShelf(_ShaftGround g, Rect b, _ShaftRnd rnd, {required bool vault}) 
     );
     for (var i = 0; i < 3; i++) {
       final r = Rect.fromLTWH(b.left + 24 + i * 34.0, sy - 30, 26, 30);
-      g.fill(Path()..addRect(r), const Color(0xFF3B3222).withValues(alpha: 0.75));
+      g.fill(
+        Path()..addRect(r),
+        const Color(0xFF3B3222).withValues(alpha: 0.75),
+      );
       g.stroke(
         Path()
           ..moveTo(r.left + 3, r.top + 9)

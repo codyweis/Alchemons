@@ -74,9 +74,18 @@ import 'package:alchemons/widgets/app_icons.dart';
 const _cosmicMeterPalette = BracketPalette.dark;
 
 class CosmicScreen extends StatefulWidget {
-  const CosmicScreen({super.key, this.memoryTutorial = false});
+  const CosmicScreen({
+    super.key,
+    this.memoryTutorial = false,
+    this.revealReady,
+  });
 
   final bool memoryTutorial;
+
+  /// Set true once the scene is loaded and its game is attached, so an
+  /// entry transition covering this screen (VoidPortal.pushThroughGlyphs)
+  /// knows it can reveal a built scene instead of the loading spinner.
+  final ValueNotifier<bool>? revealReady;
 
   @override
   State<CosmicScreen> createState() => _CosmicScreenState();
@@ -324,6 +333,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _memoryAwaitingSummon = false;
   bool _memoryAwaitingFlight = false;
   bool _memoryAwaitingTetherToggle = false;
+  bool _memoryAwaitingGunToggle = false;
   bool _memoryTetherLessonVisible = false;
   bool _memoryCombatStarted = false;
   bool _memoryBossSpawned = false;
@@ -331,6 +341,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   Offset? _memoryFlightStart;
   Timer? _memorySpawnTimer;
   Timer? _memoryMonitorTimer;
+
+  late final RevealWhenReady _revealWhenReady;
   Timer? _memoryStepTimer;
 
   // Meter animation
@@ -385,6 +397,14 @@ class _CosmicScreenState extends State<CosmicScreen>
     // service's notifier had no subscribers at all, so a screen already built
     // kept reading the old value and the descend chip never appeared.
     DebugSettingsService.enabledNotifier.addListener(_onDebugToolsChanged);
+
+    // An entry portal is covering this screen: tell it when there is a built
+    // scene to reveal. `isAttached` is the precise signal — Flame only puts
+    // its render box in the tree once the game has loaded and mounted.
+    _revealWhenReady = RevealWhenReady(
+      widget.revealReady,
+      () => mounted && _recipes != null && (_game?.isAttached ?? false),
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -1517,7 +1537,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _memoryFlightStart = _game?.ship.pos;
     setState(() {
       _memoryTutorialPrompt =
-          'Good. Fly with your Alchemon for a moment. It follows while the magnet is active.';
+          'Good. Fly with your Alchemon for a moment. It follows while the tether is linked.';
     });
     _watchMemoryFlightWithCompanion();
   }
@@ -1542,7 +1562,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         _memoryAwaitingTetherToggle = true;
         _memoryTetherLessonVisible = true;
         _memoryTutorialPrompt =
-            'Now tap the magnet button to disable following. Your Alchemon will hold its ground and fight from there.';
+            'Now tap the chain button to unlink the tether. Your Alchemon will hold its ground and fight from there.';
       });
     });
   }
@@ -1557,9 +1577,24 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {
       _memoryAwaitingTetherToggle = false;
       _memoryTetherLessonVisible = false;
+      _memoryAwaitingGunToggle = true;
+      _memoryTutorialPrompt =
+          'Your Alchemon attacks on its own. Now tap the bottom-right cannon to arm the ship\'s auto-fire. Tap it again whenever you want it to stop.';
+    });
+  }
+
+  void _onMemoryGunArmed() {
+    if (!widget.memoryTutorial ||
+        !_memoryAwaitingGunToggle ||
+        !_isShooting ||
+        _memoryCombatStarted) {
+      return;
+    }
+    setState(() {
+      _memoryAwaitingGunToggle = false;
       _memoryCombatStarted = true;
       _memoryTutorialPrompt =
-          'Your Alchemon attacks on its own. Special abilities use cooldowns: watch the number over the slot. When it clears, the ability can trigger again.';
+          'Ship and companion weapons are active. Special abilities use cooldowns: watch the number over each slot.';
     });
     _beginMemoryCombatWave();
   }
@@ -2053,7 +2088,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         context,
         title: 'The Gate Whispers a Pattern',
         message:
-            'Something in this sphere remembers an older design. An alchemical seal lies veiled here. Gather the essences it asks for, and when the pattern is whole, the gate will open.',
+            'This gate accepts Elemental Cargo carried aboard your ship—not elements banked at home. Fill the cargo meter in the proportions shown above it and reach at least a 70% pattern match. A failed offering consumes the carried cargo.',
         typewriter: true,
         kind: LandscapeDialogKind.info,
         showIcon: false,
@@ -4918,19 +4953,25 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   Widget _buildRightHudButton({
     required IconData icon,
+    required String semanticLabel,
     required Color accent,
     required bool active,
     required VoidCallback? onTap,
   }) {
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: _CosmicSquareHudButton(
-        accent: accent,
-        active: active,
-        child: Icon(
-          icon,
-          color: active ? accent : _cosmicMeterPalette.muted,
-          size: 20,
+    return Semantics(
+      button: true,
+      toggled: active,
+      label: semanticLabel,
+      child: GestureDetector(
+        onTap: context.soundAction(onTap),
+        child: _CosmicSquareHudButton(
+          accent: accent,
+          active: active,
+          child: Icon(
+            icon,
+            color: active ? accent : _cosmicMeterPalette.muted,
+            size: 20,
+          ),
         ),
       ),
     );
@@ -5001,6 +5042,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   Widget _buildSlowModeButton() {
     return _buildRightHudButton(
       icon: AppIcons.slow_motion_video,
+      semanticLabel: 'Precision flight mode',
       accent: const Color(0xFFFFB300),
       active: _slowMode,
       onTap: () {
@@ -5014,6 +5056,9 @@ class _CosmicScreenState extends State<CosmicScreen>
   Widget _buildCompanionTetherButton() {
     return _buildRightHudButton(
       icon: _companionTethered ? AppIcons.link : AppIcons.link_off,
+      semanticLabel: _companionTethered
+          ? 'Companion tether linked; companions follow the ship'
+          : 'Companion tether unlinked; companions hold position',
       accent: const Color(0xFF42A5F5),
       active: _companionTethered,
       onTap: () {
@@ -5256,6 +5301,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       _game?.shooting = firing;
     });
     HapticFeedback.selectionClick();
+    if (firing) _onMemoryGunArmed();
   }
 
   void _setMissilesFiring(bool firing) {
@@ -5411,6 +5457,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// the dialog names the two real losses with their real amounts and stays
   /// quiet — no red, no alarm — when the hold is already empty.
   Future<void> _confirmLeave() async {
+    final db = context.read<AlchemonsDatabase>();
     final result = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.72),
@@ -5423,6 +5470,23 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
     if (result == true && mounted) {
       await _flushVolatileState();
+      if (!widget.memoryTutorial) {
+        final alreadyReturned =
+            await db.settingsDao.getSetting(
+              'cosmic_first_return_recorded_v1',
+            ) ==
+            '1';
+        if (!alreadyReturned) {
+          await db.settingsDao.setSetting(
+            'cosmic_first_return_recorded_v1',
+            '1',
+          );
+          await db.settingsDao.setSetting(
+            'wilderness_truth_reveal_pending_v1',
+            '1',
+          );
+        }
+      }
       if (mounted) VoidPortal.pop(context);
     }
   }
@@ -7119,6 +7183,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   @override
   void dispose() {
     DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);
+    _revealWhenReady.dispose();
     try {
       unawaited(context.read<AudioController>().playHomeMusic());
     } catch (_) {}
@@ -8843,10 +8908,12 @@ class _CosmicScreenState extends State<CosmicScreen>
                                 setFiring: _setGunFiring,
                                 child: _buildWeaponHudButton(
                                   accent: const Color(0xFF00E5FF),
-                                  active: _isShooting,
+                                  active:
+                                      _isShooting || _memoryAwaitingGunToggle,
                                   child: Icon(
                                     AppIcons.flash_on_rounded,
-                                    color: _isShooting
+                                    color:
+                                        _isShooting || _memoryAwaitingGunToggle
                                         ? const Color(0xFF00E5FF)
                                         : Colors.white54,
                                     size: 25,
