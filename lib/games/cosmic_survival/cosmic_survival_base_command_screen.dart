@@ -99,13 +99,17 @@ class _CosmicSurvivalBaseCommandScreenState
   bool _purchasing = false;
   SurvivalShipLoadout? _shipLoadout;
 
+  /// Scrolling a tab's content down tucks the header and tab bar away and
+  /// drops a slim balance bar into their place; scrolling up restores them.
+  bool _chromeCollapsed = false;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(
       length: widget.hideAbilities ? 4 : 5,
       vsync: this,
-    );
+    )..addListener(() => _setChromeCollapsed(false));
     _loadCurrencies();
     _loadShipLoadout();
   }
@@ -133,6 +137,32 @@ class _CosmicSurvivalBaseCommandScreenState
     super.dispose();
   }
 
+  void _setChromeCollapsed(bool collapsed) {
+    if (collapsed == _chromeCollapsed || !mounted) return;
+    setState(() => _chromeCollapsed = collapsed);
+  }
+
+  bool _onContentScroll(ScrollNotification notification) {
+    // The TabBarView's own horizontal paging reports here too; ignore it.
+    final metrics = notification.metrics;
+    if (metrics.axis != Axis.vertical) return false;
+    final atTop = metrics.pixels <= metrics.minScrollExtent;
+    if (notification is ScrollUpdateNotification) {
+      final delta = notification.scrollDelta ?? 0;
+      if (atTop) {
+        // Only reveal once the content is all the way back at the top.
+        _setChromeCollapsed(false);
+      } else if (delta > 0 && notification.dragDetails != null) {
+        _setChromeCollapsed(true);
+      }
+    } else if (notification is OverscrollNotification) {
+      // Pulling down on content that is already at the top (or that stopped
+      // scrolling once the header got out of the way).
+      if (notification.overscroll < 0) _setChromeCollapsed(false);
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer2<SurvivalUpgradeService, ShopService>(
@@ -142,22 +172,46 @@ class _CosmicSurvivalBaseCommandScreenState
           body: SafeArea(
             child: Column(
               children: [
-                _buildHeader(),
-                _buildTabBar(),
+                _CollapsibleChrome(
+                  key: const ValueKey('base-command-chrome'),
+                  visible: !_chromeCollapsed,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [_buildHeader(), _buildTabBar()],
+                  ),
+                ),
+                _CollapsibleChrome(
+                  key: const ValueKey('base-command-balance-bar'),
+                  visible: _chromeCollapsed,
+                  child: _buildBalanceBar(),
+                ),
                 Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildOrbSkinsTab(svc, shopService),
-                      _buildShipTab(),
-                      _buildGuardianTab(svc),
-                      FamilyMasteryPanel(
-                        silverBalance: _silverBalance,
-                        goldBalance: _goldBalance,
-                        onCurrencyChanged: _loadCurrencies,
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: _onContentScroll,
+                    // Always-scrollable so a tab whose content fits can still
+                    // be pulled down to bring the header back.
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(context).copyWith(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: ClampingScrollPhysics(),
+                        ),
                       ),
-                      if (!widget.hideAbilities) _buildAbilitiesTab(svc),
-                    ],
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          FamilyMasteryPanel(
+                            silverBalance: _silverBalance,
+                            goldBalance: _goldBalance,
+                            onCurrencyChanged: _loadCurrencies,
+                            compact: _chromeCollapsed,
+                          ),
+                          _buildOrbSkinsTab(svc, shopService),
+                          _buildShipTab(),
+                          _buildGuardianTab(svc),
+                          if (!widget.hideAbilities) _buildAbilitiesTab(svc),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -210,48 +264,98 @@ class _CosmicSurvivalBaseCommandScreenState
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const Text('BASE COMMAND', style: _T.heading),
+                    const Flexible(
+                      child: Text(
+                        'BASE COMMAND',
+                        style: _T.heading,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 2),
-                const Text('UPGRADE & CUSTOMIZE', style: _T.label),
-              ],
-            ),
-          ),
-          // Balances. Gold sits beside silver because this screen spends both:
-          // orb skins are priced in gold, everything else in silver.
-          _PlateBox(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            accentColor: const Color(0xFFC0C0C0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CoinIcon(kind: CoinKind.silver, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  _fmtNum(_silverBalance),
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    color: Color(0xFFC0C0C0),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const CoinIcon(kind: CoinKind.gold, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  _fmtNum(_goldBalance),
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    color: Color(0xFFFFC94A),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                  ),
+                const Text(
+                  'UPGRADE & CUSTOMIZE',
+                  style: _T.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          _buildBalances(),
+        ],
+      ),
+    );
+  }
+
+  // Balances. Gold sits beside silver because this screen spends both:
+  // orb skins are priced in gold, everything else in silver.
+  Widget _buildBalances() {
+    return _PlateBox(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      accentColor: const Color(0xFFC0C0C0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CoinIcon(kind: CoinKind.silver, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            _fmtNum(_silverBalance),
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: Color(0xFFC0C0C0),
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const CoinIcon(kind: CoinKind.gold, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            _fmtNum(_goldBalance),
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: Color(0xFFFFC94A),
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Stands in for the header and tab bar while they are scrolled away.
+  Widget _buildBalanceBar() {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: const BoxDecoration(
+        color: _C.bg1,
+        border: Border(bottom: BorderSide(color: _C.borderDim, width: 1)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            margin: const EdgeInsets.only(right: 8),
+            decoration: const BoxDecoration(
+              color: _C.amberBright,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const Expanded(
+            child: Text(
+              'BASE COMMAND',
+              style: _T.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          _buildBalances(),
         ],
       ),
     );
@@ -285,6 +389,10 @@ class _CosmicSurvivalBaseCommandScreenState
         ),
         tabs: [
           const Tab(
+            icon: Icon(AppIcons.account_tree_rounded, size: 16),
+            text: 'MASTERY',
+          ),
+          const Tab(
             icon: Icon(AppIcons.blur_circular_rounded, size: 16),
             text: 'ORB',
           ),
@@ -295,10 +403,6 @@ class _CosmicSurvivalBaseCommandScreenState
           const Tab(
             icon: Icon(AppIcons.person_rounded, size: 16),
             text: 'GUARDIANS',
-          ),
-          const Tab(
-            icon: Icon(AppIcons.account_tree_rounded, size: 16),
-            text: 'MASTERY',
           ),
           if (!widget.hideAbilities)
             const Tab(
@@ -857,6 +961,35 @@ class _EtchedDivider extends StatelessWidget {
 }
 
 // ── Plate Box ──────────────────────────────────────────────────────────────
+
+class _CollapsibleChrome extends StatelessWidget {
+  const _CollapsibleChrome({
+    super.key,
+    required this.visible,
+    required this.child,
+  });
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    // Bottom alignment makes the chrome slide up as it closes and drop down
+    // from above as it opens.
+    return ClipRect(
+      child: AnimatedAlign(
+        alignment: Alignment.bottomCenter,
+        heightFactor: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        child: IgnorePointer(
+          ignoring: !visible,
+          child: ExcludeSemantics(excluding: !visible, child: child),
+        ),
+      ),
+    );
+  }
+}
 
 class _PlateBox extends StatelessWidget {
   final Widget child;

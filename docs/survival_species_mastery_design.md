@@ -1,6 +1,6 @@
 # Survival Family Mastery
 
-Status: family-wide progression and command interface implemented
+Status (2026-09-16): Phase 1 complete, and the Base Command Mastery tab is polished (the first item of Phase 6). Purchases, branch selection and run snapshots work, but combat does not read the snapshot yet, so no node affects a run. Next: Phase 2 (combat event foundation).
 
 ## Purpose
 
@@ -125,6 +125,13 @@ Payload rules:
 
 All percentages below are initial balance targets, not final shipping numbers.
 
+Design rules for nodes (revised 2026-09-16):
+
+- **Every node pays off on its own.** A node that builds a resource (Rhythm, Orbit, Tempo, Momentum, Focus, Insight) or places a mark (Sigil, Conductivity, Seed) also grants a small immediate bonus, so a first purchase is never inert.
+- **A bonus must act on something the branch already has.** No payload-strength bonuses on a branch that has not yet produced payloads.
+- **Resource branches spend their resource coherently.** An earlier node must not drain the reserve that a later node consumes.
+- **In-game text is player language.** The catalog descriptions (`survival_family_mastery.dart`) say what the node does, with its numbers, in terms the player sees: "attack", "your special", "your element's effect", "both slashes hit the same enemy". Never use "payload", "cast", "basic", "dual hit", or "full volley hit"; a test enforces this. This doc keeps the precise combat terms.
+
 ---
 
 ## Mane
@@ -153,8 +160,8 @@ Wide coverage and elemental disruption.
 
 Build rhythm with basics and release it around the existing special.
 
-1. **Measured Cuts** — A dual hit grants one Rhythm, up to five. Missing with both blades removes one Rhythm.
-2. **Rising Tempo** — Each Rhythm grants 2% basic attack speed and 2% elemental payload strength.
+1. **Measured Cuts** — A dual hit grants one Rhythm, up to five. Each Rhythm grants 2% basic attack speed. Missing with both blades removes one Rhythm.
+2. **Rising Tempo** — Each Rhythm also grants 3% basic damage. At three or more Rhythm, slashes are 15% wider.
 3. **Crescendo** — Casting the special consumes Rhythm and empowers that many subsequent basic casts with 12% damage and one payload on their primary target.
 4. **Capstone: Encore** — Consuming five Rhythm also creates a 6-second Encore: 25% faster basics and wider slashes. Basic kills extend the current Encore by 0.4 seconds, up to 2 additional seconds total; Encore cannot otherwise refresh itself.
 
@@ -186,10 +193,10 @@ Impact coverage and persistent elemental zones.
 
 Basics prepare additional aftershocks around the special.
 
-1. **Impact Memory** — Each basic direct hit grants one Orbit, up to four. Only one Orbit may be earned per cast.
-2. **Satellite Fire** — At four Orbit, the next basic consumes them and adds a delayed satellite strike for 45% elemental attack.
+1. **Impact Memory** — Each basic direct hit grants one Orbit, up to four. Only one Orbit may be earned per cast. Each Orbit grants 4% basic damage.
+2. **Satellite Fire** — While at four Orbit, every other basic cast adds a delayed satellite strike for 30% elemental attack. It does not consume Orbit, so Convergence still has a full reserve to spend.
 3. **Convergence** — Casting the special consumes all Orbit. Each consumed Orbit adds one reduced elemental aftershock near the special's target or center.
-4. **Capstone: Second Impact** — When a special finishes its initial effect, it repeats one simplified impact at 40% power after 1 second. Persistent zones gain one pulse instead. The repeat cannot double-cast or recursively trigger mastery.
+4. **Capstone: Second Impact** — When Convergence consumes four Orbit, the special repeats one simplified impact at 40% power 1 second after its initial effect. Persistent zones gain one pulse instead. The repeat cannot double-cast or recursively trigger mastery.
 
 ---
 
@@ -219,7 +226,7 @@ Ricochets and distributed elemental pressure.
 
 Sustained accuracy produces a special-driven firing window.
 
-1. **Clean Volley** — A full volley hit grants one Tempo, up to six. Tempo expires after 4 seconds without another full volley.
+1. **Clean Volley** — A full volley hit grants one Tempo, up to six. Tempo expires after 4 seconds without another full volley. Each Tempo grants 1.5% basic damage.
 2. **Fast Hands** — Every two Tempo grant 4% basic attack speed. Element-specific Pip passives that already own attack speed convert this bonus into 4% basic damage instead.
 3. **Cash Out** — Casting the special consumes Tempo. The next cast per Tempo fires one additional dart at 18% physical damage.
 4. **Capstone: Overflow** — Consuming six Tempo grants 5 seconds of Overflow: volleys fire four darts, their total main-hit budget is 110% of baseline, and every third cast triggers one payload. Overflow cannot be extended.
@@ -243,7 +250,7 @@ Piercing lanes and priority-target punishment.
 
 Basics prepare space for existing trap specials.
 
-1. **Inscribed Dart** — The first enemy hit receives a 4-second Sigil. Only one Sigil per Mask may exist.
+1. **Inscribed Dart** — The first enemy hit receives a 4-second Sigil. Only one Sigil per Mask may exist. Mask basics deal 10% more damage to the Sigiled enemy.
 2. **Binding Script** — Striking the Sigiled enemy again triggers one elemental payload and briefly slows it by 15%. Internal cooldown: 1 second.
 3. **Prepared Ground** — Casting the special near the Sigiled enemy transfers the Sigil to the created fixture, increasing its radius or reach by 15% and duration by 20%.
 4. **Capstone: Haunted Ground** — The empowered fixture fires a reduced copy of the Mask's basic at a nearby enemy every 1.2 seconds. Copies deal 30% physical damage and cannot create Sigils.
@@ -285,7 +292,7 @@ Protects space and converts attacks into guard.
 
 Basics build Momentum for the existing charge or passive special.
 
-1. **Gather Momentum** — Each basic hit grants one Momentum, up to five. Momentum expires after 5 seconds without a hit.
+1. **Gather Momentum** — Each basic hit grants one Momentum, up to five. Momentum expires after 5 seconds without a hit. Each Momentum grants 2% basic damage.
 2. **Rolling Weight** — Each Momentum grants 3% basic projectile speed and 2% attack speed.
 3. **Impact Reserve** — Casting an active Horn special consumes Momentum to add 6% impact or field power per stack. Passive-only Horns instead release a payload pulse at five stacks and reset.
 4. **Capstone: Unstoppable** — Consuming five Momentum makes the next charge ignore ordinary collision control, increases sweep width by 25%, and causes the landing to fire the Horn's basic in four directions at 35% damage. Passive-only Horns receive an equivalent 6-second empowered aura window.
@@ -318,8 +325,8 @@ Wide firing lanes and distributed pressure.
 
 Basics tune the next existing beam special.
 
-1. **Sightline** — Dual hits grant one Focus, up to five. Focus expires after 6 seconds without a hit.
-2. **Coherent Light** — Each Focus grants 2% basic range and 2% payload strength.
+1. **Sightline** — Dual hits grant one Focus, up to five. Focus expires after 6 seconds without a hit. Each Focus grants 2% basic range.
+2. **Coherent Light** — Each Focus also grants 3% basic damage.
 3. **Beam Feed** — Casting the special consumes Focus, adding 4% beam or special duration and 4% effect power per stack. One-shot specials receive equivalent total output rather than duration.
 4. **Capstone: Continuum** — Consuming five Focus leaves a reduced echo of the special's primary line or impact after it ends, dealing 35% of its original power. This never modifies special cooldown; Dark Wing receives no additional firing-rate multiplier.
 
@@ -342,7 +349,7 @@ Transforms the charged laser into a deliberate offensive weapon.
 
 Conductive marks and battlefield lanes.
 
-1. **Conductivity** — A laser hit marks its target for 4 seconds. Only one Kin Conductivity mark may exist per caster.
+1. **Conductivity** — A laser hit marks its target for 4 seconds. Only one Kin Conductivity mark may exist per caster. The marked target takes 8% more damage from all companions.
 2. **Ground Path** — Firing through the marked target leaves a 2-second lane between Kin and target. Enemies crossing it receive the payload at 60% strength once.
 3. **Relay Point** — An ally autoattack hitting the marked target sends a 20%-elemental-attack pulse to one nearby enemy. Internal cooldown: 0.8 seconds.
 4. **Capstone: Living Circuit** — While the Kin's timed support special is active, Conductivity may link up to three targets. An instantaneous support special instead opens this link window for 6 seconds. Laser and allied pulses travel the link once, using a shared chain budget to prevent recursion.
@@ -377,7 +384,7 @@ Makes the ordinary spell volley a credible offensive choice before and after the
 
 Basics seed locations that the existing world special later awakens.
 
-1. **Seed the Field** — Every third cast leaves a dormant Seed at the primary hit location for 8 seconds. Maximum three.
+1. **Seed the Field** — Every third cast leaves a Seed at the primary hit location for 8 seconds. Maximum three. Each Seed pulses 10% elemental attack to nearby enemies every 2 seconds.
 2. **Local Omen** — Enemies near a Seed receive a weak, non-damaging version of the elemental payload once every 2 seconds.
 3. **Awakening** — When the world activates, all current Seeds awaken for its lifetime, gaining a small element-specific damage or control pulse.
 4. **Capstone: Living World** — While the world is active, every fifth cast creates a temporary awakened Seed for 5 seconds. Maximum five total Seeds; replacing the oldest does not trigger an exit effect.
@@ -386,7 +393,7 @@ Basics seed locations that the existing world special later awakens.
 
 Uses basic accuracy to support the party without accelerating the one-use world cast.
 
-1. **Witness** — A full volley hit grants one Insight, up to five. Insight does not expire while the Mystic remains deployed.
+1. **Witness** — A full volley hit grants one Insight, up to five. Insight does not expire while the Mystic remains deployed. Each Insight grants 2% basic damage.
 2. **Shared Vision** — At five Insight, the party gains 5% attack range and the Mystic's basics seek targets not already being attacked when possible.
 3. **Oath Fulfilled** — Casting the world consumes Insight to grant all living companions a 5-second element-themed boon. The boon changes behavior or utility, not raw special cooldown.
 4. **Capstone: Worldbond** — While the world is active, every five full-volley hits release a covenant pulse: allies receive a small shield or heal, and nearby enemies receive one payload at 60% strength. Internal cooldown: 2 seconds.
@@ -473,6 +480,18 @@ Events carry slot, instance, species, family, element, derived stats, cast ID, a
 - A training preview shows baseline and mastered attacks against one target and a small group.
 - `SELECT BRANCH` and `RESET` are free.
 
+### Mastery tab layout (implemented)
+
+The tab reads as a growing power tree with a tower-defense upgrade dock (`family_mastery_panel.dart`):
+
+- **Family selector** — eight creature-portrait medallions, each ringed by its 0–12 purchase progress.
+- **Tree** — reads top-down like an upgrade track and is split in two. The **crown** is docked under the family selector and never scrolls. It holds the family portrait as the root, flanked by the family title, 0–12 progress, ALL <FAMILY>S, and the base-attack chassis. Beneath the portrait the trunk splits into three boughs, which run behind the branch banners (name, tier pips, ACTIVE / EQUIP / LOCKED; tapping anywhere on a banner equips an owned branch). The **body** scrolls beneath the crown: the boughs continue down through three hex gem sockets to a gold eight-point capstone. Owned tiers fill the boughs with sap that flows downward, and the next purchasable segment is dotted. The equipped branch is lit and the others are dimmed. The body is always at least 80 px taller than its viewport, so it can always scroll the header back.
+- **Base Command chrome** — Mastery is the first tab. Scrolling a tab down slides the header, tab bar, and (on Mastery) the family selector away, and drops in a slim BASE COMMAND silver/gold bar; they only return once the content is back at the top (or on a tab switch).
+- **Nodes** — every node has its own glyph (`kFamilyMasteryNodeIcons`, pinned by a test), a price tag or tier tag, and owned/locked badges. The focused node gets corner selection brackets.
+- **Upgrade dock** — pinned at the bottom: gem, branch and role, node name, I/II/III/★ tier track, description, EQUIP BRANCH / ACTIVE, and a large UPGRADE button with the price. Buying takes two taps (UPGRADE → TAP TO CONFIRM, which disarms after 3 s or when focus moves); the button also shows NEED, REQUIRES <previous node>, and UNLOCKED states. After a purchase, a one-shot flourish plays, sap flows into the new segment, and the dock advances to the next tier.
+- **Performance** — the tree is one static `CustomPaint` behind a `RepaintBoundary`. Nothing loops, and glows are layered translucent strokes; a test forbids blur in the file.
+- `test/family_mastery_panel_preview_test.dart` (tag `preview`, `MASTERY_OUT=<dir>`) renders the tab to PNGs with real fonts for visual review.
+
 ## Balance targets
 
 - A complete path should improve total contribution by roughly 20–35% in its intended scenario.
@@ -487,7 +506,7 @@ Telemetry should separately attribute basic damage, mastery damage, special dama
 
 ## Implementation plan
 
-### Phase 1: catalog, economy, and persistence
+### Phase 1: catalog, economy, and persistence — done
 
 1. Add the eight family tree definitions and validation rules.
 2. Add Drift tables, migration, DAO, and service.
@@ -495,7 +514,7 @@ Telemetry should separately attribute basic damage, mastery damage, special dama
 4. Implement one selected path per family, free reset, and immutable run snapshots.
 5. Test affordability, duplicate purchase prevention, invalid saves, renamed nodes, and multiple family members sharing one selected path.
 
-### Phase 2: combat event foundation
+### Phase 2: combat event foundation — next
 
 1. Give every basic cast and projectile stable source and cast IDs.
 2. Add cast, hit, kill, special, and damage event hooks.
@@ -522,7 +541,7 @@ Implement Horn, Kin, and Mystic after the shared runtime is stable. These requir
 
 ### Phase 6: complete interface and rollout
 
-1. Polish the Base Command tree and family selector.
+1. ~~Polish the Base Command tree and family selector.~~ Done 2026-09-16; see *Mastery tab layout*.
 2. Add run-lock messaging, party badges, and pause summaries.
 3. Add VFX and sound distinctions for all capstones and payload forms.
 4. Run full survival simulations and regression tests.
