@@ -16071,11 +16071,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         )) {
           return false;
         }
+        final enemyId = identityHashCode(enemy);
         // A capped cast (a Tempest Ring) refuses its own surplus hits here,
         // before damage: a cap counted after the fact is not a cap.
-        if (!mastery.allowsHit(p.masteryCastId, identityHashCode(enemy))) {
-          return false;
-        }
+        if (!mastery.allowsHit(p.masteryCastId, enemyId)) return false;
+        // The same rule at the projectile level, which applies with or
+        // without a mastery path equipped. A piercing projectile is not
+        // consumed by a hit and contact is re-tested every frame, so this is
+        // what stops a slow one from billing a standing body once a frame.
+        if (!p.canHitEnemy(enemyId)) return false;
+        p.noteEnemyHit(enemyId);
         final preRootForPlantKill =
             p.piercing && p.abilityFamily == 'mane' && p.element == 'Plant';
         if (preRootForPlantKill) resolveAbilityPierce(p, enemy);

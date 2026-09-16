@@ -4336,6 +4336,33 @@ class Projectile {
   /// Number of enemies already hit (for piercing damage falloff).
   int pierceCount = 0;
 
+  /// Most times this projectile may damage any one body, 0 for no limit.
+  ///
+  /// Contact is re-tested every frame and a piercing projectile is not
+  /// consumed by a hit, so a slow one parked inside an enemy bills for every
+  /// frame it overlaps: a Mane Ice catapult touched a standing body 21 times
+  /// for 3,777 damage, while the same family's Fire shots flew through in a
+  /// frame. That turned "how much does this special do" into "how slowly does
+  /// its projectile travel", which is not a design anyone chose.
+  int maxHitsPerEnemy = 0;
+
+  /// Hits landed per body, counted only when [maxHitsPerEnemy] is set so the
+  /// overwhelming majority of projectiles allocate nothing.
+  Map<int, int>? _enemyHitCounts;
+
+  /// Whether this projectile may still damage [enemyId].
+  bool canHitEnemy(int enemyId) {
+    if (maxHitsPerEnemy <= 0) return true;
+    return (_enemyHitCounts?[enemyId] ?? 0) < maxHitsPerEnemy;
+  }
+
+  /// Records a hit against the per-body ceiling.
+  void noteEnemyHit(int enemyId) {
+    if (maxHitsPerEnemy <= 0) return;
+    final counts = _enemyHitCounts ??= <int, int>{};
+    counts[enemyId] = (counts[enemyId] ?? 0) + 1;
+  }
+
   /// Whether this projectile already hit the active boss (prevents multi-hit).
   bool hitBoss = false;
 
@@ -5456,6 +5483,9 @@ Projectile _copyProjectile(
   clone.masteryCastId = p.masteryCastId;
   clone.masteryGenerated = p.masteryGenerated;
   clone.masteryReturnFraction = p.masteryReturnFraction;
+  // A copy is a fresh projectile with the same rules: it inherits the ceiling
+  // but not the tally, or a ricochet would arrive already spent.
+  clone.maxHitsPerEnemy = p.maxHitsPerEnemy;
   return clone;
 }
 
@@ -8612,7 +8642,7 @@ CosmicSpecialResult _maneSpecial(
           ? p.effectDuration * durationScale
           : 2.4 * durationScale,
       effectCount: p.effectCount > 0 ? p.effectCount : 3,
-    );
+    )..maxHitsPerEnemy = kManeSpecialMaxHitsPerEnemy;
   }
 
   CosmicSpecialResult finalize(CosmicSpecialResult result) {
@@ -11046,6 +11076,19 @@ String cosmicSpecialAbilityName(String family, String element) {
 }
 
 /// Family basic attacks — unchanged from original
+/// A Mane catapult may bill one body at most this many times.
+///
+/// Every Mane special is piercing and most of them travel at the family's
+/// catapult crawl, so without a ceiling a single slow projectile grinds a
+/// standing enemy for every frame it overlaps. Measured before this cap: Ice
+/// 21 hits for 3,777 damage and Blood 27 for 3,135, against Fire and
+/// Lightning landing almost nothing — an 18x spread between abilities whose
+/// authored damage is within 3x of each other.
+///
+/// Five rather than one so a catapult still reads as a heavy piercing shot
+/// that rewards lining bodies up, instead of becoming a single-hit dart.
+const int kManeSpecialMaxHitsPerEnemy = 5;
+
 List<Projectile> createFamilyBasicAttack({
   required Offset origin,
   required double angle,

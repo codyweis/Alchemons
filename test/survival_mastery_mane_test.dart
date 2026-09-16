@@ -644,6 +644,79 @@ void main() {
     });
   });
 
+  group('the catapult bills a body a bounded number of times', () {
+    test(
+      'one special cannot hit the same enemy more than five times',
+      () async {
+        final (game, target) = await arena(
+          element: 'Ice',
+          snapshot: equip(ManeNodes.assaultPath, throughTier: 1),
+        );
+        final comp = game.activeCompanions[0]!;
+        comp.position = target.position - const Offset(150, 0);
+        comp.basicCooldown = 99999;
+        comp.specialCooldown = 0;
+        game.companionProjectiles.clear();
+        game.update(1 / 60);
+
+        final shot = game.companionProjectiles.firstWhere(
+          (p) => p.abilityFamily == 'mane',
+        );
+        expect(shot.maxHitsPerEnemy, kManeSpecialMaxHitsPerEnemy);
+
+        // A Mane catapult crawls, so without the ceiling it bills this standing
+        // body once per frame of overlap — measured at 21 hits for 3,777 damage
+        // before the cap existed.
+        var contacts = 0;
+        for (var i = 0; i < 60 * 8; i++) {
+          comp.basicCooldown = 99999;
+          comp.specialCooldown = 99999;
+          final before = target.hp;
+          game.update(1 / 60);
+          if (before - target.hp > 0.01) contacts++;
+        }
+        expect(
+          contacts,
+          lessThanOrEqualTo(kManeSpecialMaxHitsPerEnemy + 4),
+          reason:
+              'The projectile landed $contacts separate hits on one body. The '
+              'ceiling is $kManeSpecialMaxHitsPerEnemy; anything much above it '
+              'means the cap is not being enforced before damage.',
+        );
+      },
+    );
+
+    test('the ceiling is per body, so piercing a line still pays', () async {
+      final (game, target) = await arena(
+        element: 'Ice',
+        snapshot: equip(ManeNodes.assaultPath, throughTier: 1),
+      );
+      final comp = game.activeCompanions[0]!;
+      final line = [
+        for (var i = 1; i <= 3; i++)
+          dummy(target, comp.position + Offset(90.0 * i, 0)),
+      ];
+      for (final body in line) {
+        game.enemies.add(body);
+      }
+      comp.basicCooldown = 99999;
+      comp.specialCooldown = 0;
+      game.companionProjectiles.clear();
+      game.update(1 / 60);
+      final before = {for (final b in line) b: b.hp};
+      for (var i = 0; i < 60 * 8; i++) {
+        comp.basicCooldown = 99999;
+        comp.specialCooldown = 99999;
+        game.update(1 / 60);
+      }
+      expect(
+        line.where((b) => b.hp < before[b]!).length,
+        greaterThan(1),
+        reason: 'A capped catapult must still pierce through a line.',
+      );
+    });
+  });
+
   group('the path is the family\'s, not the creature\'s', () {
     test(
       'a second Mane inherits the same path and builds its own Rhythm',

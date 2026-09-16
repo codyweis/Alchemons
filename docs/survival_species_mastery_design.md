@@ -674,6 +674,34 @@ with.
 A path that *trades damage away* for reach (Sweeping Claws) is owed nothing
 here on purpose; its payoff is counted in payloads and control.
 
+### Mane's catapult billed a standing body once a frame
+
+A piercing projectile is not consumed by a hit and contact is re-tested every
+frame, so a slow one parked inside an enemy charged for every frame it
+overlapped. Measured against a single standing body: Ice landed 21 hits for
+3,777 damage and Blood 27 for 3,135, while the same family's Fire shots passed
+through for almost nothing. A special's real output was set by how slowly its
+projectile happened to travel.
+
+Mane specials now carry `maxHitsPerEnemy = 5` (`kManeSpecialMaxHitsPerEnemy`),
+enforced before damage in the survival hit loop. Ice fell to 1,632 and Blood to
+1,618 on that same body; piercing a line of enemies is untouched, because the
+ceiling is per body rather than per projectile.
+
+Two things this does **not** fix, both deliberate:
+
+- **The cap does not bind in a crowd.** A slow shot sweeping six bodies gets
+  five hits on each, so crowd output is unchanged. If Mane's specials still
+  read as too strong there, the lever is the per-cast damage budget the shared
+  language section already calls for, not a lower hit cap.
+- **Five, not one.** "Every enemy pierced" reads as one hit per body, which
+  would be the faithful number and roughly a five-fold cut. Five keeps a
+  catapult feeling like a heavy shot that rewards lining bodies up, and is the
+  smaller change to existing balance.
+
+The same per-frame billing applies to every other family's piercing abilities.
+Only Mane is capped so far.
+
 ### Blood cannot feed a path built on spreading an element
 
 Blood's payload is a 1%-maximum-HP self-heal capped at once per second. That is
@@ -690,6 +718,29 @@ every fast-triggering node in phases 4 and 5. Options, none of them taken yet:
 - Make Blood a leech — damage that heals for a fraction — so a payload always
   does something and the *heal* keeps its cap.
 - Scale the heal down and remove the cooldown, so throughput pays.
+
+### What is authored difference, not imbalance
+
+Mane's element specials differ by design, and a single-target damage
+comparison between them is not apples to apples. The family contract is one
+big slow piercing shot whose element decides what happens as it pierces, with
+two deliberate exceptions the design board writes in the plural: Fire's 3-8
+fast fireballs and Lightning's 5-10 orbs placed around the map. Ice's single
+wide, slow projectile is the chassis working, not a bug.
+
+Two consequences are worth knowing before tuning any Mane node:
+
+- **Mane+Lightning contributes almost no measurable damage** in a fight around
+  the caster. Its orbs scatter 170-730 units from the *ship*, so against
+  enemies clustered on the companion they mostly land nowhere. That is what
+  the board asks for; whether it survives contact with a real wave is a
+  separate question.
+- **Mane+Fire's fireballs fan wide enough to miss a lone target.** Traced at
+  150 units, all four passed either side of a standing body.
+
+Both mean the *special* half of a Fire or Lightning Mane's output is near
+zero, which is why their mastery share reads high while Ice's and Blood's
+reads low. The share is measuring the denominator, not the path.
 
 ## Decisions intentionally deferred
 
