@@ -190,13 +190,16 @@ ElementalPayload resolveElementalPayload({
 
   switch (element.toLowerCase()) {
     case 'fire':
-      // Scorch for 30% elemental attack over 2 seconds.
+      // Scorch for 30% elemental attack over 2 seconds. A single stack: the
+      // table gives stacking to Poison and only to Poison, and because stacks
+      // add rate here rather than duration, a stacking Fire saturated at
+      // three would burn at 45% a second instead of 15%.
       actions.add(
         PayloadAction(
           PayloadEffect.damageOverTime,
           amount: dmg(0.30),
           duration: 2.0,
-          maxStacks: 3,
+          maxStacks: 1,
         ),
       );
 

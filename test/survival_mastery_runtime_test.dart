@@ -487,6 +487,24 @@ void main() {
       }
     });
 
+    test('Poison is the only element whose damage over time stacks', () {
+      // Stacks add rate here, not duration, so a second element quietly
+      // gaining a stack cap triples what it does rather than lengthening it.
+      for (final element in kPayloadElements) {
+        for (final action in resolveElementalPayload(
+          element: element,
+          elementalAttack: 100,
+        ).actions) {
+          if (action.effect != PayloadEffect.damageOverTime) continue;
+          expect(
+            action.maxStacks,
+            element == 'Poison' ? 3 : 1,
+            reason: '$element should not stack its burn',
+          );
+        }
+      }
+    });
+
     test('Light caps its amplification so sources cannot stack freely', () {
       final light = resolveElementalPayload(
         element: 'Light',
