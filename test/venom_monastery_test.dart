@@ -440,11 +440,9 @@ void main() {
           isTrue,
           reason: 'a hornless party must still be able to close the triage',
         );
-        expect(
-          surrendered,
-          {'ward_charnel'},
-          reason: 'without the horn the charnel is the only ward left over',
-        );
+        expect(surrendered, {
+          'ward_charnel',
+        }, reason: 'without the horn the charnel is the only ward left over');
       }
     });
   });

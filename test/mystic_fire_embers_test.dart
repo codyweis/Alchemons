@@ -45,7 +45,11 @@ void main() {
     await game.onLoad();
     game.startGame();
     game.summonCompanion(0);
-    for (var i = 0; i < 900 && game.enemies.where((e) => !e.isDead).isEmpty; i++) {
+    for (
+      var i = 0;
+      i < 900 && game.enemies.where((e) => !e.isDead).isEmpty;
+      i++
+    ) {
       if (game.showingPowerUpSelection) {
         game.alchemicalMeter = 0;
         game.dismissPowerUpSelection();
@@ -76,30 +80,37 @@ void main() {
     fail('the Mystic never cast');
   }
 
-  test('casting lights a field across the map and spends the ability', () async {
-    final game = await boot();
-    expect(game.mysticEmberCount(0), isZero);
+  test(
+    'casting lights a field across the map and spends the ability',
+    () async {
+      final game = await boot();
+      expect(game.mysticEmberCount(0), isZero);
 
-    await castOnce(game);
+      await castOnce(game);
 
-    final lit = game.mysticEmberCount(0);
-    expect(lit, inInclusiveRange(20, 50), reason: 'brief asks for 20-50 embers');
-    expect(
-      game.isMysticFieldSpent(0),
-      isTrue,
-      reason: 'the world is cast once per deployment',
-    );
+      final lit = game.mysticEmberCount(0);
+      expect(
+        lit,
+        inInclusiveRange(20, 50),
+        reason: 'brief asks for 20-50 embers',
+      );
+      expect(
+        game.isMysticFieldSpent(0),
+        isTrue,
+        reason: 'the world is cast once per deployment',
+      );
 
-    // Spread across the arena rather than bunched on the caster — it is the
-    // map's weather, not an aura the Mystic wears.
-    final comp = game.activeCompanions[0]!;
-    final spread = game.mysticEmberSpreadFrom(0, comp.position);
-    expect(
-      spread,
-      greaterThan(200),
-      reason: 'embers should cover the arena, not orbit the caster',
-    );
-  });
+      // Spread across the arena rather than bunched on the caster — it is the
+      // map's weather, not an aura the Mystic wears.
+      final comp = game.activeCompanions[0]!;
+      final spread = game.mysticEmberSpreadFrom(0, comp.position);
+      expect(
+        spread,
+        greaterThan(200),
+        reason: 'embers should cover the arena, not orbit the caster',
+      );
+    },
+  );
 
   test('the field outlives the cast and keeps drifting', () async {
     final game = await boot();
@@ -171,22 +182,25 @@ void main() {
     );
   });
 
-  test('recalling the Mystic puts the world out and hands the cast back', () async {
-    final game = await boot();
-    await castOnce(game);
-    expect(game.mysticEmberCount(0), greaterThan(0));
+  test(
+    'recalling the Mystic puts the world out and hands the cast back',
+    () async {
+      final game = await boot();
+      await castOnce(game);
+      expect(game.mysticEmberCount(0), greaterThan(0));
 
-    game.returnCompanion(0);
-    expect(
-      game.isMysticFieldSpent(0),
-      isFalse,
-      reason: 'recall frees the cast — that trade is the mechanic',
-    );
+      game.returnCompanion(0);
+      expect(
+        game.isMysticFieldSpent(0),
+        isFalse,
+        reason: 'recall frees the cast — that trade is the mechanic',
+      );
 
-    // The embers fade rather than blinking out.
-    for (var f = 0; f < 240; f++) {
-      game.update(1 / 60);
-    }
-    expect(game.mysticEmberCount(0), isZero, reason: 'the world goes out');
-  });
+      // The embers fade rather than blinking out.
+      for (var f = 0; f < 240; f++) {
+        game.update(1 / 60);
+      }
+      expect(game.mysticEmberCount(0), isZero, reason: 'the world goes out');
+    },
+  );
 }

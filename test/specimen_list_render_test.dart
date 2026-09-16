@@ -63,8 +63,9 @@ db.CreatureInstance _instance({String? effect}) => db.CreatureInstance(
   alchemyEffect: effect,
 );
 
-Widget _host(Widget child) =>
-    MaterialApp(home: Scaffold(body: Center(child: child)));
+Widget _host(Widget child) => MaterialApp(
+  home: Scaffold(body: Center(child: child)),
+);
 
 void main() {
   testWidgets('an InstanceSprite mounts its alchemy effect by default', (
@@ -102,7 +103,9 @@ void main() {
     // Achievements were drawn in a dark-only gold / mint / silver. On light
     // parchment those read as blank space, so light mode gets its own values.
     for (final id in FactionId.values) {
-      final light = ForgeTokens(factionThemeFor(id, brightness: Brightness.light));
+      final light = ForgeTokens(
+        factionThemeFor(id, brightness: Brightness.light),
+      );
       final dark = ForgeTokens(factionThemeFor(id));
 
       for (final entry in {

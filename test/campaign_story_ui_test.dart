@@ -245,7 +245,9 @@ void main() {
           ),
           // The badge takes its gold from the theme now, so that it stays
           // legible in light mode as well as dark.
-          Provider<FactionTheme>.value(value: factionThemeFor(FactionId.oceanic)),
+          Provider<FactionTheme>.value(
+            value: factionThemeFor(FactionId.oceanic),
+          ),
         ],
         child: const MaterialApp(home: Scaffold(body: CampaignRewardsButton())),
       ),
@@ -265,10 +267,7 @@ void main() {
         .where((t) => t.gate == TaskGate.always)
         .length;
     await settleProgress();
-    expect(
-      find.byTooltip('Achievements · $openTasks waiting'),
-      findsOneWidget,
-    );
+    expect(find.byTooltip('Achievements · $openTasks waiting'), findsOneWidget);
     await tester.runAsync(
       () => db.settingsDao.setSetting('first_extraction_done', '1'),
     );

@@ -30,7 +30,10 @@ void main() {
     await CosmicMemoryTutorialService.markHomePortalLaunched(db.settingsDao);
 
     // Left without finishing: no completion marker was ever written.
-    expect(await CosmicMemoryTutorialService.isCompleted(db.settingsDao), false);
+    expect(
+      await CosmicMemoryTutorialService.isCompleted(db.settingsDao),
+      false,
+    );
 
     await recover();
 
@@ -88,7 +91,10 @@ void main() {
       false,
     );
     // The closing story line is queued exactly once.
-    expect(await CosmicMemoryTutorialService.isStoryPending(db.settingsDao), true);
+    expect(
+      await CosmicMemoryTutorialService.isStoryPending(db.settingsDao),
+      true,
+    );
     await CosmicMemoryTutorialService.acknowledgeStory(db.settingsDao);
     expect(
       await CosmicMemoryTutorialService.isStoryPending(db.settingsDao),

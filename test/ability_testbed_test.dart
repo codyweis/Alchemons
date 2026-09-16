@@ -81,17 +81,33 @@ void main() {
   /// one thing that answers a boss — measuring a single scenario and calling
   /// the low numbers "weak" would quietly punish every specialist in the
   /// roster for being specialised.
-  const scenarios = <({String name, int wave, SurvivalWavePattern? pattern, bool boss})>[
-    // Many small bodies at once: the test of clear rate and area coverage.
-    (name: 'horde', wave: 22, pattern: SurvivalWavePattern.wispHorde, boss: false),
-    // Standoff shooters at range: the test of reach and of closing distance.
-    (name: 'shooters', wave: 22, pattern: SurvivalWavePattern.shooterScreen, boss: false),
-    // Heavy bodies walking in: the test of single-target damage and of holding
-    // ground.
-    (name: 'siege', wave: 22, pattern: SurvivalWavePattern.siegePush, boss: false),
-    // One enormous health pool that does not die to area damage at all.
-    (name: 'boss', wave: 25, pattern: null, boss: true),
-  ];
+  const scenarios =
+      <({String name, int wave, SurvivalWavePattern? pattern, bool boss})>[
+        // Many small bodies at once: the test of clear rate and area coverage.
+        (
+          name: 'horde',
+          wave: 22,
+          pattern: SurvivalWavePattern.wispHorde,
+          boss: false,
+        ),
+        // Standoff shooters at range: the test of reach and of closing distance.
+        (
+          name: 'shooters',
+          wave: 22,
+          pattern: SurvivalWavePattern.shooterScreen,
+          boss: false,
+        ),
+        // Heavy bodies walking in: the test of single-target damage and of holding
+        // ground.
+        (
+          name: 'siege',
+          wave: 22,
+          pattern: SurvivalWavePattern.siegePush,
+          boss: false,
+        ),
+        // One enormous health pool that does not die to area damage at all.
+        (name: 'boss', wave: 25, pattern: null, boss: true),
+      ];
 
   /// One fight. With [deploy] false nothing is summoned, which gives the
   /// control: what the orb and ship lose with no alchemon helping at all.
@@ -227,8 +243,10 @@ void main() {
       control[sc.name] = r.lost;
     }
     // ignore: avoid_print
-    print('TESTBED \u2014 control (nothing deployed): '
-        '${scenarios.map((s) => "${s.name} ${control[s.name]!.round()}").join(", ")}');
+    print(
+      'TESTBED \u2014 control (nothing deployed): '
+      '${scenarios.map((s) => "${s.name} ${control[s.name]!.round()}").join(", ")}',
+    );
 
     final dmg = <String, Map<String, double>>{};
     final prevented = <String, Map<String, double>>{};
@@ -276,9 +294,13 @@ void main() {
     final medPrev = medianPer(prevented);
 
     // ignore: avoid_print
-    print('TESTBED \u2014 four axes, best-of-four-fights, against each axis median');
+    print(
+      'TESTBED \u2014 four axes, best-of-four-fights, against each axis median',
+    );
     // ignore: avoid_print
-    print('subject              bestDmg  bestPrevented  healing  ccUptime  reads as');
+    print(
+      'subject              bestDmg  bestPrevented  healing  ccUptime  reads as',
+    );
     final verdicts = <String, String>{};
     for (final key in dmg.keys) {
       final dRatio = best({
@@ -287,7 +309,8 @@ void main() {
       });
       final pRatio = best({
         for (final sc in scenarios)
-          sc.name: prevented[key]![sc.name]! / max(1.0, medPrev[sc.name]!.abs()),
+          sc.name:
+              prevented[key]![sc.name]! / max(1.0, medPrev[sc.name]!.abs()),
       });
       final heal = sum(healed[key]!);
       final cc = best(control01[key]!);

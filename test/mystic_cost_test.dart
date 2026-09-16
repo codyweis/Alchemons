@@ -75,9 +75,11 @@ void main() {
     }
 
     // Build a field to cast into.
-    for (var i = 0;
-        i < 6000 && game.enemies.where((e) => !e.isDead).length < 20;
-        i++) {
+    for (
+      var i = 0;
+      i < 6000 && game.enemies.where((e) => !e.isDead).length < 20;
+      i++
+    ) {
       keepAlive();
       clearMenu();
       game.update(1 / 60);
@@ -125,7 +127,8 @@ void main() {
         peakProjectiles = game.companionProjectiles.length;
         peakMix.clear();
         for (final pr in game.companionProjectiles) {
-          final k = '${pr.element}/${pr.abilityFamily}/'
+          final k =
+              '${pr.element}/${pr.abilityFamily}/'
               '${pr.stationary ? "static" : "moving"}'
               '/${pr.visualStyle.name}/life${pr.life.toStringAsFixed(1)}';
           peakMix[k] = (peakMix[k] ?? 0) + 1;
@@ -141,7 +144,8 @@ void main() {
     print('MYSPEAK $element frame=$peakFrame $peakMix');
     final byKind = <String, int>{};
     for (final pr in game.companionProjectiles) {
-      final k = '${pr.abilityFamily}/${pr.element}/'
+      final k =
+          '${pr.abilityFamily}/${pr.element}/'
           '${pr.stationary ? "static" : "moving"}'
           '${pr.turretInterval > 0 ? "+turret" : ""}';
       byKind[k] = (byKind[k] ?? 0) + 1;

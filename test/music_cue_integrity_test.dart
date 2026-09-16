@@ -53,7 +53,10 @@ void main() {
     final home = AudioController.assetsForCue(MusicCue.home);
 
     expect(
-      AudioController.assetBelongsToCue(cosmic.first, MusicCue.cosmicExploration),
+      AudioController.assetBelongsToCue(
+        cosmic.first,
+        MusicCue.cosmicExploration,
+      ),
       isTrue,
     );
     // The exact confusion that pinned the bug: home's file, cosmic's cue.

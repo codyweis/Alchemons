@@ -83,22 +83,25 @@ void main() {
     expect(silent, isEmpty, reason: silent.join('\n'));
   });
 
-  test('every room carries a map label, so the chart and the capsule agree',
-      () {
-    final unlabelled = <String>[];
-    kPlanetDungeonLayouts.forEach((element, layout) {
-      for (final id in layout.rooms.keys) {
-        if (!kDungeonRoomLabels.containsKey(id)) unlabelled.add('$element/$id');
-      }
-    });
-    expect(
-      unlabelled,
-      isEmpty,
-      reason:
-          'a room with no label shows a blank minimap caption, and is the '
-          'fallback the arrival line leans on:\n${unlabelled.join("\n")}',
-    );
-  });
+  test(
+    'every room carries a map label, so the chart and the capsule agree',
+    () {
+      final unlabelled = <String>[];
+      kPlanetDungeonLayouts.forEach((element, layout) {
+        for (final id in layout.rooms.keys) {
+          if (!kDungeonRoomLabels.containsKey(id))
+            unlabelled.add('$element/$id');
+        }
+      });
+      expect(
+        unlabelled,
+        isEmpty,
+        reason:
+            'a room with no label shows a blank minimap caption, and is the '
+            'fallback the arrival line leans on:\n${unlabelled.join("\n")}',
+      );
+    },
+  );
 
   test('a live refusal still outranks a room naming itself', () {
     // Arriving must not stomp a reading or a refusal you walked in on —

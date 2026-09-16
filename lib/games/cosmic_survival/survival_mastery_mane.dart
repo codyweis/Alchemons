@@ -173,6 +173,10 @@ class ManeMasteryState {
   bool pendingCrescendoCast = false;
   bool pendingBladeDanceCast = false;
 
+  /// The share of the pending cast's damage owed to mastery, carried across
+  /// the same gap for the same reason.
+  double pendingMasteryDamageFraction = 0;
+
   /// Basic casts launched and not yet judged hit-or-miss, oldest first.
   /// Bounded: a Mane cannot outrun [ManeTuning.missGrace] by more than a
   /// handful of casts even at full Encore haste.

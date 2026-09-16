@@ -105,10 +105,7 @@ void main() {
     await tasks.markVisited('shop');
 
     expect(await tasks.claim('shop'), isTrue);
-    expect(
-      await db.currencyDao.getSilverBalance(),
-      before + kTaskSilverReward,
-    );
+    expect(await db.currencyDao.getSilverBalance(), before + kTaskSilverReward);
 
     expect(await tasks.claim('shop'), isFalse);
     expect(

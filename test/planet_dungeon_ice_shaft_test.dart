@@ -666,11 +666,11 @@ void main() {
         c.position = crank;
       }
       game.activateAbility();
-      expect(
-        game.orreryBlocks.values.toSet(),
-        {2 * grid.cols + 1, 2 * grid.cols + 6, 4 * grid.cols + 3},
-        reason: 'every loose block back on its own standard',
-      );
+      expect(game.orreryBlocks.values.toSet(), {
+        2 * grid.cols + 1,
+        2 * grid.cols + 6,
+        4 * grid.cols + 3,
+      }, reason: 'every loose block back on its own standard');
       expect(game.orreryGlass, isEmpty, reason: 'and the road taken up');
     });
 

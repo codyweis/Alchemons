@@ -69,7 +69,8 @@ void main() {
       expect(
         e.value,
         green,
-        reason: 'vertex colours must survive ${e.key} with a shader-less '
+        reason:
+            'vertex colours must survive ${e.key} with a shader-less '
             'paint; the shell painter depends on this',
       );
     }
@@ -83,7 +84,20 @@ void main() {
       const Rect.fromLTWH(0, 0, 8, 8),
       Paint()..color = const Color(0xFF000000),
     );
-    final positions = Float32List.fromList([0, 0, 8, 0, 0, 8, 8, 0, 8, 8, 0, 8]);
+    final positions = Float32List.fromList([
+      0,
+      0,
+      8,
+      0,
+      0,
+      8,
+      8,
+      0,
+      8,
+      8,
+      0,
+      8,
+    ]);
     // Half-transparent white over black should land near mid grey.
     final colors = Int32List.fromList(List.filled(6, 0x80FFFFFF));
     final verts = ui.Vertices.raw(

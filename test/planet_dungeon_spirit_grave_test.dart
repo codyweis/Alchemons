@@ -858,8 +858,11 @@ void main() {
       // 3 · only Crystal lights it, and the order is a CHAIN — a name
       // cannot be given into a hole nobody can see the bottom of.
       act(game, spirit, 'mourners_walk', at);
-      expect(game.wake.namesTold, isEmpty,
-          reason: 'the beats have to depend on each other');
+      expect(
+        game.wake.namesTold,
+        isEmpty,
+        reason: 'the beats have to depend on each other',
+      );
       act(game, crystal, 'mourners_walk', at);
       expect(game.wake.undugLit, isTrue);
 
@@ -893,8 +896,11 @@ void main() {
       }
       expect(game.wake.undugDrawn, isFalse);
       act(game, water, 'mourners_walk', at);
-      expect(game.wake.undugDrawn, isTrue,
-          reason: 'the chain still runs after any number of wrong presses');
+      expect(
+        game.wake.undugDrawn,
+        isTrue,
+        reason: 'the chain still runs after any number of wrong presses',
+      );
     });
 
     test('THE PLACE IS ITS OWN: the spur no door uses', () {
@@ -903,12 +909,18 @@ void main() {
       final room = kPlanetDungeonLayouts['Spirit']!.rooms['mourners_walk']!;
       final at = room.grave!.undugGrave!;
       for (final d in room.doors) {
-        expect((d.rect.center - at).distance, greaterThan(300),
-            reason: 'the maxim must not sit on the way to anywhere');
+        expect(
+          (d.rect.center - at).distance,
+          greaterThan(300),
+          reason: 'the maxim must not sit on the way to anywhere',
+        );
       }
       expect(at.dx, greaterThan(room.grave!.graveLamp!.dx + 200));
-      expect(room.vaultCache, isNull,
-          reason: 'the secret and the treasure must not share a room');
+      expect(
+        room.vaultCache,
+        isNull,
+        reason: 'the secret and the treasure must not share a room',
+      );
     });
   });
 

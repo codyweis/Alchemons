@@ -47,8 +47,9 @@ void main() {
         size.height.toInt(),
       );
       final bd = await img.toByteData(format: ui.ImageByteFormat.png);
-      File('${out.path}/${sp.name}.png')
-          .writeAsBytesSync(bd!.buffer.asUint8List());
+      File(
+        '${out.path}/${sp.name}.png',
+      ).writeAsBytesSync(bd!.buffer.asUint8List());
     }
     // Assert on the files this test wrote, not on how many entries the
     // directory happens to hold. hatch_shell_device_scale_test writes its

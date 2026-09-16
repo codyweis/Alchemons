@@ -35,27 +35,42 @@ import 'package:flutter_test/flutter_test.dart';
 // LOUDEST THINGS IN THE ROOM, and everything else is texture behind them.
 
 PlanetDungeonGame _game(String element) {
-  final els = kCosmicPlanetEntry[element] ?? const ['Fire','Water','Air'];
+  final els = kCosmicPlanetEntry[element] ?? const ['Fire', 'Water', 'Air'];
   final fams = ['mane', 'pip', 'mask'];
   final party = [
     for (var i = 0; i < els.length; i++)
       CosmicPartyMember(
-        instanceId: 'i$i', baseId: 'b$i', displayName: els[i],
-        element: els[i], family: fams[i % 3], level: 10,
-        statSpeed: 3, statIntelligence: 3, statStrength: 3, statBeauty: 3,
-        slotIndex: i, staminaBars: 3, staminaMax: 3,
+        instanceId: 'i$i',
+        baseId: 'b$i',
+        displayName: els[i],
+        element: els[i],
+        family: fams[i % 3],
+        level: 10,
+        statSpeed: 3,
+        statIntelligence: 3,
+        statStrength: 3,
+        statBeauty: 3,
+        slotIndex: i,
+        staminaBars: 3,
+        staminaMax: 3,
       ),
   ];
   final g = PlanetDungeonGame(
-    element: element, party: party, initialStarMask: 0,
-    onStarEarned: (_) {}, onPlayerDown: () {}, onChanged: () {},
+    element: element,
+    party: party,
+    initialStarMask: 0,
+    onStarEarned: (_) {},
+    onPlayerDown: () {},
+    onChanged: () {},
   );
   g.onGameResize(Vector2(900, 600));
   g.entryDoorRevealed = true;
   for (final m in party) {
-    g.creatures.add(DungeonCreature(member: m)
-      ..position = const Offset(200, 300)
-      ..lastSafe = const Offset(200, 300));
+    g.creatures.add(
+      DungeonCreature(member: m)
+        ..position = const Offset(200, 300)
+        ..lastSafe = const Offset(200, 300),
+    );
   }
   return g;
 }
@@ -73,7 +88,9 @@ void main() {
           g.currentRoomId = id;
           final stand = layout.rooms[id]!.bounds.center;
           for (final c in g.creatures) {
-            c..position = stand..lastSafe = stand;
+            c
+              ..position = stand
+              ..lastSafe = stand;
           }
           for (var i = 0; i < 24; i++) {
             g.update(1 / 60);
@@ -83,8 +100,9 @@ void main() {
           final img = await rec.endRecording().toImage(900, 600);
           if (out.existsSync()) {
             final png = await img.toByteData(format: ui.ImageByteFormat.png);
-            File('build/room_audit/${element}_$id.png')
-                .writeAsBytesSync(png!.buffer.asUint8List());
+            File(
+              'build/room_audit/${element}_$id.png',
+            ).writeAsBytesSync(png!.buffer.asUint8List());
           }
           final raw = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
           final b = raw!.buffer.asUint8List();
@@ -95,9 +113,12 @@ void main() {
           for (var y = 0; y < 600; y += 2) {
             for (var x = 0; x < 900; x += 2) {
               final i = (y * 900 + x) * 4;
-              palette.add((b[i] >> 4 << 8) | (b[i + 1] >> 4 << 4) | b[i + 2] >> 4);
+              palette.add(
+                (b[i] >> 4 << 8) | (b[i + 1] >> 4 << 4) | b[i + 2] >> 4,
+              );
               final j = (y * 900 + x + 2) * 4;
-              if (x < 896 && (b[i] - b[j]).abs() + (b[i+1] - b[j+1]).abs() > 22) {
+              if (x < 896 &&
+                  (b[i] - b[j]).abs() + (b[i + 1] - b[j + 1]).abs() > 22) {
                 edges++;
               }
             }
@@ -115,7 +136,9 @@ void main() {
       // high end is not a leaderboard.
       for (final r in rows) {
         // ignore: avoid_print
-        print('${r.$4.toString().padLeft(6)} edges  ${r.$3.toString().padLeft(4)} cols  ${r.$1}/${r.$2}');
+        print(
+          '${r.$4.toString().padLeft(6)} edges  ${r.$3.toString().padLeft(4)} cols  ${r.$1}/${r.$2}',
+        );
       }
     });
   });

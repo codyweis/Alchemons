@@ -1,6 +1,6 @@
 # Survival Family Mastery
 
-Status (2026-09-16): Phases 1 and 2 complete, Phase 3 underway (all twelve Mane nodes implemented; validation, preview UI and tuning still open), and the Base Command Mastery tab is polished (the first item of Phase 6). Purchases, branch selection and run snapshots work; a run now locks its snapshot and combat carries cast identity, hit/kill/damage events, the shared elemental payload resolver, the shared guards and attribution telemetry. No node changes a run yet — the tree nodes themselves arrive in Phases 3-5. Next: Phase 3 (the Mane vertical slice).
+Status (2026-09-16): Phases 1 and 2 complete, Phase 3 underway (all twelve Mane nodes implemented and validated across five elements; preview UI and tuning still open), and the Base Command Mastery tab is polished (the first item of Phase 6). Purchases, branch selection and run snapshots work; a run now locks its snapshot and combat carries cast identity, hit/kill/damage events, the shared elemental payload resolver, the shared guards and attribution telemetry. No node changes a run yet — the tree nodes themselves arrive in Phases 3-5. Next: Phase 3 (the Mane vertical slice).
 
 ## Purpose
 
@@ -527,7 +527,7 @@ See *Combat runtime* below for what shipped and where it lives.
 ### Phase 3: Mane vertical slice — in progress
 
 1. ~~Implement all three Mane paths and capstones.~~ Done 2026-09-16; see *Mane implementation notes*.
-2. Validate them with Fire, Ice, Lightning, Blood, and one control-heavy element.
+2. ~~Validate them with Fire, Ice, Lightning, Blood, and one control-heavy element.~~ Done 2026-09-16 (Mud as the control element); see *Mane element validation*.
 3. Build the initial Mastery screen and training preview around Mane.
 4. Tune single-target, crowd, and special-bridge scenarios.
 
@@ -649,6 +649,47 @@ Two rules needed runtime support that phases 4-5 will reuse: `MasteryCast.tag`
 for "this cast was empowered", and `maxHitsPerTarget` with a pre-damage veto
 in the hit loop, because Tempest Ring's three-hit cap counted after the fact
 would not be a cap.
+
+## Mane element validation
+
+Measured over twenty seconds against a standing crowd, all three paths, the
+five elements the phase calls for. The differentiation the exit criterion asks
+for is real: Fire burns one body, Ice stacks toward a freeze, Lightning does
+all of its work on a *different* body, Mud slows hard, Blood pays the caster.
+`test/survival_mastery_mane_elements_test.dart` fails if any two of them ever
+become the same thing.
+
+Two findings worth carrying forward.
+
+### Telemetry could not see two of the three paths
+
+War Rhythm and half of Twin Fang do their work *inside* a basic hit — Rhythm's
+damage per stack, Predator Step's kill bonus, Honed Pair's sharper blades. All
+of that was landing in the basic bucket, so both paths reported a mastery share
+near zero while visibly doing something. A cast now carries the share of its
+damage the path is responsible for, and that portion is attributed to mastery.
+War Rhythm went from 0-1.7% to 9.8-11.7%, which is a number balance can argue
+with.
+
+A path that *trades damage away* for reach (Sweeping Claws) is owed nothing
+here on purpose; its payoff is counted in payloads and control.
+
+### Blood cannot feed a path built on spreading an element
+
+Blood's payload is a 1%-maximum-HP self-heal capped at once per second. That is
+the table working as specified, but it means a Blood Mane on Tempest Claw — the
+path whose whole role is "spread your element across groups" — spread nothing:
+15 payload applications over twenty seconds against Fire's 51, and 23 points of
+healing to show for it. Every node that fires more than once a second is
+throttled to the element's cooldown.
+
+This is a gap in the payload table, not in the nodes, and it will repeat for
+every fast-triggering node in phases 4 and 5. Options, none of them taken yet:
+
+- Leave it, and accept that Blood is a sustain element that ignores throughput.
+- Make Blood a leech — damage that heals for a fraction — so a payload always
+  does something and the *heal* keeps its cap.
+- Scale the heal down and remove the cooldown, so throughput pays.
 
 ## Decisions intentionally deferred
 

@@ -90,7 +90,8 @@ Future<int> _shot(
   final bytes = raw!.buffer.asUint8List();
   var sum = 0;
   for (var i = 0; i < bytes.length; i += 4) {
-    sum = (sum + bytes[i] * 3 + bytes[i + 1] * 5 + bytes[i + 2] * 7) & 0x3FFFFFF;
+    sum =
+        (sum + bytes[i] * 3 + bytes[i + 1] * 5 + bytes[i + 2] * 7) & 0x3FFFFFF;
   }
   return sum;
 }
@@ -196,7 +197,10 @@ void main() {
       final head = kBogFords
           .firstWhere((f) => f.id == 'add_head')
           .headIn('mire_gate')!;
-      expect(await _shot(g, 'mire_gate', 'read_0_at_head', at: head), isNonZero);
+      expect(
+        await _shot(g, 'mire_gate', 'read_0_at_head', at: head),
+        isNonZero,
+      );
       expect(
         g.bogDoomedByHand.isNotEmpty,
         isTrue,
@@ -206,10 +210,7 @@ void main() {
       // And with the fen half spent, so the chart has all three states on it.
       g.bog.field.harden('cor_neck');
       g.bog.field.harden('tarn_head');
-      expect(
-        await _shot(g, 'mire_gate', 'read_1_spent', at: head),
-        isNonZero,
-      );
+      expect(await _shot(g, 'mire_gate', 'read_1_spent', at: head), isNonZero);
     });
   });
 

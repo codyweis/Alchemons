@@ -213,8 +213,10 @@ void main() {
       expect(stats.basicDamage, greaterThan(0));
       expect(
         stats.masteryDamage,
-        0,
-        reason: 'No node exists yet, so nothing may be attributed to mastery.',
+        lessThan(stats.basicDamage),
+        reason:
+            'The equipped tier-1 node raises each slash, so part of the hit '
+            'is the path working — but only part of it.',
       );
     });
 

@@ -112,10 +112,7 @@ void main() {
     expect(find.text('STRENGTH'), findsOneWidget);
     expect(find.text('P-ATK · CRIT · HP · P-DEF'), findsOneWidget);
     // Display scale is internal x100, so the legacy curve's ceiling reads 500.
-    expect(
-      find.textContaining('Ratings past 500'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Ratings past 500'), findsOneWidget);
   });
 
   testWidgets('reported HP and DEF include the family shape modifiers', (

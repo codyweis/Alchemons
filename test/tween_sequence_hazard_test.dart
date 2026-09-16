@@ -32,7 +32,10 @@ void main() {
   test('TweenSequence rejects an out-of-range input', () {
     final seq = TweenSequence<double>([
       TweenSequenceItem(tween: Tween<double>(begin: 1.6, end: 1.0), weight: 79),
-      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.28), weight: 21),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 1.28),
+        weight: 21,
+      ),
     ]);
     expect(() => seq.transform(1.0868), throwsAssertionError);
     // ...and is fine across the legal range, which is what the linear-interval
@@ -42,19 +45,25 @@ void main() {
     }
   });
 
-  test('the safe composition survives an overshooting curve inside an item', () {
-    final safe = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 1.6,
-          end: 1.0,
-        ).chain(CurveTween(curve: Curves.easeOutBack)),
-        weight: 79,
-      ),
-      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.28), weight: 21),
-    ]);
-    for (var i = 0; i <= 100; i++) {
-      expect(() => safe.transform(i / 100), returnsNormally);
-    }
-  });
+  test(
+    'the safe composition survives an overshooting curve inside an item',
+    () {
+      final safe = TweenSequence<double>([
+        TweenSequenceItem(
+          tween: Tween<double>(
+            begin: 1.6,
+            end: 1.0,
+          ).chain(CurveTween(curve: Curves.easeOutBack)),
+          weight: 79,
+        ),
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 1.0, end: 1.28),
+          weight: 21,
+        ),
+      ]);
+      for (var i = 0; i <= 100; i++) {
+        expect(() => safe.transform(i / 100), returnsNormally);
+      }
+    },
+  );
 }

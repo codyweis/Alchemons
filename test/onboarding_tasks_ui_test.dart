@@ -85,9 +85,7 @@ void main() {
     expect(find.text('GO'), findsWidgets);
   });
 
-  testWidgets('the section disappears once every task is done', (
-    tester,
-  ) async {
+  testWidgets('the section disappears once every task is done', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final db = AlchemonsDatabase(NativeDatabase.memory());
     addTearDown(db.close);

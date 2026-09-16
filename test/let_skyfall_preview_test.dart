@@ -31,8 +31,9 @@ void main() {
     for (final path in candidates) {
       final file = File(path);
       if (!file.existsSync()) continue;
-      await (FontLoader('SheetLabel')
-            ..addFont(Future.value(ByteData.view(file.readAsBytesSync().buffer))))
+      await (FontLoader('SheetLabel')..addFont(
+            Future.value(ByteData.view(file.readAsBytesSync().buffer)),
+          ))
           .load();
       labelFont = 'SheetLabel';
       return;
@@ -64,17 +65,17 @@ void main() {
 
     void label(String s, Offset at, Color c, {double size = 11}) {
       TextPainter(
-        text: TextSpan(
-          text: s,
-          style: TextStyle(
-            color: c,
-            fontSize: size,
-            fontWeight: FontWeight.w700,
-            fontFamily: labelFont,
+          text: TextSpan(
+            text: s,
+            style: TextStyle(
+              color: c,
+              fontSize: size,
+              fontWeight: FontWeight.w700,
+              fontFamily: labelFont,
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )
+          textDirection: TextDirection.ltr,
+        )
         ..layout()
         ..paint(canvas, at);
     }

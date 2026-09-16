@@ -63,6 +63,7 @@ class MasteryCast {
     required this.projectileCount,
     required this.castTime,
     this.maxHitsPerTarget = 0,
+    this.masteryDamageFraction = 0,
   });
 
   static const int _maxTrackedTargets = 12;
@@ -79,6 +80,15 @@ class MasteryCast {
 
   /// Runtime clock seconds at launch.
   final double castTime;
+
+  /// The share of this cast's damage that mastery is responsible for.
+  ///
+  /// A path that empowers the family's own attack — Rising Tempo's damage per
+  /// Rhythm, Predator Step's kill bonus — does all its work inside a basic
+  /// hit. Without this split that whole contribution lands in the basic
+  /// bucket and the path reads as doing nothing, which is the opposite of
+  /// what the telemetry exists to answer.
+  final double masteryDamageFraction;
 
   /// How many of this cast's projectiles may hit one body, 0 for no limit.
   /// A ring of eight radial slashes converging on one enemy is the case this
@@ -332,6 +342,7 @@ class SurvivalMasteryRuntime {
     required MasteryCastKind kind,
     required int projectileCount,
     int maxHitsPerTarget = 0,
+    double masteryDamageFraction = 0,
     bool countsAsCast = true,
   }) {
     final stats = _statsFor(slotIndex);
@@ -361,6 +372,7 @@ class SurvivalMasteryRuntime {
       projectileCount: projectileCount,
       castTime: _clock,
       maxHitsPerTarget: maxHitsPerTarget,
+      masteryDamageFraction: masteryDamageFraction.clamp(0.0, 1.0),
     );
     return id;
   }
@@ -496,8 +508,24 @@ class SurvivalMasteryRuntime {
 
   Map<int, MasterySlotTelemetry> get telemetry => Map.unmodifiable(_telemetry);
 
-  void recordDamage(int? slotIndex, double amount, MasteryDamageSource source) {
+  /// Records [amount] of damage, splitting off the share a cast's mastery
+  /// uplift is responsible for.
+  void recordDamage(
+    int? slotIndex,
+    double amount,
+    MasteryDamageSource source, {
+    int castId = 0,
+  }) {
     if (slotIndex == null || amount <= 0) return;
+    if (source != MasteryDamageSource.mastery && castId != 0) {
+      final fraction = _casts[castId]?.masteryDamageFraction ?? 0;
+      if (fraction > 0) {
+        final uplift = amount * fraction;
+        _statsFor(slotIndex).masteryDamage += uplift;
+        amount -= uplift;
+        if (amount <= 0) return;
+      }
+    }
     final stats = _statsFor(slotIndex);
     switch (source) {
       case MasteryDamageSource.basic:

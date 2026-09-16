@@ -64,7 +64,8 @@ void main() {
         expect(
           verts,
           lessThanOrEqualTo(65535),
-          reason: '$species (reduced=$reduced) needs $verts vertices, which '
+          reason:
+              '$species (reduced=$reduced) needs $verts vertices, which '
               'overflows the Uint16 index buffer',
         );
       }

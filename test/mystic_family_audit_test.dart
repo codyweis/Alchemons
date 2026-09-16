@@ -46,9 +46,11 @@ void main() {
     await game.onLoad();
     game.startGame();
     game.summonCompanion(0);
-    for (var i = 0;
-        i < 1200 && game.enemies.where((e) => !e.isDead).isEmpty;
-        i++) {
+    for (
+      var i = 0;
+      i < 1200 && game.enemies.where((e) => !e.isDead).isEmpty;
+      i++
+    ) {
       game.orb.currentHp = game.orb.maxHp;
       if (game.showingPowerUpSelection) {
         game.alchemicalMeter = 0;

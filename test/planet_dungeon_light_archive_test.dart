@@ -454,11 +454,11 @@ void main() {
       // prism oriel — and every effigy is element-only.
       final gated = layout.familyGates.map((gt) => gt.objectId).toSet();
       expect(gated, {'hush_slip', 'A'});
-      expect(
-        kCourtEffigies.map((e) => e.element).toSet(),
-        {'Light', 'Crystal', 'Spirit'},
-        reason: 'all three entry elements, so any correct trio finishes it',
-      );
+      expect(kCourtEffigies.map((e) => e.element).toSet(), {
+        'Light',
+        'Crystal',
+        'Spirit',
+      }, reason: 'all three entry elements, so any correct trio finishes it');
       final courtStar = layout.rooms.values
           .firstWhere((r) => r.hall?.balustrade != null)
           .hall!

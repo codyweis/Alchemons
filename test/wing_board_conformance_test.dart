@@ -90,24 +90,27 @@ void main() {
     }
   });
 
-  test('Dark is the passive one, and pays for it by carrying no beam effect', () {
-    // "PASSIVE — dark wing pulses its laser; both the laser and the dark
-    // wing's auto-attacks fire twice as fast."
-    //
-    // The rate itself lives in CosmicSurvivalGame as a 0.5 cooldown
-    // multiplier on both the basic and the special. What belongs here is the
-    // other half of that bargain: Dark buys its rate by having no rider on the
-    // beam, and if one is ever added it is silently the strongest wing twice
-    // over — which is exactly how it measured before anyone looked.
-    final kinds = cast('Dark').beams.map((b) => b.tickEffect).toSet();
-    expect(
-      kinds.every((k) => k == AbilityEffectKind.none),
-      isTrue,
-      reason:
-          'wing/Dark gained a beam effect on top of its doubled fire rate: '
-          '$kinds',
-    );
-  });
+  test(
+    'Dark is the passive one, and pays for it by carrying no beam effect',
+    () {
+      // "PASSIVE — dark wing pulses its laser; both the laser and the dark
+      // wing's auto-attacks fire twice as fast."
+      //
+      // The rate itself lives in CosmicSurvivalGame as a 0.5 cooldown
+      // multiplier on both the basic and the special. What belongs here is the
+      // other half of that bargain: Dark buys its rate by having no rider on the
+      // beam, and if one is ever added it is silently the strongest wing twice
+      // over — which is exactly how it measured before anyone looked.
+      final kinds = cast('Dark').beams.map((b) => b.tickEffect).toSet();
+      expect(
+        kinds.every((k) => k == AbilityEffectKind.none),
+        isTrue,
+        reason:
+            'wing/Dark gained a beam effect on top of its doubled fire rate: '
+            '$kinds',
+      );
+    },
+  );
 
   test('Earth co-fires from the orb and Spirit tethers to the ship', () {
     // Both of these were reported as unimplemented in the first pass of this

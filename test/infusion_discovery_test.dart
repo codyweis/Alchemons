@@ -49,8 +49,11 @@ void main() {
 
   test('orbs of every stat count toward the same door', () async {
     for (final type in AlchemicalPowerupType.values) {
-      expect(InfusionDiscovery.orbCount({type.inventoryKey: 2}), 2,
-          reason: '${type.name} orbs must count');
+      expect(
+        InfusionDiscovery.orbCount({type.inventoryKey: 2}),
+        2,
+        reason: '${type.name} orbs must count',
+      );
     }
     expect(
       InfusionDiscovery.orbCount({
@@ -61,7 +64,10 @@ void main() {
   });
 
   test('readHoldings sees what the inventory holds', () async {
-    await db.inventoryDao.addItemQty(AlchemicalPowerupType.beauty.inventoryKey, 3);
+    await db.inventoryDao.addItemQty(
+      AlchemicalPowerupType.beauty.inventoryKey,
+      3,
+    );
     final held = await InfusionDiscovery.readHoldings(db.inventoryDao);
     expect(InfusionDiscovery.orbCount(held), 3);
     expect(InfusionDiscovery.soulCount(held), 0);

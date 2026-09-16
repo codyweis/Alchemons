@@ -16,10 +16,7 @@ void main() {
       // Cull rect must cover the DEVICE-pixel bounds: it is applied in the
       // recording's own space, so a logical-sized rect clips everything past
       // 393px once the DPR scale is applied.
-      final canvas = Canvas(
-        rec,
-        Offset.zero & size,
-      );
+      final canvas = Canvas(rec, Offset.zero & size);
       // Flutter applies the device pixel ratio itself; without this the paint
       // lands 1:1 in the corner of the larger image instead of being scaled.
       // 1:1 — matches how the HTML prototype canvas is captured.
@@ -36,10 +33,7 @@ void main() {
       HatchShellPainter(
         t: t,
         clock: t * 6.6,
-        model: HatchShellModel(
-          species: HatchShellSpecies.pip,
-          reduced: false,
-        ),
+        model: HatchShellModel(species: HatchShellSpecies.pip, reduced: false),
         paletteA: const [
           Color(0xFFFF7E57),
           Color(0xFFFF8C00),
@@ -65,7 +59,9 @@ void main() {
         size.height.round(),
       );
       final bd = await img.toByteData(format: ui.ImageByteFormat.png);
-      File('${out.path}/dev_t$t.png').writeAsBytesSync(bd!.buffer.asUint8List());
+      File(
+        '${out.path}/dev_t$t.png',
+      ).writeAsBytesSync(bd!.buffer.asUint8List());
     }
     expect(true, isTrue);
   });

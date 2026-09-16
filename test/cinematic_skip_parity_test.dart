@@ -66,7 +66,8 @@ void main() {
     expect(
       revealEnd,
       lessThanOrEqualTo(dissolveFrom),
-      reason: 'the scale-in has to finish before the fade starts, or the '
+      reason:
+          'the scale-in has to finish before the fade starts, or the '
           'silhouette is still arriving while it leaves',
     );
   });
@@ -83,7 +84,8 @@ void main() {
     expect(
       handover,
       lessThan(1.0),
-      reason: 'waiting for the controller to complete is what left a '
+      reason:
+          'waiting for the controller to complete is what left a '
           'motionless silhouette on screen at the end',
     );
   });

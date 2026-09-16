@@ -220,11 +220,9 @@ void main() {
       final h = _game();
       _press(h, 'Plant', 'apothecary', _pot);
       _press(h, 'Plant', 'apothecary', _pot);
-      expect(
-        h.monastery.pot,
-        ['Plant'],
-        reason: 'the second Plant is refused — only Poison doubles',
-      );
+      expect(h.monastery.pot, [
+        'Plant',
+      ], reason: 'the second Plant is refused — only Poison doubles');
       expect(h.monastery.carriedPotion, isNull);
     });
 

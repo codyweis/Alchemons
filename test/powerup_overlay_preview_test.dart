@@ -58,7 +58,9 @@ void main() {
         currentLevel: 2,
       ),
       OfferedPowerUpChoice(
-        def: kAllPowerUps.firstWhere((d) => d.category == PowerUpCategory.shipWeapon),
+        def: kAllPowerUps.firstWhere(
+          (d) => d.category == PowerUpCategory.shipWeapon,
+        ),
         currentLevel: 0,
       ),
     ];
@@ -98,8 +100,9 @@ void main() {
       final png = await image.toByteData(format: ui.ImageByteFormat.png);
       expect(png, isNotNull);
       if (outDir != null && outDir.isNotEmpty) {
-        File('$outDir/surge_panel.png')
-            .writeAsBytesSync(png!.buffer.asUint8List());
+        File(
+          '$outDir/surge_panel.png',
+        ).writeAsBytesSync(png!.buffer.asUint8List());
         // ignore: avoid_print
         print('POWERUP_PREVIEW $outDir/surge_panel.png');
       }

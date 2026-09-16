@@ -1004,11 +1004,11 @@ void main() {
       // somewhere a player standing in the canal can walk to without passing
       // a locked door, or a route that needs a stand becomes unfloatable.
       final bank = water.rooms['drowned_court']!;
-      expect(
-        bank.tideValves.map((v) => v.level).toSet(),
-        {0, 1, 2},
-        reason: 'every stand must be reachable from beside the canal',
-      );
+      expect(bank.tideValves.map((v) => v.level).toSet(), {
+        0,
+        1,
+        2,
+      }, reason: 'every stand must be reachable from beside the canal');
       expect(
         gallery.doors.any((d) => d.targetRoomId == 'drowned_court'),
         isTrue,

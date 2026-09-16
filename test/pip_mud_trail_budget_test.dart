@@ -51,7 +51,11 @@ void main() {
     await game.onLoad();
     game.startGame();
     game.summonCompanion(0);
-    for (var i = 0; i < 900 && game.enemies.where((e) => !e.isDead).isEmpty; i++) {
+    for (
+      var i = 0;
+      i < 900 && game.enemies.where((e) => !e.isDead).isEmpty;
+      i++
+    ) {
       if (game.showingPowerUpSelection) {
         game.alchemicalMeter = 0;
         game.dismissPowerUpSelection();
@@ -156,9 +160,7 @@ void main() {
     // Far more puffs than the budget, as a wave of tagged enemies would
     // produce, then let the emitter keep running.
     for (var i = 0; i < kPipMudTrailBudget * 3; i++) {
-      game.companionProjectiles.add(
-        mudPuff(spot + Offset(i * 3.0, 0)),
-      );
+      game.companionProjectiles.add(mudPuff(spot + Offset(i * 3.0, 0)));
     }
     for (final e in game.enemies) {
       e.pipMudTrail = true;
@@ -173,7 +175,10 @@ void main() {
       game.orb.currentHp = game.orb.maxHp;
       game.update(1 / 60);
       final live = game.companionProjectiles
-          .where((p) => p.abilityFamily == 'pip' && p.element == 'Mud' && p.stationary)
+          .where(
+            (p) =>
+                p.abilityFamily == 'pip' && p.element == 'Mud' && p.stationary,
+          )
           .length;
       if (live > peak) peak = live;
     }
@@ -181,7 +186,9 @@ void main() {
     // The pre-seeded flood ages out and the emitter never rebuilds past the
     // budget, so the list is left with room for every other placement.
     final settled = game.companionProjectiles
-        .where((p) => p.abilityFamily == 'pip' && p.element == 'Mud' && p.stationary)
+        .where(
+          (p) => p.abilityFamily == 'pip' && p.element == 'Mud' && p.stationary,
+        )
         .length;
     // ignore: avoid_print
     print('PIPMUD peak=$peak settled=$settled budget=$kPipMudTrailBudget');

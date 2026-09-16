@@ -3028,6 +3028,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           element: comp.member.element,
           kind: MasteryCastKind.basic,
           projectileCount: shaped.length,
+          masteryDamageFraction: _masteryBasicUplift(slotIndex),
         );
         _onManeBasicCast(slotIndex, basicCastId, fireAngle);
         // Kin+Lightning tesla charge: while any Lightning kin is
@@ -5658,6 +5659,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // Predator Step is spent by the cast it empowers, not by time alone.
     if (shape.homes) state.predatorStepTimer = 0;
 
+    // How much of this cast's damage the path is responsible for. A path that
+    // trades damage away for reach (Sweeping Claws) is owed nothing here; its
+    // payoff is counted in payloads and control instead.
+    final upliftMultiplier =
+        (shape.slashFraction / ManeTuning.baseSlashFraction) *
+        shape.damageMultiplier;
+    state.pendingMasteryDamageFraction = upliftMultiplier <= 1.0
+        ? 0.0
+        : (upliftMultiplier - 1.0) / upliftMultiplier;
+
     final seed = basics.first;
     // The chassis hands back its own 65% cut; scale from that to whatever the
     // path asks for rather than re-deriving physical attack here.
@@ -5956,6 +5967,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  /// The share of the next basic cast's damage that mastery is owed, set by
+  /// the shape pass that just ran.
+  double _masteryBasicUplift(int slotIndex) =>
+      _maneMastery[slotIndex]?.pendingMasteryDamageFraction ?? 0.0;
+
   /// Basic-attack cooldown multiplier from mastery. Below 1 is faster.
   double _masteryBasicCooldownMultiplier(int slotIndex) {
     if (!_isMasteryMane(slotIndex)) return 1.0;
@@ -6090,7 +6106,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     final source =
         masterySource ?? _inferMasterySource(masteryCastId, autoAttack);
-    mastery.recordDamage(sourceSlotIndex, dealt, source);
+    mastery.recordDamage(sourceSlotIndex, dealt, source, castId: masteryCastId);
     final hit = mastery.recordHit(
       castId: masteryCastId,
       targetId: identityHashCode(enemy),
@@ -7774,7 +7790,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     final bossSource =
         masterySource ?? _inferMasterySource(masteryCastId, autoAttack);
-    mastery.recordDamage(sourceSlotIndex, dealtToBoss, bossSource);
+    mastery.recordDamage(
+      sourceSlotIndex,
+      dealtToBoss,
+      bossSource,
+      castId: masteryCastId,
+    );
     final bossHit = mastery.recordHit(
       castId: masteryCastId,
       targetId: identityHashCode(boss),

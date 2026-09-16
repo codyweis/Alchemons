@@ -42,7 +42,11 @@ void main() {
     game.summonCompanion(0);
 
     // Let a target exist so the companion is willing to fire.
-    for (var i = 0; i < 600 && game.enemies.where((e) => !e.isDead).isEmpty; i++) {
+    for (
+      var i = 0;
+      i < 600 && game.enemies.where((e) => !e.isDead).isEmpty;
+      i++
+    ) {
       game.update(1 / 60);
     }
 
@@ -97,14 +101,8 @@ void main() {
     expect(three.length, 3);
     // Outer, middle, inner — and each turning at its own rate so they never
     // collapse into one rotating spoke.
-    expect(
-      three.map((r) => r.orbitRadius).toList(),
-      kManeLightOrbitRadii,
-    );
-    expect(
-      three.map((r) => r.orbitSpeed).toList(),
-      kManeLightOrbitSpeeds,
-    );
+    expect(three.map((r) => r.orbitRadius).toList(), kManeLightOrbitRadii);
+    expect(three.map((r) => r.orbitSpeed).toList(), kManeLightOrbitSpeeds);
   });
 
   test('a fourth ring is never hung', () async {
@@ -124,29 +122,32 @@ void main() {
     expect(afterSixth.map((r) => r.effectStacks).toList(), [1, 1, 1]);
   });
 
-  test('a fed ring grows, and the ward tops out where the design says', () async {
-    final fresh = (await castWard(3)).first;
-    final fed = (await castWard(13)).first;
-    expect(fed.visualScale, greaterThan(fresh.visualScale));
-    expect(fed.radiusMultiplier, greaterThan(fresh.radiusMultiplier));
+  test(
+    'a fed ring grows, and the ward tops out where the design says',
+    () async {
+      final fresh = (await castWard(3)).first;
+      final fed = (await castWard(13)).first;
+      expect(fed.visualScale, greaterThan(fresh.visualScale));
+      expect(fed.radiusMultiplier, greaterThan(fresh.radiusMultiplier));
 
-    // Half again the size of Earth's opening catapult is the authored ceiling.
-    final earth = createCosmicSpecialAbility(
-      origin: Offset.zero,
-      baseAngle: 0,
-      family: 'mane',
-      element: 'Earth',
-      damage: 40,
-      maxHp: 400,
-    ).projectiles.first;
-    expect(
-      kManeLightVisualByLevel.last,
-      closeTo(4.0 * 1.5, 0.01),
-      reason: "Earth's authored opening visualScale is 4.0",
-    );
-    expect(kManeLightRadiusByLevel.last, closeTo(4.9 * 1.5, 0.01));
-    expect(earth.visualScale, greaterThan(0));
-  });
+      // Half again the size of Earth's opening catapult is the authored ceiling.
+      final earth = createCosmicSpecialAbility(
+        origin: Offset.zero,
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Earth',
+        damage: 40,
+        maxHp: 400,
+      ).projectiles.first;
+      expect(
+        kManeLightVisualByLevel.last,
+        closeTo(4.0 * 1.5, 0.01),
+        reason: "Earth's authored opening visualScale is 4.0",
+      );
+      expect(kManeLightRadiusByLevel.last, closeTo(4.9 * 1.5, 0.01));
+      expect(earth.visualScale, greaterThan(0));
+    },
+  );
 
   test('feeding stops at the cap', () async {
     // Well past kManeLightMaxGrowth, nothing keeps climbing.

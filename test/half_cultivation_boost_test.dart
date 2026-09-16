@@ -32,10 +32,7 @@ void main() {
     test('granting runs for a day and survives a reload', () async {
       await boosts.grantHalfCultivation();
       expect(boosts.halfCultivationActive, isTrue);
-      expect(
-        boosts.halfCultivationRemaining.inHours,
-        greaterThanOrEqualTo(23),
-      );
+      expect(boosts.halfCultivationRemaining.inHours, greaterThanOrEqualTo(23));
 
       // A relaunch reads it back off the clock, not off a counter.
       final reloaded = TimedBoostService(db.settingsDao);

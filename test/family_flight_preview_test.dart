@@ -25,7 +25,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final outDir = Platform.environment['FLIGHT_OUT'];
   final only = Platform.environment['FLIGHT_ELEMENTS'];
-  final family = (Platform.environment['FLIGHT_FAMILY'] ?? 'mane').toLowerCase();
+  final family = (Platform.environment['FLIGHT_FAMILY'] ?? 'mane')
+      .toLowerCase();
 
   String? labelFont;
   setUpAll(() async {
@@ -68,17 +69,17 @@ void main() {
 
     void label(String s, Offset at, Color c, {double size = 11}) {
       TextPainter(
-        text: TextSpan(
-          text: s,
-          style: TextStyle(
-            color: c,
-            fontSize: size,
-            fontWeight: FontWeight.w700,
-            fontFamily: labelFont,
+          text: TextSpan(
+            text: s,
+            style: TextStyle(
+              color: c,
+              fontSize: size,
+              fontWeight: FontWeight.w700,
+              fontFamily: labelFont,
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )
+          textDirection: TextDirection.ltr,
+        )
         ..layout()
         ..paint(canvas, at);
     }

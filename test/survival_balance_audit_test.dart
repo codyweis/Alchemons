@@ -296,10 +296,12 @@ void main() {
     // And what the enemy curve looks like relative to itself: how much harder
     // wave N is than wave 1, on each axis.
     // ignore: avoid_print
-    print('BALANCE \u2500 wave 50 vs wave 1: '
-        'hp x${(CosmicSurvivalBalance.enemyWaveHpScale(50)).toStringAsFixed(1)}, '
-        'dmg x${(CosmicSurvivalBalance.enemyWaveDamageScale(50)).toStringAsFixed(1)}, '
-        'speed x${(CosmicSurvivalBalance.enemyWaveSpeedScale(50)).toStringAsFixed(2)}');
+    print(
+      'BALANCE \u2500 wave 50 vs wave 1: '
+      'hp x${(CosmicSurvivalBalance.enemyWaveHpScale(50)).toStringAsFixed(1)}, '
+      'dmg x${(CosmicSurvivalBalance.enemyWaveDamageScale(50)).toStringAsFixed(1)}, '
+      'speed x${(CosmicSurvivalBalance.enemyWaveSpeedScale(50)).toStringAsFixed(2)}',
+    );
   });
 
   test('what every ability heals, per cast', () {
@@ -316,7 +318,9 @@ void main() {
     // ignore: avoid_print
     print('BALANCE \u2500 ability healing riders (damage=$damage, level 10)');
     // ignore: avoid_print
-    print('family   element    selfHeal  shipHeal  blessT  blessPerTick  perSec');
+    print(
+      'family   element    selfHeal  shipHeal  blessT  blessPerTick  perSec',
+    );
     for (final family in [
       'horn',
       'wing',
@@ -341,9 +345,7 @@ void main() {
           casterStrength: 5,
           targetPos: const Offset(120, 0),
         );
-        if (r.selfHeal == 0 &&
-            r.shipHeal == 0 &&
-            r.blessingHealPerTick == 0) {
+        if (r.selfHeal == 0 && r.shipHeal == 0 && r.blessingHealPerTick == 0) {
           continue;
         }
         // What the blessing ACTUALLY pays out per second once survival applies
@@ -371,13 +373,9 @@ void main() {
     // purpose instead of discovered by a player.
     const damage = 40.0;
     final rows =
-        <({
-          String family,
-          String element,
-          int count,
-          double dmg,
-          double dps,
-        })>[];
+        <
+          ({String family, String element, int count, double dmg, double dps})
+        >[];
     for (final family in [
       'horn',
       'wing',
@@ -432,7 +430,9 @@ void main() {
     // ignore: avoid_print
     print('BALANCE \u2500 cast payload by family (damage=$damage)');
     // ignore: avoid_print
-    print('family   casts  medianDmg  minDmg(element)      maxDmg(element)      spread');
+    print(
+      'family   casts  medianDmg  minDmg(element)      maxDmg(element)      spread',
+    );
     for (final family in [
       'horn',
       'wing',
@@ -448,8 +448,10 @@ void main() {
       final withPayload = fam.where((r) => r.dmg > 0).toList();
       if (withPayload.isEmpty) {
         // ignore: avoid_print
-        print('${family.padRight(8)} ${fam.length.toString().padLeft(5)}  '
-            '(no projectile payload \u2014 passive or world family)');
+        print(
+          '${family.padRight(8)} ${fam.length.toString().padLeft(5)}  '
+          '(no projectile payload \u2014 passive or world family)',
+        );
         continue;
       }
       final median = withPayload[withPayload.length ~/ 2].dmg;
@@ -504,7 +506,9 @@ void main() {
       print('  $f');
     }
     // ignore: avoid_print
-    print('  ${flagged.length} of ${rows.length} casts sit outside half-to-double '
-        'their family median');
+    print(
+      '  ${flagged.length} of ${rows.length} casts sit outside half-to-double '
+      'their family median',
+    );
   });
 }

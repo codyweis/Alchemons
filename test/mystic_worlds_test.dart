@@ -59,9 +59,11 @@ void main() {
     await game.onLoad();
     game.startGame();
     game.summonCompanion(0);
-    for (var i = 0;
-        i < 1200 && game.enemies.where((e) => !e.isDead).isEmpty;
-        i++) {
+    for (
+      var i = 0;
+      i < 1200 && game.enemies.where((e) => !e.isDead).isEmpty;
+      i++
+    ) {
       keepAlive(game);
       game.update(1 / 60);
     }
@@ -305,10 +307,15 @@ void main() {
         }
       }
     }
-    expect(big, isNotNull, reason: 'no large body ever spawned to test against');
+    expect(
+      big,
+      isNotNull,
+      reason: 'no large body ever spawned to test against',
+    );
 
     final small = game.enemies.firstWhere(
-      (e) => !e.isDead && (e.tier == EnemyTier.wisp || e.tier == EnemyTier.drone),
+      (e) =>
+          !e.isDead && (e.tier == EnemyTier.wisp || e.tier == EnemyTier.drone),
     );
     final beforeSmall = game.mysticRevenantCount(0);
     game.debugKillEnemy(small);
@@ -357,13 +364,13 @@ void main() {
   test('a world never leaks into the shared projectile budget', () async {
     for (final element in [
       'Spirit',
-        'Blood',
-        'Dark',
-        'Plant',
-        'Lightning',
-        'Poison',
-        'Mud',
-        'Earth',
+      'Blood',
+      'Dark',
+      'Plant',
+      'Lightning',
+      'Poison',
+      'Mud',
+      'Earth',
     ]) {
       final game = await boot(element);
       final before = game.companionProjectiles.length;
@@ -409,50 +416,54 @@ void main() {
     );
   });
 
-  test('Lightning gathers before it strikes, and hits the ground it marked',
-      () async {
-    final game = await boot('Lightning');
-    await castOnce(game);
+  test(
+    'Lightning gathers before it strikes, and hits the ground it marked',
+    () async {
+      final game = await boot('Lightning');
+      await castOnce(game);
 
-    // Run to the moment the sky marks a spot.
-    for (var f = 0;
+      // Run to the moment the sky marks a spot.
+      for (
+        var f = 0;
         f < (CosmicSurvivalGame.kMysticStrikeInterval * 60).round() + 120;
-        f++) {
-      keepAlive(game);
-      game.update(1 / 60);
-      if (game.mysticStormChargeCount(0) > 0) break;
-    }
-    expect(
-      game.mysticStormChargeCount(0),
-      1,
-      reason: 'the storm struck with no warning at all',
-    );
-    final marked = game.mysticStormChargeAt(0)!;
-    expect(
-      game.mysticStrikeCount(0),
-      isZero,
-      reason: 'damage landed during the wind-up',
-    );
+        f++
+      ) {
+        keepAlive(game);
+        game.update(1 / 60);
+        if (game.mysticStormChargeCount(0) > 0) break;
+      }
+      expect(
+        game.mysticStormChargeCount(0),
+        1,
+        reason: 'the storm struck with no warning at all',
+      );
+      final marked = game.mysticStormChargeAt(0)!;
+      expect(
+        game.mysticStrikeCount(0),
+        isZero,
+        reason: 'damage landed during the wind-up',
+      );
 
-    // Walk something onto the mark. The bolt commits to a PLACE, so what is
-    // standing there when it lands is what it hits — that is the whole point
-    // of showing the player where it will fall.
-    final victim = game.enemies.firstWhere((e) => !e.isDead)
-      ..hp = 1e9
-      ..isDead = false;
-    for (var f = 0; f < 120 && game.mysticStrikeCount(0) == 0; f++) {
-      victim.position = marked;
-      keepAlive(game);
-      game.update(1 / 60);
-    }
-    expect(game.mysticStrikeCount(0), 1);
-    expect(
-      victim.hp,
-      lessThan(1e9),
-      reason: 'the bolt missed what was standing on its own mark',
-    );
-    expect(game.screenShakeTrauma, greaterThan(0), reason: 'no thunder');
-  });
+      // Walk something onto the mark. The bolt commits to a PLACE, so what is
+      // standing there when it lands is what it hits — that is the whole point
+      // of showing the player where it will fall.
+      final victim = game.enemies.firstWhere((e) => !e.isDead)
+        ..hp = 1e9
+        ..isDead = false;
+      for (var f = 0; f < 120 && game.mysticStrikeCount(0) == 0; f++) {
+        victim.position = marked;
+        keepAlive(game);
+        game.update(1 / 60);
+      }
+      expect(game.mysticStrikeCount(0), 1);
+      expect(
+        victim.hp,
+        lessThan(1e9),
+        reason: 'the bolt missed what was standing on its own mark',
+      );
+      expect(game.screenShakeTrauma, greaterThan(0), reason: 'no thunder');
+    },
+  );
 
   test('Earth quakes put every enemy on the floor at once', () async {
     final game = await boot('Earth');
@@ -461,9 +472,11 @@ void main() {
     // Stop on the frame the quake lands. Shake decays in well under a second,
     // so running a fixed number of frames past the interval and then asserting
     // catches nothing — it had already settled.
-    for (var f = 0;
-        f < (CosmicSurvivalGame.kMysticQuakeInterval * 60).round() + 120;
-        f++) {
+    for (
+      var f = 0;
+      f < (CosmicSurvivalGame.kMysticQuakeInterval * 60).round() + 120;
+      f++
+    ) {
       for (final e in game.enemies) {
         e.hp = 1e9;
       }
@@ -500,7 +513,11 @@ void main() {
     final game = await boot('Poison');
     await castOnce(game);
     run(game, 420);
-    expect(game.mysticPoolCount(0), greaterThan(1), reason: 'no trail was laid');
+    expect(
+      game.mysticPoolCount(0),
+      greaterThan(1),
+      reason: 'no trail was laid',
+    );
 
     // A fresh patch arrives unfinished and spreads. Forced by moving the ship
     // far enough to guarantee a drop on the next frame, rather than hoping the
@@ -576,7 +593,11 @@ void main() {
     var previous = 0.0;
     for (final tier in EnemyTier.values) {
       final w = game.debugWeightMultiplier(tier);
-      expect(w, greaterThan(previous), reason: '$tier is not heavier than the tier below');
+      expect(
+        w,
+        greaterThan(previous),
+        reason: '$tier is not heavier than the tier below',
+      );
       previous = w;
     }
 
@@ -585,51 +606,54 @@ void main() {
     expect(game.debugWeightMultiplier(EnemyTier.colossus), 1.0);
   });
 
-  test('Ice slows everything, and the cold lifts when the world ends', () async {
-    final game = await boot('Ice');
-    await castOnce(game);
-    run(game, 60);
+  test(
+    'Ice slows everything, and the cold lifts when the world ends',
+    () async {
+      final game = await boot('Ice');
+      await castOnce(game);
+      run(game, 60);
 
-    final chilled = game.enemies.where((e) => !e.isDead).toList();
-    expect(chilled, isNotEmpty);
-    expect(
-      chilled.every((e) => e.effectiveSpeed < e.speed),
-      isTrue,
-      reason: 'a blizzard slows the whole field, not a radius of it',
-    );
+      final chilled = game.enemies.where((e) => !e.isDead).toList();
+      expect(chilled, isNotEmpty);
+      expect(
+        chilled.every((e) => e.effectiveSpeed < e.speed),
+        isTrue,
+        reason: 'a blizzard slows the whole field, not a radius of it',
+      );
 
-    // It multiplies whatever else is happening rather than competing with it.
-    // The ordinary slow field holds one value — the single strongest effect —
-    // so a blizzard written there would either swallow another slow or be
-    // swallowed by one.
-    final victim = chilled.first;
-    final blizzardOnly = victim.effectiveSpeed;
-    victim
-      ..slowTimer = 3
-      ..slowMultiplier = 0.5;
-    expect(
-      victim.effectiveSpeed,
-      lessThan(blizzardOnly),
-      reason: 'a second slow did not stack on top of the blizzard',
-    );
+      // It multiplies whatever else is happening rather than competing with it.
+      // The ordinary slow field holds one value — the single strongest effect —
+      // so a blizzard written there would either swallow another slow or be
+      // swallowed by one.
+      final victim = chilled.first;
+      final blizzardOnly = victim.effectiveSpeed;
+      victim
+        ..slowTimer = 3
+        ..slowMultiplier = 0.5;
+      expect(
+        victim.effectiveSpeed,
+        lessThan(blizzardOnly),
+        reason: 'a second slow did not stack on top of the blizzard',
+      );
 
-    // And it has to LIFT: a field left permanently slowed by a Mystic that is
-    // no longer there would be the bug nobody notices.
-    game.returnCompanion(0);
-    run(game, 30);
-    for (final e in game.enemies) {
-      e
-        ..slowTimer = 0
-        ..slowMultiplier = 1.0;
-    }
-    expect(
-      game.enemies.where((e) => !e.isDead).every(
-        (e) => e.effectiveSpeed >= e.speed * 0.99,
-      ),
-      isTrue,
-      reason: 'the blizzard outlived its Mystic',
-    );
-  });
+      // And it has to LIFT: a field left permanently slowed by a Mystic that is
+      // no longer there would be the bug nobody notices.
+      game.returnCompanion(0);
+      run(game, 30);
+      for (final e in game.enemies) {
+        e
+          ..slowTimer = 0
+          ..slowMultiplier = 1.0;
+      }
+      expect(
+        game.enemies
+            .where((e) => !e.isDead)
+            .every((e) => e.effectiveSpeed >= e.speed * 0.99),
+        isTrue,
+        reason: 'the blizzard outlived its Mystic',
+      );
+    },
+  );
 
   test('Crystal leaves shards the ship can draw in', () async {
     final game = await boot('Crystal');
@@ -654,7 +678,11 @@ void main() {
     // Collecting feeds the meter — that is the whole point of the world.
     game.alchemicalMeter = 0;
     final shardsBefore = game.mysticCrystalCount(0);
-    for (var f = 0; f < 240 && game.mysticCrystalCount(0) >= shardsBefore; f++) {
+    for (
+      var f = 0;
+      f < 240 && game.mysticCrystalCount(0) >= shardsBefore;
+      f++
+    ) {
       keepAlive(game);
       game.update(1 / 60);
     }
@@ -680,8 +708,16 @@ void main() {
     game.debugRushMysticDawn(0);
     run(game, 6);
 
-    expect(game.orb.currentHp, game.orb.maxHp, reason: 'the orb was not healed');
-    expect(game.ship.currentHp, game.ship.maxHp, reason: 'the ship was not healed');
+    expect(
+      game.orb.currentHp,
+      game.orb.maxHp,
+      reason: 'the orb was not healed',
+    );
+    expect(
+      game.ship.currentHp,
+      game.ship.maxHp,
+      reason: 'the ship was not healed',
+    );
     // And it rises again rather than being a one-off.
     expect(game.mysticStarCharge(0), lessThan(0.2));
   });
@@ -725,61 +761,65 @@ void main() {
     );
   });
 
-  test('Steam vents throw everything away from the orb, and hurt nothing',
-      () async {
-    final game = await boot('Steam');
-    await castOnce(game);
+  test(
+    'Steam vents throw everything away from the orb, and hurt nothing',
+    () async {
+      final game = await boot('Steam');
+      await castOnce(game);
 
-    // Blown directly rather than waited for. Across eight seconds of clock the
-    // party is shooting the whole time, and that chip damage is
-    // indistinguishable from damage the vent might have done — which is the
-    // one thing this test exists to rule out.
-    final victim = game.enemies.firstWhere((e) => !e.isDead)
-      ..hp = 1e9
-      ..isDead = false
-      ..knockbackVelocity = Offset.zero
-      ..position = game.orb.position + const Offset(40, 0);
+      // Blown directly rather than waited for. Across eight seconds of clock the
+      // party is shooting the whole time, and that chip damage is
+      // indistinguishable from damage the vent might have done — which is the
+      // one thing this test exists to rule out.
+      final victim = game.enemies.firstWhere((e) => !e.isDead)
+        ..hp = 1e9
+        ..isDead = false
+        ..knockbackVelocity = Offset.zero
+        ..position = game.orb.position + const Offset(40, 0);
 
-    game.debugVentSteam(0);
+      game.debugVentSteam(0);
 
-    // Displacement with no damage is the whole identity: every other world
-    // that clears a crowd does it by hurting one.
-    expect(
-      victim.hp,
-      1e9,
-      reason: 'the vent dealt damage; it is meant to buy room, not kills',
-    );
-    expect(
-      victim.knockbackVelocity.distance,
-      greaterThan(100),
-      reason: 'nothing was thrown',
-    );
-    final away = victim.position - game.orb.position;
-    expect(
-      victim.knockbackVelocity.dx * away.dx +
-          victim.knockbackVelocity.dy * away.dy,
-      greaterThan(0),
-      reason: 'the shove pointed somewhere other than away from the orb',
-    );
-    expect(game.screenShakeTrauma, greaterThan(0));
+      // Displacement with no damage is the whole identity: every other world
+      // that clears a crowd does it by hurting one.
+      expect(
+        victim.hp,
+        1e9,
+        reason: 'the vent dealt damage; it is meant to buy room, not kills',
+      );
+      expect(
+        victim.knockbackVelocity.distance,
+        greaterThan(100),
+        reason: 'nothing was thrown',
+      );
+      final away = victim.position - game.orb.position;
+      expect(
+        victim.knockbackVelocity.dx * away.dx +
+            victim.knockbackVelocity.dy * away.dy,
+        greaterThan(0),
+        reason: 'the shove pointed somewhere other than away from the orb',
+      );
+      expect(game.screenShakeTrauma, greaterThan(0));
 
-    // Hardest on whatever is closest to the orb — the thing the vent is for.
-    final far = game.enemies.lastWhere((e) => !e.isDead && !identical(e, victim))
-      ..hp = 1e9
-      ..isDead = false
-      ..knockbackVelocity = Offset.zero
-      ..position = game.orb.position + const Offset(900, 0);
-    victim
-      ..knockbackVelocity = Offset.zero
-      ..position = game.orb.position + const Offset(40, 0);
-    game.debugVentSteam(0);
-    expect(
-      victim.knockbackVelocity.distance,
-      greaterThan(far.knockbackVelocity.distance),
-      reason: 'a uniform shove moves the far ranks as much as the ones on top '
-          'of the thing being defended',
-    );
-  });
+      // Hardest on whatever is closest to the orb — the thing the vent is for.
+      final far =
+          game.enemies.lastWhere((e) => !e.isDead && !identical(e, victim))
+            ..hp = 1e9
+            ..isDead = false
+            ..knockbackVelocity = Offset.zero
+            ..position = game.orb.position + const Offset(900, 0);
+      victim
+        ..knockbackVelocity = Offset.zero
+        ..position = game.orb.position + const Offset(40, 0);
+      game.debugVentSteam(0);
+      expect(
+        victim.knockbackVelocity.distance,
+        greaterThan(far.knockbackVelocity.distance),
+        reason:
+            'a uniform shove moves the far ranks as much as the ones on top '
+            'of the thing being defended',
+      );
+    },
+  );
 
   test('Lava cracks the arena, and only something heavy breaks it', () async {
     final game = await boot('Lava');
@@ -886,14 +926,13 @@ void main() {
 
     // Not the whole arena: outside the rim, bodies still come on. A maelstrom
     // that covered the floor would end the run's pressure outright.
-    final free = game.enemies.lastWhere(
-      (e) => !e.isDead && !identical(e, caught),
-    )
-      ..hp = 1e9
-      ..isDead = false
-      ..position = eye + Offset(radius * 2.2, 0)
-      ..slowTimer = 0
-      ..slowMultiplier = 1.0;
+    final free =
+        game.enemies.lastWhere((e) => !e.isDead && !identical(e, caught))
+          ..hp = 1e9
+          ..isDead = false
+          ..position = eye + Offset(radius * 2.2, 0)
+          ..slowTimer = 0
+          ..slowMultiplier = 1.0;
     run(game, 2);
     expect(
       free.effectiveSpeed,
@@ -902,46 +941,54 @@ void main() {
     );
   });
 
-  test('Air walks a tornado round the arena and lifts what it passes', () async {
-    final game = await boot('Air');
-    await castOnce(game);
+  test(
+    'Air walks a tornado round the arena and lifts what it passes',
+    () async {
+      final game = await boot('Air');
+      await castOnce(game);
 
-    final first = game.mysticTornadoPosition(0)!;
-    final funnel = game.mysticTornadoFunnelRadius(0)!;
-    // It travels. That is the whole difference between this and Water's
-    // maelstrom, which holds one spot: the player has to track where it is.
-    run(game, 180);
-    final later = game.mysticTornadoPosition(0)!;
-    expect(
-      (later - first).distance,
-      greaterThan(60),
-      reason: 'the tornado sat still',
-    );
-    // And it stays on its circuit rather than wandering into the orb.
-    expect(
-      (later - game.orb.position).distance,
-      closeTo((first - game.orb.position).distance, 1.0),
-      reason: 'it left its circuit',
-    );
+      final first = game.mysticTornadoPosition(0)!;
+      final funnel = game.mysticTornadoFunnelRadius(0)!;
+      // It travels. That is the whole difference between this and Water's
+      // maelstrom, which holds one spot: the player has to track where it is.
+      run(game, 180);
+      final later = game.mysticTornadoPosition(0)!;
+      expect(
+        (later - first).distance,
+        greaterThan(60),
+        reason: 'the tornado sat still',
+      );
+      // And it stays on its circuit rather than wandering into the orb.
+      expect(
+        (later - game.orb.position).distance,
+        closeTo((first - game.orb.position).distance, 1.0),
+        reason: 'it left its circuit',
+      );
 
-    // Anything it passes over is off the ground: held, hauled in, and ground.
-    final caught = game.enemies.firstWhere((e) => !e.isDead)
-      ..hp = 1e9
-      ..isDead = false
-      ..position = later + Offset(funnel * 0.6, 0);
-    run(game, 2);
-    final startDist = (caught.position - game.mysticTornadoPosition(0)!).distance;
-    expect(
-      caught.effectiveSpeed,
-      isZero,
-      reason: 'the funnel is supposed to lift, not just slow',
-    );
-    run(game, 40);
-    expect(
-      (caught.position - game.mysticTornadoPosition(0)!).distance,
-      lessThan(startDist),
-      reason: 'nothing was hauled toward the core',
-    );
-    expect(caught.hp, lessThan(1e9), reason: 'the funnel ground nothing down');
-  });
+      // Anything it passes over is off the ground: held, hauled in, and ground.
+      final caught = game.enemies.firstWhere((e) => !e.isDead)
+        ..hp = 1e9
+        ..isDead = false
+        ..position = later + Offset(funnel * 0.6, 0);
+      run(game, 2);
+      final startDist =
+          (caught.position - game.mysticTornadoPosition(0)!).distance;
+      expect(
+        caught.effectiveSpeed,
+        isZero,
+        reason: 'the funnel is supposed to lift, not just slow',
+      );
+      run(game, 40);
+      expect(
+        (caught.position - game.mysticTornadoPosition(0)!).distance,
+        lessThan(startDist),
+        reason: 'nothing was hauled toward the core',
+      );
+      expect(
+        caught.hp,
+        lessThan(1e9),
+        reason: 'the funnel ground nothing down',
+      );
+    },
+  );
 }

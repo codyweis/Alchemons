@@ -85,7 +85,10 @@ void main() {
       );
 
       await OpeningWildernessService.markSceneVisited(settings, hunt.last);
-      expect(await OpeningWildernessService.openShipHuntScene(settings), isNull);
+      expect(
+        await OpeningWildernessService.openShipHuntScene(settings),
+        isNull,
+      );
       for (final scene in OpeningWildernessService.coreScenes) {
         expect(
           await OpeningWildernessService.isSceneAllowed(settings, scene),

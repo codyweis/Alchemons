@@ -14,7 +14,8 @@ void main() {
   test('every cue asset is on disk', () {
     final missing = <String>[];
     for (final cue in SoundCue.values) {
-      if (!File(cue.asset).existsSync()) missing.add('${cue.name}: ${cue.asset}');
+      if (!File(cue.asset).existsSync())
+        missing.add('${cue.name}: ${cue.asset}');
     }
     expect(missing, isEmpty);
   });

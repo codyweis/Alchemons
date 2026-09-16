@@ -39,18 +39,28 @@ void main() {
   /// Lands one Let meteor on a single enemy and reports how many companion
   /// projectiles exist afterwards. [enemyHp] decides whether the impact kills.
   Future<int> landMeteorOn(String element, {required double enemyHp}) async {
-    final game = CosmicSurvivalGame(party: [member(element)], onGameOver: () {});
+    final game = CosmicSurvivalGame(
+      party: [member(element)],
+      onGameOver: () {},
+    );
     game.onGameResize(Vector2(900, 700));
     await game.onLoad();
     game.startGame();
     game.summonCompanion(0);
 
     // Let the spawner produce something to shoot at.
-    for (var i = 0; i < 600 && game.enemies.where((e) => !e.isDead).isEmpty; i++) {
+    for (
+      var i = 0;
+      i < 600 && game.enemies.where((e) => !e.isDead).isEmpty;
+      i++
+    ) {
       game.update(1 / 60);
     }
-    expect(game.enemies.where((e) => !e.isDead), isNotEmpty,
-        reason: 'test setup: spawner produced no enemies');
+    expect(
+      game.enemies.where((e) => !e.isDead),
+      isNotEmpty,
+      reason: 'test setup: spawner produced no enemies',
+    );
 
     // Park a lone target away from the spawner's traffic, and clear the rest so
     // the crater can only contain this one body.
@@ -88,20 +98,27 @@ void main() {
     );
     // The parent meteor is spent by now; anything left is a follow-up.
     return game.companionProjectiles
-        .where((p) => p.element == 'Dark' && p.visualStyle == ProjectileVisualStyle.meteor)
+        .where(
+          (p) =>
+              p.element == 'Dark' &&
+              p.visualStyle == ProjectileVisualStyle.meteor,
+        )
         .length;
   }
 
-  test('Dark throws no follow-up meteors on a hit that does not kill', () async {
-    final followUps = await landMeteorOn('Dark', enemyHp: 100000);
-    expect(
-      followUps,
-      isZero,
-      reason:
-          'A Dark Let that only grazed spawned $followUps follow-up meteors. '
-          'The design gates the bombardment on a kill.',
-    );
-  });
+  test(
+    'Dark throws no follow-up meteors on a hit that does not kill',
+    () async {
+      final followUps = await landMeteorOn('Dark', enemyHp: 100000);
+      expect(
+        followUps,
+        isZero,
+        reason:
+            'A Dark Let that only grazed spawned $followUps follow-up meteors. '
+            'The design gates the bombardment on a kill.',
+      );
+    },
+  );
 
   test('Dark still throws its bombardment on a kill', () async {
     final followUps = await landMeteorOn('Dark', enemyHp: 1);

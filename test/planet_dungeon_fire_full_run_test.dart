@@ -808,11 +808,11 @@ void main() {
       reason: 'the guardian must actually walk the rite',
     );
     // Ranks arrive in sequence, from the top of the rite.
-    expect(
-      ranksSeen.take(3).toList(),
-      [0, 1, 2],
-      reason: 'the ORDER is the bullet pattern: $ranksSeen',
-    );
+    expect(ranksSeen.take(3).toList(), [
+      0,
+      1,
+      2,
+    ], reason: 'the ORDER is the bullet pattern: $ranksSeen');
   });
 
   test('the telegraph runs in a raid — the arena carries its own braziers', () {

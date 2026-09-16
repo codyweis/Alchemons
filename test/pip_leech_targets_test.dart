@@ -47,7 +47,11 @@ void main() {
     await game.onLoad();
     game.startGame();
     game.summonCompanion(0);
-    for (var i = 0; i < 900 && game.enemies.where((e) => !e.isDead).isEmpty; i++) {
+    for (
+      var i = 0;
+      i < 900 && game.enemies.where((e) => !e.isDead).isEmpty;
+      i++
+    ) {
       if (game.showingPowerUpSelection) {
         game.alchemicalMeter = 0;
         game.dismissPowerUpSelection();

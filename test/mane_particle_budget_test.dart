@@ -83,26 +83,29 @@ void main() {
     return (peak: peak, projectiles: projectiles);
   }
 
-  test('a single Mane cast cannot monopolise the ambient particle pool', () async {
-    // Dust was the widest fan in the family (9-16 lanes) when this test was
-    // written, which made it the worst case for a per-projectile emitter. The
-    // family has since been consolidated to single heavy shots, so the worst
-    // case now is simply "a cast is in flight" — which is the right thing to
-    // measure anyway, and the narrow-fan test below is what really pins it.
-    final dust = await runOneCast('Dust');
-    // ignore: avoid_print
-    print(
-      'mane Dust: ${dust.projectiles} projectiles, peak particles ${dust.peak}',
-    );
-    expect(
-      dust.peak,
-      lessThanOrEqualTo(kManeTrailParticleBudget),
-      reason:
-          'One cast held ${dust.peak} particles. The trail must stay inside '
-          'its own budget so hit sparks, kill bursts and meteor craters can '
-          'still get particles while a Mane cast is in flight.',
-    );
-  });
+  test(
+    'a single Mane cast cannot monopolise the ambient particle pool',
+    () async {
+      // Dust was the widest fan in the family (9-16 lanes) when this test was
+      // written, which made it the worst case for a per-projectile emitter. The
+      // family has since been consolidated to single heavy shots, so the worst
+      // case now is simply "a cast is in flight" — which is the right thing to
+      // measure anyway, and the narrow-fan test below is what really pins it.
+      final dust = await runOneCast('Dust');
+      // ignore: avoid_print
+      print(
+        'mane Dust: ${dust.projectiles} projectiles, peak particles ${dust.peak}',
+      );
+      expect(
+        dust.peak,
+        lessThanOrEqualTo(kManeTrailParticleBudget),
+        reason:
+            'One cast held ${dust.peak} particles. The trail must stay inside '
+            'its own budget so hit sparks, kill bursts and meteor craters can '
+            'still get particles while a Mane cast is in flight.',
+      );
+    },
+  );
 
   test('even the narrowest Mane cast leaves the pool free', () async {
     // Before the fix, Blood at three projectiles and Dust at nine BOTH pinned
