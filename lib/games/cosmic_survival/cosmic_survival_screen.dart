@@ -37,7 +37,9 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
+import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
+import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -1119,6 +1121,20 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     final upgradeSvc = context.read<SurvivalUpgradeService>();
     _mysticOverlayController.clear();
 
+    // The equipped path per family is locked here and never re-read for the
+    // rest of the run, so switching a branch mid-run is impossible rather
+    // than merely discouraged.
+    final masterySvc = context.read<FamilyMasteryService>();
+    final masterySnapshot = masterySvc.snapshotForParty([
+      for (final member in party)
+        if (creatureFamilyFromStorage(member.family) case final family?)
+          FamilyMasteryPartyMemberRef(
+            slotIndex: member.slotIndex,
+            instanceId: member.instanceId,
+            family: family,
+          ),
+    ]);
+
     final game = CosmicSurvivalGame(
       party: party,
       onSound: (cue) {
@@ -1130,6 +1146,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       onBossSpawn: _handleBossSpawn,
       onMysticSpecialCast: _mysticOverlayController.spawn,
       upgradeState: upgradeSvc.state,
+      masterySnapshot: masterySnapshot,
       visualQuality: _visualQuality,
       shipSkin: _shipSkin,
     );

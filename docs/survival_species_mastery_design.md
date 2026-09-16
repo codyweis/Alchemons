@@ -1,6 +1,6 @@
 # Survival Family Mastery
 
-Status (2026-09-16): Phase 1 complete, and the Base Command Mastery tab is polished (the first item of Phase 6). Purchases, branch selection and run snapshots work, but combat does not read the snapshot yet, so no node affects a run. Next: Phase 2 (combat event foundation).
+Status (2026-09-16): Phases 1 and 2 complete, and the Base Command Mastery tab is polished (the first item of Phase 6). Purchases, branch selection and run snapshots work; a run now locks its snapshot and combat carries cast identity, hit/kill/damage events, the shared elemental payload resolver, the shared guards and attribution telemetry. No node changes a run yet — the tree nodes themselves arrive in Phases 3-5. Next: Phase 3 (the Mane vertical slice).
 
 ## Purpose
 
@@ -514,13 +514,15 @@ Telemetry should separately attribute basic damage, mastery damage, special dama
 4. Implement one selected path per family, free reset, and immutable run snapshots.
 5. Test affordability, duplicate purchase prevention, invalid saves, renamed nodes, and multiple family members sharing one selected path.
 
-### Phase 2: combat event foundation — next
+### Phase 2: combat event foundation — done 2026-09-16
 
-1. Give every basic cast and projectile stable source and cast IDs.
-2. Add cast, hit, kill, special, and damage event hooks.
-3. Implement recursion guards, per-cast accounting, proc cooldowns, and object budgets.
-4. Add the shared elemental payload resolver.
-5. Add combat attribution telemetry.
+1. ~~Give every basic cast and projectile stable source and cast IDs.~~
+2. ~~Add cast, hit, kill, special, and damage event hooks.~~
+3. ~~Implement recursion guards, per-cast accounting, proc cooldowns, and object budgets.~~
+4. ~~Add the shared elemental payload resolver.~~
+5. ~~Add combat attribution telemetry.~~
+
+See *Combat runtime* below for what shipped and where it lives.
 
 ### Phase 3: Mane vertical slice
 
@@ -546,6 +548,78 @@ Implement Horn, Kin, and Mystic after the shared runtime is stable. These requir
 3. Add VFX and sound distinctions for all capstones and payload forms.
 4. Run full survival simulations and regression tests.
 5. Ship family trees in batches if balance or art production requires it.
+
+## Combat runtime
+
+Built in Phase 2. Nodes are written against this surface and nothing else; a
+node that reaches into the combat loop directly is a node that will be missed
+when the shared rules are audited.
+
+| Piece | Where |
+| --- | --- |
+| Cast identity, accounting, guards, budget, telemetry | `lib/games/cosmic_survival/survival_mastery_runtime.dart` |
+| The seventeen-element payload table | `lib/games/cosmic_survival/survival_mastery_payload.dart` |
+| Payload application, event dispatch | `cosmic_survival_game.dart`, "Family Mastery combat events" |
+| Per-body statuses the payloads write | `MasteryPayloadStatuses` in `cosmic_survival_spawner.dart` |
+| Run snapshot lock | `FamilyMasteryService.snapshotForParty`, called once in `_startGame` |
+
+### Cast identity
+
+`SurvivalMasteryRuntime.beginCast` opens a cast and returns an id; the game
+stamps it onto every projectile that cast produces (`Projectile.masteryCastId`).
+One scheduled attack is one cast however many projectiles it throws, so a Mane
+pair, a Pip volley and a Wing pair each count once. Specials are re-stamped
+after the per-family rewrites, because several families rebuild their
+projectile list from a seed rather than editing it.
+
+Two deliberate exceptions:
+
+- **Kin's charged beam opens a cast** with one projectile. It is the family's
+  autoattack, and a body the line touches has taken everything that cast had.
+- **Wing's sustained beams do not.** They are attributed to the special, but a
+  six-second stream of ticks tied to one cast id would read as "the volley
+  fully landed" for as long as the beam burned.
+
+Cast id 0 means "no cast", so every stamping site can stamp unconditionally.
+When no party member has a path equipped the runtime is inert and hands out 0,
+which is what keeps the system free for players who own nothing.
+
+### What a node may ask
+
+- `hasNode(slot, nodeId)` / `hasPath(slot, pathId)` — is this purchased and equipped.
+- `MasteryHit` — `isDualHit`, `isFullVolleyHit`, `hitIndexOnTarget`, `fromBasic`.
+- `MasteryKill` — which cast killed, and whether the body was a boss.
+- `claimPayloadTarget(castId, targetId)` — the "once per target per cast" rule.
+- `tryProc(slot, effectId, seconds, targetId:)` — the only rate limiter nodes use.
+- `requestObjects(count)` — the only way to spawn. Refused means skip, never queue.
+- `runGuarded(...)` — mastery work that must not nest.
+
+Node reactions attach at `_onMasteryHit` and `_onMasteryKill`, which are
+deliberately empty until Phase 3.
+
+### Payloads
+
+`triggerElementalPayload` is the only way a payload may be applied. A node
+supplies the slot, an effect id, a target, a strength and an optional cooldown;
+the element table supplies the behaviour. The resolver is pure and returns
+`PayloadAction` descriptors that the game's two appliers — one for bodies, one
+for bosses — turn into survival's own status fields. A payload runs inside the
+recursion guard, so a payload that kills can never trigger another payload.
+
+Against bosses, control durations are scaled by `kBossControlScale` and the
+forms a boss cannot take become the table's stated substitutes: every control
+becomes a chill on boss movement, Earth's stagger becomes a slow, and pushes,
+pulls and interrupts do nothing rather than fighting the discipline AIs.
+Payload *damage* is never reduced.
+
+### Telemetry
+
+`MasterySlotTelemetry` separates basic, special and mastery damage, healing,
+shielding, control seconds, payload applications, special amplifications and
+capstone activations, per slot. `masteryShare` is the headline: how much of a
+companion's damage its path is actually responsible for. Cast counts are
+recorded even with the runtime disabled, so a no-mastery run is still a usable
+balance baseline.
 
 ## Decisions intentionally deferred
 

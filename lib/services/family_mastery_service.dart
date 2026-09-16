@@ -198,23 +198,49 @@ class FamilyMasteryService extends ChangeNotifier {
     if (memberList.isEmpty) return SurvivalFamilyMasterySnapshot.empty;
 
     final rows = await _db.familyMasteryDao.getAllFamilyMasteries();
-    final rowByFamily = <CreatureFamily, SurvivalFamilyMastery>{};
+    final owned = <CreatureFamily, Set<String>>{};
+    final selected = <CreatureFamily, String>{};
     for (final row in rows) {
       final family = creatureFamilyFromStorage(row.familyId);
-      if (family != null) rowByFamily[family] = row;
-    }
-
-    final result = <int, EquippedFamilyMastery>{};
-    for (final member in memberList) {
-      final row = rowByFamily[member.family];
-      final pathId = row?.selectedPathId;
-      if (row == null || pathId == null) continue;
-      final path = FamilyMasteryCatalog.pathFor(member.family, pathId);
-      if (path == null) continue;
-      final owned = FamilyMasteryCatalog.sanitizePurchases(
-        member.family,
+      if (family == null) continue;
+      owned[family] = FamilyMasteryCatalog.sanitizePurchases(
+        family,
         _decodeStringSet(row.purchasedNodeIdsJson),
       );
+      final pathId = row.selectedPathId;
+      if (pathId != null) selected[family] = pathId;
+    }
+    return _snapshotFrom(memberList, owned, selected);
+  }
+
+  /// The snapshot a run actually locks, built from the loaded in-memory state.
+  ///
+  /// Starting a run is synchronous — the screen has a party and needs a
+  /// snapshot in the same frame it constructs the game. The cache is written
+  /// by [load] and refreshed after every purchase and every branch change, so
+  /// it is never behind storage by more than the await that just finished.
+  SurvivalFamilyMasterySnapshot snapshotForParty(
+    Iterable<FamilyMasteryPartyMemberRef> members,
+  ) {
+    final memberList = members.toList(growable: false);
+    if (memberList.isEmpty) return SurvivalFamilyMasterySnapshot.empty;
+    return _snapshotFrom(memberList, _purchases, _selectedPaths);
+  }
+
+  SurvivalFamilyMasterySnapshot _snapshotFrom(
+    List<FamilyMasteryPartyMemberRef> members,
+    Map<CreatureFamily, Set<String>> purchases,
+    Map<CreatureFamily, String> selectedPaths,
+  ) {
+    final result = <int, EquippedFamilyMastery>{};
+    for (final member in members) {
+      final pathId = selectedPaths[member.family];
+      if (pathId == null) continue;
+      final path = FamilyMasteryCatalog.pathFor(member.family, pathId);
+      if (path == null) continue;
+      final owned = purchases[member.family] ?? const <String>{};
+      // An equipped path whose first node is not owned is not a build; it is
+      // a stale selection, and a run must not inherit one.
       if (!owned.contains(path.nodes.first.id)) continue;
 
       result[member.slotIndex] = EquippedFamilyMastery(

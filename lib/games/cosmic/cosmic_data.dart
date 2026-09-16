@@ -1979,9 +1979,8 @@ class DungeonEntryDemand {
   /// The planet used to put this in verse and let the player work it out.
   /// Saying it plainly costs the mystery and buys a party you can actually
   /// pack before you fly out there.
-  String get speciesLabel => element == null
-      ? 'Any $family'
-      : '$element${family.toLowerCase()}';
+  String get speciesLabel =>
+      element == null ? 'Any $family' : '$element${family.toLowerCase()}';
 
   bool satisfiedBy(Iterable<CosmicPartyMember?> party) {
     final want = family.toLowerCase();
@@ -4549,6 +4548,21 @@ class Projectile {
   /// Companion slot that created this projectile, if any.
   int? sourceSlotIndex;
 
+  /// Survival Family Mastery cast this projectile belongs to, or 0 for none.
+  ///
+  /// A "cast" is one scheduled attack, however many projectiles it throws, so
+  /// every slash of a Mane pair and every dart of a Pip volley carries the
+  /// same id. That is what lets the mastery runtime answer "both blades hit
+  /// the same body" without a multishot family triggering cast-based nodes
+  /// three times as often. See survival_mastery_runtime.dart.
+  int masteryCastId = 0;
+
+  /// True when a mastery node created this projectile rather than the
+  /// family's own attack or special. Damage from it attributes to mastery,
+  /// and it never opens a cast of its own — that is the recursion guard in
+  /// its cheapest form.
+  bool masteryGenerated = false;
+
   /// Survival-side attachment marker: -2 = none, -1 = follow the ship,
   /// >= 0 = follow the active companion in that slot each frame. Used
   /// by Mask+Dust shields so each alchemon gets its own travelling
@@ -5432,6 +5446,10 @@ Projectile _copyProjectile(
   clone.trailTimer = p.trailTimer;
   clone.turretTimer = p.turretTimer;
   clone.clustered = p.clustered;
+  // A copy is the same cast: a ricochet or a split that dropped its cast id
+  // would read to the runtime as a second, unaccounted attack.
+  clone.masteryCastId = p.masteryCastId;
+  clone.masteryGenerated = p.masteryGenerated;
   return clone;
 }
 
@@ -8483,7 +8501,6 @@ CosmicSpecialResult _maneSpecial(
     );
     return (base * scale * 0.58).round().clamp(min, max);
   }
-
 
   double scaledSpread(double base) {
     final beautySpread = _specialStatScaleFromBaseline(

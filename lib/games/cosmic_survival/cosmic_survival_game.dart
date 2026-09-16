@@ -24,8 +24,11 @@ import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mastery_payload.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mastery_runtime.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
+import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/games/shared/type_effectiveness.dart';
@@ -1134,6 +1137,25 @@ class _MysticEnvironment {
 
 /// Transient Kin auto-attack laser beam — a thin line from kin to
 /// target that lingers briefly then fades. Cheap render struct.
+/// A Spirit payload's pending echo: the same hit, repeated at reduced power
+/// after a delay. Holds the body directly because the echo is meaningless if
+/// that body is already gone.
+class _MasteryEcho {
+  _MasteryEcho({
+    required this.slotIndex,
+    required this.damage,
+    required this.delay,
+    this.enemy,
+    this.boss,
+  });
+
+  final int slotIndex;
+  final double damage;
+  double delay;
+  final CosmicSurvivalEnemy? enemy;
+  final SurvivalBoss? boss;
+}
+
 class _KinLaserBeam {
   final Offset origin;
   final Offset end;
@@ -1334,6 +1356,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final void Function(MysticSpecialCastEvent event)? onMysticSpecialCast;
   final SurvivalUpgradeState upgradeState;
   final SurvivalVisualQuality visualQuality;
+
+  /// Family Mastery's combat event surface. Holds the run's immutable path
+  /// snapshot and answers the cast/hit/kill questions mastery nodes are
+  /// written against. Inert — and free — when nothing in the party has a path
+  /// equipped. See survival_mastery_runtime.dart.
+  final SurvivalMasteryRuntime mastery;
 
   /// A cosmic ship design id ('skin_phantom', …); null flies the standard
   /// survival hull.
@@ -1728,7 +1756,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     this.shipSkin,
     this.visualQuality = SurvivalVisualQuality.performance,
     SurvivalUpgradeState? upgradeState,
+    SurvivalFamilyMasterySnapshot? masterySnapshot,
   }) : upgradeState = upgradeState ?? SurvivalUpgradeState(),
+       mastery = SurvivalMasteryRuntime(snapshot: masterySnapshot),
        _rng = random ?? Random(),
        spawner = CosmicSurvivalSpawner(random: random);
 
@@ -1868,6 +1898,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void startGame() {
     _started = true;
+    // The path snapshot is locked for the run; the rhythm it drives is not,
+    // so a second run in the same session starts from zero.
+    mastery.reset();
     _startZoomAnimation(_zoomPresets[_zoomLevelIndex]);
     spawner.startFirstWave();
   }
@@ -1885,6 +1918,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     stats.timeElapsed += dt;
     damageNumbers.update(dt);
+    mastery.tick(dt);
 
     // Zoom animation
     if (!_zoomAnimComplete) {
@@ -1901,6 +1935,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateEnemies(dt, _projectileControlBuckets);
     _rebuildEnemySpatialGrid();
     _updateCompanionProjectiles(dt);
+    _updateMasteryEchoes(dt);
     updatePersistentAbilityEffects(dt);
     _updateBeamEffects(dt);
     _updateFlowerPickups(dt);
@@ -2882,8 +2917,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           casterStrength: thresholdStrength,
           targetPos: comp.doubleCastTargetPos,
         );
+        // The echo is the same attack happening twice, but it lands on its
+        // own schedule, so it gets its own cast rather than reopening one
+        // whose dual-hit window closed a second ago.
+        final echoCastId = mastery.beginCast(
+          slotIndex: slotIndex,
+          family: creatureFamilyFromStorage(comp.member.family),
+          element: comp.member.element,
+          kind: MasteryCastKind.special,
+          projectileCount: result2.projectiles.length,
+        );
         for (final projectile in result2.projectiles) {
           projectile.sourceSlotIndex = slotIndex;
+          projectile.masteryCastId = echoCastId;
           if (powerUps.companionHasChainLightning(slotIndex)) {
             projectile.chainLightningCharges = max(
               projectile.chainLightningCharges,
@@ -2959,12 +3005,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               (_equippedSkin == OrbBaseSkin.voidforgeOrb ? 1.12 : 1.0) *
               comp.damageAmp,
         );
+        // One scheduled attack is one cast, however many projectiles it
+        // throws. Every slash, dart and feather below carries the same id so
+        // mastery can ask "did both blades land on that body" without a
+        // multishot family triggering cast nodes three times as often.
+        final basicCastId = mastery.beginCast(
+          slotIndex: slotIndex,
+          family: creatureFamilyFromStorage(comp.member.family),
+          element: comp.member.element,
+          kind: MasteryCastKind.basic,
+          projectileCount: basics.length,
+        );
         // Kin+Lightning tesla charge: while any Lightning kin is
         // actively channelling, ALL companion auto-attacks get chain
         // lightning. Stacks with the existing powerup version.
         final teslaActive = _isAnyKinLightningChargeActive();
         for (final projectile in basics) {
           projectile.sourceSlotIndex = slotIndex;
+          projectile.masteryCastId = basicCastId;
           if (powerUps.companionHasChainLightning(slotIndex) || teslaActive) {
             projectile.chainLightningCharges = max(
               projectile.chainLightningCharges,
@@ -3058,8 +3116,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           casterStrength: thresholdStrength,
           targetPos: attackTarget,
         );
+        final specialCastId = mastery.beginCast(
+          slotIndex: slotIndex,
+          family: creatureFamilyFromStorage(comp.member.family),
+          element: comp.member.element,
+          kind: MasteryCastKind.special,
+          projectileCount: result.projectiles.length,
+        );
         for (final projectile in result.projectiles) {
           projectile.sourceSlotIndex = slotIndex;
+          projectile.masteryCastId = specialCastId;
           if (powerUps.companionHasChainLightning(slotIndex)) {
             projectile.chainLightningCharges = max(
               projectile.chainLightningCharges,
@@ -3171,6 +3237,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             orbs.add(orb);
           }
           specialProjectiles = orbs;
+        }
+        // Several families rebuild their projectile list above rather than
+        // editing it — Mane's soul-slash stream and lightning orbs construct
+        // fresh Projectiles from a seed — so re-stamp here, once, after every
+        // rewrite. A special that reached the world with cast id 0 would be
+        // invisible to mastery for no reason a player could ever see.
+        for (final projectile in specialProjectiles) {
+          projectile.sourceSlotIndex ??= slotIndex;
+          if (projectile.masteryCastId == 0) {
+            projectile.masteryCastId = specialCastId;
+          }
         }
         // Horn charges: hold the projectile burst until the ram lands
         // on its target. This anchors the spawn at the point of attack
@@ -4358,6 +4435,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         }
       }
 
+      // Payload statuses tick inside the loop that is already walking every
+      // body, rather than in a second pass over the same list.
+      if (mastery.enabled) {
+        final dot = enemy.tickMasteryStatuses(dt);
+        if (dot > 0) {
+          _damageEnemy(
+            enemy,
+            dot,
+            sourceSlotIndex: enemy.masteryDotSlot,
+            masterySource: MasteryDamageSource.mastery,
+          );
+          if (enemy.isDead) continue;
+        }
+      }
+
       enemy.slowTimer = (enemy.slowTimer - dt).clamp(0, 100);
       if (enemy.slowTimer <= 0 && enemy.maneRootTimer <= 0) {
         enemy.slowMultiplier = 0.5;
@@ -5062,14 +5154,457 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   CompanionRunStats _runStatsFor(int slot) =>
       companionRunStats.putIfAbsent(slot, () => CompanionRunStats());
 
+  // == Family Mastery combat events ========================================
+  //
+  // Phase 2 of docs/survival_species_mastery_design.md. Everything a mastery
+  // node needs to observe combat and act on it lives between here and
+  // [_applyPayloadToBoss]. Nodes themselves arrive in phases 3-5 and plug in
+  // at [_onMasteryHit] and [_onMasteryKill]; they do not reach into the
+  // combat loop, and they do not apply element behaviour themselves.
+
+  /// A tracked projectile landing, after its damage has resolved.
+  ///
+  /// The hit arrives already accounted: whether it is the second blade of a
+  /// pair on one body, whether the whole volley landed, which cast it belongs
+  /// to. Family node reactions attach here.
+  void _onMasteryHit(
+    MasteryHit hit, {
+    CosmicSurvivalEnemy? enemy,
+    SurvivalBoss? boss,
+  }) {
+    // Node reactions (phases 3-5) hook in here. Deliberately empty for now:
+    // phase 2 ships the accounting, not the behaviour, and a half-wired node
+    // is worse than no node.
+  }
+
+  /// A body dying, attributed to the cast that killed it when there was one.
+  void _onMasteryKill(
+    MasteryKill kill, {
+    CosmicSurvivalEnemy? enemy,
+    SurvivalBoss? boss,
+  }) {
+    // Node reactions (phases 3-5) hook in here.
+  }
+
+  /// Fires the caster's elemental payload on one body.
+  ///
+  /// This is the only way a payload may be applied. A node says when and how
+  /// strongly; the element table says what happens. Routing every node
+  /// through one function is what makes the shared rules — no recursion, no
+  /// unbudgeted objects, one rate limiter — true for all 96 of them instead
+  /// of true for whichever ones remembered.
+  ///
+  /// Returns whether the payload actually fired.
+  bool triggerElementalPayload({
+    required int slotIndex,
+    required String effectId,
+    CosmicSurvivalEnemy? enemy,
+    SurvivalBoss? boss,
+    double strength = 1.0,
+    double triggeringDamage = 0,
+    double procCooldown = 0,
+  }) {
+    if (!mastery.enabled) return false;
+    if (enemy == null && boss == null) return false;
+    if (enemy != null && enemy.isDead) return false;
+    if (boss != null && boss.isDead) return false;
+    final comp = activeCompanions[slotIndex];
+    if (comp == null || comp.isDead) return false;
+
+    final targetId = identityHashCode(enemy ?? boss);
+    // The node's own rate limit, then the element's. Blood is the only
+    // element that rate-limits itself, because its payload is a resource
+    // rather than an effect on the target.
+    if (!mastery.tryProc(
+      slotIndex,
+      effectId,
+      procCooldown,
+      targetId: targetId,
+    )) {
+      return false;
+    }
+
+    final payload = resolveElementalPayload(
+      element: comp.member.element,
+      elementalAttack: comp.elemAtk.toDouble(),
+      strength: strength,
+      vsBoss: boss != null,
+      triggeringDamage: triggeringDamage,
+    );
+    if (payload.isEmpty) return false;
+    if (payload.procCooldown > 0 &&
+        !mastery.tryProc(
+          slotIndex,
+          'payload.${payload.element}',
+          payload.procCooldown,
+        )) {
+      return false;
+    }
+
+    // A payload cannot trigger a payload. The guard is closed for the whole
+    // application, so a thorn hit that kills, whose kill reaction would fire
+    // another payload, finds it shut.
+    return mastery.runGuarded<bool>(() {
+      for (final action in payload.actions) {
+        if (boss != null) {
+          _applyPayloadToBoss(action, boss, slotIndex);
+        } else {
+          _applyPayloadToEnemy(action, enemy!, slotIndex);
+        }
+      }
+      mastery.recordPayload(slotIndex);
+      return true;
+    }, orElse: false);
+  }
+
+  /// Turns one [PayloadAction] into survival's own status and damage fields.
+  void _applyPayloadToEnemy(
+    PayloadAction action,
+    CosmicSurvivalEnemy enemy,
+    int slotIndex,
+  ) {
+    switch (action.effect) {
+      case PayloadEffect.damageOverTime:
+        if (action.duration <= 0) break;
+        final cap = action.maxStacks <= 0 ? 1 : action.maxStacks;
+        if (enemy.masteryDotStacks < cap) enemy.masteryDotStacks++;
+        // Stacks add rate, not duration: three Poison stacks burn three times
+        // as fast for the same three seconds, which is what the table says
+        // and what keeps a long fight from accruing a minute of pending DoT.
+        enemy.masteryDotDps =
+            (action.amount / action.duration) * enemy.masteryDotStacks;
+        enemy.masteryDotTimer = max(enemy.masteryDotTimer, action.duration);
+        enemy.masteryDotSlot = slotIndex;
+
+      case PayloadEffect.directDamage:
+        _damageEnemy(
+          enemy,
+          action.amount,
+          sourceSlotIndex: slotIndex,
+          masterySource: MasteryDamageSource.mastery,
+        );
+
+      case PayloadEffect.arc:
+        var remaining = action.targets <= 0 ? 1 : action.targets;
+        _visitEnemiesNear(enemy.position, action.radius, (other) {
+          if (remaining <= 0) return true;
+          if (identical(other, enemy) || other.isDead) return false;
+          if (!_withinRange(enemy.position, other.position, action.radius)) {
+            return false;
+          }
+          remaining--;
+          _damageEnemy(
+            other,
+            action.amount,
+            sourceSlotIndex: slotIndex,
+            masterySource: MasteryDamageSource.mastery,
+          );
+          return remaining <= 0;
+        });
+
+      case PayloadEffect.areaBurst:
+        _damageEnemiesNear(
+          enemy.position,
+          action.radius,
+          action.amount,
+          sourceSlotIndex: slotIndex,
+        );
+
+      case PayloadEffect.zone:
+        // A patch is an object, so it comes out of mastery's budget. When the
+        // budget is spent the patch is skipped rather than queued: a payload
+        // that owes the world objects is the trap-chain bug in waiting.
+        if (!mastery.requestObjects(1)) break;
+        _appendCompanionProjectile(
+          Projectile(
+            position: enemy.position,
+            angle: 0,
+            element: activeCompanions[slotIndex]?.member.element,
+            damage: 0,
+            life: action.duration,
+            stationary: true,
+            radiusMultiplier: action.radius / Projectile.radius,
+            visualScale: action.radius / 12.0,
+            sourceSlotIndex: slotIndex,
+            tickEffect: AbilityEffectKind.zoneDamage,
+            effectPower: action.amount,
+            effectRadius: action.radius,
+            effectDuration: action.duration,
+          )..masteryGenerated = true,
+        );
+
+      case PayloadEffect.slow:
+        enemy.slowTimer = max(enemy.slowTimer, action.duration);
+        enemy.slowMultiplier = min(enemy.slowMultiplier, 1.0 - action.amount);
+        mastery.recordControl(slotIndex, action.duration);
+
+      case PayloadEffect.stagger:
+      case PayloadEffect.root:
+        // A hard stop is a slow to zero. Borrowing a family's own root field
+        // would drag that family's visual along with it.
+        enemy.slowTimer = max(enemy.slowTimer, action.duration);
+        enemy.slowMultiplier = 0;
+        if (action.effect == PayloadEffect.root) {
+          enemy.attackCooldown = max(enemy.attackCooldown, action.duration);
+        }
+        mastery.recordControl(slotIndex, action.duration);
+
+      case PayloadEffect.push:
+      case PayloadEffect.pull:
+        final origin = activeCompanions[slotIndex]?.position;
+        if (origin == null) break;
+        final delta = action.effect == PayloadEffect.push
+            ? enemy.position - origin
+            : origin - enemy.position;
+        final dist = delta.distance;
+        if (dist <= 0.01) break;
+        // Knockback damps at exp(-7.5 dt), so total travel is v0 / 7.5.
+        // Solving for the table's distance keeps "push 45 units" honest.
+        enemy.knockbackVelocity += (delta / dist) * action.amount * 7.5;
+
+      case PayloadEffect.interrupt:
+        enemy.action.interrupt();
+        enemy.attackCooldown = max(enemy.attackCooldown, 0.4);
+
+      case PayloadEffect.chill:
+        enemy.masteryChillTimer = max(enemy.masteryChillTimer, action.duration);
+        enemy.masteryChillStacks++;
+        final cap = action.maxStacks <= 0 ? 3 : action.maxStacks;
+        if (enemy.masteryChillStacks >= cap) {
+          enemy.masteryChillStacks = 0;
+          enemy.masteryChillTimer = 0;
+          enemy.slowTimer = max(enemy.slowTimer, action.followUpDuration);
+          enemy.slowMultiplier = 0;
+          mastery.recordControl(slotIndex, action.followUpDuration);
+        } else {
+          // Each stack is cold, not a freeze: a modest slow that the third
+          // stack cashes in.
+          enemy.slowTimer = max(enemy.slowTimer, action.duration);
+          enemy.slowMultiplier = min(enemy.slowMultiplier, 0.82);
+          mastery.recordControl(slotIndex, action.duration);
+        }
+
+      case PayloadEffect.haze:
+        enemy.masteryHazeTimer = max(enemy.masteryHazeTimer, action.duration);
+        enemy.masteryHazeAmount = max(enemy.masteryHazeAmount, action.amount);
+        enemy.attackCooldown += enemy.attackCooldown * action.amount;
+        mastery.recordControl(slotIndex, action.duration);
+
+      case PayloadEffect.vulnerable:
+        enemy.masteryVulnerableTimer = max(
+          enemy.masteryVulnerableTimer,
+          action.duration,
+        );
+        enemy.masteryVulnerableAmount = max(
+          enemy.masteryVulnerableAmount,
+          action.amount,
+        );
+
+      case PayloadEffect.allyAmp:
+        enemy.masteryAmpTimer = max(enemy.masteryAmpTimer, action.duration);
+        // Capped rather than summed: several Light sources on one body is a
+        // party composition, not a multiplier.
+        enemy.masteryAmpAmount = min(
+          action.cap,
+          enemy.masteryAmpAmount + action.amount,
+        );
+
+      case PayloadEffect.delayedEcho:
+        if (action.amount <= 0) break;
+        _masteryEchoes.add(
+          _MasteryEcho(
+            slotIndex: slotIndex,
+            enemy: enemy,
+            damage: action.amount,
+            delay: action.followUpDuration,
+          ),
+        );
+
+      case PayloadEffect.heal:
+        final comp = activeCompanions[slotIndex];
+        if (comp == null) break;
+        final healed = _healCompanion(comp, comp.maxHp * action.amount);
+        mastery.recordHealing(slotIndex, healed);
+    }
+  }
+
+  /// The boss version. Bosses cannot be rooted, pushed or frozen, so those
+  /// actions become the table's stated substitutes rather than nothing —
+  /// "payload damage is not silently removed".
+  void _applyPayloadToBoss(
+    PayloadAction action,
+    SurvivalBoss boss,
+    int slotIndex,
+  ) {
+    switch (action.effect) {
+      case PayloadEffect.damageOverTime:
+        if (action.duration <= 0) break;
+        final cap = action.maxStacks <= 0 ? 1 : action.maxStacks;
+        if (boss.masteryDotStacks < cap) boss.masteryDotStacks++;
+        boss.masteryDotDps =
+            (action.amount / action.duration) * boss.masteryDotStacks;
+        boss.masteryDotTimer = max(boss.masteryDotTimer, action.duration);
+        boss.masteryDotSlot = slotIndex;
+
+      case PayloadEffect.directDamage:
+      case PayloadEffect.areaBurst:
+        damageBoss(
+          action.amount,
+          sourceSlotIndex: slotIndex,
+          target: boss,
+          masterySource: MasteryDamageSource.mastery,
+        );
+
+      case PayloadEffect.arc:
+        // The arc has to land on something other than its own target, and a
+        // boss fight still has a crowd around it.
+        var remaining = action.targets <= 0 ? 1 : action.targets;
+        _visitEnemiesNear(boss.position, action.radius, (other) {
+          if (remaining <= 0 || other.isDead) return remaining <= 0;
+          remaining--;
+          _damageEnemy(
+            other,
+            action.amount,
+            sourceSlotIndex: slotIndex,
+            masterySource: MasteryDamageSource.mastery,
+          );
+          return remaining <= 0;
+        });
+
+      case PayloadEffect.zone:
+        if (!mastery.requestObjects(1)) break;
+        _appendCompanionProjectile(
+          Projectile(
+            position: boss.position,
+            angle: 0,
+            element: activeCompanions[slotIndex]?.member.element,
+            damage: 0,
+            life: action.duration,
+            stationary: true,
+            radiusMultiplier: action.radius / Projectile.radius,
+            visualScale: action.radius / 12.0,
+            sourceSlotIndex: slotIndex,
+            tickEffect: AbilityEffectKind.zoneDamage,
+            effectPower: action.amount,
+            effectRadius: action.radius,
+            effectDuration: action.duration,
+            effectOnBoss: true,
+          )..masteryGenerated = true,
+        );
+
+      case PayloadEffect.slow:
+      case PayloadEffect.chill:
+      case PayloadEffect.haze:
+      case PayloadEffect.stagger:
+      case PayloadEffect.root:
+        // Bosses take every form of control as a chill on their movement,
+        // which is the one channel their discipline AIs cannot write over.
+        final amount = action.effect == PayloadEffect.slow
+            ? action.amount
+            : 0.15;
+        final duration = action.duration > 0 ? action.duration : 0.5;
+        boss.chillTimer = max(boss.chillTimer, duration);
+        boss.chillMultiplier = min(boss.chillMultiplier, 1.0 - amount);
+        mastery.recordControl(slotIndex, duration);
+
+      case PayloadEffect.push:
+      case PayloadEffect.pull:
+      case PayloadEffect.interrupt:
+        // Deliberately nothing: shoving a boss would break every discipline
+        // AI's positioning, and a payload that does it once per cast would
+        // do it constantly.
+        break;
+
+      case PayloadEffect.vulnerable:
+        boss.masteryVulnerableTimer = max(
+          boss.masteryVulnerableTimer,
+          action.duration,
+        );
+        boss.masteryVulnerableAmount = max(
+          boss.masteryVulnerableAmount,
+          action.amount,
+        );
+
+      case PayloadEffect.allyAmp:
+        boss.masteryAmpTimer = max(boss.masteryAmpTimer, action.duration);
+        boss.masteryAmpAmount = min(
+          action.cap,
+          boss.masteryAmpAmount + action.amount,
+        );
+
+      case PayloadEffect.delayedEcho:
+        if (action.amount <= 0) break;
+        _masteryEchoes.add(
+          _MasteryEcho(
+            slotIndex: slotIndex,
+            boss: boss,
+            damage: action.amount,
+            delay: action.followUpDuration,
+          ),
+        );
+
+      case PayloadEffect.heal:
+        final comp = activeCompanions[slotIndex];
+        if (comp == null) break;
+        final healed = _healCompanion(comp, comp.maxHp * action.amount);
+        mastery.recordHealing(slotIndex, healed);
+    }
+  }
+
+  /// Spirit's delayed echo. A small list rather than a projectile because the
+  /// echo has no travel — it is the same hit, later.
+  final List<_MasteryEcho> _masteryEchoes = [];
+
+  void _updateMasteryEchoes(double dt) {
+    if (_masteryEchoes.isEmpty) return;
+    for (var i = _masteryEchoes.length - 1; i >= 0; i--) {
+      final echo = _masteryEchoes[i];
+      echo.delay -= dt;
+      if (echo.delay > 0) continue;
+      _masteryEchoes.removeAt(i);
+      final enemy = echo.enemy;
+      final boss = echo.boss;
+      if (enemy != null && !enemy.isDead) {
+        _damageEnemy(
+          enemy,
+          echo.damage,
+          sourceSlotIndex: echo.slotIndex,
+          masterySource: MasteryDamageSource.mastery,
+        );
+      } else if (boss != null && !boss.isDead) {
+        damageBoss(
+          echo.damage,
+          sourceSlotIndex: echo.slotIndex,
+          target: boss,
+          masterySource: MasteryDamageSource.mastery,
+        );
+      }
+    }
+  }
+
+  /// Heals a companion and reports how much actually landed, so telemetry
+  /// counts healing rather than attempted healing.
+  double _healCompanion(CosmicSurvivalCompanion comp, double amount) {
+    if (amount <= 0 || comp.isDead) return 0;
+    final before = comp.currentHp;
+    comp.currentHp = min(comp.maxHp, comp.currentHp + amount.round());
+    return (comp.currentHp - before).toDouble();
+  }
+
   void _damageEnemy(
     CosmicSurvivalEnemy enemy,
     double damage, {
     int? sourceSlotIndex,
     bool fromPipSpecial = false,
     bool autoAttack = false,
+    int masteryCastId = 0,
+    MasteryDamageSource? masterySource,
   }) {
     damage *= outbreak?.damageMultiplier(enemy) ?? 1.0;
+    // Payload statuses that make a body take more: Dark's expose and Light's
+    // illuminate. Applied before the family/tier multipliers so they read as
+    // a property of the target, which is what both payloads describe.
+    if (mastery.enabled) damage *= enemy.masteryDamageTakenMultiplier;
     final weight = _mysticWeightMultiplier(enemy.tier);
     damage *= weight;
     // Only worth showing on the bodies the world actually leans on.
@@ -5103,13 +5638,41 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     if (autoAttack) _payMysticBloodTithe(dealt, enemy.position);
 
+    final source =
+        masterySource ?? _inferMasterySource(masteryCastId, autoAttack);
+    mastery.recordDamage(sourceSlotIndex, dealt, source);
+    final hit = mastery.recordHit(
+      castId: masteryCastId,
+      targetId: identityHashCode(enemy),
+      damage: dealt,
+    );
+    if (hit != null) _onMasteryHit(hit, enemy: enemy);
+
     if (enemy.hp <= 0) {
       _killEnemy(
         enemy,
         sourceSlotIndex: sourceSlotIndex,
         fromPipSpecial: fromPipSpecial,
+        masteryCastId: masteryCastId,
+        masterySource: source,
       );
     }
+  }
+
+  /// Where a piece of damage came from, when the caller did not say.
+  ///
+  /// A tracked cast knows whether it was a basic or a special; anything with
+  /// no cast is either the family autoattack (survival's long-standing
+  /// `autoAttack` flag, which every special stamps off) or someone else's
+  /// damage entirely — the ship, an orb turret, a run perk.
+  MasteryDamageSource _inferMasterySource(int castId, bool autoAttack) {
+    final cast = mastery.cast(castId);
+    if (cast != null) {
+      return cast.kind == MasteryCastKind.basic
+          ? MasteryDamageSource.basic
+          : MasteryDamageSource.special;
+    }
+    return autoAttack ? MasteryDamageSource.basic : MasteryDamageSource.other;
   }
 
   void _killEnemy(
@@ -5117,8 +5680,22 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     int? sourceSlotIndex,
     bool grantAlchemyReward = true,
     bool fromPipSpecial = false,
+    int masteryCastId = 0,
+    MasteryDamageSource? masterySource,
   }) {
     if (enemy.isDead) return;
+    if (mastery.enabled && sourceSlotIndex != null) {
+      _onMasteryKill(
+        MasteryKill(
+          slotIndex: sourceSlotIndex,
+          targetId: identityHashCode(enemy),
+          cast: mastery.cast(masteryCastId),
+          isBoss: false,
+          source: masterySource ?? _inferMasterySource(masteryCastId, false),
+        ),
+        enemy: enemy,
+      );
+    }
     onSound?.call(SoundCue.combatEnemyDefeat);
     enemy.isDead = true;
     // Inside a Spirit world the chaff gets back up on our side. Done here,
@@ -5481,6 +6058,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _updateBossInstance(double dt, SurvivalBoss boss) {
     boss.hitFlash = (boss.hitFlash - dt * 4).clamp(0, 1);
+    if (mastery.enabled) {
+      final dot = boss.tickMasteryStatuses(dt);
+      if (dot > 0) {
+        damageBoss(
+          dot,
+          sourceSlotIndex: boss.masteryDotSlot,
+          target: boss,
+          masterySource: MasteryDamageSource.mastery,
+        );
+        if (boss.isDead) return;
+      }
+    }
     if (boss.isSpawning) {
       _updateBossEntrance(dt, boss);
       return;
@@ -6683,9 +7272,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     int? sourceSlotIndex,
     SurvivalBoss? target,
     bool autoAttack = false,
+    int masteryCastId = 0,
+    MasteryDamageSource? masterySource,
   }) {
     final boss = target ?? activeBoss;
     if (boss == null || boss.isDead) return;
+    if (mastery.enabled) damage *= boss.masteryDamageTakenMultiplier;
     // A Blood world tithes from bosses as well. Taken off the incoming figure
     // rather than the post-shield one: what the player feels is the shot they
     // fired, and a boss with its shield up would otherwise quietly turn the
@@ -6725,12 +7317,35 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       ),
     );
 
-    if (sourceSlotIndex != null) {
-      final dealt = hpBefore - max(boss.hp, 0.0);
-      if (dealt > 0) _runStatsFor(sourceSlotIndex).damageDealt += dealt;
+    final dealtToBoss = hpBefore - max(boss.hp, 0.0);
+    if (sourceSlotIndex != null && dealtToBoss > 0) {
+      _runStatsFor(sourceSlotIndex).damageDealt += dealtToBoss;
     }
 
+    final bossSource =
+        masterySource ?? _inferMasterySource(masteryCastId, autoAttack);
+    mastery.recordDamage(sourceSlotIndex, dealtToBoss, bossSource);
+    final bossHit = mastery.recordHit(
+      castId: masteryCastId,
+      targetId: identityHashCode(boss),
+      damage: dealtToBoss,
+      isBoss: true,
+    );
+    if (bossHit != null) _onMasteryHit(bossHit, boss: boss);
+
     if (boss.hp <= 0) {
+      if (mastery.enabled && sourceSlotIndex != null) {
+        _onMasteryKill(
+          MasteryKill(
+            slotIndex: sourceSlotIndex,
+            targetId: identityHashCode(boss),
+            cast: mastery.cast(masteryCastId),
+            isBoss: true,
+            source: bossSource,
+          ),
+          boss: boss,
+        );
+      }
       boss.isDead = true;
       stats.kills++;
       if (sourceSlotIndex != null) _runStatsFor(sourceSlotIndex).kills++;
@@ -10383,6 +10998,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         comp.damageAmp;
     const lateral = 14.0;
 
+    // Kin's charged beam IS its basic attack, so it opens a cast like any
+    // other. One "projectile": a body the line touches has taken everything
+    // this cast had for it, which is what a full volley hit means here.
+    final castId = mastery.beginCast(
+      slotIndex: slotIndex,
+      family: creatureFamilyFromStorage(comp.member.family),
+      element: comp.member.element,
+      kind: MasteryCastKind.basic,
+      projectileCount: 1,
+    );
+
     // Hit every enemy near the beam segment.
     final scanRadius = max(beamLength, 120.0);
     _visitEnemiesNear(comp.position, scanRadius, (enemy) {
@@ -10390,7 +11016,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final d = _distanceToSegment(enemy.position, comp.position, beamEnd);
       if (d <= enemy.radius + lateral) {
         // Kin's charged beam IS its basic attack, so it tithes too.
-        _damageEnemy(enemy, dmg, sourceSlotIndex: slotIndex, autoAttack: true);
+        _damageEnemy(
+          enemy,
+          dmg,
+          sourceSlotIndex: slotIndex,
+          autoAttack: true,
+          masteryCastId: castId,
+        );
         _spawnHitSpark(enemy.position, elementColor(comp.member.element));
       }
       return false;
@@ -12588,10 +13220,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final plantBonus = d.element == 'Plant'
             ? _wingPlantStackBonus(beam.sourceSlotIndex)
             : 1.0;
+        // A sustained beam is the special's output, but it is not a cast:
+        // tying six seconds of ticks to one cast id would leave the volley
+        // reading as "fully landed" for as long as the beam burned. It gets
+        // the attribution and none of the cast accounting.
         _damageEnemy(
           enemy,
           _beamDamageForEnemy(d, enemy) * plantBonus,
           sourceSlotIndex: beam.sourceSlotIndex,
+          masterySource: MasteryDamageSource.special,
         );
         _applyAbilityEffectToEnemy(
           d.tickEffect,
@@ -14981,6 +15618,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // Basic attacks leave abilityFamily empty; every special stamps one.
           // That is what a Blood world tithes from.
           autoAttack: p.abilityFamily.isEmpty,
+          masteryCastId: p.masteryCastId,
+          masterySource: p.masteryGenerated
+              ? MasteryDamageSource.mastery
+              : null,
         );
         final killed = !wasDead && enemy.isDead;
         resolveAbilityHit(p, enemy, killed: killed);
@@ -15207,6 +15848,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             sourceSlotIndex: p.sourceSlotIndex,
             autoAttack: p.abilityFamily.isEmpty,
             target: boss,
+            masteryCastId: p.masteryCastId,
+            masterySource: p.masteryGenerated
+                ? MasteryDamageSource.mastery
+                : null,
           );
           // Crowd control lands on bosses too. This branch used to deal damage
           // and nothing else, so Mane+Ice — whose whole line is "freezes

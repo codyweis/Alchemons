@@ -130,4 +130,13 @@ class EnemyActionState {
 
   /// Recover is the punish window — hosts can use this for bonus damage.
   bool get isExposed => phase == EnemyActionPhase.recover;
+
+  /// Drops the performance back to idle. An interrupt — Air's payload, a
+  /// stagger — cancels the wind-up outright rather than letting the commit
+  /// fire late, which is the whole point of telegraphing it.
+  void interrupt() {
+    phase = EnemyActionPhase.idle;
+    timer = 0;
+    fired = false;
+  }
 }

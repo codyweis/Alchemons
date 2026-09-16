@@ -56,7 +56,88 @@ enum SurvivalWaveMutator {
 // SURVIVAL ENEMY (uses same EnemyTier as cosmic game)
 // ──────────────────────────────────────────────────────────────────────────────
 
-class CosmicSurvivalEnemy {
+/// The seventeen elements' shared status vocabulary, as written by the mastery
+/// payload resolver.
+///
+/// Kept apart from the bespoke per-family ability fields on purpose: those are
+/// seventeen family x element behaviours, while these are the one set of
+/// statuses every mastery node in the game writes through, or does not write
+/// at all. Enemies and bosses both carry it so a payload never has to ask what
+/// kind of body it landed on.
+mixin MasteryPayloadStatuses {
+  /// Damage-over-time from a payload. [masteryDotDps] is the summed rate of
+  /// all live stacks; [masteryDotStacks] enforces the element's stack cap.
+  double masteryDotTimer = 0;
+  double masteryDotDps = 0;
+  int masteryDotStacks = 0;
+  int? masteryDotSlot;
+
+  /// Ice's stacking cold. At the element's cap this converts to a freeze and
+  /// the stacks clear.
+  double masteryChillTimer = 0;
+  int masteryChillStacks = 0;
+
+  /// Dark's expose: the target takes [masteryVulnerableAmount] more damage
+  /// from every source while the timer runs.
+  double masteryVulnerableTimer = 0;
+  double masteryVulnerableAmount = 0;
+
+  /// Light's illuminate: allied damage amplification, capped by the payload
+  /// so several Light sources cannot stack into a multiplier.
+  double masteryAmpTimer = 0;
+  double masteryAmpAmount = 0;
+
+  /// Dust's haze: movement and attack cadence both reduced.
+  double masteryHazeTimer = 0;
+  double masteryHazeAmount = 0;
+
+  /// Total incoming damage multiplier from mastery statuses. 1.0 when clean.
+  double get masteryDamageTakenMultiplier {
+    var mult = 1.0;
+    if (masteryVulnerableTimer > 0) mult += masteryVulnerableAmount;
+    if (masteryAmpTimer > 0) mult += masteryAmpAmount;
+    return mult;
+  }
+
+  /// Ticks the payload statuses and returns the damage the DoT owes this
+  /// frame. Returning the damage rather than applying it keeps the enemy
+  /// free of any reference to the game that would have to kill it.
+  double tickMasteryStatuses(double dt) {
+    var damage = 0.0;
+    if (masteryDotTimer > 0) {
+      masteryDotTimer -= dt;
+      damage = masteryDotDps * dt;
+      if (masteryDotTimer <= 0) {
+        masteryDotTimer = 0;
+        masteryDotDps = 0;
+        masteryDotStacks = 0;
+        masteryDotSlot = null;
+      }
+    }
+    if (masteryChillTimer > 0) {
+      masteryChillTimer -= dt;
+      if (masteryChillTimer <= 0) {
+        masteryChillTimer = 0;
+        masteryChillStacks = 0;
+      }
+    }
+    if (masteryVulnerableTimer > 0) {
+      masteryVulnerableTimer -= dt;
+      if (masteryVulnerableTimer <= 0) masteryVulnerableAmount = 0;
+    }
+    if (masteryAmpTimer > 0) {
+      masteryAmpTimer -= dt;
+      if (masteryAmpTimer <= 0) masteryAmpAmount = 0;
+    }
+    if (masteryHazeTimer > 0) {
+      masteryHazeTimer -= dt;
+      if (masteryHazeTimer <= 0) masteryHazeAmount = 0;
+    }
+    return damage;
+  }
+}
+
+class CosmicSurvivalEnemy with MasteryPayloadStatuses {
   Offset position;
   Offset knockbackVelocity;
   double angle;
@@ -114,6 +195,7 @@ class CosmicSurvivalEnemy {
   // HP from them and splits it as healing across all allies until the
   // enemy dies. Cleared on death.
   int? maskBloodDrainSlot;
+
   /// Ice Mystic's blizzard. A separate multiplier from [slowMultiplier] on
   /// purpose: that field holds the single strongest slow currently applied, so
   /// a blizzard written into it would either be swallowed by a stronger slow or
@@ -177,16 +259,21 @@ class CosmicSurvivalEnemy {
       return 0;
     }
     final blizzard = blizzardMultiplier;
+    // Dust's haze is weather too, not an effect competing with effects: it
+    // multiplies whatever slow is already running rather than fighting the
+    // strongest-slow-wins rule in slowMultiplier.
+    final haze = masteryHazeTimer > 0 ? (1.0 - masteryHazeAmount) : 1.0;
     // The crusher's old `* 1.08` lived in the direction vector, which made a
     // stat look like a steering rule. It is an explicit speed term now.
     final conductBonus = conductSpeedMultiplier(
       conduct,
       heavyBody: hasHeavyBody,
     );
-    if (slowTimer <= 0) return speed * conductBonus * blizzard;
+    if (slowTimer <= 0) return speed * conductBonus * blizzard * haze;
     return speed *
         conductBonus *
         blizzard *
+        haze *
         (isRelentless ? max(0.78, slowMultiplier) : slowMultiplier);
   }
 
@@ -202,7 +289,7 @@ class CosmicSurvivalEnemy {
 // SURVIVAL BOSS
 // ──────────────────────────────────────────────────────────────────────────────
 
-class SurvivalBoss {
+class SurvivalBoss with MasteryPayloadStatuses {
   final BossTemplate template;
   final BossType type;
   final SurvivalBossDiscipline discipline;
