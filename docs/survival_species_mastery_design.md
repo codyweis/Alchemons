@@ -1,0 +1,540 @@
+# Survival Family Mastery
+
+Status: proposed design
+
+## Purpose
+
+Family Mastery gives every survival guardian a persistent, configurable combat path. It transforms the eight existing family autoattacks, selectively connects them to existing family-by-element specials, and lets two instances of the same species fill different roles.
+
+The system is intentionally not a separate tree for every creature. The catalog has more than 160 collectible creatures and variants; a bespoke progression tree for each would be difficult to understand, author, balance, and maintain.
+
+The scalable identity formula is:
+
+```text
+family attack chassis
++ equipped family path
++ automatic elemental interpretation
++ the individual creature's existing stats
+```
+
+## Non-negotiable rules
+
+- There are eight trees: Let, Pip, Mane, Mask, Horn, Wing, Kin, and Mystic.
+- Unlocks are shared by every creature in that family.
+- The equipped path is stored per creature instance.
+- An instance may equip exactly one path at a time.
+- Players may eventually purchase every path, but cannot activate them together.
+- Switching paths is free outside a survival run.
+- The selected path is snapshotted and locked when a run begins.
+- Existing specials remain intact unless a node explicitly defines a bridge interaction.
+- Elemental interpretations are automatic and are never separately purchased.
+- Temporary run power-ups continue to stack on top of the permanent family build.
+
+## Tree and economy
+
+Every family has three paths with three sequential silver nodes and one gold capstone.
+
+| Tier | Cost | Purpose |
+| --- | ---: | --- |
+| Path I | 1,000 silver | Establishes the path's core behavior |
+| Path II | 5,000 silver | Adds its first meaningful interaction |
+| Path III | 10,000 silver | Completes the path's combat loop |
+| Capstone | 10 gold | Dramatically changes the visible combat rhythm |
+
+Rules:
+
+- A later node requires every earlier node in that path.
+- Buying the first node automatically equips that path if no path is selected.
+- Buying another path does not automatically replace the equipped path.
+- A partially purchased path may be equipped and grants its purchased nodes.
+- Equipping, resetting, and copying a build costs nothing.
+- Owning every unlock across all eight families costs 384,000 silver and 240 gold before discounts.
+
+The economy controls collection progression. The one-path limit preserves build choice after everything is owned.
+
+## Current scaling contract
+
+The existing combat model remains authoritative:
+
+- Strength produces physical attack and therefore main autoattack damage. It also contributes to critical chance and durability.
+- Beauty produces elemental attack and therefore special damage and mastery payload damage.
+- Speed produces movement speed and cooldown reduction.
+- Intelligence produces range and defenses and may scale spatial utility.
+- Guardian upgrades continue modifying derived companion stats.
+- Temporary survival surges continue feeding those same stats.
+
+Evaluation order:
+
+1. Derive combat stats from level, genetics, enhancement, family multipliers, Guardian upgrades, and in-run stat bonuses.
+2. Create the existing family basic attack from physical attack.
+3. Apply the equipped Family Mastery path.
+4. Apply temporary run perks and keystones.
+5. Resolve critical hits, damage amplification, mitigation, statuses, hit effects, and kill effects.
+
+Main and elemental portions scale separately:
+
+```text
+main hit = physical attack × family coefficient × mastery allocation
+elemental payload = elemental attack × payload coefficient
+```
+
+Splits, returns, ricochets, echoes, and additional projectiles divide a defined damage budget rather than copying the full original hit.
+
+## Shared combat language
+
+### Cast accounting
+
+A **basic cast** is one scheduled autoattack, regardless of how many projectiles it creates. Cast-based nodes increment once for a Mane pair, a Pip volley, a Wing pair, or a Mystic volley. This prevents multishot families from triggering effects three times as often.
+
+A **dual hit** means two projectiles from the same cast hit one target within 0.35 seconds. A **full volley hit** means every eligible projectile from the cast hits that target.
+
+### Elemental payload
+
+Some nodes trigger the equipped creature's elemental payload. Unless a family node overrides it, one payload uses the following initial tuning. Values are prototypes and should be simulation-tuned.
+
+| Element | Payload |
+| --- | --- |
+| Fire | Scorch for 30% elemental attack over 2 seconds |
+| Water | Pull 24 units and slow by 12% for 1.2 seconds |
+| Earth | Stagger for 0.25 seconds; bosses receive a brief 8% slow instead |
+| Air | Push 45 units and interrupt ordinary enemies |
+| Plant | Root for 0.4 seconds and deal 15% elemental attack as a thorn hit |
+| Ice | Add Chill for 2 seconds; three stacks freeze for 0.45 seconds |
+| Lightning | Arc for 30% elemental attack to one nearby enemy |
+| Poison | Add a toxin dealing 12% elemental attack per second for 3 seconds, up to three stacks |
+| Steam | Burst in a small radius for 22% elemental attack and push slightly |
+| Lava | Leave a 2-second molten patch dealing 10% elemental attack per second |
+| Mud | Apply Heavy, slowing by 25% for 1.5 seconds |
+| Dust | Apply Haze, reducing movement and attack cadence by 10% for 2 seconds |
+| Crystal | Fire a shard at another target for 25% elemental attack |
+| Spirit | Echo 25% of the triggering elemental damage after 0.5 seconds |
+| Dark | Pull 35 units and expose the target to 5% more damage for 2 seconds |
+| Light | Illuminate the target, increasing allied damage to it by 5% for 2 seconds; maximum 10% |
+| Blood | Heal the owner for 1% maximum HP; at most once per second |
+
+Payload rules:
+
+- A node states whether it triggers once per cast, once per target, or on a cooldown.
+- A payload cannot recursively trigger another payload.
+- Mastery Lightning and the temporary Chain Lightning perk share a chain budget instead of multiplying one another.
+- Status durations are reduced against bosses where necessary, but payload damage is not silently removed.
+- Mastery projectiles retain source slot, family, species, element, and basic-attack attribution.
+
+## Family trees
+
+All percentages below are initial balance targets, not final shipping numbers.
+
+---
+
+## Mane
+
+**Existing chassis:** two close-angle slash projectiles at 65% physical damage each. Mane is a flexible skirmisher that rewards positioning both blades.
+
+### Assault — Twin Fang
+
+Single-target pressure and kill chaining.
+
+1. **Honed Pair** — Narrow slash spread by 35%. Each slash deals 70% physical damage instead of 65%.
+2. **Crosscut** — A dual hit deals an additional 20% physical damage and triggers one elemental payload per cast.
+3. **Predator Step** — A basic kill gives the next cast within 3 seconds stronger tracking and 25% more main-hit damage.
+4. **Capstone: Blade Dance** — Casting the special empowers the next five basic casts. Their slashes return to the Mane for 35% of outgoing damage. Returning hits cannot trigger Crosscut or another payload.
+
+### Control — Tempest Claw
+
+Wide coverage and elemental disruption.
+
+1. **Sweeping Claws** — Slash width increases by 35% and spread widens. Each slash deals 60% physical damage.
+2. **Rending Wake** — The first enemy struck by each slash receives the elemental payload at 80% strength.
+3. **Crosswind** — If the two slashes hit different enemies, both targets receive a second reduced payload at 40% strength.
+4. **Capstone: Tempest Ring** — Every fourth cast releases eight radial slashes at 20% physical damage each. No enemy can take more than three radial hits; the first radial hit triggers one payload.
+
+### Resonance — War Rhythm
+
+Build rhythm with basics and release it around the existing special.
+
+1. **Measured Cuts** — A dual hit grants one Rhythm, up to five. Missing with both blades removes one Rhythm.
+2. **Rising Tempo** — Each Rhythm grants 2% basic attack speed and 2% elemental payload strength.
+3. **Crescendo** — Casting the special consumes Rhythm and empowers that many subsequent basic casts with 12% damage and one payload on their primary target.
+4. **Capstone: Encore** — Consuming five Rhythm also creates a 6-second Encore: 25% faster basics and wider slashes. Basic kills extend the current Encore by 0.4 seconds, up to 2 additional seconds total; Encore cannot otherwise refresh itself.
+
+---
+
+## Let
+
+**Existing chassis:** one large, slow meteor at 115% physical damage. Let is the deliberate heavy artillery family.
+
+### Assault — Falling Star
+
+Large direct hits and elite pressure.
+
+1. **Dense Core** — The meteor becomes 12% smaller and 10% slower but deals 135% physical damage.
+2. **Cratermaker** — Direct hits apply Fracture, causing the next Let basic hit to deal 18% additional physical damage. Fracture lasts 4 seconds.
+3. **Terminal Velocity** — Meteors gain up to 20% damage based on travel distance, reaching maximum power after 70% of their lifetime.
+4. **Capstone: Extinction Event** — Every fifth cast becomes a giant comet dealing 210% physical damage in a moderate impact radius. Only the direct target can be critically hit.
+
+### Control — Scatterfall
+
+Impact coverage and persistent elemental zones.
+
+1. **Shatterstone** — On impact, the meteor releases three fragments at 18% physical damage each. Fragments cannot hit the direct target.
+2. **Elemental Crater** — The impact point triggers one elemental payload in a small radius at 80% strength.
+3. **Lingering Fall** — The impact leaves a 2.5-second zone that reapplies a non-damaging version of the element's control every second. Damage payloads instead tick for 20% elemental attack total.
+4. **Capstone: Meteor Season** — Every third cast marks the impact point. After 0.6 seconds, three small meteors fall around it for 28% physical damage each; one may hit the original target.
+
+### Resonance — Orbital Cycle
+
+Basics prepare additional aftershocks around the special.
+
+1. **Impact Memory** — Each basic direct hit grants one Orbit, up to four. Only one Orbit may be earned per cast.
+2. **Satellite Fire** — At four Orbit, the next basic consumes them and adds a delayed satellite strike for 45% elemental attack.
+3. **Convergence** — Casting the special consumes all Orbit. Each consumed Orbit adds one reduced elemental aftershock near the special's target or center.
+4. **Capstone: Second Impact** — When a special finishes its initial effect, it repeats one simplified impact at 40% power after 1 second. Persistent zones gain one pulse instead. The repeat cannot double-cast or recursively trigger mastery.
+
+---
+
+## Pip
+
+**Existing chassis:** three fast spread darts at 30% physical damage each. Pip is the rapid, precision-volume family.
+
+### Assault — Needlepoint
+
+Converging volleys and focused target execution.
+
+1. **Tight Grouping** — Dart spread narrows by 45%; each dart deals 32% physical damage.
+2. **Pin Cushion** — A full volley hit adds one Pin, up to five. Each Pin increases Pip basic damage to that target by 3%.
+3. **Pluck the Pins** — Hitting a five-Pin target consumes the Pins for 55% physical damage. Bosses retain two Pins after detonation.
+4. **Capstone: Thousand Cuts** — Every fourth full-volley hit launches a second five-dart focused volley after 0.2 seconds. Each bonus dart deals 16% physical damage and cannot add Pins.
+
+### Control — Impossible Angles
+
+Ricochets and distributed elemental pressure.
+
+1. **Bank Shot** — The center dart ricochets once to a new target for 45% of its damage.
+2. **Split Decision** — Side darts gain light homing toward separate nearby enemies and deal 34% physical damage when they hit different targets.
+3. **Trick Payload** — The first ricochet or side-dart hit each cast triggers one elemental payload at 75% strength.
+4. **Capstone: No Safe Angle** — Every fifth cast sends six darts outward before they bend toward unique targets. Each deals 22% physical damage; up to two may select the same enemy.
+
+### Resonance — Quickwork
+
+Sustained accuracy produces a special-driven firing window.
+
+1. **Clean Volley** — A full volley hit grants one Tempo, up to six. Tempo expires after 4 seconds without another full volley.
+2. **Fast Hands** — Every two Tempo grant 4% basic attack speed. Element-specific Pip passives that already own attack speed convert this bonus into 4% basic damage instead.
+3. **Cash Out** — Casting the special consumes Tempo. The next cast per Tempo fires one additional dart at 18% physical damage.
+4. **Capstone: Overflow** — Consuming six Tempo grants 5 seconds of Overflow: volleys fire four darts, their total main-hit budget is 110% of baseline, and every third cast triggers one payload. Overflow cannot be extended.
+
+---
+
+## Mask
+
+**Existing chassis:** one fast piercing dart at 90% physical damage. Mask specials create snares, lures, taunts, and persistent fixtures.
+
+### Assault — Phantom Needle
+
+Piercing lanes and priority-target punishment.
+
+1. **Long Needle** — Projectile life increases by 25%, speed by 10%, and first-target damage becomes 100% physical attack.
+2. **Through the Veil** — Each enemy pierced increases damage to the next enemy by 8%, up to 24%.
+3. **Chosen Victim** — The first elite or boss hit is Marked for 3 seconds. Mask basics deal 12% more damage to their own Marked target.
+4. **Capstone: Phantom Lance** — Every fourth cast becomes a broad spectral lance that pierces indefinitely, deals 145% physical damage, and applies one elemental payload to the first three targets.
+
+### Control — Hexweaver
+
+Basics prepare space for existing trap specials.
+
+1. **Inscribed Dart** — The first enemy hit receives a 4-second Sigil. Only one Sigil per Mask may exist.
+2. **Binding Script** — Striking the Sigiled enemy again triggers one elemental payload and briefly slows it by 15%. Internal cooldown: 1 second.
+3. **Prepared Ground** — Casting the special near the Sigiled enemy transfers the Sigil to the created fixture, increasing its radius or reach by 15% and duration by 20%.
+4. **Capstone: Haunted Ground** — The empowered fixture fires a reduced copy of the Mask's basic at a nearby enemy every 1.2 seconds. Copies deal 30% physical damage and cannot create Sigils.
+
+### Resonance — Grand Masquerade
+
+Manipulates enemy attention and turns trap success into offense.
+
+1. **False Face** — Basic hits make ordinary enemies 20% more likely to choose a Mask fixture or decoy as their target for 2 seconds.
+2. **Applause** — When a Mask fixture controls an enemy, the Mask gains 12% basic attack speed for 2 seconds. This refreshes but does not stack.
+3. **Curtain Call** — An enemy killed while controlled releases a small payload at 60% strength. Internal cooldown: 0.5 seconds.
+4. **Capstone: Grand Masquerade** — While a Mask fixture is active, every third basic originates a second 35%-damage spectral dart from that fixture toward a different target. The copy cannot trigger Curtain Call.
+
+---
+
+## Horn
+
+**Existing chassis:** one slow, oversized projectile at 160% physical damage. Horn specials center on charges, impact sweeps, passive auras, and defensive effects.
+
+### Assault — Breaker
+
+Close-range impact and armor destruction.
+
+1. **Heavy Head** — Basic projectile speed falls by 8%, but damage rises to 175% physical attack.
+2. **Sunder** — Basic hits apply 6% physical vulnerability for 3 seconds, up to two stacks. Boss stacks are half strength.
+3. **Point Blank** — Hits inside 45% of attack range deal 22% additional damage and briefly stagger ordinary enemies.
+4. **Capstone: Siege Horn** — Every fourth cast becomes an impact shell dealing 220% physical damage and a 55% shockwave around the target. It consumes Sunder to enlarge the shockwave, not increase boss damage.
+
+### Control — Bastion
+
+Protects space and converts attacks into guard.
+
+1. **Guarded Shot** — Casting a basic grants a small temporary shield equal to 1.5% maximum HP, capped at 6%.
+2. **Hold the Line** — Hitting an enemy moving toward the orb pushes it back and triggers the elemental payload at 70% strength. Internal cooldown: 1 second per target.
+3. **Interposition** — At maximum Guarded Shot shield, the next projectile that would hit the orb or a nearby ally is intercepted; the shield is consumed.
+4. **Capstone: Countercharge** — Consuming the shield through Interposition primes the next basic within 4 seconds into a 190%-damage countershot with a strong push and one full payload.
+
+### Resonance — Stampede
+
+Basics build Momentum for the existing charge or passive special.
+
+1. **Gather Momentum** — Each basic hit grants one Momentum, up to five. Momentum expires after 5 seconds without a hit.
+2. **Rolling Weight** — Each Momentum grants 3% basic projectile speed and 2% attack speed.
+3. **Impact Reserve** — Casting an active Horn special consumes Momentum to add 6% impact or field power per stack. Passive-only Horns instead release a payload pulse at five stacks and reset.
+4. **Capstone: Unstoppable** — Consuming five Momentum makes the next charge ignore ordinary collision control, increases sweep width by 25%, and causes the landing to fire the Horn's basic in four directions at 35% damage. Passive-only Horns receive an equivalent 6-second empowered aura window.
+
+---
+
+## Wing
+
+**Existing chassis:** two same-angle projectiles at 50% physical damage each with slightly different speed and lifetime. Wing specials are beams and long-range elemental lanes.
+
+### Assault — Twin Lance
+
+Converging long-range pressure.
+
+1. **Synchronized Flight** — The paired projectiles align their speed and converge slightly; each deals 53% physical damage.
+2. **Rangefinder** — Hits beyond 60% of attack range deal 15% additional damage.
+3. **Double Tap** — A dual hit on the same target deals 25% additional physical damage and triggers one payload at 70% strength.
+4. **Capstone: Twin Suns** — Every fifth cast fuses the pair mid-flight into one homing lance dealing 165% physical damage. It pierces once and triggers a payload on its first hit.
+
+### Control — Razor Horizon
+
+Wide firing lanes and distributed pressure.
+
+1. **Open Wings** — The two projectiles fire at opposite 9-degree angles and each pierces one enemy at 46% physical damage.
+2. **Crosscurrent** — After piercing, each shot bends toward a different nearby target for 35% remaining damage.
+3. **Elemental Contrails** — The first pierced enemy on each side receives the elemental payload at 60% strength.
+4. **Capstone: Razor Horizon** — Every fourth cast sweeps a thin line between the two shots for 1 second. Enemies crossing it take 65% physical damage and one reduced payload, once per cast.
+
+### Resonance — Beamweaver
+
+Basics tune the next existing beam special.
+
+1. **Sightline** — Dual hits grant one Focus, up to five. Focus expires after 6 seconds without a hit.
+2. **Coherent Light** — Each Focus grants 2% basic range and 2% payload strength.
+3. **Beam Feed** — Casting the special consumes Focus, adding 4% beam or special duration and 4% effect power per stack. One-shot specials receive equivalent total output rather than duration.
+4. **Capstone: Continuum** — Consuming five Focus leaves a reduced echo of the special's primary line or impact after it ends, dealing 35% of its original power. This never modifies special cooldown; Dark Wing receives no additional firing-rate multiplier.
+
+---
+
+## Kin
+
+**Existing chassis:** a dedicated 1.5-second charged laser scaled from physical attack. Kin specials are primarily blessings and team support effects.
+
+### Assault — Overcharge
+
+Transforms the charged laser into a deliberate offensive weapon.
+
+1. **Hot Coil** — Charge time falls from 1.5 to 1.25 seconds, while laser damage falls to 90% of its prior coefficient.
+2. **Burn Through** — The laser pierces one additional enemy for 55% remaining damage.
+3. **Critical Mass** — Holding a valid target for the entire charge adds 20% damage and one payload to the primary target.
+4. **Capstone: Judgment Line** — Every fourth completed charge overcharges for an additional 0.35 seconds, then fires a much wider beam at 180% normal laser damage. The player receives a clear windup cue; interrupted charges do not consume it.
+
+### Control — Conduit
+
+Conductive marks and battlefield lanes.
+
+1. **Conductivity** — A laser hit marks its target for 4 seconds. Only one Kin Conductivity mark may exist per caster.
+2. **Ground Path** — Firing through the marked target leaves a 2-second lane between Kin and target. Enemies crossing it receive the payload at 60% strength once.
+3. **Relay Point** — An ally autoattack hitting the marked target sends a 20%-elemental-attack pulse to one nearby enemy. Internal cooldown: 0.8 seconds.
+4. **Capstone: Living Circuit** — While the Kin's timed support special is active, Conductivity may link up to three targets. An instantaneous support special instead opens this link window for 6 seconds. Laser and allied pulses travel the link once, using a shared chain budget to prevent recursion.
+
+### Resonance — Aegis Relay
+
+Laser hits feed the Kin's existing support identity.
+
+1. **Guard Charge** — Completing a laser grants the lowest-health ally or the orb a shield equal to 1% of the Kin's maximum HP. Per-target cap: 4%.
+2. **Shared Current** — Shielding an ally gives that ally 8% basic attack speed for 2 seconds. This refreshes but does not stack.
+3. **Blessing Reserve** — Laser hits store one Reserve, up to five. Casting the special consumes Reserve for 4% increased healing, shielding, duration, or support strength per stack.
+4. **Capstone: Guardian Relay** — Consuming five Reserve sends the Kin's elemental payload through every living companion once at a support-safe interpretation: harmful payloads strike a nearby enemy; Blood and Light heal or ward allies. It cannot trigger another Reserve.
+
+---
+
+## Mystic
+
+**Existing chassis:** three 40%-damage spell projectiles. Basic attacks already reduce special cooldown. Mystic specials transform the world and normally cast only once per deployment.
+
+Mystic mastery never adds further special-cooldown refunds.
+
+### Assault — Starcaller
+
+Makes the ordinary spell volley a credible offensive choice before and after the world arrives.
+
+1. **Aligned Stars** — Volley spread narrows by 30%; each bolt deals 42% physical damage.
+2. **Conjunction** — A full volley hit deals 30% elemental attack and triggers one payload per cast.
+3. **Falling Sign** — Every fourth full volley marks the target. The next volley against it gains light homing and 20% main-hit damage.
+4. **Capstone: The Stars Answer** — Every fifth cast converges into a sigil at the primary target after 0.45 seconds, dealing 85% elemental attack in an area. While the world is active, the sigil uses a stronger visual and 20% larger radius.
+
+### Control — Worldshaper
+
+Basics seed locations that the existing world special later awakens.
+
+1. **Seed the Field** — Every third cast leaves a dormant Seed at the primary hit location for 8 seconds. Maximum three.
+2. **Local Omen** — Enemies near a Seed receive a weak, non-damaging version of the elemental payload once every 2 seconds.
+3. **Awakening** — When the world activates, all current Seeds awaken for its lifetime, gaining a small element-specific damage or control pulse.
+4. **Capstone: Living World** — While the world is active, every fifth cast creates a temporary awakened Seed for 5 seconds. Maximum five total Seeds; replacing the oldest does not trigger an exit effect.
+
+### Resonance — Covenant
+
+Uses basic accuracy to support the party without accelerating the one-use world cast.
+
+1. **Witness** — A full volley hit grants one Insight, up to five. Insight does not expire while the Mystic remains deployed.
+2. **Shared Vision** — At five Insight, the party gains 5% attack range and the Mystic's basics seek targets not already being attacked when possible.
+3. **Oath Fulfilled** — Casting the world consumes Insight to grant all living companions a 5-second element-themed boon. The boon changes behavior or utility, not raw special cooldown.
+4. **Capstone: Worldbond** — While the world is active, every five full-volley hits release a covenant pulse: allies receive a small shield or heal, and nearby enemies receive one payload at 60% strength. Internal cooldown: 2 seconds.
+
+## Elemental interpretation principles
+
+The shared payload table is the baseline, not the full presentation. Each family expresses the same element through its chassis:
+
+- Mane applies elements through crossed or sweeping slashes.
+- Let applies them through impacts, fragments, and craters.
+- Pip applies them through volley completion and ricochets.
+- Mask applies them through marks, pierced lanes, and fixtures.
+- Horn applies them through impact, guard, and Momentum release.
+- Wing applies them through paired trajectories and beam geometry.
+- Kin applies them through laser marks and ally relays.
+- Mystic applies them through sigils, Seeds, and its active world.
+
+This creates distinct Fire Mane, Fire Let, and Fire Kin behavior without requiring separate authored trees.
+
+## Interaction with temporary run power-ups
+
+- Stat surges remain fully effective because mastery reads derived stats.
+- Double Cast affects the authored special, not mastery-generated repeats.
+- Chain Lightning uses a shared maximum chain count with Lightning payloads and Living Circuit.
+- Elemental Fury may trigger from mastery kills but cannot be triggered by its own splash.
+- Attack-speed effects obey the existing minimum cooldown and Pip passive ownership rules.
+- Mastery-created fixtures and echoes count toward existing projectile and world-object budgets.
+- A mastery capstone may not be offered again as a temporary power-up.
+
+## Persistence model
+
+Dedicated Drift tables are preferable to adding dozens of settings keys.
+
+### `survival_family_mastery`
+
+- `family_id` text primary key
+- `purchased_node_ids_json` text
+- `updated_at_utc_ms` integer
+
+### `survival_family_loadouts`
+
+- `instance_id` text primary key
+- `family_id` text
+- `selected_path_id` text nullable
+- `preset_name` text nullable
+- `updated_at_utc_ms` integer
+
+The service validates all data against the catalog. Unknown node IDs are ignored. An equipped path is legal only when its first node is purchased. Removing or renaming a node must not delete unrelated purchases.
+
+At run startup, the persistence records become an immutable `SurvivalFamilyMasterySnapshot` keyed by party slot. Combat never reads the database.
+
+## Runtime architecture
+
+Recommended catalog and state types:
+
+- `FamilyMasteryTreeDef`
+- `FamilyMasteryPathDef`
+- `FamilyMasteryNodeDef`
+- `MasteryModifierDef`
+- `EquippedFamilyPath`
+- `SurvivalFamilyMasterySnapshot`
+
+Reusable modifiers cover projectile allocation, angle, width, speed, return, orbit, pierce, ricochet, homing, cast counters, marks, payloads, zones, shields, and special bridges. Bespoke capstones use stable handler IDs rather than scattered species checks.
+
+Runtime hooks:
+
+- `transformBasicAttack`
+- `onBasicCast`
+- `onBasicHit`
+- `onBasicKill`
+- `beforeSpecialCast`
+- `afterSpecialCast`
+- `onSpecialResolved`
+- `onCompanionDamaged`
+- `tick`
+
+Events carry slot, instance, species, family, element, derived stats, cast ID, and recursion-safe event ID.
+
+## Player experience
+
+- Add a **MASTERY** tab to Base Command.
+- Selecting a family shows its base autoattack and three paths.
+- Selecting a path previews that family with the currently selected creature's element.
+- Purchased, purchasable, equipped, and locked nodes have distinct states.
+- A creature detail sheet includes `CHOOSE SURVIVAL PATH`.
+- Survival party slots display the equipped path and capstone.
+- The pause screen separates permanent mastery from temporary power-ups.
+- A training preview shows baseline and mastered attacks against one target and a small group.
+- `EQUIP`, `RESET`, and `COPY TO SAME FAMILY` are free.
+
+## Balance targets
+
+- A complete path should improve total contribution by roughly 20–35% in its intended scenario.
+- No path should outperform both alternatives in single-target, crowd, and utility scenarios.
+- Unconditional shape changes remain near 95–110% baseline single-target DPS.
+- Conditional payoffs may reach 120–140% when executed correctly.
+- Capstones change rhythm or geometry rather than simply adding a large passive multiplier.
+- Control, healing, shielding, and special amplification are valued in the same contribution report as damage.
+- No node may create recursive projectiles, permanent special loops, unbounded summons, or uncapped cooldown refunds.
+
+Telemetry should separately attribute basic damage, mastery damage, special damage, healing, shielding, control uptime, payload applications, special amplification, and capstone activations.
+
+## Implementation plan
+
+### Phase 1: catalog, economy, and persistence
+
+1. Add the eight family tree definitions and validation rules.
+2. Add Drift tables, migration, DAO, and service.
+3. Implement atomic silver and gold purchases with sequential prerequisites.
+4. Implement per-instance path selection, free reset, and immutable run snapshots.
+5. Test affordability, duplicate purchase prevention, invalid saves, renamed nodes, and two instances using different paths.
+
+### Phase 2: combat event foundation
+
+1. Give every basic cast and projectile stable source and cast IDs.
+2. Add cast, hit, kill, special, and damage event hooks.
+3. Implement recursion guards, per-cast accounting, proc cooldowns, and object budgets.
+4. Add the shared elemental payload resolver.
+5. Add combat attribution telemetry.
+
+### Phase 3: Mane vertical slice
+
+1. Implement all three Mane paths and capstones.
+2. Validate them with Fire, Ice, Lightning, Blood, and one control-heavy element.
+3. Build the initial Mastery screen and training preview around Mane.
+4. Tune single-target, crowd, and special-bridge scenarios.
+
+Exit criterion: the five tested Mane elements feel meaningfully different, and two Mane instances can equip distinct paths without bespoke species code.
+
+### Phase 4: projectile families
+
+Implement and tune Let, Pip, Wing, and Mask. These exercise impact, multishot, beam, piercing, fixture, and ricochet systems.
+
+### Phase 5: exceptional families
+
+Implement Horn, Kin, and Mystic after the shared runtime is stable. These require charge, passive-only special, support, and persistent-world adapters.
+
+### Phase 6: complete interface and rollout
+
+1. Add every Base Command and creature-detail entry point.
+2. Add copy-build, run-lock messaging, party badges, and pause summaries.
+3. Add VFX and sound distinctions for all capstones and payload forms.
+4. Run full survival simulations and regression tests.
+5. Ship family trees in batches if balance or art production requires it.
+
+## Decisions intentionally deferred
+
+- Whether additional saved presets are necessary beyond the current per-instance path.
+- Whether discounts unlock after purchasing a complete path in another family.
+- Whether discovery rarity should affect prices. The initial recommendation is no.
+- Whether family mastery later changes behavior in cosmic exploration. The initial scope is survival only.
+- Whether a late-game system may permit one non-capstone node from another path. The initial recommendation is no.
