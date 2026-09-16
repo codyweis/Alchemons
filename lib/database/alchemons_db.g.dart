@@ -9059,6 +9059,17 @@ class $SurvivalFamilyMasteriesTable extends SurvivalFamilyMasteries
         requiredDuringInsert: false,
         defaultValue: const Constant('[]'),
       );
+  static const VerificationMeta _selectedPathIdMeta = const VerificationMeta(
+    'selectedPathId',
+  );
+  @override
+  late final GeneratedColumn<String> selectedPathId = GeneratedColumn<String>(
+    'selected_path_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _updatedAtUtcMsMeta = const VerificationMeta(
     'updatedAtUtcMs',
   );
@@ -9075,6 +9086,7 @@ class $SurvivalFamilyMasteriesTable extends SurvivalFamilyMasteries
   List<GeneratedColumn> get $columns => [
     familyId,
     purchasedNodeIdsJson,
+    selectedPathId,
     updatedAtUtcMs,
   ];
   @override
@@ -9106,6 +9118,15 @@ class $SurvivalFamilyMasteriesTable extends SurvivalFamilyMasteries
         ),
       );
     }
+    if (data.containsKey('selected_path_id')) {
+      context.handle(
+        _selectedPathIdMeta,
+        selectedPathId.isAcceptableOrUnknown(
+          data['selected_path_id']!,
+          _selectedPathIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at_utc_ms')) {
       context.handle(
         _updatedAtUtcMsMeta,
@@ -9132,6 +9153,10 @@ class $SurvivalFamilyMasteriesTable extends SurvivalFamilyMasteries
         DriftSqlType.string,
         data['${effectivePrefix}purchased_node_ids_json'],
       )!,
+      selectedPathId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}selected_path_id'],
+      ),
       updatedAtUtcMs: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}updated_at_utc_ms'],
@@ -9149,10 +9174,12 @@ class SurvivalFamilyMastery extends DataClass
     implements Insertable<SurvivalFamilyMastery> {
   final String familyId;
   final String purchasedNodeIdsJson;
+  final String? selectedPathId;
   final int updatedAtUtcMs;
   const SurvivalFamilyMastery({
     required this.familyId,
     required this.purchasedNodeIdsJson,
+    this.selectedPathId,
     required this.updatedAtUtcMs,
   });
   @override
@@ -9160,6 +9187,9 @@ class SurvivalFamilyMastery extends DataClass
     final map = <String, Expression>{};
     map['family_id'] = Variable<String>(familyId);
     map['purchased_node_ids_json'] = Variable<String>(purchasedNodeIdsJson);
+    if (!nullToAbsent || selectedPathId != null) {
+      map['selected_path_id'] = Variable<String>(selectedPathId);
+    }
     map['updated_at_utc_ms'] = Variable<int>(updatedAtUtcMs);
     return map;
   }
@@ -9168,6 +9198,9 @@ class SurvivalFamilyMastery extends DataClass
     return SurvivalFamilyMasteriesCompanion(
       familyId: Value(familyId),
       purchasedNodeIdsJson: Value(purchasedNodeIdsJson),
+      selectedPathId: selectedPathId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(selectedPathId),
       updatedAtUtcMs: Value(updatedAtUtcMs),
     );
   }
@@ -9182,6 +9215,7 @@ class SurvivalFamilyMastery extends DataClass
       purchasedNodeIdsJson: serializer.fromJson<String>(
         json['purchasedNodeIdsJson'],
       ),
+      selectedPathId: serializer.fromJson<String?>(json['selectedPathId']),
       updatedAtUtcMs: serializer.fromJson<int>(json['updatedAtUtcMs']),
     );
   }
@@ -9191,6 +9225,7 @@ class SurvivalFamilyMastery extends DataClass
     return <String, dynamic>{
       'familyId': serializer.toJson<String>(familyId),
       'purchasedNodeIdsJson': serializer.toJson<String>(purchasedNodeIdsJson),
+      'selectedPathId': serializer.toJson<String?>(selectedPathId),
       'updatedAtUtcMs': serializer.toJson<int>(updatedAtUtcMs),
     };
   }
@@ -9198,10 +9233,14 @@ class SurvivalFamilyMastery extends DataClass
   SurvivalFamilyMastery copyWith({
     String? familyId,
     String? purchasedNodeIdsJson,
+    Value<String?> selectedPathId = const Value.absent(),
     int? updatedAtUtcMs,
   }) => SurvivalFamilyMastery(
     familyId: familyId ?? this.familyId,
     purchasedNodeIdsJson: purchasedNodeIdsJson ?? this.purchasedNodeIdsJson,
+    selectedPathId: selectedPathId.present
+        ? selectedPathId.value
+        : this.selectedPathId,
     updatedAtUtcMs: updatedAtUtcMs ?? this.updatedAtUtcMs,
   );
   SurvivalFamilyMastery copyWithCompanion(
@@ -9212,6 +9251,9 @@ class SurvivalFamilyMastery extends DataClass
       purchasedNodeIdsJson: data.purchasedNodeIdsJson.present
           ? data.purchasedNodeIdsJson.value
           : this.purchasedNodeIdsJson,
+      selectedPathId: data.selectedPathId.present
+          ? data.selectedPathId.value
+          : this.selectedPathId,
       updatedAtUtcMs: data.updatedAtUtcMs.present
           ? data.updatedAtUtcMs.value
           : this.updatedAtUtcMs,
@@ -9223,20 +9265,26 @@ class SurvivalFamilyMastery extends DataClass
     return (StringBuffer('SurvivalFamilyMastery(')
           ..write('familyId: $familyId, ')
           ..write('purchasedNodeIdsJson: $purchasedNodeIdsJson, ')
+          ..write('selectedPathId: $selectedPathId, ')
           ..write('updatedAtUtcMs: $updatedAtUtcMs')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(familyId, purchasedNodeIdsJson, updatedAtUtcMs);
+  int get hashCode => Object.hash(
+    familyId,
+    purchasedNodeIdsJson,
+    selectedPathId,
+    updatedAtUtcMs,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is SurvivalFamilyMastery &&
           other.familyId == this.familyId &&
           other.purchasedNodeIdsJson == this.purchasedNodeIdsJson &&
+          other.selectedPathId == this.selectedPathId &&
           other.updatedAtUtcMs == this.updatedAtUtcMs);
 }
 
@@ -9244,23 +9292,27 @@ class SurvivalFamilyMasteriesCompanion
     extends UpdateCompanion<SurvivalFamilyMastery> {
   final Value<String> familyId;
   final Value<String> purchasedNodeIdsJson;
+  final Value<String?> selectedPathId;
   final Value<int> updatedAtUtcMs;
   final Value<int> rowid;
   const SurvivalFamilyMasteriesCompanion({
     this.familyId = const Value.absent(),
     this.purchasedNodeIdsJson = const Value.absent(),
+    this.selectedPathId = const Value.absent(),
     this.updatedAtUtcMs = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SurvivalFamilyMasteriesCompanion.insert({
     required String familyId,
     this.purchasedNodeIdsJson = const Value.absent(),
+    this.selectedPathId = const Value.absent(),
     this.updatedAtUtcMs = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : familyId = Value(familyId);
   static Insertable<SurvivalFamilyMastery> custom({
     Expression<String>? familyId,
     Expression<String>? purchasedNodeIdsJson,
+    Expression<String>? selectedPathId,
     Expression<int>? updatedAtUtcMs,
     Expression<int>? rowid,
   }) {
@@ -9268,6 +9320,7 @@ class SurvivalFamilyMasteriesCompanion
       if (familyId != null) 'family_id': familyId,
       if (purchasedNodeIdsJson != null)
         'purchased_node_ids_json': purchasedNodeIdsJson,
+      if (selectedPathId != null) 'selected_path_id': selectedPathId,
       if (updatedAtUtcMs != null) 'updated_at_utc_ms': updatedAtUtcMs,
       if (rowid != null) 'rowid': rowid,
     });
@@ -9276,12 +9329,14 @@ class SurvivalFamilyMasteriesCompanion
   SurvivalFamilyMasteriesCompanion copyWith({
     Value<String>? familyId,
     Value<String>? purchasedNodeIdsJson,
+    Value<String?>? selectedPathId,
     Value<int>? updatedAtUtcMs,
     Value<int>? rowid,
   }) {
     return SurvivalFamilyMasteriesCompanion(
       familyId: familyId ?? this.familyId,
       purchasedNodeIdsJson: purchasedNodeIdsJson ?? this.purchasedNodeIdsJson,
+      selectedPathId: selectedPathId ?? this.selectedPathId,
       updatedAtUtcMs: updatedAtUtcMs ?? this.updatedAtUtcMs,
       rowid: rowid ?? this.rowid,
     );
@@ -9298,6 +9353,9 @@ class SurvivalFamilyMasteriesCompanion
         purchasedNodeIdsJson.value,
       );
     }
+    if (selectedPathId.present) {
+      map['selected_path_id'] = Variable<String>(selectedPathId.value);
+    }
     if (updatedAtUtcMs.present) {
       map['updated_at_utc_ms'] = Variable<int>(updatedAtUtcMs.value);
     }
@@ -9312,6 +9370,7 @@ class SurvivalFamilyMasteriesCompanion
     return (StringBuffer('SurvivalFamilyMasteriesCompanion(')
           ..write('familyId: $familyId, ')
           ..write('purchasedNodeIdsJson: $purchasedNodeIdsJson, ')
+          ..write('selectedPathId: $selectedPathId, ')
           ..write('updatedAtUtcMs: $updatedAtUtcMs, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -14681,6 +14740,7 @@ typedef $$SurvivalFamilyMasteriesTableCreateCompanionBuilder =
     SurvivalFamilyMasteriesCompanion Function({
       required String familyId,
       Value<String> purchasedNodeIdsJson,
+      Value<String?> selectedPathId,
       Value<int> updatedAtUtcMs,
       Value<int> rowid,
     });
@@ -14688,6 +14748,7 @@ typedef $$SurvivalFamilyMasteriesTableUpdateCompanionBuilder =
     SurvivalFamilyMasteriesCompanion Function({
       Value<String> familyId,
       Value<String> purchasedNodeIdsJson,
+      Value<String?> selectedPathId,
       Value<int> updatedAtUtcMs,
       Value<int> rowid,
     });
@@ -14708,6 +14769,11 @@ class $$SurvivalFamilyMasteriesTableFilterComposer
 
   ColumnFilters<String> get purchasedNodeIdsJson => $composableBuilder(
     column: $table.purchasedNodeIdsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get selectedPathId => $composableBuilder(
+    column: $table.selectedPathId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14736,6 +14802,11 @@ class $$SurvivalFamilyMasteriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get selectedPathId => $composableBuilder(
+    column: $table.selectedPathId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get updatedAtUtcMs => $composableBuilder(
     column: $table.updatedAtUtcMs,
     builder: (column) => ColumnOrderings(column),
@@ -14756,6 +14827,11 @@ class $$SurvivalFamilyMasteriesTableAnnotationComposer
 
   GeneratedColumn<String> get purchasedNodeIdsJson => $composableBuilder(
     column: $table.purchasedNodeIdsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get selectedPathId => $composableBuilder(
+    column: $table.selectedPathId,
     builder: (column) => column,
   );
 
@@ -14813,11 +14889,13 @@ class $$SurvivalFamilyMasteriesTableTableManager
               ({
                 Value<String> familyId = const Value.absent(),
                 Value<String> purchasedNodeIdsJson = const Value.absent(),
+                Value<String?> selectedPathId = const Value.absent(),
                 Value<int> updatedAtUtcMs = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurvivalFamilyMasteriesCompanion(
                 familyId: familyId,
                 purchasedNodeIdsJson: purchasedNodeIdsJson,
+                selectedPathId: selectedPathId,
                 updatedAtUtcMs: updatedAtUtcMs,
                 rowid: rowid,
               ),
@@ -14825,11 +14903,13 @@ class $$SurvivalFamilyMasteriesTableTableManager
               ({
                 required String familyId,
                 Value<String> purchasedNodeIdsJson = const Value.absent(),
+                Value<String?> selectedPathId = const Value.absent(),
                 Value<int> updatedAtUtcMs = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SurvivalFamilyMasteriesCompanion.insert(
                 familyId: familyId,
                 purchasedNodeIdsJson: purchasedNodeIdsJson,
+                selectedPathId: selectedPathId,
                 updatedAtUtcMs: updatedAtUtcMs,
                 rowid: rowid,
               ),

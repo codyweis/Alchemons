@@ -1,7 +1,5 @@
-import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/survival_family_mastery.dart';
-import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
@@ -36,58 +34,30 @@ class FamilyMasteryPanel extends StatefulWidget {
 
 class _FamilyMasteryPanelState extends State<FamilyMasteryPanel> {
   CreatureFamily _family = CreatureFamily.mane;
-  final Map<CreatureFamily, String> _selectedInstances = {};
-  Future<List<CreatureInstance>>? _instances;
+  final Map<CreatureFamily, String> _focusedNodes = {};
   String? _busyNodeId;
   String? _busyPathId;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _instances ??= context
-        .read<AlchemonsDatabase>()
-        .creatureDao
-        .getAllInstances();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<FamilyMasteryService>(
       builder: (context, mastery, _) {
-        return FutureBuilder<List<CreatureInstance>>(
-          future: _instances,
-          builder: (context, snapshot) {
-            if (!snapshot.hasData || !mastery.isLoaded) {
-              return const Center(
-                child: CircularProgressIndicator(color: Color(0xFFFFA726)),
-              );
-            }
-            return _buildContent(mastery, snapshot.data!);
-          },
-        );
+        if (!mastery.isLoaded) {
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFFFFA726)),
+          );
+        }
+        return _buildContent(mastery);
       },
     );
   }
 
-  Widget _buildContent(
-    FamilyMasteryService mastery,
-    List<CreatureInstance> allInstances,
-  ) {
+  Widget _buildContent(FamilyMasteryService mastery) {
     final tree = FamilyMasteryCatalog.treeFor(_family);
     final owned = mastery.purchasedNodes(_family);
-    final familyInstances =
-        allInstances
-            .where(
-              (instance) =>
-                  creatureFamilyFromBaseId(instance.baseId) == _family,
-            )
-            .toList()
-          ..sort((a, b) => _nameFor(a).compareTo(_nameFor(b)));
-    final requestedId = _selectedInstances[_family];
-    final selected = familyInstances.cast<CreatureInstance?>().firstWhere(
-      (instance) => instance?.instanceId == requestedId,
-      orElse: () => familyInstances.isEmpty ? null : familyInstances.first,
-    );
+    final selectedPathId = mastery.selectedPathForFamily(_family);
+    final focusedId = _focusedNodes[_family] ?? _defaultFocus(tree, owned);
+    final focused = FamilyMasteryCatalog.entryForNode(focusedId)?.node;
 
     return ColoredBox(
       color: _background,
@@ -95,37 +65,72 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel> {
         slivers: [
           SliverToBoxAdapter(child: _buildFamilyRail()),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+            padding: const EdgeInsets.fromLTRB(14, 18, 14, 32),
             sliver: SliverList.list(
               children: [
-                _buildTreeHeader(tree, owned.length),
+                _buildTreeHeader(tree, owned.length, selectedPathId),
                 const SizedBox(height: 14),
-                _buildCreaturePicker(familyInstances, selected),
-                const SizedBox(height: 18),
-                for (final path in tree.paths) ...[
-                  _PathCard(
-                    path: path,
-                    familyColor: _family.color,
-                    owned: owned,
-                    isEquipped:
-                        selected != null &&
-                        mastery.selectedPathFor(selected.instanceId) == path.id,
-                    busyNodeId: _busyNodeId,
-                    busyPathId: _busyPathId,
-                    silverBalance: widget.silverBalance,
-                    goldBalance: widget.goldBalance,
-                    hasCreature: selected != null,
-                    onBuy: (node) => _purchaseNode(mastery, selected, node),
-                    onEquip: () => _equipPath(mastery, selected, path),
+                if (focused != null)
+                  _NodeInspector(
+                    node: focused,
+                    family: _family,
+                    purchased: owned.contains(focused.id),
+                    prerequisiteMet: _prerequisiteMet(tree, owned, focused.id),
+                    canAfford: focused.currency == FamilyMasteryCurrency.gold
+                        ? widget.goldBalance >= focused.cost
+                        : widget.silverBalance >= focused.cost,
+                    purchasing: _busyNodeId == focused.id,
+                    blocked: _busyNodeId != null || _busyPathId != null,
+                    onUnlock: () => _purchaseNode(mastery, focused),
                   ),
-                  const SizedBox(height: 14),
-                ],
+                const SizedBox(height: 18),
+                _FamilySkillTree(
+                  tree: tree,
+                  owned: owned,
+                  selectedPathId: selectedPathId,
+                  focusedNodeId: focusedId,
+                  busyPathId: _busyPathId,
+                  onNodeTap: (node) =>
+                      setState(() => _focusedNodes[_family] = node.id),
+                  onPathSelect: (path) => _selectPath(mastery, path),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Only the highlighted branch is active in Survival. Every creature in this family uses it.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _dim, fontSize: 10, height: 1.4),
+                ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  String _defaultFocus(FamilyMasteryTreeDef tree, Set<String> owned) {
+    for (final path in tree.paths) {
+      for (final node in path.nodes) {
+        if (!owned.contains(node.id) &&
+            _prerequisiteMet(tree, owned, node.id)) {
+          return node.id;
+        }
+      }
+    }
+    return tree.paths.first.nodes.first.id;
+  }
+
+  bool _prerequisiteMet(
+    FamilyMasteryTreeDef tree,
+    Set<String> owned,
+    String nodeId,
+  ) {
+    for (final path in tree.paths) {
+      final index = path.nodes.indexWhere((node) => node.id == nodeId);
+      if (index < 0) continue;
+      return index == 0 || owned.contains(path.nodes[index - 1].id);
+    }
+    return false;
   }
 
   Widget _buildFamilyRail() {
@@ -201,15 +206,22 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel> {
     );
   }
 
-  Widget _buildTreeHeader(FamilyMasteryTreeDef tree, int purchasedCount) {
+  Widget _buildTreeHeader(
+    FamilyMasteryTreeDef tree,
+    int purchasedCount,
+    String? selectedPathId,
+  ) {
+    final selectedPath = selectedPathId == null
+        ? null
+        : FamilyMasteryCatalog.pathFor(_family, selectedPathId);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_family.color.withValues(alpha: 0.18), _panel],
+          colors: [_family.color.withValues(alpha: 0.2), _panel],
         ),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: _family.color.withValues(alpha: 0.45)),
+        border: Border.all(color: _family.color.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,7 +231,7 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel> {
               Icon(
                 AppIcons.account_tree_rounded,
                 color: _family.color,
-                size: 20,
+                size: 21,
               ),
               const SizedBox(width: 9),
               Expanded(
@@ -234,144 +246,66 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel> {
                   ),
                 ),
               ),
-              Text(
-                '$purchasedCount / 12',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: _family.color,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                ),
+              _StatusPill(
+                label: 'ALL ${_family.displayName.toUpperCase()}S',
+                color: _family.color,
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 9),
           Text(
             tree.chassis,
             style: const TextStyle(color: _muted, fontSize: 12, height: 1.4),
           ),
           const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: purchasedCount / 12,
-              minHeight: 3,
-              backgroundColor: _border,
-              color: _family.color,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: purchasedCount / 12,
+                    minHeight: 3,
+                    backgroundColor: _border,
+                    color: _family.color,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '$purchasedCount / 12',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: _family.color,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 9),
-          const Text(
-            'Unlocks are shared by the family. The equipped path belongs to the selected creature.',
-            style: TextStyle(color: _dim, fontSize: 10, height: 1.35),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCreaturePicker(
-    List<CreatureInstance> instances,
-    CreatureInstance? selected,
-  ) {
-    if (instances.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _panel,
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: _border),
-        ),
-        child: Row(
-          children: [
-            Icon(AppIcons.lock_rounded, color: _family.color, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Discover a ${_family.displayName} creature to purchase and equip this tree.',
-                style: const TextStyle(
-                  color: _muted,
-                  fontSize: 11,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(13, 8, 10, 8),
-      decoration: BoxDecoration(
-        color: _panel,
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: _border),
-      ),
-      child: Row(
-        children: [
-          Icon(AppIcons.person_rounded, color: _family.color, size: 18),
-          const SizedBox(width: 10),
-          const Text(
-            'EQUIP FOR',
+          Text(
+            selectedPath == null
+                ? 'NO ACTIVE BRANCH'
+                : 'ACTIVE BRANCH  ·  ${selectedPath.name.toUpperCase()}',
             style: TextStyle(
               fontFamily: 'monospace',
-              color: _dim,
+              color: selectedPath == null ? _dim : _family.color,
               fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.1,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                key: const ValueKey('mastery-creature-picker'),
-                value: selected!.instanceId,
-                isExpanded: true,
-                dropdownColor: _panelRaised,
-                iconEnabledColor: _family.color,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  color: _text,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-                items: [
-                  for (final instance in instances)
-                    DropdownMenuItem(
-                      value: instance.instanceId,
-                      child: Text(
-                        '${_nameFor(instance)}  ·  LV ${instance.level}',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: (id) {
-                  if (id == null) return;
-                  setState(() => _selectedInstances[_family] = id);
-                },
-              ),
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1,
             ),
           ),
         ],
       ),
     );
-  }
-
-  String _nameFor(CreatureInstance instance) {
-    final species = context.read<CreatureCatalog>().getCreatureById(
-      instance.baseId,
-    );
-    return instance.nickname ?? species?.name ?? instance.baseId;
   }
 
   Future<void> _purchaseNode(
     FamilyMasteryService mastery,
-    CreatureInstance? instance,
     FamilyMasteryNodeDef node,
   ) async {
-    if (instance == null || _busyNodeId != null || _busyPathId != null) return;
+    if (_busyNodeId != null || _busyPathId != null) return;
     final currencyName = node.currency == FamilyMasteryCurrency.gold
         ? 'gold'
         : 'silver';
@@ -393,7 +327,7 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel> {
           ),
         ),
         content: Text(
-          'Spend ${_formatNumber(node.cost)} $currencyName? This unlock applies to every ${_family.displayName} creature.',
+          'Spend ${_formatNumber(node.cost)} $currencyName? Every ${_family.displayName} will gain this node whenever its branch is active.',
           style: const TextStyle(color: _muted, fontSize: 12, height: 1.45),
         ),
         actions: [
@@ -411,10 +345,7 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel> {
     if (confirmed != true || !mounted) return;
 
     setState(() => _busyNodeId = node.id);
-    final result = await mastery.purchaseNode(
-      instanceId: instance.instanceId,
-      nodeId: node.id,
-    );
+    final result = await mastery.purchaseNode(family: _family, nodeId: node.id);
     await widget.onCurrencyChanged();
     if (!mounted) return;
     setState(() => _busyNodeId = null);
@@ -424,18 +355,13 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel> {
     );
   }
 
-  Future<void> _equipPath(
+  Future<void> _selectPath(
     FamilyMasteryService mastery,
-    CreatureInstance? instance,
     FamilyMasteryPathDef path,
   ) async {
-    if (instance == null || _busyNodeId != null || _busyPathId != null) return;
+    if (_busyNodeId != null || _busyPathId != null) return;
     setState(() => _busyPathId = path.id);
-    final result = await mastery.equipPath(
-      instanceId: instance.instanceId,
-      family: _family,
-      pathId: path.id,
-    );
+    final result = await mastery.selectPath(family: _family, pathId: path.id);
     if (!mounted) return;
     setState(() => _busyPathId = null);
     _showResult(
@@ -458,252 +384,70 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel> {
   }
 }
 
-class _PathCard extends StatelessWidget {
-  const _PathCard({
-    required this.path,
-    required this.familyColor,
-    required this.owned,
-    required this.isEquipped,
-    required this.busyNodeId,
-    required this.busyPathId,
-    required this.silverBalance,
-    required this.goldBalance,
-    required this.hasCreature,
-    required this.onBuy,
-    required this.onEquip,
-  });
-
-  final FamilyMasteryPathDef path;
-  final Color familyColor;
-  final Set<String> owned;
-  final bool isEquipped;
-  final String? busyNodeId;
-  final String? busyPathId;
-  final int silverBalance;
-  final int goldBalance;
-  final bool hasCreature;
-  final ValueChanged<FamilyMasteryNodeDef> onBuy;
-  final VoidCallback onEquip;
-
-  @override
-  Widget build(BuildContext context) {
-    final pathUnlocked = owned.contains(path.nodes.first.id);
-    return Container(
-      decoration: BoxDecoration(
-        color: _panel,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: isEquipped ? familyColor.withValues(alpha: 0.8) : _border,
-          width: isEquipped ? 1.5 : 1,
-        ),
-        boxShadow: isEquipped
-            ? [
-                BoxShadow(
-                  color: familyColor.withValues(alpha: 0.08),
-                  blurRadius: 18,
-                ),
-              ]
-            : null,
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: familyColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: familyColor.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: Icon(_pathIcon(path.id), color: familyColor, size: 20),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        path.name.toUpperCase(),
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
-                          color: _text,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        path.role,
-                        style: const TextStyle(color: _muted, fontSize: 10),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isEquipped)
-                  _StatusPill(label: 'EQUIPPED', color: familyColor)
-                else if (pathUnlocked)
-                  TextButton(
-                    key: ValueKey('equip-${path.id}'),
-                    onPressed: hasCreature && busyPathId == null
-                        ? onEquip
-                        : null,
-                    style: TextButton.styleFrom(
-                      foregroundColor: familyColor,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 7,
-                      ),
-                      side: BorderSide(
-                        color: familyColor.withValues(alpha: 0.5),
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                    child: busyPathId == path.id
-                        ? SizedBox(
-                            width: 13,
-                            height: 13,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: familyColor,
-                            ),
-                          )
-                        : const Text(
-                            'EQUIP',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                  ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: _border),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
-            child: Column(
-              children: [
-                for (var i = 0; i < path.nodes.length; i++) ...[
-                  _MasteryNode(
-                    node: path.nodes[i],
-                    color: familyColor,
-                    purchased: owned.contains(path.nodes[i].id),
-                    prerequisiteMet:
-                        i == 0 || owned.contains(path.nodes[i - 1].id),
-                    canAfford:
-                        path.nodes[i].currency == FamilyMasteryCurrency.gold
-                        ? goldBalance >= path.nodes[i].cost
-                        : silverBalance >= path.nodes[i].cost,
-                    purchasing: busyNodeId == path.nodes[i].id,
-                    blockedByPurchase: busyNodeId != null || busyPathId != null,
-                    hasCreature: hasCreature,
-                    onBuy: () => onBuy(path.nodes[i]),
-                  ),
-                  if (i != path.nodes.length - 1)
-                    Container(
-                      width: 2,
-                      height: 9,
-                      color: owned.contains(path.nodes[i].id)
-                          ? familyColor.withValues(alpha: 0.55)
-                          : _border,
-                    ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MasteryNode extends StatelessWidget {
-  const _MasteryNode({
+class _NodeInspector extends StatelessWidget {
+  const _NodeInspector({
     required this.node,
-    required this.color,
+    required this.family,
     required this.purchased,
     required this.prerequisiteMet,
     required this.canAfford,
     required this.purchasing,
-    required this.blockedByPurchase,
-    required this.hasCreature,
-    required this.onBuy,
+    required this.blocked,
+    required this.onUnlock,
   });
 
   final FamilyMasteryNodeDef node;
-  final Color color;
+  final CreatureFamily family;
   final bool purchased;
   final bool prerequisiteMet;
   final bool canAfford;
   final bool purchasing;
-  final bool blockedByPurchase;
-  final bool hasCreature;
-  final VoidCallback onBuy;
+  final bool blocked;
+  final VoidCallback onUnlock;
 
   @override
   Widget build(BuildContext context) {
-    final available = prerequisiteMet && !purchased;
     final currencyColor = node.currency == FamilyMasteryCurrency.gold
         ? _gold
         : _silver;
-    return AnimatedContainer(
-      key: ValueKey('mastery-node-${node.id}'),
-      duration: const Duration(milliseconds: 180),
-      padding: const EdgeInsets.all(11),
+    return Container(
+      key: const ValueKey('mastery-node-inspector'),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: purchased
-            ? color.withValues(alpha: 0.09)
-            : available
-            ? _panelRaised
-            : const Color(0xFF101319),
-        borderRadius: BorderRadius.circular(4),
+        color: _panelRaised,
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: purchased ? color.withValues(alpha: 0.5) : _border,
+          color: purchased ? family.color.withValues(alpha: 0.6) : _border,
         ),
       ),
       child: Row(
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: 42,
+            height: 42,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: purchased ? color.withValues(alpha: 0.2) : _background,
+              color: purchased
+                  ? family.color.withValues(alpha: 0.18)
+                  : _background,
               border: Border.all(
-                color: purchased
-                    ? color
-                    : available
-                    ? _muted
-                    : _border,
+                color: purchased ? family.color : _muted,
+                width: 1.5,
               ),
             ),
             child: purchased
-                ? Icon(AppIcons.check_rounded, color: color, size: 17)
-                : available
-                ? Text(
+                ? Icon(AppIcons.check_rounded, color: family.color, size: 20)
+                : Text(
                     '${node.tier}',
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      color: color,
-                      fontSize: 11,
+                      color: family.color,
                       fontWeight: FontWeight.w900,
                     ),
-                  )
-                : const Icon(AppIcons.lock_rounded, color: _dim, size: 14),
+                  ),
           ),
-          const SizedBox(width: 11),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -713,12 +457,12 @@ class _MasteryNode extends StatelessWidget {
                     Flexible(
                       child: Text(
                         node.name.toUpperCase(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: 'monospace',
-                          color: purchased || available ? _text : _dim,
+                          color: _text,
                           fontSize: 11,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 0.6,
+                          letterSpacing: 0.7,
                         ),
                       ),
                     ),
@@ -728,13 +472,13 @@ class _MasteryNode extends StatelessWidget {
                     ],
                   ],
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 Text(
                   node.description,
-                  style: TextStyle(
-                    color: purchased || available ? _muted : _dim,
+                  style: const TextStyle(
+                    color: _muted,
                     fontSize: 10,
-                    height: 1.3,
+                    height: 1.35,
                   ),
                 ),
               ],
@@ -742,25 +486,17 @@ class _MasteryNode extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           if (purchased)
-            const Text(
-              'OWNED',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: _dim,
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-              ),
-            )
-          else if (available)
+            const _StatusPill(label: 'OWNED', color: _silver)
+          else
             TextButton(
-              onPressed: hasCreature && canAfford && !blockedByPurchase
-                  ? onBuy
+              key: ValueKey('unlock-${node.id}'),
+              onPressed: prerequisiteMet && canAfford && !blocked
+                  ? onUnlock
                   : null,
               style: TextButton.styleFrom(
                 foregroundColor: currencyColor,
                 disabledForegroundColor: _dim,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                minimumSize: const Size(0, 34),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
                 backgroundColor: currencyColor.withValues(alpha: 0.06),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(3),
@@ -768,8 +504,8 @@ class _MasteryNode extends StatelessWidget {
               ),
               child: purchasing
                   ? SizedBox(
-                      width: 13,
-                      height: 13,
+                      width: 14,
+                      height: 14,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: currencyColor,
@@ -782,7 +518,7 @@ class _MasteryNode extends StatelessWidget {
                           kind: node.currency == FamilyMasteryCurrency.gold
                               ? CoinKind.gold
                               : CoinKind.silver,
-                          size: 13,
+                          size: 14,
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -800,6 +536,430 @@ class _MasteryNode extends StatelessWidget {
       ),
     );
   }
+}
+
+class _FamilySkillTree extends StatelessWidget {
+  const _FamilySkillTree({
+    required this.tree,
+    required this.owned,
+    required this.selectedPathId,
+    required this.focusedNodeId,
+    required this.busyPathId,
+    required this.onNodeTap,
+    required this.onPathSelect,
+  });
+
+  final FamilyMasteryTreeDef tree;
+  final Set<String> owned;
+  final String? selectedPathId;
+  final String focusedNodeId;
+  final String? busyPathId;
+  final ValueChanged<FamilyMasteryNodeDef> onNodeTap;
+  final ValueChanged<FamilyMasteryPathDef> onPathSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = tree.family.color;
+    return Container(
+      key: const ValueKey('family-skill-tree'),
+      padding: const EdgeInsets.fromLTRB(8, 16, 8, 18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D1016),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        children: [
+          _RootNode(family: tree.family),
+          SizedBox(
+            height: 52,
+            width: double.infinity,
+            child: CustomPaint(painter: _BranchConnectorPainter(color: color)),
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final path in tree.paths)
+                Expanded(
+                  child: _BranchColumn(
+                    path: path,
+                    color: color,
+                    owned: owned,
+                    active: selectedPathId == path.id,
+                    hasActivePath: selectedPathId != null,
+                    focusedNodeId: focusedNodeId,
+                    selecting: busyPathId == path.id,
+                    onNodeTap: onNodeTap,
+                    onSelect: () => onPathSelect(path),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RootNode extends StatelessWidget {
+  const _RootNode({required this.family});
+
+  final CreatureFamily family;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 70,
+          height: 70,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [family.color.withValues(alpha: 0.34), _panel],
+            ),
+            border: Border.all(color: family.color, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: family.color.withValues(alpha: 0.2),
+                blurRadius: 18,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Image.asset(
+            family.iconPath,
+            errorBuilder: (_, _, _) =>
+                Icon(AppIcons.pets_rounded, color: family.color, size: 30),
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          '${family.displayName.toUpperCase()} CORE',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: family.color,
+            fontSize: 9,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BranchColumn extends StatelessWidget {
+  const _BranchColumn({
+    required this.path,
+    required this.color,
+    required this.owned,
+    required this.active,
+    required this.hasActivePath,
+    required this.focusedNodeId,
+    required this.selecting,
+    required this.onNodeTap,
+    required this.onSelect,
+  });
+
+  final FamilyMasteryPathDef path;
+  final Color color;
+  final Set<String> owned;
+  final bool active;
+  final bool hasActivePath;
+  final String focusedNodeId;
+  final bool selecting;
+  final ValueChanged<FamilyMasteryNodeDef> onNodeTap;
+  final VoidCallback onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final unlocked = owned.contains(path.nodes.first.id);
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 180),
+      opacity: active || !hasActivePath ? 1 : 0.62,
+      child: Column(
+        children: [
+          Icon(_pathIcon(path.id), color: active ? color : _muted, size: 19),
+          const SizedBox(height: 5),
+          SizedBox(
+            height: 28,
+            child: Text(
+              path.name.toUpperCase(),
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: active ? color : _text,
+                fontSize: 9,
+                height: 1.2,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 38,
+            child: Text(
+              path.role,
+              maxLines: 3,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: _dim, fontSize: 8, height: 1.25),
+            ),
+          ),
+          const SizedBox(height: 5),
+          if (active)
+            _StatusPill(label: 'ACTIVE', color: color)
+          else
+            SizedBox(
+              height: 25,
+              child: TextButton(
+                key: ValueKey('select-${path.id}'),
+                onPressed: unlocked && !selecting ? onSelect : null,
+                style: TextButton.styleFrom(
+                  foregroundColor: color,
+                  disabledForegroundColor: _dim,
+                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  minimumSize: const Size(0, 25),
+                  side: BorderSide(
+                    color: unlocked ? color.withValues(alpha: 0.5) : _border,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                child: selecting
+                    ? SizedBox(
+                        width: 11,
+                        height: 11,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: color,
+                        ),
+                      )
+                    : const Text(
+                        'SELECT',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          for (var index = 0; index < path.nodes.length; index++) ...[
+            _TreeNode(
+              node: path.nodes[index],
+              color: color,
+              purchased: owned.contains(path.nodes[index].id),
+              available: index == 0 || owned.contains(path.nodes[index - 1].id),
+              focused: focusedNodeId == path.nodes[index].id,
+              activeBranch: active,
+              onTap: () => onNodeTap(path.nodes[index]),
+            ),
+            if (index != path.nodes.length - 1)
+              Container(
+                width: active ? 3 : 2,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: owned.contains(path.nodes[index].id)
+                      ? color.withValues(alpha: active ? 0.9 : 0.45)
+                      : _border,
+                  boxShadow: active && owned.contains(path.nodes[index].id)
+                      ? [
+                          BoxShadow(
+                            color: color.withValues(alpha: 0.45),
+                            blurRadius: 7,
+                          ),
+                        ]
+                      : null,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TreeNode extends StatelessWidget {
+  const _TreeNode({
+    required this.node,
+    required this.color,
+    required this.purchased,
+    required this.available,
+    required this.focused,
+    required this.activeBranch,
+    required this.onTap,
+  });
+
+  final FamilyMasteryNodeDef node;
+  final Color color;
+  final bool purchased;
+  final bool available;
+  final bool focused;
+  final bool activeBranch;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final nodeColor = node.isCapstone ? _gold : color;
+    return Semantics(
+      button: true,
+      label: '${node.name}, tier ${node.tier}',
+      child: InkWell(
+        key: ValueKey('mastery-node-${node.id}'),
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Column(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: node.isCapstone ? 66 : 58,
+              height: node.isCapstone ? 66 : 58,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: purchased
+                    ? nodeColor.withValues(alpha: 0.2)
+                    : available
+                    ? _panelRaised
+                    : const Color(0xFF101319),
+                border: Border.all(
+                  color: focused
+                      ? nodeColor
+                      : purchased
+                      ? nodeColor.withValues(alpha: 0.75)
+                      : available
+                      ? _muted
+                      : _border,
+                  width: focused
+                      ? 3
+                      : purchased
+                      ? 2
+                      : 1,
+                ),
+                boxShadow: purchased && activeBranch
+                    ? [
+                        BoxShadow(
+                          color: nodeColor.withValues(alpha: 0.28),
+                          blurRadius: 14,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: purchased
+                  ? Icon(
+                      node.isCapstone
+                          ? AppIcons.auto_awesome_rounded
+                          : AppIcons.check_rounded,
+                      color: nodeColor,
+                      size: node.isCapstone ? 25 : 20,
+                    )
+                  : available
+                  ? Text(
+                      '${node.tier}',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: nodeColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    )
+                  : const Icon(AppIcons.lock_rounded, color: _dim, size: 16),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 26,
+              child: Text(
+                node.name.toUpperCase(),
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: purchased || available ? _muted : _dim,
+                  fontSize: 8,
+                  height: 1.2,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            if (!purchased)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CoinIcon(
+                    kind: node.currency == FamilyMasteryCurrency.gold
+                        ? CoinKind.gold
+                        : CoinKind.silver,
+                    size: 10,
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    _compactNumber(node.cost),
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: node.currency == FamilyMasteryCurrency.gold
+                          ? _gold
+                          : _silver,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              )
+            else
+              const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BranchConnectorPainter extends CustomPainter {
+  const _BranchConnectorPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.5)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    final center = size.width / 2;
+    final branchY = size.height * 0.52;
+    final targets = [size.width / 6, center, size.width * 5 / 6];
+    final path = Path()
+      ..moveTo(center, 0)
+      ..lineTo(center, branchY)
+      ..moveTo(targets.first, branchY)
+      ..lineTo(targets.last, branchY);
+    for (final target in targets) {
+      path
+        ..moveTo(target, branchY)
+        ..lineTo(target, size.height);
+    }
+    canvas.drawPath(path, paint);
+
+    final glow = Paint()
+      ..color = color.withValues(alpha: 0.12)
+      ..strokeWidth = 7
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5)
+      ..style = PaintingStyle.stroke;
+    canvas.drawPath(path, glow);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BranchConnectorPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 class _StatusPill extends StatelessWidget {
@@ -859,21 +1019,16 @@ String _purchaseMessage(FamilyMasteryPurchaseResult result) => switch (result) {
     'Unlock the previous tier first.',
   FamilyMasteryPurchaseResult.insufficientSilver => 'Not enough silver.',
   FamilyMasteryPurchaseResult.insufficientGold => 'Not enough gold.',
-  FamilyMasteryPurchaseResult.creatureNotFound =>
-    'That creature is no longer available.',
   FamilyMasteryPurchaseResult.wrongFamily =>
     'That mastery belongs to another family.',
   FamilyMasteryPurchaseResult.invalidNode => 'That mastery could not be found.',
 };
 
 String _equipMessage(FamilyMasteryEquipResult result) => switch (result) {
-  FamilyMasteryEquipResult.equipped => 'Path equipped for this creature.',
-  FamilyMasteryEquipResult.cleared => 'Mastery path cleared.',
+  FamilyMasteryEquipResult.equipped =>
+    'This branch is now active for the entire family.',
+  FamilyMasteryEquipResult.cleared => 'Family mastery branch cleared.',
   FamilyMasteryEquipResult.pathNotUnlocked =>
-    'Unlock the first tier of this path before equipping it.',
-  FamilyMasteryEquipResult.creatureNotFound =>
-    'That creature is no longer available.',
-  FamilyMasteryEquipResult.wrongFamily =>
-    'That path belongs to another family.',
-  FamilyMasteryEquipResult.invalidPath => 'That path could not be found.',
+    'Unlock the first node before selecting this branch.',
+  FamilyMasteryEquipResult.invalidPath => 'That branch could not be found.',
 };

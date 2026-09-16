@@ -9,7 +9,6 @@ enum FamilyMasteryPurchaseResult {
   purchased,
   invalidNode,
   wrongFamily,
-  creatureNotFound,
   alreadyOwned,
   prerequisiteMissing,
   insufficientSilver,
@@ -20,17 +19,20 @@ enum FamilyMasteryEquipResult {
   equipped,
   cleared,
   invalidPath,
-  creatureNotFound,
-  wrongFamily,
   pathNotUnlocked,
 }
 
+/// Account-wide Survival mastery configuration.
+///
+/// Purchases and the active branch belong to a creature family, never an
+/// individual creature. Every party member from that family receives the same
+/// active nodes when a run snapshot is created.
 class FamilyMasteryService extends ChangeNotifier {
   FamilyMasteryService(this._db);
 
   final AlchemonsDatabase _db;
   final Map<CreatureFamily, Set<String>> _purchases = {};
-  final Map<String, String> _selectedPaths = {};
+  final Map<CreatureFamily, String> _selectedPaths = {};
   bool _loaded = false;
 
   bool get isLoaded => _loaded;
@@ -38,7 +40,8 @@ class FamilyMasteryService extends ChangeNotifier {
   Set<String> purchasedNodes(CreatureFamily family) =>
       Set<String>.unmodifiable(_purchases[family] ?? const {});
 
-  String? selectedPathFor(String instanceId) => _selectedPaths[instanceId];
+  String? selectedPathForFamily(CreatureFamily family) =>
+      _selectedPaths[family];
 
   bool isNodePurchased(String nodeId) {
     final entry = FamilyMasteryCatalog.entryForNode(nodeId);
@@ -47,27 +50,26 @@ class FamilyMasteryService extends ChangeNotifier {
   }
 
   Future<void> load() async {
-    final progressRows = await _db.familyMasteryDao.getAllFamilyMasteries();
-    final loadoutRows = await _db.familyMasteryDao.getAllLoadouts();
-
+    final rows = await _db.familyMasteryDao.getAllFamilyMasteries();
     _purchases.clear();
-    for (final row in progressRows) {
+    _selectedPaths.clear();
+
+    for (final row in rows) {
       final family = creatureFamilyFromStorage(row.familyId);
       if (family == null) continue;
-      _purchases[family] = FamilyMasteryCatalog.sanitizePurchases(
+      final owned = FamilyMasteryCatalog.sanitizePurchases(
         family,
         _decodeStringSet(row.purchasedNodeIdsJson),
       );
-    }
+      _purchases[family] = owned;
 
-    _selectedPaths.clear();
-    for (final row in loadoutRows) {
-      final family = creatureFamilyFromStorage(row.familyId);
       final pathId = row.selectedPathId;
-      if (family == null || pathId == null) continue;
-      final path = FamilyMasteryCatalog.pathFor(family, pathId);
-      if (path == null || !_pathIsUnlocked(family, path)) continue;
-      _selectedPaths[row.instanceId] = pathId;
+      final path = pathId == null
+          ? null
+          : FamilyMasteryCatalog.pathFor(family, pathId);
+      if (path != null && owned.contains(path.nodes.first.id)) {
+        _selectedPaths[family] = path.id;
+      }
     }
 
     _loaded = true;
@@ -75,26 +77,20 @@ class FamilyMasteryService extends ChangeNotifier {
   }
 
   Future<FamilyMasteryPurchaseResult> purchaseNode({
-    required String instanceId,
+    required CreatureFamily family,
     required String nodeId,
   }) async {
     final entry = FamilyMasteryCatalog.entryForNode(nodeId);
     if (entry == null) return FamilyMasteryPurchaseResult.invalidNode;
-
-    final instance = await _db.creatureDao.getInstance(instanceId);
-    if (instance == null) return FamilyMasteryPurchaseResult.creatureNotFound;
-    final actualFamily = creatureFamilyFromBaseId(instance.baseId);
-    if (actualFamily != entry.tree.family) {
+    if (entry.tree.family != family) {
       return FamilyMasteryPurchaseResult.wrongFamily;
     }
 
     late FamilyMasteryPurchaseResult result;
     await _db.transaction(() async {
-      final stored = await _db.familyMasteryDao.getFamilyMastery(
-        entry.tree.family.name,
-      );
+      final stored = await _db.familyMasteryDao.getFamilyMastery(family.name);
       final owned = FamilyMasteryCatalog.sanitizePurchases(
-        entry.tree.family,
+        family,
         _decodeStringSet(stored?.purchasedNodeIdsJson),
       );
       if (owned.contains(nodeId)) {
@@ -102,7 +98,9 @@ class FamilyMasteryService extends ChangeNotifier {
         return;
       }
 
-      final nodeIndex = entry.path.nodes.indexWhere((n) => n.id == nodeId);
+      final nodeIndex = entry.path.nodes.indexWhere(
+        (node) => node.id == nodeId,
+      );
       if (nodeIndex < 0) {
         result = FamilyMasteryPurchaseResult.invalidNode;
         return;
@@ -129,30 +127,22 @@ class FamilyMasteryService extends ChangeNotifier {
       }
 
       owned.add(nodeId);
-      final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-      await _db.familyMasteryDao.saveFamilyMastery(
-        familyId: entry.tree.family.name,
-        purchasedNodeIdsJson: _encodeStringSet(owned),
-        updatedAtUtcMs: now,
-      );
-
-      final currentLoadout = await _db.familyMasteryDao.getLoadout(instanceId);
-      final currentPathId = currentLoadout?.selectedPathId;
-      final currentPath = currentPathId == null
+      var selectedPathId = stored?.selectedPathId;
+      final selectedPath = selectedPathId == null
           ? null
-          : FamilyMasteryCatalog.pathFor(entry.tree.family, currentPathId);
-      final hasValidCurrentPath =
-          currentPath != null &&
-          owned.contains(currentPath.nodes.first.id) &&
-          currentLoadout?.familyId == entry.tree.family.name;
-      if (entry.node.tier == 1 && !hasValidCurrentPath) {
-        await _db.familyMasteryDao.saveLoadout(
-          instanceId: instanceId,
-          familyId: entry.tree.family.name,
-          selectedPathId: entry.path.id,
-          updatedAtUtcMs: now,
-        );
+          : FamilyMasteryCatalog.pathFor(family, selectedPathId);
+      final hasValidSelection =
+          selectedPath != null && owned.contains(selectedPath.nodes.first.id);
+      if (entry.node.tier == 1 && !hasValidSelection) {
+        selectedPathId = entry.path.id;
       }
+
+      await _db.familyMasteryDao.saveFamilyMastery(
+        familyId: family.name,
+        purchasedNodeIdsJson: _encodeStringSet(owned),
+        selectedPathId: selectedPathId,
+        updatedAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+      );
       result = FamilyMasteryPurchaseResult.purchased;
     });
 
@@ -160,62 +150,45 @@ class FamilyMasteryService extends ChangeNotifier {
     return result;
   }
 
-  Future<FamilyMasteryEquipResult> equipPath({
-    required String instanceId,
+  Future<FamilyMasteryEquipResult> selectPath({
     required CreatureFamily family,
     required String? pathId,
   }) async {
-    final instance = await _db.creatureDao.getInstance(instanceId);
-    if (instance == null) return FamilyMasteryEquipResult.creatureNotFound;
-    if (creatureFamilyFromBaseId(instance.baseId) != family) {
-      return FamilyMasteryEquipResult.wrongFamily;
-    }
+    final stored = await _db.familyMasteryDao.getFamilyMastery(family.name);
+    final owned = FamilyMasteryCatalog.sanitizePurchases(
+      family,
+      _decodeStringSet(stored?.purchasedNodeIdsJson),
+    );
 
     if (pathId == null) {
-      await _db.familyMasteryDao.deleteLoadout(instanceId);
-      _selectedPaths.remove(instanceId);
+      await _db.familyMasteryDao.saveFamilyMastery(
+        familyId: family.name,
+        purchasedNodeIdsJson: _encodeStringSet(owned),
+        selectedPathId: null,
+        updatedAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+      );
+      _purchases[family] = owned;
+      _selectedPaths.remove(family);
       notifyListeners();
       return FamilyMasteryEquipResult.cleared;
     }
 
     final path = FamilyMasteryCatalog.pathFor(family, pathId);
     if (path == null) return FamilyMasteryEquipResult.invalidPath;
-
-    final owned = await _readPurchasedNodes(family);
     if (!owned.contains(path.nodes.first.id)) {
       return FamilyMasteryEquipResult.pathNotUnlocked;
     }
 
-    await _db.familyMasteryDao.saveLoadout(
-      instanceId: instanceId,
+    await _db.familyMasteryDao.saveFamilyMastery(
       familyId: family.name,
+      purchasedNodeIdsJson: _encodeStringSet(owned),
       selectedPathId: path.id,
       updatedAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
     );
     _purchases[family] = owned;
-    _selectedPaths[instanceId] = path.id;
+    _selectedPaths[family] = path.id;
     notifyListeners();
     return FamilyMasteryEquipResult.equipped;
-  }
-
-  Future<FamilyMasteryEquipResult> copyPath({
-    required String fromInstanceId,
-    required String toInstanceId,
-  }) async {
-    final source = await _db.familyMasteryDao.getLoadout(fromInstanceId);
-    final target = await _db.creatureDao.getInstance(toInstanceId);
-    if (source == null || target == null) {
-      return FamilyMasteryEquipResult.creatureNotFound;
-    }
-    final family = creatureFamilyFromStorage(source.familyId);
-    if (family == null || creatureFamilyFromBaseId(target.baseId) != family) {
-      return FamilyMasteryEquipResult.wrongFamily;
-    }
-    return equipPath(
-      instanceId: toInstanceId,
-      family: family,
-      pathId: source.selectedPathId,
-    );
   }
 
   Future<SurvivalFamilyMasterySnapshot> buildSnapshot(
@@ -223,28 +196,25 @@ class FamilyMasteryService extends ChangeNotifier {
   ) async {
     final memberList = members.toList(growable: false);
     if (memberList.isEmpty) return SurvivalFamilyMasterySnapshot.empty;
-    final loadouts = await _db.familyMasteryDao.getLoadouts(
-      memberList.map((m) => m.instanceId),
-    );
-    final loadoutByInstance = {for (final row in loadouts) row.instanceId: row};
-    final purchasesByFamily = <CreatureFamily, Set<String>>{};
-    final result = <int, EquippedFamilyMastery>{};
 
+    final rows = await _db.familyMasteryDao.getAllFamilyMasteries();
+    final rowByFamily = <CreatureFamily, SurvivalFamilyMastery>{};
+    for (final row in rows) {
+      final family = creatureFamilyFromStorage(row.familyId);
+      if (family != null) rowByFamily[family] = row;
+    }
+
+    final result = <int, EquippedFamilyMastery>{};
     for (final member in memberList) {
-      final row = loadoutByInstance[member.instanceId];
+      final row = rowByFamily[member.family];
       final pathId = row?.selectedPathId;
-      if (row == null ||
-          pathId == null ||
-          creatureFamilyFromStorage(row.familyId) != member.family) {
-        continue;
-      }
+      if (row == null || pathId == null) continue;
       final path = FamilyMasteryCatalog.pathFor(member.family, pathId);
       if (path == null) continue;
-      final owned = purchasesByFamily.putIfAbsent(
+      final owned = FamilyMasteryCatalog.sanitizePurchases(
         member.family,
-        () => <String>{},
+        _decodeStringSet(row.purchasedNodeIdsJson),
       );
-      if (owned.isEmpty) owned.addAll(await _readPurchasedNodes(member.family));
       if (!owned.contains(path.nodes.first.id)) continue;
 
       result[member.slotIndex] = EquippedFamilyMastery(
@@ -257,18 +227,6 @@ class FamilyMasteryService extends ChangeNotifier {
       );
     }
     return SurvivalFamilyMasterySnapshot(result);
-  }
-
-  Future<Set<String>> _readPurchasedNodes(CreatureFamily family) async {
-    final stored = await _db.familyMasteryDao.getFamilyMastery(family.name);
-    return FamilyMasteryCatalog.sanitizePurchases(
-      family,
-      _decodeStringSet(stored?.purchasedNodeIdsJson),
-    );
-  }
-
-  bool _pathIsUnlocked(CreatureFamily family, FamilyMasteryPathDef path) {
-    return _purchases[family]?.contains(path.nodes.first.id) ?? false;
   }
 }
 

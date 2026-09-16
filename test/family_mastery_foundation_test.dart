@@ -94,7 +94,7 @@ void main() {
 
     test('first purchase charges silver and equips that path', () async {
       final result = await service.purchaseNode(
-        instanceId: 'mane-a',
+        family: CreatureFamily.mane,
         nodeId: 'mane.assault.honed_pair',
       );
 
@@ -104,12 +104,15 @@ void main() {
         service.purchasedNodes(CreatureFamily.mane),
         contains('mane.assault.honed_pair'),
       );
-      expect(service.selectedPathFor('mane-a'), 'mane.assault');
+      expect(
+        service.selectedPathForFamily(CreatureFamily.mane),
+        'mane.assault',
+      );
     });
 
     test('rejects skipped prerequisites without charging currency', () async {
       final result = await service.purchaseNode(
-        instanceId: 'mane-a',
+        family: CreatureFamily.mane,
         nodeId: 'mane.assault.predator_step',
       );
 
@@ -122,7 +125,7 @@ void main() {
       await db.settingsDao.setSetting('wallet_silver', '999');
 
       final result = await service.purchaseNode(
-        instanceId: 'mane-a',
+        family: CreatureFamily.mane,
         nodeId: 'mane.assault.honed_pair',
       );
 
@@ -141,7 +144,10 @@ void main() {
 
       for (final node in path.nodes) {
         expect(
-          await service.purchaseNode(instanceId: 'mane-a', nodeId: node.id),
+          await service.purchaseNode(
+            family: CreatureFamily.mane,
+            nodeId: node.id,
+          ),
           FamilyMasteryPurchaseResult.purchased,
         );
       }
@@ -157,11 +163,11 @@ void main() {
     test('overlapping purchases grant and charge exactly once', () async {
       final results = await Future.wait([
         service.purchaseNode(
-          instanceId: 'mane-a',
+          family: CreatureFamily.mane,
           nodeId: 'mane.assault.honed_pair',
         ),
         service.purchaseNode(
-          instanceId: 'mane-b',
+          family: CreatureFamily.mane,
           nodeId: 'mane.assault.honed_pair',
         ),
       ]);
@@ -181,27 +187,18 @@ void main() {
       expect(await db.currencyDao.getSilverBalance(), 99000);
     });
 
-    test('one family unlock supports different per-instance paths', () async {
+    test('one family selection applies to every member in a run', () async {
       await service.purchaseNode(
-        instanceId: 'mane-a',
+        family: CreatureFamily.mane,
         nodeId: 'mane.assault.honed_pair',
       );
       await service.purchaseNode(
-        instanceId: 'mane-b',
+        family: CreatureFamily.mane,
         nodeId: 'mane.control.sweeping_claws',
       );
 
       expect(
-        await service.equipPath(
-          instanceId: 'mane-a',
-          family: CreatureFamily.mane,
-          pathId: 'mane.assault',
-        ),
-        FamilyMasteryEquipResult.equipped,
-      );
-      expect(
-        await service.equipPath(
-          instanceId: 'mane-b',
+        await service.selectPath(
           family: CreatureFamily.mane,
           pathId: 'mane.control',
         ),
@@ -221,54 +218,49 @@ void main() {
         ),
       ]);
 
-      expect(snapshot.forSlot(0)?.pathId, 'mane.assault');
+      expect(snapshot.forSlot(0)?.pathId, 'mane.control');
       expect(snapshot.forSlot(1)?.pathId, 'mane.control');
-      expect(snapshot.forSlot(0)?.activeNodeIds, {'mane.assault.honed_pair'});
+      expect(snapshot.forSlot(0)?.activeNodeIds, {
+        'mane.control.sweeping_claws',
+      });
       expect(snapshot.forSlot(1)?.activeNodeIds, {
         'mane.control.sweeping_claws',
       });
     });
 
-    test('rejects a family path on the wrong creature', () async {
-      await service.purchaseNode(
-        instanceId: 'mane-a',
+    test('rejects a node from the wrong family without charging', () async {
+      final result = await service.purchaseNode(
+        family: CreatureFamily.pip,
         nodeId: 'mane.assault.honed_pair',
       );
 
-      expect(
-        await service.equipPath(
-          instanceId: 'pip-a',
-          family: CreatureFamily.mane,
-          pathId: 'mane.assault',
-        ),
-        FamilyMasteryEquipResult.wrongFamily,
-      );
+      expect(result, FamilyMasteryPurchaseResult.wrongFamily);
+      expect(await db.currencyDao.getSilverBalance(), 100000);
     });
 
-    test('copies and clears an unlocked path without charging', () async {
+    test('selects and clears a family path without charging', () async {
       await service.purchaseNode(
-        instanceId: 'mane-a',
+        family: CreatureFamily.mane,
         nodeId: 'mane.assault.honed_pair',
       );
       final silverAfterPurchase = await db.currencyDao.getSilverBalance();
 
       expect(
-        await service.copyPath(
-          fromInstanceId: 'mane-a',
-          toInstanceId: 'mane-b',
+        await service.selectPath(
+          family: CreatureFamily.mane,
+          pathId: 'mane.assault',
         ),
         FamilyMasteryEquipResult.equipped,
       );
-      expect(service.selectedPathFor('mane-b'), 'mane.assault');
       expect(
-        await service.equipPath(
-          instanceId: 'mane-a',
-          family: CreatureFamily.mane,
-          pathId: null,
-        ),
+        service.selectedPathForFamily(CreatureFamily.mane),
+        'mane.assault',
+      );
+      expect(
+        await service.selectPath(family: CreatureFamily.mane, pathId: null),
         FamilyMasteryEquipResult.cleared,
       );
-      expect(service.selectedPathFor('mane-a'), isNull);
+      expect(service.selectedPathForFamily(CreatureFamily.mane), isNull);
       expect(await db.currencyDao.getSilverBalance(), silverAfterPurchase);
     });
 
@@ -276,7 +268,7 @@ void main() {
       'persists purchases and equipped paths across service reloads',
       () async {
         await service.purchaseNode(
-          instanceId: 'mane-a',
+          family: CreatureFamily.mane,
           nodeId: 'mane.assault.honed_pair',
         );
         final restored = FamilyMasteryService(db);
@@ -287,7 +279,10 @@ void main() {
         expect(restored.purchasedNodes(CreatureFamily.mane), {
           'mane.assault.honed_pair',
         });
-        expect(restored.selectedPathFor('mane-a'), 'mane.assault');
+        expect(
+          restored.selectedPathForFamily(CreatureFamily.mane),
+          'mane.assault',
+        );
       },
     );
   });

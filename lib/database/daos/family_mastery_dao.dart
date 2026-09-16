@@ -26,12 +26,14 @@ class FamilyMasteryDao extends DatabaseAccessor<AlchemonsDatabase>
   Future<void> saveFamilyMastery({
     required String familyId,
     required String purchasedNodeIdsJson,
+    required String? selectedPathId,
     required int updatedAtUtcMs,
   }) {
     return into(survivalFamilyMasteries).insertOnConflictUpdate(
       SurvivalFamilyMasteriesCompanion(
         familyId: Value(familyId),
         purchasedNodeIdsJson: Value(purchasedNodeIdsJson),
+        selectedPathId: Value(selectedPathId),
         updatedAtUtcMs: Value(updatedAtUtcMs),
       ),
     );

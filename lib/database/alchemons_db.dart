@@ -72,7 +72,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 40;
+  int get schemaVersion => 41;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -290,6 +290,26 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
       if (from < 40) {
         await m.createTable(survivalFamilyMasteries);
         await m.createTable(survivalFamilyLoadouts);
+      }
+      if (from >= 40 && from < 41) {
+        await m.addColumn(
+          survivalFamilyMasteries,
+          survivalFamilyMasteries.selectedPathId,
+        );
+        // Preserve one of the player's previous per-creature choices. The
+        // most recently changed loadout becomes the shared family branch.
+        await customUpdate('''
+          UPDATE survival_family_masteries
+          SET selected_path_id = (
+            SELECT selected_path_id
+            FROM survival_family_loadouts
+            WHERE family_id = survival_family_masteries.family_id
+              AND selected_path_id IS NOT NULL
+            ORDER BY updated_at_utc_ms DESC
+            LIMIT 1
+          )
+          WHERE selected_path_id IS NULL
+        ''');
       }
     },
   );

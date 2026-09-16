@@ -1,10 +1,10 @@
 # Survival Family Mastery
 
-Status: proposed design
+Status: family-wide progression and command interface implemented
 
 ## Purpose
 
-Family Mastery gives every survival guardian a persistent, configurable combat path. It transforms the eight existing family autoattacks, selectively connects them to existing family-by-element specials, and lets two instances of the same species fill different roles.
+Family Mastery gives each of the eight survival families one persistent, configurable combat path. It transforms the existing family autoattacks and selectively connects them to existing family-by-element specials. Every deployed member of a family uses that family's currently selected branch.
 
 The system is intentionally not a separate tree for every creature. The catalog has more than 160 collectible creatures and variants; a bespoke progression tree for each would be difficult to understand, author, balance, and maintain.
 
@@ -12,7 +12,7 @@ The scalable identity formula is:
 
 ```text
 family attack chassis
-+ equipped family path
++ selected family-wide path
 + automatic elemental interpretation
 + the individual creature's existing stats
 ```
@@ -21,8 +21,9 @@ family attack chassis
 
 - There are eight trees: Let, Pip, Mane, Mask, Horn, Wing, Kin, and Mystic.
 - Unlocks are shared by every creature in that family.
-- The equipped path is stored per creature instance.
-- An instance may equip exactly one path at a time.
+- The selected path is stored once per family.
+- Every creature in that family uses the same selected path.
+- A family may select exactly one path at a time.
 - Players may eventually purchase every path, but cannot activate them together.
 - Switching paths is free outside a survival run.
 - The selected path is snapshotted and locked when a run begins.
@@ -47,7 +48,7 @@ Rules:
 - Buying the first node automatically equips that path if no path is selected.
 - Buying another path does not automatically replace the equipped path.
 - A partially purchased path may be equipped and grants its purchased nodes.
-- Equipping, resetting, and copying a build costs nothing.
+- Selecting or resetting a family branch costs nothing.
 - Owning every unlock across all eight families costs 384,000 silver and 240 gold before discounts.
 
 The economy controls collection progression. The one-path limit preserves build choice after everything is owned.
@@ -423,15 +424,12 @@ Dedicated Drift tables are preferable to adding dozens of settings keys.
 
 - `family_id` text primary key
 - `purchased_node_ids_json` text
-- `updated_at_utc_ms` integer
-
-### `survival_family_loadouts`
-
-- `instance_id` text primary key
-- `family_id` text
 - `selected_path_id` text nullable
-- `preset_name` text nullable
 - `updated_at_utc_ms` integer
+
+### Legacy `survival_family_loadouts`
+
+The former per-creature table remains readable for save compatibility. Migration promotes the most recently changed valid creature selection to the shared family row; new writes no longer use per-creature loadouts.
 
 The service validates all data against the catalog. Unknown node IDs are ignored. An equipped path is legal only when its first node is purchased. Removing or renaming a node must not delete unrelated purchases.
 
@@ -467,14 +465,13 @@ Events carry slot, instance, species, family, element, derived stats, cast ID, a
 ## Player experience
 
 - Add a **MASTERY** tab to Base Command.
-- Selecting a family shows its base autoattack and three paths.
-- Selecting a path previews that family with the currently selected creature's element.
+- Selecting a family shows a connected three-branch node tree rooted in its base autoattack.
+- The selected branch is clearly highlighted and applies to every creature in that family.
 - Purchased, purchasable, equipped, and locked nodes have distinct states.
-- A creature detail sheet includes `CHOOSE SURVIVAL PATH`.
-- Survival party slots display the equipped path and capstone.
+- Survival party slots display the family's selected path and capstone.
 - The pause screen separates permanent mastery from temporary power-ups.
 - A training preview shows baseline and mastered attacks against one target and a small group.
-- `EQUIP`, `RESET`, and `COPY TO SAME FAMILY` are free.
+- `SELECT BRANCH` and `RESET` are free.
 
 ## Balance targets
 
@@ -495,8 +492,8 @@ Telemetry should separately attribute basic damage, mastery damage, special dama
 1. Add the eight family tree definitions and validation rules.
 2. Add Drift tables, migration, DAO, and service.
 3. Implement atomic silver and gold purchases with sequential prerequisites.
-4. Implement per-instance path selection, free reset, and immutable run snapshots.
-5. Test affordability, duplicate purchase prevention, invalid saves, renamed nodes, and two instances using different paths.
+4. Implement one selected path per family, free reset, and immutable run snapshots.
+5. Test affordability, duplicate purchase prevention, invalid saves, renamed nodes, and multiple family members sharing one selected path.
 
 ### Phase 2: combat event foundation
 
@@ -525,15 +522,15 @@ Implement Horn, Kin, and Mystic after the shared runtime is stable. These requir
 
 ### Phase 6: complete interface and rollout
 
-1. Add every Base Command and creature-detail entry point.
-2. Add copy-build, run-lock messaging, party badges, and pause summaries.
+1. Polish the Base Command tree and family selector.
+2. Add run-lock messaging, party badges, and pause summaries.
 3. Add VFX and sound distinctions for all capstones and payload forms.
 4. Run full survival simulations and regression tests.
 5. Ship family trees in batches if balance or art production requires it.
 
 ## Decisions intentionally deferred
 
-- Whether additional saved presets are necessary beyond the current per-instance path.
+- Whether families should eventually support saved branch presets.
 - Whether discounts unlock after purchasing a complete path in another family.
 - Whether discovery rarity should affect prices. The initial recommendation is no.
 - Whether family mastery later changes behavior in cosmic exploration. The initial scope is survival only.

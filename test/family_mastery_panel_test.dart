@@ -1,6 +1,5 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic_survival/components/family_mastery_panel.dart';
-import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -13,14 +12,6 @@ void main() {
 
   setUp(() async {
     db = AlchemonsDatabase(NativeDatabase.memory());
-    await db
-        .into(db.creatureInstances)
-        .insert(
-          CreatureInstancesCompanion.insert(
-            instanceId: 'mane-ui',
-            baseId: 'MAN01',
-          ),
-        );
     mastery = FamilyMasteryService(db);
     await mastery.load();
   });
@@ -33,10 +24,6 @@ void main() {
   Widget buildPanel() {
     return MultiProvider(
       providers: [
-        Provider<AlchemonsDatabase>.value(value: db),
-        Provider<CreatureCatalog>.value(
-          value: CreatureCatalog.fromList(const []),
-        ),
         ChangeNotifierProvider<FamilyMasteryService>.value(value: mastery),
       ],
       child: MaterialApp(
@@ -51,7 +38,7 @@ void main() {
     );
   }
 
-  testWidgets('opens on Mane with its path tree and a creature picker', (
+  testWidgets('opens on Mane with a connected family skill tree', (
     tester,
   ) async {
     await tester.pumpWidget(buildPanel());
@@ -59,8 +46,10 @@ void main() {
 
     expect(find.text('MANE MASTERY'), findsOneWidget);
     expect(find.text('TWIN FANG'), findsOneWidget);
+    expect(find.text('ALL MANES'), findsOneWidget);
+    expect(find.byKey(const ValueKey('family-skill-tree')), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('mastery-creature-picker')),
+      find.byKey(const ValueKey('mastery-node-inspector')),
       findsOneWidget,
     );
     expect(
@@ -78,6 +67,6 @@ void main() {
 
     expect(find.text('PIP MASTERY'), findsOneWidget);
     expect(find.text('NEEDLEPOINT'), findsOneWidget);
-    expect(find.textContaining('Discover a Pip creature'), findsOneWidget);
+    expect(find.text('ALL PIPS'), findsOneWidget);
   });
 }

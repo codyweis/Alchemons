@@ -326,13 +326,15 @@ class SurvivalFamilyMasteries extends Table {
   TextColumn get familyId => text()();
   TextColumn get purchasedNodeIdsJson =>
       text().withDefault(const Constant('[]'))();
+  TextColumn get selectedPathId => text().nullable()();
   IntColumn get updatedAtUtcMs => integer().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {familyId};
 }
 
-/// The one active family path equipped by an individual creature instance.
+/// Legacy per-creature selections retained for save compatibility. New saves
+/// keep the single active path on [SurvivalFamilyMasteries].
 class SurvivalFamilyLoadouts extends Table {
   TextColumn get instanceId => text()();
   TextColumn get familyId => text()();
