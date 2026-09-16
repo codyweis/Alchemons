@@ -287,11 +287,19 @@ class CosmicBalance {
         .round();
   }
 
-  static double companionCooldownReduction(double speed) {
-    final legacy = 0.72 + legacyStat(speed) * 0.08;
-    final overcap = AlchemonStatSystem.combatOvercapProgress(speed) * 0.08;
-    return (legacy + overcap).clamp(0.78, 1.20).toDouble();
-  }
+  /// How much faster this creature acts. Cooldowns are divided by it, so
+  /// above 1.0 is quicker than baseline.
+  ///
+  /// This used to run on the legacy 1-5 band and top out at 1.20, which it
+  /// reached at a Speed of 9 — so every point past 9 was worth literally
+  /// nothing, and the whole stretch from an average creature to a perfect one
+  /// bought 13% more attacks. Strength bought 90% more damage across the same
+  /// stretch. A stat nobody can feel is a stat nobody builds.
+  ///
+  /// The low and average anchors are what the old curve already produced, so
+  /// ordinary creatures are unchanged; what was missing was a top end.
+  static double companionCooldownReduction(double speed) =>
+      scaledAbilityValue(speed, atLow: 0.92, atAverage: 1.06, atPerfect: 1.55);
 
   static double companionCritChance(double strength) {
     return (0.04 + statPower(strength) * 0.24).clamp(0.04, 0.36).toDouble();
@@ -11179,6 +11187,28 @@ double abilityScalingStat(double stat, double potential) =>
     potential >= kAbilityPerfectPotential
     ? (stat > kAbilityStatPerfect ? stat : kAbilityStatPerfect)
     : stat;
+
+/// The continuous version of [scaledAbilityCount], for values that are not
+/// counts — cooldown multipliers, durations, radii.
+double scaledAbilityValue(
+  double stat, {
+  required double atLow,
+  required double atAverage,
+  required double atPerfect,
+}) {
+  final value = stat.isFinite ? stat : kAbilityStatAverage;
+  if (value <= kAbilityStatLow) return atLow;
+  if (value >= kAbilityStatPerfect) return atPerfect;
+  if (value <= kAbilityStatAverage) {
+    final t =
+        (value - kAbilityStatLow) / (kAbilityStatAverage - kAbilityStatLow);
+    return atLow + (atAverage - atLow) * t;
+  }
+  final t =
+      (value - kAbilityStatAverage) /
+      (kAbilityStatPerfect - kAbilityStatAverage);
+  return atAverage + (atPerfect - atAverage) * t;
+}
 
 /// Scales an authored projectile/placement count across the real stat band.
 ///

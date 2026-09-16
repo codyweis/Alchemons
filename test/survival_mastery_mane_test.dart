@@ -693,9 +693,15 @@ void main() {
         snapshot: equip(ManeNodes.assaultPath, throughTier: 1),
       );
       final comp = game.activeCompanions[0]!;
+      // A ring rather than a line: the companion picks its own target and
+      // therefore its own firing angle, so a line laid along one axis is only
+      // sometimes the axis it shoots down. A ring is whichever way it fires.
       final line = [
-        for (var i = 1; i <= 3; i++)
-          dummy(target, comp.position + Offset(90.0 * i, 0)),
+        for (var i = 0; i < 8; i++)
+          dummy(
+            target,
+            comp.position + Offset(cos(i * pi / 4) * 70, sin(i * pi / 4) * 70),
+          ),
       ];
       for (final body in line) {
         game.enemies.add(body);

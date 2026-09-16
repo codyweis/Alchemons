@@ -758,6 +758,42 @@ every special did before. Each should get its own contract when its tree is
 built — a Wing beam is not paid for out of the same stat as a Horn ram, and
 they should not feel as though they are.
 
+### Speed had no top end
+
+`companionCooldownReduction` ran on the legacy 1-5 band and clamped at 1.20,
+which it reached at a Speed of **9** — so every point past 9 was worth
+literally nothing, and the whole stretch from an average creature to a perfect
+one bought 13% more attacks. Strength bought 90% more damage across the same
+stretch. It is now anchored on the real band like everything else: 0.92 at
+low, 1.06 at average (both unchanged, so ordinary creatures are untouched) and
+1.55 at perfect, which is +46% attack rate over an average creature.
+
+That fixed the broken part. It did not make Speed a damage stat. Trading
+Strength for Speed point for point, five seeds averaged, twenty seconds
+against eight bodies:
+
+| Strength / Speed | Total damage |
+| --- | ---: |
+| 14 / 0 | 11,072 |
+| 11 / 3 | 9,821 |
+| 9 / 5 | 8,353 |
+| 7 / 7 | 8,666 |
+| 5 / 9 | 7,837 |
+| 3 / 11 | 4,389 |
+
+Every point moved off Strength loses damage, because Strength supplies output
+and Speed only multiplies it — and its multiplier (+46%) is smaller than
+Strength's (+90%). To make Speed damage-competitive its perfect anchor would
+need to be near 2.0 rather than 1.55.
+
+Whether it *should* be is open. This scenario gives movement a value of zero,
+and movement is Speed's other half: in a real run it is how a companion stays
+alive and stays in range, and a dead companion deals no damage at all. A third
+option is to give Speed a job the other stats do not have — weighting its
+reduction toward *special* cooldowns, which would pair it with the mastery
+capstones that trigger on a cast (Crescendo, Blade Dance) instead of competing
+with Strength head-on.
+
 ### A 95 potential is a perfect roll whatever it was rolled on
 
 The internal stat blends species base with potential, so a median species bred

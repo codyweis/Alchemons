@@ -151,7 +151,11 @@ CosmicSurvivalCompanionStats deriveCosmicSurvivalCompanionStats({
   final elemDef =
       ((15 + level * 2.8 + 58 * beautyPow + 34 * intPow) * elemDefMult).round();
 
-  var cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
+  // Speed decides how often, which is shape rather than damage, so a stat
+  // bred to a perfect roll reads as perfect here too.
+  var cooldownReduction = CosmicBalance.companionCooldownReduction(
+    abilityScalingStat(speed, member.statSpeedPotential),
+  );
   var critChance = ((0.05 + strPow * 0.32) * critMult).clamp(0.05, 0.55);
   var baseRange = 100.0 + AlchemonStatSystem.legacyGameplayRating(intel) * 28.0;
 
