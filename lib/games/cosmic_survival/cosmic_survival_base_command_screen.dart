@@ -8,6 +8,7 @@ import 'package:alchemons/audio/audio.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart' show ShipComponent;
+import 'package:alchemons/games/cosmic_survival/components/family_mastery_panel.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_ship_loadout.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/shop_service.dart';
@@ -102,7 +103,7 @@ class _CosmicSurvivalBaseCommandScreenState
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: widget.hideAbilities ? 3 : 4,
+      length: widget.hideAbilities ? 4 : 5,
       vsync: this,
     );
     _loadCurrencies();
@@ -150,6 +151,11 @@ class _CosmicSurvivalBaseCommandScreenState
                       _buildOrbSkinsTab(svc, shopService),
                       _buildShipTab(),
                       _buildGuardianTab(svc),
+                      FamilyMasteryPanel(
+                        silverBalance: _silverBalance,
+                        goldBalance: _goldBalance,
+                        onCurrencyChanged: _loadCurrencies,
+                      ),
                       if (!widget.hideAbilities) _buildAbilitiesTab(svc),
                     ],
                   ),
@@ -289,6 +295,10 @@ class _CosmicSurvivalBaseCommandScreenState
           const Tab(
             icon: Icon(AppIcons.person_rounded, size: 16),
             text: 'GUARDIANS',
+          ),
+          const Tab(
+            icon: Icon(AppIcons.account_tree_rounded, size: 16),
+            text: 'MASTERY',
           ),
           if (!widget.hideAbilities)
             const Tab(
