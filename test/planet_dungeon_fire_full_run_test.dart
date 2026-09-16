@@ -88,6 +88,7 @@ PlanetDungeonGame _harness(
         currentHp: stats.maxHp,
         physAtk: stats.physAtk,
         elemAtk: stats.elemAtk,
+        abilityAtk: stats.elemAtk,
         physDef: stats.physDef,
         elemDef: stats.elemDef,
         cooldownReduction: stats.cooldownReduction,

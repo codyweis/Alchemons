@@ -8554,13 +8554,43 @@ CosmicSpecialResult _maneSpecial(
     return base * beautySpread * focusScale;
   }
 
+  // Mane's stat contract (see the ability stat table in
+  // cosmic_survival_companion_stats.dart): Strength with an Intelligence
+  // minority decides how hard the catapult hits, and Beauty decides how much
+  // of it there is. Beauty used to scale per-projectile damage as well as
+  // count, which meant a Beauty build multiplied itself — Fire scaled 24x
+  // across the stat band against Ice's 4.7x.
+  final maneAbilityStat = casterStrength * 0.80 + casterIntelligence * 0.20;
+
   Projectile scaleManeProjectile(Projectile p) {
     final impactScale = _specialStatScaleFromBaseline(
-      casterBeauty,
+      maneAbilityStat,
       perPoint: 0.10,
       min: 0.82,
       max: 1.20,
     );
+    // Beauty's half of the bargain: how much of the ability there is. It buys
+    // exactly one thing per element, never two. On the fifteen single-shot
+    // elements there is no count to grow, so it buys width — the ball catches
+    // more bodies down a line and stays in contact longer, which is more
+    // total damage without Beauty touching a damage number. On Fire and
+    // Lightning it has already bought the count, so it buys nothing here;
+    // paying twice out of one stat is the compounding this contract exists
+    // to remove.
+    // Light is the third exception and for its own reason: the board says the
+    // ball "starts tiny and grows bigger each enemy it hits", and a Beauty
+    // build that starts it large leaves the ramp nothing to climb. Its Beauty
+    // payoff is the growth it already has.
+    final beautyBuysSomethingElse =
+        p.element == 'Fire' || p.element == 'Lightning' || p.element == 'Light';
+    final coverageScale = beautyBuysSomethingElse
+        ? 1.0
+        : _specialStatScaleFromBaseline(
+            casterBeauty,
+            perPoint: 0.11,
+            min: 0.84,
+            max: 1.40,
+          );
     final earthForceScale = p.element == 'Earth'
         ? _specialStatScaleFromBaseline(
             casterStrength,
@@ -8608,11 +8638,12 @@ CosmicSpecialResult _maneSpecial(
       damage: p.damage * impactScale * earthForceScale * 1.65,
       life: p.life * durationScale * (p.stationary ? 1.0 : 1.55),
       speedMultiplier: catapultSpeed,
-      radiusMultiplier: p.radiusMultiplier * visualScaleMul * 1.18,
+      radiusMultiplier:
+          p.radiusMultiplier * visualScaleMul * coverageScale * 1.18,
       piercing: true,
       homing: false,
       homingStrength: p.homingStrength * controlScale,
-      visualScale: p.visualScale * visualScaleMul,
+      visualScale: p.visualScale * visualScaleMul * coverageScale,
       trailDamage: p.trailDamage * impactScale,
       trailLife: p.trailLife * durationScale,
       turretInterval: p.turretInterval > 0

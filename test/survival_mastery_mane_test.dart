@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
@@ -805,6 +806,155 @@ void main() {
         ),
       );
     });
+  });
+
+  group('each stat has its own job on a Mane', () {
+    /// One special cast into a ring of six standing bodies.
+    Future<({int projectiles, double radius, double damage})> cast({
+      required double strength,
+      required double intelligence,
+      required double beauty,
+      String element = 'Ice',
+    }) async {
+      final game = CosmicSurvivalGame(
+        party: [
+          CosmicPartyMember(
+            instanceId: 'mane-0',
+            baseId: 'MAN01',
+            displayName: 'Mane',
+            family: 'Mane',
+            element: element,
+            level: 10,
+            slotIndex: 0,
+            statSpeed: 4.25,
+            statIntelligence: intelligence,
+            statStrength: strength,
+            statBeauty: beauty,
+            statSpeedPotential: 50,
+            statIntelligencePotential: 50,
+            statStrengthPotential: 50,
+            statBeautyPotential: 50,
+            staminaBars: 3,
+            staminaMax: 3,
+          ),
+        ],
+        onGameOver: () {},
+      );
+      game.onGameResize(Vector2(900, 700));
+      await game.onLoad();
+      game.startGame();
+      game.summonCompanion(0);
+      for (
+        var i = 0;
+        i < 600 && game.enemies.where((e) => !e.isDead).isEmpty;
+        i++
+      ) {
+        game.update(1 / 60);
+      }
+      final template = game.enemies.first;
+      for (final e in game.enemies) {
+        e.isDead = true;
+      }
+      final comp = game.activeCompanions[0]!;
+      final bodies = [
+        for (var i = 0; i < 6; i++)
+          dummy(
+            template,
+            comp.position +
+                Offset(cos(i * pi / 3) * 110, sin(i * pi / 3) * 110),
+          ),
+      ];
+      for (final b in bodies) {
+        game.enemies.add(b);
+      }
+      comp.basicCooldown = 99999;
+      comp.specialCooldown = 0;
+      game.companionProjectiles.clear();
+      game.update(1 / 60);
+      final shots = game.companionProjectiles
+          .where((p) => p.abilityFamily == 'mane')
+          .toList();
+      final before = {for (final b in bodies) b: b.hp};
+      for (var i = 0; i < 60 * 8; i++) {
+        comp.basicCooldown = 99999;
+        comp.specialCooldown = 99999;
+        game.update(1 / 60);
+      }
+      return (
+        projectiles: shots.length,
+        radius: shots.isEmpty ? 0.0 : shots.first.radiusMultiplier,
+        damage: bodies.fold<double>(0, (a, b) => a + (before[b]! - b.hp)),
+      );
+    }
+
+    test('Strength decides how hard the catapult hits', () async {
+      final average = await cast(
+        strength: 4.25,
+        intelligence: 4.25,
+        beauty: 4.25,
+      );
+      final strong = await cast(strength: 9, intelligence: 4.25, beauty: 4.25);
+      expect(strong.damage, greaterThan(average.damage * 1.4));
+      expect(
+        strong.projectiles,
+        average.projectiles,
+        reason: 'Strength buys power, not coverage.',
+      );
+      expect(strong.radius, closeTo(average.radius, 0.01));
+    });
+
+    test('Beauty decides how much of it there is, not how hard', () async {
+      final average = await cast(
+        strength: 4.25,
+        intelligence: 4.25,
+        beauty: 4.25,
+      );
+      final pretty = await cast(strength: 4.25, intelligence: 4.25, beauty: 9);
+      // Ice is a single shot, so Beauty's coverage is the ball getting wider.
+      expect(pretty.radius, greaterThan(average.radius * 1.2));
+      expect(pretty.projectiles, average.projectiles);
+      // Wider still means more total damage, through reach rather than power.
+      expect(pretty.damage, greaterThan(average.damage));
+      expect(
+        pretty.damage,
+        lessThan(average.damage * 1.4),
+        reason: 'Beauty must not out-damage Strength on a single shot.',
+      );
+    });
+
+    test('on a fan element Beauty buys count instead of width', () async {
+      final average = await cast(
+        strength: 4.25,
+        intelligence: 4.25,
+        beauty: 4.25,
+        element: 'Fire',
+      );
+      final pretty = await cast(
+        strength: 4.25,
+        intelligence: 4.25,
+        beauty: 9,
+        element: 'Fire',
+      );
+      expect(pretty.projectiles, greaterThan(average.projectiles));
+    });
+
+    test(
+      'a Strength build and a Beauty build are not the same build',
+      () async {
+        final strong = await cast(
+          strength: 9,
+          intelligence: 4.25,
+          beauty: 4.25,
+        );
+        final pretty = await cast(
+          strength: 4.25,
+          intelligence: 4.25,
+          beauty: 9,
+        );
+        expect(strong.radius, lessThan(pretty.radius));
+        expect(strong.damage, greaterThan(pretty.damage));
+      },
+    );
   });
 
   group('the path is the family\'s, not the creature\'s', () {

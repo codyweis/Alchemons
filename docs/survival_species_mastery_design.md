@@ -58,7 +58,7 @@ The economy controls collection progression. The one-path limit preserves build 
 The existing combat model remains authoritative:
 
 - Strength produces physical attack and therefore main autoattack damage. It also contributes to critical chance and durability.
-- Beauty produces elemental attack and therefore special damage and mastery payload damage.
+- Beauty produces elemental attack and therefore special damage and mastery payload damage — **except where a family defines its own ability stat contract**. See *Per-family ability stats* below; Mane has one, the other seven do not yet.
 - Speed produces movement speed and cooldown reduction.
 - Intelligence produces range and defenses and may scale spatial utility.
 - Guardian upgrades continue modifying derived companion stats.
@@ -708,6 +708,52 @@ every fast-triggering node in phases 4 and 5. Options, none of them taken yet:
 - Make Blood a leech — damage that heals for a fraction — so a payload always
   does something and the *heal* keeps its cap.
 - Scale the heal down and remove the cooldown, so throughput pays.
+
+### Per-family ability stats
+
+Every special used to be paid for out of Beauty, and on Mane that made Beauty
+multiply itself: it set the fireball count *and* the damage of each fireball,
+so Fire scaled 24x across the stat band while Ice scaled 4.7x. A stat that
+pays twice is a stat that has no competition.
+
+Mane's contract splits the jobs. `CosmicSurvivalCompanionStats.abilityAtk` is
+a per-family blend — Mane is 80% Strength, 20% Intelligence — and the special
+is cast from that instead of from elemental attack. Beauty keeps the other
+half: how much of the ability there is.
+
+| Stat | Job on a Mane |
+| --- | --- |
+| Strength (80%) + Intelligence (20%) | how hard the catapult hits |
+| Beauty | how much of it there is, and how it looks |
+| Intelligence | range, spread, ability duration |
+| Speed | attack cooldown, movement |
+
+Beauty buys exactly one thing per element, never two:
+
+- **Fire and Lightning** — the count (4/8/16 and 5/7/12).
+- **Light** — nothing extra. The board says its ball "starts tiny and grows
+  bigger each enemy it hits", so a Beauty build that starts it large leaves
+  the ramp nothing to climb. A test guards this.
+- **Everything else** — width. A wider ball catches more bodies down a line
+  and stays in contact longer, which is more total damage without Beauty ever
+  touching a damage number.
+
+Measured, one cast into six standing bodies:
+
+| Build (Ice) | Projectiles | Radius | Damage |
+| --- | ---: | ---: | ---: |
+| All average | 1 | 5.52 | 739 |
+| Strength 9 | 1 | 5.52 | 1,527 |
+| Beauty 9 | 1 | 8.00 | 907 |
+
+Strength doubles the damage and changes nothing else; Beauty widens the shot
+by 45% and gains a fifth of the damage through reach. They are different
+builds rather than the same build at different speeds.
+
+The other seven families still fall back to elemental attack, which is what
+every special did before. Each should get its own contract when its tree is
+built — a Wing beam is not paid for out of the same stat as a Horn ram, and
+they should not feel as though they are.
 
 ### Abilities scale across the band the player actually plays
 

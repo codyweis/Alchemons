@@ -54,6 +54,11 @@ class CosmicSurvivalCompanion {
   int currentHp;
   int physAtk;
   int elemAtk;
+
+  /// What this family's special hits for. See the ability stat contract in
+  /// cosmic_survival_companion_stats.dart — a Mane's catapult is paid for out
+  /// of Strength, not Beauty.
+  int abilityAtk;
   int physDef;
   int elemDef;
   double cooldownReduction;
@@ -237,6 +242,7 @@ class CosmicSurvivalCompanion {
     int? currentHp,
     required this.physAtk,
     required this.elemAtk,
+    required this.abilityAtk,
     required this.physDef,
     required this.elemDef,
     this.cooldownReduction = 1.0,
@@ -2913,7 +2919,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           baseAngle: echoAngle + 0.15,
           family: comp.member.family,
           element: comp.member.element,
-          damage: comp.elemAtk * 0.70 * comp.damageAmp,
+          damage: comp.abilityAtk * 0.70 * comp.damageAmp,
           maxHp: comp.maxHp,
           casterPower: thresholdIntelligence,
           casterBeauty: thresholdBeauty,
@@ -3120,7 +3126,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           family: comp.member.family,
           element: comp.member.element,
           damage:
-              comp.elemAtk *
+              comp.abilityAtk *
               1.15 *
               (_equippedSkin == OrbBaseSkin.voidforgeOrb ? 1.12 : 1.0) *
               comp.damageAmp,
@@ -3894,6 +3900,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     int maxHp,
     int physAtk,
     int elemAtk,
+    int abilityAtk,
     int physDef,
     int elemDef,
     double cooldownReduction,
@@ -3922,6 +3929,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       maxHp: stats.maxHp,
       physAtk: stats.physAtk,
       elemAtk: stats.elemAtk,
+      abilityAtk: stats.abilityAtk,
       physDef: stats.physDef,
       elemDef: stats.elemDef,
       cooldownReduction: stats.cooldownReduction,
@@ -3948,6 +3956,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
       companion.physAtk = stats.physAtk;
       companion.elemAtk = stats.elemAtk;
+      companion.abilityAtk = stats.abilityAtk;
       companion.physDef = stats.physDef;
       companion.elemDef = stats.elemDef;
       companion.cooldownReduction = stats.cooldownReduction;
@@ -4281,6 +4290,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       currentHp: startHp,
       physAtk: stats.physAtk,
       elemAtk: stats.elemAtk,
+      abilityAtk: stats.abilityAtk,
       physDef: stats.physDef,
       elemDef: stats.elemDef,
       cooldownReduction: stats.cooldownReduction,

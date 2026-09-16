@@ -12,6 +12,7 @@ class CosmicSurvivalCompanionStats {
     required this.maxHp,
     required this.physAtk,
     required this.elemAtk,
+    required this.abilityAtk,
     required this.physDef,
     required this.elemDef,
     required this.cooldownReduction,
@@ -23,6 +24,16 @@ class CosmicSurvivalCompanionStats {
   final int maxHp;
   final int physAtk;
   final int elemAtk;
+
+  /// What this family's special ability hits for.
+  ///
+  /// Not every family should pay for its ability out of the same stat. A Mane
+  /// is a skirmisher whose catapult is a physical throw, so its ability damage
+  /// is Strength-led with an Intelligence minority, and Beauty buys coverage
+  /// instead — how many fireballs, how wide the ball. Families that have not
+  /// been given their own contract yet fall back to elemental attack, which is
+  /// what every special used before.
+  final int abilityAtk;
   final int physDef;
   final int elemDef;
   final double cooldownReduction;
@@ -102,6 +113,20 @@ CosmicSurvivalCompanionStats deriveCosmicSurvivalCompanionStats({
   final intPow = CosmicSurvivalBalance.survivalStatPower(intel);
   final beautyPow = CosmicSurvivalBalance.survivalStatPower(beauty);
 
+  // Per-family ability stat contract. The weights say which stats pay for the
+  // special; Beauty's separate job — size, count, how much of it there is —
+  // is handled inside the ability table, not here.
+  final (
+    double abilityStr,
+    double abilityInt,
+    double abilityBeauty,
+  ) = switch (family) {
+    'mane' => (0.80, 0.20, 0.0),
+    _ => (0.0, 0.0, 1.0),
+  };
+  final abilityPow =
+      strPow * abilityStr + intPow * abilityInt + beautyPow * abilityBeauty;
+
   final maxHp = ((110 + level * 18 + 320 * strPow + 150 * intPow) * hpMult)
       .round();
 
@@ -113,6 +138,12 @@ CosmicSurvivalCompanionStats deriveCosmicSurvivalCompanionStats({
   final elemAtk = max(
     1,
     ((5.5 + 25.0 * beautyPow) * levelFactor * elemAtkMult).round(),
+  );
+  // Same curve as elemental attack so a family that switches stats keeps the
+  // same magnitude; only which stats feed it changes.
+  final abilityAtk = max(
+    1,
+    ((5.5 + 25.0 * abilityPow) * levelFactor * elemAtkMult).round(),
   );
 
   final physDef = ((15 + level * 2.8 + 58 * strPow + 34 * intPow) * physDefMult)
@@ -139,6 +170,7 @@ CosmicSurvivalCompanionStats deriveCosmicSurvivalCompanionStats({
     maxHp: maxHp,
     physAtk: (physAtk * guardAtkMult).round(),
     elemAtk: (elemAtk * guardAtkMult).round(),
+    abilityAtk: (abilityAtk * guardAtkMult).round(),
     physDef: (physDef * guardDefMult).round(),
     elemDef: (elemDef * guardDefMult).round(),
     cooldownReduction: cooldownReduction,

@@ -53,6 +53,7 @@ void main() {
       currentHp: 25,
       physAtk: 10,
       elemAtk: 10,
+      abilityAtk: 10,
       physDef: 10,
       elemDef: 10,
       specialCooldown: 4,
