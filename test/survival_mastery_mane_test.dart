@@ -717,6 +717,96 @@ void main() {
     });
   });
 
+  group('abilities scale with the creature that casts them', () {
+    test('a Fire Mane throws 4, 8 or 16 fireballs by Beauty', () {
+      expect(
+        scaledAbilityCount(
+          kAbilityStatLow,
+          atLow: 4,
+          atAverage: 8,
+          atPerfect: 16,
+        ),
+        4,
+      );
+      expect(
+        scaledAbilityCount(
+          kAbilityStatAverage,
+          atLow: 4,
+          atAverage: 8,
+          atPerfect: 16,
+        ),
+        8,
+      );
+      expect(
+        scaledAbilityCount(
+          kAbilityStatPerfect,
+          atLow: 4,
+          atAverage: 8,
+          atPerfect: 16,
+        ),
+        16,
+      );
+      // Enhancement pushes past perfect; the count must not run away with it.
+      expect(scaledAbilityCount(30, atLow: 4, atAverage: 8, atPerfect: 16), 16);
+      // And a floor, so a hatchling still casts something.
+      expect(scaledAbilityCount(0.1, atLow: 4, atAverage: 8, atPerfect: 16), 4);
+    });
+
+    test('the count climbs monotonically across the whole band', () {
+      var previous = 0;
+      for (var stat = 0.5; stat <= 16; stat += 0.25) {
+        final count = scaledAbilityCount(
+          stat,
+          atLow: 4,
+          atAverage: 8,
+          atPerfect: 16,
+        );
+        expect(count, greaterThanOrEqualTo(previous));
+        previous = count;
+      }
+    });
+
+    test('the real Fire ability honours the curve', () {
+      int fireballs(double beauty) => createCosmicSpecialAbility(
+        origin: Offset.zero,
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Fire',
+        damage: 100,
+        maxHp: 400,
+        casterPower: 4,
+        casterBeauty: beauty,
+        casterIntelligence: 4,
+        casterStrength: 4,
+        targetPos: const Offset(200, 0),
+      ).projectiles.length;
+
+      expect(fireballs(2.6), 4);
+      expect(fireballs(4.31), 8);
+      expect(fireballs(11.75), 16);
+    });
+
+    test('Lightning scales on its own flatter curve, not Fire\'s', () {
+      int orbs(double beauty) =>
+          scaledAbilityCount(beauty, atLow: 5, atAverage: 7, atPerfect: 12);
+      expect(orbs(kAbilityStatLow), 5);
+      expect(orbs(kAbilityStatAverage), 7);
+      expect(orbs(kAbilityStatPerfect), 12);
+      // Two families sharing one curve is one family with two names.
+      expect(
+        orbs(kAbilityStatPerfect),
+        isNot(
+          scaledAbilityCount(
+            kAbilityStatPerfect,
+            atLow: 4,
+            atAverage: 8,
+            atPerfect: 16,
+          ),
+        ),
+      );
+    });
+  });
+
   group('the path is the family\'s, not the creature\'s', () {
     test(
       'a second Mane inherits the same path and builds its own Rhythm',

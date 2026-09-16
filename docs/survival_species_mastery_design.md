@@ -683,21 +683,11 @@ overlapped. Measured against a single standing body: Ice landed 21 hits for
 through for almost nothing. A special's real output was set by how slowly its
 projectile happened to travel.
 
-Mane specials now carry `maxHitsPerEnemy = 5` (`kManeSpecialMaxHitsPerEnemy`),
-enforced before damage in the survival hit loop. Ice fell to 1,632 and Blood to
-1,618 on that same body; piercing a line of enemies is untouched, because the
-ceiling is per body rather than per projectile.
-
-Two things this does **not** fix, both deliberate:
-
-- **The cap does not bind in a crowd.** A slow shot sweeping six bodies gets
-  five hits on each, so crowd output is unchanged. If Mane's specials still
-  read as too strong there, the lever is the per-cast damage budget the shared
-  language section already calls for, not a lower hit cap.
-- **Five, not one.** "Every enemy pierced" reads as one hit per body, which
-  would be the faithful number and roughly a five-fold cut. Five keeps a
-  catapult feeling like a heavy shot that rewards lining bodies up, and is the
-  smaller change to existing balance.
+Mane specials now carry `maxHitsPerEnemy = 2` (`kManeSpecialMaxHitsPerEnemy`),
+enforced before damage in the survival hit loop. Two rather than one so a body
+wide enough to stay in the shot's path takes a second hit — a catapult rolling
+through a brute should land twice. Piercing a line of enemies is untouched,
+because the ceiling is per body rather than per projectile.
 
 The same per-frame billing applies to every other family's piercing abilities.
 Only Mane is capped so far.
@@ -718,6 +708,43 @@ every fast-triggering node in phases 4 and 5. Options, none of them taken yet:
 - Make Blood a leech — damage that heals for a fraction — so a payload always
   does something and the *heal* keeps its cap.
 - Scale the heal down and remove the cooldown, so throughput pays.
+
+### Abilities scale across the band the player actually plays
+
+The old count scaler moved a total of 0.72x to 1.34x — not something a player
+can see, let alone chase. `scaledAbilityCount` replaces it with three anchors
+on the real fielded range (`kAbilityStatLow` 2.5, `kAbilityStatAverage` 4.25,
+`kAbilityStatPerfect` 12.0), which are what
+`speciesBase / 20 * potentialMultiplier(potential)` actually produces at level
+10 for a weak creature, a median one at potential 50, and a top species at
+potential 100. Enhancement pushes past perfect, so the curve clamps.
+
+Every family scales off whichever stat its ability is about and picks its own
+three numbers. Two families sharing one curve is one family with two names.
+Mane's:
+
+| Ability | Stat | Low | Average | Perfect |
+| --- | --- | ---: | ---: | ---: |
+| Fire fireballs | Beauty | 4 | 8 | 16 |
+| Lightning orbs | Beauty | 5 | 7 | 12 |
+
+Fire is the steep one because the count *is* the ability; Lightning places
+rods that cover ground, so a field of twenty would be a carpet rather than a
+reward.
+
+Measured against six standing bodies, one cast:
+
+| | Low (B 2.6) | Average (B 4.31) | Perfect (B 11.75) |
+| --- | ---: | ---: | ---: |
+| Fire | 140 | 823 | 3,388 |
+| Ice | 375 | 754 | 1,774 |
+
+At average stats the two are now within 10% of each other, where they used to
+sit 12x apart. Note that Fire's curve is far steeper — 24x low-to-perfect
+against Ice's 4.7x — because a scaling count compounds with the elemental
+attack that already scales. That is a deliberate consequence of making the
+count the ability, but it is the number to watch if perfect-stat Fire Manes
+start outclassing everything.
 
 ### What is authored difference, not imbalance
 

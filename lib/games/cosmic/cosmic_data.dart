@@ -8865,8 +8865,17 @@ CosmicSpecialResult _maneSpecial(
         ),
       );
     case 'Fire':
-      // Design board: "(3–8) fireballs shot out and travel fast."
-      final fireballCount = scaledCount(6, min: 3, max: 8);
+      // Design board: "(3–8) fireballs shot out and travel fast." The count
+      // is the ability, so it scales off Beauty across the whole fielded
+      // band rather than nudging within the board's original range: four
+      // from a weak creature, eight from an average one, sixteen from a
+      // perfected one.
+      final fireballCount = scaledAbilityCount(
+        casterBeauty,
+        atLow: 4,
+        atAverage: 8,
+        atPerfect: 16,
+      );
       return finalize(
         fanResult(
           lanes: fireballCount,
@@ -8885,7 +8894,15 @@ CosmicSpecialResult _maneSpecial(
       // (see cosmic_survival_game.dart); open-world keeps the fan.
       return finalize(
         fanResult(
-          lanes: scaledCount(7, min: 5, max: 10),
+          // Lightning places rods rather than throwing shots, so its count
+          // climbs on a flatter curve than Fire's: each orb is worth more
+          // and covers ground, and a field of twenty would be a carpet.
+          lanes: scaledAbilityCount(
+            casterBeauty,
+            atLow: 5,
+            atAverage: 7,
+            atPerfect: 12,
+          ),
           arc: pi * 0.42,
           damageMultiplier: 1.30,
           life: 2.7,
@@ -11076,6 +11093,60 @@ String cosmicSpecialAbilityName(String family, String element) {
 }
 
 /// Family basic attacks — unchanged from original
+// ─────────────────────────────────────────────────────────
+// STAT-DRIVEN ABILITY SCALING
+// ─────────────────────────────────────────────────────────
+//
+// Anchors on the stat band players actually field, not on the legacy 1-5
+// display band. At level 10 the internal value of a stat is
+// `speciesBase / 20 * potentialMultiplier(potential)`, so:
+//
+//   * a median species at potential 50 lands near 4.25 — the average creature
+//   * a strong species at potential 80 lands near 7.2
+//   * a top species at potential 100 lands near 11.75, and Enhancement can
+//     push it past 15
+//
+// An ability that scales off a stat should visibly change across that band.
+// The old count scaler moved a total of 0.72x to 1.34x, which is not
+// something a player can see, let alone chase.
+
+/// A weak creature: a low species base at low potential.
+const double kAbilityStatLow = 2.5;
+
+/// The average fielded creature: median species, level 10, potential 50.
+const double kAbilityStatAverage = 4.25;
+
+/// A perfected creature: top species base, level 10, potential 100.
+/// Enhancement ranks push beyond this, which is why callers clamp.
+const double kAbilityStatPerfect = 12.0;
+
+/// Scales an authored projectile/placement count across the real stat band.
+///
+/// Every family should scale off whichever stat its ability is about — Beauty
+/// for elemental output, Intelligence for reach and utility, Strength for
+/// physical weight — and every family should pick its own three numbers. A
+/// Mane's fireball count climbing 4 to 16 and a Pip's dart count climbing 3 to
+/// 7 are both "scales with the creature", and they should not feel the same.
+int scaledAbilityCount(
+  double stat, {
+  required int atLow,
+  required int atAverage,
+  required int atPerfect,
+}) {
+  final value = stat.isFinite ? stat : kAbilityStatAverage;
+  if (value <= kAbilityStatLow) return atLow;
+  if (value >= kAbilityStatPerfect) return atPerfect;
+  if (value <= kAbilityStatAverage) {
+    final t =
+        (value - kAbilityStatLow) / (kAbilityStatAverage - kAbilityStatLow);
+    return (atLow + (atAverage - atLow) * t).round();
+  }
+  final t =
+      (value - kAbilityStatAverage) /
+      (kAbilityStatPerfect - kAbilityStatAverage);
+  return (atAverage + (atPerfect - atAverage) * t).round();
+}
+
 /// A Mane catapult may bill one body at most this many times.
 ///
 /// Every Mane special is piercing and most of them travel at the family's
@@ -11085,9 +11156,11 @@ String cosmicSpecialAbilityName(String family, String element) {
 /// Lightning landing almost nothing — an 18x spread between abilities whose
 /// authored damage is within 3x of each other.
 ///
-/// Five rather than one so a catapult still reads as a heavy piercing shot
-/// that rewards lining bodies up, instead of becoming a single-hit dart.
-const int kManeSpecialMaxHitsPerEnemy = 5;
+/// Two rather than one so a body wide enough to stay in the shot's path for
+/// a moment takes a second hit, which is what a heavy piercing catapult
+/// rolling through a brute should feel like. More than that was never the
+/// design; it was the frame rate.
+const int kManeSpecialMaxHitsPerEnemy = 2;
 
 List<Projectile> createFamilyBasicAttack({
   required Offset origin,
