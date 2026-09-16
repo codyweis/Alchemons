@@ -101,14 +101,35 @@ void main() {
     expect(three.length, 3);
     // Outer, middle, inner — and each turning at its own rate so they never
     // collapse into one rotating spoke.
-    expect(three.map((r) => r.orbitRadius).toList(), kManeLightOrbitRadii);
-    expect(three.map((r) => r.orbitSpeed).toList(), kManeLightOrbitSpeeds);
+    expect(
+      three.map((r) => r.orbitRadius).toList(),
+      kManeLightOrbitRadii.take(3),
+    );
+    expect(
+      three.map((r) => r.orbitSpeed).toList(),
+      kManeLightOrbitSpeeds.take(3),
+    );
   });
 
-  test('a fourth ring is never hung', () async {
+  test('the ward stops at the ring count this Light can hold', () async {
+    // Beauty is what buys a ring. This caster is an ordinary one, so three is
+    // its ceiling however long it keeps casting.
     for (final casts in [4, 6, 9]) {
       expect((await castWard(casts)).length, 3, reason: '$casts casts');
     }
+  });
+
+  test('a Light bred for Beauty holds a fourth ring', () {
+    expect(maneLightRingCount(kAbilityStatLow), 2);
+    expect(maneLightRingCount(kAbilityStatAverage), 3);
+    expect(maneLightRingCount(kAbilityStatPerfect), 4);
+    // And a perfect roll reads as perfect however plain the species.
+    expect(
+      maneLightRingCount(abilityScalingStat(4.0, 95)),
+      4,
+      reason: 'A 95 potential is a perfect roll whatever it was rolled on.',
+    );
+    expect(maneLightRingCount(abilityScalingStat(4.0, 90)), 3);
   });
 
   test('casts past the third feed the rings outer, middle, inner', () async {

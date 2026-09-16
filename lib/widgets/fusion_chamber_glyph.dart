@@ -172,9 +172,12 @@ class _FusionChamberPainter extends CustomPainter {
       canvas.drawCircle(
         centre,
         r * 0.20 * (0.85 + 0.15 * lit),
-        _p..color = Color.lerp(brew, Colors.white, 0.7)!.withValues(
-          alpha: 0.95 * lit,
-        ),
+        _p
+          ..color = Color.lerp(
+            brew,
+            Colors.white,
+            0.7,
+          )!.withValues(alpha: 0.95 * lit),
       );
     }
 

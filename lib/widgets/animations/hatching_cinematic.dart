@@ -433,222 +433,213 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
     // their own layout and Material chrome for nothing.
     final embedded = widget.onComplete != null;
     final content = RepaintBoundary(
-        child: AnimatedBuilder(
-          animation: _timeline,
-          builder: (context, _) {
-            final t = _timeline.value;
-            final highQualityEffects = !_reducedEffects;
+      child: AnimatedBuilder(
+        animation: _timeline,
+        builder: (context, _) {
+          final t = _timeline.value;
+          final highQualityEffects = !_reducedEffects;
 
-            // The shell runs its whole arc — motes, strings, converge, cinch,
-            // hold, UNRAVEL — inside the first 80% of the ceremony, because
-            // the whiteout begins at 0.80. Feeding it the raw timeline meant
-            // its unravel (which starts at 0.85) was faded out before it ever
-            // played, so the ceremony appeared to stop at the held shell.
-            final shellT = (t / _kShellWindow).clamp(0.0, 1.0);
-            // Motion is paced in the prototype's own seconds so twist and
-            // breathing read at the rate they were tuned at.
-            final shellClock = shellT * _kShellSeconds;
+          // The shell runs its whole arc — motes, strings, converge, cinch,
+          // hold, UNRAVEL — inside the first 80% of the ceremony, because
+          // the whiteout begins at 0.80. Feeding it the raw timeline meant
+          // its unravel (which starts at 0.85) was faded out before it ever
+          // played, so the ceremony appeared to stop at the held shell.
+          final shellT = (t / _kShellWindow).clamp(0.0, 1.0);
+          // Motion is paced in the prototype's own seconds so twist and
+          // breathing read at the rate they were tuned at.
+          final shellClock = shellT * _kShellSeconds;
 
-            // Whiteout at reveal
-            // Starts the moment the shell's explosion finishes, so the
-            // silhouette is carried out by it rather than left on screen.
-            final whiteout = _intervalValue(
-              t,
-              0.88,
-              0.97,
-              Curves.easeInOutCubic,
-            );
+          // Whiteout at reveal
+          // Starts the moment the shell's explosion finishes, so the
+          // silhouette is carried out by it rather than left on screen.
+          final whiteout = _intervalValue(t, 0.88, 0.97, Curves.easeInOutCubic);
 
-            // Vignette
-            final vignetteIntensity =
-                _intervalValue(t, 0.00, 0.30, Curves.easeOutCubic) *
-                (1.0 - whiteout);
+          // Vignette
+          final vignetteIntensity =
+              _intervalValue(t, 0.00, 0.30, Curves.easeOutCubic) *
+              (1.0 - whiteout);
 
-            // Global fade. It begins at 0.88 -- the instant the shell's arc
-            // ends and the silhouette's reveal completes -- because the
-            // scale-in has visually settled by then and the 1.0 -> 1.09 drift
-            // after it is too small to read as motion. Starting at 0.92 left
-            // the silhouette sitting motionless at full opacity on the
-            // whiteout for a beat before anything moved again, which is the
-            // frozen frame the ceremony keeps being accused of.
-            //
-            // The dissolve. Linear, and pinned to reach zero exactly on
-            // [_kHandoverAt] so the screen is empty on the frame we navigate.
-            // Keep these two constants locked together: if the fade finishes
-            // early the ceremony sits on black waiting, and if it finishes late
-            // the handover cuts a visible image away.
-            double globalFade = 1.0;
-            if (t > _kDissolveFrom) {
-              globalFade =
-                  1.0 -
-                  ((t - _kDissolveFrom) / (_kHandoverAt - _kDissolveFrom))
-                      .clamp(0.0, 1.0);
-            }
+          // Global fade. It begins at 0.88 -- the instant the shell's arc
+          // ends and the silhouette's reveal completes -- because the
+          // scale-in has visually settled by then and the 1.0 -> 1.09 drift
+          // after it is too small to read as motion. Starting at 0.92 left
+          // the silhouette sitting motionless at full opacity on the
+          // whiteout for a beat before anything moved again, which is the
+          // frozen frame the ceremony keeps being accused of.
+          //
+          // The dissolve. Linear, and pinned to reach zero exactly on
+          // [_kHandoverAt] so the screen is empty on the frame we navigate.
+          // Keep these two constants locked together: if the fade finishes
+          // early the ceremony sits on black waiting, and if it finishes late
+          // the handover cuts a visible image away.
+          double globalFade = 1.0;
+          if (t > _kDissolveFrom) {
+            globalFade =
+                1.0 -
+                ((t - _kDissolveFrom) / (_kHandoverAt - _kDissolveFrom)).clamp(
+                  0.0,
+                  1.0,
+                );
+          }
 
-            return Opacity(
-              opacity: globalFade,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ColoredBox(color: bg.withValues(alpha: 0.98)),
+          return Opacity(
+            opacity: globalFade,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(color: bg.withValues(alpha: 0.98)),
 
-                  // Ambient motes: the field the shell lives in. Drifting
-                  // for the whole ceremony, behind and in front of the shell.
-                  RepaintBoundary(
-                    child: IgnorePointer(
-                      child: AnimatedBuilder(
-                        animation: _timeline,
-                        builder: (context, child) {
-                          return CustomPaint(
-                            painter: HatchShellAmbientPainter(
-                              t: t,
-                              clock: shellClock,
-                              tint: widget.paletteMain,
-                              accent:
-                                  widget.variantColor ??
-                                  _pureColor ??
-                                  widget.paletteMain,
-                              reduced: _reducedEffects,
-                              opacity: 1.0 - whiteout,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-
-                  // The shell itself — one drawVertices call.
-                  RepaintBoundary(
-                    child: IgnorePointer(
-                      child: AnimatedBuilder(
-                        animation: _timeline,
-                        builder: (context, child) {
-                          return CustomPaint(
-                            painter: HatchShellPainter(
-                              t: shellT,
-                              clock: shellClock,
-                              model: _shell(),
-                              paletteA: _elementPalette(
-                                widget.parentATypeId,
+                // Ambient motes: the field the shell lives in. Drifting
+                // for the whole ceremony, behind and in front of the shell.
+                RepaintBoundary(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _timeline,
+                      builder: (context, child) {
+                        return CustomPaint(
+                          painter: HatchShellAmbientPainter(
+                            t: t,
+                            clock: shellClock,
+                            tint: widget.paletteMain,
+                            accent:
+                                widget.variantColor ??
+                                _pureColor ??
                                 widget.paletteMain,
-                              ),
-                              paletteB: _elementPalette(
-                                widget.parentBTypeId ?? widget.parentATypeId,
-                                widget.paletteMain,
-                              ),
-                              // resultTypeId first: pureElementTypeId is only
-                              // non-null for elementally pure lineages, so
-                              // every ordinary hatch was fusing into
-                              // [paletteMain] repeated three times -- a flat
-                              // colour standing in for an element palette.
-                              paletteResult: _elementPalette(
-                                widget.resultTypeId ?? widget.pureElementTypeId,
-                                _pureColor ?? widget.paletteMain,
-                              ),
-                              behaviorA: ShellElementBehavior.of(
-                                widget.parentATypeId,
-                              ),
-                              behaviorB: ShellElementBehavior.of(
-                                widget.parentBTypeId ?? widget.parentATypeId,
-                              ),
-                              behaviorResult: ShellElementBehavior.of(
-                                widget.resultTypeId ??
-                                    widget.pureElementTypeId ??
-                                    widget.parentATypeId,
-                              ),
-                              rarity: _shellRarity,
-                              reduced:
-                                  widget.quality ==
-                                  CinematicQuality.performance,
-                              opacity: 1.0 - whiteout,
+                            reduced: _reducedEffects,
+                            opacity: 1.0 - whiteout,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+                // The shell itself — one drawVertices call.
+                RepaintBoundary(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _timeline,
+                      builder: (context, child) {
+                        return CustomPaint(
+                          painter: HatchShellPainter(
+                            t: shellT,
+                            clock: shellClock,
+                            model: _shell(),
+                            paletteA: _elementPalette(
+                              widget.parentATypeId,
+                              widget.paletteMain,
                             ),
-                          );
-                        },
+                            paletteB: _elementPalette(
+                              widget.parentBTypeId ?? widget.parentATypeId,
+                              widget.paletteMain,
+                            ),
+                            // resultTypeId first: pureElementTypeId is only
+                            // non-null for elementally pure lineages, so
+                            // every ordinary hatch was fusing into
+                            // [paletteMain] repeated three times -- a flat
+                            // colour standing in for an element palette.
+                            paletteResult: _elementPalette(
+                              widget.resultTypeId ?? widget.pureElementTypeId,
+                              _pureColor ?? widget.paletteMain,
+                            ),
+                            behaviorA: ShellElementBehavior.of(
+                              widget.parentATypeId,
+                            ),
+                            behaviorB: ShellElementBehavior.of(
+                              widget.parentBTypeId ?? widget.parentATypeId,
+                            ),
+                            behaviorResult: ShellElementBehavior.of(
+                              widget.resultTypeId ??
+                                  widget.pureElementTypeId ??
+                                  widget.parentATypeId,
+                            ),
+                            rarity: _shellRarity,
+                            reduced:
+                                widget.quality == CinematicQuality.performance,
+                            opacity: 1.0 - whiteout,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+                // Core + Geometry + Effects
+                RepaintBoundary(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([_timeline]),
+                      builder: (context, child) {
+                        return CustomPaint(
+                          painter: _CoreAndGeometryPainter(
+                            t: t,
+                            palette: widget.paletteMain,
+                            vignette: vignetteIntensity,
+                            whiteout: whiteout,
+                            // Hint system
+                            pureColor: _pureColor,
+                            reducedEffects: _reducedEffects,
+                            highQualityEffects: highQualityEffects,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+                // Silhouette reveal
+                if (widget.creatureSilhouette != null && _reveal.value > 0)
+                  IgnorePointer(
+                    child: Opacity(
+                      opacity: _reveal.value,
+                      child: Transform.scale(
+                        scale: _revealScale.value,
+                        child: Center(
+                          child: _SilhouetteReveal(
+                            image: widget.creatureSilhouette!,
+                            glowColor: widget.paletteMain,
+                            hintType: widget.hintType,
+                            variantColor: widget.variantColor,
+                          ),
+                        ),
                       ),
                     ),
                   ),
 
-                  // Core + Geometry + Effects
-                  RepaintBoundary(
+                // Pure lineage caption, revealed with the silhouette
+                if (widget.pureElementTypeId != null && t > 0.80)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 110,
                     child: IgnorePointer(
-                      child: AnimatedBuilder(
-                        animation: Listenable.merge([_timeline]),
-                        builder: (context, child) {
-                          return CustomPaint(
-                            painter: _CoreAndGeometryPainter(
-                              t: t,
-                              palette: widget.paletteMain,
-                              vignette: vignetteIntensity,
-                              whiteout: whiteout,
-                              // Hint system
-                              pureColor: _pureColor,
-                              reducedEffects: _reducedEffects,
-                              highQualityEffects: highQualityEffects,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-
-                  // Silhouette reveal
-                  if (widget.creatureSilhouette != null && _reveal.value > 0)
-                    IgnorePointer(
                       child: Opacity(
-                        opacity: _reveal.value,
-                        child: Transform.scale(
-                          scale: _revealScale.value,
-                          child: Center(
-                            child: _SilhouetteReveal(
-                              image: widget.creatureSilhouette!,
-                              glowColor: widget.paletteMain,
-                              hintType: widget.hintType,
-                              variantColor: widget.variantColor,
+                        opacity: _intervalValue(t, 0.82, 0.90, Curves.easeOut),
+                        child: Center(
+                          child: Text(
+                            '✦ PURE ${widget.pureElementTypeId!.toUpperCase()} LINEAGE ✦',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: _pureColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 3.0,
+                              shadows: [
+                                Shadow(
+                                  color: (_pureColor ?? widget.paletteMain)
+                                      .withValues(alpha: 0.8),
+                                  blurRadius: 14,
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
                     ),
+                  ),
 
-                  // Pure lineage caption, revealed with the silhouette
-                  if (widget.pureElementTypeId != null && t > 0.80)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 110,
-                      child: IgnorePointer(
-                        child: Opacity(
-                          opacity: _intervalValue(
-                            t,
-                            0.82,
-                            0.90,
-                            Curves.easeOut,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '✦ PURE ${widget.pureElementTypeId!.toUpperCase()} LINEAGE ✦',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: _pureColor,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 3.0,
-                                shadows: [
-                                  Shadow(
-                                    color: (_pureColor ?? widget.paletteMain)
-                                        .withValues(alpha: 0.8),
-                                    blurRadius: 14,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  // Skip button
-                  if (widget.showSkip)
+                // Skip button
+                if (widget.showSkip)
                   Positioned(
                     bottom: 24,
                     right: 24,
@@ -682,11 +673,11 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                       ),
                     ),
                   ),
-                ],
-              ),
-            );
-          },
-        ),
+              ],
+            ),
+          );
+        },
+      ),
     );
     if (embedded) return content;
     return Scaffold(backgroundColor: Colors.transparent, body: content);

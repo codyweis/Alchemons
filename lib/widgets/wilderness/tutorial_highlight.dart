@@ -193,11 +193,7 @@ class _Rule extends StatelessWidget {
   final double width;
   final double alpha;
 
-  const _Rule({
-    required this.radius,
-    required this.width,
-    required this.alpha,
-  });
+  const _Rule({required this.radius, required this.width, required this.alpha});
 
   @override
   Widget build(BuildContext context) {

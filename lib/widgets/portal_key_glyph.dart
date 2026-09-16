@@ -177,11 +177,7 @@ class _PortalKeyPainter extends CustomPainter {
     // Breathes, so a still row of five is not five identical frozen rings.
     final pulse = 0.72 + 0.14 * math.sin(_t * 1.3);
 
-    canvas.drawCircle(
-      c,
-      r * 0.86,
-      _p..color = color.withValues(alpha: 0.07),
-    );
+    canvas.drawCircle(c, r * 0.86, _p..color = color.withValues(alpha: 0.07));
 
     final rect = Rect.fromCircle(center: c, radius: r);
     _p

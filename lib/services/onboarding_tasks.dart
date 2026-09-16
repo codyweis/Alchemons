@@ -42,7 +42,6 @@ enum TaskGate {
 
   /// The altar appears once any relic is held or placed.
   anyRelic,
-
 }
 
 /// A place in the game the player may not know exists.
@@ -108,7 +107,8 @@ const List<OnboardingTask> kOnboardingTasks = [
   OnboardingTask(
     id: 'battle_tab',
     title: 'Read an Alchemon',
-    blurb: 'Each specimen has a battle profile — its family decides how it '
+    blurb:
+        'Each specimen has a battle profile — its family decides how it '
         'fights.',
     icon: AppIcons.pets_rounded,
     destination: TaskDestination.creatures,

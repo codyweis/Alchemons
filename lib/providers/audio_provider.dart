@@ -357,6 +357,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
       await _sustainPlayer.stop();
     } catch (_) {}
   }
+
   void _syncSounds() {
     final enabled =
         !_disposed && _isLoaded && effectiveSoundsEnabled && _appIsForeground;

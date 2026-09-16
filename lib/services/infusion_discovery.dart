@@ -19,11 +19,9 @@ class InfusionDiscovery {
   static const soulSeenKey = 'enhance_soul_tray_seen_v1';
 
   /// Every power orb the player is holding, of any stat.
-  static int orbCount(Map<String, int> inventory) =>
-      AlchemicalPowerupType.values.fold<int>(
-        0,
-        (sum, type) => sum + (inventory[type.inventoryKey] ?? 0),
-      );
+  static int orbCount(Map<String, int> inventory) => AlchemicalPowerupType
+      .values
+      .fold<int>(0, (sum, type) => sum + (inventory[type.inventoryKey] ?? 0));
 
   static int soulCount(Map<String, int> inventory) =>
       inventory[InvKeys.potentialSoul] ?? 0;

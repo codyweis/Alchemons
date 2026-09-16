@@ -1675,8 +1675,7 @@ class SkillNode extends PositionComponent
     // pathing and drawing them on every frame. That is the pinch-out stutter:
     // the further out you go the more nodes are on screen, each paying full
     // price for detail nobody can resolve.
-    if (isUnlocked &&
-        game.camera.viewfinder.zoom >= kConstellationDetailZoom) {
+    if (isUnlocked && game.camera.viewfinder.zoom >= kConstellationDetailZoom) {
       _drawAlchemicalAccents(canvas, center.toOffset(), 35);
       _renderParticles(canvas, center);
     }

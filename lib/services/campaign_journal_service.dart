@@ -818,29 +818,29 @@ class CampaignJournalService {
   /// apply until the next launch.
   Future<bool> claim(String id, {TimedBoostService? boosts}) =>
       db.transaction(() async {
-    final matches = campaignAchievements.where((a) => a.id == id);
-    if (matches.isEmpty) return false;
-    final a = matches.first;
-    final snapshot = await load();
-    if (!snapshot.earned(a) || snapshot.claimed.contains(id)) return false;
-    await db.settingsDao.setSetting('campaign_claim_$id', '1');
-    if (a.gold > 0) await db.currencyDao.addGold(a.gold);
-    if (a.silver > 0) await db.currencyDao.addSilver(a.silver);
-    for (final entry in a.items.entries) {
-      await db.inventoryDao.addItemQty(entry.key, entry.value);
-    }
-    for (final entry in a.resources.entries) {
-      await db.currencyDao.addResource(entry.key, entry.value);
-    }
-    final boostDuration = a.halfCultivation;
-    if (boostDuration != null) {
-      assert(
-        boosts != null,
-        'Achievement "$id" rewards a timed boost but claim() was called '
-        'without a TimedBoostService, so the reward would be dropped.',
-      );
-      await boosts?.grantHalfCultivation(duration: boostDuration);
-    }
-    return true;
-  });
+        final matches = campaignAchievements.where((a) => a.id == id);
+        if (matches.isEmpty) return false;
+        final a = matches.first;
+        final snapshot = await load();
+        if (!snapshot.earned(a) || snapshot.claimed.contains(id)) return false;
+        await db.settingsDao.setSetting('campaign_claim_$id', '1');
+        if (a.gold > 0) await db.currencyDao.addGold(a.gold);
+        if (a.silver > 0) await db.currencyDao.addSilver(a.silver);
+        for (final entry in a.items.entries) {
+          await db.inventoryDao.addItemQty(entry.key, entry.value);
+        }
+        for (final entry in a.resources.entries) {
+          await db.currencyDao.addResource(entry.key, entry.value);
+        }
+        final boostDuration = a.halfCultivation;
+        if (boostDuration != null) {
+          assert(
+            boosts != null,
+            'Achievement "$id" rewards a timed boost but claim() was called '
+            'without a TimedBoostService, so the reward would be dropped.',
+          );
+          await boosts?.grantHalfCultivation(duration: boostDuration);
+        }
+        return true;
+      });
 }

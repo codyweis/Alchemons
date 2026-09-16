@@ -11,11 +11,7 @@ import 'package:flutter/material.dart';
 /// specimen and are lit, the spare ones are empty sockets, and the loop keeps
 /// filling the spares in — which is the purchase.
 class ColdStorageGlyph extends StatefulWidget {
-  const ColdStorageGlyph({
-    super.key,
-    required this.size,
-    this.animate = true,
-  });
+  const ColdStorageGlyph({super.key, required this.size, this.animate = true});
 
   final double size;
 
@@ -174,11 +170,7 @@ class _ColdStoragePainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = s * 0.016
         ..strokeJoin = StrokeJoin.round
-        ..color = Color.lerp(
-          _socket.withValues(alpha: 0.85),
-          _frost,
-          lit,
-        )!,
+        ..color = Color.lerp(_socket.withValues(alpha: 0.85), _frost, lit)!,
     );
     _p.style = PaintingStyle.fill;
 

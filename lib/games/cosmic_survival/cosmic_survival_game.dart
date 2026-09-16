@@ -2911,9 +2911,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final echoAngle = echoDir.distance > 0.001
             ? atan2(echoDir.dy, echoDir.dx)
             : comp.doubleCastAngle;
-        final thresholdBeauty = _effectiveBeauty(slotIndex);
-        final thresholdIntelligence = _effectiveIntelligence(slotIndex);
-        final thresholdStrength = _effectiveStrength(slotIndex);
+        final thresholdBeauty = _abilityBeauty(slotIndex);
+        final thresholdIntelligence = _abilityIntelligence(slotIndex);
+        final thresholdStrength = _abilityStrength(slotIndex);
         final result2 = createCosmicSpecialAbility(
           origin: comp.position,
           baseAngle: echoAngle + 0.15,
@@ -3085,9 +3085,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             comp.member.family,
             comp.member.element,
           )) {
-        final thresholdBeauty = _effectiveBeauty(slotIndex);
-        final thresholdIntelligence = _effectiveIntelligence(slotIndex);
-        final thresholdStrength = _effectiveStrength(slotIndex);
+        final thresholdBeauty = _abilityBeauty(slotIndex);
+        final thresholdIntelligence = _abilityIntelligence(slotIndex);
+        final thresholdStrength = _abilityStrength(slotIndex);
         final cooldown =
             comp.effectiveSpecialCooldown *
             _specialCooldownReductionMultiplier(slotIndex, comp.member.family) *
@@ -3880,6 +3880,25 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   double _effectiveBeauty(int slotIndex) =>
       max(0.5, party[slotIndex].statBeauty + powerUps.beautyBonus(slotIndex));
+
+  // The stats an ability's *shape* scales off. A creature bred to 95 potential
+  // or better reads as a perfect roll here however ordinary its species is,
+  // so the last stretch of breeding shows up on every alchemon rather than
+  // only on the handful with top base stats.
+  double _abilityBeauty(int slotIndex) => abilityScalingStat(
+    _effectiveBeauty(slotIndex),
+    party[slotIndex].statBeautyPotential,
+  );
+
+  double _abilityIntelligence(int slotIndex) => abilityScalingStat(
+    _effectiveIntelligence(slotIndex),
+    party[slotIndex].statIntelligencePotential,
+  );
+
+  double _abilityStrength(int slotIndex) => abilityScalingStat(
+    _effectiveStrength(slotIndex),
+    party[slotIndex].statStrengthPotential,
+  );
 
   double _effectiveSpeed(int slotIndex) =>
       max(0.5, party[slotIndex].statSpeed + powerUps.speedBonus(slotIndex));
@@ -6135,6 +6154,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  /// What bucket a projectile's damage belongs in.
+  ///
+  /// Returning null defers to the cast, which knows whether it was a basic or
+  /// a special. A projectile with no cast still knows: every special stamps an
+  /// ability family and a basic leaves it empty. Without this a party with no
+  /// mastery equipped filed all of its special damage under "other", which
+  /// made the no-mastery baseline — the thing every balance comparison is
+  /// measured against — silently useless.
+  MasteryDamageSource? _projectileDamageSource(Projectile p) {
+    if (p.masteryGenerated) return MasteryDamageSource.mastery;
+    if (p.masteryCastId != 0) return null;
+    return p.abilityFamily.isEmpty ? null : MasteryDamageSource.special;
+  }
+
   /// Where a piece of damage came from, when the caller did not say.
   ///
   /// A tracked cast knows whether it was a basic or a special; anything with
@@ -6634,11 +6667,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     Projectile template,
   ) {
     final rings = _maneLightRings(slotIndex);
+    // Beauty decides how wide a ward this Light can hold up.
+    final ringCap = maneLightRingCount(_abilityBeauty(slotIndex));
 
-    if (rings.length < kManeLightOrbitRadii.length) {
-      // Hang the next ring inward. Every ring is born at level 0 however far
-      // along the ward is — a new ring is new, and it earns its size the same
-      // way the others did.
+    if (rings.length < ringCap) {
+      // Hang the next ring. Every ring is born at level 0 however far along
+      // the ward is — a new ring is new, and it earns its size the same way
+      // the others did.
       final index = rings.length;
       _appendCompanionProjectile(
         Projectile(
@@ -6676,8 +6711,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     if (comp.abilityKillStacks >= kManeLightMaxGrowth) return;
-    // Which ring eats this cast: outer, middle, inner, outer, ...
-    final turn = comp.abilityKillStacks % kManeLightOrbitRadii.length;
+    if (rings.isEmpty) return;
+    // Which ring eats this cast, cycling outward-in. Over the rings this ward
+    // actually has, not over every radius the constant lists — a Light whose
+    // Beauty only holds three rings has no fourth to feed.
+    final turn = comp.abilityKillStacks % rings.length;
     comp.abilityKillStacks++;
     final ring = rings[turn];
     // effectStacks carries this ring's own rung on the ladder.
@@ -16110,9 +16148,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // That is what a Blood world tithes from.
           autoAttack: p.abilityFamily.isEmpty,
           masteryCastId: p.masteryCastId,
-          masterySource: p.masteryGenerated
-              ? MasteryDamageSource.mastery
-              : null,
+          masterySource: _projectileDamageSource(p),
         );
         final killed = !wasDead && enemy.isDead;
         resolveAbilityHit(p, enemy, killed: killed);
@@ -16340,9 +16376,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             autoAttack: p.abilityFamily.isEmpty,
             target: boss,
             masteryCastId: p.masteryCastId,
-            masterySource: p.masteryGenerated
-                ? MasteryDamageSource.mastery
-                : null,
+            masterySource: _projectileDamageSource(p),
           );
           // Crowd control lands on bosses too. This branch used to deal damage
           // and nothing else, so Mane+Ice — whose whole line is "freezes

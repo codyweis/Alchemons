@@ -731,9 +731,12 @@ half: how much of the ability there is.
 Beauty buys exactly one thing per element, never two:
 
 - **Fire and Lightning** — the count (4/8/16 and 5/7/12).
-- **Light** — nothing extra. The board says its ball "starts tiny and grows
-  bigger each enemy it hits", so a Beauty build that starts it large leaves
-  the ramp nothing to climb. A test guards this.
+- **Light** — orbs. Its open-world ball must stay singular and tiny, because
+  the board has it growing per pierce and a large start leaves the ramp
+  nothing to climb (a test guards this). In survival Light is the *ward*, and
+  there the amount is how many rings turn: two, three or four by Beauty. Each
+  ring is still born small and still earns its size by being fed, so a fourth
+  ring is more ward rather than a shortcut past the growth.
 - **Everything else** — width. A wider ball catches more bodies down a line
   and stays in contact longer, which is more total damage without Beauty ever
   touching a damage number.
@@ -754,6 +757,18 @@ The other seven families still fall back to elemental attack, which is what
 every special did before. Each should get its own contract when its tree is
 built — a Wing beam is not paid for out of the same stat as a Horn ram, and
 they should not feel as though they are.
+
+### A 95 potential is a perfect roll whatever it was rolled on
+
+The internal stat blends species base with potential, so a median species bred
+to 100 lands near 8.6 and never reaches the perfect anchor a top species hits
+at 11.75. That hid the last stretch of breeding on everything but the best
+species — exactly the stretch a player grinds hardest for.
+
+`abilityScalingStat` lifts any stat bred to `kAbilityPerfectPotential` (95) or
+better up to the perfect anchor, for ability *shape* only. Species base still
+decides damage, so a great species is still a better creature; it no longer
+decides whether a perfect roll reads as perfect.
 
 ### Abilities scale across the band the player actually plays
 

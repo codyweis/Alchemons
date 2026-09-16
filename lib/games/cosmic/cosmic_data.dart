@@ -7508,11 +7508,22 @@ const int kPipMudTrailBudget = 48;
 /// caster: the first cast hangs the outer ring, the second the middle, the
 /// third the inner, and every cast after that feeds one of them — outer,
 /// middle, inner, in that order — up to [kManeLightMaxGrowth] times.
-const List<double> kManeLightOrbitRadii = [96.0, 66.0, 38.0];
+/// In hang order: three rings inward, then a fourth hung outside them all,
+/// which only a Beauty-built Light ever reaches.
+const List<double> kManeLightOrbitRadii = [96.0, 66.0, 38.0, 126.0];
+
+/// How many rings a Light ward may hold, by the caster's Beauty. Beauty is
+/// the amount stat, and for Light the amount is orbs — a weak Light keeps two
+/// turning, an average one three, a perfected one four. The ramp each ring
+/// climbs is untouched: rings are still born small and still earn their size
+/// by being fed, so a fourth ring is more ward, not a shortcut past the
+/// growth the element is built around.
+int maneLightRingCount(double beauty) =>
+    scaledAbilityCount(beauty, atLow: 2, atAverage: 3, atPerfect: 4);
 
 /// Angular speed per ring. The inner ring turns fastest, so the three never
 /// line up into a single rotating spoke.
-const List<double> kManeLightOrbitSpeeds = [0.85, 1.15, 1.55];
+const List<double> kManeLightOrbitSpeeds = [0.85, 1.15, 1.55, 0.62];
 
 /// Total feedings available across all three rings.
 const int kManeLightMaxGrowth = 10;
@@ -11150,6 +11161,24 @@ const double kAbilityStatAverage = 4.25;
 /// A perfected creature: top species base, level 10, potential 100.
 /// Enhancement ranks push beyond this, which is why callers clamp.
 const double kAbilityStatPerfect = 12.0;
+
+/// A potential at or above this reads as a perfect roll for ability scaling.
+///
+/// The internal stat blends species base with potential, so a median species
+/// bred to 100 lands near 8.6 and never reaches the perfect anchor a top
+/// species hits at 11.75. That makes the last stretch of breeding invisible
+/// on anything but the best species, which is exactly the stretch a player
+/// grinds hardest for. A 95 is a perfect roll whatever it was rolled on.
+const double kAbilityPerfectPotential = 95.0;
+
+/// The stat an ability should scale off, given what the creature was bred to.
+///
+/// Species base still decides damage — this only lifts the *shape* of the
+/// ability, the count and coverage that Beauty buys.
+double abilityScalingStat(double stat, double potential) =>
+    potential >= kAbilityPerfectPotential
+    ? (stat > kAbilityStatPerfect ? stat : kAbilityStatPerfect)
+    : stat;
 
 /// Scales an authored projectile/placement count across the real stat band.
 ///

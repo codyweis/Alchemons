@@ -2864,9 +2864,7 @@ void _paintPlantZone(
       for (var j = 1; j <= 2; j++) {
         final t = 0.55 + j * 0.2;
         final on =
-            position +
-            dir * reach * t +
-            perp * reach * 0.26 * sin(t * pi);
+            position + dir * reach * t + perp * reach * 0.26 * sin(t * pi);
         final barb = perp * (j.isEven ? 3.0 : -3.0) * vs;
         creeper
           ..color = vine.withValues(alpha: 0.70 * pulse)
@@ -7099,11 +7097,16 @@ void drawLetSkyfallTelegraph({
   final stainR = radius * (1.20 - 0.22 * t);
   _shapePaint
     ..color = const ui.Color(0xFFFFFFFF)
-    ..shader = ui.Gradient.radial(centre, stainR, [
-      color.withValues(alpha: (0.16 + 0.14 * t) * presence),
-      color.withValues(alpha: (0.07 + 0.08 * t) * presence),
-      color.withValues(alpha: 0.0),
-    ], const [0.0, 0.62, 1.0]);
+    ..shader = ui.Gradient.radial(
+      centre,
+      stainR,
+      [
+        color.withValues(alpha: (0.16 + 0.14 * t) * presence),
+        color.withValues(alpha: (0.07 + 0.08 * t) * presence),
+        color.withValues(alpha: 0.0),
+      ],
+      const [0.0, 0.62, 1.0],
+    );
   canvas.drawCircle(centre, stainR, _shapePaint);
   _shapePaint.shader = null;
 
@@ -7174,11 +7177,16 @@ void drawLetSkyfallImpact({
   if (coreR > 0.5 && flash > 0.01) {
     _shapePaint
       ..color = const ui.Color(0xFFFFFFFF)
-      ..shader = ui.Gradient.radial(centre, coreR, [
-        const ui.Color(0xFFFFFFFF).withValues(alpha: 0.95 * flash),
-        hot.withValues(alpha: 0.50 * flash),
-        color.withValues(alpha: 0.0),
-      ], const [0.0, 0.40, 1.0]);
+      ..shader = ui.Gradient.radial(
+        centre,
+        coreR,
+        [
+          const ui.Color(0xFFFFFFFF).withValues(alpha: 0.95 * flash),
+          hot.withValues(alpha: 0.50 * flash),
+          color.withValues(alpha: 0.0),
+        ],
+        const [0.0, 0.40, 1.0],
+      );
     canvas.drawCircle(centre, coreR, _shapePaint);
     _shapePaint.shader = null;
   }
@@ -7208,11 +7216,16 @@ void drawLetSkyfallImpact({
   // what marks the crater from here on, and doubling up muddies both.
   _shapePaint
     ..color = const ui.Color(0xFFFFFFFF)
-    ..shader = ui.Gradient.radial(centre, radius * 0.86, [
-      color.withValues(alpha: 0.22 * fade),
-      color.withValues(alpha: 0.07 * fade),
-      color.withValues(alpha: 0.0),
-    ], const [0.0, 0.55, 1.0]);
+    ..shader = ui.Gradient.radial(
+      centre,
+      radius * 0.86,
+      [
+        color.withValues(alpha: 0.22 * fade),
+        color.withValues(alpha: 0.07 * fade),
+        color.withValues(alpha: 0.0),
+      ],
+      const [0.0, 0.55, 1.0],
+    );
   canvas.drawCircle(centre, radius * 0.86, _shapePaint);
   _shapePaint.shader = null;
 }
@@ -7272,7 +7285,6 @@ ui.Path _tapered(List<ui.Offset> spine, double baseWidth, double tipWidth) {
   return path;
 }
 
-
 /// Dark Mystic's maw: the hole it tears in the arena.
 ///
 /// A world feature, not a cast — it holds open for as long as its Mystic
@@ -7295,8 +7307,7 @@ void drawMysticMaw({
   // Two beats laid over one another — a slow swell with a faster flutter
   // inside it — so the hole never settles into a metronome. A single sine was
   // a machine breathing; this is something alive that does not repeat cleanly.
-  final pulse =
-      1.0 + 0.075 * sin(time * 0.62) + 0.035 * sin(time * 1.63 + 1.1);
+  final pulse = 1.0 + 0.075 * sin(time * 0.62) + 0.035 * sin(time * 1.63 + 1.1);
   // The light bends harder on the swell, which is what actually sells it as
   // gravity rather than as a circle changing size.
   final bend = 0.5 + 0.5 * sin(time * 0.62);
@@ -7313,8 +7324,11 @@ void drawMysticMaw({
     final turn = spin * (1.0 + ring * 0.5) + ring * 2.1;
     arcPaint
       ..strokeWidth = (2.8 - ring * 0.8) * (0.8 + 0.5 * bend)
-      ..color = ui.Color.lerp(violet, const ui.Color(0xFFFFFFFF), ring * 0.25)!
-          .withValues(alpha: (0.30 - ring * 0.10) * a * (0.7 + 0.6 * bend));
+      ..color = ui.Color.lerp(
+        violet,
+        const ui.Color(0xFFFFFFFF),
+        ring * 0.25,
+      )!.withValues(alpha: (0.30 - ring * 0.10) * a * (0.7 + 0.6 * bend));
     canvas.drawArc(
       ui.Rect.fromCircle(center: centre, radius: rr),
       turn,
@@ -7353,10 +7367,10 @@ void drawMysticMaw({
     ui.Paint()
       ..style = ui.PaintingStyle.stroke
       ..strokeWidth = 1.4
-      ..color = const ui.Color(0xFFFFFFFF)
-          .withValues(alpha: (0.35 + 0.45 * bend) * a),
+      ..color = const ui.Color(
+        0xFFFFFFFF,
+      ).withValues(alpha: (0.35 + 0.45 * bend) * a),
   );
-
 }
 
 /// The curved spine of a grove vine, root first and head last.
@@ -7550,8 +7564,7 @@ void drawMysticGroveVine({
     canvas.drawCircle(
       head,
       throat * (0.34 + 0.30 * fire),
-      ui.Paint()
-        ..color = bright.withValues(alpha: (0.60 + 0.35 * fire) * a),
+      ui.Paint()..color = bright.withValues(alpha: (0.60 + 0.35 * fire) * a),
     );
   }
 }
@@ -7584,9 +7597,7 @@ void drawMysticRevenant({
         position + back * (rr * 1.25 * i),
         rr * (0.72 - i * 0.16),
         ui.Paint()
-          ..color = const ui.Color(
-            0xFFAFC4FF,
-          ).withValues(alpha: 0.16 * a / i),
+          ..color = const ui.Color(0xFFAFC4FF).withValues(alpha: 0.16 * a / i),
       );
     }
   }
@@ -7600,8 +7611,7 @@ void drawMysticRevenant({
   canvas.drawCircle(
     position,
     rr,
-    ui.Paint()
-      ..color = const ui.Color(0xFFE8EEFF).withValues(alpha: 0.82 * a),
+    ui.Paint()..color = const ui.Color(0xFFE8EEFF).withValues(alpha: 0.82 * a),
   );
   canvas.drawCircle(
     position,
@@ -7684,14 +7694,12 @@ void drawMysticLightningBolt({
   canvas.drawCircle(
     strike,
     flash,
-    ui.Paint()
-      ..color = const ui.Color(0xFF9FCCFF).withValues(alpha: 0.20 * a),
+    ui.Paint()..color = const ui.Color(0xFF9FCCFF).withValues(alpha: 0.20 * a),
   );
   canvas.drawCircle(
     strike,
     flash * 0.34,
-    ui.Paint()
-      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.55 * a),
+    ui.Paint()..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.55 * a),
   );
 }
 
@@ -7726,8 +7734,11 @@ void drawMysticQuake({
   canvas.drawCircle(centre, r, ring);
   ring
     ..strokeWidth = 3.0 * a + 0.8
-    ..color = ui.Color.lerp(earth, const ui.Color(0xFFFFE2A8), 0.5)!
-        .withValues(alpha: 0.34 * a);
+    ..color = ui.Color.lerp(
+      earth,
+      const ui.Color(0xFFFFE2A8),
+      0.5,
+    )!.withValues(alpha: 0.34 * a);
   canvas.drawCircle(centre, r * 0.97, ring);
 
   // Cracks: short radial splits trailing the front.
@@ -7745,7 +7756,10 @@ void drawMysticQuake({
     for (var k = 1; k <= 3; k++) {
       final f = inner + (r - inner) * (k / 3);
       final off = ui.Offset(-dir.dy, dir.dx) * (sin(i * 2.7 + k) * 12.0);
-      jag.lineTo(centre.dx + dir.dx * f + off.dx, centre.dy + dir.dy * f + off.dy);
+      jag.lineTo(
+        centre.dx + dir.dx * f + off.dx,
+        centre.dy + dir.dy * f + off.dy,
+      );
     }
     canvas.drawPath(jag, crack);
   }
@@ -7770,7 +7784,11 @@ void drawMysticPoisonPatch({
   for (var i = 0; i < 5; i++) {
     final ang = seed + i * 1.27;
     final off = ui.Offset(cos(ang), sin(ang)) * (radius * 0.30);
-    canvas.drawCircle(centre + off, radius * (0.62 + 0.16 * sin(seed + i)), body);
+    canvas.drawCircle(
+      centre + off,
+      radius * (0.62 + 0.16 * sin(seed + i)),
+      body,
+    );
   }
   canvas.drawCircle(
     centre,
@@ -7780,8 +7798,11 @@ void drawMysticPoisonPatch({
 
   // Bubbles surfacing and popping, so the patch is alive rather than a stain.
   final bubble = ui.Paint()
-    ..color = ui.Color.lerp(poison, const ui.Color(0xFFEAFFD0), 0.6)!
-        .withValues(alpha: 0.55 * alpha);
+    ..color = ui.Color.lerp(
+      poison,
+      const ui.Color(0xFFEAFFD0),
+      0.6,
+    )!.withValues(alpha: 0.55 * alpha);
   for (var i = 0; i < 3; i++) {
     final phase = (time * 0.7 + seed + i * 0.41) % 1.0;
     final ang = seed * 2.1 + i * 2.09;
@@ -7859,8 +7880,7 @@ void drawMysticFlora({
           for (var k = 0; k <= 4; k++)
             () {
               final lf = k / 4;
-              return at2 +
-                  ui.Offset(side * len * lf, -len * 0.34 * lf * lf);
+              return at2 + ui.Offset(side * len * lf, -len * 0.34 * lf * lf);
             }(),
         ];
         canvas.drawPath(
@@ -8022,8 +8042,11 @@ void drawMysticFlora({
         at,
         11.0 * grow * churn,
         ui.Paint()
-          ..color = ui.Color.lerp(lift, const ui.Color(0xFF2A1608), 0.45)!
-              .withValues(alpha: 0.85 * bloom),
+          ..color = ui.Color.lerp(
+            lift,
+            const ui.Color(0xFF2A1608),
+            0.45,
+          )!.withValues(alpha: 0.85 * bloom),
       );
       canvas.drawCircle(
         at + ui.Offset(-2.5 * grow, -3.0 * grow),
@@ -8106,8 +8129,7 @@ void drawMysticStormCharge({
   canvas.drawCircle(
     at,
     ring * 0.30,
-    ui.Paint()
-      ..color = pale.withValues(alpha: 0.10 + 0.45 * t * t),
+    ui.Paint()..color = pale.withValues(alpha: 0.10 + 0.45 * t * t),
   );
   // A last hard pip at the moment before it lands.
   if (t > 0.82) {
@@ -8155,7 +8177,10 @@ void drawMysticCrystalShard({
     ..lineTo(c.dx - dir.dx * h, c.dy - dir.dy * h)
     ..lineTo(c.dx - side.dx * w, c.dy - side.dy * w)
     ..close();
-  canvas.drawPath(body, ui.Paint()..color = tint.withValues(alpha: 0.88 * alpha));
+  canvas.drawPath(
+    body,
+    ui.Paint()..color = tint.withValues(alpha: 0.88 * alpha),
+  );
   canvas.drawPath(
     body,
     ui.Paint()
@@ -8166,7 +8191,8 @@ void drawMysticCrystalShard({
   canvas.drawCircle(
     c,
     2.0 * facet,
-    ui.Paint()..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.9 * alpha),
+    ui.Paint()
+      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.9 * alpha),
   );
 }
 
@@ -8214,11 +8240,16 @@ void drawMysticDawnStar({
     at,
     halo,
     ui.Paint()
-      ..shader = ui.Gradient.radial(at, halo, [
-        gold.withValues(alpha: 0.34 * alpha * (0.55 + 0.45 * t)),
-        gold.withValues(alpha: 0.13 * alpha * (0.55 + 0.45 * t)),
-        gold.withValues(alpha: 0.0),
-      ], const [0.42, 0.66, 1.0]),
+      ..shader = ui.Gradient.radial(
+        at,
+        halo,
+        [
+          gold.withValues(alpha: 0.34 * alpha * (0.55 + 0.45 * t)),
+          gold.withValues(alpha: 0.13 * alpha * (0.55 + 0.45 * t)),
+          gold.withValues(alpha: 0.0),
+        ],
+        const [0.42, 0.66, 1.0],
+      ),
   );
 
   // Rays, BEHIND the body — drawn over it they cross the sphere and it stops
@@ -8235,7 +8266,9 @@ void drawMysticDawnStar({
     final dir = ui.Offset(cos(ang), sin(ang));
     final inner = r * 1.06;
     final reach =
-        inner + (34.0 + 210.0 * t) * (i.isEven ? 1.0 : 0.58) *
+        inner +
+        (34.0 + 210.0 * t) *
+            (i.isEven ? 1.0 : 0.58) *
             (0.85 + 0.15 * sin(time * 1.6 + i));
     canvas.drawLine(at + dir * inner, at + dir * reach, ray);
   }
@@ -8247,14 +8280,19 @@ void drawMysticDawnStar({
     at,
     r,
     ui.Paint()
-      ..shader = ui.Gradient.radial(light, r * 1.6, [
-        // Glowing through, not lit from outside: white core, warm gold at the
-        // limb, and nothing darker than the gold anywhere on it. It still
-        // brightens as it charges — warm at dark, near-white at dawn.
-        white.withValues(alpha: alpha),
-        ui.Color.lerp(gold, white, 0.20 + 0.55 * t)!.withValues(alpha: alpha),
-        ui.Color.lerp(warm, gold, 0.25 + 0.60 * t)!.withValues(alpha: alpha),
-      ], const [0.0, 0.55, 1.0]),
+      ..shader = ui.Gradient.radial(
+        light,
+        r * 1.6,
+        [
+          // Glowing through, not lit from outside: white core, warm gold at the
+          // limb, and nothing darker than the gold anywhere on it. It still
+          // brightens as it charges — warm at dark, near-white at dawn.
+          white.withValues(alpha: alpha),
+          ui.Color.lerp(gold, white, 0.20 + 0.55 * t)!.withValues(alpha: alpha),
+          ui.Color.lerp(warm, gold, 0.25 + 0.60 * t)!.withValues(alpha: alpha),
+        ],
+        const [0.0, 0.55, 1.0],
+      ),
   );
 
   // Specular highlight, squashed the way a curved surface returns it.
@@ -8288,7 +8326,6 @@ void drawMysticDawnStar({
         ..color = white.withValues(alpha: 0.70 * flare * alpha),
     );
   }
-
 }
 
 /// A Steam world venting: the arena exhaling, and the front of that exhale
@@ -8414,14 +8451,16 @@ void drawMysticFissure({
   canvas.drawPath(
     _splitRibbon(points, 6.0 + 2.0 * flare),
     ui.Paint()
-      ..color = const ui.Color(0xFFC2400C)
-          .withValues(alpha: (0.34 * heat).clamp(0.0, 0.85) * alpha),
+      ..color = const ui.Color(
+        0xFFC2400C,
+      ).withValues(alpha: (0.34 * heat).clamp(0.0, 0.85) * alpha),
   );
   canvas.drawPath(
     _splitRibbon(points, 2.4 + 1.4 * flare),
     ui.Paint()
-      ..color = const ui.Color(0xFFFFA24A)
-          .withValues(alpha: (0.42 * heat).clamp(0.0, 0.92) * alpha),
+      ..color = const ui.Color(
+        0xFFFFA24A,
+      ).withValues(alpha: (0.42 * heat).clamp(0.0, 0.92) * alpha),
   );
 
   // A couple of hairline branches off the middle, so it forks the way real
@@ -8443,8 +8482,9 @@ void drawMysticFissure({
     canvas.drawPath(
       _splitRibbon(branch, 1.6),
       ui.Paint()
-        ..color = const ui.Color(0xFFC2400C)
-            .withValues(alpha: (0.26 * heat).clamp(0.0, 0.6) * alpha),
+        ..color = const ui.Color(
+          0xFFC2400C,
+        ).withValues(alpha: (0.26 * heat).clamp(0.0, 0.6) * alpha),
     );
   }
 
@@ -8455,11 +8495,11 @@ void drawMysticFissure({
     canvas.drawPath(
       _splitRibbon(points, 40.0),
       ui.Paint()
-        ..color = const ui.Color(0xFFFF6A1E)
-            .withValues(alpha: 0.10 * flare * alpha),
+        ..color = const ui.Color(
+          0xFFFF6A1E,
+        ).withValues(alpha: 0.10 * flare * alpha),
     );
   }
-
 }
 
 /// A meteor a broken fissure threw up, on its way back down.
@@ -8512,11 +8552,7 @@ void drawMysticLavaMeteor({
     12.0,
     ui.Paint()..color = const ui.Color(0xFFFF7A1E).withValues(alpha: 0.20),
   );
-  canvas.drawCircle(
-    at,
-    7.0,
-    ui.Paint()..color = const ui.Color(0xFF3A1408),
-  );
+  canvas.drawCircle(at, 7.0, ui.Paint()..color = const ui.Color(0xFF3A1408));
   canvas.drawCircle(
     at + ui.Offset(cos(seed) * 2.0, sin(seed) * 2.0 - 1.5),
     3.2,
@@ -8541,8 +8577,7 @@ void drawMysticScorch({
   canvas.drawCircle(
     at,
     r,
-    ui.Paint()
-      ..color = const ui.Color(0xFF1C0B04).withValues(alpha: 0.55 * a),
+    ui.Paint()..color = const ui.Color(0xFF1C0B04).withValues(alpha: 0.55 * a),
   );
   for (var i = 0; i < 5; i++) {
     final ang = seed + i * 1.26;
@@ -8662,7 +8697,6 @@ void drawMysticMaelstrom({
       ..strokeWidth = 1.4
       ..color = pale.withValues(alpha: 0.30 * alpha),
   );
-
 }
 
 /// An Air world's tornado, seen from above.
@@ -8724,11 +8758,7 @@ void drawMysticTornado({
       ..color = pale.withValues(alpha: (0.30 - bf * 0.05) * alpha);
     for (var k = 0; k < 3; k++) {
       canvas.drawArc(
-        ui.Rect.fromCenter(
-          center: at,
-          width: r * 2,
-          height: r * 2 * 0.58,
-        ),
+        ui.Rect.fromCenter(center: at, width: r * 2, height: r * 2 * 0.58),
         turn + k * 2.09,
         1.05,
         false,
@@ -8768,5 +8798,4 @@ void drawMysticTornado({
       ..strokeWidth = 1.3
       ..color = pale.withValues(alpha: 0.18 * alpha),
   );
-
 }

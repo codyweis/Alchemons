@@ -1619,8 +1619,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           'Auto/Special kills: Create a dust cloud that persists and slows enemies inside it.',
         'Crystal' =>
           'Auto/Special kills: Create a taunting crystal. Special darts also pierce and ricochet.',
-        'Light' =>
-          'Darts can intercept threats. Enemies killed heal the orb.',
+        'Light' => 'Darts can intercept threats. Enemies killed heal the orb.',
         'Water' =>
           'Auto/Special kills: Splash nearby enemies. The special\'s final ricochet creates a larger splash.',
         'Ice' => 'Darts freeze and slow enemies they hit.',

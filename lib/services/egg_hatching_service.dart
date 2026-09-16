@@ -792,9 +792,7 @@ class EggHatching {
         parentBTypeId: types.length > 1 ? types[1] : offspring.types.last,
         // The element being hatched INTO -- the shell fuses both parent
         // palettes into this one at 82% of its arc.
-        resultTypeId: offspring.types.isNotEmpty
-            ? offspring.types.first
-            : null,
+        resultTypeId: offspring.types.isNotEmpty ? offspring.types.first : null,
         paletteMain: primaryHue,
         creatureSilhouette: silhouette,
         // The shell owns the first 80% of this and its arc is 6.6s, matching
@@ -1000,6 +998,7 @@ class EggHatching {
     String instanceId,
     bool isNewDiscovery, {
     required CinematicQuality cinematicQuality,
+
     /// When set, the card is captured and handed back INSTEAD of flying to the
     /// catalog. The batch ceremony uses this: flying on each card would switch
     /// sections partway through the run, which is what made the discovery

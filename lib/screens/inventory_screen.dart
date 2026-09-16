@@ -85,11 +85,7 @@ class InventoryImageHelper {
   }) {
     final harvester = harvesterBiomeForKey(key);
     if (harvester != null) {
-      return HarvesterGlyph(
-        biomeId: harvester,
-        size: size,
-        animate: animate,
-      );
+      return HarvesterGlyph(biomeId: harvester, size: size, animate: animate);
     }
     // Preserve relic and caller-supplied artwork for items without shop offers.
     if (assetName != null && InventoryItemArtwork.offerFor(key) == null) {

@@ -47,8 +47,7 @@ class CosmicAbilityRuntime {
     // of its arc and slams through the last stretch. Linear descent reads as
     // a lift, not a fall.
     final height = p.skyfallDistance * remaining * remaining;
-    p.position =
-        p.skyfallImpact - Offset(cos(p.angle), sin(p.angle)) * height;
+    p.position = p.skyfallImpact - Offset(cos(p.angle), sin(p.angle)) * height;
     return p.skyfallRemaining <= 0;
   }
 

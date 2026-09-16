@@ -668,15 +668,11 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                 size: 48,
                               );
                             }
-                            final riftKey =
-                                PortalKeyGlyph.biomeForInventoryKey(
-                                  item.inventoryKey,
-                                );
+                            final riftKey = PortalKeyGlyph.biomeForInventoryKey(
+                              item.inventoryKey,
+                            );
                             if (riftKey != null) {
-                              return PortalKeyGlyph(
-                                biomeId: riftKey,
-                                size: 48,
-                              );
+                              return PortalKeyGlyph(biomeId: riftKey, size: 48);
                             }
                             return Icon(
                               item.icon,

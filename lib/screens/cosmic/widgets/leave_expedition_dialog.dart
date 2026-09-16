@@ -89,10 +89,7 @@ class LeaveExpeditionDialog extends StatelessWidget {
                 color: CosmicScreenStyles.borderMid.withValues(alpha: 0.7),
               ),
               const SizedBox(height: 12),
-              if (_atRisk) ...[
-                _manifest(context),
-                const SizedBox(height: 10),
-              ],
+              if (_atRisk) ...[_manifest(context), const SizedBox(height: 10)],
               _safeNote(context),
               const SizedBox(height: 16),
               _actions(context, accent),
@@ -114,9 +111,7 @@ class LeaveExpeditionDialog extends StatelessWidget {
             border: Border.all(color: accent.withValues(alpha: 0.34)),
           ),
           child: Icon(
-            _atRisk
-                ? AppIcons.warning_amber_rounded
-                : AppIcons.logout_rounded,
+            _atRisk ? AppIcons.warning_amber_rounded : AppIcons.logout_rounded,
             color: accent,
             size: 17,
           ),
@@ -385,9 +380,7 @@ class LeaveExpeditionDialog extends StatelessWidget {
       children: [
         Expanded(
           child: GestureDetector(
-            onTap: context.soundAction(
-              () => Navigator.of(context).pop(false),
-            ),
+            onTap: context.soundAction(() => Navigator.of(context).pop(false)),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(

@@ -324,9 +324,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
         leading: icon,
         title: const Text('ACHIEVEMENTS'),
         subtitle: Text(
-          count > 0
-              ? '$count waiting'
-              : 'Main story, rewards, and memories',
+          count > 0 ? '$count waiting' : 'Main story, rewards, and memories',
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: widget.enabled ? open : null,

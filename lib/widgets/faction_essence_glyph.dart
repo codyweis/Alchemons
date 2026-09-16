@@ -201,11 +201,7 @@ class _FactionEssencePainter extends CustomPainter {
       s * (0.052 + 0.016 * dive),
       _p..color = color.withValues(alpha: 0.9),
     );
-    canvas.drawCircle(
-      head,
-      s * (0.024 + 0.010 * dive),
-      _p..color = bright,
-    );
+    canvas.drawCircle(head, s * (0.024 + 0.010 * dive), _p..color = bright);
   }
 
   /// The allegiance itself. Flat discs rather than a blur — this draws in

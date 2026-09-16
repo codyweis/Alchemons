@@ -123,11 +123,7 @@ class _EnhanceOrbsPainter extends CustomPainter {
     canvas.translate(centre.dx - r * 0.36, centre.dy - r * 0.42);
     canvas.rotate(-0.62);
     canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset.zero,
-        width: r * 0.66,
-        height: r * 0.40,
-      ),
+      Rect.fromCenter(center: Offset.zero, width: r * 0.66, height: r * 0.40),
       Paint()..color = Colors.white.withValues(alpha: 0.80),
     );
     canvas.restore();

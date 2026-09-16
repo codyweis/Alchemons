@@ -694,7 +694,10 @@ class _InstancesSheetState extends State<InstancesSheet> {
             AppIcons.filter_list_rounded,
             size: 13,
             color: hasFiltersActive || _filtersOpen
-                ? bracketReadableAccent(widget.theme, color: widget.theme.accent)
+                ? bracketReadableAccent(
+                    widget.theme,
+                    color: widget.theme.accent,
+                  )
                 : palette.muted,
           ),
           trailing: Icon(
@@ -703,7 +706,10 @@ class _InstancesSheetState extends State<InstancesSheet> {
                 : AppIcons.keyboard_arrow_down_rounded,
             size: 13,
             color: hasFiltersActive || _filtersOpen
-                ? bracketReadableAccent(widget.theme, color: widget.theme.accent)
+                ? bracketReadableAccent(
+                    widget.theme,
+                    color: widget.theme.accent,
+                  )
                 : palette.muted,
           ),
           onTap: () => _mutate(() => _filtersOpen = !_filtersOpen),

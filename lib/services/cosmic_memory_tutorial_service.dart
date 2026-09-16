@@ -10,6 +10,7 @@ class CosmicMemoryTutorialService {
   static const homePortalLaunchedKey = 'cosmic_memory_home_portal_launched_v1';
   static const completedKey = 'cosmic_memory_tutorial_completed_v1';
   static const storyPendingKey = 'cosmic_memory_story_pending_v1';
+
   /// Biome visits before the memory finds them.
   ///
   /// Counted as exits from the core wilderness scenes. The first two are spent
@@ -90,7 +91,8 @@ class CosmicMemoryTutorialService {
     // the harvest tutorial behind them is enough.
     final raw = await settings.getSetting(biomeExitCountKey);
     final savedCount = int.tryParse(raw ?? '');
-    final effectiveCount = savedCount ?? (ownedInstanceCount > 0 ? biomeExitTarget : 0);
+    final effectiveCount =
+        savedCount ?? (ownedInstanceCount > 0 ? biomeExitTarget : 0);
     if (savedCount == null && ownedInstanceCount > 0) {
       await settings.setSetting(biomeExitCountKey, effectiveCount.toString());
     }

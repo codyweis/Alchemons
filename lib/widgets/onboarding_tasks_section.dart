@@ -207,9 +207,7 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
             ),
             const SizedBox(width: 8),
             Text(
-              readyCount > 0
-                  ? '$readyCount READY'
-                  : '${tasks.length} LEFT',
+              readyCount > 0 ? '$readyCount READY' : '${tasks.length} LEFT',
               style: TextStyle(
                 color: readyCount > 0 ? fc.mint : fc.textMuted,
                 fontSize: 10,

@@ -470,7 +470,6 @@ class FeedingStageBuilders {
   }
 }
 
-
 /// The four Potentials of a candidate, on its card.
 ///
 /// Deciding what to sacrifice is a comparison, and this is the figure that

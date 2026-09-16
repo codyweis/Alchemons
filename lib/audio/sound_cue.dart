@@ -78,6 +78,7 @@ enum SoundCue {
   breedingStart('assets/audio/sounds/sfx_breeding_start.wav'),
   harvestCollect('assets/audio/sounds/sfx_harvest_collect.wav'),
   extractionComplete('assets/audio/sounds/sfx_extraction_complete.wav'),
+
   /// The whole hatching ceremony, scored to the cinematic's own beats rather
   /// than fired as separate hits: hum and motes, the chord assembling, the
   /// burst at 3.85s, and the silhouette's bell cluster at 5.24s. One cue, so
@@ -138,19 +139,22 @@ enum SoundCue {
     SoundCue.basicMystic,
   }.contains(this);
 
-  bool get hasVariants => const {
-    SoundCue.combatProjectile,
-    SoundCue.combatHitLight,
-    SoundCue.combatHitHeavy,
-    SoundCue.combatEnemyDefeat,
-    SoundCue.cosmicOrbPickup,
-    SoundCue.cosmicMatterCollect,
-    SoundCue.dungeonStepStone,
-    SoundCue.dungeonStepWater,
-  }.contains(this) || isFamilyBasic;
+  bool get hasVariants =>
+      const {
+        SoundCue.combatProjectile,
+        SoundCue.combatHitLight,
+        SoundCue.combatHitHeavy,
+        SoundCue.combatEnemyDefeat,
+        SoundCue.cosmicOrbPickup,
+        SoundCue.cosmicMatterCollect,
+        SoundCue.dungeonStepStone,
+        SoundCue.dungeonStepWater,
+      }.contains(this) ||
+      isFamilyBasic;
   String assetForVariant(int index) => hasVariants && index % 4 != 0
       ? asset.replaceFirst('.wav', '_0${index % 4}.wav')
       : asset;
+
   /// Higher wins a voice when all six are busy.
   ///
   /// The mixer evicts a voice whose priority is strictly LOWER than the

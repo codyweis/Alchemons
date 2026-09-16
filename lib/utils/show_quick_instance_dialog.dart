@@ -473,7 +473,9 @@ Future<void> showQuickInstanceDialog({
                             enhancement: currentInstance.statSpeedEnhancement,
                             color: const Color(0xFF60A5FA),
                             icon: AppIcons.speed_rounded,
-                            isDominant: showDominants && quickDominants.contains(StatKind.speed),
+                            isDominant:
+                                showDominants &&
+                                quickDominants.contains(StatKind.speed),
                           ),
                           _QuickStatLine(
                             label: 'Intelligence',
@@ -485,9 +487,9 @@ Future<void> showQuickInstanceDialog({
                                 currentInstance.statIntelligenceEnhancement,
                             color: const Color(0xFFC084FC),
                             icon: AppIcons.psychology_rounded,
-                            isDominant: showDominants && quickDominants.contains(
-                              StatKind.intelligence,
-                            ),
+                            isDominant:
+                                showDominants &&
+                                quickDominants.contains(StatKind.intelligence),
                           ),
                           _QuickStatLine(
                             label: 'Strength',
@@ -499,9 +501,9 @@ Future<void> showQuickInstanceDialog({
                                 currentInstance.statStrengthEnhancement,
                             color: const Color(0xFFF87171),
                             icon: AppIcons.fitness_center_rounded,
-                            isDominant: showDominants && quickDominants.contains(
-                              StatKind.strength,
-                            ),
+                            isDominant:
+                                showDominants &&
+                                quickDominants.contains(StatKind.strength),
                           ),
                           _QuickStatLine(
                             label: 'Beauty',
@@ -512,9 +514,9 @@ Future<void> showQuickInstanceDialog({
                             enhancement: currentInstance.statBeautyEnhancement,
                             color: const Color(0xFFF9A8D4),
                             icon: AppIcons.favorite_rounded,
-                            isDominant: showDominants && quickDominants.contains(
-                              StatKind.beauty,
-                            ),
+                            isDominant:
+                                showDominants &&
+                                quickDominants.contains(StatKind.beauty),
                           ),
 
                           // ── Characteristics ───────────────────────────

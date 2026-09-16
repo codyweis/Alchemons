@@ -253,11 +253,7 @@ class _StaminaElixirPainter extends CustomPainter {
     canvas.translate(s * 0.375, s * 0.545);
     canvas.rotate(-0.5);
     canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset.zero,
-        width: s * 0.048,
-        height: s * 0.16,
-      ),
+      Rect.fromCenter(center: Offset.zero, width: s * 0.048, height: s * 0.16),
       _p..color = Colors.white.withValues(alpha: 0.35),
     );
     canvas.restore();

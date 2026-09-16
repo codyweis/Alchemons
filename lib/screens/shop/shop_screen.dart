@@ -62,10 +62,8 @@ class ShopScreen extends StatelessWidget {
   const ShopScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const ForcedFaction(
-    faction: FactionId.oceanic,
-    child: _ShopScreenBody(),
-  );
+  Widget build(BuildContext context) =>
+      const ForcedFaction(faction: FactionId.oceanic, child: _ShopScreenBody());
 }
 
 class _ShopScreenBody extends StatefulWidget {
@@ -372,11 +370,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   /// Gold in the dark, black in the light: the dark palette is the one this
   /// screen was designed against, and on the light ground gold has nothing
   /// to hold against.
-  Widget _buildSectionHeader(
-    String title,
-    IconData icon, {
-    CoinKind? coin,
-  }) {
+  Widget _buildSectionHeader(String title, IconData icon, {CoinKind? coin}) {
     final displayAccent = context.read<FactionTheme>().isDark
         ? t.amberBright
         : Colors.black;

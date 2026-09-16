@@ -223,7 +223,6 @@ class BracketCard extends StatelessWidget {
   }
 }
 
-
 /// Top-of-list control chip in the bracket-frame language: a soft
 /// accent-washed pill that grows corner brackets when it is the active
 /// control.
