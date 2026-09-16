@@ -17,6 +17,7 @@ import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
@@ -222,6 +223,14 @@ class AppProviders extends StatelessWidget {
         ChangeNotifierProvider<SurvivalUpgradeService>(
           create: (ctx) {
             final svc = SurvivalUpgradeService(ctx.read<AlchemonsDatabase>());
+            svc.load();
+            return svc;
+          },
+        ),
+
+        ChangeNotifierProvider<FamilyMasteryService>(
+          create: (ctx) {
+            final svc = FamilyMasteryService(ctx.read<AlchemonsDatabase>());
             svc.load();
             return svc;
           },

@@ -2,6 +2,7 @@
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/models/potential_genetics.dart';
 import 'package:alchemons/database/daos/constellation_dao.dart';
+import 'package:alchemons/database/daos/family_mastery_dao.dart';
 import 'package:drift/drift.dart';
 
 // Schema and Model Imports
@@ -51,6 +52,8 @@ part 'alchemons_db.g.dart';
     BreedingStatistics,
     AltarPlacements,
     SurvivalHighScore,
+    SurvivalFamilyMasteries,
+    SurvivalFamilyLoadouts,
   ],
   daos: [
     SettingsDao,
@@ -62,13 +65,14 @@ part 'alchemons_db.g.dart';
     ShopDao,
     ConstellationDao,
     AltarDao,
+    FamilyMasteryDao,
   ],
 )
 class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 39;
+  int get schemaVersion => 40;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -282,6 +286,10 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
         // best at. Deterministic rather than random, so a collection comes out
         // sorted into the lines it already had.
         await _backfillDominantStats();
+      }
+      if (from < 40) {
+        await m.createTable(survivalFamilyMasteries);
+        await m.createTable(survivalFamilyLoadouts);
       }
     },
   );

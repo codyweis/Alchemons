@@ -320,3 +320,26 @@ class SurvivalHighScore extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+/// Purchased nodes shared by every creature in one family.
+class SurvivalFamilyMasteries extends Table {
+  TextColumn get familyId => text()();
+  TextColumn get purchasedNodeIdsJson =>
+      text().withDefault(const Constant('[]'))();
+  IntColumn get updatedAtUtcMs => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {familyId};
+}
+
+/// The one active family path equipped by an individual creature instance.
+class SurvivalFamilyLoadouts extends Table {
+  TextColumn get instanceId => text()();
+  TextColumn get familyId => text()();
+  TextColumn get selectedPathId => text().nullable()();
+  TextColumn get presetName => text().nullable()();
+  IntColumn get updatedAtUtcMs => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {instanceId};
+}

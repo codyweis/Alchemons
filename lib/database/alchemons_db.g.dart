@@ -9030,6 +9030,688 @@ class SurvivalHighScoreCompanion
   }
 }
 
+class $SurvivalFamilyMasteriesTable extends SurvivalFamilyMasteries
+    with TableInfo<$SurvivalFamilyMasteriesTable, SurvivalFamilyMastery> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SurvivalFamilyMasteriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _familyIdMeta = const VerificationMeta(
+    'familyId',
+  );
+  @override
+  late final GeneratedColumn<String> familyId = GeneratedColumn<String>(
+    'family_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _purchasedNodeIdsJsonMeta =
+      const VerificationMeta('purchasedNodeIdsJson');
+  @override
+  late final GeneratedColumn<String> purchasedNodeIdsJson =
+      GeneratedColumn<String>(
+        'purchased_node_ids_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
+  static const VerificationMeta _updatedAtUtcMsMeta = const VerificationMeta(
+    'updatedAtUtcMs',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAtUtcMs = GeneratedColumn<int>(
+    'updated_at_utc_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    familyId,
+    purchasedNodeIdsJson,
+    updatedAtUtcMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'survival_family_masteries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SurvivalFamilyMastery> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('family_id')) {
+      context.handle(
+        _familyIdMeta,
+        familyId.isAcceptableOrUnknown(data['family_id']!, _familyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_familyIdMeta);
+    }
+    if (data.containsKey('purchased_node_ids_json')) {
+      context.handle(
+        _purchasedNodeIdsJsonMeta,
+        purchasedNodeIdsJson.isAcceptableOrUnknown(
+          data['purchased_node_ids_json']!,
+          _purchasedNodeIdsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('updated_at_utc_ms')) {
+      context.handle(
+        _updatedAtUtcMsMeta,
+        updatedAtUtcMs.isAcceptableOrUnknown(
+          data['updated_at_utc_ms']!,
+          _updatedAtUtcMsMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {familyId};
+  @override
+  SurvivalFamilyMastery map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SurvivalFamilyMastery(
+      familyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}family_id'],
+      )!,
+      purchasedNodeIdsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}purchased_node_ids_json'],
+      )!,
+      updatedAtUtcMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at_utc_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $SurvivalFamilyMasteriesTable createAlias(String alias) {
+    return $SurvivalFamilyMasteriesTable(attachedDatabase, alias);
+  }
+}
+
+class SurvivalFamilyMastery extends DataClass
+    implements Insertable<SurvivalFamilyMastery> {
+  final String familyId;
+  final String purchasedNodeIdsJson;
+  final int updatedAtUtcMs;
+  const SurvivalFamilyMastery({
+    required this.familyId,
+    required this.purchasedNodeIdsJson,
+    required this.updatedAtUtcMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['family_id'] = Variable<String>(familyId);
+    map['purchased_node_ids_json'] = Variable<String>(purchasedNodeIdsJson);
+    map['updated_at_utc_ms'] = Variable<int>(updatedAtUtcMs);
+    return map;
+  }
+
+  SurvivalFamilyMasteriesCompanion toCompanion(bool nullToAbsent) {
+    return SurvivalFamilyMasteriesCompanion(
+      familyId: Value(familyId),
+      purchasedNodeIdsJson: Value(purchasedNodeIdsJson),
+      updatedAtUtcMs: Value(updatedAtUtcMs),
+    );
+  }
+
+  factory SurvivalFamilyMastery.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SurvivalFamilyMastery(
+      familyId: serializer.fromJson<String>(json['familyId']),
+      purchasedNodeIdsJson: serializer.fromJson<String>(
+        json['purchasedNodeIdsJson'],
+      ),
+      updatedAtUtcMs: serializer.fromJson<int>(json['updatedAtUtcMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'familyId': serializer.toJson<String>(familyId),
+      'purchasedNodeIdsJson': serializer.toJson<String>(purchasedNodeIdsJson),
+      'updatedAtUtcMs': serializer.toJson<int>(updatedAtUtcMs),
+    };
+  }
+
+  SurvivalFamilyMastery copyWith({
+    String? familyId,
+    String? purchasedNodeIdsJson,
+    int? updatedAtUtcMs,
+  }) => SurvivalFamilyMastery(
+    familyId: familyId ?? this.familyId,
+    purchasedNodeIdsJson: purchasedNodeIdsJson ?? this.purchasedNodeIdsJson,
+    updatedAtUtcMs: updatedAtUtcMs ?? this.updatedAtUtcMs,
+  );
+  SurvivalFamilyMastery copyWithCompanion(
+    SurvivalFamilyMasteriesCompanion data,
+  ) {
+    return SurvivalFamilyMastery(
+      familyId: data.familyId.present ? data.familyId.value : this.familyId,
+      purchasedNodeIdsJson: data.purchasedNodeIdsJson.present
+          ? data.purchasedNodeIdsJson.value
+          : this.purchasedNodeIdsJson,
+      updatedAtUtcMs: data.updatedAtUtcMs.present
+          ? data.updatedAtUtcMs.value
+          : this.updatedAtUtcMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SurvivalFamilyMastery(')
+          ..write('familyId: $familyId, ')
+          ..write('purchasedNodeIdsJson: $purchasedNodeIdsJson, ')
+          ..write('updatedAtUtcMs: $updatedAtUtcMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(familyId, purchasedNodeIdsJson, updatedAtUtcMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SurvivalFamilyMastery &&
+          other.familyId == this.familyId &&
+          other.purchasedNodeIdsJson == this.purchasedNodeIdsJson &&
+          other.updatedAtUtcMs == this.updatedAtUtcMs);
+}
+
+class SurvivalFamilyMasteriesCompanion
+    extends UpdateCompanion<SurvivalFamilyMastery> {
+  final Value<String> familyId;
+  final Value<String> purchasedNodeIdsJson;
+  final Value<int> updatedAtUtcMs;
+  final Value<int> rowid;
+  const SurvivalFamilyMasteriesCompanion({
+    this.familyId = const Value.absent(),
+    this.purchasedNodeIdsJson = const Value.absent(),
+    this.updatedAtUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SurvivalFamilyMasteriesCompanion.insert({
+    required String familyId,
+    this.purchasedNodeIdsJson = const Value.absent(),
+    this.updatedAtUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : familyId = Value(familyId);
+  static Insertable<SurvivalFamilyMastery> custom({
+    Expression<String>? familyId,
+    Expression<String>? purchasedNodeIdsJson,
+    Expression<int>? updatedAtUtcMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (familyId != null) 'family_id': familyId,
+      if (purchasedNodeIdsJson != null)
+        'purchased_node_ids_json': purchasedNodeIdsJson,
+      if (updatedAtUtcMs != null) 'updated_at_utc_ms': updatedAtUtcMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SurvivalFamilyMasteriesCompanion copyWith({
+    Value<String>? familyId,
+    Value<String>? purchasedNodeIdsJson,
+    Value<int>? updatedAtUtcMs,
+    Value<int>? rowid,
+  }) {
+    return SurvivalFamilyMasteriesCompanion(
+      familyId: familyId ?? this.familyId,
+      purchasedNodeIdsJson: purchasedNodeIdsJson ?? this.purchasedNodeIdsJson,
+      updatedAtUtcMs: updatedAtUtcMs ?? this.updatedAtUtcMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (familyId.present) {
+      map['family_id'] = Variable<String>(familyId.value);
+    }
+    if (purchasedNodeIdsJson.present) {
+      map['purchased_node_ids_json'] = Variable<String>(
+        purchasedNodeIdsJson.value,
+      );
+    }
+    if (updatedAtUtcMs.present) {
+      map['updated_at_utc_ms'] = Variable<int>(updatedAtUtcMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SurvivalFamilyMasteriesCompanion(')
+          ..write('familyId: $familyId, ')
+          ..write('purchasedNodeIdsJson: $purchasedNodeIdsJson, ')
+          ..write('updatedAtUtcMs: $updatedAtUtcMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SurvivalFamilyLoadoutsTable extends SurvivalFamilyLoadouts
+    with TableInfo<$SurvivalFamilyLoadoutsTable, SurvivalFamilyLoadout> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SurvivalFamilyLoadoutsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _instanceIdMeta = const VerificationMeta(
+    'instanceId',
+  );
+  @override
+  late final GeneratedColumn<String> instanceId = GeneratedColumn<String>(
+    'instance_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _familyIdMeta = const VerificationMeta(
+    'familyId',
+  );
+  @override
+  late final GeneratedColumn<String> familyId = GeneratedColumn<String>(
+    'family_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _selectedPathIdMeta = const VerificationMeta(
+    'selectedPathId',
+  );
+  @override
+  late final GeneratedColumn<String> selectedPathId = GeneratedColumn<String>(
+    'selected_path_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _presetNameMeta = const VerificationMeta(
+    'presetName',
+  );
+  @override
+  late final GeneratedColumn<String> presetName = GeneratedColumn<String>(
+    'preset_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtUtcMsMeta = const VerificationMeta(
+    'updatedAtUtcMs',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAtUtcMs = GeneratedColumn<int>(
+    'updated_at_utc_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    instanceId,
+    familyId,
+    selectedPathId,
+    presetName,
+    updatedAtUtcMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'survival_family_loadouts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SurvivalFamilyLoadout> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('instance_id')) {
+      context.handle(
+        _instanceIdMeta,
+        instanceId.isAcceptableOrUnknown(data['instance_id']!, _instanceIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_instanceIdMeta);
+    }
+    if (data.containsKey('family_id')) {
+      context.handle(
+        _familyIdMeta,
+        familyId.isAcceptableOrUnknown(data['family_id']!, _familyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_familyIdMeta);
+    }
+    if (data.containsKey('selected_path_id')) {
+      context.handle(
+        _selectedPathIdMeta,
+        selectedPathId.isAcceptableOrUnknown(
+          data['selected_path_id']!,
+          _selectedPathIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('preset_name')) {
+      context.handle(
+        _presetNameMeta,
+        presetName.isAcceptableOrUnknown(data['preset_name']!, _presetNameMeta),
+      );
+    }
+    if (data.containsKey('updated_at_utc_ms')) {
+      context.handle(
+        _updatedAtUtcMsMeta,
+        updatedAtUtcMs.isAcceptableOrUnknown(
+          data['updated_at_utc_ms']!,
+          _updatedAtUtcMsMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {instanceId};
+  @override
+  SurvivalFamilyLoadout map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SurvivalFamilyLoadout(
+      instanceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}instance_id'],
+      )!,
+      familyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}family_id'],
+      )!,
+      selectedPathId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}selected_path_id'],
+      ),
+      presetName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}preset_name'],
+      ),
+      updatedAtUtcMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at_utc_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $SurvivalFamilyLoadoutsTable createAlias(String alias) {
+    return $SurvivalFamilyLoadoutsTable(attachedDatabase, alias);
+  }
+}
+
+class SurvivalFamilyLoadout extends DataClass
+    implements Insertable<SurvivalFamilyLoadout> {
+  final String instanceId;
+  final String familyId;
+  final String? selectedPathId;
+  final String? presetName;
+  final int updatedAtUtcMs;
+  const SurvivalFamilyLoadout({
+    required this.instanceId,
+    required this.familyId,
+    this.selectedPathId,
+    this.presetName,
+    required this.updatedAtUtcMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['instance_id'] = Variable<String>(instanceId);
+    map['family_id'] = Variable<String>(familyId);
+    if (!nullToAbsent || selectedPathId != null) {
+      map['selected_path_id'] = Variable<String>(selectedPathId);
+    }
+    if (!nullToAbsent || presetName != null) {
+      map['preset_name'] = Variable<String>(presetName);
+    }
+    map['updated_at_utc_ms'] = Variable<int>(updatedAtUtcMs);
+    return map;
+  }
+
+  SurvivalFamilyLoadoutsCompanion toCompanion(bool nullToAbsent) {
+    return SurvivalFamilyLoadoutsCompanion(
+      instanceId: Value(instanceId),
+      familyId: Value(familyId),
+      selectedPathId: selectedPathId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(selectedPathId),
+      presetName: presetName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(presetName),
+      updatedAtUtcMs: Value(updatedAtUtcMs),
+    );
+  }
+
+  factory SurvivalFamilyLoadout.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SurvivalFamilyLoadout(
+      instanceId: serializer.fromJson<String>(json['instanceId']),
+      familyId: serializer.fromJson<String>(json['familyId']),
+      selectedPathId: serializer.fromJson<String?>(json['selectedPathId']),
+      presetName: serializer.fromJson<String?>(json['presetName']),
+      updatedAtUtcMs: serializer.fromJson<int>(json['updatedAtUtcMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'instanceId': serializer.toJson<String>(instanceId),
+      'familyId': serializer.toJson<String>(familyId),
+      'selectedPathId': serializer.toJson<String?>(selectedPathId),
+      'presetName': serializer.toJson<String?>(presetName),
+      'updatedAtUtcMs': serializer.toJson<int>(updatedAtUtcMs),
+    };
+  }
+
+  SurvivalFamilyLoadout copyWith({
+    String? instanceId,
+    String? familyId,
+    Value<String?> selectedPathId = const Value.absent(),
+    Value<String?> presetName = const Value.absent(),
+    int? updatedAtUtcMs,
+  }) => SurvivalFamilyLoadout(
+    instanceId: instanceId ?? this.instanceId,
+    familyId: familyId ?? this.familyId,
+    selectedPathId: selectedPathId.present
+        ? selectedPathId.value
+        : this.selectedPathId,
+    presetName: presetName.present ? presetName.value : this.presetName,
+    updatedAtUtcMs: updatedAtUtcMs ?? this.updatedAtUtcMs,
+  );
+  SurvivalFamilyLoadout copyWithCompanion(
+    SurvivalFamilyLoadoutsCompanion data,
+  ) {
+    return SurvivalFamilyLoadout(
+      instanceId: data.instanceId.present
+          ? data.instanceId.value
+          : this.instanceId,
+      familyId: data.familyId.present ? data.familyId.value : this.familyId,
+      selectedPathId: data.selectedPathId.present
+          ? data.selectedPathId.value
+          : this.selectedPathId,
+      presetName: data.presetName.present
+          ? data.presetName.value
+          : this.presetName,
+      updatedAtUtcMs: data.updatedAtUtcMs.present
+          ? data.updatedAtUtcMs.value
+          : this.updatedAtUtcMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SurvivalFamilyLoadout(')
+          ..write('instanceId: $instanceId, ')
+          ..write('familyId: $familyId, ')
+          ..write('selectedPathId: $selectedPathId, ')
+          ..write('presetName: $presetName, ')
+          ..write('updatedAtUtcMs: $updatedAtUtcMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    instanceId,
+    familyId,
+    selectedPathId,
+    presetName,
+    updatedAtUtcMs,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SurvivalFamilyLoadout &&
+          other.instanceId == this.instanceId &&
+          other.familyId == this.familyId &&
+          other.selectedPathId == this.selectedPathId &&
+          other.presetName == this.presetName &&
+          other.updatedAtUtcMs == this.updatedAtUtcMs);
+}
+
+class SurvivalFamilyLoadoutsCompanion
+    extends UpdateCompanion<SurvivalFamilyLoadout> {
+  final Value<String> instanceId;
+  final Value<String> familyId;
+  final Value<String?> selectedPathId;
+  final Value<String?> presetName;
+  final Value<int> updatedAtUtcMs;
+  final Value<int> rowid;
+  const SurvivalFamilyLoadoutsCompanion({
+    this.instanceId = const Value.absent(),
+    this.familyId = const Value.absent(),
+    this.selectedPathId = const Value.absent(),
+    this.presetName = const Value.absent(),
+    this.updatedAtUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SurvivalFamilyLoadoutsCompanion.insert({
+    required String instanceId,
+    required String familyId,
+    this.selectedPathId = const Value.absent(),
+    this.presetName = const Value.absent(),
+    this.updatedAtUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : instanceId = Value(instanceId),
+       familyId = Value(familyId);
+  static Insertable<SurvivalFamilyLoadout> custom({
+    Expression<String>? instanceId,
+    Expression<String>? familyId,
+    Expression<String>? selectedPathId,
+    Expression<String>? presetName,
+    Expression<int>? updatedAtUtcMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (instanceId != null) 'instance_id': instanceId,
+      if (familyId != null) 'family_id': familyId,
+      if (selectedPathId != null) 'selected_path_id': selectedPathId,
+      if (presetName != null) 'preset_name': presetName,
+      if (updatedAtUtcMs != null) 'updated_at_utc_ms': updatedAtUtcMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SurvivalFamilyLoadoutsCompanion copyWith({
+    Value<String>? instanceId,
+    Value<String>? familyId,
+    Value<String?>? selectedPathId,
+    Value<String?>? presetName,
+    Value<int>? updatedAtUtcMs,
+    Value<int>? rowid,
+  }) {
+    return SurvivalFamilyLoadoutsCompanion(
+      instanceId: instanceId ?? this.instanceId,
+      familyId: familyId ?? this.familyId,
+      selectedPathId: selectedPathId ?? this.selectedPathId,
+      presetName: presetName ?? this.presetName,
+      updatedAtUtcMs: updatedAtUtcMs ?? this.updatedAtUtcMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (instanceId.present) {
+      map['instance_id'] = Variable<String>(instanceId.value);
+    }
+    if (familyId.present) {
+      map['family_id'] = Variable<String>(familyId.value);
+    }
+    if (selectedPathId.present) {
+      map['selected_path_id'] = Variable<String>(selectedPathId.value);
+    }
+    if (presetName.present) {
+      map['preset_name'] = Variable<String>(presetName.value);
+    }
+    if (updatedAtUtcMs.present) {
+      map['updated_at_utc_ms'] = Variable<int>(updatedAtUtcMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SurvivalFamilyLoadoutsCompanion(')
+          ..write('instanceId: $instanceId, ')
+          ..write('familyId: $familyId, ')
+          ..write('selectedPathId: $selectedPathId, ')
+          ..write('presetName: $presetName, ')
+          ..write('updatedAtUtcMs: $updatedAtUtcMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   _$AlchemonsDatabase(QueryExecutor e) : super(e);
   $AlchemonsDatabaseManager get managers => $AlchemonsDatabaseManager(this);
@@ -9068,6 +9750,10 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   );
   late final $SurvivalHighScoreTable survivalHighScore =
       $SurvivalHighScoreTable(this);
+  late final $SurvivalFamilyMasteriesTable survivalFamilyMasteries =
+      $SurvivalFamilyMasteriesTable(this);
+  late final $SurvivalFamilyLoadoutsTable survivalFamilyLoadouts =
+      $SurvivalFamilyLoadoutsTable(this);
   late final SettingsDao settingsDao = SettingsDao(this as AlchemonsDatabase);
   late final CurrencyDao currencyDao = CurrencyDao(this as AlchemonsDatabase);
   late final CreatureDao creatureDao = CreatureDao(this as AlchemonsDatabase);
@@ -9083,6 +9769,9 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
     this as AlchemonsDatabase,
   );
   late final AltarDao altarDao = AltarDao(this as AlchemonsDatabase);
+  late final FamilyMasteryDao familyMasteryDao = FamilyMasteryDao(
+    this as AlchemonsDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -9109,6 +9798,8 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
     breedingStatistics,
     altarPlacements,
     survivalHighScore,
+    survivalFamilyMasteries,
+    survivalFamilyLoadouts,
   ];
 }
 
@@ -13986,6 +14677,418 @@ typedef $$SurvivalHighScoreTableProcessedTableManager =
       SurvivalHighScoreData,
       PrefetchHooks Function()
     >;
+typedef $$SurvivalFamilyMasteriesTableCreateCompanionBuilder =
+    SurvivalFamilyMasteriesCompanion Function({
+      required String familyId,
+      Value<String> purchasedNodeIdsJson,
+      Value<int> updatedAtUtcMs,
+      Value<int> rowid,
+    });
+typedef $$SurvivalFamilyMasteriesTableUpdateCompanionBuilder =
+    SurvivalFamilyMasteriesCompanion Function({
+      Value<String> familyId,
+      Value<String> purchasedNodeIdsJson,
+      Value<int> updatedAtUtcMs,
+      Value<int> rowid,
+    });
+
+class $$SurvivalFamilyMasteriesTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $SurvivalFamilyMasteriesTable> {
+  $$SurvivalFamilyMasteriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get familyId => $composableBuilder(
+    column: $table.familyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get purchasedNodeIdsJson => $composableBuilder(
+    column: $table.purchasedNodeIdsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAtUtcMs => $composableBuilder(
+    column: $table.updatedAtUtcMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SurvivalFamilyMasteriesTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $SurvivalFamilyMasteriesTable> {
+  $$SurvivalFamilyMasteriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get familyId => $composableBuilder(
+    column: $table.familyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get purchasedNodeIdsJson => $composableBuilder(
+    column: $table.purchasedNodeIdsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAtUtcMs => $composableBuilder(
+    column: $table.updatedAtUtcMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SurvivalFamilyMasteriesTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $SurvivalFamilyMasteriesTable> {
+  $$SurvivalFamilyMasteriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get familyId =>
+      $composableBuilder(column: $table.familyId, builder: (column) => column);
+
+  GeneratedColumn<String> get purchasedNodeIdsJson => $composableBuilder(
+    column: $table.purchasedNodeIdsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get updatedAtUtcMs => $composableBuilder(
+    column: $table.updatedAtUtcMs,
+    builder: (column) => column,
+  );
+}
+
+class $$SurvivalFamilyMasteriesTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $SurvivalFamilyMasteriesTable,
+          SurvivalFamilyMastery,
+          $$SurvivalFamilyMasteriesTableFilterComposer,
+          $$SurvivalFamilyMasteriesTableOrderingComposer,
+          $$SurvivalFamilyMasteriesTableAnnotationComposer,
+          $$SurvivalFamilyMasteriesTableCreateCompanionBuilder,
+          $$SurvivalFamilyMasteriesTableUpdateCompanionBuilder,
+          (
+            SurvivalFamilyMastery,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $SurvivalFamilyMasteriesTable,
+              SurvivalFamilyMastery
+            >,
+          ),
+          SurvivalFamilyMastery,
+          PrefetchHooks Function()
+        > {
+  $$SurvivalFamilyMasteriesTableTableManager(
+    _$AlchemonsDatabase db,
+    $SurvivalFamilyMasteriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SurvivalFamilyMasteriesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$SurvivalFamilyMasteriesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SurvivalFamilyMasteriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> familyId = const Value.absent(),
+                Value<String> purchasedNodeIdsJson = const Value.absent(),
+                Value<int> updatedAtUtcMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SurvivalFamilyMasteriesCompanion(
+                familyId: familyId,
+                purchasedNodeIdsJson: purchasedNodeIdsJson,
+                updatedAtUtcMs: updatedAtUtcMs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String familyId,
+                Value<String> purchasedNodeIdsJson = const Value.absent(),
+                Value<int> updatedAtUtcMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SurvivalFamilyMasteriesCompanion.insert(
+                familyId: familyId,
+                purchasedNodeIdsJson: purchasedNodeIdsJson,
+                updatedAtUtcMs: updatedAtUtcMs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SurvivalFamilyMasteriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $SurvivalFamilyMasteriesTable,
+      SurvivalFamilyMastery,
+      $$SurvivalFamilyMasteriesTableFilterComposer,
+      $$SurvivalFamilyMasteriesTableOrderingComposer,
+      $$SurvivalFamilyMasteriesTableAnnotationComposer,
+      $$SurvivalFamilyMasteriesTableCreateCompanionBuilder,
+      $$SurvivalFamilyMasteriesTableUpdateCompanionBuilder,
+      (
+        SurvivalFamilyMastery,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $SurvivalFamilyMasteriesTable,
+          SurvivalFamilyMastery
+        >,
+      ),
+      SurvivalFamilyMastery,
+      PrefetchHooks Function()
+    >;
+typedef $$SurvivalFamilyLoadoutsTableCreateCompanionBuilder =
+    SurvivalFamilyLoadoutsCompanion Function({
+      required String instanceId,
+      required String familyId,
+      Value<String?> selectedPathId,
+      Value<String?> presetName,
+      Value<int> updatedAtUtcMs,
+      Value<int> rowid,
+    });
+typedef $$SurvivalFamilyLoadoutsTableUpdateCompanionBuilder =
+    SurvivalFamilyLoadoutsCompanion Function({
+      Value<String> instanceId,
+      Value<String> familyId,
+      Value<String?> selectedPathId,
+      Value<String?> presetName,
+      Value<int> updatedAtUtcMs,
+      Value<int> rowid,
+    });
+
+class $$SurvivalFamilyLoadoutsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $SurvivalFamilyLoadoutsTable> {
+  $$SurvivalFamilyLoadoutsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get instanceId => $composableBuilder(
+    column: $table.instanceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get familyId => $composableBuilder(
+    column: $table.familyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get selectedPathId => $composableBuilder(
+    column: $table.selectedPathId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get presetName => $composableBuilder(
+    column: $table.presetName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAtUtcMs => $composableBuilder(
+    column: $table.updatedAtUtcMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SurvivalFamilyLoadoutsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $SurvivalFamilyLoadoutsTable> {
+  $$SurvivalFamilyLoadoutsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get instanceId => $composableBuilder(
+    column: $table.instanceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get familyId => $composableBuilder(
+    column: $table.familyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get selectedPathId => $composableBuilder(
+    column: $table.selectedPathId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get presetName => $composableBuilder(
+    column: $table.presetName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAtUtcMs => $composableBuilder(
+    column: $table.updatedAtUtcMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SurvivalFamilyLoadoutsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $SurvivalFamilyLoadoutsTable> {
+  $$SurvivalFamilyLoadoutsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get instanceId => $composableBuilder(
+    column: $table.instanceId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get familyId =>
+      $composableBuilder(column: $table.familyId, builder: (column) => column);
+
+  GeneratedColumn<String> get selectedPathId => $composableBuilder(
+    column: $table.selectedPathId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get presetName => $composableBuilder(
+    column: $table.presetName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get updatedAtUtcMs => $composableBuilder(
+    column: $table.updatedAtUtcMs,
+    builder: (column) => column,
+  );
+}
+
+class $$SurvivalFamilyLoadoutsTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $SurvivalFamilyLoadoutsTable,
+          SurvivalFamilyLoadout,
+          $$SurvivalFamilyLoadoutsTableFilterComposer,
+          $$SurvivalFamilyLoadoutsTableOrderingComposer,
+          $$SurvivalFamilyLoadoutsTableAnnotationComposer,
+          $$SurvivalFamilyLoadoutsTableCreateCompanionBuilder,
+          $$SurvivalFamilyLoadoutsTableUpdateCompanionBuilder,
+          (
+            SurvivalFamilyLoadout,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $SurvivalFamilyLoadoutsTable,
+              SurvivalFamilyLoadout
+            >,
+          ),
+          SurvivalFamilyLoadout,
+          PrefetchHooks Function()
+        > {
+  $$SurvivalFamilyLoadoutsTableTableManager(
+    _$AlchemonsDatabase db,
+    $SurvivalFamilyLoadoutsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SurvivalFamilyLoadoutsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$SurvivalFamilyLoadoutsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SurvivalFamilyLoadoutsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> instanceId = const Value.absent(),
+                Value<String> familyId = const Value.absent(),
+                Value<String?> selectedPathId = const Value.absent(),
+                Value<String?> presetName = const Value.absent(),
+                Value<int> updatedAtUtcMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SurvivalFamilyLoadoutsCompanion(
+                instanceId: instanceId,
+                familyId: familyId,
+                selectedPathId: selectedPathId,
+                presetName: presetName,
+                updatedAtUtcMs: updatedAtUtcMs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String instanceId,
+                required String familyId,
+                Value<String?> selectedPathId = const Value.absent(),
+                Value<String?> presetName = const Value.absent(),
+                Value<int> updatedAtUtcMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SurvivalFamilyLoadoutsCompanion.insert(
+                instanceId: instanceId,
+                familyId: familyId,
+                selectedPathId: selectedPathId,
+                presetName: presetName,
+                updatedAtUtcMs: updatedAtUtcMs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SurvivalFamilyLoadoutsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $SurvivalFamilyLoadoutsTable,
+      SurvivalFamilyLoadout,
+      $$SurvivalFamilyLoadoutsTableFilterComposer,
+      $$SurvivalFamilyLoadoutsTableOrderingComposer,
+      $$SurvivalFamilyLoadoutsTableAnnotationComposer,
+      $$SurvivalFamilyLoadoutsTableCreateCompanionBuilder,
+      $$SurvivalFamilyLoadoutsTableUpdateCompanionBuilder,
+      (
+        SurvivalFamilyLoadout,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $SurvivalFamilyLoadoutsTable,
+          SurvivalFamilyLoadout
+        >,
+      ),
+      SurvivalFamilyLoadout,
+      PrefetchHooks Function()
+    >;
 
 class $AlchemonsDatabaseManager {
   final _$AlchemonsDatabase _db;
@@ -14037,4 +15140,14 @@ class $AlchemonsDatabaseManager {
       $$AltarPlacementsTableTableManager(_db, _db.altarPlacements);
   $$SurvivalHighScoreTableTableManager get survivalHighScore =>
       $$SurvivalHighScoreTableTableManager(_db, _db.survivalHighScore);
+  $$SurvivalFamilyMasteriesTableTableManager get survivalFamilyMasteries =>
+      $$SurvivalFamilyMasteriesTableTableManager(
+        _db,
+        _db.survivalFamilyMasteries,
+      );
+  $$SurvivalFamilyLoadoutsTableTableManager get survivalFamilyLoadouts =>
+      $$SurvivalFamilyLoadoutsTableTableManager(
+        _db,
+        _db.survivalFamilyLoadouts,
+      );
 }
