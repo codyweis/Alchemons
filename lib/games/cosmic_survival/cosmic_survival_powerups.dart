@@ -2,7 +2,13 @@ import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 
-enum PowerUpCategory { statBoost, shipWeapon, orbDefense, rarePerk, mysticWorld }
+enum PowerUpCategory {
+  statBoost,
+  shipWeapon,
+  orbDefense,
+  rarePerk,
+  mysticWorld,
+}
 
 enum PowerUpRarity { common, uncommon, rare, legendary }
 
@@ -485,7 +491,6 @@ const kKeystonePowerUps = [
     favoredStats: [PowerUpStatFocus.strength, PowerUpStatFocus.speed],
   ),
 ];
-
 
 /// One surge per reworked Mystic world, three levels each.
 ///

@@ -374,9 +374,7 @@ class _ResultsButton extends StatelessWidget {
           width: emphasized ? 1.5 : 1.2,
         ),
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(3),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
       ),
       child: FittedBox(
         fit: BoxFit.scaleDown,

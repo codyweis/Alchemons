@@ -62,6 +62,7 @@ class MasteryCast {
     required this.kind,
     required this.projectileCount,
     required this.castTime,
+    this.maxHitsPerTarget = 0,
   });
 
   static const int _maxTrackedTargets = 12;
@@ -78,6 +79,20 @@ class MasteryCast {
 
   /// Runtime clock seconds at launch.
   final double castTime;
+
+  /// How many of this cast's projectiles may hit one body, 0 for no limit.
+  /// A ring of eight radial slashes converging on one enemy is the case this
+  /// exists for; the veto happens before damage, in [SurvivalMasteryRuntime
+  /// .allowsHit], because a cap counted afterwards is not a cap.
+  final int maxHitsPerTarget;
+
+  /// Node markers set at cast time and read at hit time — "this cast was
+  /// empowered". Lazily created so an ordinary cast allocates nothing.
+  Set<String>? _tags;
+
+  void tag(String tag) => (_tags ??= <String>{}).add(tag);
+
+  bool hasTag(String tag) => _tags?.contains(tag) ?? false;
 
   /// Hits recorded per target id ([identityHashCode] of the enemy or boss).
   final Map<int, int> _hitsByTarget = {};
@@ -133,6 +148,10 @@ class MasteryCast {
 /// Two projectiles from one cast hitting the same body within this many
 /// seconds is a "dual hit" (design doc, "Cast accounting").
 const double kDualHitWindow = 0.35;
+
+/// The sentinel target id for a claim that covers a whole cast rather than
+/// one body. Negative so it can never be a real [identityHashCode].
+const int kCastWideClaim = -1;
 
 /// How long a cast stays answerable. Long enough for a Mane slash to fly out,
 /// pierce and return; short enough that the live-cast map stays small.
@@ -312,12 +331,19 @@ class SurvivalMasteryRuntime {
     required String element,
     required MasteryCastKind kind,
     required int projectileCount,
+    int maxHitsPerTarget = 0,
+    bool countsAsCast = true,
   }) {
     final stats = _statsFor(slotIndex);
-    if (kind == MasteryCastKind.basic) {
-      stats.basicCasts++;
-    } else {
-      stats.specialCasts++;
+    // A mastery-created cast (a capstone's extra ring) is tracked so its hits
+    // account, but it is not another scheduled attack and must not inflate
+    // the cast counts balance reads.
+    if (countsAsCast) {
+      if (kind == MasteryCastKind.basic) {
+        stats.basicCasts++;
+      } else {
+        stats.specialCasts++;
+      }
     }
     if (!_enabled) return 0;
 
@@ -334,11 +360,22 @@ class SurvivalMasteryRuntime {
       kind: kind,
       projectileCount: projectileCount,
       castTime: _clock,
+      maxHitsPerTarget: maxHitsPerTarget,
     );
     return id;
   }
 
   MasteryCast? cast(int castId) => castId == 0 ? null : _casts[castId];
+
+  /// The per-target hit cap, checked *before* damage is applied. Returns true
+  /// for anything untracked or uncapped, so the combat loop can ask about
+  /// every projectile without branching first.
+  bool allowsHit(int castId, int targetId) {
+    if (!_enabled || castId == 0) return true;
+    final cast = _casts[castId];
+    if (cast == null || cast.maxHitsPerTarget <= 0) return true;
+    return cast.hitsOn(targetId) < cast.maxHitsPerTarget;
+  }
 
   /// Records one projectile from [castId] landing on [targetId] and returns
   /// the resulting hit description, or null when there is nothing to react to.
@@ -374,6 +411,11 @@ class SurvivalMasteryRuntime {
     if (cast == null) return false;
     return cast.payloadedTargets.add(targetId);
   }
+
+  /// The "once per cast, whatever it hit" version, for nodes worded as one
+  /// payload per cast rather than one per body. [kCastWideClaim] can never
+  /// collide with a real target because [identityHashCode] is never negative.
+  bool claimCastOnce(int castId) => claimPayloadTarget(castId, kCastWideClaim);
 
   // ── Proc cooldowns ───────────────────────────────────────────────
 

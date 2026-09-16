@@ -56,9 +56,10 @@ Color powerUpAccentColor(PowerUpDef def) {
   return switch (def.category) {
     PowerUpCategory.shipWeapon => const Color(0xFFFF7A45),
     PowerUpCategory.orbDefense => const Color(0xFF4FA8FF),
-    PowerUpCategory.statBoost => def.scope == PowerUpScope.companion
-        ? const Color(0xFF5BE0B0)
-        : const Color(0xFF9B8CFF),
+    PowerUpCategory.statBoost =>
+      def.scope == PowerUpScope.companion
+          ? const Color(0xFF5BE0B0)
+          : const Color(0xFF9B8CFF),
     PowerUpCategory.rarePerk => const Color(0xFFE86BB0),
     PowerUpCategory.mysticWorld => const Color(0xFFE4C16A),
   };
@@ -388,11 +389,7 @@ class _PowerUpCard extends StatelessWidget {
                             color: accent,
                             borderRadius: BorderRadius.circular(9),
                           ),
-                          child: Icon(
-                            systemIcon,
-                            color: _C.bg0,
-                            size: 18,
-                          ),
+                          child: Icon(systemIcon, color: _C.bg0, size: 18),
                         ),
                         const SizedBox(width: 11),
                         Expanded(
@@ -622,7 +619,9 @@ class _MiniTag extends StatelessWidget {
       decoration: BoxDecoration(
         color: filled ? color : color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(3),
-        border: filled ? null : Border.all(color: color.withValues(alpha: 0.45)),
+        border: filled
+            ? null
+            : Border.all(color: color.withValues(alpha: 0.45)),
       ),
       child: Text(
         label,

@@ -24,10 +24,12 @@ import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mastery_mane.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_payload.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_runtime.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
+import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/models/stat_system.dart';
@@ -1901,6 +1903,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // The path snapshot is locked for the run; the rhythm it drives is not,
     // so a second run in the same session starts from zero.
     mastery.reset();
+    _maneMastery.clear();
     _startZoomAnimation(_zoomPresets[_zoomLevelIndex]);
     spawner.startFirstWave();
   }
@@ -1935,6 +1938,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateEnemies(dt, _projectileControlBuckets);
     _rebuildEnemySpatialGrid();
     _updateCompanionProjectiles(dt);
+    _updateManeMastery(dt);
     _updateMasteryEchoes(dt);
     updatePersistentAbilityEffects(dt);
     _updateBeamEffects(dt);
@@ -2993,7 +2997,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
       } else if (comp.basicCooldown <= 0 &&
           distToTarget <= comp.attackRange + bossBonus) {
-        final cooldown = comp.effectiveBasicCooldown * (isDarkWing ? 0.5 : 1.0);
+        final cooldown =
+            comp.effectiveBasicCooldown *
+            (isDarkWing ? 0.5 : 1.0) *
+            _masteryBasicCooldownMultiplier(slotIndex);
         comp.basicCooldown = cooldown;
         final basics = createFamilyBasicAttack(
           origin: comp.position,
@@ -3009,18 +3016,25 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // throws. Every slash, dart and feather below carries the same id so
         // mastery can ask "did both blades land on that body" without a
         // multishot family triggering cast nodes three times as often.
+        final shaped = _applyManeBasicMastery(
+          basics,
+          comp,
+          slotIndex,
+          fireAngle,
+        );
         final basicCastId = mastery.beginCast(
           slotIndex: slotIndex,
           family: creatureFamilyFromStorage(comp.member.family),
           element: comp.member.element,
           kind: MasteryCastKind.basic,
-          projectileCount: basics.length,
+          projectileCount: shaped.length,
         );
+        _onManeBasicCast(slotIndex, basicCastId, fireAngle);
         // Kin+Lightning tesla charge: while any Lightning kin is
         // actively channelling, ALL companion auto-attacks get chain
         // lightning. Stacks with the existing powerup version.
         final teslaActive = _isAnyKinLightningChargeActive();
-        for (final projectile in basics) {
+        for (final projectile in shaped) {
           projectile.sourceSlotIndex = slotIndex;
           projectile.masteryCastId = basicCastId;
           if (powerUps.companionHasChainLightning(slotIndex) || teslaActive) {
@@ -3031,7 +3045,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           }
         }
         _appendCompanionProjectiles(
-          basics,
+          shaped,
           cue: SoundCue.forFamilyBasic(comp.member.family),
         );
 
@@ -3123,6 +3137,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           kind: MasteryCastKind.special,
           projectileCount: result.projectiles.length,
         );
+        _onManeSpecialCast(slotIndex);
         for (final projectile in result.projectiles) {
           projectile.sourceSlotIndex = slotIndex;
           projectile.masteryCastId = specialCastId;
@@ -5172,9 +5187,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     CosmicSurvivalEnemy? enemy,
     SurvivalBoss? boss,
   }) {
-    // Node reactions (phases 3-5) hook in here. Deliberately empty for now:
-    // phase 2 ships the accounting, not the behaviour, and a half-wired node
-    // is worse than no node.
+    // Family node reactions dispatch from here. Phases 4-5 add their own
+    // branches; nothing else in the combat loop needs to know they exist.
+    if (hit.family == CreatureFamily.mane) {
+      _onManeHit(hit, enemy: enemy, boss: boss);
+    }
   }
 
   /// A body dying, attributed to the cast that killed it when there was one.
@@ -5183,7 +5200,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     CosmicSurvivalEnemy? enemy,
     SurvivalBoss? boss,
   }) {
-    // Node reactions (phases 3-5) hook in here.
+    final slotIndex = kill.slotIndex;
+    if (slotIndex == null) return;
+    if (mastery.equippedFor(slotIndex)?.family == CreatureFamily.mane) {
+      _onManeKill(kill);
+    }
   }
 
   /// Fires the caster's elemental payload on one body.
@@ -5578,6 +5599,435 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           target: boss,
           masterySource: MasteryDamageSource.mastery,
         );
+      }
+    }
+  }
+
+  // == Mane mastery (phase 3 vertical slice) ===============================
+
+  /// Per-slot Mane state, created on demand and dropped on a run reset.
+  final Map<int, ManeMasteryState> _maneMastery = {};
+
+  ManeMasteryState _maneStateFor(int slotIndex) =>
+      _maneMastery.putIfAbsent(slotIndex, ManeMasteryState.new);
+
+  /// Read-only view of a Mane's run state — Rhythm, Encore, the empowered
+  /// cast counters. The HUD needs it to show Rhythm, and so do the tests.
+  ManeMasteryState? maneMasteryFor(int slotIndex) => _maneMastery[slotIndex];
+
+  /// Whether this slot is a Mane with a path equipped. The gate every Mane
+  /// hook opens with, so nothing below runs for other families.
+  bool _isMasteryMane(int slotIndex) {
+    if (!mastery.enabled) return false;
+    final equipped = mastery.equippedFor(slotIndex);
+    return equipped != null && equipped.family == CreatureFamily.mane;
+  }
+
+  /// Rebuilds a Mane basic cast's pair of slashes to the equipped path's
+  /// geometry, and opens the windows that cast is entitled to.
+  ///
+  /// The pair is rebuilt rather than edited because spread, homing and width
+  /// are all decided together — and homing is final on a projectile, so a
+  /// Predator Step cast cannot be made to track by tweaking what came back
+  /// from the chassis factory. Per-slash damage is derived from the factory's
+  /// own output so the chassis stays the single source of base scaling.
+  List<Projectile> _applyManeBasicMastery(
+    List<Projectile> basics,
+    CosmicSurvivalCompanion comp,
+    int slotIndex,
+    double fireAngle,
+  ) {
+    if (basics.isEmpty || !_isMasteryMane(slotIndex)) return basics;
+    final state = _maneStateFor(slotIndex);
+    bool has(String nodeId) => mastery.hasNode(slotIndex, nodeId);
+
+    final crescendoEmpowered =
+        has(ManeNodes.crescendo) && state.crescendoCasts > 0;
+    if (crescendoEmpowered) state.crescendoCasts--;
+    final bladeDanceEmpowered =
+        has(ManeNodes.bladeDance) && state.bladeDanceCasts > 0;
+    if (bladeDanceEmpowered) state.bladeDanceCasts--;
+    state.pendingCrescendoCast = crescendoEmpowered;
+    state.pendingBladeDanceCast = bladeDanceEmpowered;
+
+    final shape = resolveManeBasicShape(
+      hasNode: has,
+      state: state,
+      crescendoEmpowered: crescendoEmpowered,
+    );
+    // Predator Step is spent by the cast it empowers, not by time alone.
+    if (shape.homes) state.predatorStepTimer = 0;
+
+    final seed = basics.first;
+    // The chassis hands back its own 65% cut; scale from that to whatever the
+    // path asks for rather than re-deriving physical attack here.
+    final perSlash =
+        seed.damage *
+        (shape.slashFraction / ManeTuning.baseSlashFraction) *
+        shape.damageMultiplier;
+
+    final slashes = <Projectile>[];
+    for (final sign in const [-1.0, 1.0]) {
+      final angle = fireAngle + sign * shape.spread;
+      slashes.add(
+        Projectile(
+            position: Offset(
+              comp.position.dx + cos(angle) * 15,
+              comp.position.dy + sin(angle) * 15,
+            ),
+            angle: angle,
+            element: comp.member.element,
+            damage: perSlash,
+            radiusMultiplier: seed.radiusMultiplier * shape.widthScale,
+            visualScale: seed.visualScale * shape.widthScale,
+            visualStyle: seed.visualStyle,
+            homing: shape.homes,
+            homingStrength: shape.homingStrength,
+            sourceSlotIndex: slotIndex,
+          )
+          ..masteryReturnFraction = bladeDanceEmpowered
+              ? ManeTuning.bladeDanceReturnFraction
+              : 0,
+      );
+    }
+    return slashes;
+  }
+
+  /// Everything a Mane basic cast does at launch: tags, Rhythm bookkeeping,
+  /// and the Tempest Ring cadence.
+  void _onManeBasicCast(int slotIndex, int castId, double fireAngle) {
+    if (castId == 0 || !_isMasteryMane(slotIndex)) return;
+    final state = _maneStateFor(slotIndex);
+    final cast = mastery.cast(castId);
+    bool has(String nodeId) => mastery.hasNode(slotIndex, nodeId);
+
+    if (cast != null) {
+      if (state.pendingCrescendoCast) cast.tag(ManeCastTags.crescendo);
+      if (state.pendingBladeDanceCast) cast.tag(ManeCastTags.bladeDance);
+    }
+    state.pendingCrescendoCast = false;
+    state.pendingBladeDanceCast = false;
+
+    // Measured Cuts judges a cast that landed nothing, which cannot be known
+    // until its slashes have had time to fly. The queue is drained in the
+    // per-frame tick.
+    if (has(ManeNodes.measuredCuts)) {
+      state.pendingCasts.add(castId);
+      // Bounded even at full Encore haste; a queue is a leak waiting to be
+      // found, not a feature.
+      if (state.pendingCasts.length > 16) state.pendingCasts.removeAt(0);
+    }
+
+    if (has(ManeNodes.tempestRing)) {
+      state.castsSinceRing++;
+      if (state.castsSinceRing >= ManeTuning.tempestRingCadence) {
+        state.castsSinceRing = 0;
+        _castManeTempestRing(slotIndex, fireAngle);
+      }
+    }
+  }
+
+  /// Tempest Ring: eight radial slashes on every fourth cast.
+  void _castManeTempestRing(int slotIndex, double fireAngle) {
+    final comp = activeCompanions[slotIndex];
+    if (comp == null || comp.isDead) return;
+    // The whole ring or none of it — half a ring reads as a bug, not a budget.
+    if (!mastery.requestObjects(ManeTuning.tempestRingSlashes)) return;
+
+    final basePower =
+        comp.physAtk.toDouble() *
+        ManeTuning.tempestRingSlashFraction *
+        comp.damageAmp;
+
+    // Its own cast: the hits must account (that is what caps them at three per
+    // body and fires exactly one payload), but it is not a scheduled attack
+    // and must not count as one.
+    final ringCastId = mastery.beginCast(
+      slotIndex: slotIndex,
+      family: CreatureFamily.mane,
+      element: comp.member.element,
+      kind: MasteryCastKind.basic,
+      projectileCount: ManeTuning.tempestRingSlashes,
+      maxHitsPerTarget: ManeTuning.tempestRingMaxHitsPerTarget,
+      countsAsCast: false,
+    );
+    mastery.cast(ringCastId)?.tag(ManeCastTags.tempestRing);
+
+    final ring = <Projectile>[];
+    for (var i = 0; i < ManeTuning.tempestRingSlashes; i++) {
+      // Offset from the aim so the ring reads as thrown, not as a grid.
+      final angle = fireAngle + (i * 2 * pi / ManeTuning.tempestRingSlashes);
+      ring.add(
+        Projectile(
+            position: Offset(
+              comp.position.dx + cos(angle) * 18,
+              comp.position.dy + sin(angle) * 18,
+            ),
+            angle: angle,
+            element: comp.member.element,
+            damage: basePower,
+            life: ManeTuning.tempestRingLife,
+            speedMultiplier: ManeTuning.tempestRingSpeed,
+            piercing: true,
+            visualStyle: ProjectileVisualStyle.slash,
+            sourceSlotIndex: slotIndex,
+          )
+          ..masteryCastId = ringCastId
+          ..masteryGenerated = true,
+      );
+    }
+    _appendCompanionProjectiles(ring);
+  }
+
+  /// Crescendo and Blade Dance both fire when the special goes out.
+  void _onManeSpecialCast(int slotIndex) {
+    if (!_isMasteryMane(slotIndex)) return;
+    final state = _maneStateFor(slotIndex);
+
+    if (mastery.hasNode(slotIndex, ManeNodes.crescendo)) {
+      final spent = state.consumeRhythm();
+      if (spent > 0) {
+        state.crescendoCasts = spent;
+        mastery.recordSpecialAmplification(slotIndex);
+        // Only a full reserve opens an Encore, and only if one is not
+        // already running.
+        if (spent >= ManeTuning.maxRhythm &&
+            mastery.hasNode(slotIndex, ManeNodes.encore) &&
+            state.tryOpenEncore()) {
+          mastery.recordCapstone(slotIndex);
+          _spawnHitSpark(
+            activeCompanions[slotIndex]?.position ?? orb.position,
+            elementColor(activeCompanions[slotIndex]?.member.element ?? 'Fire'),
+          );
+        }
+      }
+    }
+
+    if (mastery.hasNode(slotIndex, ManeNodes.bladeDance)) {
+      state.bladeDanceCasts = ManeTuning.bladeDanceCasts;
+      mastery.recordCapstone(slotIndex);
+    }
+  }
+
+  /// Mane's reactions to one of its slashes landing.
+  void _onManeHit(
+    MasteryHit hit, {
+    CosmicSurvivalEnemy? enemy,
+    SurvivalBoss? boss,
+  }) {
+    final slotIndex = hit.slotIndex;
+    final state = _maneStateFor(slotIndex);
+    final cast = hit.cast;
+    bool has(String nodeId) => mastery.hasNode(slotIndex, nodeId);
+
+    // ── Tempest Ring: the first radial hit carries the element, once. ──
+    if (cast.hasTag(ManeCastTags.tempestRing)) {
+      if (has(ManeNodes.tempestRing) && mastery.claimCastOnce(cast.id)) {
+        triggerElementalPayload(
+          slotIndex: slotIndex,
+          effectId: ManeNodes.tempestRing,
+          enemy: enemy,
+          boss: boss,
+          triggeringDamage: hit.damage,
+        );
+      }
+      return;
+    }
+
+    if (!hit.fromBasic) return;
+
+    // ── Twin Fang ──
+    if (has(ManeNodes.crosscut) && hit.isDualHit) {
+      final comp = activeCompanions[slotIndex];
+      if (comp != null) {
+        final bonus =
+            comp.physAtk.toDouble() *
+            ManeTuning.crosscutBonusFraction *
+            comp.damageAmp;
+        if (enemy != null) {
+          _damageEnemy(
+            enemy,
+            bonus,
+            sourceSlotIndex: slotIndex,
+            masterySource: MasteryDamageSource.mastery,
+          );
+        } else if (boss != null) {
+          damageBoss(
+            bonus,
+            sourceSlotIndex: slotIndex,
+            target: boss,
+            masterySource: MasteryDamageSource.mastery,
+          );
+        }
+      }
+      if (mastery.claimCastOnce(cast.id)) {
+        triggerElementalPayload(
+          slotIndex: slotIndex,
+          effectId: ManeNodes.crosscut,
+          enemy: enemy,
+          boss: boss,
+          strength: ManeTuning.crosscutPayloadStrength,
+          triggeringDamage: hit.damage,
+        );
+      }
+    }
+
+    // ── Tempest Claw ──
+    if (has(ManeNodes.rendingWake) &&
+        mastery.claimPayloadTarget(cast.id, hit.targetId)) {
+      triggerElementalPayload(
+        slotIndex: slotIndex,
+        effectId: ManeNodes.rendingWake,
+        enemy: enemy,
+        boss: boss,
+        strength: ManeTuning.rendingWakeStrength,
+        triggeringDamage: hit.damage,
+      );
+    }
+    if (has(ManeNodes.crosswind)) {
+      _resolveManeCrosswind(state, hit, enemy: enemy, boss: boss);
+    }
+
+    // ── War Rhythm ──
+    if (has(ManeNodes.measuredCuts) && hit.isDualHit) {
+      state.gainRhythm();
+    }
+    if (cast.hasTag(ManeCastTags.crescendo) && mastery.claimCastOnce(cast.id)) {
+      triggerElementalPayload(
+        slotIndex: slotIndex,
+        effectId: ManeNodes.crescendo,
+        enemy: enemy,
+        boss: boss,
+        strength: ManeTuning.crescendoPayloadStrength,
+        triggeringDamage: hit.damage,
+      );
+    }
+  }
+
+  /// Crosswind: the pair splitting across two bodies pays both of them.
+  ///
+  /// The first body is held until the second slash lands, because a payload
+  /// owed to a target the cast has already left still has to reach it.
+  void _resolveManeCrosswind(
+    ManeMasteryState state,
+    MasteryHit hit, {
+    CosmicSurvivalEnemy? enemy,
+    SurvivalBoss? boss,
+  }) {
+    final target = (enemy ?? boss) as Object?;
+    if (target == null) return;
+
+    if (state.crosswindCastId != hit.cast.id) {
+      state.crosswindCastId = hit.cast.id;
+      state.crosswindFirstTarget = target;
+      return;
+    }
+    final first = state.crosswindFirstTarget;
+    // Both blades into one body is Crosscut's business, not Crosswind's.
+    if (first == null || identical(first, target)) return;
+    state.crosswindFirstTarget = null;
+
+    for (final body in [first, target]) {
+      final otherEnemy = body is CosmicSurvivalEnemy ? body : null;
+      final otherBoss = body is SurvivalBoss ? body : null;
+      triggerElementalPayload(
+        slotIndex: hit.slotIndex,
+        effectId: ManeNodes.crosswind,
+        enemy: otherEnemy,
+        boss: otherBoss,
+        strength: ManeTuning.crosswindStrength,
+        triggeringDamage: hit.damage,
+      );
+    }
+  }
+
+  /// Mane's reactions to a kill.
+  void _onManeKill(MasteryKill kill) {
+    final slotIndex = kill.slotIndex;
+    if (slotIndex == null || !_isMasteryMane(slotIndex)) return;
+    if (!kill.fromBasic) return;
+    final state = _maneStateFor(slotIndex);
+
+    if (mastery.hasNode(slotIndex, ManeNodes.predatorStep)) {
+      state.predatorStepTimer = ManeTuning.predatorStepWindow;
+    }
+    if (mastery.hasNode(slotIndex, ManeNodes.encore)) {
+      state.extendEncore();
+    }
+  }
+
+  /// Basic-attack cooldown multiplier from mastery. Below 1 is faster.
+  double _masteryBasicCooldownMultiplier(int slotIndex) {
+    if (!_isMasteryMane(slotIndex)) return 1.0;
+    return _maneStateFor(slotIndex).hasteMultiplier(
+      hasMeasuredCuts: mastery.hasNode(slotIndex, ManeNodes.measuredCuts),
+      hasEncore: mastery.hasNode(slotIndex, ManeNodes.encore),
+    );
+  }
+
+  /// Blade Dance: a spent slash flies home, hitting once more on the way.
+  ///
+  /// The return carries no cast and no return fraction of its own, so it
+  /// cannot trigger Crosscut, cannot fire a payload and cannot boomerang
+  /// again — the capstone's three exclusions, all of them structural rather
+  /// than checked.
+  void _spawnMasteryReturns() {
+    if (!mastery.enabled) return;
+    List<Projectile>? returns;
+    for (final p in companionProjectiles) {
+      if (p.life > 0 || p.masteryReturnFraction <= 0) continue;
+      final slotIndex = p.sourceSlotIndex;
+      if (slotIndex == null) continue;
+      final comp = activeCompanions[slotIndex];
+      if (comp == null || comp.isDead) continue;
+      if (!mastery.requestObjects(1)) break;
+
+      final toward = comp.position - p.position;
+      final dist = toward.distance;
+      if (dist < 1) continue;
+      final angle = atan2(toward.dy, toward.dx);
+      (returns ??= <Projectile>[]).add(
+        Projectile(
+          position: p.position,
+          angle: angle,
+          element: p.element,
+          damage: p.damage * p.masteryReturnFraction,
+          life: (dist / Projectile.speed) + 0.1,
+          radiusMultiplier: p.radiusMultiplier,
+          visualScale: p.visualScale * 0.82,
+          visualStyle: p.visualStyle,
+          sourceSlotIndex: slotIndex,
+        )..masteryGenerated = true,
+      );
+    }
+    if (returns != null) _appendCompanionProjectiles(returns);
+  }
+
+  /// Per-frame Mane upkeep: windows expire, and casts that landed nothing
+  /// finally cost their Rhythm.
+  void _updateManeMastery(double dt) {
+    if (_maneMastery.isEmpty) return;
+    for (final entry in _maneMastery.entries) {
+      final slotIndex = entry.key;
+      final state = entry.value;
+      state.tick(dt);
+
+      if (state.pendingCasts.isEmpty) continue;
+      // Oldest first, so one pass drains everything that has come due.
+      while (state.pendingCasts.isNotEmpty) {
+        final castId = state.pendingCasts.first;
+        final cast = mastery.cast(castId);
+        if (cast == null) {
+          // Pruned out from under us; nothing left to judge.
+          state.pendingCasts.removeAt(0);
+          continue;
+        }
+        if (mastery.clock - cast.castTime < ManeTuning.missGrace) break;
+        state.pendingCasts.removeAt(0);
+        if (cast.totalHits == 0 &&
+            mastery.hasNode(slotIndex, ManeNodes.measuredCuts)) {
+          state.loseRhythm();
+        }
       }
     }
   }
@@ -15600,6 +16050,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         )) {
           return false;
         }
+        // A capped cast (a Tempest Ring) refuses its own surplus hits here,
+        // before damage: a cap counted after the fact is not a cap.
+        if (!mastery.allowsHit(p.masteryCastId, identityHashCode(enemy))) {
+          return false;
+        }
         final preRootForPlantKill =
             p.piercing && p.abilityFamily == 'mane' && p.element == 'Plant';
         if (preRootForPlantKill) resolveAbilityPierce(p, enemy);
@@ -15876,6 +16331,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (consumed) p.life = 0;
     }
 
+    // Read before the sweep: a returning slash starts where the outgoing one
+    // died, and after removeWhere there is nothing left to ask.
+    _spawnMasteryReturns();
     companionProjectiles.removeWhere((p) => p.life <= 0);
   }
 

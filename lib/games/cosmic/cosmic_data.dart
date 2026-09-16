@@ -4557,6 +4557,11 @@ class Projectile {
   /// three times as often. See survival_mastery_runtime.dart.
   int masteryCastId = 0;
 
+  /// Above zero, this projectile returns to its caster when it is spent,
+  /// dealing this fraction of its damage again (Mane's Blade Dance). The
+  /// return itself carries no fraction, so a boomerang cannot boomerang.
+  double masteryReturnFraction = 0;
+
   /// True when a mastery node created this projectile rather than the
   /// family's own attack or special. Damage from it attributes to mastery,
   /// and it never opens a cast of its own — that is the recursion guard in
@@ -5450,6 +5455,7 @@ Projectile _copyProjectile(
   // would read to the runtime as a second, unaccounted attack.
   clone.masteryCastId = p.masteryCastId;
   clone.masteryGenerated = p.masteryGenerated;
+  clone.masteryReturnFraction = p.masteryReturnFraction;
   return clone;
 }
 

@@ -1,6 +1,6 @@
 # Survival Family Mastery
 
-Status (2026-09-16): Phases 1 and 2 complete, and the Base Command Mastery tab is polished (the first item of Phase 6). Purchases, branch selection and run snapshots work; a run now locks its snapshot and combat carries cast identity, hit/kill/damage events, the shared elemental payload resolver, the shared guards and attribution telemetry. No node changes a run yet — the tree nodes themselves arrive in Phases 3-5. Next: Phase 3 (the Mane vertical slice).
+Status (2026-09-16): Phases 1 and 2 complete, Phase 3 underway (all twelve Mane nodes implemented; validation, preview UI and tuning still open), and the Base Command Mastery tab is polished (the first item of Phase 6). Purchases, branch selection and run snapshots work; a run now locks its snapshot and combat carries cast identity, hit/kill/damage events, the shared elemental payload resolver, the shared guards and attribution telemetry. No node changes a run yet — the tree nodes themselves arrive in Phases 3-5. Next: Phase 3 (the Mane vertical slice).
 
 ## Purpose
 
@@ -524,14 +524,14 @@ Telemetry should separately attribute basic damage, mastery damage, special dama
 
 See *Combat runtime* below for what shipped and where it lives.
 
-### Phase 3: Mane vertical slice
+### Phase 3: Mane vertical slice — in progress
 
-1. Implement all three Mane paths and capstones.
+1. ~~Implement all three Mane paths and capstones.~~ Done 2026-09-16; see *Mane implementation notes*.
 2. Validate them with Fire, Ice, Lightning, Blood, and one control-heavy element.
 3. Build the initial Mastery screen and training preview around Mane.
 4. Tune single-target, crowd, and special-bridge scenarios.
 
-Exit criterion: the five tested Mane elements feel meaningfully different, and two Mane instances can equip distinct paths without bespoke species code.
+Exit criterion: the five tested Mane elements feel meaningfully different while sharing one selected path, and a second Mane in the party inherits that path and its bonuses without bespoke species code. (The original wording asked for two Manes on *distinct* paths, which the family-wide rules above forbid; it predates that change.)
 
 ### Phase 4: projectile families
 
@@ -620,6 +620,35 @@ capstone activations, per slot. `masteryShare` is the headline: how much of a
 companion's damage its path is actually responsible for. Cast counts are
 recorded even with the runtime disabled, so a no-mastery run is still a usable
 balance baseline.
+
+## Mane implementation notes
+
+All twelve nodes live in `lib/games/cosmic_survival/survival_mastery_mane.dart`
+(numbers, per-slot state, and the pure shape resolver) and in the game's
+"Mane mastery" section (the hooks that spawn and apply). The split is the one
+phases 4 and 5 should copy: anything that can be decided without the world
+lives in the family file, so it can be read and tested on its own.
+
+Three things worth knowing before the next family:
+
+- **The pair is rebuilt, not edited.** Spread, width, damage and tracking are
+  decided together, and `homing` is final on a projectile, so a Predator Step
+  cast cannot be made to track by tweaking what the chassis factory returned.
+  Per-slash damage is still derived from that factory's own output, so the
+  chassis stays the single source of base scaling.
+- **A cast's empowerment is decided before the cast exists.** The shape pass
+  spends the Crescendo and Blade Dance counters, then `beginCast` runs, then
+  the tag is applied. The counter cannot be re-read to decide the tag — a
+  one-cast Crescendo spends its counter to zero and would tag nothing.
+- **Exclusions are structural where they can be.** A Blade Dance return
+  carries no cast id and no return fraction of its own, which is exactly why
+  it cannot trigger Crosscut, cannot fire a payload and cannot boomerang
+  again. Nothing checks for those three cases.
+
+Two rules needed runtime support that phases 4-5 will reuse: `MasteryCast.tag`
+for "this cast was empowered", and `maxHitsPerTarget` with a pre-damage veto
+in the hit loop, because Tempest Ring's three-hit cap counted after the fact
+would not be a cap.
 
 ## Decisions intentionally deferred
 
