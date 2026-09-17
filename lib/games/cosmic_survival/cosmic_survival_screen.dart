@@ -475,6 +475,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
       MysticGraphxOverlayController();
   late final PageController _familyPageController;
 
+  static const double _familyViewportFraction = 0.82;
+
+  /// The lobby's scroll view pads 16 either side of the roster.
+  static const double _rosterHorizontalPadding = 32;
+
   /// The roster card in view. Only changes when a swipe settles past the
   /// halfway point; the per-frame swipe itself never rebuilds the lobby.
   final ValueNotifier<int> _familyIndex = ValueNotifier<int>(0);
@@ -573,7 +578,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   void initState() {
     super.initState();
     _soundController = context.audio;
-    _familyPageController = PageController(viewportFraction: 0.82);
+    _familyPageController = PageController(
+      viewportFraction: _familyViewportFraction,
+    );
     _familyPageController.addListener(() {
       final page = _familyPageController.page ?? 0;
       _familyIndex.value = page.round().clamp(0, _cosmicFamilyInfos.length - 1);
@@ -2269,10 +2276,17 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
               builder: (context, currentIndex, pages) {
                 final active = _cosmicFamilyInfos[currentIndex];
                 final activeFamily = creatureFamilyFromStorage(active.id);
+                // The carousel shows each card at the controller's viewport
+                // fraction of the roster's width.
+                final rosterWidth =
+                    MediaQuery.sizeOf(context).width - _rosterHorizontalPadding;
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 160),
                   curve: Curves.easeOut,
                   height: _SpeciesCard.heightFor(
+                    context,
+                    info: active,
+                    cardWidth: rosterWidth * _familyViewportFraction,
                     expanded: _expandedFamilyCards.contains(active.id),
                     ownedNodesOnPath:
                         FamilyMasteryRosterSummary.ownedOnSelectedPath(
@@ -3779,16 +3793,34 @@ class _SpeciesCard extends StatelessWidget {
   static const double _portraitWidth = 112;
   static const double _baseHeight = 300;
 
-  static double heightFor({
+  /// The card's height at [cardWidth]. An expanded card adds its playstyle
+  /// paragraph, measured with the style it is drawn in, and the owned nodes.
+  static double heightFor(
+    BuildContext context, {
+    required _FamilyInfo info,
+    required double cardWidth,
     required bool expanded,
     required int ownedNodesOnPath,
-  }) =>
-      _baseHeight -
-      FamilyMasteryRosterSummary.collapsedHeight +
-      FamilyMasteryRosterSummary.heightFor(
-        expanded: expanded,
-        ownedNodesOnPath: ownedNodesOnPath,
-      );
+  }) {
+    var height =
+        _baseHeight -
+        FamilyMasteryRosterSummary.collapsedHeight +
+        FamilyMasteryRosterSummary.heightFor(
+          expanded: expanded,
+          ownedNodesOnPath: ownedNodesOnPath,
+        );
+    if (expanded) {
+      height +=
+          _SpeciesFact.gap +
+          _SpeciesFact.measure(context, info.copy.about, textWidth(cardWidth));
+    }
+    return height;
+  }
+
+  /// The width the text column gets inside a card [cardWidth] wide: the card
+  /// margin, the portrait, and the column's own padding come off.
+  static double textWidth(double cardWidth) =>
+      max(80.0, cardWidth - 10 - _portraitWidth - 24);
 
   @override
   Widget build(BuildContext context) {
@@ -3873,6 +3905,15 @@ class _SpeciesCard extends StatelessWidget {
                       text: info.special,
                       color: info.color,
                     ),
+                    if (expanded) ...[
+                      const SizedBox(height: _SpeciesFact.gap),
+                      _SpeciesFact(
+                        label: 'PLAYSTYLE',
+                        text: info.copy.about,
+                        color: info.color,
+                        maxLines: null,
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     Container(
                       height: 1,
@@ -3938,38 +3979,60 @@ class _SpeciesFact extends StatelessWidget {
     required this.label,
     required this.text,
     required this.color,
+    this.maxLines = 2,
   });
 
   final String label;
   final String text;
   final Color color;
 
+  /// Null lets the text wrap as far as it needs, which the card's height
+  /// accounts for through [measure].
+  final int? maxLines;
+
+  static const double gap = 6;
+  static const double _labelHeight = 11;
+  static const double _labelGap = 2;
+
+  static TextStyle _textStyle(BuildContext context) =>
+      _display(context, 12, _C.textSecondary, weight: FontWeight.w500);
+
+  /// The height of a fact showing [text] in a column [width] wide.
+  static double measure(BuildContext context, String text, double width) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: _textStyle(context)),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout(maxWidth: width);
+    // A few pixels of slack so a rounding difference never clips a line.
+    return _labelHeight + _labelGap + painter.height + 4;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: color,
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.4,
+        SizedBox(
+          height: _labelHeight,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: color,
+              fontSize: 9,
+              height: 1.2,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.4,
+            ),
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: _labelGap),
         Text(
           text,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: _display(
-            context,
-            12,
-            _C.textSecondary,
-            weight: FontWeight.w500,
-          ),
+          maxLines: maxLines,
+          overflow: maxLines == null ? null : TextOverflow.ellipsis,
+          style: _textStyle(context),
         ),
       ],
     );
@@ -3996,25 +4059,30 @@ class SurvivalSpeciesCardPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final info = _cosmicFamilyInfos.firstWhere((i) => i.id == familyId);
     final family = creatureFamilyFromStorage(familyId);
-    return SizedBox(
-      height: _SpeciesCard.heightFor(
-        expanded: expanded,
-        ownedNodesOnPath: family == null
-            ? 0
-            : FamilyMasteryRosterSummary.ownedOnSelectedPath(
-                family,
-                owned,
-                selectedPathId,
-              ),
-      ),
-      child: _SpeciesCard(
-        info: info,
-        family: family,
-        owned: owned,
-        selectedPathId: selectedPathId,
-        expanded: expanded,
-        onTap: () {},
-        onOpenTree: () {},
+    return LayoutBuilder(
+      builder: (context, constraints) => SizedBox(
+        height: _SpeciesCard.heightFor(
+          context,
+          info: info,
+          cardWidth: constraints.maxWidth,
+          expanded: expanded,
+          ownedNodesOnPath: family == null
+              ? 0
+              : FamilyMasteryRosterSummary.ownedOnSelectedPath(
+                  family,
+                  owned,
+                  selectedPathId,
+                ),
+        ),
+        child: _SpeciesCard(
+          info: info,
+          family: family,
+          owned: owned,
+          selectedPathId: selectedPathId,
+          expanded: expanded,
+          onTap: () {},
+          onOpenTree: () {},
+        ),
       ),
     );
   }

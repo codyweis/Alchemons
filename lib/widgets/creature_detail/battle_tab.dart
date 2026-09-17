@@ -852,28 +852,10 @@ class _SurvivalBracketCard extends StatelessWidget {
 
 _CosmicFamilyRole _cosmicFamilyRole(String family) {
   final copy = FamilyCombatCopy.forName(family);
-  final description = switch (family) {
-    'Horn' =>
-      "Horns fight up close. They take hits for the team, and their heavy specials — charges, slams, walls and auras — hold enemies in front of everyone else.",
-    'Wing' =>
-      "Wings keep their distance and pick enemies off from long range. Their specials fire a beam down a lane.",
-    'Let' =>
-      "Lets stay at the back and go after the toughest enemies. Their special calls a meteor down on a target, and the crater carries the element's effect.",
-    'Pip' =>
-      "Pips attack fast and clean up weakened or scattered enemies. Their special fires darts that ricochet between enemies. Great at clearing waves, weaker against bosses.",
-    'Mane' =>
-      "Manes fight at mid range. Their special throws one huge blade that cuts through every enemy in a line, and the element decides what it does along the way.",
-    'Kin' =>
-      "Kins keep the team alive. Their special heals and blesses allies, and each element adds a support piece of its own.",
-    'Mystic' =>
-      "Only one Mystic can join a team. Its special is slow to come back, but it turns the whole arena into its element's world.",
-    'Mask' =>
-      "Masks control the battlefield. Their special scatters traps that catch, lure or punish enemies, pulling pressure away from your ship.",
-    _ => 'A loyal companion that fights alongside your ship.',
-  };
   return _CosmicFamilyRole(
     title: copy?.role ?? 'Companion',
-    description: description,
+    description:
+        copy?.about ?? 'A loyal companion that fights alongside your ship.',
   );
 }
 

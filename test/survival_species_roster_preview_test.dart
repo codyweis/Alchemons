@@ -53,7 +53,7 @@ void main() {
 
   testWidgets('species roster preview', (tester) async {
     if (outDir == null) return;
-    tester.view.physicalSize = const Size(412 * 2, 1500 * 2);
+    tester.view.physicalSize = const Size(412 * 2, 1700 * 2);
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
 
@@ -86,6 +86,7 @@ void main() {
                   familyId: 'Pip',
                   owned: {},
                   selectedPathId: null,
+                  expanded: true,
                 ),
               ],
             ),
