@@ -930,6 +930,17 @@ Two things this does not resolve:
   bounced between +9% and +15% across runs of the same build. Treat these as
   directional.
 
+## Developer tools unlock the whole tree
+
+With the developer switch on in the profile screen, every node of every family
+reads as owned. It is a read-time override in `FamilyMasteryService` and writes
+nothing, so turning the switch off hands the account back exactly what it paid
+for rather than leaving it permanently rich.
+
+Unlocking is not equipping. A path still has to be chosen, and still only one
+at a time — testing the trees means switching between them, which is the thing
+the override is for.
+
 ## Decisions intentionally made
 
 - **Rhythm and Encore are not shown to the player.** War Rhythm's stack count

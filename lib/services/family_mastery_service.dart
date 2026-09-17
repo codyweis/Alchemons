@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/survival_family_mastery.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:flutter/foundation.dart';
 
 enum FamilyMasteryPurchaseResult {
@@ -37,8 +38,28 @@ class FamilyMasteryService extends ChangeNotifier {
 
   bool get isLoaded => _loaded;
 
+  /// Developer tools hand the whole tree over.
+  ///
+  /// A read-time override and nothing more: it never writes a purchase, so
+  /// turning the switch off returns the account to exactly what it paid for
+  /// rather than leaving it permanently rich. Choosing a path still matters —
+  /// one at a time is the design, and testing the trees means switching
+  /// between them, not owning them all at once.
+  bool get allNodesUnlocked => DebugSettingsService.toolsVisible;
+
+  /// Every node of [family], for the unlock override.
+  Set<String> _allNodesFor(CreatureFamily family) => {
+    for (final path in FamilyMasteryCatalog.treeFor(family).paths)
+      for (final node in path.nodes) node.id,
+  };
+
+  /// What this family effectively owns right now.
+  Set<String> _effectiveOwned(CreatureFamily family) => allNodesUnlocked
+      ? _allNodesFor(family)
+      : (_purchases[family] ?? const <String>{});
+
   Set<String> purchasedNodes(CreatureFamily family) =>
-      Set<String>.unmodifiable(_purchases[family] ?? const {});
+      Set<String>.unmodifiable(_effectiveOwned(family));
 
   String? selectedPathForFamily(CreatureFamily family) =>
       _selectedPaths[family];
@@ -46,6 +67,7 @@ class FamilyMasteryService extends ChangeNotifier {
   bool isNodePurchased(String nodeId) {
     final entry = FamilyMasteryCatalog.entryForNode(nodeId);
     if (entry == null) return false;
+    if (allNodesUnlocked) return true;
     return _purchases[entry.tree.family]?.contains(nodeId) ?? false;
   }
 
@@ -175,7 +197,7 @@ class FamilyMasteryService extends ChangeNotifier {
 
     final path = FamilyMasteryCatalog.pathFor(family, pathId);
     if (path == null) return FamilyMasteryEquipResult.invalidPath;
-    if (!owned.contains(path.nodes.first.id)) {
+    if (!allNodesUnlocked && !owned.contains(path.nodes.first.id)) {
       return FamilyMasteryEquipResult.pathNotUnlocked;
     }
 
@@ -238,7 +260,9 @@ class FamilyMasteryService extends ChangeNotifier {
       if (pathId == null) continue;
       final path = FamilyMasteryCatalog.pathFor(member.family, pathId);
       if (path == null) continue;
-      final owned = purchases[member.family] ?? const <String>{};
+      final owned = allNodesUnlocked
+          ? _allNodesFor(member.family)
+          : (purchases[member.family] ?? const <String>{});
       // An equipped path whose first node is not owned is not a build; it is
       // a stale selection, and a run must not inherit one.
       if (!owned.contains(path.nodes.first.id)) continue;
