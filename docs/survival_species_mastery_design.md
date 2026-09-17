@@ -544,7 +544,8 @@ Implement Horn, Kin, and Mystic after the shared runtime is stable. These requir
 ### Phase 6: complete interface and rollout
 
 1. ~~Polish the Base Command tree and family selector.~~ Done 2026-09-16; see *Mastery tab layout*.
-2. Add run-lock messaging, party badges, and pause summaries.
+2. Add run-lock messaging, party badges, and pause summaries. (Not a Rhythm
+   counter — see *Decisions intentionally made*.)
 3. Add VFX and sound distinctions for all capstones and payload forms.
 4. Run full survival simulations and regression tests.
 5. Ship family trees in batches if balance or art production requires it.
@@ -893,6 +894,14 @@ Two consequences are worth knowing before tuning any Mane node:
 Both mean the *special* half of a Fire or Lightning Mane's output is near
 zero, which is why their mastery share reads high while Ice's and Blood's
 reads low. The share is measuring the denominator, not the path.
+
+## Decisions intentionally made
+
+- **Rhythm and Encore are not shown to the player.** War Rhythm's stack count
+  and its Encore window exist only in run state; the player feels the attack
+  speed change rather than reading a counter. `maneMasteryFor(slot)` exposes
+  the state if that is ever revisited, but the absence is deliberate — do not
+  add a HUD for it on the assumption it was forgotten.
 
 ## Decisions intentionally deferred
 
