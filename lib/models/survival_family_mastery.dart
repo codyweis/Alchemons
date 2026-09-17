@@ -199,7 +199,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
         ),
         (
           'Endless Circuit',
-          "The first projectile of each special circles the arena rim, cutting down enemies as they come in. The rest fires at your target.",
+          "Your first special sends a shot to circle the arena rim for good, cutting down enemies as they come in. Later specials fire as normal.",
         ),
       ]),
     ],

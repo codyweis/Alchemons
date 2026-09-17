@@ -5829,13 +5829,33 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (noHorizon) projectile.masteryNoLifetime = true;
     }
 
-    if (has(ManeNodes.endlessCircuit)) {
+    // Only when this Mane has no circuit turning. If one is lost — carried
+    // out of the arena — the next cast quietly builds another.
+    if (has(ManeNodes.endlessCircuit) && !_hasManeCircuit(slotIndex)) {
       _sendManeProjectileToOrbit(projectiles.first, comp, slotIndex);
     }
   }
 
-  /// Endless Circuit: the first shot of the cast peels out to the rim and
-  /// circles the arena.
+  /// Whether this Mane already has a circuit riding the rim.
+  bool _hasManeCircuit(int slotIndex) {
+    for (final p in companionProjectiles) {
+      if (p.sourceSlotIndex == slotIndex &&
+          p.holdOrbit &&
+          p.masteryNoLifetime &&
+          p.life > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Endless Circuit: one shot peels out to the rim and circles the arena.
+  ///
+  /// Established once, not on every cast. Fifteen of the seventeen Mane
+  /// elements throw a single projectile, so taking the first shot of every
+  /// cast would mean those Manes never hit their target again — the special
+  /// would be permanently spent on a perimeter that already existed. One cast
+  /// builds the circuit; every cast after it fires normally.
   ///
   /// Enemies spawn on a ring around the orb and walk inward, so the rim is
   /// not empty space — it is the line every wave crosses on its way in. That
@@ -5845,17 +5865,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     CosmicSurvivalCompanion comp,
     int slotIndex,
   ) {
-    // One circuit per Mane. A new cast replaces the old orbiter rather than
-    // adding to it, or a long run ends up ringed by them and the projectile
-    // pool pays for it.
-    for (final existing in companionProjectiles) {
-      if (existing.sourceSlotIndex == slotIndex &&
-          existing.holdOrbit &&
-          existing.masteryNoLifetime) {
-        existing.life = 0;
-      }
-    }
-
     final centre = orb.position;
     final toCaster = comp.position - centre;
     final startAngle = toCaster.distance > 0.01

@@ -141,16 +141,23 @@ void main() {
     CosmicSurvivalEnemy target, {
     int slotIndex = 0,
     double gap = 140,
+    bool clearFirst = true,
   }) async {
     final comp = game.activeCompanions[slotIndex]!;
     comp.position = target.position - Offset(gap, 0);
     comp.basicCooldown = 99999;
     comp.specialCooldown = 0;
-    game.companionProjectiles.clear();
+    // Anything already in flight is usually noise, but not always: a test
+    // about a persistent circuit cannot wipe the circuit before looking for
+    // it. Callers that care keep the field.
+    final before = clearFirst
+        ? const <Projectile>{}
+        : game.companionProjectiles.toSet();
+    if (clearFirst) game.companionProjectiles.clear();
     game.update(1 / 60);
     comp.specialCooldown = 99999;
     return game.companionProjectiles
-        .where((p) => p.sourceSlotIndex == slotIndex)
+        .where((p) => p.sourceSlotIndex == slotIndex && !before.contains(p))
         .toList();
   }
 
@@ -459,8 +466,10 @@ void main() {
         final orbiters = shots.where((p) => p.holdOrbit).toList();
         expect(orbiters, hasLength(1));
         expect(identical(orbiters.first, shots.first), isTrue);
-        // The rest carry on at the target as normal.
+        // A fan keeps the rest of its cast for the target even on the cast
+        // that builds the circuit.
         expect(shots.skip(1).every((p) => !p.holdOrbit), isTrue);
+        expect(shots.length - 1, greaterThan(4));
       },
     );
 
@@ -486,16 +495,28 @@ void main() {
       }
     });
 
-    test('a second cast replaces the circuit rather than adding one', () async {
+    test('one cast builds the circuit and later casts fire normally', () async {
+      // The single-shot elements are why this matters. Fifteen of seventeen
+      // Manes throw one projectile, so taking the first shot of *every* cast
+      // would mean those Manes never hit their target again.
       final (game, target) = await arena(
         element: 'Ice',
         snapshot: equip(ManeNodes.limitlessPath),
       );
-      await castSpecial(game, target);
-      await castSpecial(game, target);
-      for (var i = 0; i < 5; i++) {
-        game.update(1 / 60);
-      }
+      final first = await castSpecial(game, target);
+      expect(first.where((p) => p.holdOrbit), hasLength(1));
+
+      final second = await castSpecial(game, target, clearFirst: false);
+      expect(
+        second.where((p) => p.holdOrbit),
+        isEmpty,
+        reason: 'The circuit is built once, not on every cast.',
+      );
+      expect(
+        second.where((p) => !p.holdOrbit),
+        isNotEmpty,
+        reason: 'The second cast has to actually reach the target.',
+      );
       expect(
         game.companionProjectiles.where((p) => p.holdOrbit).length,
         1,
