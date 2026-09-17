@@ -230,7 +230,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
       _path(
         'let.bombardment',
         'Bombardment',
-        'Your auto-attack meteor falls from the sky',
+        'Your auto-attack falls from the sky',
         [
           (
             'Deadfall',
@@ -568,7 +568,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
     family: CreatureFamily.mystic,
     chassis: FamilyCombatCopy.of(CreatureFamily.mystic).attack,
     paths: [
-      _path('mystic.assault', 'Starcaller', 'Make your spell volleys hit hard', [
+      _path('mystic.assault', 'Starcaller', 'Make your spell volleys count', [
         (
           'Aligned Stars',
           "Bolts fly 30% closer together and each deals 42% damage (up from 40%).",

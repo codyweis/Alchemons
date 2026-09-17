@@ -59,6 +59,7 @@ class FamilyMasteryPanel extends StatefulWidget {
     required this.goldBalance,
     required this.onCurrencyChanged,
     this.compact = false,
+    this.initialFamily,
   });
 
   final int silverBalance;
@@ -69,13 +70,16 @@ class FamilyMasteryPanel extends StatefulWidget {
   /// tucks away with it, leaving the docked tree crown at the top.
   final bool compact;
 
+  /// The family whose tree is shown first. Mane when not given.
+  final CreatureFamily? initialFamily;
+
   @override
   State<FamilyMasteryPanel> createState() => _FamilyMasteryPanelState();
 }
 
 class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
     with SingleTickerProviderStateMixin {
-  CreatureFamily _family = CreatureFamily.mane;
+  late CreatureFamily _family = widget.initialFamily ?? CreatureFamily.mane;
   final Map<CreatureFamily, String> _focusedNodes = {};
   String? _busyNodeId;
   String? _busyPathId;
@@ -2619,7 +2623,7 @@ class FamilyMasteryRosterSummary extends StatelessWidget {
     required this.owned,
     required this.selectedPathId,
     this.expanded = false,
-    this.onChoosePath,
+    this.onOpenTree,
   });
 
   final CreatureFamily family;
@@ -2627,8 +2631,8 @@ class FamilyMasteryRosterSummary extends StatelessWidget {
   final String? selectedPathId;
   final bool expanded;
 
-  /// Called from the empty state, which invites the player to pick a path.
-  final VoidCallback? onChoosePath;
+  /// Opens this family's tree in Base Command.
+  final VoidCallback? onOpenTree;
 
   static const double collapsedHeight = 96;
   static const double nodeLineHeight = 58;
@@ -2705,11 +2709,46 @@ class FamilyMasteryRosterSummary extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 2),
-        Text(
-          path.role,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: _muted, fontSize: 10.5),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                path.role,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: _muted, fontSize: 10.5),
+              ),
+            ),
+            if (onOpenTree != null)
+              GestureDetector(
+                key: ValueKey('roster-open-tree-${family.name}'),
+                behavior: HitTestBehavior.opaque,
+                onTap: onOpenTree,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 4, 0, 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'TREE',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: color,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      Icon(
+                        PhosphorIconsBold.caretRight,
+                        size: 11,
+                        color: color,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 8),
         _RosterGemTrack(path: path, ownedTiers: ownedTiers, color: color),
@@ -2737,7 +2776,7 @@ class FamilyMasteryRosterSummary extends StatelessWidget {
     return GestureDetector(
       key: ValueKey('roster-mastery-empty-${family.name}'),
       behavior: HitTestBehavior.opaque,
-      onTap: onChoosePath,
+      onTap: onOpenTree,
       child: SizedBox(
         height: collapsedHeight,
         child: Row(
@@ -2782,7 +2821,7 @@ class FamilyMasteryRosterSummary extends StatelessWidget {
                 ],
               ),
             ),
-            if (onChoosePath != null)
+            if (onOpenTree != null)
               Icon(PhosphorIconsBold.caretRight, size: 14, color: family.color),
           ],
         ),

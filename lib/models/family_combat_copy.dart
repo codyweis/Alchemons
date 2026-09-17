@@ -40,7 +40,7 @@ class FamilyCombatCopy {
 const Map<CreatureFamily, FamilyCombatCopy> kFamilyCombatCopy = {
   CreatureFamily.let: FamilyCombatCopy(
     role: 'Siege Caster',
-    attack: 'Throws one big, slow rock that hits hard.',
+    attack: 'Throws one big, slow rock.',
     special:
         'Calls a meteor down onto its target. The crater carries the element\'s own effect.',
   ),

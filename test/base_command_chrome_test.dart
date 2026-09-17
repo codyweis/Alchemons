@@ -1,5 +1,6 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_base_command_screen.dart';
+import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
@@ -28,7 +29,11 @@ void main() {
     await db.close();
   });
 
-  Future<void> pumpScreen(WidgetTester tester, {double height = 915}) async {
+  Future<void> pumpScreen(
+    WidgetTester tester, {
+    double height = 915,
+    CreatureFamily? family,
+  }) async {
     tester.view.physicalSize = Size(412 * 3, height * 3);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -47,8 +52,11 @@ void main() {
             ),
           ),
         ],
-        child: const MaterialApp(
-          home: CosmicSurvivalBaseCommandScreen(hideAbilities: true),
+        child: MaterialApp(
+          home: CosmicSurvivalBaseCommandScreen(
+            hideAbilities: true,
+            initialMasteryFamily: family,
+          ),
         ),
       ),
     );
@@ -146,6 +154,12 @@ void main() {
     await dragTree(tester, 80);
     expect(heightOf(tester, 'base-command-chrome'), greaterThan(0));
     expect(heightOf(tester, 'base-command-balance-bar'), 0);
+  });
+
+  testWidgets('opens on the family it was asked for', (tester) async {
+    await pumpScreen(tester, family: CreatureFamily.let);
+    expect(find.text('LET MASTERY'), findsOneWidget);
+    expect(find.text('MANE MASTERY'), findsNothing);
   });
 
   testWidgets('switching tabs brings the header back', (tester) async {

@@ -420,41 +420,6 @@ class _BonusChip extends StatelessWidget {
   }
 }
 
-/// "3 READY" on Base Command — the count of upgrades the player can afford
-/// right now.
-///
-/// Base Command is where every permanent upgrade lives, and the button gave
-/// no sign there was ever anything to do in there. Silver accumulates from
-/// runs whether or not you visit, so a player could bank enough for four
-/// upgrades and never know. This is the nag.
-class _ReadyBadge extends StatelessWidget {
-  const _ReadyBadge({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: _C.amber.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: _C.amberBright.withValues(alpha: 0.55)),
-      ),
-      child: Text(
-        '$count READY',
-        style: _display(
-          context,
-          10,
-          _C.amberBright,
-          weight: FontWeight.w900,
-          letterSpacing: 0.8,
-        ),
-      ),
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // SCREEN STATE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -741,28 +706,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     final currencies = await db.currencyDao.getAllCurrencies();
     if (!mounted) return;
     setState(() => _silver = currencies['silver'] ?? 0);
-  }
-
-  /// How many guardian upgrades the current silver would buy — counted one at
-  /// a time against a running balance, because buying the cheapest does not
-  /// leave you able to buy the rest.
-  ///
-  /// Abilities are deliberately not counted: this route opens Base Command
-  /// with hideAbilities, so promising an upgrade the player cannot see would
-  /// send them hunting for a tab that is not there.
-  int _affordableUpgrades(SurvivalUpgradeService svc) {
-    final costs = <int>[
-      for (final u in GuardianUpgrade.values)
-        if (svc.nextGuardianCost(u) != null) svc.nextGuardianCost(u)!,
-    ]..sort();
-    var purse = _silver;
-    var n = 0;
-    for (final c in costs) {
-      if (purse < c) break;
-      purse -= c;
-      n++;
-    }
-    return n;
   }
 
   String _formatHighScoreNumber(int n) {
@@ -2364,7 +2307,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                           }
                         });
                       }),
-                      onChoosePath: context.soundAction(_openBaseCommand),
+                      onOpenTree: context.soundAction(
+                        () => _openBaseCommand(family: family),
+                      ),
                     ),
                   );
                   return AnimatedBuilder(
@@ -2439,12 +2384,19 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     return _familyIndex.value.toDouble();
   }
 
-  /// Base Command, from anywhere in the lobby. Opens on Mastery.
-  Future<void> _openBaseCommand() async {
+  /// Base Command, from anywhere in the lobby. Opens on Mastery, showing
+  /// [family]'s tree — or, when none is given, the tree of whichever family
+  /// the roster is showing.
+  Future<void> _openBaseCommand({CreatureFamily? family}) async {
+    final shown =
+        family ??
+        creatureFamilyFromStorage(_cosmicFamilyInfos[_familyIndex.value].id);
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            const CosmicSurvivalBaseCommandScreen(hideAbilities: true),
+        builder: (_) => CosmicSurvivalBaseCommandScreen(
+          hideAbilities: true,
+          initialMasteryFamily: shown,
+        ),
       ),
     );
     await _loadSilver();
@@ -2462,14 +2414,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     return Consumer<SurvivalUpgradeService>(
       builder: (context, svc, _) {
         final orb = getOrbBaseDef(svc.state.equippedSkin);
-        final ready = _affordableUpgrades(svc);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const _EtchedDivider(label: 'DEPLOYMENT'),
             const SizedBox(height: 14),
             GestureDetector(
-              onTap: context.soundAction(_openBaseCommand),
+              onTap: context.soundAction(() => _openBaseCommand()),
               child: CustomPaint(
                 painter: _BracketFramePainter(
                   color: orb.glowColor.withValues(alpha: 0.40),
@@ -2504,14 +2455,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                     ),
                                   ),
                                 ),
-                                // The nag the Base Command button used to
-                                // carry. The button is gone — this panel is
-                                // the way in now — but the count is the whole
-                                // reason a player would think to go.
-                                if (ready > 0) ...[
-                                  _ReadyBadge(count: ready),
-                                  const SizedBox(width: 6),
-                                ],
                                 Icon(
                                   AppIcons.chevron_right_rounded,
                                   size: 16,
@@ -3820,7 +3763,7 @@ class _SpeciesCard extends StatelessWidget {
     required this.selectedPathId,
     required this.expanded,
     required this.onTap,
-    required this.onChoosePath,
+    required this.onOpenTree,
   });
 
   final _FamilyInfo info;
@@ -3829,7 +3772,9 @@ class _SpeciesCard extends StatelessWidget {
   final String? selectedPathId;
   final bool expanded;
   final VoidCallback? onTap;
-  final VoidCallback? onChoosePath;
+
+  /// Opens this family's tree in Base Command.
+  final VoidCallback? onOpenTree;
 
   static const double _portraitWidth = 112;
   static const double _baseHeight = 300;
@@ -3940,7 +3885,7 @@ class _SpeciesCard extends StatelessWidget {
                         owned: owned,
                         selectedPathId: selectedPathId,
                         expanded: expanded,
-                        onChoosePath: onChoosePath,
+                        onOpenTree: onOpenTree,
                       ),
                   ],
                 ),
@@ -3972,7 +3917,7 @@ class _SpeciesPortrait extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+          padding: const EdgeInsets.all(16),
           // Tinted in the image paint itself; a ColorFiltered wrapper cost an
           // offscreen layer on every card, every swipe frame.
           child: Image.asset(
@@ -3981,35 +3926,6 @@ class _SpeciesPortrait extends StatelessWidget {
             color: info.color.withValues(alpha: 0.9),
             colorBlendMode: BlendMode.srcATop,
             cacheWidth: 256,
-          ),
-        ),
-        Positioned(
-          left: 8,
-          right: 8,
-          bottom: 12,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            decoration: BoxDecoration(
-              color: info.color.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(2),
-              border: Border.all(
-                color: info.color.withValues(alpha: 0.5),
-                width: 0.8,
-              ),
-            ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                info.role,
-                style: _display(
-                  context,
-                  12,
-                  info.color,
-                  weight: FontWeight.w700,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ),
           ),
         ),
       ],
@@ -4098,7 +4014,7 @@ class SurvivalSpeciesCardPreview extends StatelessWidget {
         selectedPathId: selectedPathId,
         expanded: expanded,
         onTap: () {},
-        onChoosePath: () {},
+        onOpenTree: () {},
       ),
     );
   }

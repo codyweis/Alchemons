@@ -10,6 +10,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart' show ShipComponent;
 import 'package:alchemons/games/cosmic_survival/components/family_mastery_panel.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_ship_loadout.dart';
+import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
@@ -79,10 +80,14 @@ class CosmicSurvivalBaseCommandScreen extends StatefulWidget {
   const CosmicSurvivalBaseCommandScreen({
     super.key,
     this.hideAbilities = false,
+    this.initialMasteryFamily,
   });
 
   /// When true, the Base Abilities tab is hidden (used in cosmic survival).
   final bool hideAbilities;
+
+  /// The family whose mastery tree the Mastery tab opens on.
+  final CreatureFamily? initialMasteryFamily;
 
   @override
   State<CosmicSurvivalBaseCommandScreen> createState() =>
@@ -211,6 +216,7 @@ class _CosmicSurvivalBaseCommandScreenState
                             silverBalance: _silverBalance,
                             goldBalance: _goldBalance,
                             onCurrencyChanged: _loadCurrencies,
+                            initialFamily: widget.initialMasteryFamily,
                             compact: _chromeCollapsed,
                           ),
                           _buildOrbSkinsTab(svc, shopService),

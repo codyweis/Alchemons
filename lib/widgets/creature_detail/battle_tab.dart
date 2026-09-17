@@ -956,7 +956,7 @@ _CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
     case 'Let':
       bullets.addAll([
         'Lets are siege companions: they commit to lanes, fire from safer distance, and do not want to brawl on top of enemies.',
-        'Every Let special starts with a heavy meteor identity, then the element decides whether the follow-through becomes lances, shards, homing pressure, orbiting blades, or a real control field.',
+        'Every Let special is a meteor that falls onto its target. The element decides what the crater does.',
       ]);
       if ([
         'Earth',
@@ -1227,7 +1227,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
         name: "$element Ram Shot",
         subtitle: attack!,
         description:
-            "Fires one large, slow $element shot with a wide hitbox. It hits hard, but enemies can see it coming.",
+            "Fires one large, slow $element shot with a wide hitbox. Enemies can see it coming.",
         icon: AppIcons.shield,
       );
     case 'Mask':
@@ -1275,7 +1275,7 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
         name: "$element Meteor Stone",
         subtitle: attack!,
         description:
-            "Throws one big, slow $element rock. It hits hard, but takes a moment to arrive.",
+            "Throws one big, slow $element rock that takes a moment to arrive.",
         icon: AppIcons.south,
       );
     default:
