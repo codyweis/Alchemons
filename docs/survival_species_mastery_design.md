@@ -261,32 +261,59 @@ The big one tells the rest where to land: the special meteor marks, the auto-att
 
 **Existing chassis:** three fast spread darts at 30% physical damage each. Pip is the rapid, precision-volume family.
 
+A rule the whole family is built around: **no path may take a mechanic an
+element already owns.** Pip's seventeen specials between them claim push
+(Air), slow fields (Dust, Mud), damage over time (Fire, Lava), persistent
+lines (Poison), healing (Blood, Light), cooldown shaving (Earth),
+attack-speed windows (Steam, Spirit), taunts (Crystal), ricochets
+(Lightning), freezing (Ice), meter gain (Plant), kill-splash (Water) and
+black holes (Dark). The family's first design had a ricochet path and an
+attack-speed path, which would have handed Lightning's, Steam's and Spirit's
+identities to every Pip that bought them. Both were replaced. What was left
+unclaimed — marks, dart counts, target spread — is what these paths are made
+of.
+
 ### Assault — Needlepoint
 
-Converging volleys and focused target execution.
+All three darts into one body.
 
-1. **Tight Grouping** — Dart spread narrows by 45%; each dart deals 32% physical damage.
-2. **Pin Cushion** — A full volley hit adds one Pin, up to five. Each Pin increases Pip basic damage to that target by 3%.
-3. **Pluck the Pins** — Hitting a five-Pin target consumes the Pins for 55% physical damage. Bosses retain two Pins after detonation.
-4. **Capstone: Thousand Cuts** — Every fourth full-volley hit launches a second five-dart focused volley after 0.2 seconds. Each bonus dart deals 16% physical damage and cannot add Pins.
+1. **Tight Grouping** — Spread narrows 45%; each dart deals 32% physical.
+2. **Pin Cushion** — A full volley on one body banks a Pin, up to five. Each Pin adds 3% to Pip damage against it. Pins lapse after 6 seconds untouched.
+3. **Pluck the Pins** — Hitting a five-Pin body spends them for 55% physical. A boss keeps two, so the loop can restart against something that will not die to one detonation.
+4. **Capstone: Thousand Cuts** — Every fourth full volley throws a second five-dart volley 0.2s later at 16% each. The bonus volley cannot bank Pins, or it would feed itself.
 
-### Control — Impossible Angles
+### Control — Scattershot
 
-Ricochets and distributed elemental pressure.
+One dart into each of three bodies.
 
-1. **Bank Shot** — The center dart ricochets once to a new target for 45% of its damage.
-2. **Split Decision** — Side darts gain light homing toward separate nearby enemies and deal 34% physical damage when they hit different targets.
-3. **Trick Payload** — The first ricochet or side-dart hit each cast triggers one elemental payload at 75% strength.
-4. **Capstone: No Safe Angle** — Every fifth cast sends six darts outward before they bend toward unique targets. Each deals 22% physical damage; up to two may select the same enemy.
+1. **Wide Spray** — Spread widens 40% and each dart curves toward its own nearby enemy. Widening without seeking would only miss.
+2. **Three Fronts** — Three darts on three different bodies pays every one of them 20% extra.
+3. **Fourth Barrel** — The volley fires a fourth dart.
+4. **Capstone: Scatter Storm** — Every fifth attack throws eight darts, each seeking its own body, at 22% each. Not counted as another scheduled attack.
 
-### Resonance — Quickwork
+### Salvo
 
-Sustained accuracy produces a special-driven firing window.
+Leaves the volley alone and loads the special instead.
 
-1. **Clean Volley** — A full volley hit grants one Tempo, up to six. Tempo expires after 4 seconds without another full volley. Each Tempo grants 1.5% basic damage.
-2. **Fast Hands** — Every two Tempo grant 4% basic attack speed. Element-specific Pip passives that already own attack speed convert this bonus into 4% basic damage instead.
-3. **Cash Out** — Casting the special consumes Tempo. The next cast per Tempo fires one additional dart at 18% physical damage.
-4. **Capstone: Overflow** — Consuming six Tempo grants 5 seconds of Overflow: volleys fire four darts, their total main-hit budget is 110% of baseline, and every third cast triggers one payload. Overflow cannot be extended.
+1. **Spare Needle** — One more dart on the special, at 70% of an authored dart.
+2. **Double Load** — Another.
+3. **Full Quiver** — Another.
+4. **Capstone: Perfect Salvo** — A fourth extra dart, and every extra now hits at full strength.
+
+Each extra is a *copy of the element's own dart*, so a Lightning salvo still
+ricochets five times and a Blood salvo still heals on a kill. The path adds
+darts; it never decides what a dart does.
+
+Two consequences, both accepted:
+
+- **A flat dart is worth different amounts per element.** Lava throws two
+  darts, so four more nearly triples it; Lightning throws six, so four more is
+  a 1.7x lift. Scaling by percentage instead would be fairer and far less
+  legible on a tooltip.
+- **Salvo gives a Dark Pip nothing.** Pip+Dark is passive-only and has no cast
+  at all, so all four nodes are dead for it. That is the intended shape of the
+  choice rather than an oversight: a Dark player takes Needlepoint or
+  Scattershot, and a test asserts the zero so nobody later "fixes" it.
 
 ---
 

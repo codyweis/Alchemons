@@ -107,12 +107,19 @@ void main() {
     expect(cdr, lessThan(1.0));
     expect(find.text('×${(1 / cdr).toStringAsFixed(2)}'), findsOneWidget);
 
-    // The drivers card bridges the Analysis tab's ratings to those figures.
-    expect(find.text('GENETIC DRIVERS'), findsOneWidget);
+    // The source card bridges the Analysis tab's ratings to those figures and
+    // names the only extra source instead of showing unexplained +N values.
+    expect(find.text('WHAT POWERS THESE STATS'), findsOneWidget);
     expect(find.text('STRENGTH'), findsOneWidget);
     expect(find.text('P-ATK · CRIT · HP · P-DEF'), findsOneWidget);
-    // Display scale is internal x100, so the legacy curve's ceiling reads 500.
-    expect(find.textContaining('Ratings past 500'), findsOneWidget);
+    expect(find.textContaining('Combat Constellation bonuses'), findsOneWidget);
+    expect(find.textContaining('Ratings past 500'), findsNothing);
+
+    // Attack cadence is now explicit, and the old mode-specific appendix is
+    // no longer part of the creature's core battle explanation.
+    expect(find.text('Auto Attack'), findsOneWidget);
+    expect(find.text('Special Ability'), findsOneWidget);
+    expect(find.text('Survival'), findsNothing);
   });
 
   testWidgets('reported HP and DEF include the family shape modifiers', (

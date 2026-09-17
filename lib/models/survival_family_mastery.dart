@@ -227,29 +227,24 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           "Every 5th auto-attack meteor is a giant comet that deals 210% damage across a wide crater.",
         ),
       ]),
-      _path(
-        'let.bombardment',
-        'Bombardment',
-        'Your auto-attack falls from the sky',
-        [
-          (
-            'Deadfall',
-            "Your auto-attack meteor drops onto its target from above. It can't be dodged and lands in a small crater after a short fall.",
-          ),
-          (
-            'Heavy Ordnance',
-            "Your auto-attack crater is 35% wider, and everything in it takes 75% of the hit (up from 55%).",
-          ),
-          (
-            'Ranging Shots',
-            "+25% attack range. Each drop on the same enemy within 3s of the last lands 10% harder, up to +30%.",
-          ),
-          (
-            'Skyreach',
-            "Your auto-attack meteor can reach any enemy in the arena, always landing on the toughest one.",
-          ),
-        ],
-      ),
+      _path('let.bombardment', 'Bombardment', 'Your auto-attack falls from the sky', [
+        (
+          'Deadfall',
+          "Your auto-attack meteor drops onto its target from above. It can't be dodged and lands in a small crater after a short fall.",
+        ),
+        (
+          'Heavy Ordnance',
+          "Your auto-attack crater is 35% wider, and everything in it takes 75% of the hit (up from 55%).",
+        ),
+        (
+          'Ranging Shots',
+          "+25% attack range. Each drop on the same enemy within 3s of the last lands 10% harder, up to +30%.",
+        ),
+        (
+          'Skyreach',
+          "Your auto-attack meteor can reach any enemy in the arena, always landing on the toughest one.",
+        ),
+      ]),
       _path('let.ground_zero', 'Ground Zero', 'Your special meteor marks targets', [
         (
           'Sighted',
@@ -292,40 +287,37 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           "Every 4th time all 3 darts land, fire a bonus 5-dart volley at the same enemy (16% damage each).",
         ),
       ]),
-      _path('pip.control', 'Impossible Angles', 'Trick shots that hit everything', [
+      _path('pip.control', 'Scattershot', 'Spray darts across the whole crowd', [
         (
-          'Bank Shot',
-          "Your center dart ricochets to a second enemy for 45% of its damage.",
+          'Wide Spray',
+          "Darts fly 40% further apart and each curves toward its own nearby enemy.",
         ),
         (
-          'Split Decision',
-          "Side darts curve toward different nearby enemies and deal 34% damage when they split up.",
+          'Three Fronts',
+          "When your 3 darts hit 3 different enemies, each one deals +20% damage.",
         ),
+        ('Fourth Barrel', "Your attack fires a 4th dart."),
         (
-          'Trick Payload',
-          "The first ricochet or side-dart hit of each attack applies your element's effect at 75% strength.",
-        ),
-        (
-          'No Safe Angle',
-          "Every 5th attack fires 6 darts that curve into different enemies (22% damage each).",
+          'Scatter Storm',
+          "Every 5th attack throws 8 darts, each seeking its own enemy (22% damage each).",
         ),
       ]),
-      _path('pip.resonance', 'Quickwork', 'Accuracy fuels faster firing', [
+      _path('pip.salvo', 'Salvo', 'Load more darts into every special', [
         (
-          'Clean Volley',
-          "Landing all 3 darts builds Tempo (max 6, fades after 4s). Each Tempo gives +1.5% dart damage.",
+          'Spare Needle',
+          "Your special throws 1 more dart, at 70% of a normal dart's damage.",
         ),
         (
-          'Fast Hands',
-          "Every 2 Tempo also gives +4% attack speed (+4% damage instead for Pips that already boost speed).",
+          'Double Load',
+          "Your special throws another dart, also at 70% damage.",
         ),
         (
-          'Cash Out',
-          "Casting your special spends all Tempo: each one adds an extra dart (18% damage) to one of your next attacks.",
+          'Full Quiver',
+          "Your special throws another dart, also at 70% damage.",
         ),
         (
-          'Overflow',
-          "Spending 6 Tempo starts 5s of Overflow: 4-dart volleys, and every 3rd attack applies your element's effect.",
+          'Perfect Salvo',
+          "Your special throws a 4th extra dart, and every extra dart now hits as hard as the rest.",
         ),
       ]),
     ],

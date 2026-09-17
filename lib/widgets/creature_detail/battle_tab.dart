@@ -66,7 +66,6 @@ class _ExploreTab extends StatelessWidget {
     final basic = _cosmicFamilyBasicInfo(family, element);
     final special = cosmicFamilySpecialInfo(family, element);
     final specialName = cosmicSpecialAbilityName(family, element);
-    final mechanicNote = _elementMechanicNote(family, element);
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -83,31 +82,32 @@ class _ExploreTab extends StatelessWidget {
           const BracketSectionDivider(label: 'Role'),
           const SizedBox(height: 10),
           _BracketInfoCard(title: role.title, description: role.description),
+          const SizedBox(height: 10),
+          const _BracketInfoCard(
+            title: 'How attacks work',
+            description:
+                'Auto attack: Repeats whenever an enemy is in range. '
+                'Special ability: Activates when its cooldown is ready. Some variants replace the special with an always-on passive.',
+          ),
           const SizedBox(height: 18),
-          const BracketSectionDivider(label: 'Basic'),
+          const BracketSectionDivider(label: 'Auto Attack'),
           const SizedBox(height: 10),
           _BracketInfoCard(
             title: basic.name,
-            subtitle: basic.subtitle,
             description: basic.description,
+            icon: basic.icon,
           ),
           const SizedBox(height: 18),
-          const BracketSectionDivider(label: 'Special'),
+          const BracketSectionDivider(label: 'Special Ability'),
           const SizedBox(height: 10),
           _BracketInfoCard(
             title: specialName,
             subtitle: special.subtitle,
             description: special.description,
             icon: special.icon,
-            accent: _survivalAccentColor(element),
+            accent: _elementAccentColor(element),
             featured: true,
-            footerLabel: mechanicNote?.label,
-            footerBody: mechanicNote?.body,
           ),
-          const SizedBox(height: 18),
-          const BracketSectionDivider(label: 'Survival'),
-          const SizedBox(height: 10),
-          _SurvivalBracketCard(family: family, element: element),
         ],
       ),
     );
@@ -392,7 +392,7 @@ class _GeneticDriversCard extends StatelessWidget {
                 Container(width: 3, height: 10, color: accent),
                 const SizedBox(width: 7),
                 Text(
-                  'GENETIC DRIVERS',
+                  'WHAT POWERS THESE STATS',
                   style: bracketText(
                     context,
                     11,
@@ -404,26 +404,25 @@ class _GeneticDriversCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            for (var i = 0; i < drivers.length; i++) ...[
-              if (i > 0) const SizedBox(height: 9),
-              _GeneticDriverRow(driver: drivers[i], accent: accent),
-            ],
-            const SizedBox(height: 11),
-            Container(height: 1, color: palette.line.withValues(alpha: 0.35)),
-            const SizedBox(height: 9),
             Text(
-              'Ratings past ${AlchemonStatSystem.displayRating(CosmicBalance.maxCombatStat)} '
-              'keep adding power, at a reduced rate.',
+              'Analysis ratings set the baseline. Combat Constellation bonuses are added before the battle stats above are calculated.',
               style: bracketText(
                 context,
                 11,
-                palette.muted.withValues(alpha: 0.85),
+                palette.muted,
                 weight: FontWeight.w500,
               ),
               strutStyle: const StrutStyle(height: 1.35),
             ),
+            const SizedBox(height: 10),
+            for (var i = 0; i < drivers.length; i++) ...[
+              if (i > 0) const SizedBox(height: 9),
+              _GeneticDriverRow(driver: drivers[i], accent: accent),
+            ],
             if (shapeNote != null) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 11),
+              Container(height: 1, color: palette.line.withValues(alpha: 0.35)),
+              const SizedBox(height: 9),
               Text(
                 shapeNote,
                 style: bracketText(
@@ -497,16 +496,6 @@ class _GeneticDriverRow extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            if (bonus > 0)
-              Text(
-                ' (+$bonus)',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: palette.muted,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
           ],
         ),
         const SizedBox(height: 2),
@@ -519,6 +508,13 @@ class _GeneticDriverRow extends StatelessWidget {
             weight: FontWeight.w500,
           ),
         ),
+        if (bonus > 0) ...[
+          const SizedBox(height: 2),
+          Text(
+            'Includes +$bonus from Combat Constellation.',
+            style: bracketText(context, 10.5, accent, weight: FontWeight.w600),
+          ),
+        ],
       ],
     );
   }
@@ -553,8 +549,6 @@ class _BracketInfoCard extends StatelessWidget {
     this.icon,
     this.accent,
     this.featured = false,
-    this.footerLabel,
-    this.footerBody,
   });
 
   final String title;
@@ -563,51 +557,12 @@ class _BracketInfoCard extends StatelessWidget {
   final IconData? icon;
   final Color? accent;
   final bool featured;
-  final String? footerLabel;
-  final String? footerBody;
 
   @override
   Widget build(BuildContext context) {
     final palette = BracketPalette.of(context);
     final theme = context.read<FactionTheme>();
     final activeAccent = bracketReadableAccent(theme, color: accent);
-    final footer = (footerLabel != null && footerBody != null)
-        ? Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(width: 3, height: 10, color: activeAccent),
-                    const SizedBox(width: 7),
-                    Text(
-                      footerLabel!.toUpperCase(),
-                      style: bracketText(
-                        context,
-                        11,
-                        activeAccent,
-                        weight: FontWeight.w700,
-                        letterSpacing: 0.9,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  footerBody!,
-                  style: bracketText(
-                    context,
-                    12.5,
-                    palette.muted,
-                    weight: FontWeight.w500,
-                  ),
-                  strutStyle: const StrutStyle(height: 1.45),
-                ),
-              ],
-            ),
-          )
-        : null;
 
     // Bracket corners on a full-width card read as scaffolding rather than
     // structure; a plain edge does the same job without the ornament.
@@ -688,7 +643,6 @@ class _BracketInfoCard extends StatelessWidget {
               accent: activeAccent,
               textColor: palette.muted,
             ),
-            if (footer != null) footer,
           ],
         ),
       ),
@@ -766,97 +720,13 @@ class _AbilityDescriptionText extends StatelessWidget {
   }
 }
 
-class _SurvivalBracketCard extends StatelessWidget {
-  const _SurvivalBracketCard({required this.family, required this.element});
-
-  final String family;
-  final String element;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.of(context);
-    final notes = _cosmicSurvivalNotes(family, element);
-    final accent = _survivalAccentColor(element);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: palette.surfaceFill(),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: accent.withValues(alpha: 0.35)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Icon(
-                    AppIcons.blur_circular_rounded,
-                    size: 14,
-                    color: accent,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    notes.summary,
-                    style: bracketText(
-                      context,
-                      12.5,
-                      palette.ink,
-                      weight: FontWeight.w600,
-                    ),
-                    strutStyle: const StrutStyle(height: 1.4),
-                  ),
-                ),
-              ],
-            ),
-            if (notes.bullets.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              for (var i = 0; i < notes.bullets.length; i++) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Container(width: 5, height: 5, color: accent),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        notes.bullets[i],
-                        style: bracketText(
-                          context,
-                          12,
-                          palette.muted,
-                          weight: FontWeight.w500,
-                        ),
-                        strutStyle: const StrutStyle(height: 1.4),
-                      ),
-                    ),
-                  ],
-                ),
-                if (i < notes.bullets.length - 1) const SizedBox(height: 8),
-              ],
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 _CosmicFamilyRole _cosmicFamilyRole(String family) {
   final copy = FamilyCombatCopy.forName(family);
   return _CosmicFamilyRole(
     title: copy?.role ?? 'Companion',
     description: copy == null
         ? 'A loyal companion that fights alongside your ship.'
-        : 'Targets: ${copy.targets} ${copy.position}',
+        : 'Targets: ${copy.targets} Position: ${copy.position}',
   );
 }
 
@@ -867,286 +737,7 @@ class _CosmicFamilyRole {
   const _CosmicFamilyRole({required this.title, required this.description});
 }
 
-class _CosmicSurvivalNotes {
-  final String summary;
-  final List<String> bullets;
-
-  const _CosmicSurvivalNotes({required this.summary, required this.bullets});
-}
-
-_CosmicSurvivalNotes _cosmicSurvivalNotes(String family, String element) {
-  final normalizedFamily = family.trim();
-  final normalizedElement = element.trim();
-
-  final bullets = <String>[];
-
-  switch (normalizedFamily) {
-    case 'Horn':
-      bullets.addAll([
-        'Horns are the frontline bastion family in survival: they push forward, intercept orb threats, and fight closer than most companions.',
-        'Horn identity includes a deliberate tradeoff: lower outgoing damage for stronger damage soaking and frontline uptime.',
-        'Shield-heavy Horn variants buy time for the whole defense line, while taunt, slow, and intercept variants keep pressure pointed at the front.',
-      ]);
-      if ([
-        'Earth',
-        'Lava',
-        'Mud',
-        'Blood',
-        'Ice',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Horn leans especially hard into anchor duty with heavier body-blocking, sturdier pressure, or longer frontline presence.',
-        );
-      } else if ([
-        'Light',
-        'Crystal',
-        'Lightning',
-        'Air',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Horn is more of a guard-response variant, using interceptions or fast peel to stop priority threats before they reach the orb.',
-        );
-      } else if ([
-        'Water',
-        'Steam',
-        'Plant',
-        'Poison',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Horn adds lane control or recovery to the charge, helping the frontline stabilize without replacing dedicated support.',
-        );
-      }
-      return _CosmicSurvivalNotes(
-        summary:
-            'Horn plays as an aggressive tank in cosmic survival: it stands in front of danger, takes reduced incoming damage, and gives up some DPS to hold the line.',
-        bullets: bullets,
-      );
-    case 'Wing':
-      bullets.addAll([
-        'Wings are mobile hunters: they chase shooters, peel hunters, and keep moving instead of holding a static line.',
-        'They are strongest when you need pursuit, cleanup, or boss pressure rather than pure orb anchoring.',
-      ]);
-      if (['Spirit', 'Air', 'Lightning', 'Light'].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Wing is one of the cleaner pursuit variants, so it excels at finishing scattered enemies before they rejoin the wave.',
-        );
-      }
-      return _CosmicSurvivalNotes(
-        summary:
-            'Wing is a skirmisher in survival. It wins by flying at vulnerable targets, re-angling constantly, and preventing backline enemies from getting comfortable.',
-        bullets: bullets,
-      );
-    case 'Let':
-      bullets.addAll([
-        'Lets are siege companions: they commit to lanes, fire from safer distance, and do not want to brawl on top of enemies.',
-        'Every Let special is a meteor that falls onto its target. The element decides what the crater does.',
-      ]);
-      if ([
-        'Earth',
-        'Mud',
-        'Steam',
-        'Poison',
-        'Dark',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Let is one of the anchored field variants, so it shines when enemies are funneled through one lane and forced to sit inside its setup.',
-        );
-      } else if (['Ice', 'Plant'].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Let uses moving snare pressure rather than a static field, so it is better at catching targets while the wave is still shifting.',
-        );
-      }
-      return _CosmicSurvivalNotes(
-        summary:
-            'Let behaves like siege artillery in survival: slower to reposition, heavier on commitment, and best when it can shape a lane before enemies reach the orb.',
-        bullets: bullets,
-      );
-    case 'Pip':
-      bullets.addAll([
-        'Pips are cleanup assassins: they dart after weak or spread-out enemies and keep pressure high between larger specials.',
-        'Pip identity is speed-first tempo: strong wave picks and chase pressure, but reduced boss damage compared with most families.',
-        'They are valuable for removing messy leftovers so bulkier allies can stay on important threats, and they should not play like static lane holders.',
-      ]);
-      if ([
-        'Lightning',
-        'Air',
-        'Crystal',
-        'Light',
-        'Fire',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Pip is one of the better rebound or speed-chain variants, so it gets extra value when waves arrive in clumps or staggered packs.',
-        );
-      } else if ([
-        'Ice',
-        'Mud',
-        'Plant',
-        'Poison',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Pip adds moving snare pressure to its chase pattern, so it helps catch leaks without becoming a true field-control family.',
-        );
-      } else if ([
-        'Earth',
-        'Lava',
-        'Dark',
-        'Blood',
-        'Spirit',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Pip leans into heavier cleanup shots, trading some volume for stronger pursuit or finishing power.',
-        );
-      }
-      return _CosmicSurvivalNotes(
-        summary:
-            'Pip is a fast tempo finisher in survival. It should feel surgical and opportunistic, strongest in wave cleanup and intentionally weaker in boss races.',
-        bullets: bullets,
-      );
-    case 'Mane':
-      bullets.addAll([
-        'Mane species are offense-first catapult bruisers: they step up and fire piercing specials with a distinct payoff per species.',
-        'They are best when paired with a true anchor behind them, because Mane species win by pressure cadence and lane control, not by bunker control.',
-      ]);
-      final elementDetail = switch (normalizedElement) {
-        'Water' =>
-          'Watermane launches a massive water wall that carries enemies with it as it travels.',
-        'Steam' =>
-          'Steammane fires a big traveling geyser that releases damaging steam puffs along its path.',
-        'Plant' =>
-          'Plantmane roots every enemy it hits; rooted kills burst into plant area damage that can root nearby enemies too.',
-        'Poison' =>
-          'Poisonmane poisons every enemy pierced, stacking toxin pressure across the whole line.',
-        'Crystal' =>
-          'Crystalmane pierces packs normally, but detonates into a huge boss-shattering crystal burst on boss contact.',
-        'Blood' =>
-          'Bloodmane heals from every enemy it pierces, turning a clean line through a pack into direct sustain.',
-        'Dark' =>
-          'Darkmane sends a slow void cut that pulls enemies inward and punishes weakened targets caught in it.',
-        'Earth' =>
-          'Earthmane launches a huge slow fault slab that grinds through enemies and leaves quake bursts as it breaks apart.',
-        'Fire' =>
-          'Firemane throws a dense wave of fast fireballs through the lane for immediate piercing pressure.',
-        'Lightning' =>
-          'Lightningmane shoots small lightning balls to scattered map spots; each lands as a compact zap trap.',
-        'Air' =>
-          'Airmane pierces in a wide gust pattern and pushes every enemy in its path forward with the projectile.',
-        'Dust' =>
-          'Dustmane leaves suppressing dust clouds behind its projectile so enemies caught in the trail stop shooting.',
-        'Ice' =>
-          'Icemane freezes anything its piercing frost shot touches while traveling.',
-        'Mud' =>
-          'Mudmane breaks apart on the first enemy hit, scattering ten mud shards in every direction.',
-        'Lava' =>
-          'Lavamane leaves a burning lava blob at every enemy collision, turning the pierce path into damage-over-time zones.',
-        'Spirit' =>
-          'Spiritmane starts with one soul shot and ramps into a machine-gun stream up to ten shots before resetting.',
-        'Light' =>
-          'Lightmane launches a slow glowing orb that grows bigger and hits harder every time it pierces an enemy.',
-        _ =>
-          '$normalizedElement Mane keeps the offense-first catapult pattern with a species-specific piercing payoff.',
-      };
-      bullets.add(elementDetail);
-      return _CosmicSurvivalNotes(
-        summary:
-            'Mane species are offense-first catapult bruisers in survival. Each one has a distinct piercing payoff instead of a generic slash.',
-        bullets: bullets,
-      );
-    case 'Kin':
-      bullets.addAll([
-        'Kins are support escorts: they hold a safer distance, keep guardian pieces active, and stabilize the defense line instead of overcommitting.',
-        'They are at their best when their orbitals, blessings, intercepts, or support zones stay online long enough to shape the fight.',
-      ]);
-      if (['Light', 'Water', 'Crystal'].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Kin is one of the cleanest pure-support variants, with stronger escort, reinforcement, or interception value than most families get.',
-        );
-      } else if ([
-        'Steam',
-        'Mud',
-        'Earth',
-        'Plant',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Kin leans more into forward control pieces, so it plays like a support-artillery hybrid instead of a pure healer.',
-        );
-      }
-      return _CosmicSurvivalNotes(
-        summary:
-            'Kin is the dedicated support family in survival. It creates safer space through healing, blessing, escort orbitals, and control pieces rather than raw burst.',
-        bullets: bullets,
-      );
-    case 'Mystic':
-      bullets.addAll([
-        'Mystics are premium ultimate casters: they care more about landing one fight-shaping special than constant uptime.',
-        'They are strongest when the fight gives them time to establish collapses, control zones, sentinels, trap patterns, or hunter swarms.',
-      ]);
-      if ([
-        'Steam',
-        'Dark',
-        'Earth',
-        'Poison',
-        'Light',
-        'Air',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Mystic is especially survival-relevant because it creates defensive orbitals, interception, taunt control, or long-lived denial space.',
-        );
-      } else if ([
-        'Fire',
-        'Lightning',
-        'Crystal',
-        'Dust',
-        'Lava',
-        'Spirit',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Mystic is the more offensive ultimate style, using collapse burst, chain pressure, heavy projectiles, or hunter damage to swing a wave.',
-        );
-      } else if (normalizedElement == 'Blood') {
-        bullets.add(
-          'Blood Mystic adds sustain on top of its control pattern, making it one of the safest long-run mystic picks.',
-        );
-      }
-      return _CosmicSurvivalNotes(
-        summary:
-            'Mystic is the premium ultimate family in survival. It should feel deliberate, setup-heavy, and capable of reshaping the battlefield with one special.',
-        bullets: bullets,
-      );
-    case 'Mask':
-      bullets.addAll([
-        'Masks are battlefield manipulators: they lure, misdirect, snare, and punish enemies for choosing the wrong path.',
-        'They are best in normal waves where aggro control and trap placement can peel pressure off the orb before the line breaks.',
-      ]);
-      if ([
-        'Mud',
-        'Dark',
-        'Steam',
-        'Poison',
-        'Earth',
-        'Light',
-      ].contains(normalizedElement)) {
-        bullets.add(
-          '$normalizedElement Mask is one of the stronger trap-control variants, so it gets most of its value from where it places pressure rather than from direct burst.',
-        );
-      }
-      return _CosmicSurvivalNotes(
-        summary:
-            'Mask is the trickster-control family in survival. It protects the orb by manipulating enemy movement, not by winning a straight damage race.',
-        bullets: bullets,
-      );
-  }
-
-  return _CosmicSurvivalNotes(
-    summary:
-        '$normalizedFamily has a distinct survival role, but its value still depends on whether this $normalizedElement variant leans toward pressure, control, support, or sustain.',
-    bullets: [
-      '$normalizedElement changes how the family delivers its role, not just the color of the projectiles.',
-      'In survival, the best picks are the ones whose movement and special pattern solve a specific problem for the team.',
-    ],
-  );
-}
-
-Color _survivalAccentColor(String element) {
+Color _elementAccentColor(String element) {
   switch (element) {
     case 'Fire':
     case 'Lava':
@@ -1183,24 +774,20 @@ Color _survivalAccentColor(String element) {
 // ─────────────────────────────────────────────────────────────────────────────
 class _CosmicBasicInfo {
   final String name;
-  final String subtitle;
   final String description;
   final IconData icon;
   const _CosmicBasicInfo({
     required this.name,
-    required this.subtitle,
     required this.description,
     required this.icon,
   });
 }
 
 _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
-  final attack = FamilyCombatCopy.forName(family)?.attack;
   switch (family) {
     case 'Mane':
       return _CosmicBasicInfo(
         name: "$element Twin Blades",
-        subtitle: attack!,
         description:
             "Throws two $element blades side by side. The damage is in landing both on the same enemy.",
         icon: AppIcons.waves,
@@ -1208,7 +795,6 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Horn':
       return _CosmicBasicInfo(
         name: "$element Ram Shot",
-        subtitle: attack!,
         description:
             "Fires one large, slow $element shot with a wide hitbox. Enemies can see it coming.",
         icon: AppIcons.shield,
@@ -1216,7 +802,6 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Mask':
       return _CosmicBasicInfo(
         name: "$element Needle",
-        subtitle: attack!,
         description:
             "Fires one quick $element dart that keeps going through every enemy in its path.",
         icon: AppIcons.warning_amber,
@@ -1224,7 +809,6 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Wing':
       return _CosmicBasicInfo(
         name: "$element Feather Pair",
-        subtitle: attack!,
         description:
             "Fires two quick $element shots, one right behind the other, from long range.",
         icon: AppIcons.arrow_forward,
@@ -1232,23 +816,19 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Kin':
       return _CosmicBasicInfo(
         name: "$element Charged Beam",
-        subtitle: attack!,
         description:
-            "In survival, a Kin stands still to charge up, then fires a $element laser. In open space it fires a slow $element bolt that steers toward its target.",
+            "Charges in place, then fires a $element laser at its target.",
         icon: AppIcons.favorite,
       );
     case 'Mystic':
       return _CosmicBasicInfo(
         name: "$element Arcane Triad",
-        subtitle: attack!,
-        description:
-            "Fires three small $element bolts in a fan. A Mystic's real power is its special.",
+        description: "Fires three small $element bolts in a fan.",
         icon: AppIcons.auto_awesome,
       );
     case 'Pip':
       return _CosmicBasicInfo(
         name: "$element Dart Burst",
-        subtitle: attack!,
         description:
             "Fires three quick $element darts in a fan. Light hits, but Pips attack more often than anyone.",
         icon: AppIcons.bolt,
@@ -1256,7 +836,6 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     case 'Let':
       return _CosmicBasicInfo(
         name: "$element Meteor Stone",
-        subtitle: attack!,
         description:
             "Throws one big, slow $element rock that takes a moment to arrive.",
         icon: AppIcons.south,
@@ -1264,7 +843,6 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
     default:
       return _CosmicBasicInfo(
         name: '$element Bolt',
-        subtitle: 'Auto-targets nearest',
         description:
             'Fires a $element projectile at the nearest enemy within range. '
             'Damage is based on Strength. Attack speed scales with Speed stat.',
@@ -1298,9 +876,13 @@ List<CosmicAbilityDescriptionLine> cosmicAbilityDescriptionLines(
   String description,
 ) {
   const labels = [
-    'Auto/Special kills',
+    'Special ability',
+    'Auto attack',
+    'Either attack',
     'Special kills',
     'Auto hits',
+    'Targets',
+    'Position',
     'Base',
     'Auto',
     'Special',
@@ -1327,44 +909,6 @@ List<CosmicAbilityDescriptionLine> cosmicAbilityDescriptionLines(
       : lines;
 }
 
-class _ElementMechanicNote {
-  const _ElementMechanicNote({required this.label, required this.body});
-
-  final String label;
-  final String body;
-}
-
-_ElementMechanicNote _survivalPassive(String body) =>
-    _ElementMechanicNote(label: 'Survival only', body: body);
-
-/// Returns only mode-specific mechanics that differ in Cosmic Survival.
-/// Baseline species mechanics belong in the main special description.
-_ElementMechanicNote? _elementMechanicNote(String family, String element) {
-  switch (family) {
-    case 'Pip':
-      switch (element) {
-        case 'Plant':
-          return _survivalPassive(
-            'Killed enemies grant +50% alchemy meter on death.',
-          );
-      }
-      return null;
-    case 'Wing':
-      switch (element) {
-        case 'Plant':
-          return _survivalPassive(
-            'Beam-killed enemies leave flower pickups; orb collects them to permanently power up the beam (+4% damage per flower, capped at +200%).',
-          );
-        case 'Earth':
-          return _survivalPassive(
-            'The orb co-fires its own mirror beam alongside the wing: two lasers at once.',
-          );
-      }
-      return null;
-  }
-  return null;
-}
-
 CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
   switch (family) {
     case 'Horn':
@@ -1377,7 +921,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
       final isCustomPath = ['Water', 'Ice'].contains(element);
       final description = switch (element) {
         'Fire' =>
-          'Charges through enemies and paints a burning trail of taunt + DoT patches along the dash path.',
+          'Charges through enemies, leaving a burning trail that damages and taunts enemies.',
         'Lava' =>
           'Slow heavy charge with a glowing build-up telegraph. Enemies killed by the slam explode into homing flames that seek nearby targets.',
         'Lightning' =>
@@ -1387,7 +931,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Ice' =>
           'Dashes sideways perpendicular to the enemy direction, painting an ice wall segment-by-segment along the path. Wall taunts, slows, and reflects enemy projectiles.',
         'Steam' =>
-          'Heavy slam drops a steam geyser. If the slam KILLS an enemy, the special cooldown instantly resets AND another geyser spawns at the kill site — chain-cast through a streak.',
+          'Slams down a steam geyser. A kill resets the special cooldown and creates another geyser at the kill site.',
         'Earth' =>
           'Impact leaves a high-HP substitute clone that taunts enemies and pulses periodic mini-earthquakes around it.',
         'Mud' =>
@@ -1397,17 +941,17 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Crystal' =>
           'Wind-up gathers six crystal shards orbiting the horn, then dashes. Shards keep orbiting the moving horn, intercept enemy projectiles, and shatter into shrapnel when they expire.',
         'Air' =>
-          'Passive: No active cast. Enemies near the horn are continuously blown back toward the arena edge. Inner deadzone lets the horn melee close targets with basics; outer aura pushes everything else away.',
+          'Passive: No active cast. Enemies near the horn are continuously blown back toward the arena edge. An inner dead zone leaves close targets in auto-attack range; the outer aura pushes everything else away.',
         'Plant' =>
           'Charges through enemies. Each surviving enemy hit gets a personal root status — immobilized for a few seconds and wrapped in vines.',
         'Poison' =>
-          'Special + Passive: Active charge applies a heavy poison DoT to each enemy the dash sweeps through. Always-on toxic aura also ticks poison damage to anyone in range.',
+          'Special ability: Charges through enemies and applies a heavy poison effect. Passive: An always-on toxic aura damages nearby enemies.',
         'Spirit' =>
           'Two-second wind-up where phantoms swarm the horn (60% damage reduction throughout wind-up + dash). On dash, six mobile phantom wisps release in a ring, drifting outward and taunting enemies.',
         'Dark' =>
           'Five-second void-suck wind-up drags nearby enemies toward the horn. Then a long fast dash carries the captured cluster to the map edge, teleporting them with the horn and slamming them for impact damage on arrival.',
         'Light' =>
-          'Stops moving and channels a stationary light barrier for ~5s. Barrier reflects enemy projectiles, bounces enemies that touch the perimeter, and allies inside take 70% reduced damage.',
+          'Stops moving and channels a light barrier for about 5 seconds. It reflects projectiles, repels enemies, and reduces damage to allies inside by 70%.',
         'Blood' =>
           'Sacrifices a chunk of current HP to amplify the impact damage. Every kill during a short post-cast window heals the horn back.',
         _ => 'Element decides the cast pattern and effect.',
@@ -1433,21 +977,22 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Lava' =>
           'The beam carves a glowing scar across the ground — enemies passing through the scar take burn damage over time.',
         'Lightning' =>
-          'Charges for ~0.75s, then unleashes a sustained heavy-damage beam down the lane.',
+          'Charges briefly, then unleashes a sustained high-damage beam down the lane.',
         'Water' =>
           'Beam locks onto the lowest-HP ally or the ship and heals them; enemies along the beam path still take damage.',
         'Ice' =>
           'Beam contact builds frost on the target — held on long enough, the enemy snaps into a hard freeze.',
         'Steam' =>
-          'Executes the first enemy the beam touches and erupts 5–10 lingering steam clouds at the kill site (DoT).',
+          'Executes the first enemy touched, then creates 5–10 lingering steam clouds that damage enemies over time.',
         'Earth' =>
           'Standard piercing beam — the orb also fires a mirror beam alongside the wing, doubling the coverage.',
-        'Mud' => 'Permanently (60s) slows every enemy the beam touches.',
+        'Mud' => 'Slows every enemy the beam touches for 60 seconds.',
         'Dust' =>
           'Beam contact surrounds the enemy with disorienting dust — shooter-enemies start firing at each other instead of the ship.',
         'Air' =>
           'Beam contact knocks enemies back hard, holding them off the line.',
-        'Crystal' => 'Beam damage heals the orb (lifesteal-to-orb sustain).',
+        'Crystal' =>
+          'Converts part of the beam damage into healing for the orb.',
         'Plant' =>
           'Enemies killed by the beam turn into flower pickups. Fly the ship near a flower to collect it; each one stacks +4% beam damage (cap +200%).',
         'Poison' =>
@@ -1460,7 +1005,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
           'If the beam kills an enemy, it refracts into two smaller beams hunting nearby enemies for the rest of the original beam\'s duration.',
         'Blood' =>
           'Beam locks onto the lowest-HP enemy and executes any enemy below ~18% HP outright.',
-        _ => 'Element changes the beam targeting + effect.',
+        _ => 'The element changes the beam\'s target and effect.',
       };
       final subtitle = element == 'Dark'
           ? 'Dark Beam • Doubled-tempo passive'
@@ -1487,7 +1032,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Dust' =>
           'On collision, drops a dust cloud at the impact site that slows enemies caught inside.',
         'Lava' =>
-          'On collision, sears the ground in a burning area that DoTs anything inside.',
+          'On impact, sears the ground and damages enemies inside the burning area over time.',
         'Poison' =>
           'On collision, poisons the struck enemy and leaves a toxic pool that poisons others nearby.',
         'Plant' =>
@@ -1495,11 +1040,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Blood' =>
           'If the meteor kills an enemy, drains HP from nearby enemies and splits the drained HP as healing to every alchemon and the ship.',
         'Earth' =>
-          'On collision, % of damage dealt is converted into a heal for the lowest-HP alchemon or the ship.',
+          'On impact, converts part of the damage dealt into healing for the lowest-health Alchemon or the ship.',
         'Light' =>
           'If the meteor kills an enemy, creates a pool of light that heals nearby allies and the ship.',
         'Spirit' =>
-          '20% chance to one-shot any target on impact. Proc chance scales up with stats.',
+          'Has a 20% chance to defeat its target instantly. The chance increases with stats.',
         'Crystal' =>
           'Half the cooldown of the other lets, weaker damage, but any enemy hit is slowed by 90% on impact.',
         'Fire' =>
@@ -1514,7 +1059,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Mud' =>
           'If the meteor kills an enemy, creates a mud pool that stuns enemies caught inside.',
         'Water' =>
-          'On collision, splashes a big AOE damage burst across nearby enemies.',
+          'On impact, deals a large burst of area damage to nearby enemies.',
         _ => 'Element changes the meteor impact behavior.',
       };
       return CosmicSpecialInfo(
@@ -1525,47 +1070,46 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
     case 'Pip':
       final followThrough = switch (element) {
         'Fire' =>
-          'Auto/Special kills: Create a fire pool that persists and burns enemies inside it.',
+          'Either attack: Kills create a fire pool that burns enemies inside it.',
         'Lightning' => 'Doubles the amount of ricochets.',
         'Air' => 'Ricochet darts push enemies back on hit.',
         'Dust' =>
-          'Auto/Special kills: Create a dust cloud that persists and slows enemies inside it.',
+          'Either attack: Kills create a dust cloud that slows enemies inside it.',
         'Crystal' =>
-          'Auto/Special kills: Create a taunting crystal. Special darts also pierce and ricochet.',
+          'Either attack: Kills create a taunting crystal. Special darts also pierce and ricochet.',
         'Light' => 'Darts can intercept threats. Enemies killed heal the orb.',
         'Water' =>
-          'Auto/Special kills: Splash nearby enemies. The special\'s final ricochet creates a larger splash.',
+          'Either attack: Kills splash nearby enemies. The special\'s final ricochet creates a larger splash.',
         'Ice' => 'Darts freeze and slow enemies they hit.',
         'Mud' =>
-          'Auto hits mark enemies permanently; marked enemies leave mud trails behind them that slow anything walking through. Special darts slow on hit.',
-        'Plant' =>
-          'Auto/Special kills: Grant 50% extra alchemy meter in Cosmic Survival.',
+          'Auto attack: Hits permanently mark enemies, causing them to leave slowing mud trails. Special ability: Darts slow on hit.',
+        'Plant' => 'Either attack: Kills grant 50% extra alchemy meter.',
         'Poison' =>
-          'Auto hits draw poison lines between hit enemies. Special darts poison and slow enemies.',
+          'Auto attack: Hits draw poison lines between enemies. Special ability: Darts poison and slow enemies.',
         'Earth' =>
-          'Passive: Auto attacks reduce this Pip\'s special cooldown. Special kills refund extra cooldown.',
+          'Auto attack: Hits reduce the special cooldown. Special ability: Kills refund extra cooldown.',
         'Lava' => 'Darts pierce and burn enemies they hit.',
         'Dark' =>
           'Passive: Auto-attack kills create a black hole that pulls enemies inward.',
         'Blood' => 'Enemies killed heal this Pip itself.',
         'Spirit' =>
-          'Auto/Special kills: Build Spirit stacks; enough stacks give a temporary attack-speed boost.',
+          'Either attack: Kills build Spirit stacks. Enough stacks grant a temporary auto-attack speed boost.',
         'Steam' =>
-          'Passive: A steam cloud gathers around this Pip and its attack speed ramps for a window. Special kills can trigger extra haste.',
+          'Passive: A steam cloud temporarily increases auto-attack speed. Special ability: Kills can trigger extra haste.',
         _ => 'Element changes the dart effect.',
       };
       if (element == 'Dark') {
         return CosmicSpecialInfo(
-          subtitle: 'Auto Darts • Black Hole passive',
+          subtitle: 'No active special • Auto-kill passive',
           description:
-              'Auto: Fires three fast homing darts. Passive: This Pip has no active special; auto-attack kills create a black hole that pulls enemies inward.',
+              'Passive: This Pip has no active special. Auto-attack kills create a black hole that pulls enemies inward.',
           icon: AppIcons.bolt,
         );
       }
       return CosmicSpecialInfo(
-        subtitle: 'Auto Darts • Ricochet special',
+        subtitle: 'Ricochet Salvo • Active special',
         description:
-            'Auto: Fires three fast homing darts. Special: Fires a short-lived elemental dart salvo; ricochet elements hop between nearby enemies. '
+            'Special ability: Fires a short-lived elemental dart salvo; ricochet elements hop between nearby enemies. '
             '$followThrough',
         icon: AppIcons.bolt,
       );
@@ -1583,12 +1127,12 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Lava' => (
           'Molten Cleave • Burning residue',
-          'Drops a lava blob at each enemy collision; blobs DoT enemies who step into them.',
+          'Drops lava at each enemy hit, damaging anything that steps into it over time.',
           AppIcons.local_fire_department,
         ),
         'Poison' => (
           'Venom Edge • Stacking toxin',
-          'Each pierce stacks poison on the enemy. The more times it\'s hit, the harder the poison DoT bites.',
+          'Each hit adds another poison stack, increasing its damage over time.',
           AppIcons.biotech,
         ),
         'Blood' => (
@@ -1613,7 +1157,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Crystal' => (
           'Prism Edge • Boss shatter',
-          'If it hits a boss, instantly explodes for a huge crystal burst that wipes the boss and AOE damages everything nearby.',
+          'Hitting a boss triggers a massive crystal burst that defeats the boss and damages everything nearby.',
           AppIcons.diamond,
         ),
         'Fire' => (
@@ -1648,7 +1192,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Plant' => (
           'Vine Lariat • Feeding growth',
-          'One vine, thrown thin. Every enemy it passes through roots them and thickens the vine — bigger, harder hitting and holding wider the more it feeds. A rooted enemy that dies explodes into plant AOE.',
+          'Throws a thin vine that roots enemies and grows wider and stronger with every hit. Defeated rooted enemies burst, damaging nearby targets.',
           AppIcons.local_florist,
         ),
         'Water' => (
@@ -1695,9 +1239,9 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Steam' =>
           'Scatters mini geysers around the field that turret-fire at nearby enemies.',
         'Dark' =>
-          'Opens a void hole. Enemies caught in its suction are yeeted out of the area; radius scales with stats.',
+          'Opens a void hole that pulls enemies in and throws them out of the area. Its radius scales with stats.',
         'Ice' =>
-          'Raises a giant ice pillar. Allies near it gain ~2–5× attack strength.',
+          'Raises a giant ice pillar. Nearby allies gain roughly 2–5× attack strength.',
         'Mud' => 'Lays a mud pool that heavily slows enemies inside it.',
         'Water' =>
           'Scatters splash traps. Each enemy contact triggers area damage to nearby enemies.',
@@ -1748,7 +1292,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         _ => 'Element changes the support utility.',
       };
       return CosmicSpecialInfo(
-        subtitle: 'Rare Support • Charged laser auto',
+        subtitle: 'Support Ability • Elemental team utility',
         description: description,
         icon: AppIcons.favorite,
       );
@@ -1891,7 +1435,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
       return const CosmicSpecialInfo(
         subtitle: '30s cooldown',
         description:
-            'Base: Unleashes a burst of elemental energy. Special: Cooldown is reduced by Speed.',
+            'Special ability: Unleashes a burst of elemental energy. Its cooldown decreases with Speed.',
         icon: AppIcons.auto_awesome,
       );
   }

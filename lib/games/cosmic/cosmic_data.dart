@@ -5259,7 +5259,7 @@ CosmicSpecialResult _applyGuardianFamilyThresholds(
   final scaledProjectiles = result.projectiles
       .take(maxProjectiles)
       .map(
-        (p) => _copyProjectile(
+        (p) => copyProjectile(
           p,
           damage: p.damage * dmgMul * overcapMul,
           life: family == 'pip'
@@ -5376,7 +5376,13 @@ double _specialCountScaleFromBaseline(
       .toDouble();
 }
 
-Projectile _copyProjectile(
+/// A duplicate of [p] with selected fields replaced.
+///
+/// Public because mastery nodes outside this file build on the ability
+/// table's own output — a Pip Salvo dart has to be the element's dart, with
+/// its bounces and hit effects intact, not a fresh projectile that merely
+/// looks like one.
+Projectile copyProjectile(
   Projectile p, {
   Offset? position,
   double? angle,
@@ -5825,7 +5831,7 @@ Projectile _scaleLetProjectile(
       ? max(0, (p.clusterCount * countScale).round())
       : 0;
 
-  return _copyProjectile(
+  return copyProjectile(
     p,
     damage: p.damage * impactScale * (isMeteorCore ? 1.05 : 1.0),
     life: p.life * durationScale * trapPersistenceScale,
@@ -5923,7 +5929,7 @@ CosmicSpecialResult _hornSpecial(
       min: 0.85,
       max: 1.22,
     );
-    return _copyProjectile(
+    return copyProjectile(
       p,
       damage: p.damage * impactScale * 0.88,
       life: p.life * durationScale,
@@ -6475,7 +6481,7 @@ CosmicSpecialResult _hornSpecial(
             // Re-anchor the orbit to the live horn each frame so the
             // shards travel WITH it during the dash and stay orbiting
             // afterward — not pinned to the original cast point.
-            return _copyProjectile(shard, followSourceCompanion: true);
+            return copyProjectile(shard, followSourceCompanion: true);
           }),
         ),
       );
@@ -6621,7 +6627,7 @@ CosmicSpecialResult _hornSpecial(
           chargeOvershootDistance: 0,
           chargeFinalSweepRadius: 0,
           projectiles: [
-            _copyProjectile(lightBarrier, reflectsProjectiles: true),
+            copyProjectile(lightBarrier, reflectsProjectiles: true),
           ],
           shipHeal: max(1, (CosmicBalance.shipMaxHealth * 0.035).round()),
         ),
@@ -6720,7 +6726,7 @@ CosmicSpecialResult _wingSpecial(
       min: 0.86,
       max: 1.18,
     );
-    return _copyProjectile(
+    return copyProjectile(
       p,
       damage: p.damage * impactScale * (isPrimaryBeam ? 1.05 : 1.0),
       life: p.life * durationScale,
@@ -7773,7 +7779,7 @@ CosmicSpecialResult _letSpecial(
             .clamp(0.22, 0.50)
             .toDouble()
       : 1.0;
-  scaledMeteor = _copyProjectile(
+  scaledMeteor = copyProjectile(
     scaledMeteor,
     damage: scaledMeteor.damage * crystalDamageMul,
     letCasterIntelligence: casterIntelligence,
@@ -7899,7 +7905,7 @@ CosmicSpecialResult _pipSpecial(
       min: 0.84,
       max: 1.18,
     );
-    return _copyProjectile(
+    return copyProjectile(
       p,
       damage: p.damage * impactScale * 0.86,
       life: min(p.life * durationScale, kPipSpecialMaxProjectileLife),
@@ -8708,7 +8714,7 @@ CosmicSpecialResult _maneSpecial(
         : p.element == 'Fire'
         ? rawSpeed.clamp(0.5, 0.8).toDouble()
         : rawSpeed.clamp(0.12, 0.29).toDouble();
-    return _copyProjectile(
+    return copyProjectile(
       p,
       damage: p.damage * impactScale * earthForceScale * 1.65,
       // 3.1 rather than 1.55 because the catapult now flies at half speed:
@@ -8875,7 +8881,7 @@ CosmicSpecialResult _maneSpecial(
               .entries
               .map(
                 (e) => e.key == wave.length ~/ 2
-                    ? _copyProjectile(
+                    ? copyProjectile(
                         e.value,
                         interceptCharges: interceptCharges,
                         interceptRadius: interceptRadius,
@@ -9546,7 +9552,7 @@ CosmicSpecialResult _maskSpecial(
       min: 0.88,
       max: 1.25,
     );
-    return _copyProjectile(
+    return copyProjectile(
       p,
       damage: p.damage * impactScale,
       life: p.life * durationScale,
@@ -9929,10 +9935,10 @@ CosmicSpecialResult _maskSpecial(
           radius: 1.8,
           vs: 1.9,
         );
-        // Layer turret behavior on top via _copyProjectile so the
+        // Layer turret behavior on top via copyProjectile so the
         // turret fields propagate without losing trap markers.
         projs.add(
-          _copyProjectile(
+          copyProjectile(
             geyser,
             turretInterval: 0.95,
             turretDamage: damage * 0.75,
@@ -10084,7 +10090,7 @@ CosmicSpecialResult _kinSpecial(
       p,
       intelligence: casterIntelligence,
     );
-    return _copyProjectile(
+    return copyProjectile(
       p,
       damage: p.damage * supportScale,
       life: p.life * durationScale * trapPersistenceScale,
@@ -10780,7 +10786,7 @@ CosmicSpecialResult _mysticSpecial(
     final stretchedTrailLife = p.trailLife > 0
         ? min(12.0, p.trailLife * durationScale * lifetimeStretch)
         : p.trailLife;
-    return _copyProjectile(
+    return copyProjectile(
       p,
       damage: p.damage * impactScale * (isCore ? 1.08 : 1.0),
       life: stretchedLife,

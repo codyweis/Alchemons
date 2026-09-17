@@ -1046,7 +1046,7 @@ class _AlchemicalPowerupFeedingScreenState
                   canUse: canUse,
                   isLaunching: _launchingType == type,
                   theme: theme,
-                  phaseDelay: Duration(milliseconds: i * 320),
+                  phaseDelay: Duration(milliseconds: i * 160),
                   onDragStarted: () {
                     HapticFeedback.selectionClick();
                     _dismissDragHint();
@@ -1597,8 +1597,8 @@ class _AlchemicalPowerupFeedingScreenState
     await CampaignJournalService.mark(db.settingsDao, 'orbUse');
     if (!mounted) return;
     final repo = context.read<CreatureCatalog>();
-    const animationDuration = Duration(milliseconds: 1500);
-    const flashDuration = Duration(milliseconds: 500);
+    const animationDuration = Duration(milliseconds: 750);
+    const flashDuration = Duration(milliseconds: 250);
 
     _orbController.reset();
     _flashController.reset();
@@ -1622,7 +1622,7 @@ class _AlchemicalPowerupFeedingScreenState
     });
 
     // Let the orb button animate out first
-    await Future<void>.delayed(const Duration(milliseconds: 380));
+    await Future<void>.delayed(const Duration(milliseconds: 190));
     if (!mounted) return;
 
     _orbController.duration = animationDuration;
@@ -1798,7 +1798,7 @@ class _AlchemicalPowerupFeedingScreenState
     Duration orbDuration,
     Duration flashDuration,
   })
-  // An Orb infusion runs 1500ms at glowBoost 1.0 over 2.2 orbit turns. Every
+  // An Orb infusion runs 750ms at glowBoost 1.0 over 2.2 orbit turns. Every
   // Soul roll now starts well above that: the weakest awakening used to be
   // shorter and dimmer than a routine Orb, which read as an anticlimax for an
   // item that costs tens of thousands of Silver.
@@ -2192,11 +2192,11 @@ class _AnimatedOrbButtonState extends State<_AnimatedOrbButton>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 1200),
     );
     _launchCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 340),
+      duration: const Duration(milliseconds: 170),
     );
     _float = Tween<double>(
       begin: -1.0,

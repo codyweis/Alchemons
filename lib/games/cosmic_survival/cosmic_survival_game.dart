@@ -27,6 +27,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_let.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_mane.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_payload.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mastery_pip.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_runtime.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
@@ -1165,6 +1166,22 @@ class _MasteryEcho {
   final SurvivalBoss? boss;
 }
 
+/// A Thousand Cuts volley waiting out its 0.2s beat. Holds the body's id
+/// rather than the body, because the whole point is that the first volley may
+/// already have killed it — in which case the bonus fires where the Pip is
+/// looking instead of chasing a corpse.
+class _PipBonusVolley {
+  _PipBonusVolley({
+    required this.slotIndex,
+    required this.targetId,
+    required this.delay,
+  });
+
+  final int slotIndex;
+  final int targetId;
+  double delay;
+}
+
 class _KinLaserBeam {
   final Offset origin;
   final Offset end;
@@ -1911,6 +1928,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // so a second run in the same session starts from zero.
     mastery.reset();
     _maneMastery.clear();
+    _pipMastery.clear();
+    _pipBonusVolleys.clear();
     _letMastery.clear();
     _startZoomAnimation(_zoomPresets[_zoomLevelIndex]);
     spawner.startFirstWave();
@@ -1947,6 +1966,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _rebuildEnemySpatialGrid();
     _updateCompanionProjectiles(dt);
     _updateManeMastery(dt);
+    _updatePipMastery(dt);
     _updateMasteryEchoes(dt);
     updatePersistentAbilityEffects(dt);
     _updateBeamEffects(dt);
@@ -3034,7 +3054,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // mastery can ask "did both blades land on that body" without a
         // multishot family triggering cast nodes three times as often.
         final shaped = _applyLetBasicMastery(
-          _applyManeBasicMastery(basics, comp, slotIndex, fireAngle),
+          _applyPipBasicMastery(
+            _applyManeBasicMastery(basics, comp, slotIndex, fireAngle),
+            comp,
+            slotIndex,
+            fireAngle,
+          ),
           comp,
           slotIndex,
           fireAngle,
@@ -3050,6 +3075,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
         _onManeBasicCast(slotIndex, basicCastId, fireAngle);
         _onLetBasicCast(slotIndex, basicCastId);
+        _onPipBasicCast(slotIndex, basicCastId, fireAngle);
         // Kin+Lightning tesla charge: while any Lightning kin is
         // actively channelling, ALL companion auto-attacks get chain
         // lightning. Stacks with the existing powerup version.
@@ -3292,6 +3318,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           }
         }
         _applyManeSpecialMastery(specialProjectiles, comp, slotIndex);
+        specialProjectiles = _applyPipSpecialMastery(
+          specialProjectiles,
+          comp,
+          slotIndex,
+          fireAngle,
+        );
         // Horn charges: hold the projectile burst until the ram lands
         // on its target. This anchors the spawn at the point of attack
         // instead of the caster's start position.
@@ -5240,6 +5272,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // branches; nothing else in the combat loop needs to know they exist.
     if (hit.family == CreatureFamily.mane) {
       _onManeHit(hit, enemy: enemy, boss: boss);
+    } else if (hit.family == CreatureFamily.pip) {
+      _onPipHit(hit, enemy: enemy, boss: boss);
     }
   }
 
@@ -6100,6 +6134,368 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     mastery.recordCapstone(slotIndex);
   }
 
+  // == Pip mastery ==========================================================
+
+  final Map<int, PipMasteryState> _pipMastery = {};
+
+  PipMasteryState _pipStateFor(int slotIndex) =>
+      _pipMastery.putIfAbsent(slotIndex, PipMasteryState.new);
+
+  /// Read-only view of a Pip's run state — Pins held, cadence counters.
+  PipMasteryState? pipMasteryFor(int slotIndex) => _pipMastery[slotIndex];
+
+  bool _isMasteryPip(int slotIndex) {
+    if (!mastery.enabled) return false;
+    return mastery.equippedFor(slotIndex)?.family == CreatureFamily.pip;
+  }
+
+  /// Rebuilds a Pip volley to the equipped path's shape.
+  ///
+  /// Rebuilt rather than edited for the same reason Mane's pair is: spread,
+  /// homing and dart count are decided together, and homing is final on a
+  /// projectile. Per-dart damage is derived from the chassis factory's own
+  /// output so the chassis stays the single source of base scaling.
+  List<Projectile> _applyPipBasicMastery(
+    List<Projectile> basics,
+    CosmicSurvivalCompanion comp,
+    int slotIndex,
+    double fireAngle,
+  ) {
+    if (basics.isEmpty || !_isMasteryPip(slotIndex)) return basics;
+    final state = _pipStateFor(slotIndex);
+    bool has(String nodeId) => mastery.hasNode(slotIndex, nodeId);
+
+    final shape = resolvePipVolleyShape(hasNode: has);
+    final seed = basics.first;
+    final perDart =
+        seed.damage * (shape.dartFraction / PipTuning.baseDartFraction);
+    state.pendingMasteryDamageFraction = pipUpliftFraction(
+      shape.dartFraction / PipTuning.baseDartFraction,
+    );
+
+    return _buildPipVolley(
+      comp: comp,
+      slotIndex: slotIndex,
+      fireAngle: fireAngle,
+      count: shape.dartCount,
+      spread: shape.spread,
+      damage: perDart,
+      homingStrength: shape.homingStrength,
+      seed: seed,
+    );
+  }
+
+  /// One fan of darts, centred on [fireAngle].
+  List<Projectile> _buildPipVolley({
+    required CosmicSurvivalCompanion comp,
+    required int slotIndex,
+    required double fireAngle,
+    required int count,
+    required double spread,
+    required double damage,
+    required double homingStrength,
+    required Projectile seed,
+    double? life,
+    double? speedMultiplier,
+  }) {
+    final darts = <Projectile>[];
+    final centre = (count - 1) / 2.0;
+    for (var i = 0; i < count; i++) {
+      final a = fireAngle + (i - centre) * spread;
+      darts.add(
+        Projectile(
+          position: Offset(
+            comp.position.dx + cos(a) * 14,
+            comp.position.dy + sin(a) * 14,
+          ),
+          angle: a,
+          element: comp.member.element,
+          damage: damage,
+          life: life ?? seed.life,
+          speedMultiplier: speedMultiplier ?? seed.speedMultiplier,
+          visualScale: seed.visualScale,
+          visualStyle: seed.visualStyle,
+          homing: homingStrength > 0,
+          homingStrength: homingStrength,
+          sourceSlotIndex: slotIndex,
+        ),
+      );
+    }
+    return darts;
+  }
+
+  /// Cadence bookkeeping at the moment a Pip volley launches.
+  void _onPipBasicCast(int slotIndex, int castId, double fireAngle) {
+    if (castId == 0 || !_isMasteryPip(slotIndex)) return;
+    final state = _pipStateFor(slotIndex);
+    final cast = mastery.cast(castId);
+    if (state.pendingBonusVolley) cast?.tag(PipCastTags.bonusVolley);
+    state.pendingBonusVolley = false;
+
+    if (mastery.hasNode(slotIndex, PipNodes.scatterStorm) &&
+        state.takeStormTurn()) {
+      _castPipScatterStorm(slotIndex, fireAngle);
+    }
+  }
+
+  /// Scatter Storm: a fan of darts, each seeking its own body.
+  void _castPipScatterStorm(int slotIndex, double fireAngle) {
+    final comp = activeCompanions[slotIndex];
+    if (comp == null || comp.isDead) return;
+    if (!mastery.requestObjects(PipTuning.scatterStormDarts)) return;
+
+    final stormCastId = mastery.beginCast(
+      slotIndex: slotIndex,
+      family: CreatureFamily.pip,
+      element: comp.member.element,
+      kind: MasteryCastKind.basic,
+      projectileCount: PipTuning.scatterStormDarts,
+      countsAsCast: false,
+    );
+    mastery.cast(stormCastId)?.tag(PipCastTags.scatterStorm);
+
+    final damage =
+        comp.physAtk.toDouble() *
+        PipTuning.scatterStormFraction *
+        comp.damageAmp;
+    final storm = <Projectile>[];
+    for (var i = 0; i < PipTuning.scatterStormDarts; i++) {
+      final a = fireAngle + i * 2 * pi / PipTuning.scatterStormDarts;
+      storm.add(
+        Projectile(
+            position: Offset(
+              comp.position.dx + cos(a) * 16,
+              comp.position.dy + sin(a) * 16,
+            ),
+            angle: a,
+            element: comp.member.element,
+            damage: damage,
+            life: 1.5,
+            speedMultiplier: 1.6,
+            visualScale: 0.78,
+            visualStyle: ProjectileVisualStyle.dart,
+            homing: true,
+            homingStrength: PipTuning.wideHoming,
+            sourceSlotIndex: slotIndex,
+          )
+          ..masteryCastId = stormCastId
+          ..masteryGenerated = true,
+      );
+    }
+    _appendCompanionProjectiles(storm);
+    mastery.recordCapstone(slotIndex);
+  }
+
+  /// Salvo: load extra darts into the special.
+  ///
+  /// Appended to whatever the ability table built rather than replacing it,
+  /// so every element keeps its own behaviour — a Lightning dart still
+  /// ricochets five times, a Blood dart still heals on a kill. The path adds
+  /// darts; it does not decide what a dart does.
+  /// Returns the volley to throw. A new list, because several abilities hand
+  /// back a fixed-length one and appending to it throws.
+  List<Projectile> _applyPipSpecialMastery(
+    List<Projectile> projectiles,
+    CosmicSurvivalCompanion comp,
+    int slotIndex,
+    double fireAngle,
+  ) {
+    if (projectiles.isEmpty || !_isMasteryPip(slotIndex)) return projectiles;
+    final salvo = resolvePipSalvo(
+      hasNode: (nodeId) => mastery.hasNode(slotIndex, nodeId),
+    );
+    if (salvo.extraDarts <= 0) return projectiles;
+    if (!mastery.requestObjects(salvo.extraDarts)) return projectiles;
+
+    // The extras fan outward from the authored volley rather than stacking on
+    // top of it, so more darts reads as a wider salvo.
+    final loaded = List<Projectile>.of(projectiles);
+    final seed = projectiles.first;
+    final spread = PipTuning.baseSpread * 1.15;
+    final offset = (loaded.length + salvo.extraDarts - 1) / 2.0;
+    for (var i = 0; i < salvo.extraDarts; i++) {
+      final a = fireAngle + (loaded.length + i - offset) * spread;
+      loaded.add(
+        copyProjectile(
+          seed,
+          position: Offset(
+            comp.position.dx + cos(a) * 14,
+            comp.position.dy + sin(a) * 14,
+          ),
+          angle: a,
+          damage: seed.damage * salvo.fraction,
+        )..masteryGenerated = true,
+      );
+    }
+    return loaded;
+  }
+
+  /// Pip's reactions to one of its darts landing.
+  void _onPipHit(
+    MasteryHit hit, {
+    CosmicSurvivalEnemy? enemy,
+    SurvivalBoss? boss,
+  }) {
+    final slotIndex = hit.slotIndex;
+    final state = _pipStateFor(slotIndex);
+    bool has(String nodeId) => mastery.hasNode(slotIndex, nodeId);
+    final comp = activeCompanions[slotIndex];
+    if (comp == null) return;
+
+    // A storm dart is not a scheduled volley; it banks nothing.
+    if (hit.cast.hasTag(PipCastTags.scatterStorm)) return;
+
+    // ── Needlepoint ──
+    if (has(PipNodes.pinCushion) && hit.isFullVolleyHit) {
+      // A bonus volley may not bank Pins, or Thousand Cuts would feed itself.
+      if (!hit.cast.hasTag(PipCastTags.bonusVolley) &&
+          mastery.claimCastOnce(hit.cast.id)) {
+        state.addPin(hit.targetId, mastery.clock);
+        if (has(PipNodes.thousandCuts) && state.takeBonusVolleyTurn()) {
+          _queuePipBonusVolley(slotIndex, hit.targetId);
+        }
+      }
+    }
+    if (has(PipNodes.pluckThePins) &&
+        state.pinsOn(hit.targetId) >= PipTuning.maxPins) {
+      final spent = state.spendPins(hit.targetId, isBoss: hit.isBoss);
+      if (spent > 0) {
+        final burst =
+            comp.physAtk.toDouble() * PipTuning.pluckFraction * comp.damageAmp;
+        if (enemy != null) {
+          _damageEnemy(
+            enemy,
+            burst,
+            sourceSlotIndex: slotIndex,
+            masterySource: MasteryDamageSource.mastery,
+          );
+        } else if (boss != null) {
+          damageBoss(
+            burst,
+            sourceSlotIndex: slotIndex,
+            target: boss,
+            masterySource: MasteryDamageSource.mastery,
+          );
+        }
+      }
+    }
+
+    // ── Scattershot ──
+    if (has(PipNodes.threeFronts) &&
+        hit.cast.targetsHit >= 3 &&
+        mastery.claimPayloadTarget(hit.cast.id, hit.targetId)) {
+      final bonus = hit.damage * PipTuning.threeFrontsBonus;
+      if (enemy != null) {
+        _damageEnemy(
+          enemy,
+          bonus,
+          sourceSlotIndex: slotIndex,
+          masterySource: MasteryDamageSource.mastery,
+        );
+      } else if (boss != null) {
+        damageBoss(
+          bonus,
+          sourceSlotIndex: slotIndex,
+          target: boss,
+          masterySource: MasteryDamageSource.mastery,
+        );
+      }
+    }
+  }
+
+  /// Thousand Cuts: a second volley at the same body, a moment later.
+  void _queuePipBonusVolley(int slotIndex, int targetId) {
+    final comp = activeCompanions[slotIndex];
+    if (comp == null || comp.isDead) return;
+    _pipBonusVolleys.add(
+      _PipBonusVolley(
+        slotIndex: slotIndex,
+        targetId: targetId,
+        delay: PipTuning.thousandCutsDelay,
+      ),
+    );
+  }
+
+  final List<_PipBonusVolley> _pipBonusVolleys = [];
+
+  void _updatePipMastery(double dt) {
+    if (_pipMastery.isNotEmpty) {
+      for (final state in _pipMastery.values) {
+        state.expirePins(mastery.clock);
+      }
+    }
+    if (_pipBonusVolleys.isEmpty) return;
+    for (var i = _pipBonusVolleys.length - 1; i >= 0; i--) {
+      final queued = _pipBonusVolleys[i];
+      queued.delay -= dt;
+      if (queued.delay > 0) continue;
+      _pipBonusVolleys.removeAt(i);
+      _firePipBonusVolley(queued);
+    }
+  }
+
+  void _firePipBonusVolley(_PipBonusVolley queued) {
+    final comp = activeCompanions[queued.slotIndex];
+    if (comp == null || comp.isDead) return;
+    if (!mastery.requestObjects(PipTuning.thousandCutsDarts)) return;
+    // Aim at the body that earned it, if it is still standing.
+    CosmicSurvivalEnemy? target;
+    for (final enemy in enemies) {
+      if (!enemy.isDead && identityHashCode(enemy) == queued.targetId) {
+        target = enemy;
+        break;
+      }
+    }
+    final aim =
+        target?.position ??
+        comp.position + Offset(cos(comp.angle) * 100, sin(comp.angle) * 100);
+    final dir = aim - comp.position;
+    final angle = dir.distance > 0.01 ? atan2(dir.dy, dir.dx) : comp.angle;
+
+    final state = _pipStateFor(queued.slotIndex);
+    state.pendingBonusVolley = true;
+    final castId = mastery.beginCast(
+      slotIndex: queued.slotIndex,
+      family: CreatureFamily.pip,
+      element: comp.member.element,
+      kind: MasteryCastKind.basic,
+      projectileCount: PipTuning.thousandCutsDarts,
+      countsAsCast: false,
+    );
+    mastery.cast(castId)?.tag(PipCastTags.bonusVolley);
+    state.pendingBonusVolley = false;
+
+    final damage =
+        comp.physAtk.toDouble() *
+        PipTuning.thousandCutsFraction *
+        comp.damageAmp;
+    final darts = <Projectile>[];
+    final centre = (PipTuning.thousandCutsDarts - 1) / 2.0;
+    for (var i = 0; i < PipTuning.thousandCutsDarts; i++) {
+      final a = angle + (i - centre) * PipTuning.baseSpread * 0.5;
+      darts.add(
+        Projectile(
+            position: Offset(
+              comp.position.dx + cos(a) * 14,
+              comp.position.dy + sin(a) * 14,
+            ),
+            angle: a,
+            element: comp.member.element,
+            damage: damage,
+            life: 1.25,
+            speedMultiplier: 1.75,
+            visualScale: 0.78,
+            visualStyle: ProjectileVisualStyle.dart,
+            sourceSlotIndex: queued.slotIndex,
+          )
+          ..masteryCastId = castId
+          ..masteryGenerated = true,
+      );
+    }
+    _appendCompanionProjectiles(darts);
+    mastery.recordCapstone(queued.slotIndex);
+  }
+
   // == Mane mastery (phase 3 vertical slice) ===============================
 
   /// Per-slot Mane state, created on demand and dropped on a run reset.
@@ -6552,6 +6948,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   double _masteryBasicUplift(int slotIndex) =>
       _maneMastery[slotIndex]?.pendingMasteryDamageFraction ??
       _letMastery[slotIndex]?.pendingMasteryDamageFraction ??
+      _pipMastery[slotIndex]?.pendingMasteryDamageFraction ??
       0.0;
 
   /// The same for a special. Limitless is the only path that raises special
