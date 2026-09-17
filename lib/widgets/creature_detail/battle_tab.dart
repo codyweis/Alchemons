@@ -1,3 +1,4 @@
+import 'package:alchemons/models/family_combat_copy.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:flutter/material.dart';
@@ -850,85 +851,30 @@ class _SurvivalBracketCard extends StatelessWidget {
 }
 
 _CosmicFamilyRole _cosmicFamilyRole(String family) {
-  switch (family) {
-    case 'Horn':
-      return const _CosmicFamilyRole(
-        title: 'Frontline Bastion',
-        description:
-            'Horns force close fights. They push into short range, soak '
-            'pressure with shields, trade some raw damage for durability, '
-            'and convert specials into charge impacts, '
-            'body-blocking zones, taunts, slows, and interceptions that hold '
-            'danger in front of the team.',
-      );
-    case 'Wing':
-      return const _CosmicFamilyRole(
-        title: 'Beam Hunter',
-        description:
-            'Wings are long-range pursuit attackers. They hold safer '
-            'spacing, fire quickly, and use piercing beam specials to line '
-            'through packs, bosses, and drifting targets.',
-      );
-    case 'Let':
-      return const _CosmicFamilyRole(
-        title: 'Siege Caster',
-        description:
-            'Lets are long-range siege casters. They stay back, commit to '
-            'lanes, and drop a heavy meteor core followed by distinct '
-            'elemental pressure: lances, shards, orbiting blades, guided '
-            'finishers, or persistent control fields.',
-      );
-    case 'Pip':
-      return const _CosmicFamilyRole(
-        title: 'Tempo Carry',
-        description:
-            'Pips are fast skirmish finishers. They cycle attacks quickly, '
-            'chase weak or scattered targets, and turn specials into tempo '
-            'bursts: ricochets, pursuit darts, moving snares, quick haste, '
-            'or heavy cleanup shots depending on element. They excel at wave '
-            'cleanup but are less efficient into bosses than most families.',
-      );
-    case 'Mane':
-      return const _CosmicFamilyRole(
-        title: 'Barrage Bruiser',
-        description:
-            'Manes are martial barrage bruisers. They step into medium '
-            'range and convert element into forward techniques: cleaves, '
-            'cross-cuts, pressure lanes, readable staggers, and tempo combos that '
-            'punish whatever is directly in front of them.',
-      );
-    case 'Kin':
-      return const _CosmicFamilyRole(
-        title: 'Guardian Support',
-        description:
-            'Kins are guardian supports. Their specials heal, bless, and '
-            'deploy element-shaped constructs such as ship wards, escort '
-            'sentries, snares, peel veils, interceptors, and other support '
-            'tools instead of one generic orbital move.',
-      );
-    case 'Mystic':
-      return const _CosmicFamilyRole(
-        title: 'Guardian Ultimate',
-        description:
-            'Mystics are single-slot guardian power picks. Their specials '
-            'are intentionally slower and much more powerful, with each '
-            'element behaving like a distinct showpiece ultimate rather than '
-            'a generic orbital burst.',
-      );
-    case 'Mask':
-      return const _CosmicFamilyRole(
-        title: 'Control Trapper',
-        description:
-            'Masks shape the battlefield. They bait enemies into taunt '
-            'totems, decoys, and seeker swarms so pressure shifts off your '
-            'ship and into prepared kill zones.',
-      );
-    default:
-      return const _CosmicFamilyRole(
-        title: 'Companion',
-        description: 'A loyal companion that fights alongside your ship.',
-      );
-  }
+  final copy = FamilyCombatCopy.forName(family);
+  final description = switch (family) {
+    'Horn' =>
+      "Horns fight up close. They take hits for the team, and their heavy specials — charges, slams, walls and auras — hold enemies in front of everyone else.",
+    'Wing' =>
+      "Wings keep their distance and pick enemies off from long range. Their specials fire a beam down a lane.",
+    'Let' =>
+      "Lets stay at the back and go after the toughest enemies. Their special calls a meteor down on a target, and the crater carries the element's effect.",
+    'Pip' =>
+      "Pips attack fast and clean up weakened or scattered enemies. Their special fires darts that ricochet between enemies. Great at clearing waves, weaker against bosses.",
+    'Mane' =>
+      "Manes fight at mid range. Their special throws one huge blade that cuts through every enemy in a line, and the element decides what it does along the way.",
+    'Kin' =>
+      "Kins keep the team alive. Their special heals and blesses allies, and each element adds a support piece of its own.",
+    'Mystic' =>
+      "Only one Mystic can join a team. Its special is slow to come back, but it turns the whole arena into its element's world.",
+    'Mask' =>
+      "Masks control the battlefield. Their special scatters traps that catch, lure or punish enemies, pulling pressure away from your ship.",
+    _ => 'A loyal companion that fights alongside your ship.',
+  };
+  return _CosmicFamilyRole(
+    title: copy?.role ?? 'Companion',
+    description: description,
+  );
 }
 
 /// Flat section header for the battle tab — no box, just accent bar + rule
@@ -1266,86 +1212,70 @@ class _CosmicBasicInfo {
 }
 
 _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
+  final attack = FamilyCombatCopy.forName(family)?.attack;
   switch (family) {
     case 'Mane':
       return _CosmicBasicInfo(
-        name: '$element Twin Volley',
-        subtitle: '2 forward slashes',
+        name: "$element Twin Blades",
+        subtitle: attack!,
         description:
-            'Fires two forward $element shots with slight spread. The basic '
-            'attack is built for lane pressure and consistent frontal damage, '
-            'not circular spray.',
+            "Throws two $element blades side by side. The damage is in landing both on the same enemy.",
         icon: AppIcons.waves,
       );
     case 'Horn':
       return _CosmicBasicInfo(
-        name: '$element Ram Shot',
-        subtitle: 'Heavy close-range projectile',
+        name: "$element Ram Shot",
+        subtitle: attack!,
         description:
-            'Launches a large, slow $element projectile with an oversized '
-            'hitbox. Horn basics hit hard up close and help keep pressure on '
-            'targets before the shield-charge special lands.',
+            "Fires one large, slow $element shot with a wide hitbox. It hits hard, but enemies can see it coming.",
         icon: AppIcons.shield,
       );
     case 'Mask':
       return _CosmicBasicInfo(
-        name: '$element Probe Bolt',
-        subtitle: 'Fast piercing setup shot',
+        name: "$element Needle",
+        subtitle: attack!,
         description:
-            'Fires a quick piercing $element bolt to tag targets in a line. '
-            'Mask basics are light pressure tools that set up the family\'s '
-            'trap, lure, and decoy control game.',
+            "Fires one quick $element dart that keeps going through every enemy in its path.",
         icon: AppIcons.warning_amber,
       );
     case 'Wing':
       return _CosmicBasicInfo(
-        name: '$element Feather Burst',
-        subtitle: '2 rapid pursuit shots',
+        name: "$element Feather Pair",
+        subtitle: attack!,
         description:
-            'Unleashes two quick $element bolts in succession. Wing basics '
-            'keep damage flowing while the companion stays mobile and looks '
-            'for a clean beam line.',
+            "Fires two quick $element shots, one right behind the other, from long range.",
         icon: AppIcons.arrow_forward,
       );
     case 'Kin':
       return _CosmicBasicInfo(
-        name: '$element Guided Bolt',
-        subtitle: 'Reliable homing support fire',
+        name: "$element Charged Beam",
+        subtitle: attack!,
         description:
-            'Fires a slower $element bolt that homes toward the nearest '
-            'enemy, steering mid-flight. Deals 110% damage and rarely '
-            'misses. Kin basics are about consistency while the guardian '
-            'orbits and healing setup come online.',
+            "In survival, a Kin stands still to charge up, then fires a $element laser. In open space it fires a slow $element bolt that steers toward its target.",
         icon: AppIcons.favorite,
       );
     case 'Mystic':
       return _CosmicBasicInfo(
-        name: '$element Arcane Triad',
-        subtitle: '3 spread bolts',
+        name: "$element Arcane Triad",
+        subtitle: attack!,
         description:
-            'Releases three small $element bolts in a spread. Mystic basics '
-            'hold space between ultimates, but the family\'s real power is in '
-            'its slower, element-specific guardian special.',
+            "Fires three small $element bolts in a fan. A Mystic's real power is its special.",
         icon: AppIcons.auto_awesome,
       );
     case 'Pip':
       return _CosmicBasicInfo(
-        name: '$element Dart Burst',
-        subtitle: '3 fast tracking darts',
+        name: "$element Dart Burst",
+        subtitle: attack!,
         description:
-            'Fires a quick burst of small $element darts. Pip basics are '
-            'built for high uptime, target pressure, and staying active '
-            'between ricochet specials.',
+            "Fires three quick $element darts in a fan. Light hits, but Pips attack more often than anyone.",
         icon: AppIcons.bolt,
       );
     case 'Let':
       return _CosmicBasicInfo(
-        name: '$element Bomb',
-        subtitle: 'Slow artillery shot',
+        name: "$element Meteor Stone",
+        subtitle: attack!,
         description:
-            'Lobs a compact $element bomb with more heft than a standard bolt. '
-            'Let basics reinforce the siege role: slower, heavier lane pressure '
-            'between the family\'s larger element-shaped meteor specials.',
+            "Throws one big, slow $element rock. It hits hard, but takes a moment to arrive.",
         icon: AppIcons.south,
       );
     default:

@@ -18,6 +18,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/components/family_mastery_panel.dart';
 import 'package:alchemons/games/cosmic_survival/components/mystic_graphx_overlay.dart';
 import 'package:alchemons/models/elemental_group.dart';
+import 'package:alchemons/models/family_combat_copy.dart';
 import 'package:alchemons/games/cosmic_survival/components/powerup_selection_overlay.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
@@ -508,7 +509,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   final MysticGraphxOverlayController _mysticOverlayController =
       MysticGraphxOverlayController();
   late final PageController _familyPageController;
-  double _familyPage = 0;
+
+  /// The roster card in view. Only changes when a swipe settles past the
+  /// halfway point; the per-frame swipe itself never rebuilds the lobby.
+  final ValueNotifier<int> _familyIndex = ValueNotifier<int>(0);
   final Set<String> _expandedFamilyCards = <String>{};
   SurvivalHighScoreData? _highScore;
   int _silver = 0;
@@ -606,8 +610,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     _soundController = context.audio;
     _familyPageController = PageController(viewportFraction: 0.82);
     _familyPageController.addListener(() {
-      if (!mounted) return;
-      setState(() => _familyPage = _familyPageController.page ?? 0);
+      final page = _familyPageController.page ?? 0;
+      _familyIndex.value = page.round().clamp(0, _cosmicFamilyInfos.length - 1);
     });
     unawaited(_loadControlPreferences());
     unawaited(_loadShipSkin());
@@ -636,6 +640,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     _mysticOverlayController.dispose();
     _liveUiTick.dispose();
     _familyPageController.dispose();
+    _familyIndex.dispose();
     super.dispose();
   }
 
@@ -2295,94 +2300,143 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   }
 
   Widget _buildSpeciesRoster() {
+    // Swiping rebuilt the entire lobby every frame, and faded each card
+    // through a translucent layer. Now the scroll position is read only by
+    // the transforms that need it, each card is its own repaint boundary so a
+    // swipe never repaints its contents, and the fade is a dark wash drawn on
+    // top instead of an offscreen layer.
     return Consumer<FamilyMasteryService>(
       builder: (context, mastery, _) {
-        final currentIndex = _familyPage.round().clamp(
-          0,
-          _cosmicFamilyInfos.length - 1,
-        );
-        final active = _cosmicFamilyInfos[currentIndex];
-        final activeFamily = creatureFamilyFromStorage(active.id);
-        final height = _SpeciesCard.heightFor(
-          expanded: _expandedFamilyCards.contains(active.id),
-          ownedNodesOnPath: activeFamily == null || !mastery.isLoaded
-              ? 0
-              : FamilyMasteryRosterSummary.ownedOnSelectedPath(
-                  activeFamily,
-                  mastery.purchasedNodes(activeFamily),
-                  mastery.selectedPathForFamily(activeFamily),
-                ),
-        );
+        Set<String> ownedFor(CreatureFamily? family) =>
+            family == null || !mastery.isLoaded
+            ? const {}
+            : mastery.purchasedNodes(family);
+        String? pathFor(CreatureFamily? family) =>
+            family == null || !mastery.isLoaded
+            ? null
+            : mastery.selectedPathForFamily(family);
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const _EtchedDivider(label: 'SPECIES ROSTER'),
             const SizedBox(height: 14),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              curve: Curves.easeOut,
-              height: height,
+            ValueListenableBuilder<int>(
+              valueListenable: _familyIndex,
+              builder: (context, currentIndex, pages) {
+                final active = _cosmicFamilyInfos[currentIndex];
+                final activeFamily = creatureFamilyFromStorage(active.id);
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOut,
+                  height: _SpeciesCard.heightFor(
+                    expanded: _expandedFamilyCards.contains(active.id),
+                    ownedNodesOnPath:
+                        FamilyMasteryRosterSummary.ownedOnSelectedPath(
+                          activeFamily ?? CreatureFamily.let,
+                          ownedFor(activeFamily),
+                          pathFor(activeFamily),
+                        ),
+                  ),
+                  child: pages,
+                );
+              },
               child: PageView.builder(
                 controller: _familyPageController,
                 itemCount: _cosmicFamilyInfos.length,
                 itemBuilder: (context, index) {
                   final info = _cosmicFamilyInfos[index];
                   final family = creatureFamilyFromStorage(info.id);
-                  final distance = (index - _familyPage).abs().clamp(0.0, 1.0);
-                  final scale = 1.0 - (0.06 * distance);
-                  final opacity = 1.0 - (0.5 * distance);
                   final expanded = _expandedFamilyCards.contains(info.id);
-                  return Transform.scale(
-                    scale: scale,
-                    child: Opacity(
-                      opacity: opacity,
-                      child: _SpeciesCard(
-                        info: info,
-                        family: family,
-                        owned: family == null || !mastery.isLoaded
-                            ? const {}
-                            : mastery.purchasedNodes(family),
-                        selectedPathId: family == null || !mastery.isLoaded
-                            ? null
-                            : mastery.selectedPathForFamily(family),
-                        expanded: expanded,
-                        onTap: context.soundAction(() {
-                          setState(() {
-                            if (expanded) {
-                              _expandedFamilyCards.remove(info.id);
-                            } else {
-                              _expandedFamilyCards.add(info.id);
-                            }
-                          });
-                        }),
-                        onChoosePath: context.soundAction(_openBaseCommand),
-                      ),
+                  final card = RepaintBoundary(
+                    child: _SpeciesCard(
+                      info: info,
+                      family: family,
+                      owned: ownedFor(family),
+                      selectedPathId: pathFor(family),
+                      expanded: expanded,
+                      onTap: context.soundAction(() {
+                        setState(() {
+                          if (expanded) {
+                            _expandedFamilyCards.remove(info.id);
+                          } else {
+                            _expandedFamilyCards.add(info.id);
+                          }
+                        });
+                      }),
+                      onChoosePath: context.soundAction(_openBaseCommand),
                     ),
+                  );
+                  return AnimatedBuilder(
+                    animation: _familyPageController,
+                    child: card,
+                    builder: (context, child) {
+                      final distance = (index - _familyPageValue()).abs().clamp(
+                        0.0,
+                        1.0,
+                      );
+                      return Transform.scale(
+                        scale: 1.0 - (0.06 * distance),
+                        child: Stack(
+                          children: [
+                            child!,
+                            if (distance > 0.01)
+                              Positioned.fill(
+                                child: IgnorePointer(
+                                  child: Container(
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                    ),
+                                    color: _C.bg0.withValues(
+                                      alpha: 0.55 * distance,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
                   );
                 },
               ),
             ),
             const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(_cosmicFamilyInfos.length, (i) {
-                final isActive = (i - _familyPage).abs() < 0.5;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  height: 3,
-                  width: isActive ? 18 : 6,
-                  decoration: BoxDecoration(
-                    color: isActive ? _C.amber : _C.borderAccent,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+            AnimatedBuilder(
+              animation: _familyPageController,
+              builder: (context, _) {
+                final page = _familyPageValue();
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(_cosmicFamilyInfos.length, (i) {
+                    final isActive = (i - page).abs() < 0.5;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      height: 3,
+                      width: isActive ? 18 : 6,
+                      decoration: BoxDecoration(
+                        color: isActive ? _C.amber : _C.borderAccent,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    );
+                  }),
                 );
-              }),
+              },
             ),
           ],
         );
       },
     );
+  }
+
+  /// The carousel's scroll position in pages, safe before it has laid out.
+  double _familyPageValue() {
+    final controller = _familyPageController;
+    if (controller.hasClients && controller.position.haveDimensions) {
+      return controller.page ?? 0;
+    }
+    return _familyIndex.value.toDouble();
   }
 
   /// Base Command, from anywhere in the lobby. Opens on Mastery.
@@ -3740,22 +3794,19 @@ class _ScanlinePainter extends CustomPainter {
 class _FamilyInfo {
   final String id;
   final String name;
-  final String role;
-
-  /// What this family's specials generally do, in a line. Every element
-  /// interprets it its own way; this is the shape they share.
-  final String special;
   final String assetPath;
   final Color color;
 
   const _FamilyInfo({
     required this.id,
     required this.name,
-    required this.role,
-    required this.special,
     required this.assetPath,
     required this.color,
   });
+
+  FamilyCombatCopy get copy => FamilyCombatCopy.forName(id)!;
+  String get role => copy.role;
+  String get special => copy.special;
 }
 
 /// One family on the lobby's species roster: who they are, how they attack,
@@ -3922,12 +3973,14 @@ class _SpeciesPortrait extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-          child: ColorFiltered(
-            colorFilter: ColorFilter.mode(
-              info.color.withValues(alpha: 0.9),
-              BlendMode.srcATop,
-            ),
-            child: Image.asset(info.assetPath, fit: BoxFit.contain),
+          // Tinted in the image paint itself; a ColorFiltered wrapper cost an
+          // offscreen layer on every card, every swipe frame.
+          child: Image.asset(
+            info.assetPath,
+            fit: BoxFit.contain,
+            color: info.color.withValues(alpha: 0.9),
+            colorBlendMode: BlendMode.srcATop,
+            cacheWidth: 256,
           ),
         ),
         Positioned(
@@ -4062,71 +4115,48 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
   _FamilyInfo(
     id: 'Let',
     name: 'Let',
-    role: 'Siege Caster',
-    special:
-        'Calls a meteor down onto its target. The crater carries the element\'s own effect.',
     assetPath: 'assets/images/creatures/common/LET02_waterlet.png',
     color: Color(0xFF3B82F6),
   ),
   _FamilyInfo(
     id: 'Pip',
     name: 'Pip',
-    role: 'Tempo Carry',
-    special:
-        'Fires darts that ricochet from enemy to enemy, each element adding its own twist.',
     assetPath: 'assets/images/creatures/uncommon/PIP06_lavapip.png',
     color: Color(0xFFEF4444),
   ),
   _FamilyInfo(
     id: 'Mane',
     name: 'Mane',
-    role: 'Barrage Bruiser',
-    special:
-        'Hurls one huge piercing blade down the line, shaped by its element.',
     assetPath: 'assets/images/creatures/uncommon/MAN03_earthmane.png',
     color: Color(0xFFF59E0B),
   ),
   _FamilyInfo(
     id: 'Horn',
     name: 'Horn',
-    role: 'Frontline Bastion',
-    special:
-        'A heavy defensive move: a charge, wind-up, guard or aura, by element.',
     assetPath: 'assets/images/creatures/rare/HOR13_poisonhorn.png',
     color: Color(0xFF10B981),
   ),
   _FamilyInfo(
     id: 'Mask',
     name: 'Mask',
-    role: 'Tactical Duelist',
-    special:
-        'Scatters traps that catch, lure or punish whatever walks into them.',
     assetPath: 'assets/images/creatures/rare/MSK01_firemask.png',
     color: Color(0xFF8B5CF6),
   ),
   _FamilyInfo(
     id: 'Wing',
     name: 'Wing',
-    role: 'Sniper Control',
-    special: 'Fires a long elemental beam down a lane, shaped by its element.',
     assetPath: 'assets/images/creatures/legendary/WNG03_earthwing.png',
     color: Color(0xFF06B6D4),
   ),
   _FamilyInfo(
     id: 'Kin',
     name: 'Kin',
-    role: 'Support Anchor',
-    special:
-        'Heals and blesses the team, plus a support piece unique to its element.',
     assetPath: 'assets/images/creatures/legendary/KIN16_lightkin.png',
     color: Color(0xFF14B8A6),
   ),
   _FamilyInfo(
     id: 'Mystic',
     name: 'Mystic',
-    role: 'Spell Engine',
-    special:
-        'Turns the arena into its element\'s world until the Mystic falls.',
     assetPath: 'assets/images/creatures/mystic/MYS14_spiritmystic.png',
     color: Color(0xFFA855F7),
   ),

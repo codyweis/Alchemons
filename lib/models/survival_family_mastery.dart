@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:alchemons/models/elemental_group.dart';
+import 'package:alchemons/models/family_combat_copy.dart';
 
 enum FamilyMasteryCurrency { silver, gold }
 
@@ -149,7 +150,7 @@ FamilyMasteryPathDef _path(
 final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
   FamilyMasteryTreeDef(
     family: CreatureFamily.mane,
-    chassis: 'Twin close-angle slashes that reward landing both blades.',
+    chassis: FamilyCombatCopy.of(CreatureFamily.mane).attack,
     paths: [
       _path('mane.assault', 'Twin Fang', 'Burst down single enemies', [
         (
@@ -206,7 +207,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.let,
-    chassis: 'One large, slow meteor thrown at a single target.',
+    chassis: FamilyCombatCopy.of(CreatureFamily.let).attack,
     paths: [
       _path('let.assault', 'Falling Star', 'One enormous auto-attack hit', [
         (
@@ -271,7 +272,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.pip,
-    chassis: 'Three fast spread darts built around precision and volume.',
+    chassis: FamilyCombatCopy.of(CreatureFamily.pip).attack,
     paths: [
       _path('pip.assault', 'Needlepoint', 'Pin down and shred one target', [
         (
@@ -331,7 +332,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.mask,
-    chassis: 'One fast dart that pierces through its target.',
+    chassis: FamilyCombatCopy.of(CreatureFamily.mask).attack,
     paths: [
       _path('mask.assault', 'Phantom Needle', 'Pierce lines and punish elites', [
         (
@@ -391,7 +392,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.horn,
-    chassis: 'One slow, oversized projectile that lands a heavy hit.',
+    chassis: FamilyCombatCopy.of(CreatureFamily.horn).attack,
     paths: [
       _path('horn.assault', 'Breaker', 'Crush armor up close', [
         (
@@ -451,7 +452,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.wing,
-    chassis: 'Two aligned long-range shots fired as a pair.',
+    chassis: FamilyCombatCopy.of(CreatureFamily.wing).attack,
     paths: [
       _path('wing.assault', 'Twin Lance', 'Long-range sniping', [
         (
@@ -508,7 +509,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.kin,
-    chassis: 'A physical laser that charges up before it fires.',
+    chassis: FamilyCombatCopy.of(CreatureFamily.kin).attack,
     paths: [
       _path('kin.assault', 'Overcharge', 'Turn the laser into a weapon', [
         (
@@ -565,7 +566,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.mystic,
-    chassis: 'A volley of three spell bolts.',
+    chassis: FamilyCombatCopy.of(CreatureFamily.mystic).attack,
     paths: [
       _path('mystic.assault', 'Starcaller', 'Make your spell volleys hit hard', [
         (
