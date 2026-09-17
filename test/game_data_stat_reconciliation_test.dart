@@ -1,5 +1,7 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/purity_stat_bonus.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
@@ -49,7 +51,21 @@ void main() {
       );
 
       await GameDataService(db: db, catalog: catalog).init();
-      final reconciled = await db.creatureDao.getInstance('legacy-instance');
+      final reconciled = (await db.creatureDao.getInstance('legacy-instance'))!;
+
+      // The canonical formula now carries a sixth factor: an unbroken
+      // bloodline is worth one rolled stat. Read the lineage the same way the
+      // service does rather than assuming it — this instance is generation
+      // zero, which makes it elementally pure off its species type.
+      final lineage = classifyInstancePurity(
+        reconciled!,
+        species: catalog.getCreatureById('RECON01'),
+      );
+      final purity = resolvePurityStatBonus(
+        instanceId: 'legacy-instance',
+        isElementallyPure: lineage.isElementallyPure,
+        isSpeciesPure: lineage.isSpeciesPure,
+      );
 
       double expected(int base, int potential, int rank, String key) =>
           AlchemonStatSystem.effectiveInternal(
@@ -57,15 +73,13 @@ void main() {
             level: 10,
             potential: potential,
             enhancementRank: rank,
-            additionalMultiplier: AlchemonStatSystem.natureMultiplier(
-              'Swift',
-              key,
-            ),
+            additionalMultiplier:
+                AlchemonStatSystem.natureMultiplier('Swift', key) *
+                purity.multiplierFor(key),
           );
 
-      expect(reconciled, isNotNull);
       expect(
-        reconciled!.statSpeed,
+        reconciled.statSpeed,
         closeTo(expected(100, 100, 10, 'speed'), 1e-9),
       );
       expect(
@@ -81,6 +95,15 @@ void main() {
         closeTo(expected(40, 40, 1, 'beauty'), 1e-9),
       );
       expect(reconciled.statSpeed, greaterThan(5));
+      // And the purity factor is really in there, not merely accounted for on
+      // both sides of the comparison: exactly one stat is lifted, and it is
+      // one an elemental line is allowed to lift.
+      expect(purity.kind, PurityStatBonusKind.elemental);
+      expect(kElementalPurityStatPool, contains(purity.statKey));
+      expect(
+        kFullPurityStatPool.where((k) => purity.multiplierFor(k) > 1.0),
+        hasLength(1),
+      );
       // Reopening must recalculate from genetics, never multiply cached Power.
       await GameDataService(db: db, catalog: catalog).init();
       final reopened = (await db.creatureDao.getInstance('legacy-instance'))!;

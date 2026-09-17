@@ -654,6 +654,11 @@ class EggHatching {
   }) async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
+    // Stats are written at hatch before the lineage has been classified, so a
+    // pure specimen would not show its rolled bonus until the next launch
+    // without this. Idempotent: it only writes when something differs.
+    await context.read<GameDataService>().refreshInstanceStats(instanceId);
+    if (!context.mounted) return;
 
     // Track breeding for constellation points
     // (starters and vials don't count toward breeding milestones)

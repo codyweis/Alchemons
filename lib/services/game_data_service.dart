@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/models/purity_stat_bonus.dart';
 import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:drift/drift.dart';
 import '../database/alchemons_db.dart';
 import '../models/creature.dart';
@@ -60,69 +62,115 @@ class GameDataService {
     final instances = await db.creatureDao.listAllInstances();
     await db.transaction(() async {
       for (final instance in instances) {
-        final species = catalog.getCreatureById(instance.baseId);
-        final base =
-            species?.baseStats ??
-            const SpeciesBaseStats(
-              speed: 60,
-              intelligence: 60,
-              strength: 60,
-              beauty: 60,
-            );
+        await _writeDerivedStats(instance);
+      }
+    });
+  }
 
-        double derive(int speciesBase, num potential, int rank, String key) =>
-            AlchemonStatSystem.effectiveInternal(
-              speciesBase: speciesBase,
-              level: instance.level,
-              potential: potential,
-              enhancementRank: rank,
-              additionalMultiplier: AlchemonStatSystem.natureMultiplier(
+  /// Recomputes and stores one creature's combat stats.
+  ///
+  /// Public because a hatch needs it: the reconcile pass above only runs at
+  /// init, so without this a freshly extracted specimen would show stats
+  /// without its purity roll until the next launch.
+  Future<void> refreshInstanceStats(String instanceId) async {
+    final instance = await db.creatureDao.getInstance(instanceId);
+    if (instance == null) return;
+    await _writeDerivedStats(instance);
+  }
+
+  /// The canonical formula, in one place:
+  /// Base x Level x Potential x Enhancement x Nature x Purity.
+  ///
+  /// Idempotent — it only writes when the stored values actually differ.
+  Future<void> _writeDerivedStats(CreatureInstance instance) async {
+    final species = catalog.getCreatureById(instance.baseId);
+    final base =
+        species?.baseStats ??
+        const SpeciesBaseStats(
+          speed: 60,
+          intelligence: 60,
+          strength: 60,
+          beauty: 60,
+        );
+
+    // An unbroken bloodline is worth one rolled stat. The roll comes from the
+    // instance id rather than a random source precisely because this runs on
+    // every load and writes back: a fresh roll each time would hand the
+    // creature a different bonus every launch.
+    final purity = classifyInstancePurity(instance, species: species);
+    final purityBonus = resolvePurityStatBonus(
+      instanceId: instance.instanceId,
+      isElementallyPure: purity.isElementallyPure,
+      isSpeciesPure: purity.isSpeciesPure,
+    );
+
+    double derive(int speciesBase, num potential, int rank, String key) =>
+        AlchemonStatSystem.effectiveInternal(
+          speciesBase: speciesBase,
+          level: instance.level,
+          potential: potential,
+          enhancementRank: rank,
+          additionalMultiplier:
+              AlchemonStatSystem.natureMultiplier(
                 instance.natureId,
                 key,
                 instance.natureId2,
-              ),
-            );
-
-        final speed = derive(
-          base.speed,
-          instance.statSpeedPotential,
-          instance.statSpeedEnhancement,
-          'speed',
-        );
-        final intelligence = derive(
-          base.intelligence,
-          instance.statIntelligencePotential,
-          instance.statIntelligenceEnhancement,
-          'intelligence',
-        );
-        final strength = derive(
-          base.strength,
-          instance.statStrengthPotential,
-          instance.statStrengthEnhancement,
-          'strength',
-        );
-        final beauty = derive(
-          base.beauty,
-          instance.statBeautyPotential,
-          instance.statBeautyEnhancement,
-          'beauty',
+              ) *
+              purityBonus.multiplierFor(key),
         );
 
-        bool differs(double left, double right) => (left - right).abs() > 1e-9;
-        if (differs(instance.statSpeed, speed) ||
-            differs(instance.statIntelligence, intelligence) ||
-            differs(instance.statStrength, strength) ||
-            differs(instance.statBeauty, beauty)) {
-          await db.creatureDao.updateStats(
-            instanceId: instance.instanceId,
-            statSpeed: speed,
-            statIntelligence: intelligence,
-            statStrength: strength,
-            statBeauty: beauty,
-          );
-        }
-      }
-    });
+    final speed = derive(
+      base.speed,
+      instance.statSpeedPotential,
+      instance.statSpeedEnhancement,
+      kStatSpeed,
+    );
+    final intelligence = derive(
+      base.intelligence,
+      instance.statIntelligencePotential,
+      instance.statIntelligenceEnhancement,
+      kStatIntelligence,
+    );
+    final strength = derive(
+      base.strength,
+      instance.statStrengthPotential,
+      instance.statStrengthEnhancement,
+      kStatStrength,
+    );
+    final beauty = derive(
+      base.beauty,
+      instance.statBeautyPotential,
+      instance.statBeautyEnhancement,
+      kStatBeauty,
+    );
+
+    bool differs(double left, double right) => (left - right).abs() > 1e-9;
+    if (differs(instance.statSpeed, speed) ||
+        differs(instance.statIntelligence, intelligence) ||
+        differs(instance.statStrength, strength) ||
+        differs(instance.statBeauty, beauty)) {
+      await db.creatureDao.updateStats(
+        instanceId: instance.instanceId,
+        statSpeed: speed,
+        statIntelligence: intelligence,
+        statStrength: strength,
+        statBeauty: beauty,
+      );
+    }
+  }
+
+  /// What an analysis readout shows for this creature — which stat its
+  /// bloodline rolled, and what it is worth.
+  PurityStatBonus purityStatBonusFor(CreatureInstance instance) {
+    final purity = classifyInstancePurity(
+      instance,
+      species: catalog.getCreatureById(instance.baseId),
+    );
+    return resolvePurityStatBonus(
+      instanceId: instance.instanceId,
+      isElementallyPure: purity.isElementallyPure,
+      isSpeciesPure: purity.isSpeciesPure,
+    );
   }
 
   // ----------------------------

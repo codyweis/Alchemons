@@ -108,7 +108,7 @@ Do not restore the retired constellation requirement merely because old story te
 
 ### 11. Help text must follow the current stat model
 
-[Pure-lineage tutorial](../lib/widgets/pure_breeding_intro_dialog.dart:88) promises base bonuses to three stats upon extraction. The current [_deriveLevelOneStats](../lib/services/egg_hatching_service.dart:248) uses species base, level, Potential, and nature; that calculation contains no purity bonus. Reconcile the tutorial with the intended model before promising an advantage. Contest-specific purity bonuses are a different mechanic.
+~~Pure-lineage tutorial promises base bonuses to three stats upon extraction, but the stat calculation contains no purity bonus.~~ Resolved 2026-09-16: purity now pays one rolled stat — 15% on any of the four for a full line, 10% on Beauty/Intelligence for an elemental line, 10% on Speed/Strength for a species line. The roll is derived from the instance id so it is stable for the creature's life, and it is applied in the canonical formula in `GameDataService._writeDerivedStats`. The tutorial states the real terms. Contest-specific purity bonuses remain a separate mechanic.
 
 The contest hints sampled against [_computePlayerContestScore](../lib/screens/cosmic/cosmic_screen.dart:2604) broadly match its authored element, family, appearance, and lineage modifiers. Mixed lineage helping intelligence and pure matching lineages helping specific traits can coexist; explain their conditional nature. Present beauty-trial preferences as those judges' taste, not the game's universal declaration of what is beautiful. That supports the main story's question about beauty and perception.
 

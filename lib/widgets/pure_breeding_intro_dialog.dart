@@ -86,7 +86,12 @@ Future<void> maybeShowFirstPureExtractionDialog(
               ),
               const SizedBox(height: 12),
               Text(
-                'Purity describes ancestry. Current stats depend on species, level, Potential, nature, and Enhancement. Contest bonuses depend on the trial.',
+                'Stats otherwise depend on species, level, Potential, nature, and Enhancement. Contest bonuses depend on the trial.',
+                style: TextStyle(color: theme.text.withValues(alpha: 0.86)),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'A pure line also strengthens one stat, chosen when the specimen is extracted and fixed for its life. A full line raises one of the four by 15%; an elemental line raises Beauty or Intelligence by 10%, and a species line raises Speed or Strength by 10%. Analysis reports which one it rolled.',
                 style: TextStyle(color: theme.text.withValues(alpha: 0.86)),
               ),
             ],
