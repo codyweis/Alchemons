@@ -87,10 +87,21 @@ class ManeTuning {
   static const double bladeDanceReturnFraction = 0.35;
 
   // ── Tempest Claw ──
-  /// Sweeping Claws: 35% wider, spread further, 60% physical each.
+  /// Sweeping Claws: 35% wider, spread further, and no weaker per slash.
+  ///
+  /// It used to cut each slash to 60%, which made the first purchase on this
+  /// path a downgrade — measured at 8-12% *less* total damage than owning
+  /// nothing. A first node has to pay off on its own, and paying a thousand
+  /// silver to get worse is the sharpest way to fail that. The width is the
+  /// trade now: it costs nothing directly, and what it buys only shows up
+  /// when there is a crowd to catch.
   static const double sweepingWidthScale = 1.35;
-  static const double sweepingSpreadScale = 1.60;
-  static const double sweepingSlashFraction = 0.60;
+  // Widened only slightly. At 1.60 the pair flew far enough apart that it
+  // missed more than the extra width caught, and the node measured 9% *worse*
+  // than owning nothing even after its damage penalty was removed. Fatter
+  // slashes catch a crowd; slashes aimed away from it do not.
+  static const double sweepingSpreadScale = 1.20;
+  static const double sweepingSlashFraction = 0.65;
 
   /// Rending Wake: the first body each slash strikes takes 80% of a payload.
   static const double rendingWakeStrength = 0.80;

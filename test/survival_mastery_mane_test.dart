@@ -183,7 +183,7 @@ void main() {
       );
     });
 
-    test('Sweeping Claws trades damage for width and reach', () async {
+    test('Sweeping Claws widens without costing damage', () async {
       final (bare, bareTarget) = await arena();
       final bareShots = castBasic(bare, bareTarget);
       final bareSpread = (bareShots[0].angle - bareShots[1].angle).abs();
@@ -194,11 +194,22 @@ void main() {
       final sweepShots = castBasic(sweep, sweepTarget);
       final sweepSpread = (sweepShots[0].angle - sweepShots[1].angle).abs();
 
-      expect(sweepSpread, greaterThan(bareSpread));
-      expect(sweepShots.first.damage, lessThan(bareShots.first.damage));
       expect(
         sweepShots.first.radiusMultiplier,
         greaterThan(bareShots.first.radiusMultiplier),
+      );
+      // A first purchase must never make the creature worse. This node cut
+      // each slash to 60% and flung the pair 1.6x apart, and measured 9-12%
+      // below owning nothing.
+      expect(
+        sweepShots.first.damage,
+        greaterThanOrEqualTo(bareShots.first.damage),
+      );
+      expect(sweepSpread, greaterThan(bareSpread));
+      expect(
+        sweepSpread,
+        lessThan(bareSpread * 1.5),
+        reason: 'A pair flung too far apart misses more than width catches.',
       );
     });
 
@@ -528,7 +539,16 @@ void main() {
       final shots = castBasic(game, target, gap: 180);
       expect(shots, isNotEmpty, reason: 'setup: nothing was cast');
       target.position = game.orb.position + const Offset(4000, 4000);
+      final comp = game.activeCompanions[0]!;
       for (var i = 0; i < 60 * 4; i++) {
+        // Nothing may be hit while the cast ages out: the spawner keeps
+        // producing bodies, and one wandering into the slashes turns this
+        // miss into a hit and the test into a coin flip.
+        for (final enemy in game.enemies) {
+          enemy.isDead = true;
+        }
+        comp.basicCooldown = 99999;
+        comp.specialCooldown = 99999;
         game.update(1 / 60);
       }
       expect(rhythmOf(game, 0), lessThan(banked));

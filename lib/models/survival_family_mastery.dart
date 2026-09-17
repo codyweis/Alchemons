@@ -172,7 +172,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
       _path('mane.control', 'Tempest Claw', 'Spread your element across groups', [
         (
           'Sweeping Claws',
-          "Slashes are 35% wider and spread further to catch more enemies, but deal 60% damage each (down from 65%).",
+          "Slashes are 35% wider and spread further, catching more enemies without losing any damage.",
         ),
         (
           'Rending Wake',

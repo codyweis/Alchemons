@@ -151,7 +151,7 @@ Single-target pressure and kill chaining.
 
 Wide coverage and elemental disruption.
 
-1. **Sweeping Claws** — Slash width increases by 35% and spread widens. Each slash deals 60% physical damage.
+1. **Sweeping Claws** — Slash width increases by 35% and spread widens slightly (1.2x). Each slash still deals 65% physical damage. *Revised 2026-09-16: it cut slashes to 60% and widened spread 1.6x, which measured 9-12% worse than owning nothing — the pair flew apart and missed more than the width caught.*
 2. **Rending Wake** — The first enemy struck by each slash receives the elemental payload at 80% strength.
 3. **Crosswind** — If the two slashes hit different enemies, both targets receive a second reduced payload at 40% strength.
 4. **Capstone: Tempest Ring** — Every fourth cast releases eight radial slashes at 20% physical damage each. No enemy can take more than three radial hits; the first radial hit triggers one payload.
@@ -894,6 +894,33 @@ Two consequences are worth knowing before tuning any Mane node:
 Both mean the *special* half of a Fire or Lightning Mane's output is near
 zero, which is why their mastery share reads high while Ice's and Blood's
 reads low. The share is measuring the denominator, not the path.
+
+## Is a path worth buying
+
+Measured against the same creature owning nothing, five seeds averaged, twenty
+seconds against eight standing bodies. The target is 20-35% for a complete
+path.
+
+| Path | Fire | Mud |
+| --- | ---: | ---: |
+| Twin Fang | +23% | +8% |
+| Tempest Claw | +13% | +9% |
+| War Rhythm | +37% | +43% |
+
+Twin Fang and War Rhythm are worth their silver; War Rhythm is above target on
+both and is currently the obvious pick.
+
+Two things this does not resolve:
+
+- **Tempest Claw's middle nodes measure as nothing.** Rending Wake and
+  Crosswind moved the total by 1-2% on both elements; the capstone carries the
+  whole path. Part of that is the scenario — a control path measured against
+  stationary bodies gets no credit for control — and part of it is real: on
+  Fire, Rending Wake fires a payload every cast into a burn that cannot stack,
+  so most applications only refresh one that was already running.
+- **Five seeds cannot resolve differences under about 10%.** The Mud column
+  bounced between +9% and +15% across runs of the same build. Treat these as
+  directional.
 
 ## Decisions intentionally made
 
