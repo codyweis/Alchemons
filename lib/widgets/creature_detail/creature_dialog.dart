@@ -42,6 +42,7 @@ import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/models/purity_stat_bonus.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/utils/nature_effect_formatter.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
@@ -2196,6 +2197,9 @@ class _AnalysisTab extends StatelessWidget {
     final showBreedingAnalysis =
         parentage != null && isInstance && instanceId != null;
     final highlightLineageOverview = highlightLineage && !showBreedingAnalysis;
+    final lineagePurity = instance == null
+        ? null
+        : classifyInstancePurity(instance!, species: creature);
 
     return SingleChildScrollView(
       controller: controller,
@@ -2250,7 +2254,12 @@ class _AnalysisTab extends StatelessWidget {
           // Genetic Analysis
           _AnalysisSection(
             title: 'Genetic Analysis',
-            child: _GeneticsBlock(creature: creature),
+            child: _GeneticsBlock(
+              creature: creature,
+              instanceId: instance?.instanceId,
+              purity: lineagePurity,
+              hasGeneAnalyzer: hasGeneAnalyzer,
+            ),
           ),
           const SizedBox(height: 18),
 
@@ -2443,19 +2452,54 @@ class _BehaviorBlock extends StatelessWidget {
 
 class _GeneticsBlock extends StatelessWidget {
   final Creature creature;
-  const _GeneticsBlock({required this.creature});
+  final String? instanceId;
+  final InstancePurityStatus? purity;
+  final bool hasGeneAnalyzer;
+
+  const _GeneticsBlock({
+    required this.creature,
+    this.instanceId,
+    this.purity,
+    this.hasGeneAnalyzer = false,
+  });
+
+  /// What an unbroken bloodline bought this specimen.
+  ///
+  /// Gated behind the gene analyzer like the rest of the fine detail here: an
+  /// unanalyzed specimen shows that its line is pure, because that is visible
+  /// from the lineage, but not which stat the line strengthened.
+  Widget? _lineageBonusRow() {
+    final id = instanceId;
+    final status = purity;
+    if (id == null || status == null) return null;
+    final bonus = resolvePurityStatBonus(
+      instanceId: id,
+      isElementallyPure: status.isElementallyPure,
+      isSpeciesPure: status.isSpeciesPure,
+    );
+    if (bonus.isNone) return null;
+    return _DataRow(
+      label: 'Lineage Bonus',
+      value: hasGeneAnalyzer ? bonus.readout : '${bonus.lineageLabel} — unread',
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final bonusRow = _lineageBonusRow();
     final g = creature.genetics;
     if (g == null) {
       return Column(
-        children: const [
-          _DataRow(
+        children: [
+          const _DataRow(
             label: 'Genetic Profile',
             value: 'Standard genotype — no variants detected',
           ),
-          _DataRow(label: 'Inheritance', value: 'Wild-type characteristics'),
+          const _DataRow(
+            label: 'Inheritance',
+            value: 'Wild-type characteristics',
+          ),
+          if (bonusRow != null) bonusRow,
         ],
       );
     }
@@ -2477,6 +2521,7 @@ class _GeneticsBlock extends StatelessWidget {
         ),
         if (tintGene != null)
           _DataRow(label: 'Description', value: _geneDesc('tinting', tintGene)),
+        if (bonusRow != null) bonusRow,
       ],
     );
   }
