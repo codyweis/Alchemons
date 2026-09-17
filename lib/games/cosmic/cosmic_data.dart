@@ -298,6 +298,9 @@ class CosmicBalance {
   ///
   /// The low and average anchors are what the old curve already produced, so
   /// ordinary creatures are unchanged; what was missing was a top end.
+  ///
+  /// Continuous, so a 100 beats a 95: the final-step milestone applies to
+  /// countable things, not to cadence.
   static double companionCooldownReduction(double speed) =>
       scaledAbilityValue(speed, atLow: 0.92, atAverage: 1.06, atPerfect: 1.55);
 
@@ -4928,6 +4931,11 @@ CosmicSpecialResult createCosmicSpecialAbility({
   double casterBeauty = 4.0,
   double casterIntelligence = 4.0,
   double casterStrength = 4.0,
+
+  /// Only the countable parts of an ability read this — see
+  /// [kAbilityFinalStepPotential]. Everything else scales off the stats above,
+  /// which keep climbing past 95.
+  double casterBeautyPotential = 50,
   Offset? targetPos,
 }) {
   final normalizedFamily = family.toLowerCase();
@@ -4986,6 +4994,7 @@ CosmicSpecialResult createCosmicSpecialAbility({
         casterBeauty,
         casterIntelligence,
         casterStrength,
+        casterBeautyPotential,
       );
       break;
     case 'mask':
@@ -7526,8 +7535,14 @@ const List<double> kManeLightOrbitRadii = [96.0, 66.0, 38.0, 126.0];
 /// climbs is untouched: rings are still born small and still earn their size
 /// by being fed, so a fourth ring is more ward, not a shortcut past the
 /// growth the element is built around.
-int maneLightRingCount(double beauty) =>
-    scaledAbilityCount(beauty, atLow: 2, atAverage: 3, atPerfect: 4);
+int maneLightRingCount(double beauty, {double potential = 50}) =>
+    scaledAbilityCount(
+      beauty,
+      atLow: 2,
+      atAverage: 3,
+      atPerfect: 4,
+      potential: potential,
+    );
 
 /// Angular speed per ring. The inner ring turns fastest, so the three never
 /// line up into a single rotating spoke.
@@ -8498,6 +8513,7 @@ CosmicSpecialResult _maneSpecial(
   double casterBeauty,
   double casterIntelligence,
   double casterStrength,
+  double casterBeautyPotential,
 ) {
   Projectile slash({
     required Offset position,
@@ -8925,6 +8941,7 @@ CosmicSpecialResult _maneSpecial(
         atLow: 4,
         atAverage: 8,
         atPerfect: 16,
+        potential: casterBeautyPotential,
       );
       return finalize(
         fanResult(
@@ -8952,6 +8969,7 @@ CosmicSpecialResult _maneSpecial(
             atLow: 5,
             atAverage: 7,
             atPerfect: 12,
+            potential: casterBeautyPotential,
           ),
           arc: pi * 0.42,
           damageMultiplier: 1.30,
@@ -11170,23 +11188,16 @@ const double kAbilityStatAverage = 4.25;
 /// Enhancement ranks push beyond this, which is why callers clamp.
 const double kAbilityStatPerfect = 12.0;
 
-/// A potential at or above this reads as a perfect roll for ability scaling.
+/// The potential at which an ability gains its **last discrete step** — the
+/// final fireball, the fourth ring.
 ///
-/// The internal stat blends species base with potential, so a median species
-/// bred to 100 lands near 8.6 and never reaches the perfect anchor a top
-/// species hits at 11.75. That makes the last stretch of breeding invisible
-/// on anything but the best species, which is exactly the stretch a player
-/// grinds hardest for. A 95 is a perfect roll whatever it was rolled on.
-const double kAbilityPerfectPotential = 95.0;
-
-/// The stat an ability should scale off, given what the creature was bred to.
-///
-/// Species base still decides damage — this only lifts the *shape* of the
-/// ability, the count and coverage that Beauty buys.
-double abilityScalingStat(double stat, double potential) =>
-    potential >= kAbilityPerfectPotential
-    ? (stat > kAbilityStatPerfect ? stat : kAbilityStatPerfect)
-    : stat;
+/// This is not "perfect". 100 is perfect and is strictly the strongest roll:
+/// everything continuous — damage, cadence, size — keeps climbing from 95 to
+/// 100 and beyond. What 95 guarantees is that the countable part of an
+/// ability has finished growing, so the last step lands somewhere a player can
+/// actually reach rather than only on the handful of species whose base stats
+/// carry them to the top anchor.
+const double kAbilityFinalStepPotential = 95.0;
 
 /// The continuous version of [scaledAbilityCount], for values that are not
 /// counts — cooldown multipliers, durations, radii.
@@ -11222,7 +11233,10 @@ int scaledAbilityCount(
   required int atLow,
   required int atAverage,
   required int atPerfect,
+  double potential = 50,
 }) {
+  // The last step is a breeding milestone, not a species one.
+  if (potential >= kAbilityFinalStepPotential) return atPerfect;
   final value = stat.isFinite ? stat : kAbilityStatAverage;
   if (value <= kAbilityStatLow) return atLow;
   if (value >= kAbilityStatPerfect) return atPerfect;

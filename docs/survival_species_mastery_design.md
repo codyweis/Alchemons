@@ -794,17 +794,32 @@ reduction toward *special* cooldowns, which would pair it with the mastery
 capstones that trigger on a cast (Crescendo, Blade Dance) instead of competing
 with Strength head-on.
 
-### A 95 potential is a perfect roll whatever it was rolled on
+### 95 is where the last step lands; 100 is still strongest
 
+Two different things scale off a stat and they must not be conflated.
+
+**Countable things** — a fireball, a ward ring — can only change in whole
+steps, and the last step should land somewhere a player can actually reach.
 The internal stat blends species base with potential, so a median species bred
-to 100 lands near 8.6 and never reaches the perfect anchor a top species hits
-at 11.75. That hid the last stretch of breeding on everything but the best
-species — exactly the stretch a player grinds hardest for.
+to 100 sits near 8.6 and never touches the anchor a top species hits at 11.75;
+left alone, the final fireball would exist only for a handful of species.
+`scaledAbilityCount` therefore awards its top count at
+`kAbilityFinalStepPotential` (95) regardless of species.
 
-`abilityScalingStat` lifts any stat bred to `kAbilityPerfectPotential` (95) or
-better up to the perfect anchor, for ability *shape* only. Species base still
-decides damage, so a great species is still a better creature; it no longer
-decides whether a perfect roll reads as perfect.
+**Continuous things** — damage, cadence, size — keep climbing the whole way,
+so 100 is strictly stronger than 95 and Enhancement is stronger still.
+
+A median-species Mane across the last stretch of breeding:
+
+| Potential | Beauty | Fireballs | Ward rings | Ice ball radius | Cadence |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 50 | 4.31 | 8 | 3 | 5.61 | 1.035 |
+| 90 | 7.25 | 11 | 3 | 7.59 | 1.210 |
+| 95 | 7.93 | **16** | **4** | 7.77 | 1.249 |
+| 100 | 8.63 | 16 | 4 | **7.92** | **1.289** |
+
+The counts finish at 95 and hold; everything else still rewards the last five
+points.
 
 ### Abilities scale across the band the player actually plays
 

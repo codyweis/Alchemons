@@ -2911,9 +2911,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final echoAngle = echoDir.distance > 0.001
             ? atan2(echoDir.dy, echoDir.dx)
             : comp.doubleCastAngle;
-        final thresholdBeauty = _abilityBeauty(slotIndex);
-        final thresholdIntelligence = _abilityIntelligence(slotIndex);
-        final thresholdStrength = _abilityStrength(slotIndex);
+        final thresholdBeauty = _effectiveBeauty(slotIndex);
+        final thresholdIntelligence = _effectiveIntelligence(slotIndex);
+        final thresholdStrength = _effectiveStrength(slotIndex);
         final result2 = createCosmicSpecialAbility(
           origin: comp.position,
           baseAngle: echoAngle + 0.15,
@@ -2925,6 +2925,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           casterBeauty: thresholdBeauty,
           casterIntelligence: thresholdIntelligence,
           casterStrength: thresholdStrength,
+          casterBeautyPotential: comp.member.statBeautyPotential,
           targetPos: comp.doubleCastTargetPos,
         );
         // The echo is the same attack happening twice, but it lands on its
@@ -3085,9 +3086,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             comp.member.family,
             comp.member.element,
           )) {
-        final thresholdBeauty = _abilityBeauty(slotIndex);
-        final thresholdIntelligence = _abilityIntelligence(slotIndex);
-        final thresholdStrength = _abilityStrength(slotIndex);
+        final thresholdBeauty = _effectiveBeauty(slotIndex);
+        final thresholdIntelligence = _effectiveIntelligence(slotIndex);
+        final thresholdStrength = _effectiveStrength(slotIndex);
         final cooldown =
             comp.effectiveSpecialCooldown *
             _specialCooldownReductionMultiplier(slotIndex, comp.member.family) *
@@ -3135,6 +3136,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           casterBeauty: thresholdBeauty,
           casterIntelligence: thresholdIntelligence,
           casterStrength: thresholdStrength,
+          casterBeautyPotential: comp.member.statBeautyPotential,
           targetPos: attackTarget,
         );
         final specialCastId = mastery.beginCast(
@@ -3880,25 +3882,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   double _effectiveBeauty(int slotIndex) =>
       max(0.5, party[slotIndex].statBeauty + powerUps.beautyBonus(slotIndex));
-
-  // The stats an ability's *shape* scales off. A creature bred to 95 potential
-  // or better reads as a perfect roll here however ordinary its species is,
-  // so the last stretch of breeding shows up on every alchemon rather than
-  // only on the handful with top base stats.
-  double _abilityBeauty(int slotIndex) => abilityScalingStat(
-    _effectiveBeauty(slotIndex),
-    party[slotIndex].statBeautyPotential,
-  );
-
-  double _abilityIntelligence(int slotIndex) => abilityScalingStat(
-    _effectiveIntelligence(slotIndex),
-    party[slotIndex].statIntelligencePotential,
-  );
-
-  double _abilityStrength(int slotIndex) => abilityScalingStat(
-    _effectiveStrength(slotIndex),
-    party[slotIndex].statStrengthPotential,
-  );
 
   double _effectiveSpeed(int slotIndex) =>
       max(0.5, party[slotIndex].statSpeed + powerUps.speedBonus(slotIndex));
@@ -6668,7 +6651,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   ) {
     final rings = _maneLightRings(slotIndex);
     // Beauty decides how wide a ward this Light can hold up.
-    final ringCap = maneLightRingCount(_abilityBeauty(slotIndex));
+    final ringCap = maneLightRingCount(
+      _effectiveBeauty(slotIndex),
+      potential: party[slotIndex].statBeautyPotential,
+    );
 
     if (rings.length < ringCap) {
       // Hang the next ring. Every ring is born at level 0 however far along

@@ -123,13 +123,11 @@ void main() {
     expect(maneLightRingCount(kAbilityStatLow), 2);
     expect(maneLightRingCount(kAbilityStatAverage), 3);
     expect(maneLightRingCount(kAbilityStatPerfect), 4);
-    // And a perfect roll reads as perfect however plain the species.
-    expect(
-      maneLightRingCount(abilityScalingStat(4.0, 95)),
-      4,
-      reason: 'A 95 potential is a perfect roll whatever it was rolled on.',
-    );
-    expect(maneLightRingCount(abilityScalingStat(4.0, 90)), 3);
+    // The last ring is a breeding milestone: 95 lands it whatever species it
+    // was rolled on, and 90 does not.
+    expect(maneLightRingCount(4.0, potential: 95), 4);
+    expect(maneLightRingCount(4.0, potential: 100), 4);
+    expect(maneLightRingCount(4.0, potential: 90), 3);
   });
 
   test('casts past the third feed the rings outer, middle, inner', () async {
