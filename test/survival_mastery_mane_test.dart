@@ -814,6 +814,36 @@ void main() {
     });
   });
 
+  group('nothing about attack speed is capped', () {
+    test('cadence keeps paying past the perfect anchor', () {
+      double cadence(double speed) =>
+          CosmicBalance.companionCooldownReduction(speed);
+
+      final perfect = cadence(kAbilityStatPerfect);
+      // Enhancement ranks push a stat past 12. Those points have to be worth
+      // something: the old curve stopped dead at a Speed of 9.
+      expect(cadence(13.5), greaterThan(perfect));
+      expect(cadence(15.3), greaterThan(cadence(13.5)));
+      expect(cadence(30), greaterThan(cadence(15.3)));
+    });
+
+    test('but it cannot run away either', () {
+      final perfect = CosmicBalance.companionCooldownReduction(
+        kAbilityStatPerfect,
+      );
+      // Logarithmic, so absurd stats are worth a fraction more rather than a
+      // multiple more — an uncapped linear tail would reach zero cooldown.
+      expect(
+        CosmicBalance.companionCooldownReduction(60),
+        lessThan(perfect * 1.6),
+      );
+    });
+
+    test('a count still stops, because half a fireball is not a thing', () {
+      expect(scaledAbilityCount(60, atLow: 4, atAverage: 8, atPerfect: 16), 16);
+    });
+  });
+
   group('each stat has its own job on a Mane', () {
     /// One special cast into a ring of six standing bodies.
     Future<({int projectiles, double radius, double damage})> cast({

@@ -11201,6 +11201,10 @@ const double kAbilityFinalStepPotential = 95.0;
 
 /// The continuous version of [scaledAbilityCount], for values that are not
 /// counts — cooldown multipliers, durations, radii.
+///
+/// Unlike a count, this has no ceiling: counts stop because you cannot throw
+/// half a fireball, but there is no reason a creature bred and enhanced past
+/// perfect should stop getting faster.
 double scaledAbilityValue(
   double stat, {
   required double atLow,
@@ -11209,7 +11213,17 @@ double scaledAbilityValue(
 }) {
   final value = stat.isFinite ? stat : kAbilityStatAverage;
   if (value <= kAbilityStatLow) return atLow;
-  if (value >= kAbilityStatPerfect) return atPerfect;
+  if (value >= kAbilityStatPerfect) {
+    // Past the perfect anchor the curve keeps paying, with sharply
+    // diminishing returns, instead of stopping. Enhancement ranks push a stat
+    // well past 12, and a clamp here would make those points worth exactly
+    // nothing — which is the bug this whole curve was written to fix, one
+    // ceiling higher up. It still cannot run away: the tail is logarithmic,
+    // so a stat of 30 is worth about a fifth more than a stat of 12, not
+    // three times more.
+    final over = value - kAbilityStatPerfect;
+    return atPerfect * (1.0 + log(1.0 + over / 4.0) * 0.18);
+  }
   if (value <= kAbilityStatAverage) {
     final t =
         (value - kAbilityStatLow) / (kAbilityStatAverage - kAbilityStatLow);

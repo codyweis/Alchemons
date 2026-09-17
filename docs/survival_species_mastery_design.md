@@ -768,6 +768,19 @@ stretch. It is now anchored on the real band like everything else: 0.92 at
 low, 1.06 at average (both unchanged, so ordinary creatures are untouched) and
 1.55 at perfect, which is +46% attack rate over an average creature.
 
+Nothing about cadence is capped. Past the perfect anchor the curve keeps
+paying on a logarithmic tail rather than clamping, because Enhancement ranks
+push a stat well past 12 and a clamp there would make those points worth
+exactly nothing — the same bug one ceiling higher. It cannot run away either:
+a stat of 30 is worth about a fifth more than a stat of 12, not three times
+more. Counts still stop, because half a fireball is not a thing.
+
+One related oddity, not changed: `effectiveBasicCooldown` also divides by a
+physical-attack factor that clamps at 3.0, which every creature above roughly
+a 3 in Strength already exceeds. So Strength quietly buys attack speed at the
+very bottom of the range and nothing at all above it. Harmless today, but it
+is a saturated term masquerading as a stat contribution.
+
 That fixed the broken part. It did not make Speed a damage stat. Trading
 Strength for Speed point for point, five seeds averaged, twenty seconds
 against eight bodies:
