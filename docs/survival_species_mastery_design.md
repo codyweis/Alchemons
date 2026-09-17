@@ -156,7 +156,11 @@ One idea, four times: the catapult shot does not stop.
 3. **No Horizon** — Special projectiles stop ageing. Only leaving the arena ends them.
 4. **Capstone: Endless Circuit** — One shot sweeps to 72% of the arena radius and circles it at 1.15 rad/s, permanently. Enemies spawn on a ring around the orb and walk inward, so the rim is the line every wave crosses — this is a perimeter, not a shot thrown away.
 
+   **Light rides its ward instead.** Light is the one element whose special never becomes a projectile in flight — the ward swallows it — so there is no first shot to peel off. Its outermost ring leaves the Mane and takes up the same circuit, which is the same idea in the element's own language: the ward stops guarding the creature and starts guarding the map. The ward hangs a replacement on its next cast, because a ring that became a circuit no longer counts as one of its own.
+
    **Built once, not per cast.** The first special that finds no circuit turning builds one; every cast after that fires normally. Taking the first shot of *every* cast would have meant something quite different for the fifteen Mane elements that throw a single projectile — their special would have been permanently spent rebuilding a perimeter that already existed, and would never have reached a target again. One cast is the price; the circuit is the thing bought. If it is ever lost — carried out of the arena — the next cast quietly builds another.
+
+Audited across all seventeen elements: fifteen build one circuit on their first cast and fire normally thereafter, Fire keeps seven of its eight shots for the target on the cast that builds it, and Light rides its ward as above. Lightning is the one exception — its orbs are authored to bloom into shock fields on arrival, which consumes them, so its circuit is lost and quietly rebuilt each cast. It never accumulates and it self-corrects, so it is left alone.
 
 *Replaced Tempest Claw on 2026-09-16.* That path measured last of the three and three of its four nodes had no idea in them: two stat tweaks and a node (Crosswind) that re-applied the element the node above it had already applied to the same bodies. Its one good node, Tempest Ring, moved to War Rhythm where a cadence counter belongs.
 

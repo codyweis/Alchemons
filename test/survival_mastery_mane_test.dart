@@ -473,6 +473,56 @@ void main() {
       },
     );
 
+    test(
+      'a Light ward gives up a ring to the circuit and regrows it',
+      () async {
+        // Light is the one element whose special never becomes a projectile in
+        // flight — the ward swallows it — so it had no "first shot" to peel off
+        // and received nothing at all from this path.
+        final (game, target) = await arena(
+          element: 'Light',
+          snapshot: equip(ManeNodes.limitlessPath),
+        );
+        final comp = game.activeCompanions[0]!;
+        comp.basicCooldown = 99999;
+        for (var cast = 0; cast < 4; cast++) {
+          // Back within casting range of the body each time; a special that
+          // never fires builds no ward and proves nothing.
+          comp.position = target.position - const Offset(140, 0);
+          comp.specialCooldown = 0;
+          game.update(1 / 60);
+          for (var i = 0; i < 20; i++) {
+            comp.basicCooldown = 99999;
+            comp.specialCooldown = 99999;
+            game.update(1 / 60);
+          }
+        }
+
+        final circuits = game.companionProjectiles
+            .where((p) => p.holdOrbit && p.masteryNoLifetime)
+            .toList();
+        expect(circuits, hasLength(1), reason: 'Light built no circuit.');
+        expect(
+          circuits.first.orbitRadius,
+          greaterThan(400),
+          reason: 'The ring should have left the Mane for the arena rim.',
+        );
+        expect(
+          circuits.first.followSourceCompanion,
+          isFalse,
+          reason: 'A circuit that re-anchors to its caster is not a circuit.',
+        );
+        // And the ward carries on: the ring that left is replaced, not missed.
+        expect(
+          game.companionProjectiles
+              .where((p) => p.holdOrbit && !p.masteryNoLifetime)
+              .length,
+          greaterThanOrEqualTo(2),
+        );
+        expect(target.isDead, isFalse, reason: 'test setup only');
+      },
+    );
+
     test('the circuit rides the rim the waves walk in across', () async {
       final (game, target) = await arena(
         element: 'Ice',

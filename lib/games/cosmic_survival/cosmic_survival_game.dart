@@ -3168,7 +3168,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (comp.member.family.toLowerCase() == 'mane' &&
             comp.member.element == 'Light' &&
             specialProjectiles.isNotEmpty) {
+          // Limitless reaches the ward through its seed: the ring is built
+          // from this projectile's damage and lifetime, so shaping it here is
+          // what makes Far Throw and Overdraw mean anything to a Light Mane.
+          _applyManeSpecialShape(specialProjectiles, slotIndex);
           _castManeLightWard(slotIndex, comp, specialProjectiles.first);
+          _maybeSendLightRingToCircuit(slotIndex, comp);
           specialProjectiles = const <Projectile>[];
         }
         // Mane+Spirit: each cast adds another shot to a tight machine-gun
@@ -5815,6 +5820,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     CosmicSurvivalCompanion comp,
     int slotIndex,
   ) {
+    _applyManeSpecialShape(projectiles, slotIndex);
+    // Only when this Mane has no circuit turning. If one is lost — carried
+    // out of the arena — the next cast quietly builds another.
+    if (mastery.hasNode(slotIndex, ManeNodes.endlessCircuit) &&
+        !_hasManeCircuit(slotIndex)) {
+      _sendManeProjectileToOrbit(projectiles.first, comp, slotIndex);
+    }
+  }
+
+  /// The three shape nodes of Limitless, without the capstone.
+  ///
+  /// Separate because Light's special never reaches the world as a projectile
+  /// — the ward swallows it — so it needs these applied to the seed the ward
+  /// is built from while its capstone is handled on the ward itself.
+  void _applyManeSpecialShape(List<Projectile> projectiles, int slotIndex) {
     if (projectiles.isEmpty || !_isMasteryMane(slotIndex)) return;
     bool has(String nodeId) => mastery.hasNode(slotIndex, nodeId);
     if (!has(ManeNodes.farThrow)) return;
@@ -5828,12 +5848,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       projectile.damage *= overdraw;
       if (noHorizon) projectile.masteryNoLifetime = true;
     }
+  }
 
-    // Only when this Mane has no circuit turning. If one is lost — carried
-    // out of the arena — the next cast quietly builds another.
-    if (has(ManeNodes.endlessCircuit) && !_hasManeCircuit(slotIndex)) {
-      _sendManeProjectileToOrbit(projectiles.first, comp, slotIndex);
-    }
+  /// Light's version of the capstone: the outermost ring of the ward leaves
+  /// the Mane and takes up the same circuit every other element rides.
+  ///
+  /// Light is the one element whose special never becomes a projectile in
+  /// flight, so there is no "first shot" to peel off. Sending a ring instead
+  /// is the same idea in its own language: the ward stops guarding the
+  /// creature and starts guarding the map. The ward simply hangs a
+  /// replacement on its next cast, because the circuit no longer counts as
+  /// one of its rings.
+  void _maybeSendLightRingToCircuit(
+    int slotIndex,
+    CosmicSurvivalCompanion comp,
+  ) {
+    if (!mastery.hasNode(slotIndex, ManeNodes.endlessCircuit)) return;
+    if (_hasManeCircuit(slotIndex)) return;
+    final rings = _maneLightRings(slotIndex);
+    if (rings.isEmpty) return;
+    _sendManeProjectileToOrbit(rings.first, comp, slotIndex);
   }
 
   /// Whether this Mane already has a circuit riding the rim.
@@ -5877,6 +5911,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       ..orbitSpeed = ManeTuning.circuitAngularSpeed
       ..holdOrbit = true
       ..followShipOrbit = false
+      // A Light ring re-anchors to its caster every frame. A circuit rides
+      // the arena, not the Mane.
+      ..followSourceCompanion = false
       ..masteryNoLifetime = true
       // Unlimited per-body hits, unlike every other Mane shot. The per-body
       // ceiling exists because a slow projectile parked inside an enemy bills
@@ -6682,7 +6719,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               p.element == 'Light' &&
               p.sourceSlotIndex == slotIndex &&
               p.holdOrbit &&
-              p.life > 0,
+              p.life > 0 &&
+              // A ring that left to become a circuit is no longer part of the
+              // ward, so the ward hangs a replacement rather than counting it.
+              !p.masteryNoLifetime,
         )
         .toList();
     rings.sort((a, b) => b.orbitRadius.compareTo(a.orbitRadius));
