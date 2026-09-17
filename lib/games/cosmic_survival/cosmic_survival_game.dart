@@ -5708,6 +5708,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             angle: angle,
             element: comp.member.element,
             damage: perSlash,
+            // From the seed, so the family's halved blade speed is not lost
+            // the moment a path is equipped.
+            speedMultiplier: seed.speedMultiplier,
+            life: seed.life,
             radiusMultiplier: seed.radiusMultiplier * shape.widthScale,
             visualScale: seed.visualScale * shape.widthScale,
             visualStyle: seed.visualStyle,
@@ -5873,10 +5877,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Whether this Mane already has a circuit riding the rim.
   bool _hasManeCircuit(int slotIndex) {
     for (final p in companionProjectiles) {
-      if (p.sourceSlotIndex == slotIndex &&
-          p.holdOrbit &&
-          p.masteryNoLifetime &&
-          p.life > 0) {
+      if (p.sourceSlotIndex == slotIndex && p.masteryCircuit && p.life > 0) {
         return true;
       }
     }
@@ -5915,13 +5916,25 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // the arena, not the Mane.
       ..followSourceCompanion = false
       ..masteryNoLifetime = true
-      // Unlimited per-body hits, unlike every other Mane shot. The per-body
-      // ceiling exists because a slow projectile parked inside an enemy bills
-      // every frame; this one sweeps the rim at roughly 900 units a second
-      // and is past a body in two frames, then does not meet it again for a
-      // full lap. Capping it at two would mean an enemy camped on the ring
-      // could never be hit again after its first pass.
-      ..maxHitsPerEnemy = 0
+      // The family's ordinary per-body ceiling, cleared once a lap (see the
+      // orbit update). Unlimited was wrong in both directions: a body the
+      // head overlaps is billed every frame it touches — four times a pass at
+      // the old speed, eight at the halved one — while a flat ceiling with no
+      // reset would retire the head against anything that survived one pass.
+      ..maxHitsPerEnemy = kManeSpecialMaxHitsPerEnemy
+      ..masteryCircuit = true
+      // The slash is drawn eight units per point of visual scale to either
+      // side of its position, but collides as a circle a fifth of that. On a
+      // shot that crosses the arena in a second nobody can tell; on a blade
+      // parked across the rim for the rest of the run, every enemy that walks
+      // visibly through it and takes nothing is a lie the capstone tells. The
+      // circuit collides as the blade it draws.
+      ..radiusMultiplier = max(
+        projectile.radiusMultiplier,
+        ManeTuning.circuitBladeHalfLength *
+            projectile.visualScale /
+            Projectile.radius,
+      )
       // Everything this shot does from here is the capstone's doing — left
       // alone it would have flown off and expired — so all of it attributes
       // to mastery rather than to the special that threw it.
@@ -15910,12 +15923,22 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (!p.holdOrbit) {
           p.orbitTime = max(0.0, p.orbitTime - dt);
         }
+        final previousAngle = p.orbitAngle;
         p.orbitAngle += p.orbitSpeed * dt;
         p.position = Offset(
           p.orbitCenter!.dx + cos(p.orbitAngle) * p.orbitRadius,
           p.orbitCenter!.dy + sin(p.orbitAngle) * p.orbitRadius,
         );
         if (p.followShipOrbit) p.orbitCenter = ship.position;
+        if (p.masteryCircuit) {
+          // Every lap is a fresh pass over the bodies on the rim.
+          if ((p.orbitAngle / (2 * pi)).floor() !=
+              (previousAngle / (2 * pi)).floor()) {
+            p.resetEnemyHits();
+          }
+          // A blade sweeping the rim points the way it is travelling.
+          p.angle = p.orbitAngle + pi / 2;
+        }
         _maybeFireProjectileTurret(p, dt);
         if (!p.holdOrbit && p.orbitTime <= 0) {
           p.angle = atan2(
@@ -16161,9 +16184,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // trailing thorns on the field at once, each dropping a puff every fifth
       // of a second with a three-second life, and the twelve together held
       // ~204 of the 220 slots. Everything else silently stopped placing.
+      // A circuit is exempt from the "not while orbiting" rule: an element
+      // whose special already lays something down as it travels — Dust's
+      // cloud, and Steam's geysers through the turret path above — keeps
+      // doing it while riding the rim. The capstone adds nothing of its own;
+      // it only stops the shot, so what the shot was already doing continues.
       if (p.trailInterval > 0 &&
           !p.stationary &&
-          p.orbitCenter == null &&
+          (p.orbitCenter == null || p.masteryCircuit) &&
           companionProjectiles.length < _trailProjectileCeiling) {
         p.trailTimer += dt;
         if (p.trailTimer >= p.trailInterval) {

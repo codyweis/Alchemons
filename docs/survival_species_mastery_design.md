@@ -121,6 +121,10 @@ Payload rules:
 - Status durations are reduced against bosses where necessary, but payload damage is not silently removed.
 - Mastery projectiles retain source slot, family, species, element, and basic-attack attribution.
 
+## Family speeds
+
+**Mane throws at half speed (2026-09-17).** Every Mane projectile — the two basic blades and all seventeen special catapults, authored outliers included — had its travel speed halved, and the specials' lifetime doubled to match, so each shot keeps exactly the reach it had and simply takes twice as long to get there. A Mane shot should read as a thrown weight whose pierce can be followed, not as a bullet. The blades keep their two-second life: at 300 units a second that still carries them 600 units, three times the companion's attack range, so nothing falls short. The constant is `kManeBasicSpeedMultiplier`; the special clamps live in the family rewrite in `cosmic_data.dart`.
+
 ## Family trees
 
 All percentages below are initial balance targets, not final shipping numbers.
@@ -154,7 +158,15 @@ One idea, four times: the catapult shot does not stop.
 1. **Far Throw** — Special projectiles carry 45% longer before fading, piercing more on the way.
 2. **Overdraw** — The special deals 15% more damage. Deliberately plain: several elements already grow as they travel (Light ramps per pierce, Earth sheds fragments), so a "gains power with distance" node would describe what the element was already doing.
 3. **No Horizon** — Special projectiles stop ageing. Only leaving the arena ends them.
-4. **Capstone: Endless Circuit** — One shot sweeps to 72% of the arena radius and circles it at 1.15 rad/s, permanently. Enemies spawn on a ring around the orb and walk inward, so the rim is the line every wave crosses — this is a perimeter, not a shot thrown away.
+4. **Capstone: Endless Circuit** — One shot sweeps to 72% of the arena radius and circles it at 0.575 rad/s (a lap in about eleven seconds), permanently, dragging a burning arc behind it. Enemies spawn on a ring around the orb and walk inward, so the rim is the line every wave crosses — this is a perimeter, not a shot thrown away.
+
+   **It collides as the blade it draws (2026-09-17).** On device the circuit visibly hit almost nothing. A slash is drawn eight units per point of visual scale to either side of its position and collided as a circle about a fifth of that — invisible on a shot that crosses the arena in a second, and a plain lie on a blade parked across the rim for the rest of the run, where enemies walked through the drawn slash and took nothing. The circuit now collides as what it draws. Measured across bodies walking in at twelve angles, with nothing else in the arena: 7 of 12 caught before, 9 of 12 after — and the three it still misses are bodies that cross while the blade is on the far side of the arena, which is the shape of a single perimeter guard rather than a bug. Halving its sweep to 0.575 rad/s costs nothing here, because coverage never came from speed — a faster point covers no more of the circle.
+
+   **The capstone lays nothing down.** It stops the shot; it does not add an ability. An element whose special already leaves something behind as it travels keeps doing so on the rim — Steam drops its geysers, Dust its cloud — and an element that does not, like Ice, leaves the rim clean. An earlier pass had the head emit its own trailing embers to cover the rim; that was the capstone inventing an ability the element never had, and it was removed.
+
+   **Per-lap hit ledger.** The head carries the family's ordinary two-hits-per-body ceiling, cleared once a lap. Unlimited was wrong in both directions: contact is re-tested every frame, so a body the head overlaps was billed four times a pass (eight at the halved speed), while a flat ceiling with no reset would have retired the head against anything that survived one pass.
+
+   **It points where it travels.** The blade's angle follows the tangent of its lap, so a slash sweeping the rim is drawn along the rim rather than frozen at the angle it was thrown.
 
    **Light rides its ward instead.** Light is the one element whose special never becomes a projectile in flight — the ward swallows it — so there is no first shot to peel off. Its outermost ring leaves the Mane and takes up the same circuit, which is the same idea in the element's own language: the ward stops guarding the creature and starts guarding the map. The ward hangs a replacement on its next cast, because a ring that became a circuit no longer counts as one of its own.
 

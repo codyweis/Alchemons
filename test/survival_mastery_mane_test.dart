@@ -384,6 +384,37 @@ void main() {
     });
   });
 
+  group('family speed', () {
+    test('Mane blades and catapults fly at half speed', () async {
+      final (game, target) = await arena(element: 'Ice');
+      final blades = castBasic(game, target);
+      expect(
+        blades.every((p) => p.speedMultiplier == kManeBasicSpeedMultiplier),
+        isTrue,
+        reason: 'A Mane blade is a thrown slash, not a bullet.',
+      );
+      // And the path rebuilds the pair rather than editing it, so the same
+      // has to hold with mastery equipped.
+      final (mastered, masteredTarget) = await arena(
+        element: 'Ice',
+        snapshot: equip(ManeNodes.assaultPath),
+      );
+      final shaped = castBasic(mastered, masteredTarget);
+      expect(
+        shaped.every((p) => p.speedMultiplier == kManeBasicSpeedMultiplier),
+        isTrue,
+        reason: 'Equipping a path must not restore the old blade speed.',
+      );
+
+      final special = await castSpecial(game, target);
+      expect(
+        special.every((p) => p.speedMultiplier <= 0.3 || p.holdOrbit),
+        isTrue,
+        reason: 'The catapult crawl is now half what it was.',
+      );
+    });
+  });
+
   group('Limitless', () {
     test('Far Throw carries the special further', () async {
       final (bare, bareTarget) = await arena(element: 'Ice');
@@ -571,6 +602,116 @@ void main() {
         game.companionProjectiles.where((p) => p.holdOrbit).length,
         1,
         reason: 'A long run must not end up ringed by orbiters.',
+      );
+    });
+
+    test('the circuit catches the wave crossing its rim', () async {
+      // The capstone's whole claim is that the rim is a line every wave walks
+      // across, and on device it was hitting almost nothing. The blade is
+      // drawn far larger than the circle it collided as, which no one can see
+      // on a shot that crosses the arena in a second but which every enemy
+      // walking untouched through a parked blade shows plainly.
+      final (game, target) = await arena(
+        element: 'Ice',
+        snapshot: equip(ManeNodes.limitlessPath),
+      );
+      final shots = await castSpecial(game, target);
+      final circuit = shots.firstWhere((p) => p.masteryCircuit);
+      final comp = game.activeCompanions[0]!;
+      comp.basicCooldown = 99999;
+      comp.specialCooldown = 99999;
+      target.isDead = true;
+      // The rest of the cast is still in flight and, on this path, never
+      // expires — left in, it lands on the walkers and this stops being a
+      // test about the rim.
+      game.companionProjectiles.removeWhere((p) => !p.masteryCircuit);
+
+      // Bodies walking inward, spread right around the rim.
+      final crossing = <CosmicSurvivalEnemy>[];
+      for (var i = 0; i < 12; i++) {
+        final angle = i * pi / 6;
+        final enemy = dummy(
+          target,
+          game.orb.position +
+              Offset(cos(angle), sin(angle)) * (circuit.orbitRadius + 120),
+        );
+        crossing.add(enemy);
+        game.enemies.add(enemy);
+      }
+
+      final hpBefore = [for (final e in crossing) e.hp];
+      // Walk them in by hand — the arena's stand-ins do not move on their own
+      // — over roughly two laps of the rim.
+      const step = 1 / 60;
+      for (var frame = 0; frame < 60 * 24; frame++) {
+        // Keep the arena to the walkers: a wave arriving on its own schedule
+        // reaches the orb mid-measurement and ends the run early, which is
+        // what made this read 9 one time and 10 the next.
+        for (final enemy in game.enemies) {
+          if (!crossing.contains(enemy)) enemy.isDead = true;
+        }
+        for (final enemy in crossing) {
+          final toOrb = game.orb.position - enemy.position;
+          final d = toOrb.distance;
+          if (d > 40) enemy.position += (toOrb / d) * 22 * step;
+        }
+        comp.basicCooldown = 99999;
+        comp.specialCooldown = 99999;
+        game.update(step);
+      }
+
+      final hurt = [
+        for (var i = 0; i < crossing.length; i++)
+          if (crossing[i].hp < hpBefore[i]) i,
+      ];
+      expect(
+        hurt.length,
+        greaterThanOrEqualTo(9),
+        reason:
+            'The rim caught only ${hurt.length} of ${crossing.length} bodies '
+            'walking across it. Colliding as a circle a fifth of the drawn '
+            'blade, it caught 7.',
+      );
+    });
+
+    test('the circuit lays nothing down that the element did not', () async {
+      // The capstone stops the shot; it does not add an ability. An element
+      // whose special already trails keeps trailing on the rim, and one that
+      // does not leaves the rim clean.
+      final (plain, plainTarget) = await arena(
+        element: 'Ice',
+        snapshot: equip(ManeNodes.limitlessPath),
+      );
+      await castSpecial(plain, plainTarget);
+      plain.companionProjectiles.removeWhere((p) => !p.masteryCircuit);
+      final plainComp = plain.activeCompanions[0]!;
+      for (var frame = 0; frame < 60 * 12; frame++) {
+        plainComp.basicCooldown = 99999;
+        plainComp.specialCooldown = 99999;
+        plain.update(1 / 60);
+      }
+      expect(
+        plain.companionProjectiles.where((p) => !p.masteryCircuit),
+        isEmpty,
+        reason: 'An Ice blade leaves no trail, so its circuit must not either.',
+      );
+
+      final (dust, dustTarget) = await arena(
+        element: 'Dust',
+        snapshot: equip(ManeNodes.limitlessPath),
+      );
+      await castSpecial(dust, dustTarget);
+      dust.companionProjectiles.removeWhere((p) => !p.masteryCircuit);
+      final dustComp = dust.activeCompanions[0]!;
+      for (var frame = 0; frame < 60 * 4; frame++) {
+        dustComp.basicCooldown = 99999;
+        dustComp.specialCooldown = 99999;
+        dust.update(1 / 60);
+      }
+      expect(
+        dust.companionProjectiles.where((p) => !p.masteryCircuit),
+        isNotEmpty,
+        reason: 'Dust trails as it travels; riding the rim does not stop it.',
       );
     });
   });

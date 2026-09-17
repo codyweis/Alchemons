@@ -4374,6 +4374,18 @@ class Projectile {
     counts[enemyId] = (counts[enemyId] ?? 0) + 1;
   }
 
+  /// Mane's Endless Circuit: the shot that left its cast to ride the arena
+  /// rim. Read by the orbit update, which clears its hit ledger once a lap
+  /// and drags a burning arc behind it.
+  bool masteryCircuit = false;
+
+  /// Forgets every body this projectile has hit, so its per-body ceiling
+  /// applies again from here. A perimeter that circles the arena for the rest
+  /// of the run needs this once a lap: without it a body standing on the rim
+  /// is hit twice and then never again, and with no ceiling at all the head
+  /// bills every frame it overlaps.
+  void resetEnemyHits() => _enemyHitCounts?.clear();
+
   /// Whether this projectile already hit the active boss (prevents multi-hit).
   bool hitBoss = false;
 
@@ -5509,6 +5521,7 @@ Projectile _copyProjectile(
   clone.masteryGenerated = p.masteryGenerated;
   clone.masteryReturnFraction = p.masteryReturnFraction;
   clone.masteryNoLifetime = p.masteryNoLifetime;
+  clone.masteryCircuit = p.masteryCircuit;
   // A copy is a fresh projectile with the same rules: it inherits the ceiling
   // but not the tally, or a ricochet would arrive already spent.
   clone.maxHitsPerEnemy = p.maxHitsPerEnemy;
@@ -8670,17 +8683,24 @@ CosmicSpecialResult _maneSpecial(
     // its position comes from the orbit each frame. Without this it picked up
     // the family's 0.24 floor, which is dead weight on a projectile that never
     // reads speedMultiplier.
+    // Halved across the family (2026-09-17): a Mane shot reads as a thrown
+    // weight rather than a bullet, and the slower arc is what makes its
+    // pierce legible. Lifetime below is doubled to match, so every element
+    // keeps the reach it had — the shot takes twice as long to get there, it
+    // does not stop short.
     final catapultSpeed = p.stationary || p.holdOrbit
         ? 0.0
         : p.element == 'Air'
-        ? rawSpeed.clamp(1.5, 2.8).toDouble()
+        ? rawSpeed.clamp(0.75, 1.4).toDouble()
         : p.element == 'Fire'
-        ? rawSpeed.clamp(1.0, 1.6).toDouble()
-        : rawSpeed.clamp(0.24, 0.58).toDouble();
+        ? rawSpeed.clamp(0.5, 0.8).toDouble()
+        : rawSpeed.clamp(0.12, 0.29).toDouble();
     return _copyProjectile(
       p,
       damage: p.damage * impactScale * earthForceScale * 1.65,
-      life: p.life * durationScale * (p.stationary ? 1.0 : 1.55),
+      // 3.1 rather than 1.55 because the catapult now flies at half speed:
+      // the same distance takes twice the time.
+      life: p.life * durationScale * (p.stationary ? 1.0 : 3.1),
       speedMultiplier: catapultSpeed,
       radiusMultiplier:
           p.radiusMultiplier * visualScaleMul * coverageScale * 1.18,
@@ -11289,6 +11309,12 @@ int scaledAbilityCount(
 /// design; it was the frame rate.
 const int kManeSpecialMaxHitsPerEnemy = 2;
 
+/// Mane blades fly at half the ordinary projectile speed, the same halving
+/// the family's catapult specials take. Their two-second life still carries
+/// them 600 units, three times the companion's attack range, so nothing falls
+/// short — the pair simply reads as a thrown slash rather than a shot.
+const double kManeBasicSpeedMultiplier = 0.5;
+
 List<Projectile> createFamilyBasicAttack({
   required Offset origin,
   required double angle,
@@ -11307,6 +11333,7 @@ List<Projectile> createFamilyBasicAttack({
           angle: angle - 0.08,
           element: element,
           damage: damage * 0.65 * kDamageScale,
+          speedMultiplier: kManeBasicSpeedMultiplier,
           visualStyle: ProjectileVisualStyle.slash,
         ),
         Projectile(
@@ -11317,6 +11344,7 @@ List<Projectile> createFamilyBasicAttack({
           angle: angle + 0.08,
           element: element,
           damage: damage * 0.65 * kDamageScale,
+          speedMultiplier: kManeBasicSpeedMultiplier,
           visualStyle: ProjectileVisualStyle.slash,
         ),
       ];

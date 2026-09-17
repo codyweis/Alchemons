@@ -107,9 +107,16 @@ class ManeTuning {
   /// fraction of the arena radius and circles it.
   static const double circuitRadiusFraction = 0.72;
 
-  /// Radians per second around the rim. Fast enough to meet a wave walking
-  /// in, slow enough to read as one object rather than a strobe.
-  static const double circuitAngularSpeed = 1.15;
+  /// Radians per second around the rim — one lap in about eleven seconds.
+  /// Halved from 1.15 (2026-09-17): at roughly 940 units a second the head
+  /// read as a strobe rather than an object, and coverage never came from its
+  /// speed anyway. It comes from the arc it leaves behind.
+  static const double circuitAngularSpeed = 0.575;
+
+  /// Half the length a slash is drawn at, per point of visual scale — the
+  /// number the renderer uses. The circuit collides as the blade it draws
+  /// rather than as the small circle every Mane shot normally uses.
+  static const double circuitBladeHalfLength = 8.0;
 
   /// Tempest Ring: every fourth cast throws a ring of radial slashes.
   static const int tempestRingCadence = 4;

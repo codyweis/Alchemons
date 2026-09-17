@@ -71,14 +71,26 @@ void main() {
     ) {
       game.update(1 / 60);
     }
-    final target = game.enemies.firstWhere((e) => !e.isDead);
+    // The spawned body is only a source of valid enum values; it is rebuilt
+    // at a known place with a known pool of health. It keeps the template's
+    // speed, because the status tests below measure a slow against it.
+    final template = game.enemies.firstWhere((e) => !e.isDead);
     for (final enemy in game.enemies) {
-      if (!identical(enemy, target)) enemy.isDead = true;
+      enemy.isDead = true;
     }
-    target
-      ..position = game.orb.position + const Offset(280, 0)
-      ..hp = 100000
-      ..knockbackVelocity = Offset.zero;
+    final target = CosmicSurvivalEnemy(
+      position: game.orb.position + const Offset(280, 0),
+      hp: 100000,
+      maxHp: 100000,
+      speed: template.speed,
+      damage: 0,
+      radius: template.radius,
+      tier: template.tier,
+      element: template.element,
+      conduct: template.conduct,
+      target: template.target,
+    );
+    game.enemies.add(target);
     return (game, target);
   }
 
@@ -201,8 +213,14 @@ void main() {
       game.update(1 / 60);
       final castId = game.companionProjectiles.first.masteryCastId;
 
-      // Fly the slashes into the body.
-      for (var i = 0; i < 30; i++) {
+      // Fly the slashes into the body. A Mane blade travels at half the
+      // ordinary projectile speed, so this is a longer flight than it used to
+      // be, and the body is held still for it: whether a slash catches a
+      // walking enemy is a question about the enemy the spawner rolled, not
+      // about attribution.
+      final where = target.position;
+      for (var i = 0; i < 90; i++) {
+        target.position = where;
         game.update(1 / 60);
         if (game.mastery.cast(castId)!.totalHits > 0) break;
       }

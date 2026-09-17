@@ -920,9 +920,12 @@ void main() {
           isTrue,
           reason: element,
         );
+        // Every Mane shot was halved (2026-09-17) and given twice the
+        // lifetime to keep its reach; the two authored outliers keep their
+        // multiple of the family crawl.
         if (element == 'Air') {
           expect(
-            result.projectiles.every((p) => p.speedMultiplier >= 1.5),
+            result.projectiles.every((p) => p.speedMultiplier >= 0.75),
             isTrue,
             reason: element,
           );
@@ -930,13 +933,13 @@ void main() {
           // Design board: "(3–8) fireballs shot out and travel FAST" —
           // Fire is the other speed outlier alongside Air.
           expect(
-            result.projectiles.every((p) => p.speedMultiplier >= 1.0),
+            result.projectiles.every((p) => p.speedMultiplier >= 0.5),
             isTrue,
             reason: element,
           );
         } else {
           expect(
-            result.projectiles.every((p) => p.speedMultiplier <= 0.96),
+            result.projectiles.every((p) => p.speedMultiplier <= 0.48),
             isTrue,
             reason: element,
           );
