@@ -147,14 +147,18 @@ Single-target pressure and kill chaining.
 3. **Predator Step** — A basic kill gives the next cast within 3 seconds stronger tracking and 25% more main-hit damage.
 4. **Capstone: Blade Dance** — Casting the special empowers the next five basic casts. Their slashes return to the Mane for 35% of outgoing damage. Returning hits cannot trigger Crosscut or another payload.
 
-### Control — Tempest Claw
+### Limitless
 
-Wide coverage and elemental disruption.
+One idea, four times: the catapult shot does not stop.
 
-1. **Sweeping Claws** — Slash width increases by 35% and spread widens slightly (1.2x). Each slash still deals 65% physical damage. *Revised 2026-09-16: it cut slashes to 60% and widened spread 1.6x, which measured 9-12% worse than owning nothing — the pair flew apart and missed more than the width caught.*
-2. **Rending Wake** — The first enemy struck by each slash receives the elemental payload at 80% strength.
-3. **Crosswind** — If the two slashes hit different enemies, both targets receive a second reduced payload at 40% strength.
-4. **Capstone: Tempest Ring** — Every fourth cast releases eight radial slashes at 20% physical damage each. No enemy can take more than three radial hits; the first radial hit triggers one payload.
+1. **Far Throw** — Special projectiles carry 45% longer before fading, piercing more on the way.
+2. **Overdraw** — The special deals 15% more damage. Deliberately plain: several elements already grow as they travel (Light ramps per pierce, Earth sheds fragments), so a "gains power with distance" node would describe what the element was already doing.
+3. **No Horizon** — Special projectiles stop ageing. Only leaving the arena ends them.
+4. **Capstone: Endless Circuit** — The first projectile of each cast sweeps to 72% of the arena radius and circles it at 1.15 rad/s, permanently, replacing the previous circuit rather than adding to it. Enemies spawn on a ring around the orb and walk inward, so the rim is the line every wave crosses — this is a perimeter, not a shot thrown away.
+
+*Replaced Tempest Claw on 2026-09-16.* That path measured last of the three and three of its four nodes had no idea in them: two stat tweaks and a node (Crosswind) that re-applied the element the node above it had already applied to the same bodies. Its one good node, Tempest Ring, moved to War Rhythm where a cadence counter belongs.
+
+**Open: what the capstone means for single-shot elements.** Fire throws eight projectiles, so one leaves and seven still hit the target. Fifteen of the seventeen Mane elements throw exactly one, so for them the capstone converts the special entirely into a patrolling circuit and the cast stops damaging the target at all. That may be the right dramatic trade for a ten-gold capstone, or the circuit may need to be a copy rather than the shot itself. Not yet decided.
 
 ### Resonance — War Rhythm
 

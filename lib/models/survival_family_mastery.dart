@@ -169,32 +169,14 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           "Casting your special makes your next 5 attacks boomerang back, hitting again for 35% damage.",
         ),
       ]),
-      _path('mane.control', 'Tempest Claw', 'Spread your element across groups', [
-        (
-          'Sweeping Claws',
-          "Slashes are 35% wider and spread further, catching more enemies without losing any damage.",
-        ),
-        (
-          'Rending Wake',
-          "The first enemy each slash hits takes your element's effect at 80% strength.",
-        ),
-        (
-          'Crosswind',
-          "When the two slashes hit different enemies, both take your element's effect again at 40% strength.",
-        ),
-        (
-          'Tempest Ring',
-          "Every 4th attack also bursts 8 slashes outward in a ring (20% damage each) that carry your element.",
-        ),
-      ]),
-      _path('mane.resonance', 'War Rhythm', 'Build Rhythm, cash it in with specials', [
+      _path('mane.resonance', 'War Rhythm', 'Build Rhythm and spend it on cadence', [
         (
           'Measured Cuts',
           "Landing both slashes on one enemy builds Rhythm (max 5). Each Rhythm gives +2% attack speed. Missing with both loses 1.",
         ),
         (
-          'Rising Tempo',
-          "Each Rhythm also gives +3% attack damage, and at 3+ Rhythm your slashes grow 15% wider.",
+          'Tempest Ring',
+          "Every 4th attack also bursts 8 slashes outward in a ring (20% damage each) that carry your element.",
         ),
         (
           'Crescendo',
@@ -203,6 +185,21 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
         (
           'Encore',
           "Spending 5 Rhythm starts a 6s Encore: +25% attack speed and wider slashes. Kills extend it by up to 2s.",
+        ),
+      ]),
+      _path('mane.limitless', 'Limitless', 'Your special never stops travelling', [
+        (
+          'Far Throw',
+          "Your special's projectiles travel 45% further before fading, piercing more enemies on the way.",
+        ),
+        ('Overdraw', "Your special deals 15% more damage."),
+        (
+          'No Horizon',
+          "Your special's projectiles stop fading with time. Only the edge of the arena stops them.",
+        ),
+        (
+          'Endless Circuit',
+          "The first projectile of each special circles the arena rim, cutting down enemies as they come in. The rest fires at your target.",
         ),
       ]),
     ],

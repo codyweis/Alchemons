@@ -137,7 +137,7 @@ void main() {
     expect(find.text('TAP TO CONFIRM'), findsOneWidget);
 
     await tester.tap(
-      find.byKey(const ValueKey('mastery-node-mane.control.sweeping_claws')),
+      find.byKey(const ValueKey('mastery-node-mane.limitless.far_throw')),
     );
     await tester.pump();
     expect(find.text('TAP TO CONFIRM'), findsNothing);
@@ -174,17 +174,20 @@ void main() {
     );
     await mastery.purchaseNode(
       family: CreatureFamily.mane,
-      nodeId: 'mane.control.sweeping_claws',
+      nodeId: 'mane.limitless.far_throw',
     );
     await pumpPanel(tester);
 
     expect(find.byKey(const ValueKey('select-mane.assault')), findsNothing);
     // Tap the banner's title, not its EQUIP chip: the whole banner is the
     // button.
-    await tester.tap(find.text('TEMPEST CLAW'));
+    await tester.tap(find.text('LIMITLESS'));
     await settle(tester);
 
-    expect(mastery.selectedPathForFamily(CreatureFamily.mane), 'mane.control');
+    expect(
+      mastery.selectedPathForFamily(CreatureFamily.mane),
+      'mane.limitless',
+    );
     expect(find.byKey(const ValueKey('select-mane.assault')), findsOneWidget);
   });
 

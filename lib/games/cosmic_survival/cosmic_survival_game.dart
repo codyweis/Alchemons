@@ -3145,6 +3145,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           element: comp.member.element,
           kind: MasteryCastKind.special,
           projectileCount: result.projectiles.length,
+          masteryDamageFraction: _masterySpecialUplift(slotIndex),
         );
         _onManeSpecialCast(slotIndex);
         for (final projectile in result.projectiles) {
@@ -3273,6 +3274,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             projectile.masteryCastId = specialCastId;
           }
         }
+        _applyManeSpecialMastery(specialProjectiles, comp, slotIndex);
         // Horn charges: hold the projectile burst until the ram lands
         // on its target. This anchors the spawn at the point of attack
         // instead of the caster's start position.
@@ -5802,6 +5804,89 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _appendCompanionProjectiles(ring);
   }
 
+  /// Limitless reshapes the special itself: how far it carries, how hard it
+  /// lands, whether it fades at all, and finally where the first shot goes.
+  ///
+  /// Runs after the per-family rewrites have settled, so it operates on the
+  /// projectiles that will actually reach the world rather than on the
+  /// ability table's first draft.
+  void _applyManeSpecialMastery(
+    List<Projectile> projectiles,
+    CosmicSurvivalCompanion comp,
+    int slotIndex,
+  ) {
+    if (projectiles.isEmpty || !_isMasteryMane(slotIndex)) return;
+    bool has(String nodeId) => mastery.hasNode(slotIndex, nodeId);
+    if (!has(ManeNodes.farThrow)) return;
+
+    final overdraw = has(ManeNodes.overdraw)
+        ? 1.0 + ManeTuning.overdrawDamageBonus
+        : 1.0;
+    final noHorizon = has(ManeNodes.noHorizon);
+    for (final projectile in projectiles) {
+      projectile.life *= ManeTuning.farThrowLifeScale;
+      projectile.damage *= overdraw;
+      if (noHorizon) projectile.masteryNoLifetime = true;
+    }
+
+    if (has(ManeNodes.endlessCircuit)) {
+      _sendManeProjectileToOrbit(projectiles.first, comp, slotIndex);
+    }
+  }
+
+  /// Endless Circuit: the first shot of the cast peels out to the rim and
+  /// circles the arena.
+  ///
+  /// Enemies spawn on a ring around the orb and walk inward, so the rim is
+  /// not empty space — it is the line every wave crosses on its way in. That
+  /// is what makes this a perimeter rather than a projectile thrown away.
+  void _sendManeProjectileToOrbit(
+    Projectile projectile,
+    CosmicSurvivalCompanion comp,
+    int slotIndex,
+  ) {
+    // One circuit per Mane. A new cast replaces the old orbiter rather than
+    // adding to it, or a long run ends up ringed by them and the projectile
+    // pool pays for it.
+    for (final existing in companionProjectiles) {
+      if (existing.sourceSlotIndex == slotIndex &&
+          existing.holdOrbit &&
+          existing.masteryNoLifetime) {
+        existing.life = 0;
+      }
+    }
+
+    final centre = orb.position;
+    final toCaster = comp.position - centre;
+    final startAngle = toCaster.distance > 0.01
+        ? atan2(toCaster.dy, toCaster.dx)
+        : 0.0;
+    projectile
+      ..orbitCenter = centre
+      ..orbitRadius = _arenaRadius * ManeTuning.circuitRadiusFraction
+      ..orbitAngle = startAngle
+      ..orbitSpeed = ManeTuning.circuitAngularSpeed
+      ..holdOrbit = true
+      ..followShipOrbit = false
+      ..masteryNoLifetime = true
+      // Unlimited per-body hits, unlike every other Mane shot. The per-body
+      // ceiling exists because a slow projectile parked inside an enemy bills
+      // every frame; this one sweeps the rim at roughly 900 units a second
+      // and is past a body in two frames, then does not meet it again for a
+      // full lap. Capping it at two would mean an enemy camped on the ring
+      // could never be hit again after its first pass.
+      ..maxHitsPerEnemy = 0
+      // Everything this shot does from here is the capstone's doing — left
+      // alone it would have flown off and expired — so all of it attributes
+      // to mastery rather than to the special that threw it.
+      ..masteryGenerated = true;
+    projectile.position = Offset(
+      centre.dx + cos(startAngle) * projectile.orbitRadius,
+      centre.dy + sin(startAngle) * projectile.orbitRadius,
+    );
+    mastery.recordCapstone(slotIndex);
+  }
+
   /// Crescendo and Blade Dance both fire when the special goes out.
   void _onManeSpecialCast(int slotIndex) {
     if (!_isMasteryMane(slotIndex)) return;
@@ -5895,22 +5980,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
 
-    // ── Tempest Claw ──
-    if (has(ManeNodes.rendingWake) &&
-        mastery.claimPayloadTarget(cast.id, hit.targetId)) {
-      triggerElementalPayload(
-        slotIndex: slotIndex,
-        effectId: ManeNodes.rendingWake,
-        enemy: enemy,
-        boss: boss,
-        strength: ManeTuning.rendingWakeStrength,
-        triggeringDamage: hit.damage,
-      );
-    }
-    if (has(ManeNodes.crosswind)) {
-      _resolveManeCrosswind(state, hit, enemy: enemy, boss: boss);
-    }
-
     // ── War Rhythm ──
     if (has(ManeNodes.measuredCuts) && hit.isDualHit) {
       state.gainRhythm();
@@ -5922,43 +5991,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         enemy: enemy,
         boss: boss,
         strength: ManeTuning.crescendoPayloadStrength,
-        triggeringDamage: hit.damage,
-      );
-    }
-  }
-
-  /// Crosswind: the pair splitting across two bodies pays both of them.
-  ///
-  /// The first body is held until the second slash lands, because a payload
-  /// owed to a target the cast has already left still has to reach it.
-  void _resolveManeCrosswind(
-    ManeMasteryState state,
-    MasteryHit hit, {
-    CosmicSurvivalEnemy? enemy,
-    SurvivalBoss? boss,
-  }) {
-    final target = (enemy ?? boss) as Object?;
-    if (target == null) return;
-
-    if (state.crosswindCastId != hit.cast.id) {
-      state.crosswindCastId = hit.cast.id;
-      state.crosswindFirstTarget = target;
-      return;
-    }
-    final first = state.crosswindFirstTarget;
-    // Both blades into one body is Crosscut's business, not Crosswind's.
-    if (first == null || identical(first, target)) return;
-    state.crosswindFirstTarget = null;
-
-    for (final body in [first, target]) {
-      final otherEnemy = body is CosmicSurvivalEnemy ? body : null;
-      final otherBoss = body is SurvivalBoss ? body : null;
-      triggerElementalPayload(
-        slotIndex: hit.slotIndex,
-        effectId: ManeNodes.crosswind,
-        enemy: otherEnemy,
-        boss: otherBoss,
-        strength: ManeTuning.crosswindStrength,
         triggeringDamage: hit.damage,
       );
     }
@@ -5983,6 +6015,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// the shape pass that just ran.
   double _masteryBasicUplift(int slotIndex) =>
       _maneMastery[slotIndex]?.pendingMasteryDamageFraction ?? 0.0;
+
+  /// The same for a special. Limitless is the only path that raises special
+  /// damage outright, and it does so by a flat amount that depends on nothing
+  /// but which nodes are equipped — so unlike the basic uplift it is knowable
+  /// before the cast opens.
+  double _masterySpecialUplift(int slotIndex) {
+    if (!mastery.hasNode(slotIndex, ManeNodes.overdraw)) return 0.0;
+    const bonus = ManeTuning.overdrawDamageBonus;
+    return bonus / (1.0 + bonus);
+  }
 
   /// Basic-attack cooldown multiplier from mastery. Below 1 is faster.
   double _masteryBasicCooldownMultiplier(int slotIndex) {
@@ -15951,7 +15993,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // other projectiles tick down normally.
       final isImmortalPlantVine =
           p.abilityFamily == 'mask' && p.element == 'Plant' && p.stationary;
-      if (!isImmortalPlantVine) {
+      if (p.masteryNoLifetime) {
+        // No Horizon: the shot does not fade, but the arena still ends it.
+        // Without this the only bound on a Limitless cast would be the
+        // projectile pool, which is not a bound anyone should rely on.
+        if ((p.position - orb.position).distance > _arenaRadius * 1.08) {
+          p.life = 0;
+          continue;
+        }
+      } else if (!isImmortalPlantVine) {
         p.life -= dt;
         if (p.life <= 0) continue;
       }

@@ -135,6 +135,25 @@ void main() {
   double encoreOf(CosmicSurvivalGame game, int slotIndex) =>
       game.maneMasteryFor(slotIndex)?.encoreTimer ?? 0;
 
+  /// Fires one special and returns its projectiles, still in flight.
+  Future<List<Projectile>> castSpecial(
+    CosmicSurvivalGame game,
+    CosmicSurvivalEnemy target, {
+    int slotIndex = 0,
+    double gap = 140,
+  }) async {
+    final comp = game.activeCompanions[slotIndex]!;
+    comp.position = target.position - Offset(gap, 0);
+    comp.basicCooldown = 99999;
+    comp.specialCooldown = 0;
+    game.companionProjectiles.clear();
+    game.update(1 / 60);
+    comp.specialCooldown = 99999;
+    return game.companionProjectiles
+        .where((p) => p.sourceSlotIndex == slotIndex)
+        .toList();
+  }
+
   /// Fires a basic and flies it into the target, returning the cast id.
   int landBasic(
     CosmicSurvivalGame game,
@@ -180,36 +199,6 @@ void main() {
           ManeTuning.honedPairSlashFraction / ManeTuning.baseSlashFraction,
           1e-6,
         ),
-      );
-    });
-
-    test('Sweeping Claws widens without costing damage', () async {
-      final (bare, bareTarget) = await arena();
-      final bareShots = castBasic(bare, bareTarget);
-      final bareSpread = (bareShots[0].angle - bareShots[1].angle).abs();
-
-      final (sweep, sweepTarget) = await arena(
-        snapshot: equip(ManeNodes.controlPath, throughTier: 1),
-      );
-      final sweepShots = castBasic(sweep, sweepTarget);
-      final sweepSpread = (sweepShots[0].angle - sweepShots[1].angle).abs();
-
-      expect(
-        sweepShots.first.radiusMultiplier,
-        greaterThan(bareShots.first.radiusMultiplier),
-      );
-      // A first purchase must never make the creature worse. This node cut
-      // each slash to 60% and flung the pair 1.6x apart, and measured 9-12%
-      // below owning nothing.
-      expect(
-        sweepShots.first.damage,
-        greaterThanOrEqualTo(bareShots.first.damage),
-      );
-      expect(sweepSpread, greaterThan(bareSpread));
-      expect(
-        sweepSpread,
-        lessThan(bareSpread * 1.5),
-        reason: 'A pair flung too far apart misses more than width catches.',
       );
     });
 
@@ -388,104 +377,129 @@ void main() {
     });
   });
 
-  group('Tempest Claw', () {
-    test('Rending Wake pays each body a slash reaches, once', () async {
-      final (game, target) = await arena(
-        element: 'Mud',
-        snapshot: equip(ManeNodes.controlPath, throughTier: 2),
+  group('Limitless', () {
+    test('Far Throw carries the special further', () async {
+      final (bare, bareTarget) = await arena(element: 'Ice');
+      final plain = await castSpecial(bare, bareTarget);
+
+      final (far, farTarget) = await arena(
+        element: 'Ice',
+        snapshot: equip(ManeNodes.limitlessPath, throughTier: 1),
       );
-      landBasic(game, target);
+      final thrown = await castSpecial(far, farTarget);
+
+      expect(thrown.first.life, greaterThan(plain.first.life));
       expect(
-        game.mastery.telemetryFor(0).payloadApplications,
-        1,
-        reason: 'Both blades into one body is still one body.',
+        thrown.first.life / plain.first.life,
+        closeTo(ManeTuning.farThrowLifeScale, 0.01),
       );
-      expect(target.slowTimer, greaterThan(0));
     });
 
-    test('Crosswind pays both bodies when the pair splits', () async {
-      final (game, target) = await arena(
-        element: 'Mud',
-        snapshot: equip(ManeNodes.controlPath, throughTier: 3),
+    test('Overdraw adds 15% and nothing else', () async {
+      final (one, oneTarget) = await arena(
+        element: 'Ice',
+        snapshot: equip(ManeNodes.limitlessPath, throughTier: 1),
       );
-      final second = CosmicSurvivalEnemy(
-        position: target.position + const Offset(0, 80),
-        hp: 1000000,
-        maxHp: 1000000,
-        speed: 0,
-        damage: 0,
-        radius: target.radius,
-        tier: target.tier,
-        element: target.element,
-        conduct: target.conduct,
-        target: target.target,
-      );
-      game.enemies.add(second);
+      final before = await castSpecial(one, oneTarget);
 
-      final comp = game.activeCompanions[0]!;
-      comp.position = target.position - const Offset(260, 40);
-      comp.basicCooldown = 0;
-      comp.specialCooldown = 999;
-      game.companionProjectiles.clear();
-      game.update(1 / 60);
+      final (two, twoTarget) = await arena(
+        element: 'Ice',
+        snapshot: equip(ManeNodes.limitlessPath, throughTier: 2),
+      );
+      final after = await castSpecial(two, twoTarget);
+
+      expect(
+        after.first.damage / before.first.damage,
+        closeTo(1.0 + ManeTuning.overdrawDamageBonus, 0.01),
+      );
+      expect(after.first.life, closeTo(before.first.life, 0.01));
+    });
+
+    test(
+      'No Horizon stops the shot ageing, but the arena still ends it',
+      () async {
+        final (game, target) = await arena(
+          element: 'Ice',
+          snapshot: equip(ManeNodes.limitlessPath, throughTier: 3),
+        );
+        final shots = await castSpecial(game, target);
+        expect(shots.first.masteryNoLifetime, isTrue);
+
+        final life = shots.first.life;
+        for (var i = 0; i < 60 * 3; i++) {
+          game.update(1 / 60);
+        }
+        final alive = game.companionProjectiles.where(
+          (p) => p.masteryNoLifetime,
+        );
+        if (alive.isNotEmpty) {
+          expect(
+            alive.first.life,
+            closeTo(life, 0.01),
+            reason: 'A shot that does not age must not lose lifetime.',
+          );
+        }
+      },
+    );
+
+    test(
+      'Endless Circuit puts the first shot into orbit, and only the first',
+      () async {
+        final (game, target) = await arena(
+          element: 'Fire',
+          snapshot: equip(ManeNodes.limitlessPath),
+        );
+        final shots = await castSpecial(game, target);
+        expect(
+          shots.length,
+          greaterThan(1),
+          reason: 'test setup: Fire should throw a fan',
+        );
+
+        final orbiters = shots.where((p) => p.holdOrbit).toList();
+        expect(orbiters, hasLength(1));
+        expect(identical(orbiters.first, shots.first), isTrue);
+        // The rest carry on at the target as normal.
+        expect(shots.skip(1).every((p) => !p.holdOrbit), isTrue);
+      },
+    );
+
+    test('the circuit rides the rim the waves walk in across', () async {
+      final (game, target) = await arena(
+        element: 'Ice',
+        snapshot: equip(ManeNodes.limitlessPath),
+      );
+      final shots = await castSpecial(game, target);
+      final orbiter = shots.firstWhere((p) => p.holdOrbit);
+
+      final radius = (orbiter.position - game.orb.position).distance;
+      expect(radius, greaterThan(400));
+      // It keeps that radius as it goes round rather than spiralling away.
       for (var i = 0; i < 60; i++) {
         game.update(1 / 60);
       }
-
-      if (target.slowTimer > 0 && second.slowTimer > 0) {
-        // The split landed: Rending Wake paid each, Crosswind paid both again.
+      if (game.companionProjectiles.contains(orbiter)) {
         expect(
-          game.mastery.telemetryFor(0).payloadApplications,
-          greaterThanOrEqualTo(3),
+          (orbiter.position - game.orb.position).distance,
+          closeTo(radius, 2.0),
         );
       }
     });
 
-    test('Tempest Ring fires every fourth cast and caps its hits', () async {
+    test('a second cast replaces the circuit rather than adding one', () async {
       final (game, target) = await arena(
-        element: 'Mud',
-        snapshot: equip(ManeNodes.controlPath),
+        element: 'Ice',
+        snapshot: equip(ManeNodes.limitlessPath),
       );
-      for (var i = 0; i < 3; i++) {
-        castBasic(game, target, gap: 180);
-      }
-      expect(
-        game.companionProjectiles.where((p) => p.masteryGenerated).length,
-        0,
-        reason: 'Three casts is not yet a ring.',
-      );
-
-      castBasic(game, target, gap: 180);
-      final ring = game.companionProjectiles
-          .where((p) => p.masteryGenerated)
-          .toList();
-      expect(ring.length, ManeTuning.tempestRingSlashes);
-
-      final ringCast = game.mastery.cast(ring.first.masteryCastId)!;
-      expect(ringCast.maxHitsPerTarget, ManeTuning.tempestRingMaxHitsPerTarget);
-
-      // Park the body inside the ring and let the whole thing sweep through.
-      target.position = game.activeCompanions[0]!.position;
-      for (var i = 0; i < 60; i++) {
+      await castSpecial(game, target);
+      await castSpecial(game, target);
+      for (var i = 0; i < 5; i++) {
         game.update(1 / 60);
       }
       expect(
-        ringCast.hitsOn(identityHashCode(target)),
-        lessThanOrEqualTo(ManeTuning.tempestRingMaxHitsPerTarget),
-      );
-    });
-
-    test('a ring is not counted as another scheduled attack', () async {
-      final (game, target) = await arena(
-        snapshot: equip(ManeNodes.controlPath),
-      );
-      for (var i = 0; i < 4; i++) {
-        castBasic(game, target, gap: 180);
-      }
-      expect(
-        game.mastery.telemetryFor(0).basicCasts,
-        4,
-        reason: 'The ring is the capstone firing, not a fifth cast.',
+        game.companionProjectiles.where((p) => p.holdOrbit).length,
+        1,
+        reason: 'A long run must not end up ringed by orbiters.',
       );
     });
   });
@@ -501,12 +515,14 @@ void main() {
       expect(rhythmOf(game, 0), ManeTuning.maxRhythm);
     });
 
-    test('Rhythm makes the Mane faster and harder hitting', () async {
+    test('Rhythm makes the Mane faster', () async {
+      // Rhythm buys cadence and only cadence. It used to also add damage and
+      // width through Rising Tempo, which was dropped for being pure numbers
+      // on a resource that already had a payoff.
       final (game, target) = await arena(
-        snapshot: equip(ManeNodes.resonancePath, throughTier: 2),
+        snapshot: equip(ManeNodes.resonancePath, throughTier: 1),
       );
-      final cold = castBasic(game, target, gap: 180);
-      final coldDamage = cold.first.damage;
+      castBasic(game, target, gap: 180);
       final coldCooldown = game.activeCompanions[0]!.basicCooldown;
 
       for (var i = 0; i < 6; i++) {
@@ -514,14 +530,8 @@ void main() {
       }
       expect(rhythmOf(game, 0), greaterThan(0));
 
-      final hot = castBasic(game, target, gap: 180);
-      expect(hot.first.damage, greaterThan(coldDamage));
+      castBasic(game, target, gap: 180);
       expect(game.activeCompanions[0]!.basicCooldown, lessThan(coldCooldown));
-      expect(
-        hot.first.radiusMultiplier,
-        greaterThan(cold.first.radiusMultiplier),
-        reason: 'Three or more Rhythm should widen the slashes.',
-      );
     });
 
     test('a cast that lands nothing spends a Rhythm', () async {

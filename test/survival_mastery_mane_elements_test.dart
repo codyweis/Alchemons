@@ -102,7 +102,7 @@ void main() {
     String element, {
     required bool withNeighbour,
   }) async {
-    final game = await start(element, ManeNodes.controlPath);
+    final game = await start(element, ManeNodes.limitlessPath);
     for (final e in game.enemies) {
       e.isDead = true;
     }
@@ -242,7 +242,11 @@ void main() {
 
   group('every path drives its element in a real fight', () {
     /// Twenty seconds against a standing crowd, the way a wave actually goes.
-    Future<void> expectPathContributes(String pathId, String element) async {
+    Future<void> expectPathContributes(
+      String pathId,
+      String element, {
+      bool firesPayloads = true,
+    }) async {
       final game = await start(element, pathId);
       for (final e in game.enemies) {
         e.isDead = true;
@@ -262,11 +266,13 @@ void main() {
         greaterThan(10),
         reason: '$pathId: the Mane barely attacked; the scenario is wrong',
       );
-      expect(
-        stats.payloadApplications,
-        greaterThan(0),
-        reason: '$pathId with $element never got its element into the fight',
-      );
+      if (firesPayloads) {
+        expect(
+          stats.payloadApplications,
+          greaterThan(0),
+          reason: '$pathId with $element never got its element into the fight',
+        );
+      }
       expect(
         stats.masteryShare,
         greaterThan(0.02),
@@ -280,10 +286,49 @@ void main() {
       'Twin Fang',
       () => expectPathContributes(ManeNodes.assaultPath, 'Fire'),
     );
-    test(
-      'Tempest Claw',
-      () => expectPathContributes(ManeNodes.controlPath, 'Mud'),
-    );
+    // Limitless is measured differently on purpose. It owns no payload node,
+    // and its capstone works at the arena rim — a scenario with every body
+    // clustered on the caster gives it nothing to do, which says more about
+    // the scenario than the path. What it has to prove is that the circuit
+    // exists and cuts down what crosses it.
+    test('Limitless rides the rim and cuts what crosses it', () async {
+      final game = await start('Mud', ManeNodes.limitlessPath);
+      for (final e in game.enemies) {
+        e.isDead = true;
+      }
+      final comp = game.activeCompanions[0]!;
+      final bait = dummy(game, comp.position + const Offset(140, 0));
+      comp.basicCooldown = 99999;
+      comp.specialCooldown = 99999;
+      game.update(1 / 60);
+      comp.specialCooldown = 0;
+      game.update(1 / 60);
+
+      final orbiter = game.companionProjectiles.firstWhere(
+        (p) => p.holdOrbit,
+        orElse: () => throw StateError('no circuit was opened'),
+      );
+      bait.isDead = true;
+
+      // A body standing on the ring the circuit rides, the way a wave walking
+      // inward would be.
+      final onTheRim = dummy(
+        game,
+        game.orb.position + Offset(orbiter.orbitRadius, 0),
+      );
+      final before = onTheRim.hp;
+      // Long enough for one full lap.
+      for (var i = 0; i < 60 * 8; i++) {
+        comp.basicCooldown = 99999;
+        comp.specialCooldown = 99999;
+        game.update(1 / 60);
+      }
+      expect(
+        onTheRim.hp,
+        lessThan(before),
+        reason: 'The circuit went round without touching a body on its ring.',
+      );
+    });
     test(
       'War Rhythm',
       () => expectPathContributes(ManeNodes.resonancePath, 'Fire'),

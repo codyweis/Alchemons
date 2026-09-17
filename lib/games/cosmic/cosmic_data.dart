@@ -4431,8 +4431,11 @@ class Projectile {
   /// Optional orbit center to transfer to after a spin-up phase.
   Offset? transferOrbitCenter;
 
-  /// If true, remain in orbit for the projectile lifetime instead of launching.
-  final bool holdOrbit;
+  /// If true, remain in orbit for the projectile lifetime instead of
+  /// launching. Non-final so a mastery node can put an already-built shot
+  /// into orbit after the ability table has finished with it (Mane's Endless
+  /// Circuit).
+  bool holdOrbit;
 
   /// Movement speed multiplier while attaching to ship orbit.
   final double shipOrbitTransferSpeed;
@@ -4599,6 +4602,11 @@ class Projectile {
   /// dealing this fraction of its damage again (Mane's Blade Dance). The
   /// return itself carries no fraction, so a boomerang cannot boomerang.
   double masteryReturnFraction = 0;
+
+  /// When true this projectile does not age. Only leaving the arena stops it
+  /// (Mane's No Horizon). The lifetime is still carried so anything reading
+  /// it for falloff keeps working; it simply never ticks down.
+  bool masteryNoLifetime = false;
 
   /// True when a mastery node created this projectile rather than the
   /// family's own attack or special. Damage from it attributes to mastery,
@@ -5500,6 +5508,7 @@ Projectile _copyProjectile(
   clone.masteryCastId = p.masteryCastId;
   clone.masteryGenerated = p.masteryGenerated;
   clone.masteryReturnFraction = p.masteryReturnFraction;
+  clone.masteryNoLifetime = p.masteryNoLifetime;
   // A copy is a fresh projectile with the same rules: it inherits the ceiling
   // but not the tally, or a ricochet would arrive already spent.
   clone.maxHitsPerEnemy = p.maxHitsPerEnemy;

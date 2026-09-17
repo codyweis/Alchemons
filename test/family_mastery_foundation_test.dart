@@ -44,7 +44,7 @@ void main() {
           FamilyMasteryCatalog.sanitizePurchases(CreatureFamily.mane, const {
             'mane.assault.honed_pair',
             'mane.assault.predator_step',
-            'mane.control.rending_wake',
+            'mane.limitless.overdraw',
             'retired.node',
           });
       expect(sanitized, {'mane.assault.honed_pair'});
@@ -194,13 +194,13 @@ void main() {
       );
       await service.purchaseNode(
         family: CreatureFamily.mane,
-        nodeId: 'mane.control.sweeping_claws',
+        nodeId: 'mane.limitless.far_throw',
       );
 
       expect(
         await service.selectPath(
           family: CreatureFamily.mane,
-          pathId: 'mane.control',
+          pathId: 'mane.limitless',
         ),
         FamilyMasteryEquipResult.equipped,
       );
@@ -218,14 +218,10 @@ void main() {
         ),
       ]);
 
-      expect(snapshot.forSlot(0)?.pathId, 'mane.control');
-      expect(snapshot.forSlot(1)?.pathId, 'mane.control');
-      expect(snapshot.forSlot(0)?.activeNodeIds, {
-        'mane.control.sweeping_claws',
-      });
-      expect(snapshot.forSlot(1)?.activeNodeIds, {
-        'mane.control.sweeping_claws',
-      });
+      expect(snapshot.forSlot(0)?.pathId, 'mane.limitless');
+      expect(snapshot.forSlot(1)?.pathId, 'mane.limitless');
+      expect(snapshot.forSlot(0)?.activeNodeIds, {'mane.limitless.far_throw'});
+      expect(snapshot.forSlot(1)?.activeNodeIds, {'mane.limitless.far_throw'});
     });
 
     test('rejects a node from the wrong family without charging', () async {

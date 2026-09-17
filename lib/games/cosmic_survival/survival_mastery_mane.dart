@@ -8,10 +8,17 @@
 ///
 /// * **Twin Fang** (assault) tightens the pair and pays for putting both into
 ///   one body, then chains off kills.
-/// * **Tempest Claw** (control) widens the pair and spends it on spreading the
-///   element across a crowd.
-/// * **War Rhythm** (resonance) banks Rhythm from clean pairs and cashes it in
-///   around the special.
+/// * **War Rhythm** (resonance) banks Rhythm from clean pairs and spends it on
+///   cadence — a ring on every fourth cast, then empowered casts and a window.
+/// * **Limitless** carries one idea four times: the catapult shot does not
+///   stop. It flies further, hits harder, stops expiring, and finally the
+///   first shot of each cast peels off to circle the arena.
+///
+/// The family used to have a Tempest Claw path instead of Limitless. It was
+/// replaced because three of its four nodes had no idea in them — two stat
+/// tweaks and a node that re-applied the element the node above it had
+/// already applied — and it measured last of the three. Its one good node,
+/// Tempest Ring, moved to War Rhythm, where a cadence counter belongs.
 ///
 /// The state below lives per companion slot for the length of a run. Nothing
 /// here reaches into combat: the game owns the one place that reads this state
@@ -25,23 +32,23 @@ class ManeNodes {
   const ManeNodes._();
 
   static const assaultPath = 'mane.assault';
-  static const controlPath = 'mane.control';
   static const resonancePath = 'mane.resonance';
+  static const limitlessPath = 'mane.limitless';
 
   static const honedPair = 'mane.assault.honed_pair';
   static const crosscut = 'mane.assault.crosscut';
   static const predatorStep = 'mane.assault.predator_step';
   static const bladeDance = 'mane.assault.blade_dance';
 
-  static const sweepingClaws = 'mane.control.sweeping_claws';
-  static const rendingWake = 'mane.control.rending_wake';
-  static const crosswind = 'mane.control.crosswind';
-  static const tempestRing = 'mane.control.tempest_ring';
-
   static const measuredCuts = 'mane.resonance.measured_cuts';
-  static const risingTempo = 'mane.resonance.rising_tempo';
+  static const tempestRing = 'mane.resonance.tempest_ring';
   static const crescendo = 'mane.resonance.crescendo';
   static const encore = 'mane.resonance.encore';
+
+  static const farThrow = 'mane.limitless.far_throw';
+  static const overdraw = 'mane.limitless.overdraw';
+  static const noHorizon = 'mane.limitless.no_horizon';
+  static const endlessCircuit = 'mane.limitless.endless_circuit';
 }
 
 /// Cast tags, set when a cast launches and read when it lands.
@@ -86,29 +93,23 @@ class ManeTuning {
   static const int bladeDanceCasts = 5;
   static const double bladeDanceReturnFraction = 0.35;
 
-  // ── Tempest Claw ──
-  /// Sweeping Claws: 35% wider, spread further, and no weaker per slash.
-  ///
-  /// It used to cut each slash to 60%, which made the first purchase on this
-  /// path a downgrade — measured at 8-12% *less* total damage than owning
-  /// nothing. A first node has to pay off on its own, and paying a thousand
-  /// silver to get worse is the sharpest way to fail that. The width is the
-  /// trade now: it costs nothing directly, and what it buys only shows up
-  /// when there is a crowd to catch.
-  static const double sweepingWidthScale = 1.35;
-  // Widened only slightly. At 1.60 the pair flew far enough apart that it
-  // missed more than the extra width caught, and the node measured 9% *worse*
-  // than owning nothing even after its damage penalty was removed. Fatter
-  // slashes catch a crowd; slashes aimed away from it do not.
-  static const double sweepingSpreadScale = 1.20;
-  static const double sweepingSlashFraction = 0.65;
+  // ── Limitless ──
+  /// Far Throw: the special's projectiles carry 45% further before fading.
+  static const double farThrowLifeScale = 1.45;
 
-  /// Rending Wake: the first body each slash strikes takes 80% of a payload.
-  static const double rendingWakeStrength = 0.80;
+  /// Overdraw: a flat 15% on the special. Deliberately plain — several
+  /// elements already grow as they travel (Light ramps per pierce, Earth
+  /// sheds fragments), so a second "gains power with distance" node would be
+  /// describing what the element was already doing.
+  static const double overdrawDamageBonus = 0.15;
 
-  /// Crosswind: slashes on two different bodies give both a second, weaker
-  /// payload.
-  static const double crosswindStrength = 0.40;
+  /// Endless Circuit: the first projectile of each cast sweeps out to this
+  /// fraction of the arena radius and circles it.
+  static const double circuitRadiusFraction = 0.72;
+
+  /// Radians per second around the rim. Fast enough to meet a wave walking
+  /// in, slow enough to read as one object rather than a strobe.
+  static const double circuitAngularSpeed = 1.15;
 
   /// Tempest Ring: every fourth cast throws a ring of radial slashes.
   static const int tempestRingCadence = 4;
@@ -123,11 +124,6 @@ class ManeTuning {
   /// blades spends one.
   static const int maxRhythm = 5;
   static const double rhythmHastePerStack = 0.02;
-
-  /// Rising Tempo: Rhythm also pays damage, and three of it widens the pair.
-  static const double rhythmDamagePerStack = 0.03;
-  static const int risingTempoWidthThreshold = 3;
-  static const double risingTempoWidthScale = 1.15;
 
   /// Crescendo: the special spends all Rhythm to empower that many casts.
   static const double crescendoDamageBonus = 0.12;
@@ -155,16 +151,10 @@ class ManeMasteryState {
   /// Basic casts still empowered by Blade Dance.
   int bladeDanceCasts = 0;
 
-  // ── Tempest Claw ──
+  // ── War Rhythm ──
   /// Scheduled attacks since the last ring.
   int castsSinceRing = 0;
 
-  /// The first body a cast's slashes struck, held until the second slash
-  /// lands so Crosswind can pay both targets. Cleared when the cast changes.
-  int crosswindCastId = 0;
-  Object? crosswindFirstTarget;
-
-  // ── War Rhythm ──
   int rhythm = 0;
 
   /// Basic casts still empowered by Crescendo.
@@ -329,22 +319,10 @@ ManeBasicShape resolveManeBasicShape({
   var damage = 1.0;
   var homing = 0.0;
 
-  // Tier 1 re-cuts the chassis; the two are on different paths and cannot
-  // both be equipped.
+  // Twin Fang re-cuts the chassis into a tighter, harder pair.
   if (hasNode(ManeNodes.honedPair)) {
     slashFraction = ManeTuning.honedPairSlashFraction;
     spread *= ManeTuning.honedPairSpreadScale;
-  } else if (hasNode(ManeNodes.sweepingClaws)) {
-    slashFraction = ManeTuning.sweepingSlashFraction;
-    spread *= ManeTuning.sweepingSpreadScale;
-    widthScale *= ManeTuning.sweepingWidthScale;
-  }
-
-  if (hasNode(ManeNodes.risingTempo)) {
-    damage += state.rhythm * ManeTuning.rhythmDamagePerStack;
-    if (state.rhythm >= ManeTuning.risingTempoWidthThreshold) {
-      widthScale *= ManeTuning.risingTempoWidthScale;
-    }
   }
 
   if (crescendoEmpowered) damage += ManeTuning.crescendoDamageBonus;
