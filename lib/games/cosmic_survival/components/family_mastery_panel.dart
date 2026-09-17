@@ -1649,6 +1649,7 @@ class _Gem extends StatelessWidget {
     required this.affordable,
     required this.activeBranch,
     required this.size,
+    this.iconSize,
   });
 
   final FamilyMasteryNodeDef node;
@@ -1658,6 +1659,7 @@ class _Gem extends StatelessWidget {
   final bool affordable;
   final bool activeBranch;
   final double size;
+  final double? iconSize;
 
   @override
   Widget build(BuildContext context) {
@@ -1683,7 +1685,7 @@ class _Gem extends StatelessWidget {
         child: Center(
           child: Icon(
             _nodeIcon(node.id),
-            size: node.isCapstone ? 24 : 20,
+            size: iconSize ?? (node.isCapstone ? 24 : 20),
             color: iconColor,
           ),
         ),
@@ -2597,6 +2599,317 @@ class _StatusPill extends StatelessWidget {
           fontWeight: FontWeight.w900,
           letterSpacing: 0.7,
         ),
+      ),
+    );
+  }
+}
+
+// ── Roster summary ─────────────────────────────────────────────────────────
+
+/// A compact read of one family's equipped mastery path, for the survival
+/// lobby's species roster: which path, how far it has been bought, and — when
+/// [expanded] — what each owned node does.
+///
+/// Uses the tree's own gems and glyphs so a path reads the same in the lobby
+/// as it does in Base Command.
+class FamilyMasteryRosterSummary extends StatelessWidget {
+  const FamilyMasteryRosterSummary({
+    super.key,
+    required this.family,
+    required this.owned,
+    required this.selectedPathId,
+    this.expanded = false,
+    this.onChoosePath,
+  });
+
+  final CreatureFamily family;
+  final Set<String> owned;
+  final String? selectedPathId;
+  final bool expanded;
+
+  /// Called from the empty state, which invites the player to pick a path.
+  final VoidCallback? onChoosePath;
+
+  static const double collapsedHeight = 96;
+  static const double nodeLineHeight = 58;
+
+  /// The height this summary needs, so a fixed-height carousel can size to it.
+  static double heightFor({
+    required bool expanded,
+    required int ownedNodesOnPath,
+  }) =>
+      collapsedHeight +
+      (expanded && ownedNodesOnPath > 0
+          ? 6 + ownedNodesOnPath * nodeLineHeight
+          : 0);
+
+  /// How many nodes of the equipped path are owned.
+  static int ownedOnSelectedPath(
+    CreatureFamily family,
+    Set<String> owned,
+    String? selectedPathId,
+  ) {
+    if (selectedPathId == null) return 0;
+    final path = FamilyMasteryCatalog.pathFor(family, selectedPathId);
+    if (path == null) return 0;
+    return path.nodes.takeWhile((node) => owned.contains(node.id)).length;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final path = selectedPathId == null
+        ? null
+        : FamilyMasteryCatalog.pathFor(family, selectedPathId!);
+    if (path == null) return _buildEmpty();
+
+    final color = family.color;
+    final ownedTiers = ownedOnSelectedPath(family, owned, path.id);
+    final next = ownedTiers < path.nodes.length ? path.nodes[ownedTiers] : null;
+
+    return Column(
+      key: ValueKey('roster-mastery-${family.name}'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Icon(_pathIcon(path.id), size: 12, color: color),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                path.name.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              ownedTiers == path.nodes.length
+                  ? 'MASTERED'
+                  : '$ownedTiers/${path.nodes.length}',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: ownedTiers == path.nodes.length ? _gold : _muted,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          path.role,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: _muted, fontSize: 10.5),
+        ),
+        const SizedBox(height: 8),
+        _RosterGemTrack(path: path, ownedTiers: ownedTiers, color: color),
+        const SizedBox(height: 6),
+        Text(
+          next == null
+              ? 'Every node on this path is active.'
+              : ownedTiers == 0
+              ? 'Nothing bought yet — next: ${next.name}'
+              : 'Next: ${next.name}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: _muted, fontSize: 10),
+        ),
+        if (expanded && ownedTiers > 0) ...[
+          const SizedBox(height: 6),
+          for (final node in path.nodes.take(ownedTiers))
+            _RosterNodeLine(node: node, color: color),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildEmpty() {
+    return GestureDetector(
+      key: ValueKey('roster-mastery-empty-${family.name}'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onChoosePath,
+      child: SizedBox(
+        height: collapsedHeight,
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: _border, width: 1.2),
+              ),
+              child: const Icon(
+                PhosphorIconsBold.treeStructure,
+                size: 16,
+                color: _muted,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'NO MASTERY PATH',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: _text,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Choose one in Base Command to change how every '
+                    '${family.displayName} fights.',
+                    maxLines: 2,
+                    style: const TextStyle(color: _muted, fontSize: 10.5),
+                  ),
+                ],
+              ),
+            ),
+            if (onChoosePath != null)
+              Icon(PhosphorIconsBold.caretRight, size: 14, color: family.color),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RosterGemTrack extends StatelessWidget {
+  const _RosterGemTrack({
+    required this.path,
+    required this.ownedTiers,
+    required this.color,
+  });
+
+  final FamilyMasteryPathDef path;
+  final int ownedTiers;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    const gemSize = 30.0;
+    final children = <Widget>[];
+    for (var i = 0; i < path.nodes.length; i++) {
+      final node = path.nodes[i];
+      if (i > 0) {
+        final lit = i < ownedTiers;
+        children.add(
+          Expanded(
+            child: Container(
+              height: lit ? 2.5 : 1.5,
+              margin: const EdgeInsets.only(bottom: 14),
+              color: lit
+                  ? (i == 3 ? _gold : color).withValues(alpha: 0.85)
+                  : _border,
+            ),
+          ),
+        );
+      }
+      final state = i < ownedTiers
+          ? _NodeState.owned
+          : i == ownedTiers
+          ? _NodeState.available
+          : _NodeState.locked;
+      children.add(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _Gem(
+              node: node,
+              color: color,
+              state: state,
+              focused: false,
+              affordable: false,
+              activeBranch: true,
+              size: node.isCapstone ? gemSize + 4 : gemSize,
+              iconSize: node.isCapstone ? 15 : 13,
+            ),
+            const SizedBox(height: 2),
+            _TierGlyph(
+              tier: node.tier,
+              size: 7.5,
+              color: state == _NodeState.owned
+                  ? (node.isCapstone ? _gold : color)
+                  : _dim,
+            ),
+          ],
+        ),
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: children,
+    );
+  }
+}
+
+class _RosterNodeLine extends StatelessWidget {
+  const _RosterNodeLine({required this.node, required this.color});
+
+  final FamilyMasteryNodeDef node;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = node.isCapstone ? _gold : color;
+    return SizedBox(
+      height: FamilyMasteryRosterSummary.nodeLineHeight,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(_nodeIcon(node.id), size: 13, color: accent),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  node.name.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: accent,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  node.description,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFFB9AD99),
+                    fontSize: 10,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

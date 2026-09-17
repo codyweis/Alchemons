@@ -15,7 +15,9 @@ import 'components/survival_party_slot.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic_survival/components/family_mastery_panel.dart';
 import 'package:alchemons/games/cosmic_survival/components/mystic_graphx_overlay.dart';
+import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/games/cosmic_survival/components/powerup_selection_overlay.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
@@ -88,13 +90,6 @@ class _T {
     fontSize: 12,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
-  );
-
-  static const TextStyle body = TextStyle(
-    color: _C.textSecondary,
-    fontSize: 12,
-    height: 1.5,
-    fontWeight: FontWeight.w400,
   );
 }
 
@@ -2300,59 +2295,106 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   }
 
   Widget _buildSpeciesRoster() {
-    final currentIndex = _familyPage.round().clamp(
-      0,
-      _cosmicFamilyInfos.length - 1,
-    );
-    final expandedActive = _expandedFamilyCards.contains(
-      _cosmicFamilyInfos[currentIndex].id,
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _EtchedDivider(label: 'SPECIES ROSTER'),
-        const SizedBox(height: 14),
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          height: expandedActive ? 340 : 200,
-          child: PageView.builder(
-            controller: _familyPageController,
-            itemCount: _cosmicFamilyInfos.length,
-            itemBuilder: (context, index) {
-              final info = _cosmicFamilyInfos[index];
-              final distance = (index - _familyPage).abs().clamp(0.0, 1.0);
-              final scale = 1.0 - (0.06 * distance);
-              final opacity = 1.0 - (0.5 * distance);
-              return Transform.scale(
-                scale: scale,
-                child: Opacity(
-                  opacity: opacity,
-                  child: _buildSpeciesCard(info),
+    return Consumer<FamilyMasteryService>(
+      builder: (context, mastery, _) {
+        final currentIndex = _familyPage.round().clamp(
+          0,
+          _cosmicFamilyInfos.length - 1,
+        );
+        final active = _cosmicFamilyInfos[currentIndex];
+        final activeFamily = creatureFamilyFromStorage(active.id);
+        final height = _SpeciesCard.heightFor(
+          expanded: _expandedFamilyCards.contains(active.id),
+          ownedNodesOnPath: activeFamily == null || !mastery.isLoaded
+              ? 0
+              : FamilyMasteryRosterSummary.ownedOnSelectedPath(
+                  activeFamily,
+                  mastery.purchasedNodes(activeFamily),
+                  mastery.selectedPathForFamily(activeFamily),
                 ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(_cosmicFamilyInfos.length, (i) {
-            final active = (i - _familyPage).abs() < 0.5;
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              height: 3,
-              width: active ? 18 : 6,
-              decoration: BoxDecoration(
-                color: active ? _C.amber : _C.borderAccent,
-                borderRadius: BorderRadius.circular(2),
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _EtchedDivider(label: 'SPECIES ROSTER'),
+            const SizedBox(height: 14),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              height: height,
+              child: PageView.builder(
+                controller: _familyPageController,
+                itemCount: _cosmicFamilyInfos.length,
+                itemBuilder: (context, index) {
+                  final info = _cosmicFamilyInfos[index];
+                  final family = creatureFamilyFromStorage(info.id);
+                  final distance = (index - _familyPage).abs().clamp(0.0, 1.0);
+                  final scale = 1.0 - (0.06 * distance);
+                  final opacity = 1.0 - (0.5 * distance);
+                  final expanded = _expandedFamilyCards.contains(info.id);
+                  return Transform.scale(
+                    scale: scale,
+                    child: Opacity(
+                      opacity: opacity,
+                      child: _SpeciesCard(
+                        info: info,
+                        family: family,
+                        owned: family == null || !mastery.isLoaded
+                            ? const {}
+                            : mastery.purchasedNodes(family),
+                        selectedPathId: family == null || !mastery.isLoaded
+                            ? null
+                            : mastery.selectedPathForFamily(family),
+                        expanded: expanded,
+                        onTap: context.soundAction(() {
+                          setState(() {
+                            if (expanded) {
+                              _expandedFamilyCards.remove(info.id);
+                            } else {
+                              _expandedFamilyCards.add(info.id);
+                            }
+                          });
+                        }),
+                        onChoosePath: context.soundAction(_openBaseCommand),
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          }),
-        ),
-      ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(_cosmicFamilyInfos.length, (i) {
+                final isActive = (i - _familyPage).abs() < 0.5;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  height: 3,
+                  width: isActive ? 18 : 6,
+                  decoration: BoxDecoration(
+                    color: isActive ? _C.amber : _C.borderAccent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                );
+              }),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  /// Base Command, from anywhere in the lobby. Opens on Mastery.
+  Future<void> _openBaseCommand() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            const CosmicSurvivalBaseCommandScreen(hideAbilities: true),
+      ),
+    );
+    await _loadSilver();
+    await _loadShipSkin();
   }
 
   /// What you are about to deploy with: the orb you are carrying and the
@@ -2373,17 +2415,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             const _EtchedDivider(label: 'DEPLOYMENT'),
             const SizedBox(height: 14),
             GestureDetector(
-              onTap: context.soundAction(() async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const CosmicSurvivalBaseCommandScreen(
-                      hideAbilities: true,
-                    ),
-                  ),
-                );
-                await _loadSilver();
-                await _loadShipSkin();
-              }),
+              onTap: context.soundAction(_openBaseCommand),
               child: CustomPaint(
                 painter: _BracketFramePainter(
                   color: orb.glowColor.withValues(alpha: 0.40),
@@ -2471,162 +2503,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           ],
         );
       },
-    );
-  }
-
-  Widget _buildSpeciesCard(_FamilyInfo info) {
-    final expanded = _expandedFamilyCards.contains(info.id);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 5),
-      decoration: BoxDecoration(
-        color: _C.bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: expanded ? info.color.withValues(alpha: 0.55) : _C.borderDim,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(3),
-        child: InkWell(
-          onTap: context.soundAction(() {
-            setState(() {
-              if (expanded) {
-                _expandedFamilyCards.remove(info.id);
-              } else {
-                _expandedFamilyCards.add(info.id);
-              }
-            });
-          }),
-          child: Stack(
-            children: [
-              Positioned.fill(child: CustomPaint(painter: _ScanlinePainter())),
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 140,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          colors: [
-                            info.color.withValues(alpha: 0.25),
-                            Colors.transparent,
-                          ],
-                          radius: 0.8,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: ColorFiltered(
-                        colorFilter: ColorFilter.mode(
-                          info.color.withValues(alpha: 0.9),
-                          BlendMode.srcATop,
-                        ),
-                        child: Image.asset(info.assetPath, fit: BoxFit.contain),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: info.color.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(2),
-                          border: Border.all(
-                            color: info.color.withValues(alpha: 0.5),
-                            width: 0.8,
-                          ),
-                        ),
-                        child: Text(
-                          info.role,
-                          style: _display(
-                            context,
-                            13,
-                            info.color,
-                            weight: FontWeight.w700,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 140,
-                top: 12,
-                bottom: 12,
-                child: Container(width: 1, color: _C.borderDim),
-              ),
-              Positioned(
-                left: 152,
-                right: 12,
-                top: 0,
-                bottom: 0,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  info.name,
-                                  style: _display(
-                                    context,
-                                    20,
-                                    _C.textPrimary,
-                                    weight: FontWeight.w700,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ),
-                              Icon(
-                                expanded
-                                    ? AppIcons.expand_less_rounded
-                                    : AppIcons.expand_more_rounded,
-                                color: _C.textSecondary,
-                                size: 16,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          AnimatedCrossFade(
-                            duration: const Duration(milliseconds: 140),
-                            firstChild: Text(
-                              info.description,
-                              style: _T.body,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            secondChild: Text(info.description, style: _T.body),
-                            crossFadeState: expanded
-                                ? CrossFadeState.showSecond
-                                : CrossFadeState.showFirst,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -3865,8 +3741,10 @@ class _FamilyInfo {
   final String id;
   final String name;
   final String role;
-  final String description;
-  final String bestPowerups;
+
+  /// What this family's specials generally do, in a line. Every element
+  /// interprets it its own way; this is the shape they share.
+  final String special;
   final String assetPath;
   final Color color;
 
@@ -3874,11 +3752,303 @@ class _FamilyInfo {
     required this.id,
     required this.name,
     required this.role,
-    required this.description,
-    required this.bestPowerups,
+    required this.special,
     required this.assetPath,
     required this.color,
   });
+}
+
+/// One family on the lobby's species roster: who they are, how they attack,
+/// what their specials do, and the mastery path every one of them will
+/// deploy with.
+class _SpeciesCard extends StatelessWidget {
+  const _SpeciesCard({
+    required this.info,
+    required this.family,
+    required this.owned,
+    required this.selectedPathId,
+    required this.expanded,
+    required this.onTap,
+    required this.onChoosePath,
+  });
+
+  final _FamilyInfo info;
+  final CreatureFamily? family;
+  final Set<String> owned;
+  final String? selectedPathId;
+  final bool expanded;
+  final VoidCallback? onTap;
+  final VoidCallback? onChoosePath;
+
+  static const double _portraitWidth = 112;
+  static const double _baseHeight = 300;
+
+  static double heightFor({
+    required bool expanded,
+    required int ownedNodesOnPath,
+  }) =>
+      _baseHeight -
+      FamilyMasteryRosterSummary.collapsedHeight +
+      FamilyMasteryRosterSummary.heightFor(
+        expanded: expanded,
+        ownedNodesOnPath: ownedNodesOnPath,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final fam = family;
+    final chassis = fam == null
+        ? null
+        : FamilyMasteryCatalog.treeFor(fam).chassis;
+    final hasPath = selectedPathId != null;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 5),
+      decoration: BoxDecoration(
+        color: _C.bg2,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: expanded || hasPath
+              ? info.color.withValues(alpha: expanded ? 0.6 : 0.3)
+              : _C.borderDim,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: InkWell(
+          key: ValueKey('species-card-${info.id}'),
+          onTap: onTap,
+          child: Stack(
+            children: [
+              Positioned.fill(child: CustomPaint(painter: _ScanlinePainter())),
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: _portraitWidth,
+                child: _SpeciesPortrait(info: info),
+              ),
+              Positioned(
+                left: _portraitWidth,
+                top: 12,
+                bottom: 12,
+                child: Container(width: 1, color: _C.borderDim),
+              ),
+              Positioned(
+                left: _portraitWidth + 12,
+                right: 12,
+                top: 12,
+                bottom: 12,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            info.name,
+                            style: _display(
+                              context,
+                              20,
+                              _C.textPrimary,
+                              weight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          expanded
+                              ? AppIcons.expand_less_rounded
+                              : AppIcons.expand_more_rounded,
+                          color: _C.textSecondary,
+                          size: 16,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    if (chassis != null)
+                      _SpeciesFact(
+                        label: 'ATTACK',
+                        text: chassis,
+                        color: info.color,
+                      ),
+                    const SizedBox(height: 6),
+                    _SpeciesFact(
+                      label: 'SPECIAL',
+                      text: info.special,
+                      color: info.color,
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 1,
+                      color: info.color.withValues(alpha: 0.22),
+                    ),
+                    const SizedBox(height: 10),
+                    if (fam != null)
+                      FamilyMasteryRosterSummary(
+                        family: fam,
+                        owned: owned,
+                        selectedPathId: selectedPathId,
+                        expanded: expanded,
+                        onChoosePath: onChoosePath,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SpeciesPortrait extends StatelessWidget {
+  const _SpeciesPortrait({required this.info});
+
+  final _FamilyInfo info;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              colors: [info.color.withValues(alpha: 0.25), Colors.transparent],
+              radius: 0.8,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+          child: ColorFiltered(
+            colorFilter: ColorFilter.mode(
+              info.color.withValues(alpha: 0.9),
+              BlendMode.srcATop,
+            ),
+            child: Image.asset(info.assetPath, fit: BoxFit.contain),
+          ),
+        ),
+        Positioned(
+          left: 8,
+          right: 8,
+          bottom: 12,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            decoration: BoxDecoration(
+              color: info.color.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(2),
+              border: Border.all(
+                color: info.color.withValues(alpha: 0.5),
+                width: 0.8,
+              ),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                info.role,
+                style: _display(
+                  context,
+                  12,
+                  info.color,
+                  weight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SpeciesFact extends StatelessWidget {
+  const _SpeciesFact({
+    required this.label,
+    required this.text,
+    required this.color,
+  });
+
+  final String label;
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: color,
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.4,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          text,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: _display(
+            context,
+            12,
+            _C.textSecondary,
+            weight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The roster card on its own, for the preview test that renders it.
+@visibleForTesting
+class SurvivalSpeciesCardPreview extends StatelessWidget {
+  const SurvivalSpeciesCardPreview({
+    super.key,
+    required this.familyId,
+    required this.owned,
+    required this.selectedPathId,
+    this.expanded = false,
+  });
+
+  final String familyId;
+  final Set<String> owned;
+  final String? selectedPathId;
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final info = _cosmicFamilyInfos.firstWhere((i) => i.id == familyId);
+    final family = creatureFamilyFromStorage(familyId);
+    return SizedBox(
+      height: _SpeciesCard.heightFor(
+        expanded: expanded,
+        ownedNodesOnPath: family == null
+            ? 0
+            : FamilyMasteryRosterSummary.ownedOnSelectedPath(
+                family,
+                owned,
+                selectedPathId,
+              ),
+      ),
+      child: _SpeciesCard(
+        info: info,
+        family: family,
+        owned: owned,
+        selectedPathId: selectedPathId,
+        expanded: expanded,
+        onTap: () {},
+        onChoosePath: () {},
+      ),
+    );
+  }
 }
 
 class _WaveAnnouncementData {
@@ -3893,10 +4063,8 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     id: 'Let',
     name: 'Let',
     role: 'Siege Caster',
-    description:
-        'Long-range element casters that shower enemies with meteors. Elemental follow-ups now trigger on meteor impact and scale with Beauty + Intelligence.',
-    bestPowerups:
-        'Spellbloom, Double Cast, Chrono Grit | Threshold focus: Beauty + Intelligence',
+    special:
+        'Calls a meteor down onto its target. The crater carries the element\'s own effect.',
     assetPath: 'assets/images/creatures/common/LET02_waterlet.png',
     color: Color(0xFF3B82F6),
   ),
@@ -3904,10 +4072,8 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     id: 'Pip',
     name: 'Pip',
     role: 'Tempo Carry',
-    description:
-        'Fast agile attackers that chase leaks and clean up packs. Special output scales with tactical stats and ramps hard at high stat values.',
-    bestPowerups:
-        'Warpath, Quicksilver Step, Chrono Grit | Threshold focus: Intelligence + Beauty proxy',
+    special:
+        'Fires darts that ricochet from enemy to enemy, each element adding its own twist.',
     assetPath: 'assets/images/creatures/uncommon/PIP06_lavapip.png',
     color: Color(0xFFEF4444),
   ),
@@ -3915,10 +4081,8 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     id: 'Mane',
     name: 'Mane',
     role: 'Barrage Bruiser',
-    description:
-        'Mid-range slash fighters that carve through lanes with consistent pressure. Special riders improve sharply as Strength climbs.',
-    bestPowerups:
-        'Warpath, Forged Strikes, Blood Pact | Threshold focus: Strength + Beauty support',
+    special:
+        'Hurls one huge piercing blade down the line, shaped by its element.',
     assetPath: 'assets/images/creatures/uncommon/MAN03_earthmane.png',
     color: Color(0xFFF59E0B),
   ),
@@ -3926,10 +4090,8 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     id: 'Horn',
     name: 'Horn',
     role: 'Frontline Bastion',
-    description:
-        'Tanky close-range chargers that body-block for the orb. Defensive riders (shield/charge package) unlock reliably at mid-to-high stat values.',
-    bestPowerups:
-        'Bastion Heart, Forged Strikes, Forgeplate | Threshold focus: Strength + Intelligence',
+    special:
+        'A heavy defensive move: a charge, wind-up, guard or aura, by element.',
     assetPath: 'assets/images/creatures/rare/HOR13_poisonhorn.png',
     color: Color(0xFF10B981),
   ),
@@ -3937,10 +4099,8 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     id: 'Mask',
     name: 'Mask',
     role: 'Tactical Duelist',
-    description:
-        'Versatile duelists with control utility. Special consistency scales with tactical stats, with stronger utility riders at high stats.',
-    bestPowerups:
-        'Chrono Surge, Forgeplate, Chrono Grit | Threshold focus: Intelligence + Beauty',
+    special:
+        'Scatters traps that catch, lure or punish whatever walks into them.',
     assetPath: 'assets/images/creatures/rare/MSK01_firemask.png',
     color: Color(0xFF8B5CF6),
   ),
@@ -3948,10 +4108,7 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     id: 'Wing',
     name: 'Wing',
     role: 'Sniper Control',
-    description:
-        'High-range snipers that delete shooters and boss lanes. Special uptime and control scale with Intelligence + Beauty.',
-    bestPowerups:
-        'Spellbloom, Double Cast, Chrono Grit | Threshold focus: Intelligence + Beauty',
+    special: 'Fires a long elemental beam down a lane, shaped by its element.',
     assetPath: 'assets/images/creatures/legendary/WNG03_earthwing.png',
     color: Color(0xFF06B6D4),
   ),
@@ -3959,10 +4116,8 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     id: 'Kin',
     name: 'Kin',
     role: 'Support Anchor',
-    description:
-        'Durable utility companions that sustain the team and stabilize waves. Kin uses a hard dual gate: both Beauty and Intelligence must be high for full support output.',
-    bestPowerups:
-        'Bastion Heart, Regeneration Field, Shield Pulse | Threshold focus: Beauty + Intelligence (both)',
+    special:
+        'Heals and blesses the team, plus a support piece unique to its element.',
     assetPath: 'assets/images/creatures/legendary/KIN16_lightkin.png',
     color: Color(0xFF14B8A6),
   ),
@@ -3970,10 +4125,8 @@ const List<_FamilyInfo> _cosmicFamilyInfos = [
     id: 'Mystic',
     name: 'Mystic',
     role: 'Spell Engine',
-    description:
-        'Powerful casters with the highest elemental multiplier. Core spell tiers use Beauty + Intelligence, while high Strength adds burst bias at top thresholds.',
-    bestPowerups:
-        'Spellbloom, Double Cast, Chrono Grit | Threshold focus: Beauty + Intelligence, Strength for burst',
+    special:
+        'Turns the arena into its element\'s world until the Mystic falls.',
     assetPath: 'assets/images/creatures/mystic/MYS14_spiritmystic.png',
     color: Color(0xFFA855F7),
   ),
