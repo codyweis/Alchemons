@@ -1,6 +1,6 @@
 # Survival Family Mastery
 
-Status (2026-09-16): Phases 1 and 2 complete, Phase 3 underway (all twelve Mane nodes implemented and validated across five elements; preview UI and tuning still open), and the Base Command Mastery tab is polished (the first item of Phase 6). Purchases, branch selection and run snapshots work; a run now locks its snapshot and combat carries cast identity, hit/kill/damage events, the shared elemental payload resolver, the shared guards and attribution telemetry. No node changes a run yet — the tree nodes themselves arrive in Phases 3-5. Next: Phase 3 (the Mane vertical slice).
+Status (2026-09-17): Phases 1 and 2 complete. Phase 3, the Mane vertical slice, is implemented: all twelve Mane nodes work in survival, including Limitless (which replaced Tempest Claw); tuning is still open. The Base Command Mastery tab is polished (the first item of Phase 6). Phase 4 has begun with a design pass on Let: its tree was redesigned around its two meteors (Falling Star, Bombardment, Ground Zero — see *Let*), and none of those nodes are implemented yet. The other six families' trees are still the original draft.
 
 ## Purpose
 
@@ -131,7 +131,7 @@ All percentages below are initial balance targets, not final shipping numbers.
 
 Design rules for nodes (revised 2026-09-16):
 
-- **Every node pays off on its own.** A node that builds a resource (Rhythm, Orbit, Tempo, Momentum, Focus, Insight) or places a mark (Sigil, Conductivity, Seed) also grants a small immediate bonus, so a first purchase is never inert.
+- **Every node pays off on its own.** A node that builds a resource (Rhythm, Tempo, Momentum, Focus, Insight) or places a mark (Sigil, Conductivity, Seed, Sight) also grants a small immediate bonus, so a first purchase is never inert.
 - **A bonus must act on something the branch already has.** No payload-strength bonuses on a branch that has not yet produced payloads.
 - **Resource branches spend their resource coherently.** An earlier node must not drain the reserve that a later node consumes.
 - **In-game text is player language.** The catalog descriptions (`survival_family_mastery.dart`) say what the node does, with its numbers, in terms the player sees: "attack", "your special", "your element's effect", "both slashes hit the same enemy". Never use "payload", "cast", "basic", "dual hit", or "full volley hit"; a test enforces this. This doc keeps the precise combat terms.
@@ -189,36 +189,62 @@ Build rhythm with basics and release it around the existing special.
 
 ## Let
 
-**Existing chassis:** one large, slow meteor at 115% physical damage. Let is the deliberate heavy artillery family.
+**Existing chassis:** one large, slow meteor at 115% physical damage, thrown flat at a single target. Let is the deliberate heavy artillery family, and its targeting already prefers the toughest enemy and bosses.
 
-### Assault — Falling Star
+**Two meteors — every node names which one it changes.** A Let throws two different things, and the tree text must never leave the player guessing which:
 
-Large direct hits and elite pressure.
+- **The auto-attack meteor** — the rock thrown on every attack (the chassis above).
+- **The special meteor** — the skyfall that drops onto a locked target and craters, carrying the element's own effect from the design board (see the Let specials design memory: Air shoves, Fire explodes on a kill, Dark throws follow-up meteors, and so on).
 
-1. **Dense Core** — The meteor becomes 12% smaller and 10% slower but deals 135% physical damage.
-2. **Cratermaker** — Direct hits apply Fracture, causing the next Let basic hit to deal 18% additional physical damage. Fracture lasts 4 seconds.
-3. **Terminal Velocity** — Meteors gain up to 20% damage based on travel distance, reaching maximum power after 70% of their lifetime.
-4. **Capstone: Extinction Event** — Every fifth cast becomes a giant comet dealing 210% physical damage in a moderate impact radius. Only the direct target can be critically hit.
+**Nothing in this tree may take over an element's signature (2026-09-17).** Each Let element's special owns one mechanic, and a mastery path that grants that mechanic to every Let erases what made that element distinct. The owned mechanics are:
 
-### Control — Scatterfall
+| Mechanic | Owned by |
+| --- | --- |
+| Shoving enemies | Air (Steam's geyser also shoves) |
+| Slowing | Dust, Crystal |
+| Burning ground | Lava |
+| Poison | Poison |
+| Vines and rooting | Plant |
+| Healing and lifesteal | Blood, Earth, Light |
+| Execute | Spirit |
+| Explosion on a kill | Fire |
+| Chaining | Lightning |
+| Extra meteors | Dark (Blood's meteor also breaks into pieces) |
+| Freezing | Ice |
+| Stunning | Mud |
+| Splash damage | Water |
+| Faster special cooldown | Crystal |
 
-Impact coverage and persistent elemental zones.
+So Let mastery works only in what no element owns: damage, marks, attack speed, range, targeting, and the shape of the auto-attack's delivery.
 
-1. **Shatterstone** — On impact, the meteor releases three fragments at 18% physical damage each. Fragments cannot hit the direct target.
-2. **Elemental Crater** — The impact point triggers one elemental payload in a small radius at 80% strength.
-3. **Lingering Fall** — The impact leaves a 2.5-second zone that reapplies a non-damaging version of the element's control every second. Damage payloads instead tick for 20% elemental attack total.
-4. **Capstone: Meteor Season** — Every third cast marks the impact point. After 0.6 seconds, three small meteors fall around it for 28% physical damage each; one may hit the original target.
+**Replaced 2026-09-17.** The earlier tree was Falling Star, Scatterfall and Orbital Cycle. Scatterfall was built from owned mechanics (fragments and extra meteors are Dark's and Blood's, crater splash is Water's, and Lingering Fall invented ground effects for elements that have none). Orbital Cycle had the Tempest Claw problem — an abstract counter carrying three "more damage near the special" nodes — and its capstone repeated the special's entire aftermath, which for Dark means re-running a five-meteor bombardment. Falling Star's Terminal Velocity was pure numbers that only made sense while the auto-attack flew flat. Saves that owned the removed nodes simply drop them, as with Tempest Claw.
 
-### Resonance — Orbital Cycle
+### Falling Star — auto-attack meteor
 
-Basics prepare additional aftershocks around the special.
+One enormous hit.
 
-1. **Impact Memory** — Each basic direct hit grants one Orbit, up to four. Only one Orbit may be earned per cast. Each Orbit grants 4% basic damage.
-2. **Satellite Fire** — While at four Orbit, every other basic cast adds a delayed satellite strike for 30% elemental attack. It does not consume Orbit, so Convergence still has a full reserve to spend.
-3. **Convergence** — Casting the special consumes all Orbit. Each consumed Orbit adds one reduced elemental aftershock near the special's target or center.
-4. **Capstone: Second Impact** — When Convergence consumes four Orbit, the special repeats one simplified impact at 40% power 1 second after its initial effect. Persistent zones gain one pulse instead. The repeat cannot double-cast or recursively trigger mastery.
+1. **Dense Core** — The auto-attack meteor deals 135% physical damage instead of 115%, is 12% smaller and flies 10% slower.
+2. **Cratermaker** — An auto-attack meteor hit applies Fracture for 4 seconds; the next auto-attack meteor hit on that body deals 18% more.
+3. **Dead Weight** — The auto-attack meteor deals 25% more to bodies above half health. Let's targeting already prefers the toughest body, so this pays for the family doing what it already does.
+4. **Capstone: Extinction Event** — Every fifth auto-attack meteor is a giant comet dealing 210% physical damage in a wide crater. Only the direct target can be critically hit. This is a bigger meteor, not more meteors.
 
----
+### Bombardment — auto-attack meteor
+
+The auto-attack stops being thrown and starts falling — the same motion as the special, which is what makes a Let read as a Let.
+
+1. **Deadfall** — The auto-attack meteor becomes a skyfall through the shared `letSkyfallDrop` / `CosmicAbilityRuntime.advanceSkyfall` runtime: target-locked, undodgeable, landing in a crater a third of the special's radius. It carries no element effect — the special's on-collide and on-kill behaviours stay the special's. The price is the descent: damage arrives after the fall rather than on release.
+2. **Heavy Ordnance** — The auto-attack crater is 35% wider, and bodies in it other than the one landed on take 75% of the hit instead of the skyfall's usual 55%.
+3. **Ranging Shots** — Attack range rises 25%. Each drop on the same body within 3 seconds of the last deals 10% more, up to 30%; changing target resets it.
+4. **Capstone: Skyreach** — The auto-attack is no longer limited by range: it can land on any enemy in the arena and always chooses the one with the most health, bosses first. One drop per attack, as ever — this changes where it lands, not how many land.
+
+### Ground Zero — special meteor
+
+The big one tells the rest where to land: the special meteor marks, the auto-attack meteor punishes. Marks and attack speed are owned by no element, so this path reads the same for all seventeen and takes nothing from any of them.
+
+1. **Sighted** — Every body the special meteor's crater catches is Sighted for 6 seconds. The Let's auto-attack meteors deal 20% more to Sighted bodies. Sight is applied alongside the element's own effect, never instead of it.
+2. **Walking Fire** — The Let's auto-attack targeting prefers Sighted bodies, and each auto-attack hit on one adds 1 second to its Sight, up to 10 seconds remaining.
+3. **Called Shot** — Every companion deals 10% more damage to Sighted bodies.
+4. **Capstone: Fire for Effect** — While any body is Sighted, the Let attacks 30% faster. When a Sighted body dies its Sight, with its remaining time, passes to the nearest living enemy — one hop per death, so it cannot cascade within a frame.
 
 ## Pip
 

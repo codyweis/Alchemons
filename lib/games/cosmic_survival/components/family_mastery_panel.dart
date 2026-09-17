@@ -2605,6 +2605,14 @@ class _StatusPill extends StatelessWidget {
 // ── Icons & formatting ─────────────────────────────────────────────────────
 
 IconData _pathIcon(String pathId) {
+  switch (pathId) {
+    case 'mane.limitless':
+      return PhosphorIconsBold.infinity;
+    case 'let.bombardment':
+      return PhosphorIconsBold.arrowFatLinesDown;
+    case 'let.ground_zero':
+      return PhosphorIconsBold.crosshairSimple;
+  }
   if (pathId.endsWith('.assault')) return PhosphorIconsBold.sword;
   if (pathId.endsWith('.control')) return PhosphorIconsBold.shareNetwork;
   return PhosphorIconsBold.waveSine;
@@ -2633,16 +2641,16 @@ const Map<String, IconData> kFamilyMasteryNodeIcons = {
   // Let
   'let.assault.dense_core': PhosphorIconsBold.sphere,
   'let.assault.cratermaker': PhosphorIconsBold.hammer,
-  'let.assault.terminal_velocity': PhosphorIconsBold.arrowFatLinesDown,
+  'let.assault.dead_weight': PhosphorIconsBold.barbell,
   'let.assault.extinction_event': PhosphorIconsBold.meteor,
-  'let.control.shatterstone': PhosphorIconsBold.diamondsFour,
-  'let.control.elemental_crater': PhosphorIconsBold.target,
-  'let.control.lingering_fall': PhosphorIconsBold.hourglassMedium,
-  'let.control.meteor_season': PhosphorIconsBold.shootingStar,
-  'let.resonance.impact_memory': PhosphorIconsBold.circlesThree,
-  'let.resonance.satellite_fire': PhosphorIconsBold.planet,
-  'let.resonance.convergence': PhosphorIconsBold.arrowsIn,
-  'let.resonance.second_impact': PhosphorIconsBold.repeatOnce,
+  'let.bombardment.deadfall': PhosphorIconsBold.arrowFatLinesDown,
+  'let.bombardment.heavy_ordnance': PhosphorIconsBold.circlesThree,
+  'let.bombardment.ranging_shots': PhosphorIconsBold.binoculars,
+  'let.bombardment.skyreach': PhosphorIconsBold.globeHemisphereWest,
+  'let.ground_zero.sighted': PhosphorIconsBold.eye,
+  'let.ground_zero.walking_fire': PhosphorIconsBold.footprints,
+  'let.ground_zero.called_shot': PhosphorIconsBold.megaphone,
+  'let.ground_zero.fire_for_effect': PhosphorIconsBold.crosshair,
   // Pip
   'pip.assault.tight_grouping': PhosphorIconsBold.crosshair,
   'pip.assault.pin_cushion': PhosphorIconsBold.pushPin,

@@ -206,60 +206,65 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.let,
-    chassis: 'One large, slow meteor built around deliberate heavy impact.',
+    chassis: 'One large, slow meteor thrown at a single target.',
     paths: [
-      _path('let.assault', 'Falling Star', 'Huge single hits on tough enemies', [
+      _path('let.assault', 'Falling Star', 'One enormous auto-attack hit', [
         (
           'Dense Core',
-          "Meteors deal 135% damage (up from 115%) but are 12% smaller and fall 10% slower.",
+          "Your auto-attack meteor deals 135% damage (up from 115%) but is 12% smaller and flies 10% slower.",
         ),
         (
           'Cratermaker',
-          "A direct hit cracks the enemy: your next meteor on it within 4s deals +18% damage.",
+          "An auto-attack meteor hit cracks the enemy: your next auto-attack meteor on it within 4s deals +18%.",
         ),
         (
-          'Terminal Velocity',
-          "Meteors hit harder the longer they travel, up to +20% damage on long throws.",
+          'Dead Weight',
+          "Your auto-attack meteor deals +25% damage to enemies above half health.",
         ),
         (
           'Extinction Event',
-          "Every 5th attack is a giant comet that deals 210% damage to everything in a wide crater.",
+          "Every 5th auto-attack meteor is a giant comet that deals 210% damage across a wide crater.",
         ),
       ]),
-      _path('let.control', 'Scatterfall', 'Shatter and scorch whole areas', [
+      _path(
+        'let.bombardment',
+        'Bombardment',
+        'Your auto-attack meteor falls from the sky',
+        [
+          (
+            'Deadfall',
+            "Your auto-attack meteor drops onto its target from above. It can't be dodged and lands in a small crater after a short fall.",
+          ),
+          (
+            'Heavy Ordnance',
+            "Your auto-attack crater is 35% wider, and everything in it takes 75% of the hit (up from 55%).",
+          ),
+          (
+            'Ranging Shots',
+            "+25% attack range. Each drop on the same enemy within 3s of the last lands 10% harder, up to +30%.",
+          ),
+          (
+            'Skyreach',
+            "Your auto-attack meteor can reach any enemy in the arena, always landing on the toughest one.",
+          ),
+        ],
+      ),
+      _path('let.ground_zero', 'Ground Zero', 'Your special meteor marks targets', [
         (
-          'Shatterstone',
-          "Meteors burst into 3 fragments on impact, each hitting another nearby enemy for 18% damage.",
+          'Sighted',
+          "Enemies hit by your special meteor are Sighted for 6s. Your auto-attack meteors deal +20% damage to them.",
         ),
         (
-          'Elemental Crater',
-          "Impacts splash your element's effect onto enemies around the crater at 80% strength.",
+          'Walking Fire',
+          "Your auto-attack meteors go after Sighted enemies first, and each hit adds 1s to the Sight (up to 10s).",
         ),
         (
-          'Lingering Fall',
-          "Craters linger for 2.5s, reapplying your element's effect to enemies inside every second.",
+          'Called Shot',
+          "Your whole team deals +10% damage to Sighted enemies.",
         ),
         (
-          'Meteor Season',
-          "Every 3rd attack calls 3 small meteors down around the impact 0.6s later (28% damage each).",
-        ),
-      ]),
-      _path('let.resonance', 'Orbital Cycle', 'Build Orbit to amplify specials', [
-        (
-          'Impact Memory',
-          "Each direct hit adds 1 Orbit (max 4). Each Orbit gives your meteors +4% damage.",
-        ),
-        (
-          'Satellite Fire',
-          "While at 4 Orbit, every other attack also calls a satellite strike for 30% elemental damage.",
-        ),
-        (
-          'Convergence',
-          "Casting your special spends all Orbit; each one adds an elemental aftershock around the special's target.",
-        ),
-        (
-          'Second Impact',
-          "Spending 4 Orbit also makes your special strike a second time 1s later at 40% power.",
+          'Fire for Effect',
+          "While any enemy is Sighted you attack 30% faster, and when a Sighted enemy dies its Sight jumps to the nearest enemy.",
         ),
       ]),
     ],

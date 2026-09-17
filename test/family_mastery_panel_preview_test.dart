@@ -75,7 +75,7 @@ void main() {
       for (final id in [
         'mane.assault.honed_pair',
         'mane.assault.crosscut',
-        'mane.control.sweeping_claws',
+        'mane.limitless.far_throw',
       ]) {
         await mastery.purchaseNode(family: CreatureFamily.mane, nodeId: id);
       }
@@ -179,13 +179,13 @@ void main() {
       await capture('mastery_mane_capstone');
     }
 
-    // Arm the upgrade button (first tap) on the Tempest Claw path.
+    // Arm the upgrade button (first tap) on the Limitless path.
     await tester.tap(
-      find.byKey(const ValueKey('mastery-node-mane.control.rending_wake')),
+      find.byKey(const ValueKey('mastery-node-mane.limitless.overdraw')),
     );
     await tester.pump();
     await tester.tap(
-      find.byKey(const ValueKey('unlock-mane.control.rending_wake')),
+      find.byKey(const ValueKey('unlock-mane.limitless.overdraw')),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -201,6 +201,17 @@ void main() {
     });
     await tester.pump(const Duration(seconds: 1));
     await capture('mastery_kin');
+
+    await tester.tap(find.byKey(const ValueKey('mastery-family-let')));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.runAsync(() async {
+      for (final element in find.byType(Image).evaluate()) {
+        final image = element.widget as Image;
+        await precacheImage(image.image, element, onError: (_, _) {});
+      }
+    });
+    await tester.pump(const Duration(seconds: 1));
+    await capture('mastery_let');
 
     await tester.runAsync(() async {
       mastery.dispose();
