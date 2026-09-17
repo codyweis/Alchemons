@@ -24,6 +24,7 @@ import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mastery_let.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_mane.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_payload.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_runtime.dart';
@@ -1910,6 +1911,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // so a second run in the same session starts from zero.
     mastery.reset();
     _maneMastery.clear();
+    _letMastery.clear();
     _startZoomAnimation(_zoomPresets[_zoomLevelIndex]);
     spawner.startFirstWave();
   }
@@ -2971,6 +2973,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
 
+    // Skyreach (Let): the auto-attack can land anywhere in the arena, so it
+    // fires on its own target whether or not anything is near the Let. It
+    // spends the cooldown, which keeps the ordinary attack below from firing
+    // a second rock this frame.
+    _tryFireLetSkyreach(comp, slotIndex);
+
     if (attackTarget != null) {
       final toTarget = attackTarget - comp.position;
       final fireAngle = atan2(toTarget.dy, toTarget.dx);
@@ -3003,7 +3011,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           dt,
         );
       } else if (comp.basicCooldown <= 0 &&
-          distToTarget <= comp.attackRange + bossBonus) {
+          distToTarget <=
+              comp.attackRange * _masteryAttackRangeMultiplier(slotIndex) +
+                  bossBonus) {
         final cooldown =
             comp.effectiveBasicCooldown *
             (isDarkWing ? 0.5 : 1.0) *
@@ -3023,11 +3033,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // throws. Every slash, dart and feather below carries the same id so
         // mastery can ask "did both blades land on that body" without a
         // multishot family triggering cast nodes three times as often.
-        final shaped = _applyManeBasicMastery(
-          basics,
+        final shaped = _applyLetBasicMastery(
+          _applyManeBasicMastery(basics, comp, slotIndex, fireAngle),
           comp,
           slotIndex,
           fireAngle,
+          attackTarget,
         );
         final basicCastId = mastery.beginCast(
           slotIndex: slotIndex,
@@ -3038,6 +3049,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           masteryDamageFraction: _masteryBasicUplift(slotIndex),
         );
         _onManeBasicCast(slotIndex, basicCastId, fireAngle);
+        _onLetBasicCast(slotIndex, basicCastId);
         // Kin+Lightning tesla charge: while any Lightning kin is
         // actively channelling, ALL companion auto-attacks get chain
         // lightning. Stacks with the existing powerup version.
@@ -3551,7 +3563,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     CosmicSurvivalCompanion comp,
   ) {
     final family = comp.member.family.toLowerCase();
-    final maxScan = max(comp.attackRange, comp.specialAbilityRange) + 180;
+    final maxScan =
+        max(
+          comp.attackRange * _masteryAttackRangeMultiplier(comp.slotIndex),
+          comp.specialAbilityRange,
+        ) +
+        180;
+    final walkingFire =
+        family == 'let' &&
+        mastery.hasNode(comp.slotIndex, LetNodes.walkingFire);
     final maxScanSq = maxScan * maxScan;
 
     CosmicSurvivalEnemy? bestEnemy;
@@ -3575,6 +3595,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         case 'let':
           // Target: most health — prioritize highest HP enemies
           score += enemy.hpFraction * 180;
+          // Walking Fire: what the special Sighted comes first.
+          if (walkingFire && enemy.isLetSighted) {
+            score += LetTuning.walkingFireTargetBonus;
+          }
         case 'pip':
           // Target: least health — prioritize lowest HP enemies (execute)
           score += (1.0 - enemy.hpFraction) * 180;
@@ -3670,7 +3694,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _CompanionTargetChoice? suggested,
   ) {
     final current = comp.stickyTarget;
-    final maxScan = max(comp.attackRange, comp.specialAbilityRange) + 180;
+    final maxScan =
+        max(
+          comp.attackRange * _masteryAttackRangeMultiplier(comp.slotIndex),
+          comp.specialAbilityRange,
+        ) +
+        180;
     final maxScanSq = maxScan * maxScan;
 
     if (current != null && !current.isDead) {
@@ -5623,6 +5652,454 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  // == Let mastery (phase 4) ===============================================
+
+  /// Per-slot Let state, created on demand and dropped on a run reset.
+  final Map<int, LetMasteryState> _letMastery = {};
+
+  LetMasteryState _letStateFor(int slotIndex) =>
+      _letMastery.putIfAbsent(slotIndex, LetMasteryState.new);
+
+  /// Read-only view of a Let's run state, for tests and the HUD.
+  LetMasteryState? letMasteryFor(int slotIndex) => _letMastery[slotIndex];
+
+  bool _isMasteryLet(int slotIndex) {
+    if (!mastery.enabled) return false;
+    return mastery.equippedFor(slotIndex)?.family == CreatureFamily.let;
+  }
+
+  /// Basic attack range multiplier from mastery (Ranging Shots).
+  double _masteryAttackRangeMultiplier(int slotIndex) {
+    if (!mastery.enabled) return 1.0;
+    return mastery.hasNode(slotIndex, LetNodes.rangingShots)
+        ? LetTuning.rangingShotsRangeScale
+        : 1.0;
+  }
+
+  /// Reshapes a Let auto-attack for the equipped path: a denser rock or a
+  /// comet (Falling Star), or a rock that falls instead of flying
+  /// (Bombardment). Ground Zero leaves the throw alone — its work happens
+  /// where the rock lands.
+  List<Projectile> _applyLetBasicMastery(
+    List<Projectile> basics,
+    CosmicSurvivalCompanion comp,
+    int slotIndex,
+    double fireAngle,
+    Offset? targetPos,
+  ) {
+    if (basics.isEmpty || !_isMasteryLet(slotIndex)) return basics;
+    final state = _letStateFor(slotIndex);
+    bool has(String nodeId) => mastery.hasNode(slotIndex, nodeId);
+    state
+      ..pendingMasteryDamageFraction = 0
+      ..pendingComet = false;
+    final denseCore = has(LetNodes.denseCore);
+    final deadfall = has(LetNodes.deadfall) && targetPos != null;
+    if (!denseCore && !deadfall) return basics;
+
+    final seed = basics.first;
+    var fraction = LetTuning.baseMeteorFraction;
+    var size = 1.0;
+    var speed = 1.0;
+    if (denseCore) {
+      fraction = LetTuning.denseCoreFraction;
+      size *= LetTuning.denseCoreSizeScale;
+      speed *= LetTuning.denseCoreSpeedScale;
+    }
+    final comet = has(LetNodes.extinctionEvent) && state.takeCometTurn();
+    if (comet) {
+      fraction = LetTuning.cometFraction;
+      size *= LetTuning.cometSizeScale;
+      mastery.recordCapstone(slotIndex);
+    }
+    state.pendingComet = comet;
+    final uplift = fraction / LetTuning.baseMeteorFraction;
+    state.pendingMasteryDamageFraction = uplift <= 1.0
+        ? 0.0
+        : (uplift - 1.0) / uplift;
+    final damage = seed.damage * uplift;
+
+    if (deadfall) {
+      final drop = letSkyfallDrop(targetPos, fireAngle);
+      final ordnance = has(LetNodes.heavyOrdnance);
+      return [
+        Projectile(
+            position: drop.position,
+            angle: drop.angle,
+            element: seed.element,
+            damage: damage,
+            life: drop.duration + 0.4,
+            speedMultiplier: 0,
+            radiusMultiplier: seed.radiusMultiplier * size,
+            visualScale: seed.visualScale * size,
+            visualStyle: seed.visualStyle,
+            skyfallDuration: drop.duration,
+            skyfallImpact: targetPos,
+            skyfallDistance: drop.distance,
+          )
+          ..letDeadfall = true
+          ..letCraterRadius =
+              LetTuning.deadfallCraterRadius *
+              (ordnance ? LetTuning.heavyOrdnanceRadiusScale : 1.0)
+          ..letCraterShare = ordnance
+              ? LetTuning.heavyOrdnanceSplashShare
+              : LetTuning.craterSplashShare,
+      ];
+    }
+
+    final shot = Projectile(
+      position: seed.position,
+      angle: seed.angle,
+      element: seed.element,
+      damage: damage,
+      life: seed.life,
+      speedMultiplier: seed.speedMultiplier * speed,
+      radiusMultiplier: seed.radiusMultiplier * size,
+      visualScale: seed.visualScale * size,
+      visualStyle: seed.visualStyle,
+    );
+    if (comet) {
+      shot
+        ..letCraterRadius = LetTuning.cometCraterRadius
+        ..letCraterShare = LetTuning.craterSplashShare;
+    }
+    return [shot];
+  }
+
+  void _onLetBasicCast(int slotIndex, int castId) {
+    if (castId == 0 || !_isMasteryLet(slotIndex)) return;
+    if (_letStateFor(slotIndex).pendingComet) {
+      mastery.cast(castId)?.tag(LetCastTags.comet);
+    }
+  }
+
+  /// Skyreach: an auto-attack that falls on the toughest thing in the arena,
+  /// wherever it is. Returns whether it fired.
+  bool _tryFireLetSkyreach(CosmicSurvivalCompanion comp, int slotIndex) {
+    if (comp.basicCooldown > 0) return false;
+    if (!_isMasteryLet(slotIndex)) return false;
+    if (!mastery.hasNode(slotIndex, LetNodes.skyreach)) return false;
+    final target = _letSkyreachTarget();
+    if (target == null) return false;
+
+    final toTarget = target - comp.position;
+    final fireAngle = atan2(toTarget.dy, toTarget.dx);
+    _setCompanionAngle(comp, fireAngle, 0.12);
+    comp.basicCooldown =
+        comp.effectiveBasicCooldown *
+        _masteryBasicCooldownMultiplier(slotIndex);
+    final basics = createFamilyBasicAttack(
+      origin: comp.position,
+      angle: fireAngle,
+      element: comp.member.element,
+      family: comp.member.family,
+      damage:
+          comp.physAtk.toDouble() *
+          (_equippedSkin == OrbBaseSkin.voidforgeOrb ? 1.12 : 1.0) *
+          comp.damageAmp,
+    );
+    final shaped = _applyLetBasicMastery(
+      basics,
+      comp,
+      slotIndex,
+      fireAngle,
+      target,
+    );
+    final castId = mastery.beginCast(
+      slotIndex: slotIndex,
+      family: CreatureFamily.let,
+      element: comp.member.element,
+      kind: MasteryCastKind.basic,
+      projectileCount: shaped.length,
+      masteryDamageFraction: _masteryBasicUplift(slotIndex),
+    );
+    _onLetBasicCast(slotIndex, castId);
+    final teslaActive = _isAnyKinLightningChargeActive();
+    for (final projectile in shaped) {
+      projectile.sourceSlotIndex = slotIndex;
+      projectile.masteryCastId = castId;
+      if (powerUps.companionHasChainLightning(slotIndex) || teslaActive) {
+        projectile.chainLightningCharges = max(
+          projectile.chainLightningCharges,
+          teslaActive ? 3 : 2,
+        );
+      }
+    }
+    _appendCompanionProjectiles(
+      shaped,
+      cue: SoundCue.forFamilyBasic(comp.member.family),
+    );
+    // Only a throw the Let could not otherwise have made counts as the
+    // capstone working.
+    final reach = comp.attackRange * _masteryAttackRangeMultiplier(slotIndex);
+    if (toTarget.distance > reach) mastery.recordCapstone(slotIndex);
+    return true;
+  }
+
+  /// The toughest living thing in the arena: a boss if there is one,
+  /// otherwise the enemy with the most health.
+  Offset? _letSkyreachTarget() {
+    SurvivalBoss? bestBoss;
+    for (final boss in allLivingBosses) {
+      if (bestBoss == null || boss.hp > bestBoss.hp) bestBoss = boss;
+    }
+    if (bestBoss != null) return bestBoss.position;
+    CosmicSurvivalEnemy? best;
+    for (final enemy in enemies) {
+      if (enemy.isDead) continue;
+      if (best == null || enemy.hp > best.hp) best = enemy;
+    }
+    return best?.position;
+  }
+
+  /// Deadfall's landing: the body underneath takes the rock, the rest of the
+  /// crater takes a share. No element behaviour — that is the special's.
+  void _detonateLetDeadfall(Projectile p) {
+    final centre = p.skyfallImpact;
+    final radius = p.letCraterRadius;
+    _spawnDetonationBurst(centre, elementColor(p.element ?? 'Earth'), radius);
+    onSound?.call(SoundCue.combatHitHeavy);
+
+    SurvivalBoss? struckBoss;
+    var bestSq = double.infinity;
+    for (final boss in allLivingBosses) {
+      final reach = radius + boss.radius;
+      final dSq = _distanceSquared(boss.position, centre);
+      if (dSq <= reach * reach && dSq < bestSq) {
+        bestSq = dSq;
+        struckBoss = boss;
+      }
+    }
+    CosmicSurvivalEnemy? struck;
+    if (struckBoss == null) {
+      _visitEnemiesNear(centre, radius + 40, (enemy) {
+        if (enemy.isDead) return false;
+        final reach = radius + enemy.radius;
+        final dSq = _distanceSquared(enemy.position, centre);
+        if (dSq <= reach * reach && dSq < bestSq) {
+          bestSq = dSq;
+          struck = enemy;
+        }
+        return false;
+      });
+    }
+
+    final hitBoss = struckBoss;
+    final hitEnemy = struck;
+    if (hitBoss != null) {
+      damageBoss(
+        p.damage,
+        attackElement: p.element,
+        sourceSlotIndex: p.sourceSlotIndex,
+        target: hitBoss,
+        autoAttack: true,
+        masteryCastId: p.masteryCastId,
+      );
+    } else if (hitEnemy != null) {
+      _damageEnemy(
+        hitEnemy,
+        p.damage,
+        sourceSlotIndex: p.sourceSlotIndex,
+        autoAttack: true,
+        masteryCastId: p.masteryCastId,
+      );
+    }
+    _openLetCrater(p, centre, exclude: hitEnemy, excludeBoss: hitBoss);
+    p.life = 0;
+  }
+
+  /// The share of an auto-attack meteor's hit that the rest of its crater
+  /// takes. Everything here is mastery's doing: the chassis rock has no
+  /// crater at all.
+  void _openLetCrater(
+    Projectile p,
+    Offset centre, {
+    CosmicSurvivalEnemy? exclude,
+    SurvivalBoss? excludeBoss,
+  }) {
+    final radius = p.letCraterRadius;
+    if (radius <= 0) return;
+    // A flat comet opens its crater once, on whatever it struck first.
+    if (!p.letDeadfall) {
+      p.letCraterRadius = 0;
+      _spawnDetonationBurst(centre, elementColor(p.element ?? 'Earth'), radius);
+    }
+    final splash = p.damage * p.letCraterShare;
+    if (splash <= 0) return;
+    _visitEnemiesNear(centre, radius + 40, (enemy) {
+      if (enemy.isDead || identical(enemy, exclude)) return false;
+      if (!_withinRange(centre, enemy.position, radius + enemy.radius)) {
+        return false;
+      }
+      _damageEnemy(
+        enemy,
+        splash,
+        sourceSlotIndex: p.sourceSlotIndex,
+        masterySource: MasteryDamageSource.mastery,
+      );
+      return false;
+    });
+    for (final boss in allLivingBosses.toList()) {
+      if (identical(boss, excludeBoss)) continue;
+      if (!_withinRange(centre, boss.position, radius + boss.radius)) {
+        continue;
+      }
+      damageBoss(
+        splash,
+        attackElement: p.element,
+        sourceSlotIndex: p.sourceSlotIndex,
+        target: boss,
+        masterySource: MasteryDamageSource.mastery,
+      );
+    }
+  }
+
+  /// The additive bonus a Let auto-attack meteor earns on [body], or 0 for
+  /// any other damage. Resolves Cratermaker's crack, Dead Weight, the
+  /// Ranging Shots streak and the Sighted bonus in one place.
+  double _letAutoAttackBonus(
+    int castId,
+    MasteryPayloadStatuses body,
+    double hpFraction,
+    int targetId,
+  ) {
+    if (castId == 0) return 0;
+    final cast = mastery.cast(castId);
+    if (cast == null ||
+        cast.family != CreatureFamily.let ||
+        cast.kind != MasteryCastKind.basic) {
+      return 0;
+    }
+    final slotIndex = cast.slotIndex;
+    return resolveLetAutoAttackBonus(
+      hasNode: (nodeId) => mastery.hasNode(slotIndex, nodeId),
+      targetHpFraction: hpFraction,
+      fractureRemaining: body.letFractureTimer,
+      sightRemaining: body.letSightTimer,
+      consumeFracture: () => body.letFractureTimer = 0,
+      applyFracture: () => body.letFractureTimer = LetTuning.fractureDuration,
+      extendSight: () => body.letSightTimer = min(
+        LetTuning.sightMaxRemaining,
+        body.letSightTimer + LetTuning.walkingFireExtension,
+      ),
+      rangingStreakBonus: () =>
+          _letStateFor(slotIndex).landDrop(targetId, mastery.clock),
+    );
+  }
+
+  /// Records damage, crediting the parts Let mastery is responsible for.
+  ///
+  /// [letUplift] is the share the dealer's own auto-attack bonus added;
+  /// [calledShotSlot] is the Let whose Called Shot added its bonus on top,
+  /// credited to that Let rather than to whoever happened to be shooting.
+  void _recordDamageWithLetUplift(
+    int? slotIndex,
+    double dealt,
+    MasteryDamageSource source, {
+    required int castId,
+    required double letUplift,
+    required int? calledShotSlot,
+  }) {
+    var remaining = dealt;
+    if (calledShotSlot != null && remaining > 0) {
+      final share = remaining * letUpliftFraction(LetTuning.calledShotBonus);
+      mastery.recordDamage(calledShotSlot, share, MasteryDamageSource.mastery);
+      remaining -= share;
+    }
+    if (letUplift > 0 && remaining > 0) {
+      final share = remaining * letUplift;
+      mastery.recordDamage(slotIndex, share, MasteryDamageSource.mastery);
+      remaining -= share;
+    }
+    mastery.recordDamage(slotIndex, remaining, source, castId: castId);
+  }
+
+  /// Sighted: everything the special meteor's crater catches is marked.
+  void _applyLetSightFromSpecial(
+    Projectile p,
+    Offset centre,
+    double blast,
+    List<CosmicSurvivalEnemy> inBlast,
+  ) {
+    final slotIndex = p.sourceSlotIndex;
+    if (slotIndex == null) return;
+    if (!mastery.hasNode(slotIndex, LetNodes.sighted)) return;
+    final calledShot = mastery.hasNode(slotIndex, LetNodes.calledShot);
+    final fireForEffect = mastery.hasNode(slotIndex, LetNodes.fireForEffect);
+    void sight(MasteryPayloadStatuses body) => body.applyLetSight(
+      slotIndex: slotIndex,
+      duration: LetTuning.sightDuration,
+      calledShot: calledShot,
+      fireForEffect: fireForEffect,
+    );
+    for (final enemy in inBlast) {
+      sight(enemy);
+    }
+    for (final boss in allLivingBosses) {
+      if (_distanceSquared(boss.position, centre) <= blast * blast) {
+        sight(boss);
+      }
+    }
+  }
+
+  /// Whether anything in the arena is Sighted right now (Fire for Effect).
+  bool _anyLetSighted() {
+    for (final boss in allLivingBosses) {
+      if (boss.isLetSighted) return true;
+    }
+    for (final enemy in enemies) {
+      if (!enemy.isDead && enemy.isLetSighted) return true;
+    }
+    return false;
+  }
+
+  /// Fire for Effect: a Sighted body's death hands its Sight, with the time
+  /// it had left, to the nearest living enemy. One hop per death — the body
+  /// it lands on is alive, so nothing cascades inside a frame.
+  void _hopLetSight(MasteryPayloadStatuses dying) {
+    final remaining = dying.letSightTimer;
+    final slotIndex = dying.letSightSlot;
+    final calledShot = dying.letSightCalledShot;
+    final hops = dying.letSightFireForEffect;
+    dying.clearLetSight();
+    if (!hops || slotIndex == null || remaining <= 0) return;
+
+    final Offset from;
+    if (dying is CosmicSurvivalEnemy) {
+      from = dying.position;
+    } else if (dying is SurvivalBoss) {
+      from = dying.position;
+    } else {
+      return;
+    }
+    MasteryPayloadStatuses? nearest;
+    var bestSq = double.infinity;
+    for (final enemy in enemies) {
+      if (enemy.isDead || identical(enemy, dying)) continue;
+      final dSq = _distanceSquared(enemy.position, from);
+      if (dSq < bestSq) {
+        bestSq = dSq;
+        nearest = enemy;
+      }
+    }
+    for (final boss in allLivingBosses) {
+      if (identical(boss, dying)) continue;
+      final dSq = _distanceSquared(boss.position, from);
+      if (dSq < bestSq) {
+        bestSq = dSq;
+        nearest = boss;
+      }
+    }
+    if (nearest == null) return;
+    nearest.applyLetSight(
+      slotIndex: slotIndex,
+      duration: remaining,
+      calledShot: calledShot,
+      fireForEffect: true,
+    );
+    mastery.recordCapstone(slotIndex);
+  }
+
   // == Mane mastery (phase 3 vertical slice) ===============================
 
   /// Per-slot Mane state, created on demand and dropped on a run reset.
@@ -6073,7 +6550,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// The share of the next basic cast's damage that mastery is owed, set by
   /// the shape pass that just ran.
   double _masteryBasicUplift(int slotIndex) =>
-      _maneMastery[slotIndex]?.pendingMasteryDamageFraction ?? 0.0;
+      _maneMastery[slotIndex]?.pendingMasteryDamageFraction ??
+      _letMastery[slotIndex]?.pendingMasteryDamageFraction ??
+      0.0;
 
   /// The same for a special. Limitless is the only path that raises special
   /// damage outright, and it does so by a flat amount that depends on nothing
@@ -6087,6 +6566,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   /// Basic-attack cooldown multiplier from mastery. Below 1 is faster.
   double _masteryBasicCooldownMultiplier(int slotIndex) {
+    if (_isMasteryLet(slotIndex)) {
+      if (mastery.hasNode(slotIndex, LetNodes.fireForEffect) &&
+          _anyLetSighted()) {
+        return 1.0 / (1.0 + LetTuning.fireForEffectHaste);
+      }
+      return 1.0;
+    }
     if (!_isMasteryMane(slotIndex)) return 1.0;
     return _maneStateFor(slotIndex).hasteMultiplier(
       hasMeasuredCuts: mastery.hasNode(slotIndex, ManeNodes.measuredCuts),
@@ -6184,6 +6670,27 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // illuminate. Applied before the family/tier multipliers so they read as
     // a property of the target, which is what both payloads describe.
     if (mastery.enabled) damage *= enemy.masteryDamageTakenMultiplier;
+    // Let: the auto-attack meteor's own bonuses, and Called Shot for anyone.
+    var letUplift = 0.0;
+    int? calledShotSlot;
+    if (mastery.enabled) {
+      final letBonus = _letAutoAttackBonus(
+        masteryCastId,
+        enemy,
+        enemy.hpFraction,
+        identityHashCode(enemy),
+      );
+      if (letBonus > 0) {
+        damage *= 1 + letBonus;
+        letUplift = letUpliftFraction(letBonus);
+      }
+      if (sourceSlotIndex != null &&
+          enemy.isLetSighted &&
+          enemy.letSightCalledShot) {
+        damage *= 1 + LetTuning.calledShotBonus;
+        calledShotSlot = enemy.letSightSlot;
+      }
+    }
     final weight = _mysticWeightMultiplier(enemy.tier);
     damage *= weight;
     // Only worth showing on the bodies the world actually leans on.
@@ -6219,7 +6726,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     final source =
         masterySource ?? _inferMasterySource(masteryCastId, autoAttack);
-    mastery.recordDamage(sourceSlotIndex, dealt, source, castId: masteryCastId);
+    _recordDamageWithLetUplift(
+      sourceSlotIndex,
+      dealt,
+      source,
+      castId: masteryCastId,
+      letUplift: letUplift,
+      calledShotSlot: calledShotSlot,
+    );
     final hit = mastery.recordHit(
       castId: masteryCastId,
       targetId: identityHashCode(enemy),
@@ -6277,6 +6791,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     MasteryDamageSource? masterySource,
   }) {
     if (enemy.isDead) return;
+    if (mastery.enabled && enemy.isLetSighted) _hopLetSight(enemy);
     if (mastery.enabled && sourceSlotIndex != null) {
       _onMasteryKill(
         MasteryKill(
@@ -7882,6 +8397,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final boss = target ?? activeBoss;
     if (boss == null || boss.isDead) return;
     if (mastery.enabled) damage *= boss.masteryDamageTakenMultiplier;
+    var letUplift = 0.0;
+    int? calledShotSlot;
+    if (mastery.enabled) {
+      final letBonus = _letAutoAttackBonus(
+        masteryCastId,
+        boss,
+        boss.hpFraction,
+        identityHashCode(boss),
+      );
+      if (letBonus > 0) {
+        damage *= 1 + letBonus;
+        letUplift = letUpliftFraction(letBonus);
+      }
+      if (sourceSlotIndex != null &&
+          boss.isLetSighted &&
+          boss.letSightCalledShot) {
+        damage *= 1 + LetTuning.calledShotBonus;
+        calledShotSlot = boss.letSightSlot;
+      }
+    }
     // A Blood world tithes from bosses as well. Taken off the incoming figure
     // rather than the post-shield one: what the player feels is the shot they
     // fired, and a boss with its shield up would otherwise quietly turn the
@@ -7928,11 +8463,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     final bossSource =
         masterySource ?? _inferMasterySource(masteryCastId, autoAttack);
-    mastery.recordDamage(
+    _recordDamageWithLetUplift(
       sourceSlotIndex,
       dealtToBoss,
       bossSource,
       castId: masteryCastId,
+      letUplift: letUplift,
+      calledShotSlot: calledShotSlot,
     );
     final bossHit = mastery.recordHit(
       castId: masteryCastId,
@@ -7943,6 +8480,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (bossHit != null) _onMasteryHit(bossHit, boss: boss);
 
     if (boss.hp <= 0) {
+      if (mastery.enabled && boss.isLetSighted) _hopLetSight(boss);
       if (mastery.enabled && sourceSlotIndex != null) {
         _onMasteryKill(
           MasteryKill(
@@ -12215,6 +12753,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // Only once the meteor is most of the way down and actually on screen —
     // shedding embers from off-screen is pure cost.
     if (p.skyfallProgress < 0.35) return;
+    // A Deadfall auto-attack falls every second or so; it sheds a fraction of
+    // what a special does, so a Let at full haste does not fill the pool.
+    if (p.letDeadfall && _rng.nextDouble() > 0.35) return;
     if (!_isOnScreen(p.position, 80)) return;
     final ec = elementColor(p.element ?? 'Fire');
     final dir = Offset(cos(p.angle), sin(p.angle));
@@ -12304,6 +12845,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
       return false;
     });
+
+    _applyLetSightFromSpecial(p, centre, blast, inBlast);
 
     _damageEnemiesNear(
       centre,
@@ -15464,7 +16007,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           dt,
           p.skyfallTracks ? _liveSkyfallTarget(p) : null,
         );
-        if (landed) _detonateLetSkyfall(p);
+        if (landed) {
+          if (p.letDeadfall) {
+            _detonateLetDeadfall(p);
+          } else {
+            _detonateLetSkyfall(p);
+          }
+        }
         continue;
       }
 
@@ -16266,6 +16815,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final killed = !wasDead && enemy.isDead;
         resolveAbilityHit(p, enemy, killed: killed);
         if (p.piercing) resolveAbilityPierce(p, enemy);
+        if (p.letCraterRadius > 0 && !p.letDeadfall) {
+          _openLetCrater(p, enemy.position, exclude: enemy);
+        }
         // Pip+Water: every kill splashes (handled by the splash kill
         // effect); a kill on the projectile's final hit — no bounces
         // left — erupts an extra huge splash. Radius + damage scale
@@ -16503,6 +17055,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             );
           }
           p.hitBoss = true;
+          if (p.letCraterRadius > 0 && !p.letDeadfall) {
+            _openLetCrater(p, boss.position, excludeBoss: boss);
+          }
           _spawnProjectileHitSpark(p);
           if (!p.piercing || p.abilityFamily == 'pip') {
             consumed = true;
@@ -17816,9 +18371,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // field sees "something is about to land there" at a glance.
     for (final proj in companionProjectiles) {
       if (!proj.isDescending) continue;
+      // A Deadfall auto-attack marks the crater it will actually open, not
+      // the special's.
+      final telegraphRadius = proj.letDeadfall
+          ? proj.letCraterRadius
+          : letSkyfallBlastRadius(proj);
       if (!_isWithinViewport(
         proj.skyfallImpact,
-        letSkyfallBlastRadius(proj) * 2.4,
+        telegraphRadius * 2.4,
         cx,
         cy,
         cx + viewW,
@@ -17830,7 +18390,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         canvas: canvas,
         centre: proj.skyfallImpact,
         color: elementColor(proj.element ?? 'Fire'),
-        radius: letSkyfallBlastRadius(proj),
+        radius: telegraphRadius,
         progress: proj.skyfallProgress,
         time: stats.timeElapsed,
         reduceAmbient: _reduceAmbientVfx,

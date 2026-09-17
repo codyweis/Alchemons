@@ -91,6 +91,41 @@ mixin MasteryPayloadStatuses {
   double masteryHazeTimer = 0;
   double masteryHazeAmount = 0;
 
+  /// Let's Cratermaker crack: the next Let auto-attack meteor to land on this
+  /// body deals more. Every landing re-cracks it.
+  double letFractureTimer = 0;
+
+  /// Let's Sight (Ground Zero), from the special meteor. [letSightSlot] is
+  /// the Let that applied it, which telemetry credits; [letSightCalledShot]
+  /// is whether that Let has Called Shot, which turns the Sight into a bonus
+  /// for the whole team.
+  double letSightTimer = 0;
+  int? letSightSlot;
+  bool letSightCalledShot = false;
+  bool letSightFireForEffect = false;
+
+  bool get isLetSighted => letSightTimer > 0;
+
+  /// Marks this body Sighted, keeping whichever Sight lasts longer.
+  void applyLetSight({
+    required int slotIndex,
+    required double duration,
+    required bool calledShot,
+    required bool fireForEffect,
+  }) {
+    if (duration > letSightTimer) letSightTimer = duration;
+    letSightSlot = slotIndex;
+    letSightCalledShot = calledShot;
+    letSightFireForEffect = fireForEffect;
+  }
+
+  void clearLetSight() {
+    letSightTimer = 0;
+    letSightSlot = null;
+    letSightCalledShot = false;
+    letSightFireForEffect = false;
+  }
+
   /// Total incoming damage multiplier from mastery statuses. 1.0 when clean.
   double get masteryDamageTakenMultiplier {
     var mult = 1.0;
@@ -132,6 +167,14 @@ mixin MasteryPayloadStatuses {
     if (masteryHazeTimer > 0) {
       masteryHazeTimer -= dt;
       if (masteryHazeTimer <= 0) masteryHazeAmount = 0;
+    }
+    if (letFractureTimer > 0) {
+      letFractureTimer -= dt;
+      if (letFractureTimer < 0) letFractureTimer = 0;
+    }
+    if (letSightTimer > 0) {
+      letSightTimer -= dt;
+      if (letSightTimer <= 0) clearLetSight();
     }
     return damage;
   }

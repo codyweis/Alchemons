@@ -1,6 +1,6 @@
 # Survival Family Mastery
 
-Status (2026-09-17): Phases 1 and 2 complete. Phase 3, the Mane vertical slice, is implemented: all twelve Mane nodes work in survival, including Limitless (which replaced Tempest Claw); tuning is still open. The Base Command Mastery tab is polished (the first item of Phase 6). Phase 4 has begun with a design pass on Let: its tree was redesigned around its two meteors (Falling Star, Bombardment, Ground Zero — see *Let*), and none of those nodes are implemented yet. The other six families' trees are still the original draft.
+Status (2026-09-17): Phases 1 and 2 complete. Phase 3, the Mane vertical slice, is implemented: all twelve Mane nodes work in survival, including Limitless (which replaced Tempest Claw); tuning is still open. The Base Command Mastery tab is polished (the first item of Phase 6). Phase 4 has begun with Let: its tree was redesigned around its two meteors (Falling Star, Bombardment, Ground Zero — see *Let*) and all twelve nodes are implemented in survival (`survival_mastery_let.dart`, `test/survival_mastery_let_test.dart`); tuning is open and it has not been played on device. The other six families' trees are still the original draft.
 
 ## Purpose
 
@@ -245,6 +245,17 @@ The big one tells the rest where to land: the special meteor marks, the auto-att
 2. **Walking Fire** — The Let's auto-attack targeting prefers Sighted bodies, and each auto-attack hit on one adds 1 second to its Sight, up to 10 seconds remaining.
 3. **Called Shot** — Every companion deals 10% more damage to Sighted bodies.
 4. **Capstone: Fire for Effect** — While any body is Sighted, the Let attacks 30% faster. When a Sighted body dies its Sight, with its remaining time, passes to the nearest living enemy — one hop per death, so it cannot cascade within a frame.
+
+### Let implementation notes (2026-09-17)
+
+- **Where it lives.** Numbers, node ids and the per-hit bonus rule are in `survival_mastery_let.dart`; the game wires them in under "Let mastery" in `cosmic_survival_game.dart`. The body statuses (`letFractureTimer`, `letSightTimer` and the Sight's owner flags) live on the shared `MasteryPayloadStatuses`, so enemies and bosses carry them alike.
+- **One place for the auto-attack bonuses.** Cratermaker, Dead Weight, the Ranging Shots streak and the Sighted bonus are resolved together in `resolveLetAutoAttackBonus`, called from `_damageEnemy` and `damageBoss` only for damage that belongs to a Let *basic* cast. Crater splash carries no cast, so it never earns them. The bonus is additive, and its share of the hit is credited to mastery in telemetry.
+- **Called Shot credit.** The +10% applies to every companion's damage against a Sighted body, and its share is credited to the Let whose special applied the Sight, not to whoever fired.
+- **Deadfall** builds its falling rock through the same `letSkyfallDrop` geometry as the special, and marks it `letDeadfall` so it lands through its own `_detonateLetDeadfall` — nearest body under the crater takes the rock, the rest take the crater share, and `_resolveLetMeteorHit` (the special's element behaviour) is never reached. Its ground telegraph draws the auto-attack crater, not the special's, and it sheds about a third of the special's descent embers.
+- **Comets** (Extinction Event) still fly flat; the crater opens on first contact through `_openLetCrater`, once.
+- **Skyreach** fires from `_tryFireLetSkyreach` before the in-range attack block, on its own target (the healthiest boss, else the healthiest enemy, anywhere), whether or not anything is near the Let. It spends the cooldown, which is what stops the ordinary attack firing a second rock that frame. The Let does not walk to the target. A capstone activation is recorded only when the target was beyond ordinary reach.
+- **Fire for Effect's hop** runs from `_killEnemy` and the boss death path, before the body is marked dead, and moves the Sight's remaining time to the nearest living body. The body it lands on is alive, so no hop can cascade inside a frame.
+- **Tests** check every node against the real combat loop, including that a falling Air rock shoves nothing and a killing Dark rock calls no follow-up meteors, and that each capstone records itself.
 
 ## Pip
 

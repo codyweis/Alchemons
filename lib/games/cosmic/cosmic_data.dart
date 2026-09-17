@@ -4374,6 +4374,16 @@ class Projectile {
     counts[enemyId] = (counts[enemyId] ?? 0) + 1;
   }
 
+  /// Let mastery (Bombardment): an auto-attack meteor that falls onto its
+  /// target rather than flying at it. Detonates without the special's
+  /// element behaviour.
+  bool letDeadfall = false;
+
+  /// Let mastery: the crater this auto-attack meteor opens where it lands,
+  /// and the share of the hit everything else in it takes. 0 for none.
+  double letCraterRadius = 0;
+  double letCraterShare = 0;
+
   /// Mane's Endless Circuit: the shot that left its cast to ride the arena
   /// rim. Read by the orbit update, which clears its hit ledger once a lap
   /// and drags a burning arc behind it.
@@ -5522,6 +5532,9 @@ Projectile _copyProjectile(
   clone.masteryReturnFraction = p.masteryReturnFraction;
   clone.masteryNoLifetime = p.masteryNoLifetime;
   clone.masteryCircuit = p.masteryCircuit;
+  clone.letDeadfall = p.letDeadfall;
+  clone.letCraterRadius = p.letCraterRadius;
+  clone.letCraterShare = p.letCraterShare;
   // A copy is a fresh projectile with the same rules: it inherits the ceiling
   // but not the tally, or a ricochet would arrive already spent.
   clone.maxHitsPerEnemy = p.maxHitsPerEnemy;
