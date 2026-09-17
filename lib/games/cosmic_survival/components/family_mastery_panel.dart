@@ -2634,18 +2634,227 @@ class FamilyMasteryRosterSummary extends StatelessWidget {
   /// Opens this family's tree in Base Command.
   final VoidCallback? onOpenTree;
 
-  static const double collapsedHeight = 96;
-  static const double nodeLineHeight = 58;
+  // Text sizes the layout below draws with; the height maths measures the
+  // same styles rather than assuming how many lines they take.
+  static const double _headerSize = 11;
+  static const double _roleSize = 10.5;
+  static const double _nextSize = 10;
+  static const double _nodeNameSize = 9.5;
+  static const double _nodeDescSize = 10;
+  static const double _nodeIconColumn = 21;
+  static const double _nodeIconMinHeight = 15;
+  static const int nodeDescMaxLines = 3;
 
-  /// The height this summary needs, so a fixed-height carousel can size to it.
-  static double heightFor({
+  /// Measures [text] in the style it is actually drawn in.
+  ///
+  /// [fontWeight] matters more than it looks: this used to measure every
+  /// string at w900 while most of them are drawn at normal weight, and a
+  /// different weight resolves to a different face with different metrics.
+  /// That alone left the computed height a few pixels short of every line.
+  static double _textHeight(
+    BuildContext context,
+    String text,
+    double width,
+    double fontSize, {
+    int? maxLines,
+    double? height,
+    String? fontFamily,
+    double letterSpacing = 0,
+    FontWeight fontWeight = FontWeight.w900,
+  }) {
+    // Merged onto the ambient default exactly the way `Text` merges it. This
+    // is the whole reason the maths used to come up short: the default style
+    // carries a line-height multiplier, so a 10px line draws at 14 while a
+    // bare TextPainter measured it at 10 — four pixels missing from every
+    // line that did not set its own height.
+    final style = DefaultTextStyle.of(context).style.merge(
+      TextStyle(
+        fontSize: fontSize,
+        height: height,
+        fontFamily: fontFamily,
+        letterSpacing: letterSpacing,
+        fontWeight: fontWeight,
+      ),
+    );
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: maxLines,
+    )..layout(maxWidth: math.max(20.0, width));
+    // Rounded up: a paragraph lays out to whole logical pixels, so measuring
+    // 15.4 for a line the renderer gives 16 leaves a shortfall that used to
+    // be papered over with a trailing fudge factor.
+    return painter.height.ceilToDouble();
+  }
+
+  /// The capstone gem is drawn 4 larger than the rest, so it sets the row.
+  static const double _capstoneGemBonus = 4;
+
+  /// Tiers I-III draw a numeral, but the capstone is past the end of that list
+  /// and falls through to a star `Icon(size + 2)` — half a pixel taller than
+  /// the numeral it was assumed to be.
+  static const double _tierGlyphHeight = 7.5 + 2;
+
+  static double _gemTrackHeight(double width) =>
+      (_gemSizeFor(width) + _capstoneGemBonus + 2 + _tierGlyphHeight)
+          .ceilToDouble();
+
+  /// A line inside a [FittedBox] shrinks to fit, so its height depends on the
+  /// width it is given. Measured at its natural size, then scaled the way the
+  /// box scales it.
+  static double _fittedLineHeight(
+    BuildContext context,
+    String text,
+    double available,
+    double fontSize, {
+    double letterSpacing = 0,
+    String? fontFamily,
+  }) {
+    final style = DefaultTextStyle.of(context).style.merge(
+      TextStyle(
+        fontSize: fontSize,
+        fontFamily: fontFamily,
+        letterSpacing: letterSpacing,
+        fontWeight: FontWeight.w900,
+      ),
+    );
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final scale = painter.width <= 0
+        ? 1.0
+        : math.min(1.0, math.max(20.0, available) / painter.width);
+    return (painter.height * scale).ceilToDouble();
+  }
+
+  /// The TREE link sits in the role row with 2px of padding above and below.
+  static double _treeLinkHeight(BuildContext context) =>
+      4 + _textHeight(context, 'TREE', 60, 9, maxLines: 1);
+
+  static double _gemSizeFor(double width) =>
+      ((width - 3 * 6.0 - 4) / 4).clamp(18.0, 30.0);
+
+  /// The height this summary needs at [width], so the carousel can size to
+  /// it. Everything that wraps is measured in the style it is drawn in.
+  static double heightFor(
+    BuildContext context, {
+    required CreatureFamily family,
+    required Set<String> owned,
+    required String? selectedPathId,
     required bool expanded,
-    required int ownedNodesOnPath,
-  }) =>
-      collapsedHeight +
-      (expanded && ownedNodesOnPath > 0
-          ? 6 + ownedNodesOnPath * nodeLineHeight
-          : 0);
+    required double width,
+  }) {
+    final path = selectedPathId == null
+        ? null
+        : FamilyMasteryCatalog.pathFor(family, selectedPathId);
+    if (path == null) {
+      // The row is a 34px badge, a 10px gap, then the text column.
+      final textWidth = width - 34 - 10;
+      final title = _fittedLineHeight(
+        context,
+        'NO MASTERY PATH',
+        textWidth,
+        _headerSize,
+        letterSpacing: 1.1,
+        fontFamily: 'monospace',
+      );
+      final body = _textHeight(
+        context,
+        'Choose one in Base Command to change how every '
+        '${family.displayName} fights.',
+        textWidth,
+        _roleSize,
+        maxLines: 3,
+        fontWeight: FontWeight.normal,
+      );
+      // The badge sets a floor; the vertical padding is 3 either side.
+      return math.max(34.0, title + 3 + body) + 6;
+    }
+
+    // The header row is a 12px icon beside the path name; whichever is taller
+    // sets the row.
+    var height =
+        math.max(
+          12.0,
+          _textHeight(
+            context,
+            path.name.toUpperCase(),
+            width - 40,
+            _headerSize,
+            maxLines: 1,
+            letterSpacing: 1.1,
+            fontFamily: 'monospace',
+          ),
+        ) +
+        2;
+    // The role line shares its row with the TREE link, which is the taller of
+    // the two once its padding is counted.
+    height += math.max(
+      _textHeight(
+        context,
+        path.role,
+        width - 60,
+        _roleSize,
+        maxLines: 1,
+        fontWeight: FontWeight.normal,
+      ),
+      _treeLinkHeight(context),
+    );
+    height += 8 + _gemTrackHeight(width) + 6;
+    height += _textHeight(
+      context,
+      'Next',
+      width,
+      _nextSize,
+      maxLines: 1,
+      fontWeight: FontWeight.normal,
+    );
+
+    final ownedTiers = ownedOnSelectedPath(family, owned, selectedPathId);
+    if (expanded && ownedTiers > 0) {
+      height += 6;
+      for (final node in path.nodes.take(ownedTiers)) {
+        height += nodeLineHeight(context, node, width);
+      }
+    }
+    return height;
+  }
+
+  /// One expanded node's row: its name, then its description wrapped.
+  static double nodeLineHeight(
+    BuildContext context,
+    FamilyMasteryNodeDef node,
+    double width,
+  ) {
+    final textWidth = width - _nodeIconColumn;
+    final text =
+        _textHeight(
+          context,
+          node.name.toUpperCase(),
+          textWidth,
+          _nodeNameSize,
+          maxLines: 1,
+          letterSpacing: 0.8,
+          fontFamily: 'monospace',
+        ) +
+        1 +
+        _textHeight(
+          context,
+          node.description,
+          textWidth,
+          _nodeDescSize,
+          maxLines: nodeDescMaxLines,
+          height: 1.2,
+          fontWeight: FontWeight.normal,
+        );
+    // The icon sits in a 2px-inset 13px box, so a short node cannot be
+    // shorter than that however little text it carries.
+    return math.max(text, _nodeIconMinHeight) + 6;
+  }
 
   /// How many nodes of the equipped path are owned.
   static int ownedOnSelectedPath(
@@ -2725,7 +2934,7 @@ class FamilyMasteryRosterSummary extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 onTap: onOpenTree,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 4, 0, 4),
+                  padding: const EdgeInsets.fromLTRB(10, 2, 0, 2),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -2777,8 +2986,8 @@ class FamilyMasteryRosterSummary extends StatelessWidget {
       key: ValueKey('roster-mastery-empty-${family.name}'),
       behavior: HitTestBehavior.opaque,
       onTap: onOpenTree,
-      child: SizedBox(
-        height: collapsedHeight,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
           children: [
             Container(
@@ -2801,21 +3010,26 @@ class FamilyMasteryRosterSummary extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'NO MASTERY PATH',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: _text,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.1,
+                  const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'NO MASTERY PATH',
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: _text,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.1,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     'Choose one in Base Command to change how every '
                     '${family.displayName} fights.',
-                    maxLines: 2,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: _muted, fontSize: 10.5),
                   ),
                 ],
@@ -2843,7 +3057,18 @@ class _RosterGemTrack extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const gemSize = 30.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Four gems and three short joins; the gems give way on a narrow
+        // card rather than the row overflowing.
+        return _buildTrack(
+          FamilyMasteryRosterSummary._gemSizeFor(constraints.maxWidth),
+        );
+      },
+    );
+  }
+
+  Widget _buildTrack(double gemSize) {
     final children = <Widget>[];
     for (var i = 0; i < path.nodes.length; i++) {
       final node = path.nodes[i];
@@ -2878,7 +3103,7 @@ class _RosterGemTrack extends StatelessWidget {
               affordable: false,
               activeBranch: true,
               size: node.isCapstone ? gemSize + 4 : gemSize,
-              iconSize: node.isCapstone ? 15 : 13,
+              iconSize: gemSize * (node.isCapstone ? 0.5 : 0.44),
             ),
             const SizedBox(height: 2),
             _TierGlyph(
@@ -2908,8 +3133,8 @@ class _RosterNodeLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = node.isCapstone ? _gold : color;
-    return SizedBox(
-      height: FamilyMasteryRosterSummary.nodeLineHeight,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2937,7 +3162,7 @@ class _RosterNodeLine extends StatelessWidget {
                 const SizedBox(height: 1),
                 Text(
                   node.description,
-                  maxLines: 3,
+                  maxLines: FamilyMasteryRosterSummary.nodeDescMaxLines,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Color(0xFFB9AD99),

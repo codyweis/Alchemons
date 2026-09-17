@@ -854,8 +854,9 @@ _CosmicFamilyRole _cosmicFamilyRole(String family) {
   final copy = FamilyCombatCopy.forName(family);
   return _CosmicFamilyRole(
     title: copy?.role ?? 'Companion',
-    description:
-        copy?.about ?? 'A loyal companion that fights alongside your ship.',
+    description: copy == null
+        ? 'A loyal companion that fights alongside your ship.'
+        : 'Targets: ${copy.targets} ${copy.position}',
   );
 }
 

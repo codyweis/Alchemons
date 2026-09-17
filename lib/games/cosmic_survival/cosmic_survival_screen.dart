@@ -2286,14 +2286,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   height: _SpeciesCard.heightFor(
                     context,
                     info: active,
+                    family: activeFamily,
+                    owned: ownedFor(activeFamily),
+                    selectedPathId: pathFor(activeFamily),
                     cardWidth: rosterWidth * _familyViewportFraction,
                     expanded: _expandedFamilyCards.contains(active.id),
-                    ownedNodesOnPath:
-                        FamilyMasteryRosterSummary.ownedOnSelectedPath(
-                          activeFamily ?? CreatureFamily.let,
-                          ownedFor(activeFamily),
-                          pathFor(activeFamily),
-                        ),
                   ),
                   child: pages,
                 );
@@ -3791,28 +3788,89 @@ class _SpeciesCard extends StatelessWidget {
   final VoidCallback? onOpenTree;
 
   static const double _portraitWidth = 112;
-  static const double _baseHeight = 300;
 
-  /// The card's height at [cardWidth]. An expanded card adds its playstyle
-  /// paragraph, measured with the style it is drawn in, and the owned nodes.
+  // Everything in the card that never wraps. The name row is not among them:
+  // it has no maxLines, so a long family name takes two lines and the row it
+  // sits in grows with it — assuming a fixed 26 for it was most of the
+  // shortfall that clipped these cards.
+  static const double _columnPadding = 24; // 12 above, 12 below
+  static const double _factsToRuleGap = 10 - _SpeciesFact.gap;
+  static const double _ruleHeight = 1;
+  static const double _ruleToSummaryGap = 10;
+
+  /// The expand chevron beside the name.
+  static const double _chevronSize = 16;
+
+  /// The name row: the family name wrapped in whatever width is left beside
+  /// the chevron, and never shorter than the chevron itself.
+  static double _nameRowHeight(
+    BuildContext context,
+    String name,
+    double width,
+  ) {
+    final style = DefaultTextStyle.of(context).style.merge(
+      _display(
+        context,
+        20,
+        _C.textPrimary,
+        weight: FontWeight.w700,
+        letterSpacing: 0.5,
+      ),
+    );
+    final painter = TextPainter(
+      text: TextSpan(text: name, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout(maxWidth: max(20.0, width - _chevronSize));
+    return max(_chevronSize, painter.height.ceilToDouble());
+  }
+
+  /// The card's height at [cardWidth]. Everything that wraps — the facts and
+  /// the mastery summary — is measured in the style it is drawn in, so a card
+  /// is never a guess away from clipping its own text.
   static double heightFor(
     BuildContext context, {
     required _FamilyInfo info,
+    required CreatureFamily? family,
+    required Set<String> owned,
+    required String? selectedPathId,
     required double cardWidth,
     required bool expanded,
-    required int ownedNodesOnPath,
   }) {
+    final width = textWidth(cardWidth);
+    final copy = info.copy;
+    final facts = <String>[
+      copy.attack,
+      copy.special,
+      if (expanded) ...[copy.targets, copy.position],
+    ];
     var height =
-        _baseHeight -
-        FamilyMasteryRosterSummary.collapsedHeight +
-        FamilyMasteryRosterSummary.heightFor(
-          expanded: expanded,
-          ownedNodesOnPath: ownedNodesOnPath,
-        );
-    if (expanded) {
+        _columnPadding +
+        _nameRowHeight(context, info.name, width) +
+        _factsToRuleGap +
+        _ruleHeight +
+        _ruleToSummaryGap;
+    // Each fact is preceded by a gap — the one after the name row, then one
+    // between each pair.
+    for (final text in facts) {
       height +=
           _SpeciesFact.gap +
-          _SpeciesFact.measure(context, info.copy.about, textWidth(cardWidth));
+          _SpeciesFact.measure(
+            context,
+            text,
+            width,
+            maxLines: expanded ? null : 2,
+          );
+    }
+    if (family != null) {
+      height += FamilyMasteryRosterSummary.heightFor(
+        context,
+        family: family,
+        owned: owned,
+        selectedPathId: selectedPathId,
+        expanded: expanded,
+        width: width,
+      );
     }
     return height;
   }
@@ -3892,29 +3950,38 @@ class _SpeciesCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: _SpeciesFact.gap),
                     if (chassis != null)
                       _SpeciesFact(
                         label: 'ATTACK',
                         text: chassis,
                         color: info.color,
+                        maxLines: expanded ? null : 2,
                       ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: _SpeciesFact.gap),
                     _SpeciesFact(
                       label: 'SPECIAL',
                       text: info.special,
                       color: info.color,
+                      maxLines: expanded ? null : 2,
                     ),
                     if (expanded) ...[
                       const SizedBox(height: _SpeciesFact.gap),
                       _SpeciesFact(
-                        label: 'PLAYSTYLE',
-                        text: info.copy.about,
+                        label: 'TARGETS',
+                        text: info.copy.targets,
+                        color: info.color,
+                        maxLines: null,
+                      ),
+                      const SizedBox(height: _SpeciesFact.gap),
+                      _SpeciesFact(
+                        label: 'POSITION',
+                        text: info.copy.position,
                         color: info.color,
                         maxLines: null,
                       ),
                     ],
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 10 - _SpeciesFact.gap),
                     Container(
                       height: 1,
                       color: info.color.withValues(alpha: 0.22),
@@ -3998,11 +4065,17 @@ class _SpeciesFact extends StatelessWidget {
       _display(context, 12, _C.textSecondary, weight: FontWeight.w500);
 
   /// The height of a fact showing [text] in a column [width] wide.
-  static double measure(BuildContext context, String text, double width) {
+  static double measure(
+    BuildContext context,
+    String text,
+    double width, {
+    int? maxLines,
+  }) {
     final painter = TextPainter(
       text: TextSpan(text: text, style: _textStyle(context)),
       textDirection: TextDirection.ltr,
       textScaler: MediaQuery.textScalerOf(context),
+      maxLines: maxLines,
     )..layout(maxWidth: width);
     // A few pixels of slack so a rounding difference never clips a line.
     return _labelHeight + _labelGap + painter.height + 4;
@@ -4064,15 +4137,11 @@ class SurvivalSpeciesCardPreview extends StatelessWidget {
         height: _SpeciesCard.heightFor(
           context,
           info: info,
+          family: family,
+          owned: owned,
+          selectedPathId: selectedPathId,
           cardWidth: constraints.maxWidth,
           expanded: expanded,
-          ownedNodesOnPath: family == null
-              ? 0
-              : FamilyMasteryRosterSummary.ownedOnSelectedPath(
-                  family,
-                  owned,
-                  selectedPathId,
-                ),
         ),
         child: _SpeciesCard(
           info: info,
