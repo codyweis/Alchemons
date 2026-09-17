@@ -118,6 +118,8 @@ class _CosmicSurvivalBaseCommandScreenState
     _tabController = TabController(
       length: widget.hideAbilities ? 4 : 5,
       vsync: this,
+      // Default is 300ms; tapping a tab should land before the finger lifts.
+      animationDuration: const Duration(milliseconds: 180),
     )..addListener(() => _setChromeCollapsed(false));
     _loadCurrencies();
     _loadShipLoadout();
@@ -211,6 +213,9 @@ class _CosmicSurvivalBaseCommandScreenState
                       ),
                       child: TabBarView(
                         controller: _tabController,
+                        physics: const _SnappyPagePhysics(
+                          parent: ClampingScrollPhysics(),
+                        ),
                         children: [
                           FamilyMasteryPanel(
                             silverBalance: _silverBalance,
@@ -975,6 +980,24 @@ class _EtchedDivider extends StatelessWidget {
 }
 
 // ── Plate Box ──────────────────────────────────────────────────────────────
+
+/// Page physics for swiping between Base Command tabs: a stiffer, critically
+/// damped settle than the default page spring, and a lighter flick to turn
+/// the page, so a swipe feels like it snaps rather than drifts.
+class _SnappyPagePhysics extends ScrollPhysics {
+  const _SnappyPagePhysics({super.parent});
+
+  @override
+  _SnappyPagePhysics applyTo(ScrollPhysics? ancestor) =>
+      _SnappyPagePhysics(parent: buildParent(ancestor));
+
+  @override
+  SpringDescription get spring =>
+      SpringDescription.withDampingRatio(mass: 0.5, stiffness: 420, ratio: 1.0);
+
+  @override
+  double get minFlingVelocity => 80;
+}
 
 class _CollapsibleChrome extends StatelessWidget {
   const _CollapsibleChrome({
