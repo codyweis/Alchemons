@@ -103,6 +103,10 @@ class _CosmicSurvivalBaseCommandScreenState
   /// drops a slim balance bar into their place; scrolling up restores them.
   bool _chromeCollapsed = false;
 
+  /// Whether the scroll gesture in progress started with the content already
+  /// at the top.
+  bool _dragBeganAtTop = true;
+
   @override
   void initState() {
     super.initState();
@@ -147,18 +151,22 @@ class _CosmicSurvivalBaseCommandScreenState
     final metrics = notification.metrics;
     if (metrics.axis != Axis.vertical) return false;
     final atTop = metrics.pixels <= metrics.minScrollExtent;
-    if (notification is ScrollUpdateNotification) {
+    if (notification is ScrollStartNotification) {
+      // Remembered per gesture: only a pull that *begins* at the top may
+      // bring the header back. Scrolling up to the top is one gesture;
+      // revealing the header is a second one, so arriving at the top never
+      // shoves the content down under the player's thumb.
+      _dragBeganAtTop = atTop;
+    } else if (notification is ScrollUpdateNotification) {
       final delta = notification.scrollDelta ?? 0;
-      if (atTop) {
-        // Only reveal once the content is all the way back at the top.
-        _setChromeCollapsed(false);
-      } else if (delta > 0 && notification.dragDetails != null) {
+      if (!atTop && delta > 0 && notification.dragDetails != null) {
         _setChromeCollapsed(true);
       }
     } else if (notification is OverscrollNotification) {
-      // Pulling down on content that is already at the top (or that stopped
-      // scrolling once the header got out of the way).
-      if (notification.overscroll < 0) _setChromeCollapsed(false);
+      // Pulling down past the top, on a gesture that started there.
+      if (notification.overscroll < 0 && _dragBeganAtTop) {
+        _setChromeCollapsed(false);
+      }
     }
     return false;
   }

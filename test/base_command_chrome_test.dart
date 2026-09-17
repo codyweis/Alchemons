@@ -109,8 +109,13 @@ void main() {
         lessThan(120),
       );
 
-      await dragTree(tester, 120);
+      // Back to the top in one gesture: the header stays tucked away...
+      await dragTree(tester, 300);
+      expect(heightOf(tester, 'base-command-chrome'), 0);
+      expect(heightOf(tester, 'base-command-balance-bar'), 44);
 
+      // ...and a second pull, starting at the top, brings it back.
+      await dragTree(tester, 120);
       expect(heightOf(tester, 'base-command-chrome'), greaterThan(0));
       expect(heightOf(tester, 'base-command-balance-bar'), 0);
       expect(heightOf(tester, 'mastery-family-selector'), greaterThan(0));
@@ -132,6 +137,13 @@ void main() {
     expect(heightOf(tester, 'base-command-balance-bar'), 44);
 
     await dragTree(tester, 300);
+    expect(
+      heightOf(tester, 'base-command-chrome'),
+      0,
+      reason: 'Reaching the top is not a request to reveal.',
+    );
+
+    await dragTree(tester, 80);
     expect(heightOf(tester, 'base-command-chrome'), greaterThan(0));
     expect(heightOf(tester, 'base-command-balance-bar'), 0);
   });
