@@ -386,58 +386,58 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
     family: CreatureFamily.horn,
     chassis: FamilyCombatCopy.of(CreatureFamily.horn).attack,
     paths: [
-      _path('horn.assault', 'Breaker', 'Crush armor up close', [
+      _path('horn.bulwark', 'Bulwark', 'Turn your bulk into damage', [
         (
-          'Heavy Head',
-          "Projectiles deal 175% damage (up from 160%) but fly 8% slower.",
+          'Ironhead',
+          "Your attacks hit for an extra 2.5% of your maximum HP. The tougher you are built, the harder you hit.",
         ),
         (
-          'Sunder',
-          "Hits crack armor: the enemy takes +6% damage for 3s, stacking twice (half as much on bosses).",
+          'Weight Behind It',
+          "Your special carries the same weight, at 60% — including passive and channelled Horns.",
         ),
         (
-          'Point Blank',
-          "Hits on nearby enemies deal +22% damage and briefly stagger regular enemies.",
+          'Braced',
+          "The bonus rides your health: 1.5x at full HP, fading to 0.5x when you are nearly down.",
         ),
         (
-          'Siege Horn',
-          "Every 4th attack is a siege shell: 220% damage plus a shockwave that hits nearby enemies for 55%.",
+          'Anvil',
+          "Enemies killed by that weight rupture for 12% of your maximum HP to everything near them, carrying your element.",
         ),
       ]),
-      _path('horn.control', 'Bastion', 'Shield the team and hold ground', [
+      _path('horn.bastion', 'Bastion', 'Take the hits meant for the team', [
         (
           'Guarded Shot',
-          "Each attack gives you a small shield worth 1.5% of your max HP, stacking up to 6%.",
+          "Each attack gives you a shield worth 1.5% of your max HP, stacking up to 6%.",
         ),
         (
-          'Hold the Line',
-          "Hitting an enemy heading for the orb knocks it back and applies your element's effect at 70% strength.",
+          'Bodyguard',
+          "While you stand near the orb, a quarter of the damage it takes is dealt to you instead — and you take 40% less of it than it would have.",
         ),
         (
-          'Interposition',
-          "With a full shield, your Horn blocks the next enemy shot aimed at the orb or a nearby ally.",
+          'Shield Wall',
+          "While your shield holds, allies near you take 20% less damage.",
         ),
         (
-          'Countercharge',
-          "After a block, your next attack within 4s becomes a 190% damage countershot with big knockback and your element's effect.",
+          'Last Stand',
+          "When your shield is broken through, it ruptures for elemental damage around you and gives back 20% of your special cooldown.",
         ),
       ]),
-      _path('horn.resonance', 'Stampede', 'Build Momentum for bigger charges', [
+      _path('horn.juggernaut', 'Juggernaut', 'Your special runs a second time', [
         (
-          'Gather Momentum',
-          "Each hit builds Momentum (max 5, fades after 5s). Each Momentum gives +2% attack damage.",
+          'Second Effort',
+          "When your special finishes, it runs again at 45% power. Passive Horns gain a pulse of the same strength instead.",
         ),
         (
-          'Rolling Weight',
-          "Each Momentum also gives +2% attack speed and +3% projectile speed.",
+          'Full Weight',
+          "The second run carries your element's full effect instead of a weakened one.",
         ),
         (
-          'Impact Reserve',
-          "Casting your special spends Momentum for +6% special power per stack. Passive Horns release an elemental pulse at 5 instead.",
+          'Relentless',
+          "The second run is no longer the weak one: 75% power, and a passive Horn's pulse comes twice as often.",
         ),
         (
-          'Unstoppable',
-          "Spending 5 Momentum makes your next charge unstoppable and 25% wider, and it fires your attack in 4 directions on landing.",
+          'Second Front',
+          "The second run begins where the first one ended, and covers 40% more ground.",
         ),
       ]),
     ],
