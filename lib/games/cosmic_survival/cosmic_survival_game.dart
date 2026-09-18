@@ -27,6 +27,7 @@ import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mastery_horn.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_let.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_mane.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_payload.dart';
@@ -2012,6 +2013,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateCompanionProjectiles(dt);
     _updateManeMastery(dt);
     _updatePipMastery(dt);
+    _updateHornMastery(dt);
     _updateMasteryEchoes(dt);
     updatePersistentAbilityEffects(dt);
     _updateBeamEffects(dt);
@@ -3088,6 +3090,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             (isDarkWing ? 0.5 : 1.0) *
             _masteryBasicCooldownMultiplier(slotIndex);
         comp.basicCooldown = cooldown;
+        _bankHornGuard(slotIndex, comp);
         final basics = createFamilyBasicAttack(
           origin: comp.position,
           angle: fireAngle,
@@ -3495,6 +3498,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             comp.hornSpecialActiveWindow = 5.0 + result.windUpTime;
             // Reset Lightning absorb counter so each cast starts fresh.
             comp.hornLightningAbsorbed = 0;
+            _applyHornCastMastery(slotIndex, comp);
           }
           // Horn+Blood: HP sacrifice on cast. Take 18% of current HP
           // and bank the magnitude into chargeDamage so the impact
@@ -4402,9 +4406,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     final damageTaken = max(
       1,
-      (rawDamage * takenMult * phaseMult * barrierMult).round(),
+      (rawDamage *
+              takenMult *
+              phaseMult *
+              barrierMult *
+              _hornShieldWallMultiplier(comp))
+          .round(),
     );
-    comp.takeDamage(damageTaken);
+    // A Bastion spends its own guard shield before its hit points, and the
+    // hit that breaks the shield is the one Last Stand ruptures on.
+    if (comp.slotIndex >= 0 && _isMasteryHorn(comp.slotIndex)) {
+      _applyHornGuardedDamage(comp.slotIndex, comp, damageTaken.toDouble());
+    } else {
+      comp.takeDamage(damageTaken);
+    }
     if (comp.slotIndex >= 0) {
       _runStatsFor(comp.slotIndex).damageTaken += damageTaken;
     }
@@ -6603,6 +6618,276 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     mastery.recordCapstone(queued.slotIndex);
   }
 
+  // == Horn mastery (phase 5) ==============================================
+
+  /// Per-slot Horn state, created on demand and dropped on a run reset.
+  final Map<int, HornMasteryState> _hornMastery = {};
+
+  HornMasteryState _hornStateFor(int slotIndex) =>
+      _hornMastery.putIfAbsent(slotIndex, HornMasteryState.new);
+
+  /// Read-only view of a Horn's run state — the guard shield it is carrying
+  /// and whether a second run is pending. The HUD reads it, and so do tests.
+  HornMasteryState? hornMasteryFor(int slotIndex) => _hornMastery[slotIndex];
+
+  /// Whether this slot is a Horn with a path equipped. The gate every Horn
+  /// hook opens with, so nothing below runs for other families.
+  bool _isMasteryHorn(int slotIndex) {
+    if (!mastery.enabled) return false;
+    final equipped = mastery.equippedFor(slotIndex);
+    return equipped != null && equipped.family == CreatureFamily.horn;
+  }
+
+  /// Bulwark's weight: the damage a Horn adds from its own bulk.
+  ///
+  /// Auto-attacks read this through [_damageEnemy]; the special reads it once
+  /// at cast, folded into `chargeDamage`, so every body the charge ploughs
+  /// through carries it without the bonus being re-applied per contact.
+  double _hornBulwarkBonusFor(
+    int slotIndex,
+    CosmicSurvivalCompanion comp, {
+    required bool isSpecial,
+  }) {
+    if (!_isMasteryHorn(slotIndex)) return 0;
+    return hornBulwarkBonus(
+      hasNode: (id) => mastery.hasNode(slotIndex, id),
+      maxHp: comp.maxHp.toDouble(),
+      currentHp: comp.currentHp.toDouble(),
+      isSpecial: isSpecial,
+    );
+  }
+
+  /// Anvil: a body killed by a weighted hit ruptures for a share of the
+  /// Horn's maximum HP. Guarded so the rupture cannot kill into itself.
+  void _applyHornAnvil(
+    int slotIndex,
+    CosmicSurvivalCompanion comp,
+    CosmicSurvivalEnemy enemy,
+  ) {
+    if (!_isMasteryHorn(slotIndex)) return;
+    if (!mastery.hasNode(slotIndex, HornNodes.anvil)) return;
+    if (!mastery.tryProc(
+      slotIndex,
+      HornNodes.anvil,
+      HornTuning.anvilProcCooldown,
+    )) {
+      return;
+    }
+    mastery.runGuarded(() {
+      final damage = comp.maxHp * HornTuning.anvilMaxHpFraction;
+      _damageEnemiesNear(
+        enemy.position,
+        HornTuning.anvilRadius,
+        damage,
+        sourceSlotIndex: slotIndex,
+        exclude: enemy,
+      );
+      _spawnHitSpark(enemy.position, elementColor(comp.member.element));
+      return null;
+    }, orElse: null);
+  }
+
+  /// Guarded Shot: each attack banks a shield toward a ceiling.
+  void _bankHornGuard(int slotIndex, CosmicSurvivalCompanion comp) {
+    if (!_isMasteryHorn(slotIndex)) return;
+    final guard = hornGuardShield(
+      hasNode: (id) => mastery.hasNode(slotIndex, id),
+      maxHp: comp.maxHp.toDouble(),
+    );
+    if (guard.perShot <= 0) return;
+    final state = _hornStateFor(slotIndex);
+    state.guardShield = min(state.guardShield + guard.perShot, guard.cap);
+  }
+
+  /// Bastion's share of what the orb is about to take. Returns what the orb
+  /// still takes; the Horn's share is dealt here.
+  double _hornBodyguardOrbDamage(double incoming) {
+    if (incoming <= 0 || !mastery.enabled) return incoming;
+    var remaining = incoming;
+    for (final entry in activeCompanions.entries) {
+      if (remaining <= 0) break;
+      final slotIndex = entry.key;
+      if (!_isMasteryHorn(slotIndex)) continue;
+      final comp = entry.value;
+      final split = hornBodyguardSplit(
+        hasNode: (id) => mastery.hasNode(slotIndex, id),
+        incoming: remaining,
+        distanceToOrb: (comp.position - orb.position).distance,
+      );
+      if (split.toHorn <= 0) continue;
+      remaining = split.toOrb;
+      _applyHornGuardedDamage(slotIndex, comp, split.toHorn);
+    }
+    return remaining;
+  }
+
+  /// Puts damage through a Bastion's guard shield before its hit points, and
+  /// ruptures the shield if this is the hit that breaks it.
+  void _applyHornGuardedDamage(
+    int slotIndex,
+    CosmicSurvivalCompanion comp,
+    double amount,
+  ) {
+    var remaining = amount;
+    final state = _hornStateFor(slotIndex);
+    if (state.guardShield > 0) {
+      final absorbed = min(remaining, state.guardShield);
+      state.guardShield -= absorbed;
+      remaining -= absorbed;
+      if (state.guardShield <= 0.001) {
+        state.guardShield = 0;
+        _applyHornLastStand(slotIndex, comp, absorbed);
+      }
+    }
+    if (remaining > 0) comp.takeDamage(remaining.round());
+  }
+
+  /// Last Stand: a shield broken through ruptures and gives back part of the
+  /// special's cooldown.
+  void _applyHornLastStand(
+    int slotIndex,
+    CosmicSurvivalCompanion comp,
+    double shieldSpent,
+  ) {
+    if (!mastery.hasNode(slotIndex, HornNodes.lastStand)) return;
+    final state = _hornStateFor(slotIndex);
+    if (state.lastStandCooldownTimer > 0) return;
+    state.lastStandCooldownTimer = HornTuning.lastStandCooldown;
+
+    mastery.runGuarded(() {
+      _damageEnemiesNear(
+        comp.position,
+        HornTuning.lastStandRadius,
+        shieldSpent * HornTuning.lastStandDamageScale,
+        sourceSlotIndex: slotIndex,
+      );
+      _spawnHitSpark(comp.position, elementColor(comp.member.element));
+      return null;
+    }, orElse: null);
+
+    comp.specialCooldown = max(
+      0,
+      comp.specialCooldown -
+          comp.effectiveSpecialCooldown * HornTuning.lastStandCooldownRefund,
+    );
+  }
+
+  /// Shield Wall: how much less an ally near a shielded Bastion takes.
+  double _hornShieldWallMultiplier(CosmicSurvivalCompanion target) {
+    if (!mastery.enabled) return 1.0;
+    for (final entry in activeCompanions.entries) {
+      final slotIndex = entry.key;
+      if (!_isMasteryHorn(slotIndex)) continue;
+      if (!mastery.hasNode(slotIndex, HornNodes.shieldWall)) continue;
+      if (_hornStateFor(slotIndex).guardShield <= 0) continue;
+      final horn = entry.value;
+      if (identical(horn, target)) continue;
+      if ((horn.position - target.position).distance >
+          HornTuning.shieldWallRadius) {
+        continue;
+      }
+      return 1 - HornTuning.shieldWallMitigation;
+    }
+    return 1.0;
+  }
+
+  /// Everything Horn mastery does at the moment a special goes off: folds
+  /// Bulwark's weight into the charge, and settles what Juggernaut owes.
+  ///
+  /// The weight goes in once, here, rather than per contact. A charge that
+  /// ploughs through six bodies would otherwise add a Horn's whole bulk six
+  /// times, which is how a tank path turns into the best damage path.
+  void _applyHornCastMastery(int slotIndex, CosmicSurvivalCompanion comp) {
+    if (!_isMasteryHorn(slotIndex)) return;
+    final state = _hornStateFor(slotIndex);
+    final run = hornSecondRun(hasNode: (id) => mastery.hasNode(slotIndex, id));
+    final isSecondRun = state.consumeSecondRun();
+
+    if (isSecondRun) {
+      comp.chargeDamage *= run.power;
+      comp.chargeSweepRadius *= run.coverage;
+      comp.chargeFinalSweepRadius *= run.coverage;
+      // Full Weight: the active window is what gates every element-specific
+      // Horn behaviour — Steam's chain, Lava's flames, Blood's heal, Fire's
+      // trail. Without the node the second run gets a short one, so it lands
+      // as a weaker echo; with it the element reads exactly as it did first
+      // time, which is the whole of what the node promises.
+      if (!mastery.hasNode(slotIndex, HornNodes.fullWeight)) {
+        comp.hornSpecialActiveWindow *= run.power;
+      }
+    } else if (run.power > 0) {
+      // Settled when the window closes, because Horn's ability occupies time.
+      state.secondRunOwed = true;
+    }
+
+    final bonus = _hornBulwarkBonusFor(slotIndex, comp, isSpecial: true);
+    if (bonus > 0) comp.chargeDamage += bonus;
+  }
+
+  /// Per-frame Horn mastery upkeep: the second run Juggernaut owes, and a
+  /// passive Horn's pulse in place of one.
+  void _updateHornMastery(double dt) {
+    if (!mastery.enabled) return;
+    for (final entry in activeCompanions.entries) {
+      _updateHornMasteryFor(entry.key, entry.value, dt);
+    }
+  }
+
+  void _updateHornMasteryFor(
+    int slotIndex,
+    CosmicSurvivalCompanion comp,
+    double dt,
+  ) {
+    if (!_isMasteryHorn(slotIndex)) return;
+    final state = _hornStateFor(slotIndex);
+    if (state.lastStandCooldownTimer > 0) {
+      state.lastStandCooldownTimer -= dt;
+    }
+
+    final run = hornSecondRun(hasNode: (id) => mastery.hasNode(slotIndex, id));
+    if (run.power <= 0) return;
+
+    // A Horn that never casts cannot run its special twice, so it pulses.
+    if (isPassiveOnlyCosmicAbility(comp.member.family, comp.member.element)) {
+      final relentless = mastery.hasNode(slotIndex, HornNodes.relentless);
+      if (state.takePassivePulse(dt, relentless: relentless)) {
+        mastery.runGuarded(() {
+          _damageEnemiesNear(
+            comp.position,
+            HornTuning.passivePulseRadius * run.coverage,
+            comp.abilityAtk * run.power,
+            sourceSlotIndex: slotIndex,
+          );
+          _spawnHitSpark(comp.position, elementColor(comp.member.element));
+          return null;
+        }, orElse: null);
+      }
+      return;
+    }
+
+    // The ability occupies time, and "finished" has to be read off the timers
+    // that actually run it. hornSpecialActiveWindow is a flat five seconds —
+    // longer than Horn's own special cooldown of about four — so a Horn that
+    // keeps casting re-opens it forever and it never closes at all.
+    final midAbility =
+        comp.chargeTimer > 0 ||
+        comp.windUpTimer > 0 ||
+        _hornLightBarrierActive(slotIndex);
+    if (state.secondRunOwed) {
+      if (midAbility) {
+        state.sawMidAbility = true;
+      } else if (state.sawMidAbility) {
+        state.secondRunOwed = false;
+        state.sawMidAbility = false;
+        state.armSecondRun();
+      }
+    }
+    if (state.takeSecondRun(dt)) {
+      state.secondRunActive = true;
+      comp.specialCooldown = 0;
+    }
+  }
+
   // == Mane mastery (phase 3 vertical slice) ===============================
 
   /// Per-slot Mane state, created on demand and dropped on a run reset.
@@ -7195,6 +7480,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         calledShotSlot = enemy.letSightSlot;
       }
     }
+    // Bulwark: a Horn's own bulk, added to its auto-attacks. The special
+    // carries its share through chargeDamage instead, folded in once at cast,
+    // so a charge ploughing through six bodies does not add it six times.
+    var hornWeighted = false;
+    if (mastery.enabled && sourceSlotIndex != null && autoAttack) {
+      final comp = activeCompanions[sourceSlotIndex];
+      if (comp != null) {
+        final bonus = _hornBulwarkBonusFor(
+          sourceSlotIndex,
+          comp,
+          isSpecial: false,
+        );
+        if (bonus > 0) {
+          damage += bonus;
+          hornWeighted = true;
+        }
+      }
+    }
     final weight = _mysticWeightMultiplier(enemy.tier);
     damage *= weight;
     // Only worth showing on the bodies the world actually leans on.
@@ -7252,6 +7555,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         fromPipSpecial: fromPipSpecial,
         masteryCastId: masteryCastId,
         masterySource: source,
+        hornWeighted: hornWeighted,
       );
     }
   }
@@ -7293,6 +7597,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     bool fromPipSpecial = false,
     int masteryCastId = 0,
     MasteryDamageSource? masterySource,
+    /// This kill was dealt by a hit carrying Bulwark's weight, which is the
+    /// only thing Anvil ruptures on.
+    bool hornWeighted = false,
   }) {
     if (enemy.isDead) return;
     if (mastery.enabled && enemy.isLetSighted) _hopLetSight(enemy);
@@ -7403,6 +7710,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           companion.member.family.toLowerCase() == 'horn' &&
           companion.hornSpecialActiveWindow > 0) {
         _applyHornSpecialKillEffect(companion, enemy, sourceSlotIndex);
+      }
+      // Anvil: a body killed by Bulwark's weight ruptures. Gated on the hit
+      // having actually carried the weight, so ordinary kills pay nothing.
+      if (companion != null && hornWeighted) {
+        _applyHornAnvil(sourceSlotIndex, companion, enemy);
       }
       // Pip element-on-kill placements (Fire/Dust/Crystal/Dark). Gated
       // by source: design says Fire/Dust/Crystal pools come from
@@ -10061,6 +10373,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// triggers rather than reaching into the rules that trigger on it.
   @visibleForTesting
   void debugKillEnemy(CosmicSurvivalEnemy enemy) => _killEnemy(enemy);
+
+  /// Puts damage through the orb's real intake, Bastion's split included.
+  void debugDamageOrb(double amount) => _damageOrb(amount);
 
   /// The two halves of the Blood tithe's gate, as a test can drive them:
   /// damage that came from somebody's basic attack, and damage that did not.
@@ -18796,7 +19111,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _damageOrb(double amount) {
     if (amount <= 0) return;
-    var remaining = amount;
+    // A Bastion standing between takes a share of this first, mitigated by
+    // its bulk, so what reaches the orb is genuinely less.
+    var remaining = _hornBodyguardOrbDamage(amount);
+    if (remaining <= 0) return;
     if (orb.shieldHp > 0) {
       final absorbed = min(remaining, orb.shieldHp.toDouble());
       orb.shieldHp -= absorbed.round();

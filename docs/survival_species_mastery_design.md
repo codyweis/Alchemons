@@ -1,8 +1,8 @@
 # Survival Family Mastery
 
-Status (2026-09-18): Phases 1 and 2 complete. **Three of eight families are implemented in combat — Mane, Let and Pip** — all twelve nodes each, each in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`) with its own test suite. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
+Status (2026-09-18): Phases 1 and 2 complete. **Four of eight families are implemented in combat — Mane, Let, Pip and Horn** — all twelve nodes each, each in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`) with its own test suite. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
 
-**The other five families' trees are purchasable and do nothing.** Wing, Mask, Horn, Kin and Mystic each have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either those five ship, or the panel has to say they are not ready.
+**The other four families' trees are purchasable and do nothing.** Wing, Mask, Kin and Mystic each have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either those four ship, or the panel has to say they are not ready.
 
 ## Purpose
 
@@ -1106,6 +1106,50 @@ slightly below average and found it 4% short; a Mane test compared Beauty 2 to
 Beauty 5, which sit either side of average on a 2.5–12 scale, and asked for a
 20% radius gap that Mane's deliberately narrow curve no longer owes between two
 ordinary creatures.
+
+### Horn — Bulwark, Bastion, Juggernaut (2026-09-18)
+
+Horn's draft tree spent six of its twelve nodes on mechanics its own elements
+already owned, and its third path was Mane's War Rhythm down to the numbers.
+The audit, kept because the same trap is waiting in the four families left:
+
+| Draft node | Already owned by |
+| --- | --- |
+| Hold the Line, Countercharge (knockback) | Air, whose *entire passive* is pushing enemies; Steam's payload also pushes |
+| Interposition (block enemy shots) | Crystal's shards, Ice's wall, Light's barrier — three elements |
+| Sunder (+damage taken) | Dark's `vulnerable` |
+| Point Blank (stagger) | Earth's `stagger` |
+| Stampede (5 stacks, +2% each, spent on the special) | Mane's War Rhythm, identically |
+
+It also kept promising things to "your next charge", and **Horn is the family
+whose cast pattern changes with its element**: Air and Mud never cast at all,
+and Light never moves. `Unstoppable` was dead content for three of seventeen
+Horns, and `Impact Reserve` carried a bolt-on clause conceding it.
+
+So all three replacement paths key only to what every Horn has — a body with
+hit points, an auto-attack, and an element:
+
+- **Bulwark** turns maximum HP into damage. Nothing else in the game scales a
+  companion's damage off its own bulk.
+- **Bastion** takes hits meant for the orb, mitigated by that bulk, so the team
+  comes out ahead rather than the damage merely moving. Nothing else in the
+  game redirects damage onto a companion.
+- **Juggernaut** runs the special a second time — a charge ploughs back, a
+  wind-up releases twice, Light's barrier re-ups, and a passive Horn, which can
+  never cast, gains a pulse instead.
+
+Two things worth keeping from the implementation:
+
+- **The weight goes into the charge once, at cast**, not per contact. A charge
+  that ploughs through six bodies would otherwise add a Horn's whole bulk six
+  times, which is how a tank path quietly becomes the best damage path.
+- **`hornSpecialActiveWindow` is useless as a completion signal.** It is a flat
+  five seconds and Horn's own special cooldown is about four, so a Horn that
+  keeps casting re-opens it forever and it never closes. Juggernaut arms off
+  `chargeTimer`/`windUpTimer`/the Light barrier instead, and only after it has
+  actually seen the ability running — otherwise the second run arms on the
+  frame of the cast and the two overlap into one doubled hit.
+
 
 ## Decisions intentionally made
 

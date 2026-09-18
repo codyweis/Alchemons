@@ -143,6 +143,20 @@ class HornMasteryState {
   /// third. Juggernaut is the only path here that could recurse.
   bool secondRunArmed = false;
 
+  /// A scheduled cast has gone off and owes a second run once it finishes.
+  /// Horn's ability occupies time, so "finished" is the frame its active
+  /// window closes rather than the frame it was cast.
+  bool secondRunOwed = false;
+
+  /// The next cast this Horn makes IS the second run: scaled down, widened,
+  /// and forbidden from owing another.
+  bool secondRunActive = false;
+
+  /// True once the owed cast has actually been seen executing. Without it the
+  /// second run would arm on the frame of the cast, before the first one has
+  /// begun, and the two would overlap into a single doubled hit.
+  bool sawMidAbility = false;
+
   /// A passive Horn never casts, so it pulses on this timer instead.
   double passivePulseTimer = 0;
 
@@ -169,6 +183,17 @@ class HornMasteryState {
     secondRunTimer -= dt;
     if (secondRunTimer > 0) return false;
     secondRunTimer = 0;
+    return true;
+  }
+
+  /// Consumes the second run as a cast goes off. Returns true if that cast is
+  /// the second one, which also clears the arming so it cannot owe another.
+  bool consumeSecondRun() {
+    if (!secondRunActive) return false;
+    secondRunActive = false;
+    secondRunArmed = false;
+    secondRunOwed = false;
+    sawMidAbility = false;
     return true;
   }
 
