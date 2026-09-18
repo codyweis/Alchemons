@@ -326,58 +326,58 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
     family: CreatureFamily.mask,
     chassis: FamilyCombatCopy.of(CreatureFamily.mask).attack,
     paths: [
-      _path('mask.assault', 'Phantom Needle', 'Pierce lines and punish elites', [
+      _path('mask.deathmask', 'Deathmask', 'Every kill leaves a trap behind', [
         (
-          'Long Needle',
-          "Your dart flies 10% faster and 25% farther, and deals 100% damage to the first enemy (up from 90%).",
+          'Grave Goods',
+          "Enemies your darts kill leave a small trap of your element where they fell, at 35% strength.",
         ),
         (
-          'Through the Veil',
-          "Each enemy your dart pierces makes it hit the next one 8% harder (up to +24%).",
+          'Open Grave',
+          "Those traps are 40% wider and last 50% longer.",
         ),
         (
-          'Chosen Victim',
-          "The first elite or boss you hit is Marked for 3s and takes +12% damage from your darts.",
+          'Cold Ground',
+          "They carry your element's full effect instead of a weakened one.",
         ),
         (
-          'Phantom Lance',
-          "Every 4th attack is a wide spectral lance that pierces everything for 145% damage and applies your element to the first 3 enemies.",
-        ),
-      ]),
-      _path('mask.control', 'Hexweaver', 'Brand enemies to empower traps', [
-        (
-          'Inscribed Dart',
-          "Your dart brands the first enemy it hits with a Sigil for 4s. Your darts deal +10% damage to it.",
-        ),
-        (
-          'Binding Script',
-          "Hitting the Sigiled enemy again applies your element's effect and slows it 15% (once per second).",
-        ),
-        (
-          'Prepared Ground',
-          "Casting your special near the Sigiled enemy makes that trap 15% larger and last 20% longer.",
-        ),
-        (
-          'Haunted Ground',
-          "The empowered trap also shoots darts at nearby enemies every 1.2s (30% damage each).",
+          'Necropolis',
+          "A dart kill inside one of your own traps leaves a trap at full strength instead of a small one.",
         ),
       ]),
-      _path('mask.resonance', 'Grand Masquerade', 'Lure enemies into your traps', [
+      _path('mask.rearm', 'Rearm', 'Your traps stop spending themselves', [
         (
-          'False Face',
-          "Enemies you hit are 20% more likely to attack your traps and decoys instead of your team for 2s.",
+          'Spring Again',
+          "A trap that goes off re-arms after 2.5s instead of being used up.",
         ),
         (
-          'Applause',
-          "Whenever one of your traps catches an enemy, gain +12% attack speed for 2s.",
+          'Hair Trigger',
+          "It re-arms in 1.2s, and re-arming no longer shortens how long it lasts.",
         ),
         (
-          'Curtain Call',
-          "Enemies that die while caught in a trap burst, applying your element's effect nearby at 60% strength.",
+          'Snap Shut',
+          "A re-armed trap catches everything in reach at once, not just the first enemy to touch it.",
         ),
         (
-          'Grand Masquerade',
-          "While one of your traps is active, every 3rd attack also fires a spectral dart from the trap (35% damage).",
+          'Held Ground',
+          "A trap that has gone off three times stops expiring, and holds until something kills it.",
+        ),
+      ]),
+      _path('mask.contagion', 'Contagion', 'What your traps catch carries it', [
+        (
+          'Carrier',
+          "An enemy that walks out of one of your traps alive is infected for 6s.",
+        ),
+        (
+          'Spread',
+          "An infected enemy infects others that come near it, once per second.",
+        ),
+        (
+          'Virulence',
+          "Infection ticks your element's effect on whatever is carrying it.",
+        ),
+        (
+          'Plague',
+          "An infected enemy that dies bursts, infecting everything nearby and dealing damage.",
         ),
       ]),
     ],

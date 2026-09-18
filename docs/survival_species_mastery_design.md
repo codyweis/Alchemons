@@ -2,7 +2,7 @@
 
 Status (2026-09-18): Phases 1 and 2 complete. **Four of eight families are implemented in combat — Mane, Let, Pip and Horn** — all twelve nodes each, each in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`) with its own test suite. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
 
-**The other four families' trees are purchasable and do nothing.** Wing, Mask, Kin and Mystic each have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either those four ship, or the panel has to say they are not ready.
+**The other three families' trees are purchasable and do nothing.** Wing, Kin and Mystic each (Mask's tree is designed but not yet wired) each have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either those four ship, or the panel has to say they are not ready.
 
 ## Purpose
 
@@ -1149,6 +1149,55 @@ Two things worth keeping from the implementation:
   `chargeTimer`/`windUpTimer`/the Light barrier instead, and only after it has
   actually seen the ability running — otherwise the second run arms on the
   frame of the cast and the two overlap into one doubled hit.
+
+
+### Mask — Deathmask, Rearm, Contagion (2026-09-18)
+
+Mask's draft was more derivative than Horn's. Every collision below was
+checked against the code, not assumed:
+
+| Draft node | Already owned by |
+| --- | --- |
+| Chosen Victim (*Mark*), Inscribed Dart (*Sigil*) | Pip banks Pins, Let marks Sighted — claimed twice over |
+| Phantom Lance (every 4th), Grand Masquerade (every 3rd) | `cometCadence 5`, `thousandCutsCadence 4`, `scatterStormCadence 5`, `tempestRingCadence 4` |
+| Binding Script (slow) | Mask/Mud's own trap is the slow pool |
+| Haunted Ground (trap shoots darts) | Mask/Steam's own traps are the shooting geysers |
+| False Face (lure enemies) | Kin's aggro shift; Horn taunts on Fire, Ice, Earth and Spirit |
+| Applause (+attack speed) | Mane's Rhythm and Encore |
+
+Its whole first path was "pierce lines", which is **Mane's** identity. Mask's
+dart happens to pierce, but a path built on that just makes Mask a worse Mane.
+
+Mask has Horn's structural problem in a different shape. **Placement counts
+swing wildly by element**: Air scatters 3 to 25, Lava and Fire 5 to 15, Crystal
+3 to 7, Earth 2 to 5 — but Light, Dark, Ice, Lightning, Blood, Plant and Mud
+each place exactly one. Any path keyed to "your many traps" is dead content for
+seven of seventeen, so nothing in the tree counts fixtures. There is a test
+for that.
+
+What every Mask does have is at least one fixture that persists and waits, so
+the tree is the three phases of one trap's life — how it gets placed, how often
+it goes off, and what happens after:
+
+- **Deathmask** puts traps down on kills.
+- **Rearm** stops a trap spending itself on contact.
+- **Contagion** makes what a trap catches carry it onward. Enemy-to-enemy
+  spread was the one genuinely unclaimed mechanic left: a grep for
+  `contagion`, `spreadTo` and `infect` returned nothing.
+
+**Two ceilings exist because of a bug this game has already had.** A Mask trap
+chain once doubled per frame until a single frame cost 2.2 seconds, and both of
+these paths are that bug waiting to happen:
+
+- A grave may only be left by an **auto-attack kill**, never by a trap's own
+  kill — `MaskTuning.graveSourcesAreDartsOnly`. Dart kills are bounded by
+  attack speed; a trap's kills are bounded by nothing.
+- An infection may only jump `MaskTuning.maxGenerations` times from the trap
+  that seeded it, so a dense crowd cannot keep re-infecting itself long after
+  the traps are gone.
+
+Plus a flat cap of twelve live graves per Mask and a proc cooldown on placing
+them. All four are pinned by tests, in the group named for the failure.
 
 
 ## Decisions intentionally made
