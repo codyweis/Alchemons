@@ -1,8 +1,8 @@
 # Survival Family Mastery
 
-Status (2026-09-18): Phases 1 and 2 complete. **Four of eight families are implemented in combat — Mane, Let, Pip and Horn** — all twelve nodes each, each in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`) with its own test suite. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
+Status (2026-09-18): Phases 1 and 2 complete. **Five of eight families are implemented in combat — Mane, Let, Pip, Horn and Mask** — all twelve nodes each, each in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`, `_mask.dart`) with its own test suite. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
 
-**The other three families' trees are purchasable and do nothing.** Wing, Kin and Mystic each (Mask's tree is designed but not yet wired) each have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either those four ship, or the panel has to say they are not ready.
+**The other three families' trees are purchasable and do nothing.** Wing, Kin and Mystic each have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either those three ship, or the panel has to say they are not ready.
 
 ## Purpose
 

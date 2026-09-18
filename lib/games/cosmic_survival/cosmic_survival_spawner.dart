@@ -106,6 +106,41 @@ mixin MasteryPayloadStatuses {
 
   bool get isLetSighted => letSightTimer > 0;
 
+  /// Mask's Contagion. A body that walks out of a Mask trap alive carries the
+  /// infection, and may pass it on. [maskInfectionGeneration] counts how far
+  /// this body is from the trap that seeded it: without that ceiling a dense
+  /// crowd keeps re-infecting itself long after every trap is gone.
+  double maskInfectionTimer = 0;
+  int? maskInfectionSlot;
+  int maskInfectionGeneration = 0;
+  double maskInfectionSpreadTimer = 0;
+  double maskInfectionTickTimer = 0;
+
+  bool get isMaskInfected => maskInfectionTimer > 0;
+
+  /// Infects this body, keeping whichever infection lasts longer. A body
+  /// already carrying a closer-to-source infection keeps that generation,
+  /// so re-infecting cannot walk the counter back down and restart a chain.
+  void applyMaskInfection({
+    required int slotIndex,
+    required double duration,
+    required int generation,
+  }) {
+    if (duration > maskInfectionTimer) maskInfectionTimer = duration;
+    maskInfectionSlot = slotIndex;
+    if (!isMaskInfected || generation < maskInfectionGeneration) {
+      maskInfectionGeneration = generation;
+    }
+  }
+
+  void clearMaskInfection() {
+    maskInfectionTimer = 0;
+    maskInfectionSlot = null;
+    maskInfectionGeneration = 0;
+    maskInfectionSpreadTimer = 0;
+    maskInfectionTickTimer = 0;
+  }
+
   /// Marks this body Sighted, keeping whichever Sight lasts longer.
   void applyLetSight({
     required int slotIndex,

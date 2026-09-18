@@ -29,6 +29,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_horn.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_let.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mastery_mask.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_mane.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_payload.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_pip.dart';
@@ -2014,6 +2015,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateManeMastery(dt);
     _updatePipMastery(dt);
     _updateHornMastery(dt);
+    _updateMaskMastery(dt);
     _updateMasteryEchoes(dt);
     updatePersistentAbilityEffects(dt);
     _updateBeamEffects(dt);
@@ -6618,6 +6620,295 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     mastery.recordCapstone(queued.slotIndex);
   }
 
+  // == Mask mastery (phase 5) ==============================================
+
+  /// Per-slot Mask state, created on demand and dropped on a run reset.
+  final Map<int, MaskMasteryState> _maskMastery = {};
+
+  /// Fixtures waiting to come back, for Rearm. Held here rather than on the
+  /// state so the pure family file never has to know what a Projectile is.
+  final List<_MaskRearmEntry> _maskRearmQueue = [];
+
+  MaskMasteryState _maskStateFor(int slotIndex) =>
+      _maskMastery.putIfAbsent(slotIndex, MaskMasteryState.new);
+
+  /// Read-only view of a Mask's run state — graves held, trigger counts.
+  MaskMasteryState? maskMasteryFor(int slotIndex) => _maskMastery[slotIndex];
+
+  /// Fixtures queued to re-arm. Exposed so tests can see the path working
+  /// without having to guess at frame timing.
+  int get maskRearmPending => _maskRearmQueue.length;
+
+  bool _isMasteryMask(int slotIndex) {
+    if (!mastery.enabled) return false;
+    final equipped = mastery.equippedFor(slotIndex);
+    return equipped != null && equipped.family == CreatureFamily.mask;
+  }
+
+  /// Whether [pos] is inside one of this Mask's own fixtures — what
+  /// Necropolis reads to decide a kill deserves a full-strength grave.
+  bool _isInsideOwnMaskTrap(int slotIndex, Offset pos) {
+    for (final p in companionProjectiles) {
+      if (p.abilityFamily != 'mask') continue;
+      if (p.sourceSlotIndex != slotIndex) continue;
+      if (!p.stationary) continue;
+      final reach = p.effectRadius > 0 ? p.effectRadius : 40.0;
+      if (_withinRange(p.position, pos, reach)) return true;
+    }
+    return false;
+  }
+
+  /// Deathmask: a dart kill leaves a trap of the Mask's own element.
+  ///
+  /// The fixture is taken from the element's real special rather than
+  /// re-authored here, so all seventeen stay correct for free and a grave is
+  /// always recognisably the same trap the special places.
+  void _spawnMaskGrave(
+    int slotIndex,
+    CosmicSurvivalCompanion comp,
+    Offset position, {
+    required bool fromAutoAttack,
+  }) {
+    if (!_isMasteryMask(slotIndex)) return;
+    final state = _maskStateFor(slotIndex);
+    state.graves.removeWhere(
+      (id) => !companionProjectiles.any((p) => identityHashCode(p) == id),
+    );
+
+    final strength = maskGraveStrength(
+      hasNode: (id) => mastery.hasNode(slotIndex, id),
+      fromAutoAttack: fromAutoAttack,
+      insideOwnTrap: _isInsideOwnMaskTrap(slotIndex, position),
+      gravesAlive: state.graves.length,
+    );
+    if (strength <= 0) return;
+    if (!mastery.tryProc(
+      slotIndex,
+      MaskNodes.graveGoods,
+      MaskTuning.graveProcCooldown,
+    )) {
+      return;
+    }
+    if (!mastery.requestObjects(1)) return;
+
+    mastery.runGuarded(() {
+      final template = createCosmicSpecialAbility(
+        origin: position,
+        baseAngle: 0,
+        family: 'mask',
+        element: comp.member.element,
+        damage: comp.abilityAtk.toDouble(),
+        maxHp: comp.maxHp,
+        casterBeauty: _effectiveBeauty(slotIndex),
+        casterIntelligence: _effectiveIntelligence(slotIndex),
+        casterStrength: _effectiveStrength(slotIndex),
+        targetPos: position,
+      );
+      final seed = template.projectiles.isEmpty
+          ? null
+          : template.projectiles.first;
+      if (seed == null) return null;
+
+      final shape = maskGraveShape(
+        hasNode: (id) => mastery.hasNode(slotIndex, id),
+      );
+      // Cold Ground: the grave carries the element at full strength rather
+      // than scaled down with everything else.
+      final elementScale = mastery.hasNode(slotIndex, MaskNodes.coldGround)
+          ? 1.0
+          : strength;
+      final grave = copyProjectile(
+        seed,
+        position: position,
+        damage: seed.damage * strength,
+        life: seed.life * shape.life,
+        visualScale: seed.visualScale * shape.scale,
+        radiusMultiplier: seed.radiusMultiplier * shape.scale,
+        effectRadius: seed.effectRadius * shape.scale,
+        effectPower: seed.effectPower * elementScale,
+        sourceSlotIndex: slotIndex,
+        abilityFamily: 'mask',
+      );
+      _appendCompanionProjectile(grave);
+      state.addGrave(identityHashCode(grave));
+      return null;
+    }, orElse: null);
+  }
+
+  /// Rearm: a Mask fixture that has run out comes back instead of being gone.
+  void _noteMaskFixtureExpired(Projectile p) {
+    final slotIndex = p.sourceSlotIndex;
+    if (slotIndex == null || !_isMasteryMask(slotIndex)) return;
+    if (p.abilityFamily != 'mask' || !p.stationary) return;
+
+    final delay = maskRearmDelay(hasNode: (id) => mastery.hasNode(slotIndex, id));
+    if (delay <= 0) return;
+
+    final state = _maskStateFor(slotIndex);
+    final fixtureId = identityHashCode(p);
+    final held = state.noteTrigger(
+      fixtureId,
+      hasHeldGround: mastery.hasNode(slotIndex, MaskNodes.heldGround),
+    );
+    state.dropFixture(fixtureId);
+    if (_maskRearmQueue.length >= MaskTuning.graveCap * 2) return;
+
+    _maskRearmQueue.add(
+      _MaskRearmEntry(
+        slotIndex: slotIndex,
+        template: p,
+        timer: delay,
+        // Held Ground: a fixture that has gone off three times stops
+        // expiring, so it comes back with a life nothing will run out.
+        lifeScale: held ? 1000.0 : 1.0,
+        triggers: state.triggersOn(fixtureId),
+      ),
+    );
+  }
+
+  void _updateMaskRearm(double dt) {
+    if (_maskRearmQueue.isEmpty) return;
+    for (var i = _maskRearmQueue.length - 1; i >= 0; i--) {
+      final entry = _maskRearmQueue[i];
+      entry.timer -= dt;
+      if (entry.timer > 0) continue;
+      _maskRearmQueue.removeAt(i);
+
+      final comp = activeCompanions[entry.slotIndex];
+      if (comp == null || comp.isDead) continue;
+      if (!mastery.requestObjects(1)) continue;
+
+      final t = entry.template;
+      final snapShut = mastery.hasNode(entry.slotIndex, MaskNodes.snapShut);
+      final revived = copyProjectile(
+        t,
+        life: t.life <= 0 ? 6.0 * entry.lifeScale : t.life * entry.lifeScale,
+        // Snap Shut: a re-armed trap catches everything in reach at once
+        // rather than the first body to touch it.
+        piercing: snapShut ? true : t.piercing,
+      );
+      _appendCompanionProjectile(revived);
+      final state = _maskStateFor(entry.slotIndex);
+      state.triggers[identityHashCode(revived)] = entry.triggers;
+    }
+  }
+
+  /// Contagion: a body that leaves a Mask trap alive carries it onward.
+  void _infectFromMaskTrap(
+    int slotIndex,
+    CosmicSurvivalEnemy enemy, {
+    int generation = 0,
+  }) {
+    if (!_isMasteryMask(slotIndex)) return;
+    final infection = maskInfection(
+      hasNode: (id) => mastery.hasNode(slotIndex, id),
+      generation: generation,
+    );
+    if (infection.duration <= 0) return;
+    enemy.applyMaskInfection(
+      slotIndex: slotIndex,
+      duration: infection.duration,
+      generation: generation,
+    );
+  }
+
+  /// Per-frame Contagion upkeep: ticking, jumping, and the death burst.
+  void _updateMaskMastery(double dt) {
+    if (!mastery.enabled) return;
+    // Give every equipped Mask its state up front. Only Deathmask creates it
+    // as a side effect of placing a grave, so without this a pure Rearm or
+    // Contagion build would never tick at all.
+    for (final slotIndex in activeCompanions.keys) {
+      if (_isMasteryMask(slotIndex)) _maskStateFor(slotIndex);
+    }
+    _updateMaskRearm(dt);
+    if (_maskMastery.isEmpty) return;
+
+    for (final enemy in enemies) {
+      if (enemy.isDead || !enemy.isMaskInfected) continue;
+      enemy.maskInfectionTimer -= dt;
+      if (enemy.maskInfectionTimer <= 0) {
+        enemy.clearMaskInfection();
+        continue;
+      }
+      final slotIndex = enemy.maskInfectionSlot;
+      if (slotIndex == null) continue;
+      final comp = activeCompanions[slotIndex];
+      if (comp == null) continue;
+      final infection = maskInfection(
+        hasNode: (id) => mastery.hasNode(slotIndex, id),
+        generation: enemy.maskInfectionGeneration,
+      );
+
+      if (infection.ticks) {
+        enemy.maskInfectionTickTimer -= dt;
+        if (enemy.maskInfectionTickTimer <= 0) {
+          enemy.maskInfectionTickTimer = 0.5;
+          _damageEnemy(
+            enemy,
+            comp.abilityAtk * MaskTuning.virulenceStrength * 0.5,
+            sourceSlotIndex: slotIndex,
+            masterySource: MasteryDamageSource.mastery,
+          );
+        }
+      }
+
+      if (!infection.spreads) continue;
+      enemy.maskInfectionSpreadTimer -= dt;
+      if (enemy.maskInfectionSpreadTimer > 0) continue;
+      enemy.maskInfectionSpreadTimer = MaskTuning.spreadInterval;
+      final nextGeneration = enemy.maskInfectionGeneration + 1;
+      _visitEnemiesNear(enemy.position, MaskTuning.spreadRadius, (other) {
+        if (identical(other, enemy) || other.isDead) return false;
+        if (other.isMaskInfected) return false;
+        other.applyMaskInfection(
+          slotIndex: slotIndex,
+          duration: infection.duration,
+          generation: nextGeneration,
+        );
+        return false;
+      });
+    }
+  }
+
+  /// Plague: an infected body that dies bursts, and what it catches is one
+  /// generation further from the trap, never reset to zero.
+  void _applyMaskPlague(CosmicSurvivalEnemy enemy) {
+    final slotIndex = enemy.maskInfectionSlot;
+    if (slotIndex == null || !_isMasteryMask(slotIndex)) return;
+    final infection = maskInfection(
+      hasNode: (id) => mastery.hasNode(slotIndex, id),
+      generation: enemy.maskInfectionGeneration,
+    );
+    if (!infection.bursts) return;
+    final comp = activeCompanions[slotIndex];
+    if (comp == null) return;
+
+    mastery.runGuarded(() {
+      _damageEnemiesNear(
+        enemy.position,
+        MaskTuning.plagueRadius,
+        comp.abilityAtk * MaskTuning.plagueDamage,
+        sourceSlotIndex: slotIndex,
+        exclude: enemy,
+      );
+      _spawnHitSpark(enemy.position, elementColor(comp.member.element));
+      final nextGeneration = enemy.maskInfectionGeneration + 1;
+      if (infection.spreads) {
+        _visitEnemiesNear(enemy.position, MaskTuning.plagueRadius, (other) {
+          if (identical(other, enemy) || other.isDead) return false;
+          other.applyMaskInfection(
+            slotIndex: slotIndex,
+            duration: infection.duration,
+            generation: nextGeneration,
+          );
+          return false;
+        });
+      }
+      return null;
+    }, orElse: null);
+  }
+
   // == Horn mastery (phase 5) ==============================================
 
   /// Per-slot Horn state, created on demand and dropped on a run reset.
@@ -7716,6 +8007,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (companion != null && hornWeighted) {
         _applyHornAnvil(sourceSlotIndex, companion, enemy);
       }
+      // Deathmask: a dart kill leaves a trap where the body fell. Only a
+      // dart kill — a trap's own kills spawning traps is the chain that once
+      // cost this game 2.2 seconds in a single frame.
+      if (companion != null &&
+          companion.member.family.toLowerCase() == 'mask') {
+        _spawnMaskGrave(
+          sourceSlotIndex,
+          companion,
+          enemy.position,
+          fromAutoAttack: masterySource == MasteryDamageSource.basic,
+        );
+      }
+      // Plague: an infected body bursts on death.
+      if (mastery.enabled && enemy.isMaskInfected) _applyMaskPlague(enemy);
       // Pip element-on-kill placements (Fire/Dust/Crystal/Dark). Gated
       // by source: design says Fire/Dust/Crystal pools come from
       // SPECIAL-ability kills only, while Dark's black hole is a
@@ -9525,6 +9830,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return;
     }
     if (projectile.abilityFamily == 'mask') {
+      // Contagion: whatever walks out of a Mask trap alive is a carrier.
+      // Generation zero, because this body caught it from the trap itself.
+      final infectSlot = projectile.sourceSlotIndex;
+      if (mastery.enabled && infectSlot != null && !killed && !enemy.isDead) {
+        _infectFromMaskTrap(infectSlot, enemy);
+      }
       // Mask traps run a per-element on-contact dispatcher first.
       // Some elements (Light instakill, Dark yeet, Crystal split,
       // Fire pool spawn, Lightning field grow, Blood drain marker,
@@ -10373,6 +10684,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// triggers rather than reaching into the rules that trigger on it.
   @visibleForTesting
   void debugKillEnemy(CosmicSurvivalEnemy enemy) => _killEnemy(enemy);
+
+  /// Kills [enemy] as an auto-attack from [slotIndex] would, so tests can
+  /// exercise the kill hooks without waiting on a dart to land.
+  void debugKillByDart(int slotIndex, CosmicSurvivalEnemy enemy) => _killEnemy(
+    enemy,
+    sourceSlotIndex: slotIndex,
+    masterySource: MasteryDamageSource.basic,
+  );
+
+  /// Seeds a Contagion infection as a trap contact would.
+  void debugInfect(int slotIndex, CosmicSurvivalEnemy enemy) =>
+      _infectFromMaskTrap(slotIndex, enemy);
 
   /// Puts damage through the orb's real intake, Bastion's split included.
   void debugDamageOrb(double amount) => _damageOrb(amount);
@@ -17911,8 +18234,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     // Read before the sweep: a returning slash starts where the outgoing one
-    // died, and after removeWhere there is nothing left to ask.
+    // died, and after removeWhere there is nothing left to ask. Rearm has to
+    // read its fixtures here for the same reason.
     _spawnMasteryReturns();
+    if (mastery.enabled && _maskMastery.isNotEmpty) {
+      for (final p in companionProjectiles) {
+        if (p.life <= 0) _noteMaskFixtureExpired(p);
+      }
+    }
     companionProjectiles.removeWhere((p) => p.life <= 0);
   }
 
@@ -21874,4 +22203,21 @@ class ShipProjectile {
   });
 
   bool get isRocket => splashRadius > 0;
+}
+
+/// One Mask fixture waiting to come back, for Rearm.
+class _MaskRearmEntry {
+  _MaskRearmEntry({
+    required this.slotIndex,
+    required this.template,
+    required this.timer,
+    required this.lifeScale,
+    required this.triggers,
+  });
+
+  final int slotIndex;
+  final Projectile template;
+  double timer;
+  final double lifeScale;
+  final int triggers;
 }
