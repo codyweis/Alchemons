@@ -506,55 +506,58 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
     family: CreatureFamily.kin,
     chassis: FamilyCombatCopy.of(CreatureFamily.kin).attack,
     paths: [
-      _path('kin.assault', 'Overcharge', 'Turn the laser into a weapon', [
+      _path('kin.longline', 'Longline', 'Reach further down the line', [
         (
-          'Hot Coil',
-          "Your laser charges in 1.25s instead of 1.5s. Each shot deals 10% less, but you fire faster for about +8% damage overall.",
+          'Extended Coil',
+          "Your laser runs 35% longer, and stops being cut short at close range.",
         ),
         (
-          'Burn Through',
-          "Your laser pierces one more enemy, dealing 55% damage to it.",
+          'Full Span',
+          "It always fires its whole length instead of stopping just past your target.",
         ),
         (
-          'Critical Mass',
-          "Keeping the same target for a full charge adds +20% damage and applies your element's effect.",
+          'Deep Line',
+          "Enemies further down the line take more, up to +40% at the far end.",
         ),
         (
-          'Judgment Line',
-          "Every 4th charge overcharges into a much wider beam that deals 180% damage.",
-        ),
-      ]),
-      _path('kin.control', 'Conduit', 'Mark enemies for the whole team', [
-        (
-          'Conductivity',
-          "Your laser marks its target for 4s. The marked enemy takes +8% damage from your whole team.",
-        ),
-        (
-          'Ground Path',
-          "Firing through the marked enemy leaves a 2s energy lane; enemies crossing it take your element's effect.",
-        ),
-        (
-          'Relay Point',
-          "When a teammate hits the marked enemy, a shock jumps to another nearby enemy for 20% elemental damage.",
-        ),
-        (
-          'Living Circuit',
-          "While your support special is active, you can mark up to 3 enemies at once and shocks chain between them.",
+          'Crossfire',
+          "Your laser also fires straight back through you, covering the full width of the field.",
         ),
       ]),
-      _path('kin.resonance', 'Aegis Relay', 'Lasers shield and speed up allies', [
+      _path('kin.conduction', 'Conduction', 'The line carries help, not just harm', [
         (
-          'Guard Charge',
-          "Each laser shields your weakest teammate or the orb for 1% of your max HP (up to 4% each).",
-        ),
-        ('Shared Current', "Teammates you shield get +8% attack speed for 2s."),
-        (
-          'Blessing Reserve',
-          "Laser hits store Reserve (max 5). Casting your special spends it for +4% healing, shielding, and duration per stack.",
+          'Live Current',
+          "Allies your laser passes through gain a shield worth 20% of the damage it dealt.",
         ),
         (
-          'Guardian Relay',
-          "Spending 5 Reserve channels your element through every teammate: harmful elements hit nearby enemies; Blood and Light heal and protect.",
+          'Lifeline',
+          "An ally below half health is healed instead, for half again as much.",
+        ),
+        (
+          'Grounding',
+          "Your element's effect lands on every enemy down the line, not only the first.",
+        ),
+        (
+          'Transfusion',
+          "The shield and the heal are worth 50% more, and reach allies near the line as well as on it.",
+        ),
+      ]),
+      _path('kin.benediction', 'Benediction', 'Your support runs deeper and longer', [
+        (
+          'Devotion',
+          "Your support ability lasts 40% longer.",
+        ),
+        (
+          'Deep Reserves',
+          "Its healing, shielding and buffs are 25% stronger.",
+        ),
+        (
+          'Unbroken',
+          "Being downed no longer ends it — your support runs its full course without you.",
+        ),
+        (
+          'Communion',
+          "It reaches every ally and the ship, however far apart you are standing.",
         ),
       ]),
     ],

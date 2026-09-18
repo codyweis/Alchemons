@@ -28,6 +28,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_companion_stats.
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_horn.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mastery_kin.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_let.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_mask.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_mane.dart';
@@ -2490,6 +2491,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (tetheredCompanionSlot == slot) {
         tetheredCompanionSlot = null;
       }
+      final downed = activeCompanions[slot];
+      if (downed != null) _noteKinCompanionDown(slot, downed);
       activeCompanions.remove(slot);
       _companionTickers.remove(slot);
       _companionVisuals.remove(slot);
@@ -3453,6 +3456,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // blessing still apply.
           if (comp.member.family.toLowerCase() == 'kin') {
             _activateKinSupportPath(comp, fireAngle, attackTarget);
+            _applyKinBenedictionTimers(slotIndex, comp);
           }
           // Mystic ultimate environment overlay — change the WORLD
           // for the cast's duration. Pushes a new entry; multiple
@@ -5086,7 +5090,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   bool _isAnyKinDarkCloakActive() {
-    for (final comp in activeCompanions.values) {
+    for (final comp in _kinSupportSources.map((e) => e.value)) {
       if (comp.kinDarkCloakTimer > 0 &&
           comp.member.family.toLowerCase() == 'kin' &&
           comp.member.element == 'Dark') {
@@ -5097,7 +5101,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   bool _isAnyKinLightningChargeActive() {
-    for (final comp in activeCompanions.values) {
+    for (final comp in _kinSupportSources.map((e) => e.value)) {
       if (comp.kinLightningChargeTimer > 0 &&
           comp.member.family.toLowerCase() == 'kin' &&
           comp.member.element == 'Lightning') {
@@ -5108,7 +5112,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   bool _isAnyKinLavaPlateActive() {
-    for (final comp in activeCompanions.values) {
+    for (final comp in _kinSupportSources.map((e) => e.value)) {
       if (comp.kinLavaPlateTimer > 0 &&
           comp.member.family.toLowerCase() == 'kin' &&
           comp.member.element == 'Lava') {
@@ -6623,6 +6627,159 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     _appendCompanionProjectiles(darts);
     mastery.recordCapstone(queued.slotIndex);
+  }
+
+  // == Kin mastery (phase 5) ===============================================
+
+  /// Per-slot Kin state, created on demand and dropped on a run reset.
+  final Map<int, KinMasteryState> _kinMastery = {};
+
+  /// Kin who have gone down while holding Unbroken, kept only so their
+  /// support finishes. A dead companion is dropped from [activeCompanions]
+  /// outright, so a support that is meant to outlive its caster has to be
+  /// held somewhere the support tick can still find it.
+  final Map<int, CosmicSurvivalCompanion> _unbrokenKin = {};
+
+  /// Every Kin whose support is still running, living or not.
+  Iterable<MapEntry<int, CosmicSurvivalCompanion>> get _kinSupportSources =>
+      activeCompanions.entries.followedBy(_unbrokenKin.entries);
+
+  /// Called as a companion is removed: keeps the ones that earned it.
+  void _noteKinCompanionDown(int slotIndex, CosmicSurvivalCompanion comp) {
+    if (!_kinBenedictionFor(slotIndex).survivesDeath) return;
+    if (!_kinHasRunningSupport(comp)) return;
+    _unbrokenKin[slotIndex] = comp;
+  }
+
+  bool _kinHasRunningSupport(CosmicSurvivalCompanion comp) =>
+      comp.kinLavaPlateTimer > 0 ||
+      comp.kinIceChargeTimer > 0 ||
+      comp.kinSteamBoilerTimer > 0 ||
+      comp.kinLightningChargeTimer > 0 ||
+      comp.kinDarkCloakTimer > 0 ||
+      comp.kinBloodPactTimer > 0 ||
+      comp.kinMudShipEnchantTimer > 0;
+
+  KinMasteryState _kinStateFor(int slotIndex) =>
+      _kinMastery.putIfAbsent(slotIndex, KinMasteryState.new);
+
+  /// Read-only view of a Kin's run state — what it has shielded, and any
+  /// support still running without it.
+  KinMasteryState? kinMasteryFor(int slotIndex) => _kinMastery[slotIndex];
+
+  bool _isMasteryKin(int slotIndex) {
+    if (!mastery.enabled) return false;
+    final equipped = mastery.equippedFor(slotIndex);
+    return equipped != null && equipped.family == CreatureFamily.kin;
+  }
+
+  /// Longline: how far the charged laser should actually run.
+  double _kinLaserLengthFor(int slotIndex, double distanceToTarget) {
+    if (!_isMasteryKin(slotIndex)) {
+      return (distanceToTarget + 60.0).clamp(120.0, 720.0).toDouble();
+    }
+    return kinLaserLength(
+      hasNode: (id) => mastery.hasNode(slotIndex, id),
+      distanceToTarget: distanceToTarget,
+    );
+  }
+
+  /// Conduction: hands one ally what the line earned for it.
+  void _applyKinConduction(
+    int slotIndex,
+    CosmicSurvivalCompanion kin,
+    double laserDamage,
+    Offset origin,
+    Offset beamEnd,
+  ) {
+    if (!_isMasteryKin(slotIndex)) return;
+    if (!mastery.hasNode(slotIndex, KinNodes.liveCurrent)) return;
+
+    final probe = kinConduction(
+      hasNode: (id) => mastery.hasNode(slotIndex, id),
+      laserDamage: laserDamage,
+      allyMaxHp: 1,
+      allyHealthFraction: 1,
+    );
+    final lateral = 14.0 + probe.radius;
+
+    for (final entry in activeCompanions.entries) {
+      final ally = entry.value;
+      if (ally.isDead || identical(ally, kin)) continue;
+      if (_distanceToSegment(ally.position, origin, beamEnd) > lateral) {
+        continue;
+      }
+      final gift = kinConduction(
+        hasNode: (id) => mastery.hasNode(slotIndex, id),
+        laserDamage: laserDamage,
+        allyMaxHp: ally.maxHp.toDouble(),
+        allyHealthFraction: ally.maxHp <= 0
+            ? 1.0
+            : ally.currentHp / ally.maxHp,
+      );
+      if (gift.heal > 0) {
+        ally.currentHp = min(ally.maxHp, ally.currentHp + gift.heal.round());
+      } else if (gift.shield > 0) {
+        ally.shieldHp += gift.shield.round();
+      }
+      _kinStateFor(slotIndex).shieldGranted += gift.shield + gift.heal;
+    }
+
+    // The ship stands on the line like anything else.
+    if (!ship.isDead &&
+        _distanceToSegment(ship.position, origin, beamEnd) <= lateral + 12) {
+      final gift = kinConduction(
+        hasNode: (id) => mastery.hasNode(slotIndex, id),
+        laserDamage: laserDamage,
+        allyMaxHp: ship.maxHp,
+        allyHealthFraction: ship.maxHp <= 0 ? 1.0 : ship.currentHp / ship.maxHp,
+      );
+      if (gift.heal > 0) {
+        ship.currentHp = min(ship.maxHp, ship.currentHp + gift.heal);
+      }
+    }
+  }
+
+  /// Devotion: stretches every support window this Kin just opened.
+  ///
+  /// The seventeen supports flip seventeen different timers, so this scales
+  /// them by name rather than trying to find one shared duration that does
+  /// not exist.
+  void _applyKinBenedictionTimers(int slotIndex, CosmicSurvivalCompanion comp) {
+    final benediction = _kinBenedictionFor(slotIndex);
+    if (benediction.duration <= 1.0) return;
+    final d = benediction.duration;
+    comp.kinLavaPlateTimer *= d;
+    comp.kinIceChargeTimer *= d;
+    comp.kinIceChargeTotal *= d;
+    comp.kinSteamBoilerTimer *= d;
+    comp.kinLightningChargeTimer *= d;
+    comp.kinDarkCloakTimer *= d;
+    comp.kinBloodPactTimer *= d;
+    comp.kinMudShipEnchantTimer *= d;
+  }
+
+  /// Communion: a blessing the whole team receives, not only its caster.
+  void _shareKinBlessing(int slotIndex, CosmicSurvivalCompanion caster) {
+    if (_kinBenedictionFor(slotIndex).allyRange <= 0) return;
+    if (caster.blessingTimer <= 0) return;
+    for (final ally in activeCompanions.values) {
+      if (ally.isDead || identical(ally, caster)) continue;
+      ally.blessingTimer = max(ally.blessingTimer, caster.blessingTimer);
+      ally.blessingHealPerTick = max(
+        ally.blessingHealPerTick,
+        caster.blessingHealPerTick,
+      );
+    }
+  }
+
+  /// Benediction: what the equipped path does to a support ability.
+  ({double duration, double power, bool survivesDeath, double allyRange})
+  _kinBenedictionFor(int slotIndex) {
+    if (!_isMasteryKin(slotIndex)) {
+      return (duration: 1.0, power: 1.0, survivesDeath: false, allyRange: 0.0);
+    }
+    return kinBenediction(hasNode: (id) => mastery.hasNode(slotIndex, id));
   }
 
   // == Wing mastery (phase 5) ==============================================
@@ -10813,6 +10970,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   @visibleForTesting
   void debugKillEnemy(CosmicSurvivalEnemy enemy) => _killEnemy(enemy);
 
+  /// Lengths of the Kin laser beams currently drawn, so a test can see
+  /// Longline working without reaching into the render list.
+  List<double> get debugKinLaserLengths => [
+    for (final b in _kinLaserBeams) (b.end - b.origin).distance,
+  ];
+
   /// The range multiplier mastery is applying to this slot.
   double debugAttackRangeMultiplier(int slotIndex) =>
       _masteryAttackRangeMultiplier(slotIndex);
@@ -13421,8 +13584,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final norm = dir / dist;
     // Laser length: enough to reach the target plus some overshoot
     // so distant enemies still get hit; capped to keep visual sane.
-    final beamLength = (dist + 60.0).clamp(120.0, 720.0).toDouble();
+    final beamLength = _kinLaserLengthFor(slotIndex, dist);
     final beamEnd = comp.position + norm * beamLength;
+    // Crossfire: the same line, fired straight back through the Kin, so one
+    // charge covers the whole width of the field instead of half of it.
+    final crossfire =
+        _isMasteryKin(slotIndex) &&
+        mastery.hasNode(slotIndex, KinNodes.crossfire);
+    final backEnd = comp.position - norm * beamLength;
 
     // Damage scaling — kin physAtk × 4.0. With the 1.5s charge + the
     // standard cooldown the cadence is ~2× slower than other families,
@@ -13451,19 +13620,41 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _visitEnemiesNear(comp.position, scanRadius, (enemy) {
       if (enemy.isDead) return false;
       final d = _distanceToSegment(enemy.position, comp.position, beamEnd);
-      if (d <= enemy.radius + lateral) {
+      final back = crossfire
+          ? _distanceToSegment(enemy.position, comp.position, backEnd)
+          : double.infinity;
+      final onLine = d <= enemy.radius + lateral;
+      final onBackLine = back <= enemy.radius + lateral;
+      if (onLine || onBackLine) {
+        // Deep Line: the far end of the line hits hardest, which is what
+        // makes the length worth buying rather than just looking longer.
+        final along = (enemy.position - comp.position).distance;
+        final deep = _isMasteryKin(slotIndex)
+            ? kinDeepLineMultiplier(
+                hasNode: (id) => mastery.hasNode(slotIndex, id),
+                along: along,
+                length: beamLength,
+              )
+            : 1.0;
         // Kin's charged beam IS its basic attack, so it tithes too.
         _damageEnemy(
           enemy,
-          dmg,
+          dmg * deep * (onLine ? 1.0 : KinTuning.crossfireStrength),
           sourceSlotIndex: slotIndex,
           autoAttack: true,
           masteryCastId: castId,
+          masterySource: deep > 1.0 ? MasteryDamageSource.mastery : null,
         );
         _spawnHitSpark(enemy.position, elementColor(comp.member.element));
       }
       return false;
     });
+
+    // Conduction: the same line, read for allies instead of enemies.
+    _applyKinConduction(slotIndex, comp, dmg, comp.position, beamEnd);
+    if (crossfire) {
+      _applyKinConduction(slotIndex, comp, dmg, comp.position, backEnd);
+    }
 
     // Push the beam visual into the transient list.
     if (_kinLaserBeams.length >= 24) {
@@ -13476,6 +13667,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         color: elementColor(comp.member.element),
       ),
     );
+    if (crossfire) {
+      if (_kinLaserBeams.length >= 24) _kinLaserBeams.removeAt(0);
+      _kinLaserBeams.add(
+        _KinLaserBeam(
+          origin: comp.position,
+          end: backEnd,
+          color: elementColor(comp.member.element),
+        ),
+      );
+    }
   }
 
   // ── Kin per-frame support tick ────────────────────────────────
@@ -13503,9 +13704,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _kinPrevShipHp = ship.currentHp.toDouble();
 
     // Tick all kin support timers + react to damage.
-    for (final entry in activeCompanions.entries) {
+    // Unbroken: a downed Kin's support runs its course, so the orphans are
+    // walked alongside the living. They are pruned as their timers expire.
+    if (_unbrokenKin.isNotEmpty) {
+      _unbrokenKin.removeWhere((_, comp) => !_kinHasRunningSupport(comp));
+    }
+    for (final entry in _kinSupportSources.toList(growable: false)) {
       final comp = entry.value;
-      if (comp.isDead) continue;
+      if (comp.isDead && !_unbrokenKin.containsKey(entry.key)) continue;
 
       // Per-companion damage delta this frame.
       final compDelta = (comp.kinPrevHp > 0)
@@ -19557,11 +19763,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _healOrb(result.shipHeal.toDouble(), sourceSlot: comp.slotIndex);
     }
     if (result.blessingTimer > 0) {
-      comp.blessingTimer = max(comp.blessingTimer, result.blessingTimer);
+      final benediction = comp.slotIndex >= 0
+          ? _kinBenedictionFor(comp.slotIndex)
+          : (duration: 1.0, power: 1.0, survivesDeath: false, allyRange: 0.0);
+      comp.blessingTimer = max(
+        comp.blessingTimer,
+        result.blessingTimer * benediction.duration,
+      );
       comp.blessingHealPerTick = max(
         comp.blessingHealPerTick,
-        result.blessingHealPerTick,
+        result.blessingHealPerTick * benediction.power,
       );
+      _shareKinBlessing(comp.slotIndex, comp);
     }
   }
 

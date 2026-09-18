@@ -1,8 +1,8 @@
 # Survival Family Mastery
 
-Status (2026-09-18): Phases 1 and 2 complete. **Six of eight families are implemented in combat — Mane, Let, Pip, Horn, Mask and Wing** — all twelve nodes each, each in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`, `_mask.dart`, `_wing.dart`) with its own test suite. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
+Status (2026-09-18): Phases 1 and 2 complete. **Seven of eight families are implemented in combat — Mane, Let, Pip, Horn, Mask, Wing and Kin** — all twelve nodes each, each in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`, `_mask.dart`, `_wing.dart`, `_kin.dart`) with its own test suite. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
 
-**The other two families' trees are purchasable and do nothing.** Kin and Mystic each have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either those two ship, or the panel has to say they are not ready.
+**Mystic's tree is purchasable and does nothing.** It have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either it ships, or the panel has to say it is not ready.
 
 ## Purpose
 
@@ -1240,6 +1240,45 @@ One thing the wiring corrected: the capstone was going to be "you keep firing
 while the beam is up", and Wing already does — the basic is not gated on an
 active beam. It became Live Feed instead, which puts the time into the beam
 already running rather than banking it for the next one.
+
+
+### Kin — Longline, Conduction, Benediction (2026-09-18)
+
+Kin's draft was the worst of the six. Its first path, "turn the laser into a
+weapon", made the Rare Support family a damage dealer, which is the one thing
+its own design board explicitly did not want; the `Burn Through` node shared a
+name with a Wing path and `Critical Mass` *was* that Wing path. Its second
+path marked enemies (Pip's Pins, Let's Sighted), applied `vulnerable` (Dark's),
+left a damaging lane (Mask's and Wing/Lava's) and chained shocks between
+enemies, which is **Kin/Lightning's own signature**. Its third was War Rhythm
+for the fourth family running, with a shield-per-attack opener that is Horn's
+Guarded Shot and an ally attack-speed buff that is **Kin/Steam's own boiler**.
+
+Reading the implementation rather than the description is what produced the
+replacement. Kin's *basic attack* charges for 1.5s **with movement locked to
+zero**, then fires a line that hits every body near the segment at four times
+a normal hit. No other family roots itself to throw a basic, and no other
+family's basic is a line through space rather than a thing aimed at a target.
+So the laser has exactly three levers, and the user's split was two on the
+laser and one on the seventeen bespoke supports:
+
+- **Longline** is reach — how far down the field the line runs, and Deep Line
+  pays more at the far end so the length is worth buying rather than just
+  looking longer. It is *not* Wing's Longshot: Wing reads the gap between the
+  caster and its target, Kin reads the length of the line itself.
+- **Conduction** is what the line carries. It already hits every enemy it
+  crosses, so this makes it shield and heal every ally it crosses too.
+- **Benediction** is the support itself: longer, stronger, surviving the
+  caster, and finally reaching the whole team.
+
+**Unbroken was dead code on the first attempt, and the test caught it.** A
+companion that goes down is removed from `activeCompanions` outright, so a
+guard inside that loop can never fire for a dead Kin — the node would have
+been purchased and done nothing, which is the exact failure this whole audit
+has been removing from the drafts. Orphaned supports are now held in
+`_unbrokenKin` and walked by the support tick alongside the living, pruned as
+their timers expire, and the three "is some Kin support up?" reads consult
+them too.
 
 
 ## Decisions intentionally made
