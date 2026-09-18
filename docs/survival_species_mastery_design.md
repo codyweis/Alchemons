@@ -1,6 +1,8 @@
 # Survival Family Mastery
 
-Status (2026-09-17): Phases 1 and 2 complete. Phase 3, the Mane vertical slice, is implemented: all twelve Mane nodes work in survival, including Limitless (which replaced Tempest Claw); tuning is still open. The Base Command Mastery tab is polished (the first item of Phase 6). Phase 4 has begun with Let: its tree was redesigned around its two meteors (Falling Star, Bombardment, Ground Zero — see *Let*) and all twelve nodes are implemented in survival (`survival_mastery_let.dart`, `test/survival_mastery_let_test.dart`); tuning is open and it has not been played on device. The other six families' trees are still the original draft.
+Status (2026-09-18): Phases 1 and 2 complete. **Three of eight families are implemented in combat — Mane, Let and Pip** — all twelve nodes each, each in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`) with its own test suite. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
+
+**The other five families' trees are purchasable and do nothing.** Wing, Mask, Horn, Kin and Mystic each have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either those five ship, or the panel has to say they are not ready.
 
 ## Purpose
 
