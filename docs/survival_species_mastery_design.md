@@ -1050,18 +1050,60 @@ curve. This is the half that was missing everywhere but Mane. The old generic
 scalers spanned roughly 0.75x to 1.30x across the *entire* stat band, which is
 not something a player can see, let alone chase.
 
+Every family answers Beauty now, and each answers in its own currency.
+
 | Family | What Beauty buys | Weak | Average | Perfect |
 | --- | --- | ---: | ---: | ---: |
 | Mane | fireballs / ball width | 4 | 8 | 16 |
 | Pip | ricochets | 3 | 5 | 8 |
 | Let | blast radius | 5.18 | 7.00 | 11.55 |
+| Mask | traps placed | 5 | 9 | 15 |
+| Mystic | world radius | 0.70x | 1.00x | 1.85x |
+| Wing | beam width | 0.72x | 1.00x | 1.70x |
+| Horn | guard and sweep radius | 0.74x | 1.00x | 1.65x |
+| Kin | aura radius | 0.80x | 1.00x | 1.48x |
+| Pip | dart width | 0.86x | 1.00x | 1.28x |
+| Mane | ball width | 0.88x | 1.00x | 1.25x |
 
 Pip's ricochets used to read *Intelligence* through a 0.74x–1.26x scaler — the
 thing the family is for, on the wrong stat and on a curve nobody could feel.
 
-Still on the old flat scalers, to be done as their trees come up: Wing (beam
-width or count), Mask (fixtures placed), Horn (sweep radius), Kin (aura radius
-or wisp count), Mystic (world radius).
+The swings are deliberately unequal. Mystic has the widest because a world's
+edge is the entire cast. Pip and Mane have the narrowest because Beauty already
+buys them ricochets and fireballs, and one stat should not pay twice for the
+same volley.
+
+Three of these were not slow curves but missing wiring, found by writing the
+test before trusting the code:
+
+- **Kin's aura did not scale at all.** `effectRadius` and `effectDuration` were
+  never touched by the family's scaling pass, so the radius of the thing the
+  entire support family is built around was the same for a perfect Kin as for a
+  terrible one. Beauty sets its reach now and Intelligence its duration.
+- **Wing's beam width rode `powerScale`**, which also multiplies beam damage —
+  so widening it would have handed Beauty a damage lever that belongs to
+  Strength and Intelligence. Width has its own anchored curve now.
+- **Wing's `effectRadius` fell back to a bare `82.0`** whenever an element
+  authored none, and that literal was multiplied by nothing.
+
+Mask keeps Intelligence on how far each trap reads and how long it holds; only
+the *number* of traps moved to Beauty. That number is discrete, so it takes its
+last step at P95 like every other count, and the stat points above it buy reach
+instead.
+
+`_footprint` in `test/family_ability_stat_contract_test.dart` measures widest
+reach times placements, which is the only metric that compares a family that
+widens one beam against a family that scatters more traps. It also had to learn
+that Kin and Mystic author most of their specials survival-side and put nothing
+in the shared table — Kin/Fire produces no projectile at all.
+
+Two balance tests moved with this, both for the same reason: the neutral point
+of a scaler is now the real average stat (4.25) rather than the 4.0 the old flat
+scalers baselined on. A Wing test read an authored width against a caster
+slightly below average and found it 4% short; a Mane test compared Beauty 2 to
+Beauty 5, which sit either side of average on a 2.5–12 scale, and asked for a
+20% radius gap that Mane's deliberately narrow curve no longer owes between two
+ordinary creatures.
 
 ## Decisions intentionally made
 

@@ -5124,6 +5124,7 @@ CosmicSpecialResult createCosmicSpecialAbility({
         damage,
         casterBeauty,
         casterIntelligence,
+        casterBeautyPotential,
         targetPos,
       );
       break;
@@ -5750,11 +5751,13 @@ CosmicSpecialResult _hornSpecial(
       min: 0.84,
       max: 1.20,
     );
-    final shieldVisualScale = _specialStatScaleFromBaseline(
+    // Horn is the bulwark: the guard it plants IS the ability, so Beauty
+    // moves its radius further here than anywhere else.
+    final shieldVisualScale = scaledAbilityValue(
       casterBeauty,
-      perPoint: 0.12,
-      min: 0.82,
-      max: 1.22,
+      atLow: 0.74,
+      atAverage: 1.0,
+      atPerfect: 1.65,
     );
     final controlScale = _specialStatScaleFromBaseline(
       casterIntelligence,
@@ -5821,11 +5824,13 @@ CosmicSpecialResult _hornSpecial(
       min: 0.84,
       max: 1.22,
     );
-    final guardScale = _specialStatScaleFromBaseline(
+    // The charge elements put no projectile on the floor, so the sweep IS
+    // Horn's footprint. It gets the same anchored swing as the planted guard.
+    final guardScale = scaledAbilityValue(
       casterBeauty,
-      perPoint: 0.10,
-      min: 0.84,
-      max: 1.20,
+      atLow: 0.74,
+      atAverage: 1.0,
+      atPerfect: 1.65,
     );
     final controlScale = _specialStatScaleFromBaseline(
       casterIntelligence,
@@ -6555,11 +6560,13 @@ CosmicSpecialResult _wingSpecial(
       min: 0.84,
       max: 1.20,
     );
-    final visualScaleMul = _specialStatScaleFromBaseline(
+    // Wing is reach. A beautiful Wing paints a much wider beam; a plain one
+    // draws a thread.
+    final visualScaleMul = scaledAbilityValue(
       casterBeauty,
-      perPoint: 0.14,
-      min: 0.82,
-      max: 1.24,
+      atLow: 0.72,
+      atAverage: 1.0,
+      atPerfect: 1.70,
     );
     final controlScale = _specialStatScaleFromBaseline(
       casterIntelligence,
@@ -6602,7 +6609,8 @@ CosmicSpecialResult _wingSpecial(
       effectPower: p.effectPower > 0
           ? p.effectPower * impactScale
           : p.damage * impactScale * 0.22,
-      effectRadius: p.effectRadius > 0 ? p.effectRadius : 82.0,
+      effectRadius: (p.effectRadius > 0 ? p.effectRadius : 82.0) *
+          visualScaleMul,
       effectDuration: p.effectDuration > 0
           ? p.effectDuration * durationScale
           : 1.7 * durationScale,
@@ -7224,6 +7232,15 @@ List<WingBeamEffect> _wingBeamEffects({
     min: 0.82,
     max: 1.26,
   );
+  // Width is Wing's footprint, and it is the one thing Beauty is supposed to
+  // move hard. It rides its own anchored curve rather than powerScale, which
+  // also multiplies damage and belongs to Strength and Intelligence.
+  final beamWidthScale = scaledAbilityValue(
+    casterBeauty,
+    atLow: 0.72,
+    atAverage: 1.0,
+    atPerfect: 1.70,
+  );
   final targetingScale = _specialStatScaleFromBaseline(
     casterIntelligence,
     perPoint: 0.12,
@@ -7239,7 +7256,7 @@ List<WingBeamEffect> _wingBeamEffects({
   final beamDamage = damage * 0.46 * powerScale;
   // A single slightly wider beam reads better than 2–3 thrashing
   // refracted beams that block enemy/bullet visibility.
-  final width = 9.5 * powerScale;
+  final width = 9.5 * beamWidthScale;
   final base = WingBeamEffect(
     element: element,
     targetPolicy: switch (element) {
@@ -7740,11 +7757,13 @@ CosmicSpecialResult _pipSpecial(
       min: 0.82,
       max: 1.18,
     );
-    final visualScaleMul = _specialStatScaleFromBaseline(
+    // Pip already buys ricochets with Beauty, so size moves least here —
+    // otherwise one stat would pay twice for the same volley.
+    final visualScaleMul = scaledAbilityValue(
       casterBeauty,
-      perPoint: 0.12,
-      min: 0.82,
-      max: 1.22,
+      atLow: 0.86,
+      atAverage: 1.0,
+      atPerfect: 1.28,
     );
     final guidanceScale = _specialStatScaleFromBaseline(
       casterIntelligence,
@@ -8528,11 +8547,13 @@ CosmicSpecialResult _maneSpecial(
             max: 1.18,
           )
         : 1.0;
-    final visualScaleMul = _specialStatScaleFromBaseline(
+    // Mane already buys coverage and Light's rings with Beauty, so the shot's
+    // own girth is the smallest part of what Beauty pays for.
+    final visualScaleMul = scaledAbilityValue(
       casterBeauty,
-      perPoint: 0.14,
-      min: 0.80,
-      max: 1.24,
+      atLow: 0.88,
+      atAverage: 1.0,
+      atPerfect: 1.25,
     );
     final controlScale = _specialStatScaleFromBaseline(
       casterIntelligence,
@@ -9366,6 +9387,7 @@ CosmicSpecialResult _maskSpecial(
   double damage,
   double casterBeauty,
   double casterIntelligence,
+  double casterBeautyPotential,
   Offset? targetPos,
 ) {
   // MASK — Traps theme (per design board). Each special scatters
@@ -9378,16 +9400,17 @@ CosmicSpecialResult _maskSpecial(
   final rng = Random();
   final projs = <Projectile>[];
 
+  // How many fixtures hit the floor is Mask's coverage, so Beauty owns it
+  // outright. Intelligence is left holding how far each one reads and how
+  // long it stays, which is the half of a trap that is not its count.
   int scaledCount(int base, {int min = 2, int max = 25}) {
-    final scale = _specialCountScaleFromBaseline(
+    return scaledAbilityCount(
       casterBeauty,
-      casterIntelligence,
-      beautyPerPoint: 0.06,
-      intelligencePerPoint: 0.10,
-      min: 0.50,
-      max: 1.80,
-    );
-    return (base * scale).round().clamp(min, max);
+      atLow: (base * 0.55).round(),
+      atAverage: base,
+      atPerfect: (base * 1.75).round(),
+      potential: casterBeautyPotential,
+    ).clamp(min, max);
   }
 
   // Generic scaling pass — applied uniformly to all mask traps.
@@ -9398,11 +9421,12 @@ CosmicSpecialResult _maskSpecial(
       min: 0.85,
       max: 1.25,
     );
-    final visualScaleMul = _specialStatScaleFromBaseline(
+    // Mask places fixtures. Beauty decides how much floor each one denies.
+    final visualScaleMul = scaledAbilityValue(
       casterBeauty,
-      perPoint: 0.12,
-      min: 0.85,
-      max: 1.25,
+      atLow: 0.78,
+      atAverage: 1.0,
+      atPerfect: 1.52,
     );
     final durationScale = _specialStatScaleFromBaseline(
       casterIntelligence,
@@ -9936,11 +9960,13 @@ CosmicSpecialResult _kinSpecial(
       min: 0.84,
       max: 1.20,
     );
-    final visualScaleMul = _specialStatScaleFromBaseline(
+    // Kin is the support aura: Beauty is the difference between covering one
+    // ally and covering the party.
+    final visualScaleMul = scaledAbilityValue(
       casterBeauty,
-      perPoint: 0.12,
-      min: 0.82,
-      max: 1.22,
+      atLow: 0.80,
+      atAverage: 1.0,
+      atPerfect: 1.48,
     );
     final controlScale = _specialStatScaleFromBaseline(
       casterIntelligence,
@@ -9985,6 +10011,11 @@ CosmicSpecialResult _kinSpecial(
       turretSpeedMultiplier: p.turretSpeedMultiplier * controlScale,
       interceptRadius: p.interceptRadius * visualScaleMul,
       snareRadius: p.snareRadius * visualScaleMul,
+      // The aura is the whole family, and until now it was the one thing on a
+      // Kin projectile that no stat could move. Beauty sets how far it reaches
+      // and Intelligence how long it holds, as everywhere else.
+      effectRadius: p.effectRadius * visualScaleMul,
+      effectDuration: p.effectDuration * durationScale * trapPersistenceScale,
     );
   }
 
@@ -10601,11 +10632,13 @@ CosmicSpecialResult _mysticSpecial(
       min: 0.84,
       max: 1.24,
     );
-    final visualScaleMul = _specialStatScaleFromBaseline(
+    // Mystic authors a world. Beauty has the widest swing in the game here,
+    // because the world's edge is the whole point of the cast.
+    final visualScaleMul = scaledAbilityValue(
       casterBeauty,
-      perPoint: 0.16,
-      min: 0.82,
-      max: 1.28,
+      atLow: 0.70,
+      atAverage: 1.0,
+      atPerfect: 1.85,
     );
     final controlScale = _specialStatScaleFromBaseline(
       casterIntelligence,

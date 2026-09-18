@@ -1184,7 +1184,22 @@ void main() {
 
       expect(high.damage, greaterThan(low.damage * 1.45));
       expect(high.effectPower, greaterThan(low.effectPower * 1.45));
-      expect(high.effectRadius, greaterThan(low.effectRadius * 1.20));
+      // Mane buys most of its coverage with volley size and Light's rings, so
+      // the shot's own radius is the narrowest Beauty curve in the game. The
+      // claim is read at the anchors rather than between two average casters.
+      final perfect = createCosmicSpecialAbility(
+        origin: const Offset(0, 0),
+        baseAngle: 0,
+        family: 'mane',
+        element: 'Earth',
+        damage: 10,
+        maxHp: 120,
+        casterBeauty: kAbilityStatPerfect,
+        casterIntelligence: 5,
+        casterStrength: 5,
+      ).projectiles.first;
+      expect(high.effectRadius, greaterThan(low.effectRadius));
+      expect(perfect.effectRadius, greaterThan(low.effectRadius * 1.20));
       expect(high.life, greaterThan(low.life * 1.20));
       expect(high.turretDamage, greaterThan(low.turretDamage * 1.45));
       expect(high.turretInterval, lessThan(low.turretInterval));
@@ -1372,6 +1387,8 @@ void main() {
     });
 
     test('wing elements expose readable beam subtypes', () {
+      // Beauty's coverage curve is neutral at the real average stat, so that
+      // is what an authored width has to be read against.
       CosmicSpecialResult wing(String element) => createCosmicSpecialAbility(
         origin: const Offset(0, 0),
         baseAngle: 0,
@@ -1380,6 +1397,7 @@ void main() {
         damage: 10,
         maxHp: 100,
         targetPos: const Offset(120, 0),
+        casterBeauty: kAbilityStatAverage,
       );
 
       final lightning = wing('Lightning');
