@@ -4037,6 +4037,20 @@ class PlanetDungeonGame extends FlameGame {
     for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
       final creature = creatures[i];
       final comp = combatCompanions[i];
+      if (comp.currentHp <= 0 &&
+          comp.member.family.toLowerCase() == 'kin' &&
+          comp.member.element == 'Fire' &&
+          !comp.kinFireOrbitalFlameActive) {
+        comp.currentHp = max(1, (comp.maxHp * 0.25).round());
+        comp.kinFireOrbitalFlameActive = true;
+        comp.invincibleTimer = max(comp.invincibleTimer, 1.0);
+        _spawnAlchemyBurst(
+          creature.position,
+          producedElement: 'Fire',
+          particleCount: 24,
+          intensity: 1.2,
+        );
+      }
       creature.hp = (creature.maxHp * comp.hpPercent).clamp(
         0.0,
         creature.maxHp,
@@ -4132,6 +4146,9 @@ class PlanetDungeonGame extends FlameGame {
           _healCreature(creatures[i], comp, comp.blessingHealPerTick * dt);
         }
       }
+      if (i < creatures.length) {
+        _updateDungeonFamilyPassives(comp, creatures[i], dt);
+      }
     }
     _updateHornCasts(dt);
     _updateKinAutoCharges(dt);
@@ -4171,6 +4188,93 @@ class PlanetDungeonGame extends FlameGame {
     combatEnemies.removeWhere((e) => e.isDead || e.hp <= 0);
     _activeWingBeams.removeWhere((b) => b.dead);
     _trimProjectilePool();
+  }
+
+  void _updateDungeonFamilyPassives(
+    CosmicSurvivalCompanion comp,
+    DungeonCreature creature,
+    double dt,
+  ) {
+    final family = comp.member.family.toLowerCase();
+    if (family == 'kin' &&
+        comp.member.element == 'Fire' &&
+        comp.kinFireOrbitalFlameActive) {
+      comp.kinSteamStackDecayTimer -= dt;
+      if (comp.kinSteamStackDecayTimer <= 0) {
+        comp.kinSteamStackDecayTimer = 0.5;
+        _damageEnemiesNear(
+          creature.position,
+          70,
+          max(4.0, comp.abilityAtk * 0.6),
+          sourceSlot: comp.slotIndex,
+        );
+      }
+    }
+    if (family != 'horn') return;
+
+    final intelligence = AlchemonStatSystem.legacyGameplayRating(
+      comp.member.statIntelligence,
+    );
+    final scale = (1.0 + (intelligence - 4.0) * 0.10)
+        .clamp(0.85, 1.30)
+        .toDouble();
+    switch (comp.member.element) {
+      case 'Air':
+        final innerRadius = 90.0 * scale;
+        final auraRadius = 230.0 * scale;
+        for (final enemy in combatEnemies) {
+          if (enemy.isDead) continue;
+          final away = enemy.position - creature.position;
+          final distance = away.distance;
+          if (distance <= innerRadius || distance > auraRadius) continue;
+          final falloff =
+              1.0 - (distance - innerRadius) / (auraRadius - innerRadius);
+          enemy.position = _clampToBounds(
+            enemy.position +
+                away / distance * (80.0 * scale * (0.45 + 0.55 * falloff) * dt),
+            currentRoom,
+          );
+        }
+        break;
+      case 'Mud':
+        comp.hornMudTrailTimer -= dt;
+        if (comp.hornMudTrailTimer > 0) return;
+        final density = ((intelligence - 3.0) / 2.0).clamp(0.0, 1.0);
+        comp.hornMudTrailTimer = 1.45 + (0.58 - 1.45) * density;
+        combatProjectiles.add(
+          Projectile(
+            position: creature.position,
+            angle: 0,
+            element: 'Mud',
+            damage: 0,
+            life: 4.5,
+            speedMultiplier: 0,
+            stationary: true,
+            piercing: true,
+            radiusMultiplier: 1.2,
+            visualScale: 1.1,
+            visualStyle: ProjectileVisualStyle.sigil,
+            sourceSlotIndex: comp.slotIndex,
+            abilityFamily: 'horn',
+            tickEffect: AbilityEffectKind.slow,
+            effectPower: max(1.0, comp.abilityAtk * 0.08),
+            effectRadius: 48,
+            effectDuration: 1.4,
+          ),
+        );
+        break;
+      case 'Poison':
+        comp.hornPoisonAuraTimer -= dt;
+        if (comp.hornPoisonAuraTimer > 0) return;
+        comp.hornPoisonAuraTimer = 0.6;
+        _damageEnemiesNear(
+          creature.position,
+          140.0 * scale,
+          max(1.0, comp.abilityAtk * 0.18),
+          sourceSlot: comp.slotIndex,
+        );
+        break;
+    }
   }
 
   /// The ceiling survival has and the port did not.
@@ -5954,7 +6058,7 @@ class PlanetDungeonGame extends FlameGame {
       baseAngle: angle,
       family: comp.member.family,
       element: comp.member.element,
-      damage: comp.elemAtk * 1.15 * comp.damageAmp,
+      damage: comp.abilityAtk * 1.15 * comp.damageAmp,
       maxHp: comp.maxHp,
       casterPower: comp.member.statIntelligence,
       casterBeauty: comp.member.statBeauty,
@@ -6630,7 +6734,7 @@ class PlanetDungeonGame extends FlameGame {
         if (element == 'Poison' && !e.isDead) {
           e.hp -= CosmicAbilityRuntime.directDamageForEffect(
             AbilityEffectKind.poison,
-            power: comp.elemAtk * 0.40,
+            power: comp.abilityAtk * 0.40,
             targetHp: e.hp,
             targetHpFraction: e.hpFraction,
           );
@@ -6661,7 +6765,7 @@ class PlanetDungeonGame extends FlameGame {
         sourceSlotIndex: comp.slotIndex,
         abilityFamily: 'horn',
         tickEffect: isFire ? AbilityEffectKind.burn : AbilityEffectKind.slow,
-        effectPower: isFire ? comp.elemAtk * 0.30 : 0,
+        effectPower: isFire ? comp.abilityAtk * 0.30 : 0,
         effectRadius: isFire ? 30 : 26,
         effectDuration: isFire ? 1.2 : 1.6,
         snareRadius: isFire ? 0 : 26,
@@ -7162,7 +7266,7 @@ class PlanetDungeonGame extends FlameGame {
     // Mane+Plant rooted explosion — root tags spread to the splashed.
     if (enemy.maneRootSlot != null && enemy.maneRootTimer > 0) {
       const explodeRadius = 165.0;
-      final explodeDamage = (companion?.elemAtk ?? 4) * 2.1;
+      final explodeDamage = (companion?.abilityAtk ?? 4) * 2.1;
       for (final other in combatEnemies) {
         if (other.isDead || identical(other, enemy)) continue;
         if ((other.position - enemy.position).distance > explodeRadius) {
@@ -7220,7 +7324,7 @@ class PlanetDungeonGame extends FlameGame {
       const wispThreshold = 6;
       if (companion.abilityKillStacks >= wispThreshold) {
         companion.abilityKillStacks = 0;
-        final burstDamage = companion.elemAtk * 1.6;
+        final burstDamage = companion.abilityAtk * 1.6;
         const burstRadius = 220.0;
         _damageEnemiesNear(
           companion.position,
@@ -7278,7 +7382,7 @@ class PlanetDungeonGame extends FlameGame {
             tauntRadius: 100.0 * sizeScale,
             tauntStrength: 1.0,
             tickEffect: AbilityEffectKind.geyser,
-            effectPower: max(1.0, comp.elemAtk * 0.5),
+            effectPower: max(1.0, comp.abilityAtk * 0.5),
             effectRadius: 60.0 * sizeScale,
             effectDuration: 2.6 * durScale,
           ),
@@ -7313,7 +7417,7 @@ class PlanetDungeonGame extends FlameGame {
               position: enemy.position,
               angle: atan2(dir.dy, dir.dx),
               element: 'Fire',
-              damage: max(1.0, comp.elemAtk * 0.50),
+              damage: max(1.0, comp.abilityAtk * 0.50),
               life: 1.4,
               speedMultiplier: 1.5,
               homing: true,
@@ -7360,7 +7464,7 @@ class PlanetDungeonGame extends FlameGame {
       _ => true,
     };
     if (!allowedBySource) return;
-    final scale = companion.elemAtk * 0.20 + 4.0;
+    final scale = companion.abilityAtk * 0.20 + 4.0;
     final sizeScale = _effStatScale(
       companion.member.statBeauty,
       perPoint: 0.10,
@@ -7432,7 +7536,7 @@ class PlanetDungeonGame extends FlameGame {
             stationary: true,
             piercing: true,
             decoy: true,
-            decoyHp: (18.0 + companion.elemAtk * 0.6) * sizeScale,
+            decoyHp: (18.0 + companion.abilityAtk * 0.6) * sizeScale,
             tauntRadius: 130 * sizeScale,
             tauntStrength: 3.6,
             effectRadius: 38 * sizeScale,
@@ -14276,33 +14380,13 @@ class PlanetDungeonGame extends FlameGame {
             : (1.0 - beam.chargeTimer / descriptor.chargeTime)
                   .clamp(0.0, 1.0)
                   .toDouble();
-        final chargeRadius = 20 + 34 * progress;
-        canvas.drawCircle(
-          beam.origin,
-          chargeRadius,
-          Paint()..color = color.withValues(alpha: 0.18 * pulse),
+        drawAdvancedWingBeamCharge(
+          canvas: canvas,
+          origin: beam.origin,
+          color: color,
+          progress: progress,
+          time: _time,
         );
-        canvas.drawCircle(
-          beam.origin,
-          chargeRadius * 0.48,
-          Paint()
-            ..color = Color.lerp(
-              color,
-              Colors.white,
-              0.5,
-            )!.withValues(alpha: 0.36 * pulse),
-        );
-        for (var i = 0; i < 5; i++) {
-          final a = _time * 5.5 + i * pi * 2 / 5;
-          canvas.drawLine(
-            beam.origin + Offset(cos(a), sin(a)) * chargeRadius * 0.55,
-            beam.origin + Offset(cos(a + 0.22), sin(a + 0.22)) * chargeRadius,
-            Paint()
-              ..color = Colors.white.withValues(alpha: 0.45 * progress)
-              ..strokeWidth = 1.2
-              ..strokeCap = StrokeCap.round,
-          );
-        }
         continue;
       }
 
@@ -14313,59 +14397,15 @@ class PlanetDungeonGame extends FlameGame {
       }
 
       final end = _wingBeamEnd(beam);
-      final width = descriptor.width;
-      canvas.drawLine(
-        beam.origin,
-        end,
-        Paint()
-          ..color = color.withValues(alpha: 0.18 * pulse * fade)
-          ..strokeWidth = width * 3.0
-          ..strokeCap = StrokeCap.round,
+      drawAdvancedAbilityBeam(
+        canvas: canvas,
+        start: beam.origin,
+        end: end,
+        color: color,
+        width: descriptor.width,
+        alpha: pulse * fade,
+        time: _time,
       );
-      canvas.drawLine(
-        beam.origin,
-        end,
-        Paint()
-          ..color = color.withValues(alpha: 0.54 * pulse * fade)
-          ..strokeWidth = width * 1.35
-          ..strokeCap = StrokeCap.round,
-      );
-      canvas.drawLine(
-        beam.origin,
-        end,
-        Paint()
-          ..color = Color.lerp(
-            color,
-            Colors.white,
-            0.72,
-          )!.withValues(alpha: 0.86 * pulse * fade)
-          ..strokeWidth = max(2.0, width * 0.38)
-          ..strokeCap = StrokeCap.round,
-      );
-
-      final dir = end - beam.origin;
-      final dist = dir.distance;
-      if (dist > 0.01) {
-        final unit = dir / dist;
-        final perp = Offset(-unit.dy, unit.dx);
-        for (var i = 0; i < 5; i++) {
-          final t = ((_time * 1.8 + i * 0.19) % 1.0).toDouble();
-          final p =
-              beam.origin +
-              unit * dist * t +
-              perp * sin(t * pi * 4 + i) * width * 0.55;
-          canvas.drawCircle(
-            p,
-            1.3 + width * 0.08,
-            Paint()
-              ..color = Color.lerp(
-                color,
-                Colors.white,
-                0.45,
-              )!.withValues(alpha: 0.58 * fade),
-          );
-        }
-      }
     }
   }
 
@@ -14375,65 +14415,30 @@ class PlanetDungeonGame extends FlameGame {
     Color color,
     double alphaScale,
   ) {
-    final r = beam.descriptor.radius;
-    canvas.drawCircle(
-      beam.origin,
-      r,
-      Paint()..color = color.withValues(alpha: 0.055 * alphaScale),
+    drawAdvancedWingBeamRing(
+      canvas: canvas,
+      center: beam.origin,
+      radius: beam.descriptor.radius,
+      width: beam.descriptor.width,
+      color: color,
+      element: beam.descriptor.element,
+      alpha: alphaScale,
+      time: _time,
     );
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = beam.descriptor.width * 0.55
-      ..color = color.withValues(alpha: 0.42 * alphaScale);
-    for (var i = 0; i < 3; i++) {
-      canvas.drawArc(
-        Rect.fromCircle(center: beam.origin, radius: r * (0.78 + i * 0.1)),
-        _time * (0.8 + i * 0.25) + i * pi * 2 / 3,
-        pi * 0.72,
-        false,
-        ringPaint,
-      );
-    }
-    final hot = Color.lerp(color, Colors.white, 0.62)!;
-    for (var i = 0; i < 10; i++) {
-      final a = _time * 1.3 + i * pi * 2 / 10;
-      final p = beam.origin + Offset(cos(a), sin(a)) * r;
-      canvas.drawCircle(
-        p,
-        2.0,
-        Paint()..color = hot.withValues(alpha: 0.45 * alphaScale),
-      );
-    }
   }
 
   /// Kin charged-laser flashes: three-layer beam that fades fast.
   void _renderKinBeams(Canvas canvas) {
     for (final beam in _kinBeams) {
       final fade = (beam.life / 0.34).clamp(0.0, 1.0).toDouble();
-      canvas.drawLine(
-        beam.origin,
-        beam.end,
-        Paint()
-          ..color = beam.color.withValues(alpha: 0.16 * fade)
-          ..strokeWidth = 9
-          ..strokeCap = StrokeCap.round,
-      );
-      canvas.drawLine(
-        beam.origin,
-        beam.end,
-        Paint()
-          ..color = beam.color.withValues(alpha: 0.5 * fade)
-          ..strokeWidth = 3.4
-          ..strokeCap = StrokeCap.round,
-      );
-      canvas.drawLine(
-        beam.origin,
-        beam.end,
-        Paint()
-          ..color = Colors.white.withValues(alpha: 0.85 * fade)
-          ..strokeWidth = 1.4
-          ..strokeCap = StrokeCap.round,
+      drawAdvancedAbilityBeam(
+        canvas: canvas,
+        start: beam.origin,
+        end: beam.end,
+        color: beam.color,
+        width: 3.4,
+        alpha: fade,
+        time: _time,
       );
     }
   }
@@ -14472,7 +14477,30 @@ class PlanetDungeonGame extends FlameGame {
       if (_drawSurvivalProjectileVisual(canvas, p, color)) {
         continue;
       }
-      _drawSurvivalFallbackProjectile(canvas, p, color);
+      drawGenericProjectileVisual(
+        canvas: canvas,
+        projectile: p,
+        position: p.position,
+        color: color,
+        time: _time,
+      );
+      drawProjectileRoleOverlay(
+        canvas: canvas,
+        projectile: p,
+        position: p.position,
+        color: color,
+        time: _time,
+      );
+      if (p.decoy) {
+        canvas.drawCircle(
+          p.position,
+          12 * p.visualScale,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5
+            ..color = color.withValues(alpha: 0.2),
+        );
+      }
     }
   }
 
@@ -14482,6 +14510,24 @@ class PlanetDungeonGame extends FlameGame {
     Color color,
   ) {
     final position = projectile.position;
+    if (drawKinSpiritWispVisual(
+      canvas: canvas,
+      projectile: projectile,
+      position: position,
+      color: color,
+      time: _time,
+    )) {
+      return true;
+    }
+    if (drawMysticOrbitalProjectileVisual(
+      canvas: canvas,
+      projectile: projectile,
+      position: position,
+      color: color,
+      time: _time,
+    )) {
+      return true;
+    }
     if (projectile.abilityFamily == 'kin' &&
         projectile.element == 'Spirit' &&
         projectile.followSourceCompanion) {
@@ -14661,237 +14707,6 @@ class PlanetDungeonGame extends FlameGame {
       color: color,
       time: _time,
     );
-  }
-
-  void _drawSurvivalFallbackProjectile(
-    Canvas canvas,
-    Projectile projectile,
-    Color color,
-  ) {
-    final position = projectile.position;
-    final visualScale = projectile.visualScale;
-    switch (projectile.visualStyle) {
-      case ProjectileVisualStyle.meteor:
-        final tailLen = 22.0 * visualScale;
-        final tailStart =
-            position -
-            Offset(cos(projectile.angle), sin(projectile.angle)) * tailLen;
-        canvas.drawLine(
-          tailStart,
-          position,
-          Paint()
-            ..shader = ui.Gradient.linear(
-              tailStart,
-              position,
-              [
-                color.withValues(alpha: 0.02),
-                color.withValues(alpha: 0.35),
-                Color.lerp(color, Colors.white, 0.35)!,
-              ],
-              const [0.0, 0.6, 1.0],
-            )
-            ..strokeWidth = 7.5 * visualScale
-            ..strokeCap = StrokeCap.round,
-        );
-        canvas.drawCircle(
-          position,
-          6.0 * visualScale,
-          Paint()..color = color.withValues(alpha: 0.92),
-        );
-        canvas.drawCircle(
-          position -
-              Offset(cos(projectile.angle), sin(projectile.angle)) *
-                  (2.5 * visualScale),
-          3.2 * visualScale,
-          Paint()..color = Color.lerp(color, const Color(0xFF2B1A12), 0.55)!,
-        );
-        canvas.drawCircle(
-          position +
-              Offset(cos(projectile.angle + 0.6), sin(projectile.angle + 0.6)) *
-                  (1.8 * visualScale),
-          1.7 * visualScale,
-          Paint()..color = const Color(0xFFFFF2D6).withValues(alpha: 0.85),
-        );
-        break;
-      case ProjectileVisualStyle.slash:
-        final len = 8.0 * visualScale;
-        canvas.drawLine(
-          position - Offset(cos(projectile.angle), sin(projectile.angle)) * len,
-          position + Offset(cos(projectile.angle), sin(projectile.angle)) * len,
-          Paint()
-            ..color = color.withValues(alpha: 0.9)
-            ..strokeWidth = 2.5
-            ..strokeCap = StrokeCap.round,
-        );
-        break;
-      case ProjectileVisualStyle.dart:
-        canvas.drawCircle(
-          position,
-          2 * visualScale,
-          Paint()..color = color.withValues(alpha: 0.9),
-        );
-        canvas.drawCircle(
-          position,
-          4 * visualScale,
-          Paint()..color = color.withValues(alpha: 0.15),
-        );
-        break;
-      case ProjectileVisualStyle.sigil:
-      case ProjectileVisualStyle.hornImpact:
-        final pulse = 0.7 + 0.3 * sin(_time * 4);
-        canvas.drawCircle(
-          position,
-          4 * visualScale,
-          Paint()..color = color.withValues(alpha: 0.4 * pulse),
-        );
-        canvas.drawCircle(
-          position,
-          2 * visualScale,
-          Paint()..color = Colors.white.withValues(alpha: 0.6 * pulse),
-        );
-        break;
-      case ProjectileVisualStyle.kinOrbital:
-        final radius = (1.6 * visualScale).clamp(1.4, 5.8).toDouble();
-        final pulse = 0.78 + 0.22 * sin(_time * 3.4 + projectile.life);
-        canvas.drawCircle(
-          position,
-          radius * 2.6,
-          Paint()..color = color.withValues(alpha: 0.20 * pulse),
-        );
-        for (var i = 0; i < 2; i++) {
-          final a = _time * 2.4 + i * pi;
-          canvas.drawCircle(
-            position + Offset(cos(a), sin(a)) * radius * 1.9,
-            radius * 0.42,
-            Paint()..color = color.withValues(alpha: 0.75 * pulse),
-          );
-        }
-        canvas.drawCircle(
-          position,
-          radius,
-          Paint()..color = color.withValues(alpha: 0.92 * pulse),
-        );
-        canvas.drawCircle(
-          position,
-          radius * 0.42,
-          Paint()..color = Colors.white.withValues(alpha: 0.85 * pulse),
-        );
-        break;
-      case ProjectileVisualStyle.mysticOrbital:
-        canvas.drawCircle(
-          position,
-          3 * visualScale,
-          Paint()..color = color.withValues(alpha: 0.6),
-        );
-        canvas.drawCircle(
-          position,
-          6 * visualScale,
-          Paint()..color = color.withValues(alpha: 0.12),
-        );
-        break;
-      case ProjectileVisualStyle.letShard:
-        final dir = Offset(cos(projectile.angle), sin(projectile.angle));
-        final perp = Offset(-dir.dy, dir.dx);
-        final tailLen = 30.0 * visualScale;
-        final tail = position - dir * tailLen;
-        canvas.drawLine(
-          tail,
-          position,
-          Paint()
-            ..shader = ui.Gradient.linear(
-              tail,
-              position,
-              [
-                color.withValues(alpha: 0.0),
-                color.withValues(alpha: 0.16),
-                Color.lerp(color, Colors.white, 0.18)!,
-              ],
-              const [0.0, 0.58, 1.0],
-            )
-            ..strokeWidth = 5.4 * visualScale
-            ..strokeCap = StrokeCap.round,
-        );
-        final shard = Path()
-          ..moveTo(
-            position.dx + dir.dx * (8.5 * visualScale),
-            position.dy + dir.dy * (8.5 * visualScale),
-          )
-          ..lineTo(
-            position.dx + perp.dx * (4.2 * visualScale),
-            position.dy + perp.dy * (4.2 * visualScale),
-          )
-          ..lineTo(
-            position.dx - dir.dx * (6.0 * visualScale),
-            position.dy - dir.dy * (6.0 * visualScale),
-          )
-          ..lineTo(
-            position.dx - perp.dx * (4.2 * visualScale),
-            position.dy - perp.dy * (4.2 * visualScale),
-          )
-          ..close();
-        canvas.drawPath(
-          shard,
-          Paint()
-            ..shader = ui.Gradient.linear(
-              tail,
-              position + dir * (10.0 * visualScale),
-              [
-                Color.lerp(color, const Color(0xFF1A1014), 0.42)!,
-                color,
-                Color.lerp(color, Colors.white, 0.55)!,
-              ],
-              const [0.0, 0.62, 1.0],
-            ),
-        );
-        canvas.drawPath(
-          shard,
-          Paint()
-            ..color = Color.lerp(
-              color,
-              Colors.white,
-              0.42,
-            )!.withValues(alpha: 0.8)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.1 * visualScale,
-        );
-        canvas.drawCircle(
-          position - dir * (1.2 * visualScale),
-          2.4 * visualScale,
-          Paint()..color = const Color(0xFFFFF4DC).withValues(alpha: 0.85),
-        );
-        break;
-      case ProjectileVisualStyle.standard:
-        canvas.drawCircle(
-          position,
-          3 * visualScale,
-          Paint()..color = color.withValues(alpha: 0.8),
-        );
-        canvas.drawCircle(
-          position,
-          5 * visualScale,
-          Paint()..color = color.withValues(alpha: 0.15),
-        );
-        break;
-    }
-
-    drawProjectileRoleOverlay(
-      canvas: canvas,
-      projectile: projectile,
-      position: position,
-      color: color,
-      time: _time,
-    );
-
-    if (projectile.decoy) {
-      canvas.drawCircle(
-        position,
-        12 * visualScale,
-        Paint()
-          ..color = color.withValues(alpha: 0.2)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5,
-      );
-    }
   }
 
   void _renderCombatEnemies(Canvas canvas) {
@@ -15081,29 +14896,25 @@ class PlanetDungeonGame extends FlameGame {
       final chargingComp = i < combatCompanions.length
           ? combatCompanions[i]
           : null;
+      if (chargingComp != null &&
+          chargingComp.member.family.toLowerCase() == 'kin') {
+        drawAdvancedKinSupportAura(
+          canvas: canvas,
+          element: chargingComp.member.element,
+          color: ec,
+          time: _time,
+          lightningActive: chargingComp.kinLightningChargeTimer > 0,
+          fireOrbitalActive: chargingComp.kinFireOrbitalFlameActive,
+        );
+      }
       if (chargingComp != null && chargingComp.chargeTimer > 0) {
-        final chargeWidth = (chargingComp.chargeSweepRadius / 48.0).clamp(
-          0.70,
-          2.20,
+        drawAdvancedChargeTrail(
+          canvas: canvas,
+          color: ec,
+          angle: c.angle,
+          sweepRadius: chargingComp.chargeSweepRadius,
+          overshootDistance: chargingComp.chargeOvershootDistance,
         );
-        final trailScale = (chargingComp.chargeOvershootDistance / 80.0).clamp(
-          0.65,
-          2.10,
-        );
-        canvas.drawCircle(
-          Offset.zero,
-          28 * chargeWidth,
-          Paint()..color = ec.withValues(alpha: 0.35),
-        );
-        for (var t = 0; t < 4; t++) {
-          final trailAngle = c.angle + pi;
-          final trailDist = (7.0 + t * 7.0) * trailScale;
-          canvas.drawCircle(
-            Offset(cos(trailAngle) * trailDist, sin(trailAngle) * trailDist),
-            (5.0 - t) * chargeWidth,
-            Paint()..color = ec.withValues(alpha: (1.0 - t / 4.0) * 0.34),
-          );
-        }
       }
       if (isActive) {
         // Underfoot selection marker (ground reticle, not a bubble).
@@ -15167,6 +14978,17 @@ class PlanetDungeonGame extends FlameGame {
             0.0,
             1.0,
           );
+          final target =
+              castComp.kinAutoChargeEnemy?.position ??
+              castComp.kinAutoChargeTarget;
+          drawAdvancedKinCharge(
+            canvas: canvas,
+            color: ec,
+            progress: progress,
+            time: _time,
+            aimDirection: target == null ? null : target - c.position,
+          );
+          progress = -1;
         } else if (castComp.windUpTimer > 0 ||
             castComp.hornPostDashWindUpTimer > 0) {
           progress = 0.5 + 0.5 * sin(_time * 7).abs();
@@ -15193,21 +15015,11 @@ class PlanetDungeonGame extends FlameGame {
           ? combatCompanions[i].shieldHp
           : 0;
       if (shieldHp > 0) {
-        final shieldPaint = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.8
-          ..strokeCap = StrokeCap.round
-          ..color = const Color(0xFF8FE6FF).withValues(alpha: 0.62);
-        final rect = Rect.fromCircle(center: Offset.zero, radius: 23);
-        for (var k = 0; k < 3; k++) {
-          canvas.drawArc(
-            rect,
-            _time * 1.6 + k * pi * 2 / 3,
-            pi * 0.42,
-            false,
-            shieldPaint,
-          );
-        }
+        drawAdvancedCompanionShield(canvas: canvas, time: _time);
+      }
+      if (i < combatCompanions.length &&
+          combatCompanions[i].blessingTimer > 0) {
+        drawAdvancedBlessingAura(canvas: canvas, time: _time);
       }
 
       final ticker = c.ticker;

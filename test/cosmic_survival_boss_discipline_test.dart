@@ -204,34 +204,27 @@ void main() {
     });
 
     test('wave mutators only appear on eligible non-boss waves', () {
-      expect(CosmicSurvivalSpawner.previewMutatorForWave(5), isNull);
-      expect(CosmicSurvivalSpawner.previewMutatorForWave(6), isNull);
-      expect(CosmicSurvivalSpawner.previewMutatorForWave(10), isNull);
-      expect(
-        CosmicSurvivalSpawner.previewMutatorForWave(7),
+      // Which modifier a wave gets is rolled per run; what a wave can roll is
+      // fixed, and that is what this pins.
+      expect(CosmicSurvivalSpawner.mutatorPoolForWave(5), isEmpty);
+      expect(CosmicSurvivalSpawner.mutatorPoolForWave(6), isEmpty);
+      expect(CosmicSurvivalSpawner.mutatorPoolForWave(10), isEmpty);
+      expect(CosmicSurvivalSpawner.mutatorPoolForWave(7), [
         SurvivalWaveMutator.orbSiege,
-      );
-      expect(CosmicSurvivalSpawner.previewMutatorForWave(11), isNotNull);
+      ]);
+      expect(CosmicSurvivalSpawner.mutatorPoolForWave(11), isNotEmpty);
       expect(
-        CosmicSurvivalSpawner.mutatorLabel(
-          CosmicSurvivalSpawner.previewMutatorForWave(11),
-        ),
-        isNotEmpty,
+        CosmicSurvivalSpawner.mutatorPoolForWave(17),
+        isNot(contains(SurvivalWaveMutator.shatteredSpace)),
       );
       expect(
-        CosmicSurvivalSpawner.mutatorDescription(
-          CosmicSurvivalSpawner.previewMutatorForWave(11),
-        ),
-        isNotEmpty,
+        CosmicSurvivalSpawner.mutatorPoolForWave(28),
+        contains(SurvivalWaveMutator.shatteredSpace),
       );
-      expect(
-        CosmicSurvivalSpawner.previewMutatorForWave(17),
-        isNot(SurvivalWaveMutator.shatteredSpace),
-      );
-      expect(
-        CosmicSurvivalSpawner.previewMutatorForWave(28),
-        SurvivalWaveMutator.shatteredSpace,
-      );
+      for (final mutator in SurvivalWaveMutator.values) {
+        expect(CosmicSurvivalSpawner.mutatorLabel(mutator), isNotEmpty);
+        expect(CosmicSurvivalSpawner.mutatorDescription(mutator), isNotEmpty);
+      }
     });
   });
 }

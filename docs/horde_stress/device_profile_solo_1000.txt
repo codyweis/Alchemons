@@ -1,0 +1,94 @@
+Running build hooks...Running build hooks...
+== SELF (of 3808 samples over 6s) ==
+  6.5%  _updateCompanionProjectiles.<anonymous closure>
+  6.2%  ListIterator.moveNext
+  4.2%  CosmicSurvivalGame._visitEnemiesNear
+  3.1%  CosmicSurvivalGame._withinRange
+  2.0%  [native] pthread_getspecific
+  1.9%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0x4fd0b8
+  1.9%  ListIterator.current
+  1.2%  __Map&_LinkedHashBase&MapMixin&_HashBase&_OperatorEqualsAndHashCode&_LinkedHashMapMixin._getValueOrData
+  1.2%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0x4fcf70
+  1.0%  _GrowableList.elementAt
+  0.9%  CosmicSurvivalGame._distanceSquared
+  0.8%  _HashBase._hashPattern
+  0.6%  [native] sin
+  0.6%  WhereIterator.moveNext
+  0.6%  _Painter.lavaPool
+  0.5%  _Double.compareTo
+  0.5%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0xb61ce0
+  0.5%  _GrowableList.length
+  0.5%  _List.[]=
+  0.5%  [native] pthread_mutex_unlock
+  0.4%  _GrowableList.add
+  0.4%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0xb5c600
+  0.4%  [native] pthread_mutex_lock
+  0.4%  _drawSurvivalSwarmEnemy
+  0.4%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0x4fd098
+  0.4%  [native] [Native] /apex/com.android.runtime/lib64/bionic/libc.so+0x613cc
+  0.4%  _OneByteString.==
+  0.4%  CosmicSurvivalGame._updateEnemies
+  0.4%  __ConstMap&_LinkedHashImmutableBase&MapMixin&_HashBase&_OperatorEqualsAndCanonicalHashCode&_LinkedHashMapMixin._getValueOrData
+  0.4%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0xb68244
+  0.4%  _NativeCanvas.__drawCircle$Method$FfiNative
+  0.4%  [native] malloc
+  0.3%  Paint.color=
+  0.3%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0xb681f4
+  0.3%  _OneByteString._concatAll
+  0.3%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0xb8fe80
+  0.3%  drawSurvivalEnemy
+  0.3%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0x4fe160
+  0.3%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0x4fe168
+  0.3%  __Map&_LinkedHashBase&MapMixin&_HashBase&_OperatorEqualsAndHashCode&_LinkedHashMapMixin.putIfAbsent
+  0.3%  _GrowableList._grow
+  0.3%  CosmicSurvivalGame.update
+  0.3%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0xb8b1f4
+  0.3%  CosmicSurvivalGame._pickCompanionTargetChoice
+  0.3%  [native] [Native] /data/app/~~IIKzVGE6e1SzpfEHe2kmYg==/com.luck3yapps.alchemons-3Mexrb7uKLzApbEjF6QhvA==/base.apk!/lib/arm64-v8a/libflutter.so+0x4fd0b0
+
+== INCLUSIVE (of 3808 samples over 6s) ==
+ 93.8%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding._invokeFrameCallback
+ 63.8%  _MixinApplication205&BindingBase&GestureBinding&SchedulerBinding&ServicesBinding&PaintingBinding&SemanticsBinding&RendererBinding&WidgetsBinding.drawFrame
+ 63.8%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding.handleDrawFrame
+ 63.8%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding._handleDrawFrame
+ 63.7%  _MixinApplication204&BindingBase&GestureBinding&SchedulerBinding&ServicesBinding&PaintingBinding&SemanticsBinding&RendererBinding._handlePersistentFrameCallback
+ 63.7%  _invoke
+ 63.7%  PlatformDispatcher._drawFrame
+ 63.7%  _drawFrame
+ 62.6%  _MixinApplication204&BindingBase&GestureBinding&SchedulerBinding&ServicesBinding&PaintingBinding&SemanticsBinding&RendererBinding.drawFrame
+ 57.9%  PipelineOwner.flushPaint
+ 57.8%  PaintingContext._repaintCompositedChild
+ 57.8%  PaintingContext.repaintCompositedChild
+ 57.4%  RenderObject._paintWithContext
+ 57.2%  GameRenderBox.paint
+ 56.9%  CosmicSurvivalGame.render
+ 37.3%  CosmicSurvivalGame._renderEnemy
+ 37.1%  drawSurvivalEnemy
+ 33.5%  HordeArenaGame.update
+ 31.7%  _invoke1
+ 31.7%  PlatformDispatcher._beginFrame
+ 31.7%  _beginFrame
+ 31.6%  _drawSurvivalSwarmEnemy
+ 31.5%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding._handleBeginFrame
+ 31.5%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding.handleBeginFrame
+ 31.0%  _NativeCanvas.drawCircle
+ 30.9%  CosmicSurvivalGame.update
+ 30.7%  _NativeCanvas._drawCircle
+ 30.5%  _NativeCanvas.__drawCircle$Method$FfiNative
+ 30.3%  __Map&_LinkedHashBase&MapMixin&_HashBase&_OperatorEqualsAndHashCode&_LinkedHashMapMixin.forEach
+ 30.1%  handleBeginFrame.<anonymous closure>
+ 29.9%  Ticker._tick
+ 29.8%  GameLoop._tick
+ 29.8%  GameRenderBox.gameLoopCallback
+ 29.8%  gameLoopCallback.gameLoopCallback
+ 23.5%  CosmicSurvivalGame._updateCompanionProjectiles
+ 21.5%  CosmicSurvivalGame._visitEnemiesNear
+ 17.6%  CosmicSurvivalGame._renderCompanionProjectile
+ 17.3%  drawMaskElementalProjectileVisual
+ 17.3%  drawAlchemicalManeVisual
+ 16.8%  _Painter.zone
+ 16.7%  _Painter.lavaPool
+ 10.3%  _updateCompanionProjectiles.<anonymous closure>
+  9.0%  _Painter.glow
+  7.3%  _NativeCanvas.drawPath
+  7.3%  _NativeCanvas.__drawPath$Method$FfiNative

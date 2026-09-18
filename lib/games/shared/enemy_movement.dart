@@ -20,6 +20,9 @@ import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 /// Trait is deliberately absent — a trait adds a mechanic, it does not steer.
 /// That separation is the whole point of the change: under the old scheme a
 /// `crusher` silently discarded whatever its role wanted.
+/// Where a [EnemyConduct.siege] body stops and starts shelling.
+const double kSiegeHoldRange = 820;
+
 Offset conductMoveVector({
   required EnemyConduct conduct,
   required double dist,
@@ -40,6 +43,16 @@ Offset conductMoveVector({
 
   EnemyConduct.orbit => (norm * 0.55 + tangent * 0.85),
   EnemyConduct.standoff => dist > 240 ? norm : tangent * 0.8,
+
+  // Parks at [kSiegeHoldRange] and strafes there. That distance is the whole
+  // point: it is past what a companion parked on the ship can answer, so the
+  // player either brings something with reach or goes out to it.
+  EnemyConduct.siege =>
+    dist > kSiegeHoldRange
+        ? norm * 0.85
+        : dist < kSiegeHoldRange - 90
+        ? -norm * 0.5
+        : tangent * 0.35,
 
   // Open-world conducts, previously expressed only as EnemyBehavior and never
   // as a movement vector — the world systems steered them ad hoc.

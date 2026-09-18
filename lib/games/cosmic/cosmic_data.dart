@@ -75,12 +75,94 @@ const List<String> kCosmicAuthoredAbilityFamilies = [
 
 /// Families covered by the design transcription in docs.
 const List<String> kCosmicTranscribedAbilityFamilies = [
-  'mane',
+  'horn',
   'wing',
-  'mask',
   'let',
   'pip',
+  'mane',
+  'mask',
+  'kin',
+  'mystic',
 ];
+
+/// The stats that pay for each family's special ability power.
+///
+/// These weights are shared by Survival, open Cosmic, and planet dungeons.
+/// Strength buys physical impact, Beauty buys elemental potency, and
+/// Intelligence buys precision/control. Speed is intentionally absent here:
+/// it always improves cadence through cooldown reduction instead of secretly
+/// changing damage.
+({double strength, double intelligence, double beauty})
+cosmicFamilyAbilityStatWeights(String family) => switch (family.toLowerCase()) {
+  'horn' => (strength: 0.65, intelligence: 0.35, beauty: 0.00),
+  'wing' => (strength: 0.00, intelligence: 0.30, beauty: 0.70),
+  'let' => (strength: 0.65, intelligence: 0.00, beauty: 0.35),
+  'pip' => (strength: 0.55, intelligence: 0.00, beauty: 0.45),
+  'mane' => (strength: 0.80, intelligence: 0.20, beauty: 0.00),
+  'mask' => (strength: 0.00, intelligence: 0.35, beauty: 0.65),
+  'kin' => (strength: 0.25, intelligence: 0.15, beauty: 0.60),
+  'mystic' => (strength: 0.00, intelligence: 0.25, beauty: 0.75),
+  _ => (strength: 0.00, intelligence: 0.00, beauty: 1.00),
+};
+
+/// The stats that decide how often each family's special comes back.
+///
+/// Basic attacks are Speed's alone and always will be — that is the stat's
+/// plain promise. A *special* is a different question, and the answer should
+/// differ by family: a Pip's trick shot comes back on reflex and calculation
+/// in equal measure, while a Kin's support is almost entirely a matter of
+/// working out when it is needed. Strength appears only where the recovery is
+/// physical — a Horn has to stop, turn and brace before it can charge again.
+///
+/// Weights sum to 1. The blended stat then runs through the same cadence
+/// curve Speed uses, so a family whose special leans on Intelligence still
+/// gets the same shape of return on it.
+({double speed, double intelligence, double strength})
+cosmicFamilySpecialCooldownWeights(String family) =>
+    switch (family.toLowerCase()) {
+      // Reflex and calculation, evenly.
+      'pip' => (speed: 0.50, intelligence: 0.50, strength: 0.00),
+      // A skirmisher's blade work; mostly reflex.
+      'mane' => (speed: 0.60, intelligence: 0.40, strength: 0.00),
+      // Bracing and turning a heavy body is physical recovery.
+      'horn' => (speed: 0.70, intelligence: 0.00, strength: 0.30),
+      // Artillery reloads on ranging and arithmetic, not on twitch.
+      'let' => (speed: 0.30, intelligence: 0.70, strength: 0.00),
+      // A beam is aimed before it is fired.
+      'wing' => (speed: 0.40, intelligence: 0.60, strength: 0.00),
+      // Placing a trap well is entirely a matter of reading the field.
+      'mask' => (speed: 0.25, intelligence: 0.75, strength: 0.00),
+      // Support is knowing when, far more than being quick.
+      'kin' => (speed: 0.20, intelligence: 0.80, strength: 0.00),
+      // A world is willed into being; reflex barely enters into it.
+      'mystic' => (speed: 0.15, intelligence: 0.85, strength: 0.00),
+      _ => (speed: 1.00, intelligence: 0.00, strength: 0.00),
+    };
+
+/// The single stat a family's special cadence reads, blended from its weights.
+double cosmicFamilySpecialCooldownStat({
+  required String family,
+  required double speed,
+  required double intelligence,
+  required double strength,
+}) {
+  final w = cosmicFamilySpecialCooldownWeights(family);
+  return speed * w.speed +
+      intelligence * w.intelligence +
+      strength * w.strength;
+}
+
+double cosmicFamilyAbilityRating({
+  required String family,
+  required double strength,
+  required double intelligence,
+  required double beauty,
+}) {
+  final weights = cosmicFamilyAbilityStatWeights(family);
+  return strength * weights.strength +
+      intelligence * weights.intelligence +
+      beauty * weights.beauty;
+}
 
 const Map<String, List<String>> kCosmicAbilityContractElementsByFamily = {
   'horn': kCosmicAbilityElements,
@@ -4415,6 +4497,13 @@ class Projectile {
   /// If true, projectile does not move — acts as a mine/trap.
   final bool stationary;
 
+  /// A void hole that only throws bodies out: it pulls, then slings whatever
+  /// reaches it clear of the field and does no damage at all. Mask+Dark's
+  /// board says "enemies that enter are sent out of the area", and a hole that
+  /// also ground them down (and executed the nearly-dead) was quietly a
+  /// damage ability wearing a crowd-control coat.
+  final bool voidEjectOnly;
+
   /// Orbital state: if set, projectile orbits around this center point.
   Offset? orbitCenter;
 
@@ -4701,6 +4790,7 @@ class Projectile {
     this.visualScale = 1.0,
     this.visualStyle = ProjectileVisualStyle.standard,
     this.stationary = false,
+    this.voidEjectOnly = false,
     this.orbitCenter,
     this.orbitAngle = 0,
     this.orbitRadius = 0,
@@ -4968,7 +5058,6 @@ CosmicSpecialResult createCosmicSpecialAbility({
   double casterBeautyPotential = 50,
   Offset? targetPos,
 }) {
-  final normalizedFamily = family.toLowerCase();
   CosmicSpecialResult rawResult;
   switch (family.toLowerCase()) {
     case 'horn':
@@ -5077,255 +5166,7 @@ CosmicSpecialResult createCosmicSpecialAbility({
       break;
   }
 
-  return _applyGuardianFamilyThresholds(
-    rawResult,
-    family: normalizedFamily,
-    casterPower: casterPower,
-    casterBeauty: casterBeauty,
-    casterIntelligence: casterIntelligence,
-    casterStrength: casterStrength,
-  );
-}
-
-int _guardianStatTier(double stat) {
-  final s = max(0.5, stat);
-  if (s < 1.0) return 0;
-  if (s < 2.0) return 1;
-  if (s < 3.0) return 2;
-  if (s < 4.0) return 3;
-  if (s < 4.6) return 4;
-  return 5;
-}
-
-int _dualGuardianTier(
-  double a,
-  double b, {
-  double aWeight = 0.5,
-  bool hardMin = false,
-}) {
-  final bWeight = (1.0 - aWeight).clamp(0.0, 1.0);
-  final weighted = (max(0.5, a) * aWeight) + (max(0.5, b) * bWeight);
-  final weightedTier = _guardianStatTier(weighted);
-  final aTier = _guardianStatTier(a);
-  final bTier = _guardianStatTier(b);
-  if (hardMin) return min(weightedTier, min(aTier, bTier));
-  return min(weightedTier, min(aTier, bTier) + 1);
-}
-
-double _guardianFamilySignal({
-  required String family,
-  required double casterPower,
-  required double casterBeauty,
-  required double casterIntelligence,
-  required double casterStrength,
-}) {
-  final beauty = max(0.5, casterBeauty);
-  final intelligence = max(0.5, casterIntelligence);
-  final strength = max(0.5, casterStrength);
-
-  return switch (family) {
-    'horn' => strength * 0.62 + intelligence * 0.38,
-    'wing' => intelligence * 0.60 + beauty * 0.40,
-    'let' => beauty * 0.62 + intelligence * 0.38,
-    'pip' => intelligence * 0.55 + beauty * 0.45,
-    'mane' => strength * 0.62 + beauty * 0.38,
-    'mask' => intelligence * 0.58 + beauty * 0.42,
-    'kin' => beauty * 0.50 + intelligence * 0.50,
-    'mystic' => beauty * 0.46 + intelligence * 0.40 + strength * 0.14,
-    _ => max(beauty, intelligence),
-  };
-}
-
-int _guardianFamilyTier({
-  required String family,
-  required double casterPower,
-  required double casterBeauty,
-  required double casterIntelligence,
-  required double casterStrength,
-}) {
-  return switch (family) {
-    'horn' => _dualGuardianTier(
-      casterStrength,
-      casterIntelligence,
-      aWeight: 0.62,
-    ),
-    'wing' => _dualGuardianTier(
-      casterIntelligence,
-      casterBeauty,
-      aWeight: 0.60,
-    ),
-    'let' => _dualGuardianTier(
-      casterBeauty,
-      casterIntelligence,
-      aWeight: 0.62,
-      hardMin: true,
-    ),
-    // Pip/Mask prefer speed in design, but speed is not passed into this
-    // factory, so we use Int/Beauty as the tactical scaling proxy.
-    'pip' => _dualGuardianTier(casterIntelligence, casterBeauty, aWeight: 0.55),
-    'mane' => _dualGuardianTier(casterStrength, casterBeauty, aWeight: 0.62),
-    'mask' => _dualGuardianTier(
-      casterIntelligence,
-      casterBeauty,
-      aWeight: 0.58,
-    ),
-    // Kin is a hard dual gate: both Beauty and Intelligence must be present.
-    'kin' => _dualGuardianTier(
-      casterBeauty,
-      casterIntelligence,
-      aWeight: 0.50,
-      hardMin: true,
-    ),
-    'mystic' => (() {
-      final core = min(
-        _guardianStatTier(casterBeauty),
-        _guardianStatTier(casterIntelligence),
-      );
-      final strengthTier = _guardianStatTier(casterStrength);
-      final burstBias = strengthTier >= 4
-          ? 1
-          : strengthTier <= 1
-          ? -1
-          : 0;
-      return (core + burstBias).clamp(0, 5);
-    })(),
-    _ => _guardianStatTier(max(casterBeauty, casterIntelligence)),
-  };
-}
-
-CosmicSpecialResult _applyGuardianFamilyThresholds(
-  CosmicSpecialResult result, {
-  required String family,
-  required double casterPower,
-  required double casterBeauty,
-  required double casterIntelligence,
-  required double casterStrength,
-}) {
-  final tier = _guardianFamilyTier(
-    family: family,
-    casterPower: casterPower,
-    casterBeauty: casterBeauty,
-    casterIntelligence: casterIntelligence,
-    casterStrength: casterStrength,
-  );
-  final familySignal = _guardianFamilySignal(
-    family: family,
-    casterPower: casterPower,
-    casterBeauty: casterBeauty,
-    casterIntelligence: casterIntelligence,
-    casterStrength: casterStrength,
-  );
-  final overcap = max(0.0, familySignal - 5.0);
-  // Uncapped over-5 scaling so perfect 5.0 bases still gain from run buffs.
-  final overcapMul = 1.0 + overcap * 0.08;
-
-  final dmgMul = switch (tier) {
-    0 => 0.52,
-    1 => 0.66,
-    2 => 0.80,
-    3 => 0.92,
-    4 => 1.00,
-    _ => 1.18,
-  };
-  final lifeMul = switch (tier) {
-    0 => 0.72,
-    1 => 0.80,
-    2 => 0.90,
-    3 => 0.98,
-    4 => 1.04,
-    _ => 1.12,
-  };
-  final visualMul = switch (tier) {
-    0 => 0.82,
-    1 => 0.88,
-    2 => 0.94,
-    3 => 1.00,
-    4 => 1.06,
-    _ => 1.14,
-  };
-  final preservesAuthoredProjectileCount =
-      family == 'mane' &&
-      result.projectiles.isNotEmpty &&
-      result.projectiles.every((p) => p.element == 'Light');
-  final maxProjectiles = preservesAuthoredProjectileCount
-      ? 999
-      : switch (tier) {
-          0 => 1,
-          1 => 2,
-          2 => 4,
-          _ => 999,
-        };
-
-  final scaledProjectiles = result.projectiles
-      .take(maxProjectiles)
-      .map(
-        (p) => copyProjectile(
-          p,
-          damage: p.damage * dmgMul * overcapMul,
-          life: family == 'pip'
-              ? min(
-                  p.life * lifeMul * (1.0 + overcap * 0.03),
-                  kPipSpecialMaxProjectileLife,
-                )
-              : p.life * lifeMul * (1.0 + overcap * 0.03),
-          visualScale: p.visualScale * visualMul * (1.0 + overcap * 0.04),
-        ),
-      )
-      .toList(growable: false);
-  final scaledBeams = result.beams
-      .map(
-        (b) => b.scaled(
-          damageMultiplier: dmgMul * overcapMul,
-          durationMultiplier: lifeMul * (1.0 + overcap * 0.03),
-          widthMultiplier: visualMul * (1.0 + overcap * 0.04),
-        ),
-      )
-      .toList(growable: false);
-
-  final enableDefensiveRiders = tier >= 2;
-  final enableHealingRiders = tier >= 3;
-  final enableTempoRiders = tier >= 4;
-
-  return CosmicSpecialResult(
-    projectiles: scaledProjectiles,
-    beams: scaledBeams,
-    shieldHp: enableDefensiveRiders
-        ? (result.shieldHp * dmgMul * overcapMul).round()
-        : 0,
-    chargeTimer: enableDefensiveRiders ? result.chargeTimer : 0,
-    chargeDamage: enableDefensiveRiders
-        ? result.chargeDamage * dmgMul * overcapMul
-        : 0,
-    chargeSpeedMultiplier: enableDefensiveRiders
-        ? result.chargeSpeedMultiplier
-        : 1.0,
-    chargeSweepRadius: enableDefensiveRiders ? result.chargeSweepRadius : 48.0,
-    chargeOvershootDistance: enableDefensiveRiders
-        ? result.chargeOvershootDistance
-        : 80.0,
-    chargeFinalSweepRadius: enableDefensiveRiders
-        ? result.chargeFinalSweepRadius
-        : 68.0,
-    selfHeal: enableHealingRiders
-        ? (result.selfHeal * dmgMul * overcapMul).round()
-        : 0,
-    shipHeal: enableHealingRiders
-        ? (result.shipHeal * dmgMul * overcapMul).round()
-        : 0,
-    blessingTimer: enableHealingRiders
-        ? result.blessingTimer * lifeMul * (1.0 + overcap * 0.03)
-        : 0,
-    blessingHealPerTick: enableHealingRiders
-        ? result.blessingHealPerTick * dmgMul * overcapMul
-        : 0,
-    basicHasteTimer: enableTempoRiders ? result.basicHasteTimer : 0,
-    basicHasteMultiplier: enableTempoRiders ? result.basicHasteMultiplier : 1.0,
-    // Wind-up phase passes straight through — gated by chargeTimer
-    // (defensive rider), since wind-up only makes sense for horn
-    // dashes which already require defensive-rider tier to fire.
-    windUpTime: enableDefensiveRiders ? result.windUpTime : 0,
-    windUpElement: enableDefensiveRiders ? result.windUpElement : '',
-  );
+  return rawResult;
 }
 
 // Effective stat range for ability scaling. The ceiling matches the canonical
@@ -5469,6 +5310,7 @@ Projectile copyProjectile(
     visualScale: visualScale ?? p.visualScale,
     visualStyle: visualStyle ?? p.visualStyle,
     stationary: stationary ?? p.stationary,
+    voidEjectOnly: p.voidEjectOnly,
     orbitCenter: orbitCenter ?? p.orbitCenter,
     orbitAngle: orbitAngle ?? p.orbitAngle,
     orbitRadius: orbitRadius ?? p.orbitRadius,
@@ -5792,17 +5634,22 @@ Projectile _scaleLetProjectile(
     min: 0.78,
     max: 1.28,
   );
-  final visualScaleMul = _specialStatScaleFromBaseline(
+  // How big the rock is, on the anchored curve. Size is Let's signature
+  // quantity the way ricochets are Pip's, and it used to move a total of
+  // 0.76x to 1.36x across the whole stat band — a stat nobody could see
+  // working. A perfected Let now drops something visibly heavier than an
+  // average one rather than marginally wider.
+  final visualScaleMul = scaledAbilityValue(
     beauty,
-    perPoint: 0.18,
-    min: 0.76,
-    max: 1.36,
+    atLow: 0.70,
+    atAverage: 1.0,
+    atPerfect: 1.75,
   );
-  final radiusScaleMul = _specialStatScaleFromBaseline(
+  final radiusScaleMul = scaledAbilityValue(
     beauty,
-    perPoint: 0.16,
-    min: 0.78,
-    max: 1.32,
+    atLow: 0.74,
+    atAverage: 1.0,
+    atPerfect: 1.65,
   );
   final guidanceScale = _specialStatScaleFromBaseline(
     intelligence,
@@ -7867,17 +7714,23 @@ CosmicSpecialResult _pipSpecial(
     return (base * scale).round().clamp(min, max);
   }
 
-  int scaledBounce(int base, {int max = 6}) {
-    final scaled =
-        (base *
-                _specialStatScaleFromBaseline(
-                  casterIntelligence,
-                  perPoint: 0.14,
-                  min: 0.74,
-                  max: 1.26,
-                ))
-            .round();
-    return scaled.clamp(0, max);
+  /// How many times a dart ricochets.
+  ///
+  /// Beauty, on the anchored curve — the family's signature quantity should
+  /// sit on the family's quantity stat. It used to read Intelligence through
+  /// a scaler spanning 0.74x to 1.26x, which meant the thing a Pip is *for*
+  /// barely moved across the whole stat band, and moved off the wrong stat
+  /// when it did. A weak Pip now bounces about half as often as a perfected
+  /// one rather than a quarter less.
+  int scaledBounce(int base, {int max = 8}) {
+    if (base <= 0) return 0;
+    final scaled = scaledAbilityValue(
+      casterBeauty,
+      atLow: base * 0.6,
+      atAverage: base.toDouble(),
+      atPerfect: base * 1.9,
+    ).round();
+    return scaled.clamp(1, max);
   }
 
   Projectile scalePipProjectile(Projectile p) {
@@ -8663,9 +8516,9 @@ CosmicSpecialResult _maneSpecial(
         ? 1.0
         : _specialStatScaleFromBaseline(
             casterBeauty,
-            perPoint: 0.11,
-            min: 0.84,
-            max: 1.40,
+            perPoint: 0.16,
+            min: 0.82,
+            max: 1.55,
           );
     final earthForceScale = p.element == 'Earth'
         ? _specialStatScaleFromBaseline(
@@ -8714,6 +8567,9 @@ CosmicSpecialResult _maneSpecial(
         : p.element == 'Fire'
         ? rawSpeed.clamp(0.5, 0.8).toDouble()
         : rawSpeed.clamp(0.12, 0.29).toDouble();
+    // Light deliberately begins as a tiny ward and grows on contact. Giving
+    // it the normal authored-size restoration would erase that identity.
+    final authoredSize = p.element == 'Light' ? 1.0 : 1.12;
     return copyProjectile(
       p,
       damage: p.damage * impactScale * earthForceScale * 1.65,
@@ -8722,11 +8578,19 @@ CosmicSpecialResult _maneSpecial(
       life: p.life * durationScale * (p.stationary ? 1.0 : 3.1),
       speedMultiplier: catapultSpeed,
       radiusMultiplier:
-          p.radiusMultiplier * visualScaleMul * coverageScale * 1.18,
+          p.radiusMultiplier *
+          visualScaleMul *
+          coverageScale *
+          1.18 *
+          authoredSize,
       piercing: true,
       homing: false,
       homingStrength: p.homingStrength * controlScale,
-      visualScale: p.visualScale * visualScaleMul * coverageScale,
+      // The removed generic stat-tier wrapper used to add roughly this much
+      // authored size at ordinary Mane ratings. Keep that silhouette here,
+      // where it belongs, without bringing back hidden unlock thresholds.
+      visualScale:
+          p.visualScale * visualScaleMul * coverageScale * authoredSize,
       trailDamage: p.trailDamage * impactScale,
       trailLife: p.trailLife * durationScale,
       turretInterval: p.turretInterval > 0
@@ -9607,6 +9471,7 @@ CosmicSpecialResult _maskSpecial(
     double vs = 1.8,
     bool piercing = true,
     bool reflectsProjectiles = false,
+    bool voidEjectOnly = false,
     double snareRadius = 0,
     double snareMoveMultiplier = 1.0,
   }) {
@@ -9623,6 +9488,7 @@ CosmicSpecialResult _maskSpecial(
       visualScale: vs,
       visualStyle: ProjectileVisualStyle.sigil,
       reflectsProjectiles: reflectsProjectiles,
+      voidEjectOnly: voidEjectOnly,
       snareRadius: snareRadius,
       snareMoveMultiplier: snareMoveMultiplier,
       abilityFamily: 'mask',
@@ -9950,15 +9816,17 @@ CosmicSpecialResult _maskSpecial(
       break;
 
     case 'Dark':
-      // ONE void hole. Enemies that enter are yeeted out of the area.
-      // Suction radius scales with stats (mask scaler + here).
+      // ONE void hole. Enemies that enter are yeeted out of the area, and
+      // that is ALL it does — no chip, no execute. It moves bodies; the party
+      // kills them.
       projs.add(
         trap(
           pos: trapAnchor,
           dmgMul: 0.0,
           life: 9.0,
           tickEffect: AbilityEffectKind.blackHole,
-          effectPower: 1.0,
+          voidEjectOnly: true,
+          effectPower: 0.0,
           effectRadius: 240,
           effectDuration: 9.0,
           radius: 2.6,
@@ -12327,6 +12195,7 @@ class CosmicCompanion with HasEffects {
   /// Derived cosmic companion combat stats.
   final int _basePhysAtk;
   final int _baseElemAtk;
+  final int _baseAbilityAtk;
   final int _basePhysDef;
   final int _baseElemDef;
   final double _baseCooldownReduction;
@@ -12399,6 +12268,9 @@ class CosmicCompanion with HasEffects {
   int abilityKillStacks;
   double pipSpiritEmpowerTimer;
   double pipSteamWindowTimer;
+  double hornMudTrailTimer;
+  double hornPoisonAuraTimer;
+  bool kinFireOrbitalFlameActive;
   Offset? lastPipPoisonHitPos;
   List<Projectile>? pendingChargeBurst;
   Offset? pendingChargeOrigin;
@@ -12416,6 +12288,7 @@ class CosmicCompanion with HasEffects {
     required this.currentHp,
     required int physAtk,
     required int elemAtk,
+    int? abilityAtk,
     required int physDef,
     required int elemDef,
     required double cooldownReduction,
@@ -12448,6 +12321,9 @@ class CosmicCompanion with HasEffects {
     this.abilityKillStacks = 0,
     this.pipSpiritEmpowerTimer = 0,
     this.pipSteamWindowTimer = 0,
+    this.hornMudTrailTimer = 0,
+    this.hornPoisonAuraTimer = 0,
+    this.kinFireOrbitalFlameActive = false,
     this.lastPipPoisonHitPos,
     this.pendingChargeBurst,
     this.pendingChargeOrigin,
@@ -12455,6 +12331,7 @@ class CosmicCompanion with HasEffects {
     this.visualVariant,
   }) : _basePhysAtk = physAtk,
        _baseElemAtk = elemAtk,
+       _baseAbilityAtk = abilityAtk ?? elemAtk,
        _basePhysDef = physDef,
        _baseElemDef = elemDef,
        _baseCooldownReduction = cooldownReduction,
@@ -12465,6 +12342,7 @@ class CosmicCompanion with HasEffects {
 
   int get physAtk => _maybeModifyStat('physAtk', _basePhysAtk).round();
   int get elemAtk => _maybeModifyStat('elemAtk', _baseElemAtk).round();
+  int get abilityAtk => _maybeModifyStat('abilityAtk', _baseAbilityAtk).round();
   int get physDef => _maybeModifyStat('physDef', _basePhysDef).round();
   int get elemDef => _maybeModifyStat('elemDef', _baseElemDef).round();
   double get cooldownReduction =>
@@ -12515,7 +12393,7 @@ class CosmicCompanion with HasEffects {
 
   double get effectiveSpecialCooldown {
     final base = CosmicCompanion.baseSpecialCooldown / cooldownReduction;
-    final factor = (1.0 + (elemAtk / 6.0) * 0.2).clamp(0.5, 6.0);
+    final factor = (1.0 + (abilityAtk / 6.0) * 0.2).clamp(0.5, 6.0);
     final familyMultiplier = switch (member.family.toLowerCase()) {
       'let' => 1.18,
       'pip' => 0.92,

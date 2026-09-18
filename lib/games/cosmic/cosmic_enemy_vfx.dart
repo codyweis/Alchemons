@@ -14,6 +14,7 @@
 //   * the elite-affix TextPainter cache is module-level below.
 
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
@@ -177,6 +178,7 @@ double _squashFor(EnemyConduct c, EnemyTrait? t, EnemyTier tier) {
   if (c == EnemyConduct.charge && _heavy(tier)) return 1.20;
   if (c == EnemyConduct.stalk) return 0.90;
   if (c == EnemyConduct.standoff) return 0.94;
+  if (c == EnemyConduct.siege) return 1.16; // squat, planted
   return 1.0;
 }
 
@@ -187,6 +189,7 @@ double _stretchFor(EnemyConduct c, EnemyTrait? t, EnemyTier tier) {
   if (c == EnemyConduct.charge && _heavy(tier)) return 0.88;
   if (c == EnemyConduct.stalk) return 1.16;
   if (c == EnemyConduct.standoff) return 1.10;
+  if (c == EnemyConduct.siege) return 0.86;
   return 1.0;
 }
 
@@ -197,18 +200,365 @@ double _stretchFor(EnemyConduct c, EnemyTrait? t, EnemyTier tier) {
 int openWorldVariantSigilPoints(CosmicEnemyVariant v) =>
     v == CosmicEnemyVariant.standard ? 0 : 3;
 
+// Normalized swarm materials are shared across bodies. The detailed renderer
+// below still owns elites, traits, roots and active attack telegraphs.
+final _swarmHex = Path()
+  ..moveTo(0, -1)
+  ..lineTo(0.866, -0.5)
+  ..lineTo(0.866, 0.5)
+  ..lineTo(0, 1)
+  ..lineTo(-0.866, 0.5)
+  ..lineTo(-0.866, -0.5)
+  ..close();
+final _swarmMaterials = <String, ui.Shader>{};
+final _swarmPaint = Paint();
+
+/// Visual-only simplification; movement, collision and statuses are untouched.
+bool canSimplifySurvivalSwarmEnemy(CosmicSurvivalEnemy enemy) =>
+    (enemy.tier == EnemyTier.wisp || enemy.tier == EnemyTier.drone) &&
+    !enemy.isElite &&
+    enemy.trait == null &&
+    !enemy.isPlagueCore &&
+    enemy.visualColor == null &&
+    !enemy.action.isBusy &&
+    !(enemy.flightSteering?.showTelegraphRing ?? false) &&
+    enemy.hornPlantRootTimer <= 0 &&
+    enemy.maneRootTimer <= 0 &&
+    !(enemy.slowTimer > 0 && enemy.slowMultiplier <= 0.1);
+
+void _drawSurvivalSwarmEnemy(
+  Canvas canvas,
+  CosmicSurvivalEnemy enemy,
+  double time,
+) {
+  final color = elementColor(enemy.element);
+  // Keys come from the finite element/tier roster, never individual enemies.
+  final key = '${enemy.element}:${enemy.tier.name}';
+  final shader = _swarmMaterials.putIfAbsent(
+    key,
+    () => ui.Gradient.radial(
+      const Offset(-0.2, -0.25),
+      1.25,
+      [
+        Color.lerp(color, Colors.white, 0.45)!,
+        color.withValues(alpha: 0.85),
+        color.withValues(alpha: enemy.tier == EnemyTier.wisp ? 0 : 0.4),
+      ],
+      const [0, 0.5, 1],
+    ),
+  );
+  canvas.save();
+  canvas.translate(enemy.position.dx, enemy.position.dy);
+  final breathe = enemy.tier == EnemyTier.wisp
+      ? 0.86 + 0.10 * sin(time * 6 + enemy.angle * 5)
+      : 1.0;
+  canvas.scale(enemy.radius * breathe);
+  _swarmPaint
+    ..style = PaintingStyle.fill
+    ..shader = shader
+    ..color = Colors.white;
+  if (enemy.tier == EnemyTier.wisp) {
+    canvas.drawCircle(Offset.zero, 1, _swarmPaint);
+  } else {
+    canvas.drawPath(_swarmHex, _swarmPaint);
+  }
+  _swarmPaint
+    ..shader = null
+    ..color = Colors.white.withValues(
+      alpha: 0.45 + 0.5 * enemy.hitFlash.clamp(0.0, 1.0),
+    );
+  canvas.drawCircle(
+    const Offset(-0.15, -0.18),
+    enemy.hitFlash > 0 ? 0.5 : 0.16,
+    _swarmPaint,
+  );
+  canvas.restore();
+  if (enemy.hpFraction < 0.99) {
+    // Only damaged bodies need a health read at horde density.
+    canvas.drawLine(
+      enemy.position + Offset(-enemy.radius, -enemy.radius - 3),
+      enemy.position +
+          Offset(enemy.radius * (2 * enemy.hpFraction - 1), -enemy.radius - 3),
+      _swarmPaint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = color.withValues(alpha: 0.65),
+    );
+  }
+}
+
+// ── Batched swarm bodies ───────────────────────────────────────────────────
+//
+// At horde density the per-body draw calls above dominate the frame (device
+// profile, 1,000 bodies: ~31% of the UI thread in drawCircle alone, and the
+// matching raster cost). The same silhouettes are baked once into an atlas —
+// one row per element, columns wisp / wisp-flash / drone / drone-flash — and
+// every simplifiable body goes out in a single drawRawAtlas.
+
+const _kSwarmAtlasElements = [
+  'Fire', 'Lava', 'Lightning', 'Water', 'Ice', 'Steam', 'Earth', 'Mud', //
+  'Dust', 'Crystal', 'Air', 'Plant', 'Poison', 'Spirit', 'Dark', 'Light',
+  'Blood',
+];
+const double _kSwarmCell = 64;
+
+/// Atlas columns: (tier, hit-flash). Wisp/drone use the simplified swarm
+/// silhouette; sentinel/phantom are baked from the detailed renderer itself,
+/// so a dense field keeps the shapes that say "this one shoots" and "this one
+/// blinks".
+const _kSwarmColumns = [
+  (EnemyTier.wisp, false),
+  (EnemyTier.wisp, true),
+  (EnemyTier.drone, false),
+  (EnemyTier.drone, true),
+  (EnemyTier.sentinel, false),
+  (EnemyTier.sentinel, true),
+  (EnemyTier.phantom, false),
+  (EnemyTier.phantom, true),
+];
+
+/// Body radius in atlas pixels per column. Baked detailed bodies carry a 2r
+/// aura, so they are drawn smaller to stay inside the cell.
+double _swarmUnit(EnemyTier tier) =>
+    tier == EnemyTier.wisp || tier == EnemyTier.drone ? 20 : 13;
+
+int _swarmColumn(EnemyTier tier, bool flash) {
+  final base = switch (tier) {
+    EnemyTier.wisp => 0,
+    EnemyTier.drone => 2,
+    EnemyTier.sentinel => 4,
+    EnemyTier.phantom => 6,
+    _ => -1,
+  };
+  return base < 0 ? -1 : base + (flash ? 1 : 0);
+}
+
+ui.Image? _swarmAtlas;
+
+ui.Image _buildSwarmAtlas() {
+  final rec = ui.PictureRecorder();
+  final canvas = Canvas(rec);
+  for (var row = 0; row < _kSwarmAtlasElements.length; row++) {
+    final element = _kSwarmAtlasElements[row];
+    final color = elementColor(element);
+    for (var col = 0; col < _kSwarmColumns.length; col++) {
+      final (tier, flash) = _kSwarmColumns[col];
+      final centre = Offset(
+        col * _kSwarmCell + _kSwarmCell / 2,
+        row * _kSwarmCell + _kSwarmCell / 2,
+      );
+      if (tier == EnemyTier.sentinel || tier == EnemyTier.phantom) {
+        drawEnemy(
+          canvas: canvas,
+          enemy: EnemyVisual(
+            position: centre,
+            angle: 0,
+            radius: _swarmUnit(tier),
+            element: element,
+            tier: tier,
+            hpFraction: 1,
+            hitFlash: flash ? 1 : 0,
+          ),
+          time: 0,
+          reduceLabels: true,
+        );
+        continue;
+      }
+      final wisp = tier == EnemyTier.wisp;
+      canvas.save();
+      canvas.translate(centre.dx, centre.dy);
+      canvas.scale(_swarmUnit(tier));
+      final body = Paint()
+        ..shader = ui.Gradient.radial(
+          const Offset(-0.2, -0.25),
+          1.25,
+          [
+            Color.lerp(color, Colors.white, 0.45)!,
+            color.withValues(alpha: 0.85),
+            color.withValues(alpha: wisp ? 0 : 0.4),
+          ],
+          const [0, 0.5, 1],
+        );
+      if (wisp) {
+        canvas.drawCircle(Offset.zero, 1, body);
+      } else {
+        canvas.drawPath(_swarmHex, body);
+      }
+      canvas.drawCircle(
+        const Offset(-0.15, -0.18),
+        flash ? 0.5 : 0.16,
+        Paint()..color = Colors.white.withValues(alpha: flash ? 0.95 : 0.45),
+      );
+      canvas.restore();
+    }
+  }
+  final pic = rec.endRecording();
+  final image = pic.toImageSync(
+    (_kSwarmCell * _kSwarmColumns.length).toInt(),
+    (_kSwarmCell * _kSwarmAtlasElements.length).toInt(),
+  );
+  pic.dispose();
+  return image;
+}
+
+/// Bodies that may use the baked sentinel/phantom cells, or keep only their
+/// attack telegraph drawn live, once the field is dense. Anything that carries
+/// information the atlas cannot show (elite, trait, roots, a hard freeze,
+/// custom colour) still gets the full renderer.
+bool canBakeDenseSurvivalEnemy(CosmicSurvivalEnemy enemy) =>
+    _swarmColumn(enemy.tier, false) >= 0 &&
+    !enemy.isElite &&
+    enemy.trait == null &&
+    !enemy.isPlagueCore &&
+    enemy.visualColor == null &&
+    enemy.hornPlantRootTimer <= 0 &&
+    enemy.maneRootTimer <= 0 &&
+    !(enemy.slowTimer > 0 && enemy.slowMultiplier <= 0.1);
+
+/// Collects swarm bodies during the enemy pass and draws them in one call.
+/// Anything it declines (elites, traits, roots, telegraphs, unknown elements)
+/// falls back to [drawSurvivalEnemy] at the call site.
+///
+/// With `dense` set (a very large field) it also takes sentinels, phantoms and
+/// bodies mid-attack: the body comes from the atlas and only the telegraph —
+/// the part that tells the player what is about to happen — is drawn live.
+class SurvivalSwarmBatch {
+  Float32List _xforms = Float32List(4 * 256);
+  Float32List _rects = Float32List(4 * 256);
+  int _count = 0;
+  final List<List<double>> _bars = List.generate(
+    _kSwarmAtlasElements.length,
+    (_) => <double>[],
+  );
+  final List<CosmicSurvivalEnemy> _telegraphs = [];
+  final Paint _atlasPaint = Paint()..filterQuality = FilterQuality.low;
+  final Paint _barPaint = Paint()
+    ..strokeWidth = 1
+    ..style = PaintingStyle.stroke;
+
+  int get length => _count;
+
+  bool add(CosmicSurvivalEnemy enemy, double time, {bool dense = false}) {
+    final busy =
+        enemy.action.isBusy ||
+        (enemy.flightSteering?.showTelegraphRing ?? false);
+    if (dense) {
+      if (!canBakeDenseSurvivalEnemy(enemy)) return false;
+    } else if (!canSimplifySurvivalSwarmEnemy(enemy)) {
+      return false;
+    }
+    final row = _kSwarmAtlasElements.indexOf(enemy.element);
+    if (row < 0) return false;
+    final tier = enemy.tier;
+    final col = _swarmColumn(tier, enemy.hitFlash > 0.3);
+    if (col < 0) return false;
+    final wisp = tier == EnemyTier.wisp;
+    final breathe = wisp ? 0.86 + 0.10 * sin(time * 6 + enemy.angle * 5) : 1.0;
+    final scale = enemy.radius * breathe / _swarmUnit(tier);
+    if ((_count + 1) * 4 > _xforms.length) {
+      _xforms = Float32List(_xforms.length * 2)..setAll(0, _xforms);
+      _rects = Float32List(_rects.length * 2)..setAll(0, _rects);
+    }
+    final i = _count * 4;
+    const half = _kSwarmCell / 2;
+    _xforms[i] = scale;
+    _xforms[i + 1] = 0;
+    _xforms[i + 2] = enemy.position.dx - scale * half;
+    _xforms[i + 3] = enemy.position.dy - scale * half;
+    _rects[i] = col * _kSwarmCell;
+    _rects[i + 1] = row * _kSwarmCell;
+    _rects[i + 2] = (col + 1) * _kSwarmCell;
+    _rects[i + 3] = (row + 1) * _kSwarmCell;
+    _count++;
+    if (busy) _telegraphs.add(enemy);
+    final hp = enemy.hpFraction;
+    if (hp < 0.99) {
+      // Only damaged bodies need a health read at horde density.
+      final r = enemy.radius;
+      final y = enemy.position.dy - r - 3;
+      _bars[row].addAll([
+        enemy.position.dx - r,
+        y,
+        enemy.position.dx + r * (2 * hp - 1),
+        y,
+      ]);
+    }
+    return true;
+  }
+
+  void flush(Canvas canvas, double time) {
+    if (_count > 0) {
+      final atlas = _swarmAtlas ??= _buildSwarmAtlas();
+      canvas.drawRawAtlas(
+        atlas,
+        Float32List.sublistView(_xforms, 0, _count * 4),
+        Float32List.sublistView(_rects, 0, _count * 4),
+        null,
+        null,
+        null,
+        _atlasPaint,
+      );
+      _count = 0;
+    }
+    for (final enemy in _telegraphs) {
+      final visual = EnemyVisual.fromSurvival(enemy);
+      final color = elementColor(enemy.element);
+      final steering = visual.flightSteering;
+      if (steering != null && steering.showTelegraphRing) {
+        canvas.drawCircle(
+          enemy.position,
+          enemy.radius + 5 + steering.windupTimer * 42,
+          _barPaint
+            ..strokeWidth = 1.6
+            ..color = Color.lerp(
+              color,
+              Colors.white,
+              0.5,
+            )!.withValues(alpha: 0.72),
+        );
+      }
+      canvas.save();
+      canvas.translate(enemy.position.dx, enemy.position.dy);
+      _drawActionTelegraph(canvas, visual, color, enemy.radius, time);
+      canvas.restore();
+    }
+    _telegraphs.clear();
+    _barPaint.strokeWidth = 1;
+    for (var row = 0; row < _bars.length; row++) {
+      final bars = _bars[row];
+      if (bars.isEmpty) continue;
+      _barPaint.color = elementColor(
+        _kSwarmAtlasElements[row],
+      ).withValues(alpha: 0.65);
+      canvas.drawRawPoints(
+        ui.PointMode.lines,
+        Float32List.fromList(bars),
+        _barPaint,
+      );
+      bars.clear();
+    }
+  }
+}
+
 /// Survival's entry point.
 void drawSurvivalEnemy({
   required Canvas canvas,
   required CosmicSurvivalEnemy enemy,
   required double time,
   bool reduceLabels = false,
-}) => drawEnemy(
-  canvas: canvas,
-  enemy: EnemyVisual.fromSurvival(enemy),
-  time: time,
-  reduceLabels: reduceLabels,
-);
+  bool simplifySwarm = false,
+}) {
+  if (simplifySwarm && canSimplifySurvivalSwarmEnemy(enemy)) {
+    _drawSurvivalSwarmEnemy(canvas, enemy, time);
+    return;
+  }
+  drawEnemy(
+    canvas: canvas,
+    enemy: EnemyVisual.fromSurvival(enemy),
+    time: time,
+    reduceLabels: reduceLabels,
+  );
+}
 
 /// The one enemy silhouette. Both modes map their entity onto [EnemyVisual]
 /// and come through here, so there is a single definition to change.

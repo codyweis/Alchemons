@@ -2,6 +2,548 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'mane_alchemical_vfx.dart';
+
+/// Kin's growing Spirit wisp. Kept here so its tier silhouette is identical in
+/// survival, open space, dungeons, and preview sheets.
+bool drawKinSpiritWispVisual({
+  required ui.Canvas canvas,
+  required Projectile projectile,
+  required ui.Offset position,
+  required ui.Color color,
+  required double time,
+}) {
+  if (projectile.abilityFamily != 'kin' ||
+      projectile.element != 'Spirit' ||
+      !projectile.followSourceCompanion) {
+    return false;
+  }
+  final tier = projectile.effectCount.clamp(1, 4);
+  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
+  final scale = 1.0 + 0.35 * (tier - 1);
+  canvas.drawCircle(
+    position,
+    14.0 * scale,
+    ui.Paint()..color = color.withValues(alpha: 0.16 + 0.04 * tier),
+  );
+  canvas.drawCircle(
+    position,
+    8.5 * scale,
+    ui.Paint()..color = color.withValues(alpha: 0.30 + 0.06 * tier),
+  );
+  canvas.drawCircle(
+    position,
+    4.0 * scale,
+    ui.Paint()..color = white.withValues(alpha: 0.55 + 0.10 * tier),
+  );
+  canvas.drawCircle(
+    position,
+    1.4 + 0.4 * tier,
+    ui.Paint()..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.95),
+  );
+  final motes = tier - 1;
+  for (var i = 0; i < motes; i++) {
+    final a = time * 2.4 + i * (pi * 2 / max(1, motes));
+    canvas.drawCircle(
+      position + ui.Offset(cos(a), sin(a)) * (9.0 * scale + 2.0),
+      1.6,
+      ui.Paint()..color = white.withValues(alpha: 0.85),
+    );
+  }
+  return true;
+}
+
+/// The shared moving Mystic cast. Mystic's large world fixtures remain a
+/// survival-only system; the projectile itself still follows the global
+/// ability visual contract.
+bool drawMysticOrbitalProjectileVisual({
+  required ui.Canvas canvas,
+  required Projectile projectile,
+  required ui.Offset position,
+  required ui.Color color,
+  required double time,
+}) {
+  if (projectile.visualStyle != ProjectileVisualStyle.mysticOrbital ||
+      projectile.stationary) {
+    return false;
+  }
+  final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
+  final radius = (1.65 * projectile.visualScale).clamp(1.4, 6.1).toDouble();
+  final pulse = 0.78 + 0.22 * sin(time * 4.0 + projectile.life);
+  canvas.drawCircle(
+    position,
+    radius * 2.6,
+    ui.Paint()..color = color.withValues(alpha: 0.18 * pulse),
+  );
+  for (var i = 1; i <= 3; i++) {
+    final fade = 1.0 - i * 0.30;
+    canvas.drawCircle(
+      position - dir * (radius * 2.0 * i),
+      radius * (1.0 + i * 0.18) * 0.55,
+      ui.Paint()..color = color.withValues(alpha: 0.32 * fade),
+    );
+  }
+  canvas.drawCircle(
+    position,
+    radius,
+    ui.Paint()..color = color.withValues(alpha: 0.92 * pulse),
+  );
+  canvas.drawCircle(
+    position,
+    radius * 0.42,
+    ui.Paint()
+      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.85 * pulse),
+  );
+  drawProjectileRoleOverlay(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    color: color,
+    time: time,
+  );
+  return true;
+}
+
+/// The canonical three-layer beam used by Wing specials and Kin basic lasers.
+void drawAdvancedAbilityBeam({
+  required ui.Canvas canvas,
+  required ui.Offset start,
+  required ui.Offset end,
+  required ui.Color color,
+  required double width,
+  required double alpha,
+  double time = 0,
+  bool particles = true,
+}) {
+  final a = alpha.clamp(0.0, 1.0);
+  canvas.drawLine(
+    start,
+    end,
+    ui.Paint()
+      ..color = color.withValues(alpha: 0.18 * a)
+      ..strokeWidth = width * 3.0
+      ..strokeCap = ui.StrokeCap.round,
+  );
+  canvas.drawLine(
+    start,
+    end,
+    ui.Paint()
+      ..color = color.withValues(alpha: 0.54 * a)
+      ..strokeWidth = width * 1.35
+      ..strokeCap = ui.StrokeCap.round,
+  );
+  canvas.drawLine(
+    start,
+    end,
+    ui.Paint()
+      ..color = ui.Color.lerp(
+        color,
+        const ui.Color(0xFFFFFFFF),
+        0.72,
+      )!.withValues(alpha: 0.86 * a)
+      ..strokeWidth = max(1.2, width * 0.38)
+      ..strokeCap = ui.StrokeCap.round,
+  );
+  final delta = end - start;
+  final distance = delta.distance;
+  if (!particles || distance <= 0.01) return;
+  final unit = delta / distance;
+  final perp = ui.Offset(-unit.dy, unit.dx);
+  for (var i = 0; i < 5; i++) {
+    final progress = ((time * 1.8 + i * 0.19) % 1.0).toDouble();
+    final p =
+        start +
+        unit * distance * progress +
+        perp * sin(progress * pi * 4 + i) * width * 0.55;
+    canvas.drawCircle(
+      p,
+      1.3 + width * 0.08,
+      ui.Paint()
+        ..color = ui.Color.lerp(
+          color,
+          const ui.Color(0xFFFFFFFF),
+          0.45,
+        )!.withValues(alpha: 0.58 * a),
+    );
+  }
+}
+
+/// Canonical Wing beam charge telegraph.
+void drawAdvancedWingBeamCharge({
+  required ui.Canvas canvas,
+  required ui.Offset origin,
+  required ui.Color color,
+  required double progress,
+  required double time,
+}) {
+  final t = progress.clamp(0.0, 1.0);
+  final pulse = 0.78 + 0.22 * sin(time * 7.0);
+  final radius = 20 + 34 * t;
+  canvas.drawCircle(
+    origin,
+    radius,
+    ui.Paint()..color = color.withValues(alpha: 0.18 * pulse),
+  );
+  canvas.drawCircle(
+    origin,
+    radius * 0.48,
+    ui.Paint()
+      ..color = ui.Color.lerp(
+        color,
+        const ui.Color(0xFFFFFFFF),
+        0.5,
+      )!.withValues(alpha: 0.36 * pulse),
+  );
+  for (var i = 0; i < 5; i++) {
+    final a = time * 5.5 + i * pi * 2 / 5;
+    canvas.drawLine(
+      origin + ui.Offset(cos(a), sin(a)) * radius * 0.55,
+      origin + ui.Offset(cos(a + 0.22), sin(a + 0.22)) * radius,
+      ui.Paint()
+        ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.45 * t)
+        ..strokeWidth = 1.2
+        ..strokeCap = ui.StrokeCap.round,
+    );
+  }
+}
+
+/// Canonical churning perimeter for Fire/Poison Wing fields.
+void drawAdvancedWingBeamRing({
+  required ui.Canvas canvas,
+  required ui.Offset center,
+  required double radius,
+  required double width,
+  required ui.Color color,
+  required String element,
+  required double alpha,
+  required double time,
+}) {
+  final fade = alpha.clamp(0.0, 1.0);
+  final poison = element == 'Poison';
+  canvas.drawCircle(
+    center,
+    radius,
+    ui.Paint()..color = color.withValues(alpha: 0.05 * fade),
+  );
+  final wobScale = poison ? 0.045 : 0.03;
+  const segments = 54;
+  final path = ui.Path();
+  for (var i = 0; i <= segments; i++) {
+    final angle = i * pi * 2 / segments;
+    final wob = poison
+        ? sin(angle * 5 + time * 2.6) * radius * wobScale
+        : sin(angle * 8 - time * 4.0) * radius * wobScale;
+    final p = center + ui.Offset(cos(angle), sin(angle)) * (radius + wob);
+    if (i == 0) {
+      path.moveTo(p.dx, p.dy);
+    } else {
+      path.lineTo(p.dx, p.dy);
+    }
+  }
+  path.close();
+  canvas.drawPath(
+    path,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeCap = ui.StrokeCap.round
+      ..color = color.withValues(alpha: 0.20 * fade)
+      ..strokeWidth = width * 2.4,
+  );
+  canvas.drawPath(
+    path,
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeCap = ui.StrokeCap.round
+      ..color = color.withValues(alpha: 0.85 * fade)
+      ..strokeWidth = width * 0.85,
+  );
+  canvas.drawCircle(
+    center,
+    radius * (poison ? 0.86 : 0.9),
+    ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..color = color.withValues(alpha: 0.42 * fade)
+      ..strokeWidth = width * 0.5,
+  );
+  if (poison) {
+    for (var i = 0; i < 9; i++) {
+      final angle = i * pi * 2 / 9 + time * 0.6;
+      final r = radius + sin(angle * 3 + time * 2.6) * radius * wobScale;
+      canvas.drawCircle(
+        center + ui.Offset(cos(angle), sin(angle)) * r,
+        2.2 + sin(time * 3.0 + i),
+        ui.Paint()..color = color.withValues(alpha: 0.55 * fade),
+      );
+    }
+  } else {
+    canvas.drawArc(
+      ui.Rect.fromCircle(center: center, radius: radius),
+      (time * 3.4) % (pi * 2),
+      pi * 0.55,
+      false,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeCap = ui.StrokeCap.round
+        ..color = ui.Color.lerp(
+          color,
+          const ui.Color(0xFFFFFFFF),
+          0.5,
+        )!.withValues(alpha: 0.9 * fade)
+        ..strokeWidth = width * 1.1,
+    );
+  }
+}
+
+/// Shared active shield language: a cyan barrier with rotating hot arcs.
+void drawAdvancedCompanionShield({
+  required ui.Canvas canvas,
+  required double time,
+  double scale = 1,
+}) {
+  final radius = 22 * scale;
+  canvas.drawCircle(
+    ui.Offset.zero,
+    radius,
+    ui.Paint()
+      ..color = const ui.Color(
+        0xFF00BCD4,
+      ).withValues(alpha: 0.25 + 0.1 * sin(time * 3))
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = 2 * scale,
+  );
+  final hot = ui.Paint()
+    ..style = ui.PaintingStyle.stroke
+    ..strokeCap = ui.StrokeCap.round
+    ..strokeWidth = 1.8 * scale
+    ..color = const ui.Color(0xFF8FE6FF).withValues(alpha: 0.62);
+  final rect = ui.Rect.fromCircle(
+    center: ui.Offset.zero,
+    radius: radius + scale,
+  );
+  for (var i = 0; i < 3; i++) {
+    canvas.drawArc(rect, time * 1.6 + i * pi * 2 / 3, pi * 0.42, false, hot);
+  }
+}
+
+/// Shared Horn dash trail. All modes pass local creature coordinates.
+void drawAdvancedChargeTrail({
+  required ui.Canvas canvas,
+  required ui.Color color,
+  required double angle,
+  required double sweepRadius,
+  required double overshootDistance,
+  double scale = 1,
+}) {
+  final width = (sweepRadius / 48.0).clamp(0.70, 2.20);
+  final length = (overshootDistance / 80.0).clamp(0.65, 2.10);
+  canvas.drawCircle(
+    ui.Offset.zero,
+    28 * width * scale,
+    ui.Paint()..color = color.withValues(alpha: 0.35),
+  );
+  for (var i = 0; i < 4; i++) {
+    final trailAngle = angle + pi;
+    final trailDistance = (7.0 + i * 7.0) * length * scale;
+    canvas.drawCircle(
+      ui.Offset(cos(trailAngle), sin(trailAngle)) * trailDistance,
+      (5.0 - i) * width * scale,
+      ui.Paint()..color = color.withValues(alpha: (1.0 - i / 4.0) * 0.34),
+    );
+  }
+}
+
+/// Shared Kin basic-attack charge aura and aimed focal pip.
+void drawAdvancedKinCharge({
+  required ui.Canvas canvas,
+  required ui.Color color,
+  required double progress,
+  required double time,
+  ui.Offset? aimDirection,
+}) {
+  final t = progress.clamp(0.0, 1.0);
+  final pulse = 0.85 + 0.15 * sin(time * 12 + progress * 8);
+  for (final layer in <(double, double)>[
+    (26 + 6 * t, 0.22),
+    (18 + 4 * t, 0.42),
+  ]) {
+    canvas.drawCircle(
+      ui.Offset.zero,
+      layer.$1,
+      ui.Paint()..color = color.withValues(alpha: layer.$2 * t * pulse),
+    );
+  }
+  canvas.drawCircle(
+    ui.Offset.zero,
+    9 + 3 * t,
+    ui.Paint()
+      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.65 * t * pulse),
+  );
+  for (var i = 0; i < 2 + (t * 4).round(); i++) {
+    final a = time * (2.7 + i * 0.31) + i * 2.399;
+    final r = 12 + (12 + 8 * t) * ((i + 1) / 7);
+    canvas.drawCircle(
+      ui.Offset(cos(a), sin(a)) * r,
+      0.9 + 0.16 * i + 0.4 * t,
+      ui.Paint()
+        ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.75 * t),
+    );
+  }
+  if (aimDirection == null || aimDirection.distance <= 0.01) return;
+  final direction = aimDirection / aimDirection.distance;
+  canvas.drawCircle(
+    direction * (18.0 + 14.0 * t),
+    1.4 + 1.4 * t,
+    ui.Paint()..color = color.withValues(alpha: 0.85 * pulse),
+  );
+}
+
+/// Shared Kin healing aura, built from geometry instead of per-frame blur.
+void drawAdvancedBlessingAura({
+  required ui.Canvas canvas,
+  required double time,
+  double scale = 1,
+  double opacity = 1,
+}) {
+  final pulse = 0.5 + 0.4 * sin(time * 4.0);
+  final baseAlpha = pulse * 0.65 * opacity;
+  final radius = 24 * scale;
+  if (pulse > 0.82) {
+    canvas.drawCircle(
+      ui.Offset.zero,
+      radius * 0.48,
+      ui.Paint()
+        ..color = const ui.Color(
+          0xFF69F0AE,
+        ).withValues(alpha: (baseAlpha * 1.7).clamp(0.0, 1.0)),
+    );
+  } else {
+    canvas.drawCircle(
+      ui.Offset.zero,
+      radius * 0.22,
+      ui.Paint()
+        ..color = const ui.Color(
+          0xFF69F0AE,
+        ).withValues(alpha: baseAlpha * 0.95),
+    );
+    for (final ring in <(double, double)>[(3, 1), (8, 0.85), (18, 0.55)]) {
+      canvas.drawCircle(
+        ui.Offset.zero,
+        radius,
+        ui.Paint()
+          ..color = const ui.Color(
+            0xFF69F0AE,
+          ).withValues(alpha: baseAlpha * ring.$2)
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = ring.$1 * scale,
+      );
+    }
+  }
+  for (var i = 0; i < 4; i++) {
+    final angle = i * pi / 2 + time * 2;
+    final distance = (18.0 + 4 * sin(time * 3 + i)) * scale;
+    canvas.drawCircle(
+      ui.Offset(cos(angle), sin(angle)) * distance,
+      2.5 * scale,
+      ui.Paint()
+        ..color = const ui.Color(0xFF69F0AE).withValues(alpha: 0.6 * opacity),
+    );
+  }
+}
+
+/// Shared family-specific Kin support states. Callers enable only the states
+/// their combat simulation currently has active.
+void drawAdvancedKinSupportAura({
+  required ui.Canvas canvas,
+  required String element,
+  required ui.Color color,
+  required double time,
+  double iceChargeProgress = 0,
+  bool lightningActive = false,
+  bool fireOrbitalActive = false,
+  bool lavaPlateActive = false,
+  bool darkCloakActive = false,
+}) {
+  final iceT = iceChargeProgress.clamp(0.0, 1.0);
+  if (element == 'Ice' && iceT > 0) {
+    final ice = color;
+    final white = ui.Color.lerp(ice, const ui.Color(0xFFFFFFFF), 0.6)!;
+    canvas.drawCircle(
+      ui.Offset.zero,
+      26 + 14 * iceT,
+      ui.Paint()..color = ice.withValues(alpha: 0.20 * iceT),
+    );
+    canvas.drawCircle(
+      ui.Offset.zero,
+      18 + 8 * iceT,
+      ui.Paint()..color = white.withValues(alpha: 0.35 * iceT),
+    );
+    for (var i = 0; i < 5; i++) {
+      final a = time * 2.4 + i * pi * 2 / 5;
+      canvas.drawCircle(
+        ui.Offset(cos(a), sin(a)) * (28 + 6 * iceT),
+        1.4,
+        ui.Paint()..color = white.withValues(alpha: 0.85 * iceT),
+      );
+    }
+  }
+  if (element == 'Lightning' && lightningActive) {
+    final lightning = color;
+    final hot = ui.Color.lerp(lightning, const ui.Color(0xFFFFFFFF), 0.55)!;
+    final pulse = 0.78 + 0.22 * sin(time * 14);
+    canvas.drawCircle(
+      ui.Offset.zero,
+      30,
+      ui.Paint()..color = lightning.withValues(alpha: 0.22 * pulse),
+    );
+    canvas.drawCircle(
+      ui.Offset.zero,
+      18,
+      ui.Paint()..color = hot.withValues(alpha: 0.42 * pulse),
+    );
+    for (var i = 0; i < 3; i++) {
+      final a = time * (5.7 + i * 0.8) + i * 2.1;
+      canvas.drawLine(
+        ui.Offset(cos(a), sin(a)) * (13.0 + i * 1.7),
+        ui.Offset(cos(a + 0.12), sin(a + 0.12)) * (29.0 + i * 2.3),
+        ui.Paint()
+          ..strokeWidth = 1.2
+          ..color = hot.withValues(alpha: 0.85 * pulse),
+      );
+    }
+  }
+  if (element == 'Fire' && fireOrbitalActive) {
+    for (var i = 0; i < 3; i++) {
+      final a = time * 3.2 + i * pi * 2 / 3;
+      final p = ui.Offset(cos(a), sin(a)) * 32;
+      canvas.drawCircle(
+        p,
+        6,
+        ui.Paint()..color = const ui.Color(0xFFFFB060).withValues(alpha: 0.50),
+      );
+      canvas.drawCircle(
+        p,
+        3.2,
+        ui.Paint()..color = const ui.Color(0xFFFFE7B0).withValues(alpha: 0.85),
+      );
+    }
+  }
+  if (element == 'Lava' && lavaPlateActive) {
+    final pulse = 0.80 + 0.20 * sin(time * 3);
+    canvas.drawCircle(
+      ui.Offset.zero,
+      22,
+      ui.Paint()
+        ..color = const ui.Color(0xFFFF7A20).withValues(alpha: 0.18 * pulse),
+    );
+  }
+  if (element == 'Dark' && darkCloakActive) {
+    canvas.drawCircle(
+      ui.Offset.zero,
+      24,
+      ui.Paint()..color = const ui.Color(0xFF1A0A2A).withValues(alpha: 0.35),
+    );
+  }
+}
 
 bool drawPipElementalProjectileVisual({
   required ui.Canvas canvas,
@@ -695,6 +1237,551 @@ bool drawPipElementalProjectileVisual({
   return true;
 }
 
+// Cached, travel-facing geometry. Broad irregular facets stay readable at the
+// gameplay camera scale. Paths and material shaders are cached; no blur passes
+// or spawned particles.
+final _maneIceHull = ui.Path()
+  ..moveTo(20, -3)
+  ..lineTo(13, -14)
+  ..lineTo(3, -19)
+  ..lineTo(-6, -15)
+  ..lineTo(-17, -18)
+  ..lineTo(-14, -7)
+  ..lineTo(-23, -2)
+  ..lineTo(-16, 5)
+  ..lineTo(-18, 15)
+  ..lineTo(-7, 12)
+  ..lineTo(0, 18)
+  ..lineTo(12, 12)
+  ..lineTo(16, 4)
+  ..close();
+final _maneIceUpperFacet = ui.Path()
+  ..moveTo(-17, -18)
+  ..lineTo(-6, -15)
+  ..lineTo(3, -19)
+  ..lineTo(13, -14)
+  ..lineTo(20, -3)
+  ..lineTo(3, -5)
+  ..lineTo(-14, -7)
+  ..close();
+final _maneIceFrontFacet = ui.Path()
+  ..moveTo(3, -5)
+  ..lineTo(20, -3)
+  ..lineTo(16, 4)
+  ..lineTo(12, 12)
+  ..lineTo(0, 18)
+  ..lineTo(1, 4)
+  ..close();
+final _maneIceInnerFacet = ui.Path()
+  ..moveTo(-14, -7)
+  ..lineTo(3, -5)
+  ..lineTo(1, 4)
+  ..lineTo(-7, 12)
+  ..lineTo(-16, 5)
+  ..lineTo(-9, 1)
+  ..close();
+final _maneIceEdge = ui.Path()
+  ..moveTo(-6, -15)
+  ..lineTo(3, -19)
+  ..lineTo(13, -14)
+  ..lineTo(20, -3)
+  ..lineTo(16, 4)
+  ..moveTo(13, -14)
+  ..lineTo(3, -5)
+  ..lineTo(1, 4);
+final _maneIceChip = ui.Path()
+  ..moveTo(3, 0)
+  ..lineTo(-1, -1.7)
+  ..lineTo(-3, 0.4)
+  ..lineTo(0, 2)
+  ..close();
+final _maneIceMist = ui.Path()
+  ..moveTo(-10, -9)
+  ..cubicTo(-24, -15, -37, -10, -54, -3)
+  ..cubicTo(-38, -4, -31, 9, -12, 10)
+  ..quadraticBezierTo(-19, 0, -10, -9)
+  ..close();
+
+// Cool mineral glass with an enclosed silver light, rather than opaque panels.
+final _maneIceGlass = ui.Gradient.linear(
+  const ui.Offset(-19, 14),
+  const ui.Offset(14, -15),
+  const [
+    ui.Color(0xFF112A39),
+    ui.Color(0xFF365B69),
+    ui.Color(0xFF739698),
+    ui.Color(0xFFB1C8BD),
+  ],
+  const [0.0, 0.46, 0.82, 1.0],
+);
+final _maneIceRefraction = ui.Gradient.linear(
+  const ui.Offset(-9, -17),
+  const ui.Offset(8, 13),
+  const [
+    ui.Color(0xFFCEDCD0),
+    ui.Color(0xFF668B90),
+    ui.Color(0xFF193949),
+    ui.Color(0xFF8CBBB9),
+  ],
+  const [0.0, 0.30, 0.65, 1.0],
+);
+final _maneIceInnerLight = ui.Gradient.radial(
+  const ui.Offset(1, -2),
+  17,
+  const [ui.Color(0x807DDACB), ui.Color(0x20418389), ui.Color(0x00173949)],
+  const [0.0, 0.48, 1.0],
+);
+// A small salt-like seal suspended inside the ice; its broken engraving is
+// intentionally subordinate to the mineral silhouette, not an exterior badge.
+final _maneIceSeal = ui.Path()
+  ..moveTo(-5, -4)
+  ..lineTo(5, -4)
+  ..lineTo(0, 5)
+  ..close()
+  ..moveTo(-3.4, -0.5)
+  ..lineTo(3.0, -0.5)
+  ..moveTo(-1, -8)
+  ..lineTo(1, -8)
+  ..moveTo(-1, 8)
+  ..lineTo(1, 8);
+final _maneIceVeins = ui.Path()
+  ..moveTo(-18, -2)
+  ..lineTo(-12, -4)
+  ..lineTo(-8, -2)
+  ..lineTo(-4, -5)
+  ..lineTo(1, -6)
+  ..lineTo(5, -12)
+  ..moveTo(-8, -2)
+  ..lineTo(-9, 4)
+  ..lineTo(-13, 8)
+  ..moveTo(-9, 4)
+  ..lineTo(-4, 7)
+  ..lineTo(-2, 13)
+  ..moveTo(5, -12)
+  ..lineTo(9, -13)
+  ..moveTo(7, 11)
+  ..lineTo(6, 6)
+  ..lineTo(10, 2)
+  ..lineTo(9, -2)
+  ..moveTo(10, 2)
+  ..lineTo(14, 3);
+
+void _drawManeIceMass(
+  ui.Canvas canvas,
+  Projectile projectile,
+  ui.Offset position,
+  double time,
+) {
+  final scale = projectile.visualScale.clamp(0.75, 3.4).toDouble();
+  final phase = time + projectile.angle;
+  final opacity = (projectile.life / 0.22).clamp(0.0, 1.0);
+  final breakup = (1 - opacity) * (1 - opacity);
+  final paint = ui.Paint();
+  canvas.save();
+  canvas.translate(position.dx, position.dy);
+  canvas.rotate(projectile.angle);
+  canvas.scale(scale);
+
+  // Two quiet ribbons of cold air, tucked behind the solid leading face.
+  canvas.drawPath(
+    _maneIceMist,
+    paint
+      ..color = const ui.Color(0xFF79CAED).withValues(alpha: 0.045 * opacity),
+  );
+  canvas.save();
+  canvas.translate(-6, sin(phase * 3) * 2);
+  canvas.scale(0.87, 0.67);
+  canvas.drawPath(
+    _maneIceMist,
+    paint
+      ..color = const ui.Color(0xFFB5EFFF).withValues(alpha: 0.055 * opacity),
+  );
+  canvas.restore();
+
+  // Six analytic chips: fixed draw cost, independent of refresh rate and the
+  // shared ambient pool. They peel off, tumble, and dissolve in the wake.
+  for (var i = 0; i < 6; i++) {
+    final t = (phase * 1.25 + i / 6) % 1.0;
+    final side = i.isEven ? -1.0 : 1.0;
+    canvas.save();
+    canvas.translate(-14 - t * 39, side * (7 + t * (5 + i) + breakup * 12));
+    canvas.rotate(side * (t * 3 + i));
+    canvas.scale(0.35 + (i % 3) * 0.12);
+    canvas.drawPath(
+      _maneIceChip,
+      paint
+        ..color = const ui.Color(
+          0xFFBDEEFF,
+        ).withValues(alpha: sin(t * pi) * 0.40 * opacity),
+    );
+    canvas.restore();
+  }
+
+  // Faces separate during the final 220ms, using the same cached geometry.
+  void facet(
+    ui.Path path,
+    ui.Shader shader,
+    double alpha,
+    double dx,
+    double dy,
+  ) {
+    canvas.save();
+    canvas.translate(dx * breakup, dy * breakup);
+    canvas.drawPath(
+      path,
+      paint
+        ..shader = shader
+        ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: alpha * opacity),
+    );
+    canvas.restore();
+  }
+
+  facet(_maneIceHull, _maneIceGlass, 0.84, -3, 4);
+  facet(_maneIceInnerFacet, _maneIceRefraction, 0.38, -9, 2);
+  facet(_maneIceUpperFacet, _maneIceRefraction, 0.56, -3, -10);
+  facet(_maneIceFrontFacet, _maneIceRefraction, 0.44, 10, 3);
+  facet(_maneIceHull, _maneIceInnerLight, 0.8, 0, 0);
+  paint
+    ..shader = null
+    ..style = ui.PaintingStyle.stroke
+    ..strokeWidth = 0.24
+    ..strokeJoin = ui.StrokeJoin.bevel;
+  canvas.drawPath(
+    _maneIceVeins,
+    paint
+      ..color = const ui.Color(
+        0xFFB2D6C9,
+      ).withValues(alpha: 0.32 * opacity * (1 - breakup)),
+  );
+  canvas.drawPath(
+    _maneIceEdge,
+    paint
+      ..color = const ui.Color(
+        0xFFE0FAFF,
+      ).withValues(alpha: 0.40 * opacity * (1 - breakup)),
+  );
+  // Tarnished gold etching breathes softly inside the cold glass.
+  canvas.save();
+  canvas.rotate(-projectile.angle + 0.08 * sin(phase * 0.6));
+  canvas.drawPath(
+    _maneIceSeal,
+    paint
+      ..strokeWidth = 0.28
+      ..color = const ui.Color(0xFFD2C79F).withValues(
+        alpha: (0.26 + 0.07 * sin(phase * 1.5)) * opacity * (1 - breakup),
+      ),
+  );
+  canvas.restore();
+  // A single moving glint along the leading facet; the mass itself stays solid.
+  final glint = 0.28 + 0.18 * sin(time * 4 + projectile.angle);
+  canvas.drawLine(
+    const ui.Offset(16, -8),
+    const ui.Offset(19, -3),
+    paint
+      ..strokeWidth = 0.55
+      ..color = const ui.Color(0xFFE9EDDB).withValues(alpha: glint * opacity),
+  );
+  canvas.restore();
+}
+
+// Obsidian suspended over molten material. All paths and shaders are reused.
+final _maneLavaBody = ui.Path()
+  ..moveTo(22, -1)
+  ..cubicTo(23, -10, 10, -17, 1, -14)
+  ..cubicTo(-8, -16, -10, -8, -19, -9)
+  ..lineTo(-14, -3)
+  ..lineTo(-24, 2)
+  ..cubicTo(-12, 1, -14, 12, -4, 12)
+  ..cubicTo(6, 17, 21, 10, 22, -1)
+  ..close();
+final _maneLavaSeams = ui.Path()
+  ..moveTo(-17, -7)
+  ..lineTo(-8, -5)
+  ..lineTo(-3, -8)
+  ..lineTo(4, -5)
+  ..lineTo(9, -10)
+  ..lineTo(13, -11)
+  ..moveTo(4, -5)
+  ..lineTo(6, 1)
+  ..lineTo(2, 5)
+  ..lineTo(5, 12)
+  ..moveTo(6, 1)
+  ..lineTo(14, 2)
+  ..lineTo(20, -2)
+  ..moveTo(2, 5)
+  ..lineTo(-6, 4)
+  ..lineTo(-12, 7);
+final _maneLavaCrust = ui.Gradient.linear(
+  const ui.Offset(-12, 10),
+  const ui.Offset(12, -12),
+  const [
+    ui.Color(0xFF100F16),
+    ui.Color(0xFF35292C),
+    ui.Color(0xFF5D4540),
+    ui.Color(0xFF8C6450),
+  ],
+  const [0.0, 0.50, 0.85, 1.0],
+);
+final _maneLavaHeat = ui.Gradient.radial(
+  const ui.Offset(8, -1),
+  25,
+  const [
+    ui.Color(0xFFFFD393),
+    ui.Color(0xFFE9833C),
+    ui.Color(0xFF902D18),
+    ui.Color(0xFF321A21),
+  ],
+  const [0.0, 0.3, 0.7, 1.0],
+);
+// Soft falloff is baked into a reusable shader, avoiding an offscreen blur.
+final _maneLavaGlow = ui.Gradient.radial(
+  ui.Offset.zero,
+  1,
+  const [
+    ui.Color(0xFFFFD599),
+    ui.Color(0xDDFE872D),
+    ui.Color(0x558F2513),
+    ui.Color(0x008F2513),
+  ],
+  const [0.0, 0.22, 0.55, 1.0],
+);
+
+final _maneLavaWake = ui.Path()
+  ..moveTo(-10, -6)
+  ..cubicTo(-24, -8, -25, 0, -48, 3)
+  ..cubicTo(-28, 7, -21, 2, -11, 7)
+  ..close();
+final _maneLavaDrop = ui.Path()
+  ..moveTo(3, 0)
+  ..cubicTo(3, -3, -1, -3, -5, 0)
+  ..cubicTo(-1, 2, 3, 3, 3, 0)
+  ..close();
+
+void _drawManeLavaMass(
+  ui.Canvas canvas,
+  Projectile projectile,
+  ui.Offset position,
+  double time,
+) {
+  final scale = projectile.visualScale.clamp(0.75, 3.4).toDouble();
+  final opacity = (projectile.life / 0.25).clamp(0.0, 1.0);
+  final phase = time + projectile.angle;
+  final heat = 0.68 + 0.20 * sin(phase * 2.1);
+  final paint = ui.Paint();
+  canvas.save();
+  canvas.translate(position.dx, position.dy);
+  canvas.rotate(projectile.angle);
+  canvas.scale(scale);
+  void glow(double x, double y, double rx, double ry, double alpha) {
+    canvas.save();
+    canvas.translate(x, y);
+    canvas.scale(rx, ry);
+    canvas.drawCircle(
+      ui.Offset.zero,
+      1,
+      paint
+        ..style = ui.PaintingStyle.fill
+        ..shader = _maneLavaGlow
+        ..color = ui.Color.fromRGBO(255, 255, 255, alpha * opacity),
+    );
+    canvas.restore();
+  }
+
+  // Close surface radiance, asymmetric and gently changing with the heat.
+  glow(4, 0, 32 + 2 * sin(phase * 2.1), 24, 0.30);
+  canvas.save();
+  canvas.scale(1.0 + sin(phase * 2.6) * 0.06, 1.0 + sin(phase * 3.2) * 0.16);
+  canvas.drawPath(
+    _maneLavaWake,
+    paint
+      ..shader = _maneLavaHeat
+      ..color = ui.Color.fromRGBO(255, 255, 255, 0.25 * opacity),
+  );
+  canvas.restore();
+  // Four drawn droplets, with no additions to either game's particle pool.
+  for (var i = 0; i < 4; i++) {
+    final t = (phase * 0.8 + i * 0.25) % 1.0;
+    canvas.save();
+    canvas.translate(-15 - t * 28, sin(i * 2.4) * (3 + t * 9));
+    canvas.rotate(sin(i * 2.4) * t * 0.3);
+    canvas.scale((0.7 - t * 0.4) * (1 + sin(t * pi) * 1.3), 0.72 - t * 0.5);
+    canvas.drawPath(
+      _maneLavaDrop,
+      paint
+        ..shader = null
+        ..color = ui.Color.lerp(
+          const ui.Color(0xFFFFB663),
+          const ui.Color(0xFF72352A),
+          t,
+        )!.withValues(alpha: sin(t * pi) * opacity * 0.8),
+    );
+    canvas.restore();
+  }
+  canvas.drawPath(
+    _maneLavaBody,
+    paint
+      ..shader = _maneLavaCrust
+      ..color = ui.Color.fromRGBO(255, 255, 255, opacity),
+  );
+  // Moving subsurface hot spots cross under the dark crust independently.
+  // Clipping is local geometry; no saveLayer or framebuffer blur is needed.
+  canvas.save();
+  canvas.clipPath(_maneLavaBody);
+  for (var i = 0; i < 3; i++) {
+    final flow = phase * (1.0 + i * 0.19) + i * 2.1;
+    glow(
+      3 + sin(flow) * 11,
+      sin(flow * 1.37 + i) * 7,
+      13 + sin(flow * 1.6) * 3,
+      9,
+      0.48 + sin(flow * 1.8) * 0.14,
+    );
+  }
+  canvas.restore();
+  // Wide, faint heat under a narrow molten seam; no blur or offscreen layer.
+  paint
+    ..shader = _maneLavaHeat
+    ..style = ui.PaintingStyle.stroke
+    ..strokeJoin = ui.StrokeJoin.round
+    ..strokeCap = ui.StrokeCap.round;
+  canvas.drawPath(
+    _maneLavaSeams,
+    paint
+      ..strokeWidth = 2.8
+      ..color = ui.Color.fromRGBO(255, 255, 255, 0.12 * heat * opacity),
+  );
+  canvas.drawPath(
+    _maneLavaSeams,
+    paint
+      ..strokeWidth = 0.45
+      ..color = ui.Color.fromRGBO(255, 255, 255, 0.55 * heat * opacity),
+  );
+  canvas.save();
+  canvas.clipPath(_maneLavaBody);
+  final run = (phase * 0.55) % 1.0;
+  glow(18 - run * 33, 2 + sin(run * pi * 2) * 4, 7, 4, sin(run * pi) * 0.65);
+  canvas.restore();
+  paint
+    ..style = ui.PaintingStyle.stroke
+    ..shader = _maneLavaHeat;
+  // A small hot meniscus along the leading face sells the liquid beneath.
+  canvas.drawArc(
+    const ui.Rect.fromLTWH(8, -9, 12, 17),
+    -0.9,
+    1.55,
+    false,
+    paint
+      ..strokeWidth = 0.55
+      ..color = ui.Color.fromRGBO(255, 255, 255, 0.55 * heat * opacity),
+  );
+  canvas.restore();
+}
+
+// A consuming void: smoky silver-violet material spirals inward, disappearing
+// behind an opaque centre. Cached geometry/shaders, no blur or particle pool.
+final _maneDarkHalo = ui.Gradient.radial(
+  ui.Offset.zero,
+  1,
+  const [
+    ui.Color(0x003E294F),
+    ui.Color(0x004A315D),
+    ui.Color(0x88594A70),
+    ui.Color(0x00372A49),
+  ],
+  const [0.0, 0.24, 0.43, 1.0],
+);
+final _maneDarkWisp = ui.Path()
+  ..moveTo(29, -13)
+  ..cubicTo(13, -19, -8, -15, -10, -2)
+  ..cubicTo(-10, 7, 0, 10, 7, 4)
+  ..cubicTo(-3, 6, -7, 1, -3, -5)
+  ..cubicTo(2, -13, 17, -15, 29, -13)
+  ..close();
+final _maneDarkSmoke = ui.Gradient.linear(
+  const ui.Offset(27, -14),
+  const ui.Offset(-8, 2),
+  const [
+    ui.Color(0x003F344C),
+    ui.Color(0x705D526E),
+    ui.Color(0xBBA599AE),
+    ui.Color(0x00413551),
+  ],
+  const [0.0, 0.38, 0.78, 1.0],
+);
+final _maneDarkCore = ui.Gradient.radial(
+  const ui.Offset(-2, 0),
+  13,
+  const [ui.Color(0xFF020207), ui.Color(0xFF05050C), ui.Color(0x002B213B)],
+  const [0.0, 0.70, 1.0],
+);
+
+void _drawManeDarkVoid(
+  ui.Canvas canvas,
+  Projectile projectile,
+  ui.Offset position,
+  double time,
+) {
+  final scale = projectile.visualScale.clamp(0.75, 3.4).toDouble();
+  final fade = (projectile.life / 0.3).clamp(0.0, 1.0);
+  final phase = time + projectile.angle;
+  final paint = ui.Paint();
+  canvas.save();
+  canvas.translate(position.dx, position.dy);
+  canvas.rotate(projectile.angle);
+  canvas.scale(scale);
+  canvas.save();
+  canvas.scale(34 + sin(phase * 1.8) * 2, 29);
+  canvas.drawCircle(
+    ui.Offset.zero,
+    1,
+    paint
+      ..shader = _maneDarkHalo
+      ..color = ui.Color.fromRGBO(255, 255, 255, fade),
+  );
+  canvas.restore();
+  // Unequal streams tighten and turn into the centre instead of shedding out.
+  for (var i = 0; i < 3; i++) {
+    final t = (phase * 0.38 + i / 3) % 1.0;
+    canvas.save();
+    canvas.rotate(i * 2.4 + t * 2.2);
+    canvas.scale(1.4 - t * 0.75, (1.4 - t * 0.75) * 0.82);
+    canvas.drawPath(
+      _maneDarkWisp,
+      paint
+        ..shader = _maneDarkSmoke
+        ..color = ui.Color.fromRGBO(255, 255, 255, sin(t * pi) * fade),
+    );
+    canvas.restore();
+  }
+  // Six dim flecks visibly accelerate inward, then vanish under the core.
+  paint.shader = null;
+  for (var i = 0; i < 6; i++) {
+    final t = (phase * 0.48 + i / 6) % 1.0;
+    final radius = 30 - 24 * t * t;
+    final a = i * 2.399 + t * 2.5;
+    final at = ui.Offset(cos(a), sin(a) * 0.85) * radius;
+    canvas.drawCircle(
+      at,
+      0.35 + 0.3 * (1 - t),
+      paint
+        ..color = const ui.Color(
+          0xFFC2ADC7,
+        ).withValues(alpha: sin(t * pi) * 0.55 * fade),
+    );
+  }
+  canvas.save();
+  canvas.scale(1.0 + sin(phase * 2.3) * 0.04, 0.90);
+  canvas.drawCircle(
+    ui.Offset.zero,
+    13,
+    paint
+      ..shader = _maneDarkCore
+      ..color = ui.Color.fromRGBO(255, 255, 255, fade),
+  );
+  canvas.restore();
+  canvas.restore();
+}
+
 bool drawManeElementalProjectileVisual({
   required ui.Canvas canvas,
   required Projectile projectile,
@@ -702,10 +1789,28 @@ bool drawManeElementalProjectileVisual({
   required ui.Color color,
   required double time,
 }) {
+  if (drawAlchemicalManeVisual(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    time: time,
+  )) {
+    return true;
+  }
+
   final element = projectile.element;
   if (element == null ||
       projectile.visualStyle != ProjectileVisualStyle.slash) {
     return false;
+  }
+
+  if (drawAlchemicalManeBasicVisual(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    time: time,
+  )) {
+    return true;
   }
 
   // Stationary Mane placements (Lightning orbs, Lava blobs from pierce,
@@ -818,6 +1923,28 @@ bool drawManeElementalProjectileVisual({
         // a dedicated zone painter.
         break;
     }
+  }
+
+  if (element == 'Dark' &&
+      projectile.abilityFamily == 'mane' &&
+      !projectile.stationary) {
+    _drawManeDarkVoid(canvas, projectile, position, time);
+    return true;
+  }
+
+  if (element == 'Lava' &&
+      projectile.abilityFamily == 'mane' &&
+      !projectile.stationary) {
+    _drawManeLavaMass(canvas, projectile, position, time);
+    return true;
+  }
+
+  // The special is a thrown ice mass; basic attacks keep their small blades.
+  if (element == 'Ice' &&
+      projectile.abilityFamily == 'mane' &&
+      !projectile.stationary) {
+    _drawManeIceMass(canvas, projectile, position, time);
+    return true;
   }
 
   final vs = element == 'Light'
@@ -3780,6 +4907,15 @@ bool drawMaskElementalProjectileVisual({
   required ui.Color color,
   required double time,
 }) {
+  if (drawAlchemicalManeVisual(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    time: time,
+  )) {
+    return true;
+  }
+
   if (projectile.visualStyle != ProjectileVisualStyle.sigil) {
     return false;
   }
@@ -4648,7 +5784,9 @@ void drawProjectileRoleOverlay({
     final snareR = (projectile.snareRadius * 0.17).clamp(14.0, 74.0) * vs;
     // Removed the snare-indicator outline ring per design feedback.
 
-    if (element == 'Ice') {
+    // Icemane's crystal and frost wake already communicate the cold field.
+    // The legacy rotating spokes obscure its material; retain other families.
+    if (element == 'Ice' && projectile.abilityFamily != 'mane') {
       for (var i = 0; i < 6; i++) {
         final a = i * pi / 3 + time * 0.12;
         final inner = position + ui.Offset(cos(a), sin(a)) * (snareR * 0.44);
@@ -4685,7 +5823,7 @@ void drawProjectileRoleOverlay({
     }
   }
 
-  if (projectile.turretInterval > 0) {
+  if (projectile.turretInterval > 0 && projectile.abilityFamily != 'mane') {
     final turretR = (6.0 + projectile.radiusMultiplier * 2.2) * vs;
     final path = ui.Path();
     for (var i = 0; i < 4; i++) {
@@ -5421,6 +6559,9 @@ typedef ZoneVfxEmit =
 /// particles; each caller supplies [emit] to route into its own pool and is
 /// responsible for the per-frame spawn cadence + pool cap.
 void emitZoneParticles(Projectile p, Random rng, ZoneVfxEmit emit) {
+  // These Mane fields draw their own bounded ambient motion. Emitting the
+  // legacy wisps as well doubles the effect and crowds the shared pool.
+  if (usesAlchemicalManeVisual(p)) return;
   final element = p.element ?? '';
   final ec = elementColor(element);
   final r = p.effectRadius;

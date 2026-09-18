@@ -185,6 +185,24 @@ void main() {
       isFalse,
       reason: 'the maw displaces, it does not execute',
     );
+    expect(
+      victim.hp,
+      1e9,
+      reason: 'a hole that also grinds is a damage ability in a hole costume',
+    );
+
+    // The same holds for something that a single tick of damage would finish.
+    final frail =
+        game.enemies.lastWhere((e) => !e.isDead && !identical(e, victim))
+          ..hp = 1
+          ..isDead = false
+          ..position = maw;
+    run(game, 30);
+    expect(
+      frail.isDead,
+      isFalse,
+      reason: 'the maw executed a near-dead body instead of removing it',
+    );
 
     // Clear of the mouth, or it is eaten again on landing and spends the rest
     // of the run in a loop at the top of the screen.
@@ -317,6 +335,9 @@ void main() {
       (e) =>
           !e.isDead && (e.tier == EnemyTier.wisp || e.tier == EnemyTier.drone),
     );
+    // A dense wave can fill the pool before a large body shows up; the gate
+    // is what is under test here, not the cap.
+    game.debugClearMysticRevenants();
     final beforeSmall = game.mysticRevenantCount(0);
     game.debugKillEnemy(small);
     expect(
@@ -667,6 +688,9 @@ void main() {
         game.update(1 / 60);
         continue;
       }
+      // Beside the ship, inside its magnet: this checks that collecting pays,
+      // not whether some far-off wave body happens to die within reach.
+      live.first.position = game.ship.position + const Offset(90, 0);
       game.debugKillEnemy(live.first);
     }
     expect(
@@ -926,13 +950,19 @@ void main() {
 
     // Not the whole arena: outside the rim, bodies still come on. A maelstrom
     // that covered the floor would end the run's pressure outright.
-    final free =
-        game.enemies.lastWhere((e) => !e.isDead && !identical(e, caught))
-          ..hp = 1e9
-          ..isDead = false
-          ..position = eye + Offset(radius * 2.2, 0)
-          ..slowTimer = 0
-          ..slowMultiplier = 1.0;
+    final free = CosmicSurvivalEnemy(
+      position: eye + Offset(radius * 2.2, 0),
+      hp: 1e9,
+      maxHp: 1e9,
+      speed: 40,
+      damage: 0,
+      radius: 10,
+      tier: caught.tier,
+      element: 'Fire',
+      conduct: caught.conduct,
+      target: CosmicEnemyTarget.orb,
+    );
+    game.enemies.add(free);
     run(game, 2);
     expect(
       free.effectiveSpeed,
@@ -966,10 +996,15 @@ void main() {
       );
 
       // Anything it passes over is off the ground: held, hauled in, and ground.
+      // Ahead of the funnel on its circuit. The tornado outruns its own haul
+      // at the rim and leaves trailing bodies behind by design, so a body
+      // placed on the trailing side would test the bearing, not the lift.
+      final radial = later - game.orb.position;
+      final ahead = Offset(-radial.dy, radial.dx) / radial.distance;
       final caught = game.enemies.firstWhere((e) => !e.isDead)
         ..hp = 1e9
         ..isDead = false
-        ..position = later + Offset(funnel * 0.6, 0);
+        ..position = later + ahead * (funnel * 0.6);
       run(game, 2);
       final startDist =
           (caught.position - game.mysticTornadoPosition(0)!).distance;

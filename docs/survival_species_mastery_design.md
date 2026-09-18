@@ -1017,6 +1017,52 @@ Unlocking is not equipping. A path still has to be chosen, and still only one
 at a time — testing the trees means switching between them, which is the thing
 the override is for.
 
+## Per-family stat contracts
+
+Three separate contracts, each answering a different question.
+
+**What pays for the ability** — `cosmicFamilyAbilityStatWeights`. All eight
+families declare weights across Strength, Intelligence and Beauty. Speed is
+deliberately absent: it improves cadence, never secretly damage.
+
+**How often the special comes back** — `cosmicFamilySpecialCooldownWeights`.
+Basic attacks remain Speed's alone, for every family, because that is the
+stat's plain promise. A special is a different question and the answer should
+differ by family:
+
+| Family | Speed | Intelligence | Strength | Why |
+| --- | ---: | ---: | ---: | --- |
+| Horn | 0.70 | — | 0.30 | Bracing and turning a heavy body is physical recovery |
+| Mane | 0.60 | 0.40 | — | A skirmisher's blade work, mostly reflex |
+| Pip | 0.50 | 0.50 | — | Reflex and calculation, evenly |
+| Wing | 0.40 | 0.60 | — | A beam is aimed before it is fired |
+| Let | 0.30 | 0.70 | — | Artillery reloads on ranging, not on twitch |
+| Mask | 0.25 | 0.75 | — | Placing a trap well is reading the field |
+| Kin | 0.20 | 0.80 | — | Support is knowing when, far more than being quick |
+| Mystic | 0.15 | 0.85 | — | A world is willed into being |
+
+Mask previously ignored stats entirely: a flat 22.5 seconds meant Intelligence,
+its own cadence stat, changed nothing about how often it laid a trap. It
+divides by the contract now like everyone else.
+
+**How much of the ability there is** — Beauty, per family, on the anchored
+curve. This is the half that was missing everywhere but Mane. The old generic
+scalers spanned roughly 0.75x to 1.30x across the *entire* stat band, which is
+not something a player can see, let alone chase.
+
+| Family | What Beauty buys | Weak | Average | Perfect |
+| --- | --- | ---: | ---: | ---: |
+| Mane | fireballs / ball width | 4 | 8 | 16 |
+| Pip | ricochets | 3 | 5 | 8 |
+| Let | blast radius | 5.18 | 7.00 | 11.55 |
+
+Pip's ricochets used to read *Intelligence* through a 0.74x–1.26x scaler — the
+thing the family is for, on the wrong stat and on a curve nobody could feel.
+
+Still on the old flat scalers, to be done as their trees come up: Wing (beam
+width or count), Mask (fixtures placed), Horn (sweep radius), Kin (aura radius
+or wisp count), Mystic (world radius).
+
 ## Decisions intentionally made
 
 - **Rhythm and Encore are not shown to the player.** War Rhythm's stack count

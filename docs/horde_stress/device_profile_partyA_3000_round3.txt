@@ -1,0 +1,94 @@
+Running build hooks...Running build hooks...
+== SELF (of 3820 samples over 6s) ==
+  7.8%  CosmicSurvivalGame._rebuildEnemySpatialGrid
+  4.3%  CosmicSurvivalGame._updateEnemies
+  3.6%  _CompactIterator.moveNext
+  2.6%  CosmicSurvivalGame._applyEnemyContactDamage
+  2.5%  HordeArenaGame._countAlive
+  2.4%  ListIterator.moveNext
+  2.3%  __ConstMap&_LinkedHashImmutableBase&MapMixin&_HashBase&_OperatorEqualsAndCanonicalHashCode&_LinkedHashMapMixin._getValueOrData
+  2.2%  _GrowableList.elementAt
+  2.1%  _OneByteString.==
+  1.8%  CosmicSurvivalGame._visitEnemiesNear
+  1.6%  CosmicSurvivalGame._withinRange
+  1.4%  [native] atan
+  1.4%  SurvivalSwarmBatch.add
+  1.3%  CosmicSurvivalGame._updateSingleCompanion
+  1.2%  _GrowableList._grow
+  1.2%  CosmicSurvivalGame._isWithinViewport
+  1.2%  CosmicSurvivalGame.update
+  1.2%  [native] sin
+  1.1%  [native] atan2
+  1.1%  _Double.compareTo
+  1.1%  CosmicSurvivalGame._isInsideAnyKinDustCloud
+  1.0%  _updateMysticMaws.<anonymous closure>
+  0.9%  __Map&_LinkedHashBase&MapMixin&_HashBase._isModifiedSince
+  0.9%  _GrowableList.addAll
+  0.8%  ListBase.indexOf
+  0.8%  Offset.dx
+  0.8%  __ConstMap&_LinkedHashImmutableBase&MapMixin&_HashBase&_OperatorEqualsAndCanonicalHashCode._hashCode
+  0.7%  _GrowableList.add
+  0.7%  [native] pthread_getspecific
+  0.7%  CosmicSurvivalGame._distanceSquared
+  0.7%  __Int8List&_TypedList&_IntListMixin.fillRange
+  0.7%  _updateCompanionProjectiles.<anonymous closure>
+  0.6%  Offset.dy
+  0.5%  [native] pthread_mutex_lock
+  0.5%  CosmicSurvivalGame.render
+  0.5%  CosmicSurvivalGame._updateEnemyAction
+  0.5%  CosmicSurvivalEnemy.effectiveSpeed
+  0.5%  [native] [Native] /data/app/~~fi5zm5uKJ8EAzbj_hz6iTw==/com.luck3yapps.alchemons-RbhxGb4fPwQ_e3_uUV9dqw==/base.apk!/lib/arm64-v8a/libflutter.so+0x4fd0b8
+  0.5%  ListBase._filter
+  0.5%  identityHashCode
+  0.5%  _nearestEnemyTo.<anonymous closure>
+  0.4%  canBakeDenseSurvivalEnemy
+  0.4%  CosmicSurvivalGame._enemyCellCoord
+  0.4%  _Double.<
+  0.4%  _CompactIterator.current
+
+== INCLUSIVE (of 3820 samples over 6s) ==
+ 93.7%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding._invokeFrameCallback
+ 58.6%  HordeArenaGame.update
+ 56.1%  PlatformDispatcher._beginFrame
+ 56.0%  _beginFrame
+ 55.9%  _invoke1
+ 55.9%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding._handleBeginFrame
+ 55.9%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding.handleBeginFrame
+ 54.7%  __Map&_LinkedHashBase&MapMixin&_HashBase&_OperatorEqualsAndHashCode&_LinkedHashMapMixin.forEach
+ 54.6%  handleBeginFrame.<anonymous closure>
+ 54.4%  Ticker._tick
+ 54.2%  GameLoop._tick
+ 54.1%  GameRenderBox.gameLoopCallback
+ 54.1%  gameLoopCallback.gameLoopCallback
+ 53.8%  CosmicSurvivalGame.update
+ 39.3%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding.handleDrawFrame
+ 39.3%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding._handleDrawFrame
+ 39.3%  _invoke
+ 39.2%  PlatformDispatcher._drawFrame
+ 39.2%  _MixinApplication204&BindingBase&GestureBinding&SchedulerBinding&ServicesBinding&PaintingBinding&SemanticsBinding&RendererBinding._handlePersistentFrameCallback
+ 39.2%  _MixinApplication205&BindingBase&GestureBinding&SchedulerBinding&ServicesBinding&PaintingBinding&SemanticsBinding&RendererBinding&WidgetsBinding.drawFrame
+ 39.2%  _drawFrame
+ 37.7%  _MixinApplication204&BindingBase&GestureBinding&SchedulerBinding&ServicesBinding&PaintingBinding&SemanticsBinding&RendererBinding.drawFrame
+ 31.5%  PipelineOwner.flushPaint
+ 31.4%  PaintingContext._repaintCompositedChild
+ 31.4%  PaintingContext.repaintCompositedChild
+ 31.2%  RenderObject._paintWithContext
+ 30.8%  GameRenderBox.paint
+ 30.6%  CosmicSurvivalGame.render
+ 26.6%  CosmicSurvivalGame._updateEnemies
+ 11.5%  CosmicSurvivalGame._renderCompanionProjectile
+ 11.1%  drawMaskElementalProjectileVisual
+ 11.1%  drawAlchemicalManeVisual
+ 10.4%  _Painter.zone
+ 10.2%  _Painter.lavaPool
+  9.1%  CosmicSurvivalGame._rebuildEnemySpatialGrid
+  8.5%  SurvivalSwarmBatch.add
+  8.4%  CosmicSurvivalGame._applyEnemyContactDamage
+  6.7%  _NativeCanvas.drawCircle
+  6.6%  _NativeCanvas._drawCircle
+  6.5%  CosmicSurvivalGame._updateCompanion
+  6.5%  _NativeCanvas.__drawCircle$Method$FfiNative
+  6.2%  BuildOwner.buildScope
+  6.0%  _NativeCanvas.drawPath
+  5.9%  _NativeCanvas._drawPath
+  5.8%  CosmicSurvivalGame._visitEnemiesNear

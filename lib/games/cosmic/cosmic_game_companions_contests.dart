@@ -55,6 +55,15 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       level: level,
       beauty: beauty,
     );
+    final abilityAtk = CosmicBalance.companionElemAtk(
+      level: level,
+      beauty: cosmicFamilyAbilityRating(
+        family: family,
+        strength: strength,
+        intelligence: intel,
+        beauty: beauty,
+      ),
+    );
     final physDef =
         (CosmicBalance.companionPhysDef(
                   level: level,
@@ -94,6 +103,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       currentHp: startHp,
       physAtk: physAtk,
       elemAtk: elemAtk,
+      abilityAtk: abilityAtk,
       physDef: physDef,
       elemDef: elemDef,
       cooldownReduction: cooldownReduction,
@@ -212,6 +222,15 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       level: level,
       beauty: beauty,
     );
+    final abilityAtk = CosmicBalance.companionElemAtk(
+      level: level,
+      beauty: cosmicFamilyAbilityRating(
+        family: family,
+        strength: strength,
+        intelligence: intel,
+        beauty: beauty,
+      ),
+    );
     final physDef =
         (CosmicBalance.companionPhysDef(
                   level: level,
@@ -245,6 +264,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       currentHp: maxHp,
       physAtk: physAtk,
       elemAtk: elemAtk,
+      abilityAtk: abilityAtk,
       physDef: physDef,
       elemDef: elemDef,
       cooldownReduction: cooldownReduction,
@@ -1599,7 +1619,16 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
           (CosmicGame._companionSpeciesScale[family] ?? 1.0) * 1.0;
       // Derive combat stats from member
       final atkDmg = 3.0 + m.statStrength * 0.3 + m.level * 0.5;
-      final specialDmg = 3.0 + m.statIntelligence * 0.35 + m.level * 0.45;
+      final specialDmg =
+          3.0 +
+          cosmicFamilyAbilityRating(
+                family: family,
+                strength: m.statStrength,
+                intelligence: m.statIntelligence,
+                beauty: m.statBeauty,
+              ) *
+              0.35 +
+          m.level * 0.45;
       final baseRange =
           CosmicBalance.companionBaseRange(m.statIntelligence) +
           m.statSpeed * 12.0;

@@ -27,6 +27,20 @@ void main() {
     targetPos: const Offset(120, 0),
   );
 
+  test('the void hole only moves bodies — it never damages them', () {
+    // Board: "Throws out a void hole. Enemies that enter are sent out of the
+    // area (yeeted)." Sending something away is the whole ability, so the hole
+    // carries no damage of any kind: no contact hit, no tick, no execute.
+    final hole = cast('Dark').projectiles.single;
+    expect(hole.damage, 0);
+    expect(hole.effectPower, 0);
+    expect(
+      hole.voidEjectOnly,
+      isTrue,
+      reason: 'without this the shared black-hole tick grinds and executes',
+    );
+  });
+
   test('every mask placement stays where it is put', () {
     // A trap that travels is not a trap. This is the one rule that separates
     // the family from Let and Mane, and it holds for all seventeen.

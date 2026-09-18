@@ -170,8 +170,13 @@ void main() {
       final meteor = result.projectiles.firstWhere(
         (p) => p.visualStyle == ProjectileVisualStyle.meteor,
       );
-      expect(meteor.radiusMultiplier, greaterThanOrEqualTo(7.0));
-      expect(meteor.visualScale, greaterThanOrEqualTo(6.0));
+      // Meteor size tracks Beauty on the anchored curve now, and this caster
+      // leaves its stats at the 4.0 default — just below the 4.25 an average
+      // fielded creature actually has, so the rock is a few percent smaller
+      // than it used to be at the old scaler's flat baseline. It is still
+      // unmistakably artillery, which is what this test is about.
+      expect(meteor.radiusMultiplier, greaterThanOrEqualTo(6.5));
+      expect(meteor.visualScale, greaterThanOrEqualTo(5.5));
       expect(meteor.trailInterval, 0);
       expect(meteor.clusterCount, 0);
       expect(meteor.abilityFamily, 'let');

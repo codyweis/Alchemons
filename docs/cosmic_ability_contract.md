@@ -59,10 +59,16 @@ One sheet per family; rows are elements, columns are moments in the cast. The
 harness calls `createCosmicSpecialAbility` and draws through the same renderer
 chain survival uses, so the sheet cannot drift from the game.
 
-Projectiles only. Wing beams and the charge/shield/blessing payloads are drawn
-by the game, not the shared VFX layer, so those cells name the payload instead.
-The generic silhouette for projectiles no family renderer claims (kin, mystic,
-wing) lives in `drawGenericProjectileVisual` in `cosmic_projectile_vfx.dart`.
+The shared VFX layer owns projectiles, Wing beams and fields, Kin charge/laser
+effects, Horn charge/shield effects, and blessing auras. Cosmic Space,
+Survival, and Dungeons must call these shared painters rather than maintaining
+mode-specific copies. The generic silhouette for projectiles no family
+renderer claims lives in `drawGenericProjectileVisual` in
+`cosmic_projectile_vfx.dart`.
+
+Only Survival mastery visuals and Survival's large Mystic world fixtures are
+allowed to remain mode-specific. Moving Mystic projectiles still use the
+shared renderer.
 
 ## Enemy Contact Sheets
 

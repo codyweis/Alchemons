@@ -1,0 +1,94 @@
+Running build hooks...Running build hooks...
+== SELF (of 4000 samples over 6s) ==
+  7.9%  ListIterator.moveNext
+  7.5%  __Map&_LinkedHashBase&MapMixin&_HashBase&_OperatorEqualsAndHashCode&_LinkedHashMapMixin._getValueOrData
+  3.5%  _pickCompanionTargetChoice.<anonymous closure>
+  3.4%  _OneByteString.==
+  3.2%  _Double.compareTo
+  3.0%  CosmicSurvivalGame._updateEnemies
+  2.1%  _CompactIterator.moveNext
+  1.8%  WhereIterator.moveNext
+  1.8%  CosmicSurvivalGame._visitEnemiesNear
+  1.7%  CosmicSurvivalGame._applyEnemyContactDamage
+  1.4%  _GrowableList.elementAt
+  1.3%  [native] sin
+  1.3%  _GrowableList._grow
+  1.3%  ListIterator.current
+  1.1%  CosmicSurvivalGame._updateSingleCompanion
+  1.1%  CosmicSurvivalGame._withinRange
+  1.0%  _Double.clamp
+  0.9%  [native] atan
+  0.9%  _GrowableList.length
+  0.9%  _GrowableList.add
+  0.8%  _updateCompanionProjectiles.<anonymous closure>
+  0.8%  [native] pthread_getspecific
+  0.8%  _updateMysticMaws.<anonymous closure>
+  0.8%  CosmicSurvivalGame.update
+  0.8%  CosmicSurvivalEnemy.hpFraction
+  0.8%  SurvivalSwarmBatch.add
+  0.8%  [native] [Native] /data/app/~~Ipbnu-aQgAHchDbHdPipjA==/com.luck3yapps.alchemons-cvMpvXyyezqu5Cdr3SXPxQ==/base.apk!/lib/arm64-v8a/libflutter.so+0x4fd0b8
+  0.7%  [native] atan2
+  0.6%  __ConstMap&_LinkedHashImmutableBase&MapMixin&_HashBase&_OperatorEqualsAndCanonicalHashCode&_LinkedHashMapMixin._getValueOrData
+  0.6%  Offset.dx
+  0.6%  ListBase.indexOf
+  0.6%  Offset.dy
+  0.6%  CosmicSurvivalGame._distanceSquared
+  0.6%  _Double.<
+  0.5%  _HashBase._hashPattern
+  0.5%  aliveCount.<anonymous closure>
+  0.5%  __Map&_LinkedHashBase&MapMixin&_HashBase._isModifiedSince
+  0.5%  __Map&_LinkedHashBase&MapMixin&_HashBase&_OperatorEqualsAndHashCode&_LinkedHashMapMixin._findValueOrInsertPoint
+  0.5%  __ConstMap&_LinkedHashImmutableBase&MapMixin&_HashBase&_OperatorEqualsAndCanonicalHashCode._hashCode
+  0.5%  canSimplifySurvivalSwarmEnemy
+  0.5%  CosmicSurvivalEnemy.effectiveSpeed
+  0.5%  CosmicSurvivalGame._isWithinViewport
+  0.4%  _Double.==
+  0.4%  [native] [Native] /data/app/~~Ipbnu-aQgAHchDbHdPipjA==/com.luck3yapps.alchemons-cvMpvXyyezqu5Cdr3SXPxQ==/base.apk!/lib/arm64-v8a/libflutter.so+0x4fcf70
+  0.4%  CosmicSurvivalGame.render
+
+== INCLUSIVE (of 4000 samples over 6s) ==
+ 94.6%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding._invokeFrameCallback
+ 63.2%  HordeArenaGame.update
+ 60.0%  _beginFrame
+ 59.9%  PlatformDispatcher._beginFrame
+ 59.9%  _invoke1
+ 59.8%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding._handleBeginFrame
+ 59.6%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding.handleBeginFrame
+ 58.6%  __Map&_LinkedHashBase&MapMixin&_HashBase&_OperatorEqualsAndHashCode&_LinkedHashMapMixin.forEach
+ 58.5%  handleBeginFrame.<anonymous closure>
+ 58.4%  Ticker._tick
+ 58.3%  GameLoop._tick
+ 58.2%  gameLoopCallback.gameLoopCallback
+ 58.2%  GameRenderBox.gameLoopCallback
+ 54.8%  CosmicSurvivalGame.update
+ 36.2%  _MixinApplication205&BindingBase&GestureBinding&SchedulerBinding&ServicesBinding&PaintingBinding&SemanticsBinding&RendererBinding&WidgetsBinding.drawFrame
+ 36.2%  _MixinApplication204&BindingBase&GestureBinding&SchedulerBinding&ServicesBinding&PaintingBinding&SemanticsBinding&RendererBinding._handlePersistentFrameCallback
+ 36.2%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding.handleDrawFrame
+ 36.1%  _MixinApplication200&BindingBase&GestureBinding&SchedulerBinding._handleDrawFrame
+ 36.1%  PlatformDispatcher._drawFrame
+ 36.1%  _drawFrame
+ 36.1%  _invoke
+ 35.0%  _MixinApplication204&BindingBase&GestureBinding&SchedulerBinding&ServicesBinding&PaintingBinding&SemanticsBinding&RendererBinding.drawFrame
+ 28.8%  PipelineOwner.flushPaint
+ 28.7%  PaintingContext.repaintCompositedChild
+ 28.7%  PaintingContext._repaintCompositedChild
+ 28.4%  RenderObject._paintWithContext
+ 28.1%  GameRenderBox.paint
+ 27.8%  CosmicSurvivalGame.render
+ 21.9%  CosmicSurvivalGame._visitEnemiesNear
+ 19.5%  CosmicSurvivalGame._updateCompanion
+ 14.3%  CosmicSurvivalGame._updateEnemies
+ 14.1%  CosmicSurvivalGame._pickCompanionTargetChoice
+  9.3%  CosmicSurvivalGame._renderEnemy
+  9.2%  CosmicSurvivalGame._rebuildEnemySpatialGrid
+  9.2%  drawSurvivalEnemy
+  8.9%  drawEnemy
+  8.6%  __Map&_LinkedHashBase&MapMixin&_HashBase&_OperatorEqualsAndHashCode&_LinkedHashMapMixin.[]
+  8.5%  _pickCompanionTargetChoice.<anonymous closure>
+  8.3%  CosmicSurvivalGame._renderCompanionProjectile
+  8.3%  HordeArenaGame.aliveCount
+  8.2%  drawMaskElementalProjectileVisual
+  8.2%  __Map&_LinkedHashBase&MapMixin&_HashBase&_OperatorEqualsAndHashCode&_LinkedHashMapMixin._getValueOrData
+  8.1%  ListIterator.moveNext
+  7.8%  drawAlchemicalManeVisual
+  7.8%  Iterable.length

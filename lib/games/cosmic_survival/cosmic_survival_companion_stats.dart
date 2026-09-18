@@ -16,6 +16,7 @@ class CosmicSurvivalCompanionStats {
     required this.physDef,
     required this.elemDef,
     required this.cooldownReduction,
+    required this.specialCooldownReduction,
     required this.critChance,
     required this.attackRange,
     required this.specialAbilityRange,
@@ -28,15 +29,17 @@ class CosmicSurvivalCompanionStats {
   /// What this family's special ability hits for.
   ///
   /// Not every family should pay for its ability out of the same stat. A Mane
-  /// is a skirmisher whose catapult is a physical throw, so its ability damage
-  /// is Strength-led with an Intelligence minority, and Beauty buys coverage
-  /// instead — how many fireballs, how wide the ball. Families that have not
-  /// been given their own contract yet fall back to elemental attack, which is
-  /// what every special used before.
+  /// follows the shared family contract in [cosmicFamilyAbilityStatWeights].
   final int abilityAtk;
   final int physDef;
   final int elemDef;
+
+  /// Basic-attack cadence. Speed's alone, for every family.
   final double cooldownReduction;
+
+  /// Special cadence, from the family's own blend of Speed, Intelligence and
+  /// Strength — see [cosmicFamilySpecialCooldownWeights].
+  final double specialCooldownReduction;
   final double critChance;
   final double attackRange;
   final double specialAbilityRange;
@@ -61,9 +64,11 @@ double cosmicSurvivalFamilySpecialRange(String family, double baseRange) {
     'horn' => baseRange * 0.90,
     'mane' => baseRange * 1.10,
     'mask' => baseRange * 1.15,
-    'let' => baseRange * 1.10,
+    // Reach is Let's and Wing's identity, and it is what siege artillery is
+    // built to test: a gun parked past everyone else's range.
+    'let' => baseRange * 2.05,
     'pip' => baseRange * 1.05,
-    'wing' => baseRange * 1.50,
+    'wing' => baseRange * 1.95,
     'kin' => baseRange * 1.20,
     'mystic' => baseRange * 1.45,
     _ => baseRange * 1.25,
@@ -113,19 +118,11 @@ CosmicSurvivalCompanionStats deriveCosmicSurvivalCompanionStats({
   final intPow = CosmicSurvivalBalance.survivalStatPower(intel);
   final beautyPow = CosmicSurvivalBalance.survivalStatPower(beauty);
 
-  // Per-family ability stat contract. The weights say which stats pay for the
-  // special; Beauty's separate job — size, count, how much of it there is —
-  // is handled inside the ability table, not here.
-  final (
-    double abilityStr,
-    double abilityInt,
-    double abilityBeauty,
-  ) = switch (family) {
-    'mane' => (0.80, 0.20, 0.0),
-    _ => (0.0, 0.0, 1.0),
-  };
+  final abilityWeights = cosmicFamilyAbilityStatWeights(family);
   final abilityPow =
-      strPow * abilityStr + intPow * abilityInt + beautyPow * abilityBeauty;
+      strPow * abilityWeights.strength +
+      intPow * abilityWeights.intelligence +
+      beautyPow * abilityWeights.beauty;
 
   final maxHp = ((110 + level * 18 + 320 * strPow + 150 * intPow) * hpMult)
       .round();
@@ -154,12 +151,23 @@ CosmicSurvivalCompanionStats deriveCosmicSurvivalCompanionStats({
   // Cadence is continuous, so it reads the raw stat: a 100 is faster than a
   // 95. The final-step milestone applies to countable things, not to this.
   var cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
+  // A special comes back on whatever the family actually uses to bring it
+  // back, which is rarely pure reflex.
+  var specialCooldownReduction = CosmicBalance.companionCooldownReduction(
+    cosmicFamilySpecialCooldownStat(
+      family: family,
+      speed: speed,
+      intelligence: intel,
+      strength: str,
+    ),
+  );
   var critChance = ((0.05 + strPow * 0.32) * critMult).clamp(0.05, 0.55);
   var baseRange = 100.0 + AlchemonStatSystem.legacyGameplayRating(intel) * 28.0;
 
   double upgrade(GuardianUpgrade u) => guardianUpgradeValue?.call(u) ?? 0.0;
 
   cooldownReduction *= (1 + upgrade(GuardianUpgrade.cooldown));
+  specialCooldownReduction *= (1 + upgrade(GuardianUpgrade.cooldown));
   final guardDefMult = 1 + upgrade(GuardianUpgrade.defense);
   final guardAtkMult = 1 + upgrade(GuardianUpgrade.attack);
   critChance = (critChance + upgrade(GuardianUpgrade.critChance)).clamp(
@@ -176,6 +184,7 @@ CosmicSurvivalCompanionStats deriveCosmicSurvivalCompanionStats({
     physDef: (physDef * guardDefMult).round(),
     elemDef: (elemDef * guardDefMult).round(),
     cooldownReduction: cooldownReduction,
+    specialCooldownReduction: specialCooldownReduction,
     critChance: critChance,
     attackRange: cosmicSurvivalFamilyAttackRange(family, baseRange),
     specialAbilityRange: cosmicSurvivalFamilySpecialRange(family, baseRange),

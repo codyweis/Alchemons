@@ -2,7 +2,6 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
 import 'package:flame/components.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The ambient particle pool is a single shared resource that every effect in
@@ -106,6 +105,26 @@ void main() {
       );
     },
   );
+
+  test(
+    'Icemane leaves the ambient pool available for combat effects',
+    () async {
+      final ice = await runOneCast('Ice');
+      expect(ice.projectiles, 1);
+      expect(ice.peak, lessThanOrEqualTo(kManeTrailParticleBudget));
+    },
+  );
+
+  test('all Mane elements stay within the shared trail budget', () async {
+    for (final element in kCosmicAbilityElements) {
+      final result = await runOneCast(element);
+      expect(
+        result.peak,
+        lessThanOrEqualTo(kManeTrailParticleBudget),
+        reason: '$element must leave room for combat effects.',
+      );
+    }
+  });
 
   test('even the narrowest Mane cast leaves the pool free', () async {
     // Before the fix, Blood at three projectiles and Dust at nine BOTH pinned

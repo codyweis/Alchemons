@@ -868,14 +868,24 @@ void main() {
       game.update(1 / 60);
       expect(encoreOf(game, 0), greaterThan(0));
 
-      // A body that the next basic will finish.
-      target.hp = 1;
+      // A body that the next basic will finish. The special is parked for
+      // this measurement: an Encore is bought back by a BASIC kill, and a
+      // catapult landing first would take the kill and prove nothing.
+      comp.specialCooldown = 999;
+      // Enough that a stray residual tick cannot take the kill, little enough
+      // that one blade of the pair finishes it.
+      target.hp = 12;
       final before = encoreOf(game, 0);
+      final spentFrom = game.stats.timeElapsed;
       landBasic(game, target);
+      // An Encore burns down with the clock, so without the kill the timer
+      // would read exactly `before - spent`. Measure the clock rather than
+      // assuming how many frames flying the shot in happens to take.
+      final spent = game.stats.timeElapsed - spentFrom;
       expect(target.isDead, isTrue, reason: 'setup: the basic should kill');
       expect(
         encoreOf(game, 0),
-        greaterThan(before - ManeTuning.encoreKillExtension),
+        greaterThan(before - spent),
         reason: 'The kill should have bought back more than the time spent.',
       );
       expect(
@@ -1191,8 +1201,17 @@ void main() {
       // Ice is a single shot, so Beauty's coverage is the ball getting wider.
       expect(pretty.radius, greaterThan(average.radius * 1.2));
       expect(pretty.projectiles, average.projectiles);
-      // Wider still means more total damage, through reach rather than power.
-      expect(pretty.damage, greaterThan(average.damage));
+      // Wider means more coverage, not a hidden damage multiplier. Against a
+      // fixed six-body ring both casts catch the same targets, so the totals
+      // should land on top of each other: which body takes which of the
+      // capped pierce hits shifts by a few percent as the ball widens, and
+      // that is noise, not power. What matters is that width neither buys
+      // damage nor costs it.
+      expect(
+        pretty.damage,
+        closeTo(average.damage, average.damage * 0.12),
+        reason: 'Beauty must neither buy damage nor lose it.',
+      );
       expect(
         pretty.damage,
         lessThan(average.damage * 1.4),

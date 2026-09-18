@@ -42,6 +42,12 @@ enum EnemyConduct {
   /// Guards a zone, engages on entry. Was `territorial`.
   patrol,
 
+  /// Holds far outside the fight and shells what it is aimed at. Unlike
+  /// [standoff], which sits just past melee, this one parks beyond the reach
+  /// of most companions: something has to go out and get it, or hit it from
+  /// range. Walks in with the wave, stops early, never closes.
+  siege,
+
   /// Moves as a pack sharing a `packId`. Was `swarming`, and separately
   /// survival's `wispHorde` / `swarmRush` wave patterns.
   swarm,

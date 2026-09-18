@@ -4,6 +4,55 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/models/stat_system.dart';
 
 class CosmicSurvivalBalance {
+  /// Applied once at the common grant boundary, after source/passive bonuses.
+  static const double alchemicalRewardMultiplier = 0.5;
+
+  /// Most extra bodies are slow chaff. Progression adds density, not sponges.
+  static int hordeCountForWave(int wave) =>
+      (16 + wave * 6 + pow(max(0, wave - 4), 1.55) * 5).round().clamp(
+        24,
+        hordeWaveTotalCeiling,
+      );
+  static int hordeBatchSize(int wave) => (6 + wave).clamp(6, 48);
+
+  /// Plain horde bodies move at this share of their tier speed: a wisp takes
+  /// ~20 s to cross from the rim to the orb, long enough to read a front and
+  /// choose where to break it.
+  static const double hordeBodySpeedMultiplier = 0.6;
+  static const double hordeSpawnGap = pi / 3;
+
+  /// How much of the usable rim the wave's fronts are allowed to occupy.
+  ///
+  /// The per-band smear is wave-size-independent: 24 bodies always stretch
+  /// across the same slice of a front. That reads as a wall at wave 40 and as
+  /// a picket line at wave 2, where a whole wave is one or two bands. Opening
+  /// waves therefore arrive inside a narrow wedge you can stand in front of,
+  /// and the rim opens to its full width by wave 11 — clumping is a ramp, not
+  /// a difficulty cut.
+  static double hordeFrontOpenness(int wave) =>
+      (0.38 + (wave - 1) * 0.062).clamp(0.38, 1.0);
+
+  /// Siege artillery per wave: walks in with the front, parks past companion
+  /// reach and shells the orb. Something with range (a Wing beam, a Let
+  /// skyfall) or a trip out to it has to answer these.
+  static int artilleryCountForWave(int wave) =>
+      wave < 6 ? 0 : (2 + (wave - 6) ~/ 5).clamp(2, 14);
+
+  /// Broodmothers per wave: tough, slow bodies that keep feeding the front
+  /// until they are cut out of it.
+  static int broodCountForWave(int wave) =>
+      wave < 8 ? 0 : (1 + (wave - 8) ~/ 9).clamp(1, 6);
+
+  /// A broodmother's burst cadence and size.
+  static const double broodInterval = 3.4;
+  static const int broodBurst = 4;
+
+  /// How far past the arena rim a walking body appears.
+  static const double hordeSpawnBeyondRim = 70;
+
+  /// Most bodies one wave can send in total.
+  static const int hordeWaveTotalCeiling = 9000;
+
   /// Encounter budgets belong to the wave, not to each independently rolled boss.
   static int bossCountForWave(int wave) {
     if (wave <= 0 || wave % 5 != 0) return 0;
@@ -45,8 +94,32 @@ class CosmicSurvivalBalance {
       (8 + wave * 0.36).round().clamp(8, 30);
   static double bossEscortInterval(int wave) =>
       (1.25 - wave * 0.008).clamp(0.75, 1.25);
-  static int activeEnemyLimit(int wave, {required bool bossWave}) =>
-      bossWave ? 24 : (24 + wave * 0.65).round().clamp(24, 56);
+
+  /// Most bodies on the field at once. Device-measured (Galaxy Fold, profile,
+  /// docs/horde_stress/README.md): after the round-2 fixes a sustained 2,000
+  /// with five companions forcing specials held ~15 ms build / ~13 ms raster;
+  /// 1,000 held ~8-10 ms. Through wave 50 the field holds at 1,000, leaving
+  /// margin for everything a real run adds (bosses, sprites, HUD). Past 50 the
+  /// run is meant to become an endurance spectacle: the ceiling climbs to
+  /// 3,000 at wave 100. Waves still total more; they arrive as the field thins.
+  static const int hordeActiveCeiling = 1000;
+  static const int hordeLateActiveCeiling = 3000;
+
+  static int hordeActiveCeilingForWave(int wave) => wave <= 50
+      ? hordeActiveCeiling
+      : (hordeActiveCeiling +
+                (hordeLateActiveCeiling - hordeActiveCeiling) *
+                    (wave - 50) /
+                    50)
+            .round()
+            .clamp(hordeActiveCeiling, hordeLateActiveCeiling);
+
+  static int activeEnemyLimit(int wave, {required bool bossWave}) => bossWave
+      ? 24
+      : (48 + wave * 14 + pow(max(0, wave - 6), 1.4) * 3).round().clamp(
+          64,
+          hordeActiveCeilingForWave(wave),
+        );
 
   /// Layered elite/body/trait multipliers must not turn one leaked enemy into
   /// an instant loss. Several missed intercepts remain dangerous.

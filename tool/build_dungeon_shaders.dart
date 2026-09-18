@@ -17,21 +17,25 @@ void main() {
   final outDir = Directory('assets/shaders/dungeon/built')
     ..createSync(recursive: true);
 
-  final commonFiles = commonDir
-      .listSync()
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.glsl'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final commonFiles =
+      commonDir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.glsl'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
-  final header = commonFiles.map((f) => f.readAsStringSync().trim()).join('\n\n');
+  final header = commonFiles
+      .map((f) => f.readAsStringSync().trim())
+      .join('\n\n');
 
-  final sources = elementsDir
-      .listSync()
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.src.frag'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final sources =
+      elementsDir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.src.frag'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   if (sources.isEmpty) {
     stderr.writeln('No *.src.frag found in ${elementsDir.path}');
@@ -40,8 +44,7 @@ void main() {
   }
 
   for (final src in sources) {
-    final name =
-        src.uri.pathSegments.last.replaceAll('.src.frag', '');
+    final name = src.uri.pathSegments.last.replaceAll('.src.frag', '');
     final body = src.readAsStringSync().trim();
     final out = File('${outDir.path}/$name.frag');
     out.writeAsStringSync(

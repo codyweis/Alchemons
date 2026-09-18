@@ -1396,48 +1396,42 @@ class CosmicGame extends FlameGame with PanDetector {
   void _renderOpenWingBeams(Canvas canvas) {
     for (final beam in _activeWingBeams) {
       final d = beam.descriptor;
+      final color = elementColor(d.element);
+      if (beam.chargeTimer > 0) {
+        drawAdvancedWingBeamCharge(
+          canvas: canvas,
+          origin: beam.origin,
+          color: color,
+          progress: d.chargeTime <= 0 ? 1 : 1 - beam.chargeTimer / d.chargeTime,
+          time: _elapsed,
+        );
+        continue;
+      }
       if (d.targetPolicy != WingBeamTargetPolicy.ring || d.radius <= 0) {
         continue;
       }
       final alpha = (beam.life / d.duration).clamp(0.0, 1.0);
-      final color = elementColor(d.element);
-      canvas.drawCircle(
-        beam.origin,
-        d.radius,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = d.width * 0.7
-          ..color = color.withValues(alpha: 0.22 * alpha)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-      );
-      canvas.drawCircle(
-        beam.origin,
-        d.radius,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = max(2.0, d.width * 0.35)
-          ..color = color.withValues(alpha: 0.72 * alpha),
+      drawAdvancedWingBeamRing(
+        canvas: canvas,
+        center: beam.origin,
+        radius: d.radius,
+        width: d.width,
+        color: color,
+        element: d.element,
+        alpha: alpha,
+        time: _elapsed,
       );
     }
 
     for (final fx in _beamFx) {
-      final alpha = fx.alpha;
-      canvas.drawLine(
-        fx.start,
-        fx.end,
-        Paint()
-          ..color = fx.color.withValues(alpha: 0.22 * alpha)
-          ..strokeWidth = fx.width * 2.2
-          ..strokeCap = StrokeCap.round
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
-      );
-      canvas.drawLine(
-        fx.start,
-        fx.end,
-        Paint()
-          ..color = fx.color.withValues(alpha: 0.85 * alpha)
-          ..strokeWidth = fx.width
-          ..strokeCap = StrokeCap.round,
+      drawAdvancedAbilityBeam(
+        canvas: canvas,
+        start: fx.start,
+        end: fx.end,
+        color: fx.color,
+        width: fx.width,
+        alpha: fx.alpha,
+        time: _elapsed,
       );
     }
   }
@@ -1622,6 +1616,95 @@ class CosmicGame extends FlameGame with PanDetector {
       if (comp.pipSteamWindowTimer >= CosmicCompanion.pipSteamWindowDuration) {
         comp.pipSteamWindowTimer -= CosmicCompanion.pipSteamWindowDuration;
       }
+    }
+  }
+
+  void _tickOpenFamilyPassives(int slotIndex, CosmicCompanion comp, double dt) {
+    if (comp.member.family.toLowerCase() == 'kin' &&
+        comp.member.element == 'Fire' &&
+        comp.kinFireOrbitalFlameActive) {
+      comp.hornPoisonAuraTimer -= dt;
+      if (comp.hornPoisonAuraTimer <= 0) {
+        comp.hornPoisonAuraTimer = 0.5;
+        final damage = max(4.0, comp.abilityAtk * 0.6);
+        for (final enemy in enemies) {
+          if (!enemy.dead && (enemy.position - comp.position).distance <= 70) {
+            _damageOpenEnemy(enemy, damage, element: 'Fire');
+          }
+        }
+        _spawnHitSpark(comp.position, const Color(0xFFFFB060));
+      }
+    }
+    if (comp.member.family.toLowerCase() != 'horn') return;
+    final intelligence = AlchemonStatSystem.legacyGameplayRating(
+      comp.member.statIntelligence,
+    );
+    final scale = (1.0 + (intelligence - 4.0) * 0.10)
+        .clamp(0.85, 1.30)
+        .toDouble();
+
+    switch (comp.member.element) {
+      case 'Air':
+        final innerRadius = 90.0 * scale;
+        final auraRadius = 230.0 * scale;
+        for (final enemy in enemies) {
+          if (enemy.dead) continue;
+          final away = enemy.position - comp.position;
+          final distance = away.distance;
+          if (distance <= innerRadius || distance > auraRadius) continue;
+          final falloff =
+              1.0 - (distance - innerRadius) / (auraRadius - innerRadius);
+          enemy.position +=
+              away / distance * (80.0 * scale * (0.45 + 0.55 * falloff) * dt);
+        }
+        break;
+      case 'Mud':
+        comp.hornMudTrailTimer -= dt;
+        if (comp.hornMudTrailTimer > 0) return;
+        final density = ((intelligence - 3.0) / 2.0).clamp(0.0, 1.0);
+        comp.hornMudTrailTimer = 1.45 + (0.58 - 1.45) * density;
+        companionProjectiles.add(
+          Projectile(
+            position: comp.position,
+            angle: 0,
+            element: 'Mud',
+            damage: 0,
+            life: 4.5,
+            speedMultiplier: 0,
+            stationary: true,
+            piercing: true,
+            radiusMultiplier: 1.2,
+            visualScale: 1.1,
+            visualStyle: ProjectileVisualStyle.sigil,
+            sourceSlotIndex: slotIndex,
+            abilityFamily: 'horn',
+            tickEffect: AbilityEffectKind.slow,
+            effectPower: max(1.0, comp.abilityAtk * 0.08),
+            effectRadius: 48,
+            effectDuration: 1.4,
+          ),
+        );
+        break;
+      case 'Poison':
+        comp.hornPoisonAuraTimer -= dt;
+        if (comp.hornPoisonAuraTimer > 0) return;
+        comp.hornPoisonAuraTimer = 0.6;
+        final auraRadius = 140.0 * scale;
+        final damage = max(1.0, comp.abilityAtk * 0.18);
+        for (final enemy in enemies) {
+          if (!enemy.dead &&
+              (enemy.position - comp.position).distance <= auraRadius) {
+            _damageOpenEnemy(enemy, damage, element: 'Poison');
+          }
+        }
+        final boss = activeBoss;
+        if (boss != null &&
+            !boss.dead &&
+            (boss.position - comp.position).distance <=
+                auraRadius + boss.radius) {
+          _damageOpenBoss(damage, element: 'Poison');
+        }
+        break;
     }
   }
 
@@ -1821,7 +1904,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
   double _openSourceElementPower(Projectile p) {
     final comp = _sourceCompanion(p);
-    if (comp != null) return comp.elemAtk.toDouble();
+    if (comp != null) return comp.abilityAtk.toDouble();
     final g = _sourceGarrison(p);
     if (g != null) return g.specialDamage;
     return max(4.0, p.damage);
@@ -1972,7 +2055,7 @@ class CosmicGame extends FlameGame with PanDetector {
         comp.abilityKillStacks++;
         if (comp.abilityKillStacks >= 6) {
           comp.abilityKillStacks = 0;
-          _openSpiritMaskBurst(comp.position, comp.elemAtk * 1.6, member);
+          _openSpiritMaskBurst(comp.position, comp.abilityAtk * 1.6, member);
         }
       } else if (g != null) {
         g.abilityKillStacks++;
@@ -3470,6 +3553,15 @@ class CosmicGame extends FlameGame with PanDetector {
           _companionVisualsBySlot.remove(slot);
           _companionSpriteScales.remove(slot);
         }
+      } else if (comp.currentHp <= 0 &&
+          comp.member.family.toLowerCase() == 'kin' &&
+          comp.member.element == 'Fire' &&
+          !comp.kinFireOrbitalFlameActive) {
+        comp.currentHp = max(1, (comp.maxHp * 0.25).round());
+        comp.kinFireOrbitalFlameActive = true;
+        comp.invincibleTimer = 1.0;
+        _spawnHitSpark(comp.position, const Color(0xFFFFB060));
+        _spawnHitSpark(comp.position, const Color(0xFFFFE7B0));
       } else if (comp.currentHp <= 0) {
         // Companion died — auto return
         _spawnKillVfx(
@@ -3508,6 +3600,7 @@ class CosmicGame extends FlameGame with PanDetector {
             }
           }
           _tickOpenCompanionIdentity(comp, dt);
+          _tickOpenFamilyPassives(slot, comp, dt);
           comp.wanderTimer -= dt;
           if (!ringDuelActive && comp.wanderTimer <= 0) {
             // Pick a new wander direction every 2-3s
@@ -3769,7 +3862,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 baseAngle: comp.angle,
                 family: comp.member.family,
                 element: comp.member.element,
-                damage: comp.elemAtk * 0.8 * comp.damageAmp,
+                damage: comp.abilityAtk * 0.8 * comp.damageAmp,
                 maxHp: comp.maxHp,
                 casterPower: comp.member.statIntelligence.toDouble(),
                 casterBeauty: comp.member.statBeauty.toDouble(),
@@ -4056,7 +4149,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 baseAngle: opp.angle,
                 family: opp.member.family,
                 element: opp.member.element,
-                damage: opp.elemAtk * 0.8,
+                damage: opp.abilityAtk * 0.8,
                 maxHp: opp.maxHp,
                 casterPower: opp.member.statIntelligence.toDouble(),
                 casterBeauty: opp.member.statBeauty.toDouble(),
@@ -8707,55 +8800,31 @@ class CosmicGame extends FlameGame with PanDetector {
 
           // ── Shield bubble (Horn special) ──
           if (g.shieldHp > 0) {
-            final shieldPulse = 0.6 + 0.3 * sin(_elapsed * 5.0);
-            canvas.drawCircle(
-              Offset.zero,
-              22 * g.spriteScale,
-              Paint()
-                ..color = eColor.withValues(alpha: shieldPulse * 0.35)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 2.5
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+            drawAdvancedCompanionShield(
+              canvas: canvas,
+              time: _elapsed,
+              scale: g.spriteScale,
             );
           }
 
           // ── Charge trail (Horn charging) ──
           if (g.chargeTimer > 0) {
-            final chargeWidth = (g.chargeSweepRadius / 48.0).clamp(0.70, 2.20);
-            final trailScale = (g.chargeOvershootDistance / 80.0).clamp(
-              0.65,
-              2.10,
+            drawAdvancedChargeTrail(
+              canvas: canvas,
+              color: eColor,
+              angle: g.faceAngle,
+              sweepRadius: g.chargeSweepRadius,
+              overshootDistance: g.chargeOvershootDistance,
+              scale: g.spriteScale,
             );
-            for (var t = 0; t < 4; t++) {
-              final trailAngle = g.faceAngle + pi;
-              final trailDist = (6.0 + t * 6.0) * trailScale;
-              final tAlpha = (1.0 - t / 4.0) * 0.4;
-              canvas.drawCircle(
-                Offset(
-                  cos(trailAngle) * trailDist,
-                  sin(trailAngle) * trailDist,
-                ),
-                (4.0 - t) * g.spriteScale * chargeWidth,
-                Paint()
-                  ..color = eColor.withValues(alpha: tAlpha)
-                  ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-              );
-            }
           }
 
           // ── Blessing aura (Kin healing) ──
           if (g.blessingTimer > 0) {
-            final blessPulse = 0.5 + 0.4 * sin(_elapsed * 4.0);
-            canvas.drawCircle(
-              Offset.zero,
-              16 * g.spriteScale,
-              Paint()
-                ..color = Colors.greenAccent.withValues(
-                  alpha: blessPulse * 0.25,
-                )
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.5
-                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+            drawAdvancedBlessingAura(
+              canvas: canvas,
+              time: _elapsed,
+              scale: g.spriteScale,
             );
           }
 
@@ -9481,6 +9550,24 @@ class CosmicGame extends FlameGame with PanDetector {
           : const Color(0xFF42A5F5);
       final vs = cp.visualScale;
       final style = cp.visualStyle;
+      if (drawKinSpiritWispVisual(
+        canvas: canvas,
+        projectile: cp,
+        position: cpp,
+        color: projColor,
+        time: _elapsed,
+      )) {
+        continue;
+      }
+      if (drawMysticOrbitalProjectileVisual(
+        canvas: canvas,
+        projectile: cp,
+        position: cpp,
+        color: projColor,
+        time: _elapsed,
+      )) {
+        continue;
+      }
       if (drawLetElementalProjectileVisual(
         canvas: canvas,
         projectile: cp,
@@ -9488,6 +9575,13 @@ class CosmicGame extends FlameGame with PanDetector {
         color: projColor,
         time: _elapsed,
       )) {
+        drawProjectileRoleOverlay(
+          canvas: canvas,
+          projectile: cp,
+          position: cpp,
+          color: projColor,
+          time: _elapsed,
+        );
         continue;
       }
       if (drawPipElementalProjectileVisual(
@@ -9497,6 +9591,13 @@ class CosmicGame extends FlameGame with PanDetector {
         color: projColor,
         time: _elapsed,
       )) {
+        drawProjectileRoleOverlay(
+          canvas: canvas,
+          projectile: cp,
+          position: cpp,
+          color: projColor,
+          time: _elapsed,
+        );
         continue;
       }
       if (drawManeElementalProjectileVisual(
@@ -9506,6 +9607,13 @@ class CosmicGame extends FlameGame with PanDetector {
         color: projColor,
         time: _elapsed,
       )) {
+        drawProjectileRoleOverlay(
+          canvas: canvas,
+          projectile: cp,
+          position: cpp,
+          color: projColor,
+          time: _elapsed,
+        );
         continue;
       }
       if (drawHornElementalProjectileVisual(
@@ -9515,6 +9623,13 @@ class CosmicGame extends FlameGame with PanDetector {
         color: projColor,
         time: _elapsed,
       )) {
+        drawProjectileRoleOverlay(
+          canvas: canvas,
+          projectile: cp,
+          position: cpp,
+          color: projColor,
+          time: _elapsed,
+        );
         continue;
       }
 
@@ -9525,14 +9640,13 @@ class CosmicGame extends FlameGame with PanDetector {
       // self-guards on sigil style + a ground-zone/trap signal, so non-zone
       // sigils fall through. Decoys are excluded so they keep cosmic's
       // dedicated lure art below.
-      if (!cp.decoy &&
-          drawMaskElementalProjectileVisual(
-            canvas: canvas,
-            projectile: cp,
-            position: cpp,
-            color: projColor,
-            time: _elapsed,
-          )) {
+      if (drawMaskElementalProjectileVisual(
+        canvas: canvas,
+        projectile: cp,
+        position: cpp,
+        color: projColor,
+        time: _elapsed,
+      )) {
         if (cp.abilityFamily == 'mask' && cp.element == 'Plant') {
           _drawMaskPlantTendrils(canvas, cp, projColor);
         }
@@ -9543,6 +9657,36 @@ class CosmicGame extends FlameGame with PanDetector {
           color: projColor,
           time: _elapsed,
         );
+        continue;
+      }
+
+      // Everything outside Survival's stationary Mystic world fixtures uses
+      // the same authored fallback silhouette as Survival and Dungeons.
+      if (style != ProjectileVisualStyle.mysticOrbital) {
+        drawGenericProjectileVisual(
+          canvas: canvas,
+          projectile: cp,
+          position: cpp,
+          color: projColor,
+          time: _elapsed,
+        );
+        drawProjectileRoleOverlay(
+          canvas: canvas,
+          projectile: cp,
+          position: cpp,
+          color: projColor,
+          time: _elapsed,
+        );
+        if (cp.decoy) {
+          canvas.drawCircle(
+            cpp,
+            12 * vs,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.5
+              ..color = projColor.withValues(alpha: 0.2),
+          );
+        }
         continue;
       }
 
@@ -10800,125 +10944,43 @@ class CosmicGame extends FlameGame with PanDetector {
       );
 
       // ── Shield bubble (Horn special) ──
-      if (comp.hasShield) {
-        final shieldPulse = 0.6 + 0.3 * sin(_elapsed * 5.0);
-        // Outer shield ring
-        canvas.drawCircle(
-          Offset.zero,
-          32 * animScale,
-          Paint()
-            ..color = eColor.withValues(alpha: shieldPulse * 0.4 * opacity)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3.0
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      if (comp.member.family.toLowerCase() == 'kin') {
+        drawAdvancedKinSupportAura(
+          canvas: canvas,
+          element: comp.member.element,
+          color: eColor,
+          time: _elapsed,
+          fireOrbitalActive: comp.kinFireOrbitalFlameActive,
         );
-        // Inner shield fill
-        canvas.drawCircle(
-          Offset.zero,
-          30 * animScale,
-          Paint()
-            ..color = eColor.withValues(alpha: 0.15 * opacity)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      }
+      if (comp.hasShield) {
+        drawAdvancedCompanionShield(
+          canvas: canvas,
+          time: _elapsed,
+          scale: animScale,
         );
       }
 
       // ── Charge trail (Horn charging) ──
       if (comp.isCharging) {
-        final chargeWidth = (comp.chargeSweepRadius / 48.0).clamp(0.70, 2.20);
-        final trailScale = (comp.chargeOvershootDistance / 80.0).clamp(
-          0.65,
-          2.10,
+        drawAdvancedChargeTrail(
+          canvas: canvas,
+          color: eColor,
+          angle: comp.angle,
+          sweepRadius: comp.chargeSweepRadius,
+          overshootDistance: comp.chargeOvershootDistance,
+          scale: animScale,
         );
-        for (var t = 0; t < 5; t++) {
-          final trailAngle = comp.angle + pi; // behind companion
-          final trailDist = (8.0 + t * 8.0) * trailScale;
-          final tAlpha = (1.0 - t / 5.0) * 0.5 * opacity;
-          canvas.drawCircle(
-            Offset(cos(trailAngle) * trailDist, sin(trailAngle) * trailDist),
-            (5.0 - t) * animScale * chargeWidth,
-            Paint()
-              ..color = eColor.withValues(alpha: tAlpha)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-          );
-        }
       }
 
       // ── Blessing aura (Kin healing) ──
       if (comp.isBlessing) {
-        final blessingPulse = 0.5 + 0.4 * sin(_elapsed * 4.0);
-        // Approximate a soft glow without MaskFilter.blur for performance by
-        // drawing several concentric stroked rings with decreasing alpha and
-        // increasing stroke width. This avoids expensive mask blurs on some
-        // platforms while preserving a soft aura look (similar to prismatic
-        // optimizations elsewhere).
-        // Increase brightness: raise base alpha and widen rings for stronger
-        // visual presence while still avoiding MaskFilter.blur.
-        final baseAlpha = blessingPulse * 0.65 * opacity;
-        final centerR = 24 * animScale;
-
-        // When the pulse is at its brightest, draw a solid, more-inset
-        // filled core to produce a very solid color. Otherwise, draw the
-        // multi-ring approximation used for the softer glow.
-        final isPeak = blessingPulse > 0.82;
-        if (isPeak) {
-          // Strong, solid core at peak
-          canvas.drawCircle(
-            Offset.zero,
-            centerR * 0.48,
-            Paint()
-              ..color = Colors.greenAccent.withValues(
-                alpha: (baseAlpha * 1.7).clamp(0.0, 1.0),
-              ),
-          );
-        } else {
-          // Bright core fill for punch
-          canvas.drawCircle(
-            Offset.zero,
-            centerR * 0.22,
-            Paint()
-              ..color = Colors.greenAccent.withValues(alpha: baseAlpha * 0.95),
-          );
-
-          // Core thin ring (more visible)
-          canvas.drawCircle(
-            Offset.zero,
-            centerR,
-            Paint()
-              ..color = Colors.greenAccent.withValues(alpha: baseAlpha)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 3.0,
-          );
-
-          // Wider, stronger rings to emulate a brighter glow
-          canvas.drawCircle(
-            Offset.zero,
-            centerR,
-            Paint()
-              ..color = Colors.greenAccent.withValues(alpha: baseAlpha * 0.85)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 8.0,
-          );
-          canvas.drawCircle(
-            Offset.zero,
-            centerR,
-            Paint()
-              ..color = Colors.greenAccent.withValues(alpha: baseAlpha * 0.55)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 18.0,
-          );
-        }
-
-        // Floating + particles
-        for (var p = 0; p < 4; p++) {
-          final pAng = (p / 4) * pi * 2 + _elapsed * 2;
-          final pDist = 18.0 + 4 * sin(_elapsed * 3 + p);
-          canvas.drawCircle(
-            Offset(cos(pAng) * pDist, sin(pAng) * pDist),
-            2.5,
-            Paint()
-              ..color = Colors.greenAccent.withValues(alpha: 0.6 * opacity),
-          );
-        }
+        drawAdvancedBlessingAura(
+          canvas: canvas,
+          time: _elapsed,
+          scale: animScale,
+          opacity: opacity,
+        );
       }
 
       // Render sprite if loaded, otherwise fallback to circles

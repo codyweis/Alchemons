@@ -1,0 +1,78 @@
+{
+  "mode": "flutter_test debug, seeded; not device FPS",
+  "viewport": "900x700",
+  "scenarios": [
+    {
+      "enemies": 250,
+      "update": {
+        "medianMs": 0.325,
+        "p95Ms": 1.365,
+        "maxMs": 2.326
+      },
+      "recordRender": {
+        "medianMs": 1.361,
+        "p95Ms": 2.437,
+        "maxMs": 3.971
+      },
+      "snapshotRasterMs": 9.413,
+      "massKills": 125,
+      "massKillMs": 0.589,
+      "postKillUpdateMs": 0.155,
+      "postKillParticles": 150
+    },
+    {
+      "enemies": 500,
+      "update": {
+        "medianMs": 0.319,
+        "p95Ms": 0.777,
+        "maxMs": 3.376
+      },
+      "recordRender": {
+        "medianMs": 0.789,
+        "p95Ms": 4.289,
+        "maxMs": 4.645
+      },
+      "snapshotRasterMs": 5.642,
+      "massKills": 250,
+      "massKillMs": 0.343,
+      "postKillUpdateMs": 0.15,
+      "postKillParticles": 150
+    },
+    {
+      "enemies": 1000,
+      "update": {
+        "medianMs": 0.34,
+        "p95Ms": 0.895,
+        "maxMs": 2.003
+      },
+      "recordRender": {
+        "medianMs": 1.054,
+        "p95Ms": 2.52,
+        "maxMs": 2.836
+      },
+      "snapshotRasterMs": 17.585,
+      "massKills": 500,
+      "massKillMs": 2.738,
+      "postKillUpdateMs": 0.35,
+      "postKillParticles": 150
+    },
+    {
+      "enemies": 2000,
+      "update": {
+        "medianMs": 0.573,
+        "p95Ms": 0.752,
+        "maxMs": 0.997
+      },
+      "recordRender": {
+        "medianMs": 1.718,
+        "p95Ms": 2.127,
+        "maxMs": 2.42
+      },
+      "snapshotRasterMs": 12.317,
+      "massKills": 1000,
+      "massKillMs": 0.633,
+      "postKillUpdateMs": 0.933,
+      "postKillParticles": 150
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
+import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -164,5 +165,77 @@ void main() {
         );
       },
     );
+
+    group('horde waves', () {
+      test('field holds at 1,000 through wave 50, then climbs to 3,000', () {
+        for (var wave = 1; wave <= 120; wave++) {
+          final limit = CosmicSurvivalBalance.activeEnemyLimit(
+            wave,
+            bossWave: false,
+          );
+          expect(
+            limit,
+            lessThanOrEqualTo(
+              CosmicSurvivalBalance.hordeActiveCeilingForWave(wave),
+            ),
+          );
+          expect(limit, greaterThanOrEqualTo(64));
+          if (wave <= 50) expect(limit, lessThanOrEqualTo(1000));
+        }
+        expect(CosmicSurvivalBalance.hordeActiveCeilingForWave(75), 2000);
+        expect(CosmicSurvivalBalance.hordeActiveCeilingForWave(100), 3000);
+        expect(CosmicSurvivalBalance.hordeActiveCeilingForWave(140), 3000);
+        expect(
+          CosmicSurvivalBalance.activeEnemyLimit(100, bossWave: false),
+          3000,
+        );
+        expect(CosmicSurvivalBalance.activeEnemyLimit(10, bossWave: true), 24);
+      });
+
+      test('waves only get denser, and early waves stay approachable', () {
+        var previous = 0;
+        for (var wave = 1; wave <= 60; wave++) {
+          final count = CosmicSurvivalBalance.hordeCountForWave(wave);
+          expect(count, greaterThanOrEqualTo(previous));
+          previous = count;
+        }
+        expect(CosmicSurvivalBalance.hordeCountForWave(1), 24);
+        expect(CosmicSurvivalBalance.hordeCountForWave(5), lessThan(64));
+      });
+    });
+
+    testWidgets('every alchemical grant pays half', (tester) async {
+      final game = CosmicSurvivalGame(
+        party: [
+          CosmicPartyMember(
+            instanceId: 'a',
+            baseId: 'MAN06',
+            displayName: 'Lavamane',
+            family: 'Mane',
+            element: 'Lava',
+            level: 10,
+            slotIndex: 0,
+            statSpeed: 4,
+            statIntelligence: 4,
+            statStrength: 4,
+            statBeauty: 4,
+            staminaBars: 3,
+            staminaMax: 3,
+          ),
+        ],
+        onGameOver: () {},
+      );
+      game.onGameResize(Vector2(900, 700));
+      await game.onLoad();
+      game.startGame();
+      game.alchemicalMeter = 0;
+      game.debugGrantAlchemy(10);
+      expect(
+        game.alchemicalMeter,
+        closeTo(10 * CosmicSurvivalBalance.alchemicalRewardMultiplier, 1e-9),
+      );
+      expect(CosmicSurvivalBalance.alchemicalRewardMultiplier, 0.5);
+      game.onRemove();
+    });
   });
 }

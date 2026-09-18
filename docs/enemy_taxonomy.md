@@ -131,10 +131,17 @@ enum is what produced two enums in the first place.
 | `stalk` | trails at range, strikes on weakness | stalking / hunter |
 | `orbit` | holds a ring, strafes | orbiter |
 | `standoff` | closes to range, then kites | shooter |
+| `siege` | parks at `kSiegeHoldRange` (820) and shells the orb | *(new, 2026-09-18)* |
 | `drift` | aimless, harmless until provoked | drifting |
 | `graze` | clusters on a resource, pack-aggros | feeding |
 | `patrol` | guards a zone | territorial |
 | `swarm` | moves as a pack, shared `packId` | swarming / wispHorde / swarmRush |
+
+`siege` is the horde-era addition: a body that walks in with the front, stops
+**outside what a companion parked on the ship can reach**, and shells the orb
+with slow, fat, readable rounds. It exists to ask a question chaff cannot —
+bring reach (a Wing beam, a Let skyfall) or take the ship out to it. See
+`docs/horde_stress/role_scorecard.md` for what each family does against one.
 
 `swarm` as a conduct subsumes survival's swarm wave patterns: a `wispHorde`
 becomes "a wave composed of wisps with `swarm` conduct" rather than a separate

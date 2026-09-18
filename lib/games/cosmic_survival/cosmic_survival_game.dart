@@ -7,6 +7,7 @@ import 'package:alchemons/services/debug_settings_service.dart';
 // and boss AI as the main cosmic exploration game.
 
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'survival_outbreak.dart';
 import 'cosmic_survival_balance.dart';
@@ -14,6 +15,8 @@ import 'survival_outbreak_vfx.dart';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
+import 'package:alchemons/games/cosmic/mane_alchemical_vfx.dart'
+    show maneLavaPoolCrowd;
 import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_movement.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
@@ -64,6 +67,10 @@ class CosmicSurvivalCompanion {
   int physDef;
   int elemDef;
   double cooldownReduction;
+
+  /// Special cadence, from this family's own stat blend. Basic attacks keep
+  /// reading [cooldownReduction], which is Speed's alone.
+  double specialCooldownReduction;
   double critChance;
   double attackRange;
   double specialAbilityRange;
@@ -248,6 +255,7 @@ class CosmicSurvivalCompanion {
     required this.physDef,
     required this.elemDef,
     this.cooldownReduction = 1.0,
+    this.specialCooldownReduction = 1.0,
     this.critChance = 0.05,
     this.attackRange = 200,
     this.specialAbilityRange = 250,
@@ -341,14 +349,18 @@ class CosmicSurvivalCompanion {
   double get effectiveSpecialCooldown {
     final family = member.family.toLowerCase();
     if (family == 'mask') {
-      return 22.5 *
+      // A flat 22.5s meant no stat on the sheet changed how often a Mask laid
+      // a trap — Intelligence, its own cadence stat, did nothing at all. It
+      // divides by the family contract now, like every other family.
+      return 22.5 /
+          specialCooldownReduction *
           elementalSpecialCooldownMultiplierSurvival(
             member.family,
             member.element,
           );
     }
 
-    final base = baseSpecialCooldown / cooldownReduction;
+    final base = baseSpecialCooldown / specialCooldownReduction;
     final isMystic = family == 'mystic';
     // Mystics use a dedicated formula: every mystic descends *toward*
     // 60s as the relevant stat scales up, instead of starting at a
@@ -360,7 +372,7 @@ class CosmicSurvivalCompanion {
       // elemAtk caps at 36 (factor saturation point); cdr above 1.0
       // counts proportionally.
       final atkProgress = (elemAtk / 36.0).clamp(0.0, 1.0);
-      final cdrProgress = (cooldownReduction - 1.0).clamp(0.0, 1.0);
+      final cdrProgress = (specialCooldownReduction - 1.0).clamp(0.0, 1.0);
       final statProgress = (atkProgress + cdrProgress).clamp(0.0, 1.0);
       // Per-element "starting cooldown gap" above the 60s target. Bigger
       // gap = slower at low stats. All elements meet at 60s when
@@ -381,9 +393,16 @@ class CosmicSurvivalCompanion {
     }
     // Non-mystic: original formula.
     final factor = (1.0 + (elemAtk / 6.0) * 0.2).clamp(0.5, 6.0);
+    // Cadence is the lever that says what a family is FOR against a horde
+    // (docs/horde_stress/role_scorecard.md). A Mane clears waves, so its line
+    // comes round often. A Wing can answer anything, so it should not answer
+    // everything at once. Let and Pip pay less for reach and for picking a
+    // body out of a crowd than they used to.
     final familyMultiplier = switch (family) {
-      'let' => 1.18,
-      'pip' => 1.18,
+      'let' => 1.05,
+      'pip' => 0.95,
+      'mane' => 0.70,
+      'wing' => 1.22,
       'horn' => 0.85,
       _ => 1.0,
     };
@@ -1623,6 +1642,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final List<_MysticRevenant> _mysticRevenants = [];
   static const int _maxMysticRevenants = 16;
 
+  /// Empties the Spirit world's revenant pool, so a test can check the tier
+  /// gate without depending on how full a dense wave has already made it.
+  @visibleForTesting
+  void debugClearMysticRevenants() => _mysticRevenants.clear();
+
   final List<_MysticVine> _mysticVines = [];
   final List<_MysticMaw> _mysticMaws = [];
   final List<_MysticBolt> _mysticBolts = [];
@@ -1731,8 +1755,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   Offset _maskSpiritNukeOrigin = Offset.zero;
   final _ProjectileControlBuckets _projectileControlBuckets =
       _ProjectileControlBuckets();
-  final Map<int, List<CosmicSurvivalEnemy>> _enemySpatialGrid =
-      <int, List<CosmicSurvivalEnemy>>{};
+  // Flat enemy grid: a window of cells around the orb, filled by counting
+  // sort (stable, so each cell keeps list order). Replaces a Map of buckets
+  // whose lookups and rebuilds were ~18% of a 2,000-body device frame.
+  int _gridMinCx = 0;
+  int _gridMinCy = 0;
+  int _gridCols = 0;
+  int _gridRows = 0;
+  Int32List _gridCellStart = Int32List(1);
+  Int32List _gridCursor = Int32List(1);
+  Int32List _gridEnemyCell = Int32List(0);
+  List<CosmicSurvivalEnemy?> _gridItems = List.filled(0, null);
+  final List<CosmicSurvivalEnemy> _gridOverflow = [];
+  bool _gridEmpty = true;
   int _spatialQueries = 0;
   int _spatialCandidates = 0;
   double _spatialMetricsTimer = 0;
@@ -1743,14 +1778,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final Paint _shipProjectileGlowPaint = Paint()
     ..color = const Color(0xFF00E5FF).withValues(alpha: 0.2)
     ..maskFilter = null;
-  final Paint _beamPaint = Paint()..strokeCap = StrokeCap.round;
-  final Paint _beamGlowPaint = Paint()
-    ..strokeCap = StrokeCap.round
-    ..maskFilter = null;
-  final Paint _wingRingPaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeCap = StrokeCap.round;
-  final Paint _wingRingFillPaint = Paint()..style = PaintingStyle.fill;
   final Paint _companionProjCorePaint = Paint();
   final Paint _companionProjLinePaint = Paint()..strokeCap = StrokeCap.round;
   final Paint _companionProjStrokePaint = Paint()
@@ -1824,6 +1851,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   @override
   Color backgroundColor() => const Color(0xFF020010);
 
+  @visibleForTesting
+  double get debugArenaRadius => _arenaRadius;
+
   double get _arenaRadius =>
       max(1140.0, max(size.x / _currentZoom, size.y / _currentZoom) * 0.54);
 
@@ -1861,8 +1891,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
     orb = CosmicSurvivalOrb(
       position: const Offset(0, 0),
+      // 800, doubled from 400 when waves went from dozens of bodies to
+      // hundreds. Note this does NOT make heavy hits twice as survivable:
+      // orbContactDamage caps a hit at a SHARE of max HP (10%, 22% heavy), so
+      // brutes and breakers still take the same number of impacts to finish
+      // the orb. What it buys is room against chaff, whose raw damage is flat
+      // — a leaked swarm now costs half of what it did.
       maxHp:
-          ((400 + upgradeState.bonusOrbHp) *
+          ((800 + upgradeState.bonusOrbHp) *
                   powerUps.orbHpMultiplier *
                   skinDef.hpMultiplier)
               .round()
@@ -2006,6 +2042,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       viewW,
       viewH,
       orb.position,
+      arenaRadius: _arenaRadius,
     );
     enemies.addAll(newEnemies);
     _applyWaveStartEffectsIfNeeded();
@@ -2446,9 +2483,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     for (final entry in activeCompanions.entries) {
       final comp = entry.value;
+      // While a lock holds, the stabilizer returns the current target and
+      // discards any fresh pick, so skip the pick: at horde density it is a
+      // scored scan of hundreds of bodies per companion per frame.
       final targetChoice = _stabilizeCompanionTargetChoice(
         comp,
-        _pickCompanionTargetChoice(comp),
+        _companionTargetLocked(comp) ? null : _pickCompanionTargetChoice(comp),
       );
       comp.stickyTarget = targetChoice?.enemy;
       _updateSingleCompanion(dt, entry.key, comp, targetChoice);
@@ -2556,7 +2596,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                   AbilityEffectKind.poison,
                   e,
                   comp.position,
-                  comp.elemAtk * 0.40,
+                  comp.abilityAtk * 0.40,
                   60,
                   4.5,
                   sourceSlotIndex: slotIndex,
@@ -3374,7 +3414,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                 _SpiritWisp(
                   position: wisp.position,
                   sourceSlotIndex: slotIndex,
-                  damage: max(wisp.effectPower, comp.elemAtk * 1.2),
+                  damage: max(wisp.effectPower, comp.abilityAtk * 1.2),
                   bobPhase: _rng.nextDouble() * pi * 2,
                   life: max(8.0, wisp.life),
                 ),
@@ -3606,12 +3646,28 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         mastery.hasNode(comp.slotIndex, LetNodes.walkingFire);
     final maxScanSq = maxScan * maxScan;
 
+    // Spread-fire penalties, gathered once per pick rather than re-derived
+    // (with a string lowercase per companion) for every candidate body.
+    final lockedTargets = <CosmicSurvivalEnemy>[];
+    final lockedPenalties = <double>[];
+    for (final entry in activeCompanions.entries) {
+      if (entry.key == comp.slotIndex) continue;
+      final other = entry.value;
+      if (other.isDead) continue;
+      final target = other.stickyTarget;
+      if (target == null) continue;
+      final sameFamily = other.member.family.toLowerCase() == family;
+      lockedTargets.add(target);
+      lockedPenalties.add(sameFamily ? 90 : 30);
+    }
+
     CosmicSurvivalEnemy? bestEnemy;
     var bestEnemyScore = double.negativeInfinity;
-    for (final enemy in enemies) {
-      if (enemy.isDead) continue;
+    // Grid query instead of a whole-list scan: at horde density most bodies
+    // are out of range, and this runs for every companion every frame.
+    _visitEnemiesNear(comp.position, maxScan, (enemy) {
       final distSq = _distanceSquared(enemy.position, comp.position);
-      if (distSq > maxScanSq) continue;
+      if (distSq > maxScanSq) return false;
       final dist = sqrt(distSq);
       var score = 220.0 - dist;
       if (enemy.target == CosmicEnemyTarget.orb) score += 170;
@@ -3657,20 +3713,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // targets instead of every companion piling onto the same one.
       // Same-family overlap is penalized harder than cross-family
       // because same-family pickers share scoring biases.
-      for (final entry in activeCompanions.entries) {
-        if (entry.key == comp.slotIndex) continue;
-        final other = entry.value;
-        if (other.isDead) continue;
-        if (!identical(other.stickyTarget, enemy)) continue;
-        final sameFamily = other.member.family.toLowerCase() == family;
-        score -= sameFamily ? 90 : 30;
+      for (var i = 0; i < lockedTargets.length; i++) {
+        if (identical(lockedTargets[i], enemy)) score -= lockedPenalties[i];
       }
 
       if (score > bestEnemyScore) {
         bestEnemyScore = score;
         bestEnemy = enemy;
       }
-    }
+      return false;
+    });
 
     final boss = activeBoss;
     if (boss != null && !boss.isDead) {
@@ -3704,11 +3756,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
 
-    if (bestEnemy != null) {
+    final picked = bestEnemy;
+    if (picked != null) {
       return _CompanionTargetChoice(
-        position: bestEnemy.position,
-        enemy: bestEnemy,
-        radius: bestEnemy.radius,
+        position: picked.position,
+        enemy: picked,
+        radius: picked.radius,
       );
     }
     if (boss != null && !boss.isDead) {
@@ -3719,6 +3772,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
     return null;
+  }
+
+  /// Mirrors the first branch of [_stabilizeCompanionTargetChoice]: when this
+  /// holds, that branch returns before the suggested pick is looked at.
+  bool _companionTargetLocked(CosmicSurvivalCompanion comp) {
+    final current = comp.stickyTarget;
+    if (current == null || current.isDead || comp.stickyTargetLockTimer <= 0) {
+      return false;
+    }
+    final maxScan =
+        max(
+          comp.attackRange * _masteryAttackRangeMultiplier(comp.slotIndex),
+          comp.specialAbilityRange,
+        ) +
+        180;
+    return _distanceSquared(current.position, comp.position) <=
+        maxScan * maxScan * 1.20;
   }
 
   _CompanionTargetChoice? _stabilizeCompanionTargetChoice(
@@ -3974,6 +4044,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     int physDef,
     int elemDef,
     double cooldownReduction,
+    double specialCooldownReduction,
     double critChance,
     double attackRange,
     double specialAbilityRange,
@@ -4003,6 +4074,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       physDef: stats.physDef,
       elemDef: stats.elemDef,
       cooldownReduction: stats.cooldownReduction,
+      specialCooldownReduction: stats.specialCooldownReduction,
       critChance: stats.critChance,
       attackRange: stats.attackRange,
       specialAbilityRange: stats.specialAbilityRange,
@@ -4030,6 +4102,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       companion.physDef = stats.physDef;
       companion.elemDef = stats.elemDef;
       companion.cooldownReduction = stats.cooldownReduction;
+      companion.specialCooldownReduction = stats.specialCooldownReduction;
       companion.critChance = stats.critChance;
       companion.attackRange = stats.attackRange;
       companion.specialAbilityRange = stats.specialAbilityRange;
@@ -4247,8 +4320,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }) {
     return switch (family) {
       'horn' => vsBoss ? 0.76 : 0.88,
-      'mane' => vsBoss ? 1.0 : 1.0,
-      'wing' => vsBoss ? 1.0 : 1.0,
+      // Mane is the family that is supposed to clear a wave; Wing could
+      // answer every problem in the scorecard at once, which left the others
+      // with nothing that was theirs. Reach stays Wing's — the damage behind
+      // it comes down a little.
+      'mane' => vsBoss ? 1.0 : 1.12,
+      'wing' => vsBoss ? 1.0 : 0.88,
       'let' => vsBoss ? 1.15 : 1.05,
       'pip' => vsBoss ? 0.74 : 1.06,
       'mask' => vsBoss ? 1.0 : 1.0,
@@ -4364,6 +4441,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       physDef: stats.physDef,
       elemDef: stats.elemDef,
       cooldownReduction: stats.cooldownReduction,
+      specialCooldownReduction: stats.specialCooldownReduction,
       critChance: stats.critChance,
       attackRange: stats.attackRange,
       specialAbilityRange: stats.specialAbilityRange,
@@ -4569,9 +4647,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // Trait, not variant: a summoner wisp summons now.
       if (enemy.trait == EnemyTrait.summoner) {
         enemy.summonCooldown = max(0, enemy.summonCooldown - dt);
-        if (enemy.summonCooldown <= 0 && enemies.length < 220) {
-          enemy.summonCooldown = 6.5;
-          final adds = spawner.spawnSummonerWisps(enemy);
+        // The old flat 220 ceiling silenced every broodmother on a horde
+        // wave; the field's own limit is the right bound.
+        if (enemy.summonCooldown <= 0 &&
+            enemies.length < spawner.activeLimitNow) {
+          enemy.summonCooldown = CosmicSurvivalBalance.broodInterval;
+          final adds = spawner.spawnSummonerWisps(
+            enemy,
+            count: CosmicSurvivalBalance.broodBurst,
+          );
           enemies.addAll(adds);
           // Flash + sparkle so the player sees what happened.
           _spawnHitSpark(enemy.position, elementColor(enemy.element));
@@ -4854,9 +4938,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         enemy.angle = atan2(norm.dy, norm.dx);
       }
 
+      // Artillery outranges everything parked on the ship; ordinary shooters
+      // still have to come to 300.
+      final firingRange = enemy.isSiegeArtillery ? kSiegeHoldRange + 160 : 300;
       if (enemy.isShooter &&
           enemy.attackCooldown <= 0 &&
-          dist < 300 &&
+          dist < firingRange &&
           dist > enemy.radius + 35) {
         // Wing+Dust disorient: redirect the shot at the nearest
         // *other* enemy instead of the orb/ship.
@@ -4878,6 +4965,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final misfired = _mysticHazeMisfire(enemy);
         enemy.attackCooldown =
             (1.7 - min(enemy.tier.index * 0.12, 0.5)) *
+            // A shell is a slow, readable, heavy thing, not a stream.
+            (enemy.isSiegeArtillery ? 2.6 : 1.0) *
             (isSiegeShooter ? 1.12 : 1.0) *
             (enemy.isRelentless ? 0.88 : 1.0) *
             ((spawner.currentMutator == SurvivalWaveMutator.arcStorm ||
@@ -4896,6 +4985,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               friendlyFire: enemy.disorientTimer > 0,
               damage:
                   enemy.damage *
+                  (enemy.isSiegeArtillery ? 1.9 : 1.0) *
                   (isSiegeShooter ? 0.95 : 0.8) *
                   ((spawner.currentMutator == SurvivalWaveMutator.arcStorm ||
                           spawner.currentMutator ==
@@ -4905,13 +4995,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               target: enemy.target,
               speed:
                   (210 + enemy.tier.index * 18) *
+                  (enemy.isSiegeArtillery ? 0.62 : 1.0) *
                   (isSiegeShooter ? 0.9 : 1.0) *
                   ((spawner.currentMutator == SurvivalWaveMutator.arcStorm ||
                           spawner.currentMutator ==
                               SurvivalWaveMutator.shatteredSpace)
                       ? 1.10
                       : 1.0),
-              radius: isSiegeShooter ? 5.3 : 4.0,
+              radius: enemy.isSiegeArtillery
+                  ? 7.5
+                  : isSiegeShooter
+                  ? 5.3
+                  : 4.0,
+              life: enemy.isSiegeArtillery ? 11.0 : 4.0,
             ),
           );
         }
@@ -4934,6 +5030,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return CosmicEnemyTarget.orb;
     }
     if (enemy.conduct == EnemyConduct.charge) return CosmicEnemyTarget.orb;
+    // Artillery is a siege weapon: it is here for the orb, never the ship.
+    if (enemy.conduct == EnemyConduct.siege) return CosmicEnemyTarget.orb;
     if (enemy.conduct == EnemyConduct.stalk && !ship.isDead) {
       final roll = _rng.nextDouble();
       if (roll < 0.25) return CosmicEnemyTarget.orb;
@@ -7351,7 +7449,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         const wispThreshold = 6;
         if (companion.abilityKillStacks >= wispThreshold) {
           companion.abilityKillStacks = 0;
-          final burstDamage = companion.elemAtk * 1.6;
+          final burstDamage = companion.abilityAtk * 1.6;
           const burstRadius = 220.0;
           _visitEnemiesNear(companion.position, burstRadius, (target) {
             if (target.isDead) return false;
@@ -7392,9 +7490,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  @visibleForTesting
+  void debugGrantAlchemy(double value) => _grantAlchemy(value);
+
   void _grantAlchemy(double value) {
     if (ship.isDead || value <= 0) return;
-    alchemicalMeter = min(alchemicalMeterMax, alchemicalMeter + value);
+    alchemicalMeter = min(
+      alchemicalMeterMax,
+      alchemicalMeter +
+          value * CosmicSurvivalBalance.alchemicalRewardMultiplier,
+    );
   }
 
   void _updateAlchemicalMeterDisplay(double dt) {
@@ -7422,7 +7527,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _spawnAlchemyPickupBurst(Offset center, Color color, {int count = 6}) {
     if (_vfx.length >= 150) return;
-    for (var i = 0; i < count; i++) {
+    for (var i = 0; i < count && _vfx.length < 150; i++) {
       final angle = _rng.nextDouble() * pi * 2;
       final speed = 32 + _rng.nextDouble() * 88;
       _vfx.add(
@@ -9155,17 +9260,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         return true;
 
       case 'Dark':
-        // Yeet: instead of the generic pull, sling the enemy hard
-        // away from the void hole (and slow on landing).
-        final dir = enemy.position - projectile.position;
-        final dist = dir.distance;
-        if (dist > 0.01) {
-          final norm = dir / dist;
-          enemy.knockbackVelocity += norm * 820.0;
-          enemy.position += norm * 48.0;
-        }
-        enemy.slowTimer = max(enemy.slowTimer, 0.9);
-        enemy.slowMultiplier = min(enemy.slowMultiplier, 0.55);
+        // Yeet: the hole does not hit, hold or grind. Whatever touches it is
+        // put out of the area, unharmed, to walk the whole way back.
+        _ejectBodyFromField(
+          enemy,
+          hole: projectile.position,
+          holeRadius: max(projectile.effectRadius, 40),
+        );
         return true;
 
       case 'Crystal':
@@ -10177,7 +10278,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _MysticRevenant(
         position: enemy.position,
         ownerSlot: slot,
-        damage: max(4.0, owner.elemAtk * 0.85 * surge),
+        damage: max(4.0, owner.abilityAtk * 0.85 * surge),
         radius: max(9.0, enemy.radius * 0.82),
         // A shade is lighter than the body was.
         speed: max(70.0, enemy.speed * 1.45),
@@ -10399,7 +10500,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         position: orb.position + Offset(0, -_arenaRadius * 0.34),
         ownerSlot: comp.slotIndex,
         radius: 430.0 * scale * surge,
-        damage: max(6.0, comp.elemAtk * 1.25 * surge),
+        damage: max(6.0, comp.abilityAtk * 1.25 * surge),
       ),
     );
   }
@@ -10444,33 +10545,43 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// gets the walk-in time again. A maw that killed would just be a bigger
   /// version of every other Mystic.
   void _swallowIntoMaw(_MysticMaw maw, CosmicSurvivalEnemy enemy) {
-    _damageEnemy(enemy, maw.damage, sourceSlotIndex: maw.ownerSlot);
-    if (enemy.isDead) {
-      _spawnHitSpark(enemy.position, const Color(0xFFB89AFF));
-      return;
-    }
-    // Put it OUTSIDE the play area and make it walk back in.
-    //
-    // This has been both ways now. Dropping it at the arena's far rim read as
-    // deletion, so it moved in to the spawner's own ring; that made the hole
-    // feel like a shove rather than a hole. Out past the edge, on the ring
-    // fresh bodies arrive on, is the version that says what the maw does: it
-    // takes something off the map, and the map hands it back at the door.
-    final ring =
-        max(size.x / _currentZoom, size.y / _currentZoom) * 0.55 + 220.0;
+    // No damage: the comment above is the design. A hole that also ground
+    // bodies down would be a damage ability wearing a crowd-control coat.
+    _ejectBodyFromField(
+      enemy,
+      hole: maw.position,
+      holeRadius: maw.radius,
+      flash: const Color(0xFFB89AFF),
+      landingFlash: const Color(0xFF6A4AA8),
+    );
+  }
 
-    // And not back into the mouth. The maw's pull reaches further than that
-    // ring, so a body landing on the maw's own bearing would be eaten again
-    // immediately and never get anywhere — an enemy stuck in a loop at the top
-    // of the screen forever.
+  /// Throws a body out of the fight, unharmed, and makes it walk back in.
+  ///
+  /// Shared by every void that ejects — a Mystic+Dark maw and a Mask+Dark void
+  /// hole — so "sent out of the area" means one thing. It lands on the ring
+  /// walking bodies arrive on, OUTSIDE the arena rim, which is what makes this
+  /// displacement rather than a shove: the player gets the whole march back.
+  void _ejectBodyFromField(
+    CosmicSurvivalEnemy enemy, {
+    required Offset hole,
+    required double holeRadius,
+    Color flash = const Color(0xFFB89AFF),
+    Color landingFlash = const Color(0xFF6A4AA8),
+  }) {
+    final ring = _arenaRadius + CosmicSurvivalBalance.hordeSpawnBeyondRim;
+
+    // And not back into the mouth. A hole's pull can reach past that ring, so
+    // a body landing on its own bearing would be eaten again immediately and
+    // never get anywhere — stuck in a loop at the edge of the screen forever.
     var landing = orb.position;
     for (var attempt = 0; attempt < 10; attempt++) {
       final a = _rng.nextDouble() * 2 * pi;
       landing = orb.position + Offset(cos(a), sin(a)) * ring;
-      if ((landing - maw.position).distance > maw.radius * 1.2) break;
+      if ((landing - hole).distance > holeRadius * 1.2) break;
       if (attempt == 9) {
         // Fallback: straight across from the hole.
-        final away = orb.position - maw.position;
+        final away = orb.position - hole;
         final d = away.distance;
         final norm = d > 1 ? away / d : const Offset(0, 1);
         landing = orb.position + norm * ring;
@@ -10481,8 +10592,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     enemy.slowTimer = max(enemy.slowTimer, 1.5);
     enemy.slowMultiplier = min(enemy.slowMultiplier, 0.4);
     enemy.retargetTimer = 0;
-    _spawnHitSpark(maw.position, const Color(0xFFB89AFF));
-    _spawnHitSpark(enemy.position, const Color(0xFF6A4AA8));
+    _spawnHitSpark(hole, flash);
+    _spawnHitSpark(enemy.position, landingFlash);
   }
 
   // ── PLANT: the grove ────────────────────────────────────────────────────
@@ -10509,7 +10620,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           root: orb.position + Offset(lashes ? -spacing : spacing, 0),
           ownerSlot: comp.slotIndex,
           lashes: lashes,
-          damage: max(5.0, comp.elemAtk * (lashes ? 1.5 : 1.15)),
+          damage: max(5.0, comp.abilityAtk * (lashes ? 1.5 : 1.15)),
           reach: (lashes ? 200.0 : 620.0) * scale,
           seed: _rng.nextDouble() * 6.28,
         ),
@@ -10628,7 +10739,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // player has to keep track of where it is.
         orbitRadius: _arenaRadius * 0.46,
         funnelRadius: 190.0 * scale,
-        damage: max(2.0, comp.elemAtk * 0.5 * scale),
+        damage: max(2.0, comp.abilityAtk * 0.5 * scale),
         angle: _rng.nextDouble() * 2 * pi,
       ),
     );
@@ -10731,7 +10842,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             orb.position +
             Offset(cos(bearing), sin(bearing)) * (_arenaRadius * 0.44),
         radius: 460.0 * scale * _mysticWorldPower(comp.slotIndex),
-        damage: max(2.0, comp.elemAtk * 0.42 * scale),
+        damage: max(2.0, comp.abilityAtk * 0.42 * scale),
       ),
     );
   }
@@ -10904,7 +11015,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         _hornStatScale(strength, perPoint: 0.12, min: 0.8, max: 1.7) *
         _mysticWorldPower(fissure.ownerSlot);
     final count = (5 * scale).round().clamp(4, 12);
-    final damage = max(6.0, owner.elemAtk * 1.9 * scale);
+    final damage = max(6.0, owner.abilityAtk * 1.9 * scale);
 
     for (var i = 0; i < count; i++) {
       if (_mysticMeteors.length >= _maxMysticMeteors) break;
@@ -11440,7 +11551,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final scale = _hornStatScale(intel, perPoint: 0.15, min: 0.8, max: 2.0);
     final damage = max(
       8.0,
-      owner.elemAtk * 5.5 * scale * _mysticWorldPower(charge.ownerSlot),
+      owner.abilityAtk * 5.5 * scale * _mysticWorldPower(charge.ownerSlot),
     );
     const splash = 78.0;
 
@@ -11565,7 +11676,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final scale = _hornStatScale(strength, perPoint: 0.12, min: 0.8, max: 1.8);
     final damage = max(
       5.0,
-      owner.elemAtk * 2.0 * scale * _mysticWorldPower(slotIndex),
+      owner.abilityAtk * 2.0 * scale * _mysticWorldPower(slotIndex),
     );
     // Arena-wide: the ground is the ground. A radius would make it a big
     // explosion, which every other family already has several of.
@@ -11644,7 +11755,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         position: trailing,
         ownerSlot: slotIndex,
         radius: 44.0 * scale,
-        damage: max(2.0, owner.elemAtk * 0.55 * scale),
+        damage: max(2.0, owner.abilityAtk * 0.55 * scale),
         seed: _rng.nextDouble() * 6.28,
         life: 6.0 * scale,
       ),
@@ -11949,7 +12060,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           AbilityEffectKind.burn,
           enemy,
           ember.position,
-          max(3.0, owner.elemAtk * 0.34 * _mysticWorldPower(ember.ownerSlot)),
+          max(
+            3.0,
+            owner.abilityAtk * 0.34 * _mysticWorldPower(ember.ownerSlot),
+          ),
           60,
           2.4,
           sourceSlotIndex: ember.ownerSlot,
@@ -12672,7 +12786,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           _damageEnemiesNear(
             comp.position,
             70,
-            max(comp.elemAtk * 0.6, 4.0),
+            max(comp.abilityAtk * 0.6, 4.0),
             sourceSlotIndex: entry.key,
           );
         }
@@ -12689,7 +12803,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             _damageEnemiesNear(
               target.position,
               90,
-              max(teamDamage * 1.4, comp.elemAtk * 0.8),
+              max(teamDamage * 1.4, comp.abilityAtk * 0.8),
               sourceSlotIndex: entry.key,
             );
             _spawnHitSpark(target.position, const Color(0xFFFF7A20));
@@ -13624,7 +13738,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _ => true,
     };
     if (!allowedBySource) return;
-    final scale = companion.elemAtk * 0.20 + 4.0;
+    final scale = companion.abilityAtk * 0.20 + 4.0;
     // Stat scaling for placement size/duration. Beauty drives the
     // zone radii + visual size; Intelligence drives persistence.
     final beauty = slotIndex != null ? _effectiveBeauty(slotIndex) : 3.0;
@@ -13706,7 +13820,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             stationary: true,
             piercing: true,
             decoy: true,
-            decoyHp: (18.0 + companion.elemAtk * 0.6) * sizeScale,
+            decoyHp: (18.0 + companion.abilityAtk * 0.6) * sizeScale,
             // Beauty scales the taunt pull radius + visible silhouette
             // so high-stat builds get a larger beacon zone.
             tauntRadius: 130 * sizeScale,
@@ -14132,6 +14246,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // the zone stays cheap (no nested radius sweep per tick).
           final dir = p.position - enemy.position;
           final dist = dir.distance;
+          if (p.voidEjectOnly) {
+            // A void hole moves bodies and nothing else: it draws them in,
+            // and whatever reaches the middle is put out of the area.
+            if (dist > 56 && dist > 0.01) {
+              enemy.position +=
+                  (dir / dist) * min(16.0, 340.0 / max(dist, 9.0));
+            } else {
+              _ejectBodyFromField(
+                enemy,
+                hole: p.position,
+                holeRadius: zoneRadius,
+              );
+            }
+            return false;
+          }
           if (dist > 0.01) {
             enemy.position += (dir / dist) * min(16.0, 340.0 / max(dist, 9.0));
           }
@@ -14932,7 +15061,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             tauntRadius: 100.0 * steamSizeScale,
             tauntStrength: 1.0,
             tickEffect: AbilityEffectKind.geyser,
-            effectPower: max(1.0, comp.elemAtk * 0.5),
+            effectPower: max(1.0, comp.abilityAtk * 0.5),
             effectRadius: 60.0 * steamSizeScale,
             effectDuration: 2.6 * steamDurScale,
           ),
@@ -14979,7 +15108,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               position: enemy.position,
               angle: ang,
               element: 'Fire',
-              damage: max(1.0, comp.elemAtk * 0.50),
+              damage: max(1.0, comp.abilityAtk * 0.50),
               // Short life — flame fizzles if it doesn't reach a
               // target quickly, so the field doesn't get polluted.
               life: 1.4,
@@ -15252,7 +15381,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         tauntRadius: 80.0,
         tauntStrength: 1.0,
         tickEffect: AbilityEffectKind.burn,
-        effectPower: max(1.0, comp.elemAtk * 0.18),
+        effectPower: max(1.0, comp.abilityAtk * 0.18),
         effectRadius: 40.0,
         effectDuration: 3.0,
       ),
@@ -15342,7 +15471,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         decoy: true,
         decoyHp: comp.maxHp * 0.10,
         tickEffect: AbilityEffectKind.slow,
-        effectPower: max(1.0, comp.elemAtk * 0.12),
+        effectPower: max(1.0, comp.abilityAtk * 0.12),
         effectRadius: 44.0,
         effectDuration: 2.5,
         // Phase 5: each segment bounces enemy projectiles back at
@@ -15723,7 +15852,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         sourceSlotIndex: slotIndex,
         abilityFamily: 'horn',
         tickEffect: AbilityEffectKind.slow,
-        effectPower: max(1.0, comp.elemAtk * 0.08),
+        effectPower: max(1.0, comp.abilityAtk * 0.08),
         effectRadius: 48.0,
         effectDuration: 1.4,
       ),
@@ -15752,7 +15881,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       max: 1.30,
     );
     final auraRadius = 140.0 * auraScale;
-    final tickDamage = max(1.0, comp.elemAtk * 0.18);
+    final tickDamage = max(1.0, comp.abilityAtk * 0.18);
     _visitEnemiesNear(comp.position, auraRadius, (enemy) {
       if (enemy.isDead) return false;
       if (!_withinRange(comp.position, enemy.position, auraRadius)) {
@@ -16025,81 +16154,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         continue;
       }
       final fade = beam.life < 0.45 ? (beam.life / 0.45).clamp(0.0, 1.0) : 1.0;
-      final color = elementColor(d.element);
-      final isPoison = d.element == 'Poison';
-
-      // Faint interior wash so the ring reads as an enclosed field.
-      _wingRingFillPaint.color = color.withValues(alpha: 0.05 * fade);
-      canvas.drawCircle(center, r, _wingRingFillPaint);
-
-      // Churning perimeter — a wavy closed path that animates over time.
-      final pulse = isPoison ? 0.045 : 0.03;
-      const seg = 54;
-      final path = Path();
-      for (var i = 0; i <= seg; i++) {
-        final ang = i * pi * 2 / seg;
-        final wob = isPoison
-            ? sin(ang * 5 + t * 2.6) * (r * pulse)
-            : sin(ang * 8 - t * 4.0) * (r * pulse);
-        final rr = r + wob;
-        final px = center.dx + cos(ang) * rr;
-        final py = center.dy + sin(ang) * rr;
-        if (i == 0) {
-          path.moveTo(px, py);
-        } else {
-          path.lineTo(px, py);
-        }
-      }
-      path.close();
-
-      if (!_reduceSecondaryGlows) {
-        _wingRingPaint
-          ..color = color.withValues(alpha: 0.20 * fade)
-          ..strokeWidth = d.width * 2.4;
-        canvas.drawPath(path, _wingRingPaint);
-      }
-      _wingRingPaint
-        ..color = color.withValues(alpha: 0.85 * fade)
-        ..strokeWidth = d.width * 0.85;
-      canvas.drawPath(path, _wingRingPaint);
-
-      // Inner companion ring, counter-animated for a layered look.
-      _wingRingPaint
-        ..color = color.withValues(alpha: 0.42 * fade)
-        ..strokeWidth = d.width * 0.5;
-      canvas.drawCircle(center, r * (isPoison ? 0.86 : 0.9), _wingRingPaint);
-
-      if (isPoison) {
-        // Drifting toxic blobs orbiting the ring.
-        const blobs = 9;
-        for (var i = 0; i < blobs; i++) {
-          final ang = i * pi * 2 / blobs + t * 0.6;
-          final rr = r + sin(ang * 3 + t * 2.6) * (r * pulse);
-          final p = Offset(
-            center.dx + cos(ang) * rr,
-            center.dy + sin(ang) * rr,
-          );
-          final bob = 2.2 + sin(t * 3.0 + i) * 1.0;
-          _wingRingFillPaint.color = color.withValues(alpha: 0.55 * fade);
-          canvas.drawCircle(p, bob, _wingRingFillPaint);
-        }
-      } else {
-        // Fire: a bright arc sweeping around the ring.
-        _wingRingPaint
-          ..color = Color.lerp(
-            color,
-            const Color(0xFFFFFFFF),
-            0.5,
-          )!.withValues(alpha: 0.9 * fade)
-          ..strokeWidth = d.width * 1.1;
-        canvas.drawArc(
-          Rect.fromCircle(center: center, radius: r),
-          (t * 3.4) % (pi * 2),
-          pi * 0.55,
-          false,
-          _wingRingPaint,
-        );
-      }
+      drawAdvancedWingBeamRing(
+        canvas: canvas,
+        center: center,
+        radius: r,
+        width: d.width,
+        color: elementColor(d.element),
+        element: d.element,
+        alpha: fade,
+        time: t,
+      );
     }
   }
 
@@ -17170,7 +17234,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // Hit detection vs enemies
       final hitRadius = Projectile.radius * p.radiusMultiplier;
       bool consumed = false;
-      _visitEnemiesNear(p.position, hitRadius + 110, (enemy) {
+      // Contact needs centre distance < enemy.radius + hitRadius; the slack
+      // covers knockback since the grid was rebuilt this frame.
+      _visitEnemiesNear(p.position, hitRadius + _maxEnemyRadius + 12, (enemy) {
         if (!_withinRange(
           p.position,
           enemy.position,
@@ -17809,21 +17875,73 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     return dx * dx + dy * dy;
   }
 
-  static const double _enemySpatialCellSize = 180.0;
+  // Sized for horde density: at 1,000+ bodies a 180-unit cell held dozens of
+  // candidates for every small contact test. Larger area queries just visit
+  // more (cheap) cells; results are identical either way.
+  static const double _enemySpatialCellSize = 96.0;
+
+  /// Largest live body radius as of the last grid rebuild. Contact queries pad
+  /// by this rather than a fixed worst case, so they stay in one or two cells.
+  double _maxEnemyRadius = 0;
 
   int _enemyCellCoord(double v) => (v / _enemySpatialCellSize).floor();
 
-  int _enemyCellKey(int x, int y) => (x << 16) ^ (y & 0xFFFF);
-
   void _rebuildEnemySpatialGrid() {
-    _enemySpatialGrid.clear();
-    for (final enemy in enemies) {
-      if (enemy.isDead) continue;
-      final cx = _enemyCellCoord(enemy.position.dx);
-      final cy = _enemyCellCoord(enemy.position.dy);
-      final key = _enemyCellKey(cx, cy);
-      (_enemySpatialGrid[key] ??= <CosmicSurvivalEnemy>[]).add(enemy);
+    // Window: the arena plus a band past the rim where bodies spawn and walk
+    // in. Anything further out (a yeeted body walking back) goes to overflow.
+    final reach = _arenaRadius + 700;
+    _gridMinCx = _enemyCellCoord(orb.position.dx - reach);
+    _gridMinCy = _enemyCellCoord(orb.position.dy - reach);
+    _gridCols = _enemyCellCoord(orb.position.dx + reach) - _gridMinCx + 1;
+    _gridRows = _enemyCellCoord(orb.position.dy + reach) - _gridMinCy + 1;
+    final cells = _gridCols * _gridRows;
+    if (_gridCellStart.length < cells + 1) {
+      _gridCellStart = Int32List(cells + 1);
+      _gridCursor = Int32List(cells + 1);
+    } else {
+      _gridCellStart.fillRange(0, cells + 1, 0);
     }
+    final count = enemies.length;
+    if (_gridEnemyCell.length < count) {
+      _gridEnemyCell = Int32List(max(count, _gridEnemyCell.length * 2));
+    }
+    _gridOverflow.clear();
+    var maxRadius = 0.0;
+    var inGrid = 0;
+    for (var i = 0; i < count; i++) {
+      final enemy = enemies[i];
+      if (enemy.isDead) {
+        _gridEnemyCell[i] = -1;
+        continue;
+      }
+      if (enemy.radius > maxRadius) maxRadius = enemy.radius;
+      final cx = _enemyCellCoord(enemy.position.dx) - _gridMinCx;
+      final cy = _enemyCellCoord(enemy.position.dy) - _gridMinCy;
+      if (cx < 0 || cy < 0 || cx >= _gridCols || cy >= _gridRows) {
+        _gridEnemyCell[i] = -1;
+        _gridOverflow.add(enemy);
+        continue;
+      }
+      // Column-major, so a query's x-outer / y-inner walk is contiguous.
+      final cell = cx * _gridRows + cy;
+      _gridEnemyCell[i] = cell;
+      _gridCellStart[cell + 1]++;
+      inGrid++;
+    }
+    for (var c = 0; c < cells; c++) {
+      _gridCellStart[c + 1] += _gridCellStart[c];
+    }
+    _gridCursor.setRange(0, cells, _gridCellStart);
+    if (_gridItems.length < inGrid) {
+      _gridItems = List.filled(max(inGrid, _gridItems.length * 2), null);
+    }
+    for (var i = 0; i < count; i++) {
+      final cell = _gridEnemyCell[i];
+      if (cell < 0) continue;
+      _gridItems[_gridCursor[cell]++] = enemies[i];
+    }
+    _gridEmpty = inGrid == 0 && _gridOverflow.isEmpty;
+    _maxEnemyRadius = maxRadius;
   }
 
   void _visitEnemiesNear(
@@ -17832,17 +17950,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     bool Function(CosmicSurvivalEnemy enemy) visitor, {
     CosmicSurvivalEnemy? exclude,
   }) {
-    if (_enemySpatialGrid.isEmpty || radius <= 0) return;
+    if (_gridEmpty || radius <= 0) return;
     var visited = 0;
     final minX = _enemyCellCoord(center.dx - radius);
     final maxX = _enemyCellCoord(center.dx + radius);
     final minY = _enemyCellCoord(center.dy - radius);
     final maxY = _enemyCellCoord(center.dy + radius);
-    for (var x = minX; x <= maxX; x++) {
-      for (var y = minY; y <= maxY; y++) {
-        final bucket = _enemySpatialGrid[_enemyCellKey(x, y)];
-        if (bucket == null) continue;
-        for (final enemy in bucket) {
+    final x0 = max(minX - _gridMinCx, 0);
+    final x1 = min(maxX - _gridMinCx, _gridCols - 1);
+    final y0 = max(minY - _gridMinCy, 0);
+    final y1 = min(maxY - _gridMinCy, _gridRows - 1);
+    for (var x = x0; x <= x1; x++) {
+      final column = x * _gridRows;
+      for (var y = y0; y <= y1; y++) {
+        final cell = column + y;
+        final end = _gridCellStart[cell + 1];
+        for (var k = _gridCellStart[cell]; k < end; k++) {
+          final enemy = _gridItems[k]!;
           visited++;
           if (enemy.isDead) continue;
           if (exclude != null && identical(enemy, exclude)) continue;
@@ -17850,6 +17974,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             _recordSpatialQuery(visited);
             return;
           }
+        }
+      }
+    }
+    if (_gridOverflow.isNotEmpty &&
+        (x0 != minX - _gridMinCx ||
+            x1 != maxX - _gridMinCx ||
+            y0 != minY - _gridMinCy ||
+            y1 != maxY - _gridMinCy)) {
+      // The query reaches past the window: check the few bodies out there
+      // against the same cell range the window would have used.
+      for (final enemy in _gridOverflow) {
+        final cx = _enemyCellCoord(enemy.position.dx);
+        final cy = _enemyCellCoord(enemy.position.dy);
+        if (cx < minX || cx > maxX || cy < minY || cy > maxY) continue;
+        visited++;
+        if (enemy.isDead) continue;
+        if (exclude != null && identical(enemy, exclude)) continue;
+        if (visitor(enemy)) {
+          _recordSpatialQuery(visited);
+          return;
         }
       }
     }
@@ -18213,7 +18357,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _spawnHitSpark(Offset pos, Color color) {
     if (_vfx.length >= 150) return;
-    for (var i = 0; i < 6; i++) {
+    for (var i = 0; i < 6 && _vfx.length < 150; i++) {
       final a = _rng.nextDouble() * 2 * pi;
       final spd = 40 + _rng.nextDouble() * 80;
       _vfx.add(
@@ -18732,6 +18876,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final viewW = size.x / _currentZoom;
     final viewH = size.y / _currentZoom;
 
+    var lavaPools = 0;
+    for (final p in companionProjectiles) {
+      if (p.stationary && p.element == 'Lava' && p.abilityFamily == 'mane') {
+        lavaPools++;
+      }
+    }
+    maneLavaPoolCrowd = lavaPools;
+
     canvas.save();
     canvas.scale(_currentZoom, _currentZoom);
     // Screen shake rides the world transform, so the arena moves under the
@@ -18794,6 +18946,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
 
+    final batchSwarm = enemies.length >= _kSwarmBatchThreshold;
+    final denseField = enemies.length >= _kDenseFieldThreshold;
     for (final enemy in enemies) {
       if (enemy.isDead) continue;
       if (!_isWithinViewport(
@@ -18807,8 +18961,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
+      if (batchSwarm &&
+          _swarmBatch.add(enemy, stats.timeElapsed, dense: denseField)) {
+        continue;
+      }
       _renderEnemy(canvas, enemy);
     }
+    _swarmBatch.flush(canvas, stats.timeElapsed);
 
     // Beams and shockwaves sit above the bodies that threw them.
     _renderEnemyHazards(canvas);
@@ -18954,17 +19113,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
-      final alpha = beam.alpha;
-      _beamPaint
-        ..color = beam.color.withValues(alpha: 0.85 * alpha)
-        ..strokeWidth = beam.width;
-      canvas.drawLine(beam.start, beam.end, _beamPaint);
-      if (!_reduceSecondaryGlows) {
-        _beamGlowPaint
-          ..color = beam.color.withValues(alpha: 0.22 * alpha)
-          ..strokeWidth = beam.width * 2.2;
-        canvas.drawLine(beam.start, beam.end, _beamGlowPaint);
-      }
+      drawAdvancedAbilityBeam(
+        canvas: canvas,
+        start: beam.start,
+        end: beam.end,
+        color: beam.color,
+        width: beam.width,
+        alpha: beam.alpha,
+        time: stats.timeElapsed,
+        particles: !_reduceAmbientVfx,
+      );
     }
 
     _renderWingRings(canvas, cx, cy, viewW, viewH);
@@ -20283,12 +20441,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  /// Below this the detailed per-body silhouettes are affordable and read
+  /// better; above it ordinary bodies go through one batched atlas draw.
+  static const _kSwarmBatchThreshold = 250;
+
+  /// Above this, sentinels, phantoms and bodies mid-attack also come from the
+  /// atlas, with only their attack telegraph drawn live. Device profile at
+  /// 3,000: the detailed renderer was 40-48% of the UI thread.
+  static const _kDenseFieldThreshold = 1200;
+  final SurvivalSwarmBatch _swarmBatch = SurvivalSwarmBatch();
+
   void _renderEnemy(Canvas canvas, CosmicSurvivalEnemy enemy) {
     drawSurvivalEnemy(
       canvas: canvas,
       enemy: enemy,
       time: stats.timeElapsed,
       reduceLabels: _reduceMinorLabels,
+      simplifySwarm: enemies.length >= _kSwarmBatchThreshold,
     );
   }
 
@@ -20306,6 +20475,25 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _renderCompanionProjectile(Canvas canvas, Projectile proj) {
     final eColor = elementColor(proj.element ?? 'Fire');
+
+    if (drawKinSpiritWispVisual(
+      canvas: canvas,
+      projectile: proj,
+      position: proj.position,
+      color: eColor,
+      time: stats.timeElapsed,
+    )) {
+      return;
+    }
+    if (drawMysticOrbitalProjectileVisual(
+      canvas: canvas,
+      projectile: proj,
+      position: proj.position,
+      color: eColor,
+      time: stats.timeElapsed,
+    )) {
+      return;
+    }
 
     // Kin+Spirit wisp: distinct visual per tier (effectCount 1-4).
     // Bigger halos + brighter pip + extra orbiting motes at higher
@@ -20615,119 +20803,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // ── Kin support-path active overlays ──────────────────────
     if (comp.member.family.toLowerCase() == 'kin') {
-      final time = stats.timeElapsed;
-
-      // Kin+Ice special charge wind-up: frost build-up around the kin
-      // while kinIceChargeTimer ticks down before the radial release.
-      if (comp.kinIceChargeTimer > 0 && comp.kinIceChargeTotal > 0) {
-        final t =
-            (1.0 -
-                    (comp.kinIceChargeTimer / comp.kinIceChargeTotal).clamp(
-                      0.0,
-                      1.0,
-                    ))
-                .toDouble();
-        final ice = elementColor('Ice');
-        final white = Color.lerp(ice, const Color(0xFFFFFFFF), 0.6)!;
-        canvas.drawCircle(
-          Offset.zero,
-          26 + 14 * t,
-          Paint()..color = ice.withValues(alpha: 0.20 * t),
-        );
-        canvas.drawCircle(
-          Offset.zero,
-          18 + 8 * t,
-          Paint()..color = white.withValues(alpha: 0.35 * t),
-        );
-        // Spinning frost flecks around the perimeter.
-        for (var i = 0; i < 5; i++) {
-          final a = time * 2.4 + i * (pi * 2 / 5);
-          final r = 28.0 + 6.0 * t;
-          canvas.drawCircle(
-            Offset(cos(a) * r, sin(a) * r),
-            1.4,
-            Paint()..color = white.withValues(alpha: 0.85 * t),
-          );
-        }
-      }
-
-      // Kin+Lightning special charge: crackling halo while channelling
-      // (the buff active window also pumps ally autos to chain).
-      if (comp.kinLightningChargeTimer > 0 &&
-          comp.member.element == 'Lightning') {
-        final pulse = 0.78 + 0.22 * sin(time * 14);
-        final ltg = elementColor('Lightning');
-        final hot = Color.lerp(ltg, const Color(0xFFFFFFFF), 0.55)!;
-        canvas.drawCircle(
-          Offset.zero,
-          30,
-          Paint()..color = ltg.withValues(alpha: 0.22 * pulse),
-        );
-        canvas.drawCircle(
-          Offset.zero,
-          18,
-          Paint()..color = hot.withValues(alpha: 0.42 * pulse),
-        );
-        // Random crackling arcs from kin outward.
-        for (var i = 0; i < 3; i++) {
-          final a = _rng.nextDouble() * pi * 2;
-          final r1 = 12.0 + _rng.nextDouble() * 6;
-          final r2 = 28.0 + _rng.nextDouble() * 8;
-          canvas.drawLine(
-            Offset(cos(a) * r1, sin(a) * r1),
-            Offset(cos(a) * r2, sin(a) * r2),
-            Paint()
-              ..strokeWidth = 1.2
-              ..color = hot.withValues(alpha: 0.85 * pulse),
-          );
-        }
-      }
-
-      // Kin+Fire post-revive orbital flame: a steady spinning flame
-      // around the fire kin while the permanent flame is active.
-      if (comp.kinFireOrbitalFlameActive && comp.member.element == 'Fire') {
-        final ember = const Color(0xFFFFB060);
-        final hot = const Color(0xFFFFE7B0);
-        // 3 orbiting flame motes
-        for (var i = 0; i < 3; i++) {
-          final a = time * 3.2 + i * (pi * 2 / 3);
-          const r = 32.0;
-          final pos = Offset(cos(a) * r, sin(a) * r);
-          canvas.drawCircle(
-            pos,
-            6.0,
-            Paint()..color = ember.withValues(alpha: 0.50),
-          );
-          canvas.drawCircle(
-            pos,
-            3.2,
-            Paint()..color = hot.withValues(alpha: 0.85),
-          );
-        }
-      }
-
-      // Kin+Lava plate glow: subtle molten ring around the kin while
-      // its plate timer is active. (Universal overlay below paints
-      // the plate on every other ally too.)
-      if (comp.kinLavaPlateTimer > 0 && comp.member.element == 'Lava') {
-        final pulse = 0.80 + 0.20 * sin(time * 3);
-        const ember = Color(0xFFFF7A20);
-        canvas.drawCircle(
-          Offset.zero,
-          22,
-          Paint()..color = ember.withValues(alpha: 0.18 * pulse),
-        );
-      }
-
-      // Kin+Dark cloak: shadowy aura — the kin itself becomes faded
-      // while broadcasting the cloak.
-      if (comp.kinDarkCloakTimer > 0 && comp.member.element == 'Dark') {
-        canvas.drawCircle(
-          Offset.zero,
-          24,
-          Paint()..color = const Color(0xFF1A0A2A).withValues(alpha: 0.35),
-        );
-      }
+      drawAdvancedKinSupportAura(
+        canvas: canvas,
+        element: comp.member.element,
+        color: ec,
+        time: stats.timeElapsed,
+        iceChargeProgress:
+            comp.kinIceChargeTimer > 0 && comp.kinIceChargeTotal > 0
+            ? 1 - comp.kinIceChargeTimer / comp.kinIceChargeTotal
+            : 0,
+        lightningActive: comp.kinLightningChargeTimer > 0,
+        fireOrbitalActive: comp.kinFireOrbitalFlameActive,
+        lavaPlateActive: comp.kinLavaPlateTimer > 0,
+        darkCloakActive: comp.kinDarkCloakTimer > 0,
+      );
     }
 
     // Universal Lava plate overlay — paints a molten glow ring around
@@ -20758,38 +20847,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final t = (comp.kinAutoChargeTimer / _kinChargeTime)
           .clamp(0.0, 1.0)
           .toDouble();
-      final time = stats.timeElapsed;
-      final pulse = 0.85 + 0.15 * sin(time * 12 + comp.kinAutoChargeTimer * 8);
-      // Three layered glow halos that brighten with charge progress.
-      canvas.drawCircle(
-        Offset.zero,
-        26 + 6 * t,
-        Paint()..color = ec.withValues(alpha: 0.22 * t * pulse),
-      );
-      canvas.drawCircle(
-        Offset.zero,
-        18 + 4 * t,
-        Paint()..color = ec.withValues(alpha: 0.42 * t * pulse),
-      );
-      canvas.drawCircle(
-        Offset.zero,
-        9 + 3 * t,
-        Paint()
-          ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.65 * t * pulse),
-      );
-      // Sparkles drawn around the kin (seed-randomised per frame).
-      for (var i = 0; i < (2 + (t * 4).round()); i++) {
-        final a = _rng.nextDouble() * pi * 2;
-        final r = 12 + _rng.nextDouble() * (12 + 8 * t);
-        canvas.drawCircle(
-          Offset(cos(a) * r, sin(a) * r),
-          0.9 + _rng.nextDouble() * (0.7 + 0.6 * t),
-          Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.75 * t),
-        );
-      }
-      // Aiming reticule pip — tracks the LIVE enemy if it's still
-      // around, otherwise falls back to the cached snapshot. Helps
-      // the player see where the laser is about to fire.
       Offset? aim;
       final lockedEnemy = comp.kinAutoChargeEnemy;
       if (lockedEnemy != null && !lockedEnemy.isDead) {
@@ -20797,18 +20854,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       } else {
         aim = comp.kinAutoChargeTarget;
       }
-      if (aim != null) {
-        final dir = aim - comp.position;
-        if (dir.distance > 0.01) {
-          final norm = dir / dir.distance;
-          final reach = 18.0 + 14.0 * t;
-          canvas.drawCircle(
-            Offset(norm.dx * reach, norm.dy * reach),
-            1.4 + 1.4 * t,
-            Paint()..color = ec.withValues(alpha: 0.85 * pulse),
-          );
-        }
-      }
+      drawAdvancedKinCharge(
+        canvas: canvas,
+        color: ec,
+        progress: t,
+        time: stats.timeElapsed,
+        aimDirection: aim == null ? null : aim - comp.position,
+      );
     }
 
     // Pip+Steam: a steam cloud billows around the pip and thickens as
@@ -20925,44 +20977,22 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Shield bubble
     if (comp.shieldHp > 0) {
-      canvas.drawCircle(
-        Offset.zero,
-        22,
-        Paint()
-          ..color = Colors.cyan.withValues(
-            alpha: 0.25 + 0.1 * sin(stats.timeElapsed * 3),
-          )
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..maskFilter = null,
-      );
+      drawAdvancedCompanionShield(canvas: canvas, time: stats.timeElapsed);
+    }
+
+    if (comp.blessingTimer > 0) {
+      drawAdvancedBlessingAura(canvas: canvas, time: stats.timeElapsed);
     }
 
     // Charge trail
     if (comp.chargeTimer > 0) {
-      final chargeWidth = (comp.chargeSweepRadius / 48.0).clamp(0.70, 2.20);
-      final trailScale = (comp.chargeOvershootDistance / 80.0).clamp(
-        0.65,
-        2.10,
+      drawAdvancedChargeTrail(
+        canvas: canvas,
+        color: ec,
+        angle: comp.angle,
+        sweepRadius: comp.chargeSweepRadius,
+        overshootDistance: comp.chargeOvershootDistance,
       );
-      canvas.drawCircle(
-        Offset.zero,
-        28 * chargeWidth,
-        Paint()
-          ..color = ec.withValues(alpha: 0.35)
-          ..maskFilter = null,
-      );
-      for (var t = 0; t < 4; t++) {
-        final trailAngle = comp.angle + pi;
-        final trailDist = (7.0 + t * 7.0) * trailScale;
-        canvas.drawCircle(
-          Offset(cos(trailAngle) * trailDist, sin(trailAngle) * trailDist),
-          (5.0 - t) * chargeWidth,
-          Paint()
-            ..color = ec.withValues(alpha: (1.0 - t / 4.0) * 0.34)
-            ..maskFilter = null,
-        );
-      }
     }
 
     // Sprite rendering (same as cosmic game)

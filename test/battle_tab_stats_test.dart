@@ -107,19 +107,37 @@ void main() {
     expect(cdr, lessThan(1.0));
     expect(find.text('×${(1 / cdr).toStringAsFixed(2)}'), findsOneWidget);
 
-    // The source card bridges the Analysis tab's ratings to those figures and
-    // names the only extra source instead of showing unexplained +N values.
-    expect(find.text('WHAT POWERS THESE STATS'), findsOneWidget);
-    expect(find.text('STRENGTH'), findsOneWidget);
-    expect(find.text('P-ATK · CRIT · HP · P-DEF'), findsOneWidget);
-    expect(find.textContaining('Combat Constellation bonuses'), findsOneWidget);
+    // Persistent modifiers live in one bottom section, grouped by source.
+    expect(find.text('Boosts'), findsOneWidget);
+    expect(find.text('NATURE'), findsOneWidget);
+    expect(find.text('No Nature boost'), findsOneWidget);
+    expect(find.text('ENHANCEMENT'), findsOneWidget);
+    expect(find.text('PURITY · PURE'), findsOneWidget);
+    expect(find.text('COMBAT CONSTELLATION'), findsOneWidget);
+    expect(find.text('FAMILY FRAME · PIP'), findsOneWidget);
     expect(find.textContaining('Ratings past 500'), findsNothing);
 
-    // Attack cadence is now explicit, and the old mode-specific appendix is
-    // no longer part of the creature's core battle explanation.
+    // The attack cards follow the grid before role and boost details.
     expect(find.text('Auto Attack'), findsOneWidget);
     expect(find.text('Special Ability'), findsOneWidget);
     expect(find.text('Survival'), findsNothing);
+    final visibleLabels = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((text) => text.data)
+        .whereType<String>()
+        .toList(growable: false);
+    expect(
+      visibleLabels.indexOf('Auto Attack'),
+      lessThan(visibleLabels.indexOf('Special Ability')),
+    );
+    expect(
+      visibleLabels.indexOf('Special Ability'),
+      lessThan(visibleLabels.indexOf('Role')),
+    );
+    expect(
+      visibleLabels.indexOf('Role'),
+      lessThan(visibleLabels.indexOf('Boosts')),
+    );
   });
 
   testWidgets('reported HP and DEF include the family shape modifiers', (
@@ -139,11 +157,13 @@ void main() {
     await pumpBattleTab(tester, 'Horn');
     expect(find.text('$hornHp'), findsOneWidget);
     expect(find.text('$baseHp'), findsNothing);
-    expect(find.textContaining('HORN frame'), findsOneWidget);
+    expect(find.text('FAMILY FRAME · HORN'), findsOneWidget);
+    expect(find.textContaining('HP +30%'), findsOneWidget);
 
     await pumpBattleTab(tester, 'Pip');
     expect(find.text('$baseHp'), findsOneWidget);
-    expect(find.textContaining('frame:'), findsNothing);
+    expect(find.text('FAMILY FRAME · PIP'), findsOneWidget);
+    expect(find.textContaining('Special range +20%'), findsOneWidget);
   });
 
   testWidgets('the stats block fits a 360pt-wide phone', (tester) async {

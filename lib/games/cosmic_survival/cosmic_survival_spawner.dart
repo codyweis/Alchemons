@@ -320,7 +320,11 @@ class CosmicSurvivalEnemy with MasteryPayloadStatuses {
         (isRelentless ? max(0.78, slowMultiplier) : slowMultiplier);
   }
 
-  bool get isShooter => conduct == EnemyConduct.standoff;
+  bool get isShooter =>
+      conduct == EnemyConduct.standoff || conduct == EnemyConduct.siege;
+
+  /// Artillery: holds past companion reach and shells the orb.
+  bool get isSiegeArtillery => conduct == EnemyConduct.siege;
   bool get hasBulwark => eliteAffix == EliteAffix.bulwarked;
   bool get isVolatile => eliteAffix == EliteAffix.volatile;
   bool get isVampiric => eliteAffix == EliteAffix.vampiric;
@@ -657,14 +661,27 @@ class CosmicSurvivalSpawner {
   final List<String> _recentBossElements = <String>[];
 
   int currentWave = 0;
+
+  /// The arena's rim as of the last update; spawns land beyond it. Null until
+  /// a game passes one in, when the old view-based margin is used.
+  double? _arenaRim;
   bool intermission = false;
   bool isBossWave = false;
   bool bossSpawned = false;
+
+  /// Direction the wave's fronts are centred on, and how many there are.
+  /// Both roll per wave; the escape gap sits opposite the middle front.
+  double frontBearing = 0;
+  int frontCount = 3;
+  double _waveSizeJitter = 1.0;
+  SurvivalWaveMutator? _lastMutator;
   SurvivalWavePattern currentPattern = SurvivalWavePattern.mixed;
   SurvivalWaveMutator? currentMutator;
 
   double _spawnTimer = 0;
   int _spawnedThisWave = 0;
+  int _artilleryThisWave = 0;
+  int _broodThisWave = 0;
   int _targetCountThisWave = 0;
   bool _waveActive = false;
   bool _waitingForClear = false;
@@ -689,9 +706,23 @@ class CosmicSurvivalSpawner {
     currentPattern = isBossWave
         ? SurvivalWavePattern.mixed
         : _patternForWave(currentWave);
-    currentMutator = isBossWave ? null : previewMutatorForWave(currentWave);
+    currentMutator = isBossWave ? null : _rollMutatorForWave(currentWave);
+    _lastMutator = currentMutator ?? _lastMutator;
+    // Where the wave comes from, and how it is cut up. Rolled per wave so the
+    // escape gap is somewhere new and a front can be a broad two or a tight
+    // four rather than always three.
+    frontBearing = _rng.nextDouble() * 2 * pi;
+    final frontRoll = _rng.nextDouble();
+    frontCount = frontRoll < 0.25
+        ? 2
+        : frontRoll < 0.78
+        ? 3
+        : 4;
+    _waveSizeJitter = 0.90 + _rng.nextDouble() * 0.25;
     bossSpawned = false;
     _spawnedThisWave = 0;
+    _artilleryThisWave = 0;
+    _broodThisWave = 0;
     _targetCountThisWave = _enemyCountForWave(currentWave);
     _spawnTimer = 0;
     _waveActive = true;
@@ -702,13 +733,7 @@ class CosmicSurvivalSpawner {
 
   int _enemyCountForWave(int wave) {
     if (isBossWave) return CosmicSurvivalBalance.bossEscortCount(wave);
-    final base = (4 + wave * 1.55 + pow(wave, 1.05) * 0.40).round();
-    final earlyPressureBonus = switch (wave) {
-      <= 2 => 2,
-      <= 4 => 3,
-      <= 7 => 4,
-      _ => 0,
-    };
+    final base = CosmicSurvivalBalance.hordeCountForWave(wave);
     final multiplier = switch (currentPattern) {
       SurvivalWavePattern.wispHorde => 1.35,
       SurvivalWavePattern.hunterPack => 1.10,
@@ -726,14 +751,14 @@ class CosmicSurvivalSpawner {
       SurvivalWaveMutator.manaFlux => 1.0,
       null => 1.0,
     };
-    return ((base + earlyPressureBonus) * multiplier * mutatorMultiplier)
+    return (base * multiplier * mutatorMultiplier * _waveSizeJitter)
         .round()
-        .clamp(5, 96);
+        .clamp(24, CosmicSurvivalBalance.hordeWaveTotalCeiling);
   }
 
   double _spawnInterval(int wave) {
     if (isBossWave) return CosmicSurvivalBalance.bossEscortInterval(wave);
-    final base = (0.98 - wave * 0.017).clamp(0.20, 0.98);
+    final base = (0.85 - wave * 0.012).clamp(0.28, 0.85);
     final patternInterval = switch (currentPattern) {
       SurvivalWavePattern.wispHorde => max(0.12, base * 0.45),
       SurvivalWavePattern.hunterPack => max(0.16, base * 0.72),
@@ -752,25 +777,60 @@ class CosmicSurvivalSpawner {
     return max(0.10, patternInterval * mutatorFactor);
   }
 
-  static SurvivalWaveMutator? previewMutatorForWave(int wave) {
-    if (wave < 7 || wave % 5 == 0) return null;
-    if (wave >= 14 && wave % 9 == 4) return SurvivalWaveMutator.fortified;
-    if (wave >= 18 && wave % 11 == 6) {
-      return SurvivalWaveMutator.shatteredSpace;
-    }
-    if (wave >= 10 && wave % 8 == 3) return SurvivalWaveMutator.arcStorm;
-    if (wave >= 8 && wave % 7 == 2) return SurvivalWaveMutator.hunterSwarm;
-    if (wave >= 7 && wave % 6 == 1) return SurvivalWaveMutator.orbSiege;
-    if (wave >= 14) return SurvivalWaveMutator.manaFlux;
-    return null;
+  /// When each mutator becomes eligible. A run used to read the same schedule
+  /// every time — wave 7 was always an Orb Siege — so the modifiers are now
+  /// rolled from what the wave has unlocked.
+  static const Map<SurvivalWaveMutator, int> kMutatorUnlockWave = {
+    SurvivalWaveMutator.orbSiege: 7,
+    SurvivalWaveMutator.hunterSwarm: 8,
+    SurvivalWaveMutator.arcStorm: 10,
+    SurvivalWaveMutator.manaFlux: 14,
+    SurvivalWaveMutator.fortified: 14,
+    SurvivalWaveMutator.shatteredSpace: 18,
+  };
+
+  /// What this wave could roll. Empty before wave 7 and on boss waves, which
+  /// carry their own mechanics.
+  static List<SurvivalWaveMutator> mutatorPoolForWave(int wave) {
+    if (wave < 7 || isBossWaveNumber(wave)) return const [];
+    return [
+      for (final entry in kMutatorUnlockWave.entries)
+        if (wave >= entry.value) entry.key,
+    ];
+  }
+
+  /// Rolls this wave's modifier. Never the one the player just played, and
+  /// often nothing at all, so a run has quiet waves as well as loud ones.
+  SurvivalWaveMutator? _rollMutatorForWave(int wave) {
+    final pool = mutatorPoolForWave(wave);
+    if (pool.isEmpty) return null;
+    // Early on, most waves are plain; later, most waves carry something.
+    final chance = wave < 12 ? 0.55 : 0.78;
+    if (_rng.nextDouble() > chance) return null;
+    final choices = pool.length > 1
+        ? (pool.where((m) => m != _lastMutator).toList())
+        : pool;
+    return choices[_rng.nextInt(choices.length)];
   }
 
   SurvivalWavePattern _patternForWave(int wave) {
     if (wave <= 2) return SurvivalWavePattern.mixed;
-    if (wave % 9 == 0) return SurvivalWavePattern.siegePush;
-    if (wave >= 8 && wave % 11 == 0) return SurvivalWavePattern.swarmRush;
-    if (wave % 7 == 0) return SurvivalWavePattern.wispHorde;
-    if (wave >= 10 && wave % 6 == 0) return SurvivalWavePattern.shooterScreen;
+    // The old rules were hard locks, so wave 7 was a wisp horde in every run
+    // that has ever been played. They are now strong leanings: the rhythm
+    // survives, the certainty does not.
+    const keep = 0.65;
+    if (wave % 9 == 0 && _rng.nextDouble() < keep) {
+      return SurvivalWavePattern.siegePush;
+    }
+    if (wave >= 8 && wave % 11 == 0 && _rng.nextDouble() < keep) {
+      return SurvivalWavePattern.swarmRush;
+    }
+    if (wave % 7 == 0 && _rng.nextDouble() < keep) {
+      return SurvivalWavePattern.wispHorde;
+    }
+    if (wave >= 10 && wave % 6 == 0 && _rng.nextDouble() < keep) {
+      return SurvivalWavePattern.shooterScreen;
+    }
     if (wave >= 5 && wave.isOdd) {
       return _rng.nextDouble() < 0.34
           ? SurvivalWavePattern.hunterPack
@@ -865,13 +925,19 @@ class CosmicSurvivalSpawner {
   }
 
   /// Called every frame. Returns new enemies to add.
+  /// The field's cap right now — what a broodmother's output is bounded by.
+  int get activeLimitNow =>
+      CosmicSurvivalBalance.activeEnemyLimit(currentWave, bossWave: isBossWave);
+
   List<CosmicSurvivalEnemy> update(
     double dt,
     int aliveCount,
     double viewW,
     double viewH,
-    Offset orbPos,
-  ) {
+    Offset orbPos, {
+    double? arenaRadius,
+  }) {
+    if (arenaRadius != null) _arenaRim = arenaRadius;
     if (!_waveActive || _waitingForClear) return const [];
 
     // Pause scheduled reinforcements while the arena is saturated. Boss adds
@@ -893,14 +959,7 @@ class CosmicSurvivalSpawner {
 
     final batchLimit = isBossWave
         ? 2
-        : switch (currentPattern) {
-            SurvivalWavePattern.wispHorde => 8,
-            SurvivalWavePattern.hunterPack => 5,
-            SurvivalWavePattern.siegePush => 3,
-            SurvivalWavePattern.shooterScreen => 4,
-            SurvivalWavePattern.swarmRush => 6,
-            SurvivalWavePattern.mixed => 4,
-          };
+        : CosmicSurvivalBalance.hordeBatchSize(currentWave);
     final batchSize = min(
       min(batchLimit, activeLimit - aliveCount),
       _targetCountThisWave - _spawnedThisWave,
@@ -930,6 +989,26 @@ class CosmicSurvivalSpawner {
     // Bosses and outbreaks already supply the major mechanics. Escorts
     // provide interceptable pressure rather than another heavy siege wave.
     final escortRoll = isBossWave ? _rng.nextDouble() : 0.0;
+    // A front is chaff plus the two things chaff cannot do: shell the orb
+    // from outside anyone's reach, and keep replacing itself.
+    final wantsArtillery =
+        !isBossWave &&
+        _artilleryThisWave <
+            CosmicSurvivalBalance.artilleryCountForWave(currentWave) &&
+        _rng.nextDouble() < 0.12;
+    final wantsBrood =
+        !isBossWave &&
+        !wantsArtillery &&
+        _broodThisWave < CosmicSurvivalBalance.broodCountForWave(currentWave) &&
+        _rng.nextDouble() < 0.10;
+    if (wantsArtillery) _artilleryThisWave++;
+    if (wantsBrood) _broodThisWave++;
+    // Keep a minority of authored threats among the slow advancing bodies.
+    final hordeBody =
+        !isBossWave &&
+        !wantsArtillery &&
+        !wantsBrood &&
+        _rng.nextDouble() < 0.80;
     final tier = isBossWave
         ? (escortRoll < 0.45
               ? EnemyTier.drone
@@ -938,6 +1017,12 @@ class CosmicSurvivalSpawner {
               : escortRoll < 0.95
               ? EnemyTier.phantom
               : EnemyTier.brute)
+        : wantsArtillery
+        ? EnemyTier.sentinel
+        : wantsBrood
+        ? EnemyTier.brute
+        : hordeBody
+        ? (_rng.nextDouble() < 0.72 ? EnemyTier.wisp : EnemyTier.drone)
         : _tierForWave(currentWave);
     final element = _kElements[_rng.nextInt(_kElements.length)];
     // CONDUCT — how it moves, straight from the wave's shape.
@@ -952,6 +1037,10 @@ class CosmicSurvivalSpawner {
       conduct = EnemyConduct.stalk;
     }
 
+    if (hordeBody) conduct = EnemyConduct.charge;
+    if (wantsArtillery) conduct = EnemyConduct.siege;
+    if (wantsBrood) conduct = EnemyConduct.charge;
+
     // TRAIT — an extra mechanic, rolled INDEPENDENTLY of the body.
     //
     // This is the §2.4 fix. Traits used to be locked to the tier that implied
@@ -961,14 +1050,55 @@ class CosmicSurvivalSpawner {
     // carry any trait — a summoner wisp is a thing that can happen.
     final trait = isBossWave
         ? (_rng.nextDouble() < 0.12 ? EnemyTrait.breaker : null)
+        : wantsBrood
+        ? EnemyTrait.summoner
+        : wantsArtillery
+        ? null
+        : hordeBody
+        ? null
         : _traitForWave(currentWave);
 
-    // Spawn outside view
-    final margin = max(viewW, viewH) * 0.55;
-    final angle = _rng.nextDouble() * 2 * pi;
+    // Three coherent fronts leave a 60-degree escape sector. Each 24-body
+    // band advances to the next front; later bands fill depth rather than
+    // stacking every spawn at one point. Boss escorts keep their old spread.
+    //
+    // Everything that walks in, walks in from OUTSIDE the arena: bodies appear
+    // beyond the rim and cross it, so a wave is something you watch arrive
+    // rather than something that materialises on the field. Only enemies that
+    // portal by design (phantom blinks, summons, splits, outbreak cores,
+    // bosses' entrances) ever appear inside.
+    final margin =
+        (_arenaRim ?? max(viewW, viewH) * 0.55) +
+        CosmicSurvivalBalance.hordeSpawnBeyondRim;
+    final gap = CosmicSurvivalBalance.hordeSpawnGap;
+    // Early waves send one or two bands total, so the full rim leaves them
+    // strung too thin to meet anywhere. Pull the fronts together until the
+    // wave is big enough to fill them.
+    final usableArc =
+        (2 * pi - gap) * CosmicSurvivalBalance.hordeFrontOpenness(currentWave);
+    // A wave only earns as many fronts as it can fill. Opening a second front
+    // for a four-body remainder is how wave 2 ended up arriving from two
+    // bearings 150 degrees apart; the remainder becomes depth instead.
+    final fronts = min(frontCount, max(1, _targetCountThisWave ~/ 24));
+    // The rolled count sets how WIDE a front is; the capped count only sets how
+    // many bearings get used. Dividing by the capped count instead would hand a
+    // collapsed single front the entire wedge, which is the opposite of clumping.
+    final frontSpan = usableArc / frontCount;
+    final band = _spawnedThisWave ~/ 24;
+    final front = band % fronts;
+    final along = (_spawnedThisWave % 24) / 23;
+    final angle = isBossWave
+        ? _rng.nextDouble() * 2 * pi
+        : frontBearing + gap / 2 + front * frontSpan + along * frontSpan * 0.78;
+    // Step back a rank once every front has taken a band. This used to divide
+    // by a hard-coded 72, which is three fronts' worth — at two or four fronts
+    // whole bands were landing on top of each other.
+    final depth = isBossWave
+        ? 0.0
+        : ((band ~/ fronts) % 6) * 18 + _rng.nextDouble() * 12;
     final pos = Offset(
-      orbPos.dx + cos(angle) * margin,
-      orbPos.dy + sin(angle) * margin,
+      orbPos.dx + cos(angle) * (margin + depth),
+      orbPos.dy + sin(angle) * (margin + depth),
     );
 
     // Elite champion chance past wave 20
@@ -1053,13 +1183,29 @@ class CosmicSurvivalSpawner {
     };
     final variantDamageMult = traitDamage * conductDamage;
 
+    // Archetype shaping. Artillery is a fragile thing that has to be reached;
+    // a broodmother is a wall that keeps producing until it is cut out.
+    final archetypeHpMult = wantsArtillery
+        ? 0.85
+        : wantsBrood
+        ? 2.2
+        : hordeBody
+        ? 0.65
+        : 1.0;
+    final archetypeSpeedMult = wantsArtillery
+        ? 0.7
+        : wantsBrood
+        ? 0.5
+        : hordeBody
+        ? CosmicSurvivalBalance.hordeBodySpeedMultiplier
+        : 1.0;
     return CosmicSurvivalEnemy(
       position: pos,
       angle: angle + pi,
-      hp: baseHp * variantHpMult,
-      maxHp: baseHp * variantHpMult,
-      speed: baseSpeed * variantSpeedMult,
-      damage: baseDamage * variantDamageMult,
+      hp: baseHp * variantHpMult * archetypeHpMult,
+      maxHp: baseHp * variantHpMult * archetypeHpMult,
+      speed: baseSpeed * variantSpeedMult * archetypeSpeedMult,
+      damage: baseDamage * variantDamageMult * (hordeBody ? 0.55 : 1),
       radius: tierRadius(tier) * (isElite ? 1.3 : 1.0),
       tier: tier,
       element: element,
