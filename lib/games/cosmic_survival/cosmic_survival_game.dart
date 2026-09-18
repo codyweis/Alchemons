@@ -134,6 +134,15 @@ class CosmicSurvivalCompanion {
   // references it, but the active flag is the source of truth.
   bool kinFireOrbitalFlameActive = false;
   double kinFireOrbitalFlameTimer = 0;
+  // Kin+Fire: the rebirth payoff. Fire kin is the one companion whose whole
+  // kit is dormant until the orb dies, so when the phoenix finally fires it
+  // pays for the wait — permanently, and in proportion to the kin's own stats.
+  // Rolled once at the moment of rebirth and kept for the rest of the run.
+  double kinFireRebirthDamageAmp = 1.0;
+  double kinFireRebirthHaste = 1.0;
+  double kinFireFlameRadius = 70;
+  double kinFireFlameInterval = 0.5;
+  double kinFireFlameTimer = 0;
   // Kin+Lava: when > 0, ship/companion damage taken triggers a
   // splash of lava damaging nearby enemies (reactive plate armor).
   double kinLavaPlateTimer = 0;
@@ -12775,17 +12784,71 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // rest of the fire kin's life.
           comp.kinFireOrbitalFlameActive = true;
           comp.kinFirePhoenixGuardTimer = 0;
+
+          // Rise-from-the-ashes buff, rolled from this kin's own stats and
+          // kept for the rest of the run. Each stat buys the thing the family
+          // contract says it owns: Beauty the reach of the flame, Speed the
+          // rate it ticks and the kin's own attack rate, Strength and
+          // Intelligence its damage (already blended into abilityAtk).
+          final rebirthBeauty = _effectiveBeauty(entry.key);
+          final rebirthSpeed = _effectiveSpeed(entry.key);
+          comp.kinFireFlameRadius =
+              70 *
+              scaledAbilityValue(
+                rebirthBeauty,
+                atLow: 0.80,
+                atAverage: 1.0,
+                atPerfect: 1.48,
+              );
+          comp.kinFireFlameInterval =
+              0.5 /
+              scaledAbilityValue(
+                rebirthSpeed,
+                atLow: 0.82,
+                atAverage: 1.0,
+                atPerfect: 1.70,
+              );
+          comp.kinFireRebirthHaste =
+              (1.0 /
+                      scaledAbilityValue(
+                        rebirthSpeed,
+                        atLow: 1.08,
+                        atAverage: 1.20,
+                        atPerfect: 1.55,
+                      ))
+                  .clamp(0.45, 1.0)
+                  .toDouble();
+          comp.kinFireRebirthDamageAmp = scaledAbilityValue(
+            rebirthBeauty,
+            atLow: 1.15,
+            atAverage: 1.30,
+            atPerfect: 1.75,
+          ).clamp(1.0, 4.0).toDouble();
+          comp.kinFireFlameTimer = 0;
         }
       }
       // ── Fire orbital flame (permanent once active) ─────
       if (comp.kinFireOrbitalFlameActive) {
-        // Damage enemies near the fire kin every 0.5s.
-        comp.kinSteamStackDecayTimer -= dt; // reuse field as tick gate
-        if (comp.kinSteamStackDecayTimer <= 0) {
-          comp.kinSteamStackDecayTimer = 0.5;
+        // The reborn kin keeps its buff for good, so the windows the rest of
+        // the game buffs through are simply held open.
+        comp.basicHasteTimer = max(comp.basicHasteTimer, 0.5);
+        comp.basicHasteMultiplier = min(
+          comp.basicHasteMultiplier,
+          comp.kinFireRebirthHaste,
+        );
+        comp.damageAmpTimer = max(comp.damageAmpTimer, 0.5);
+        comp.damageAmpMultiplier = max(
+          comp.damageAmpMultiplier,
+          comp.kinFireRebirthDamageAmp,
+        );
+        // Burn enemies near the fire kin. Its own tick gate, because this used
+        // to borrow the Steam boiler's decay timer.
+        comp.kinFireFlameTimer -= dt;
+        if (comp.kinFireFlameTimer <= 0) {
+          comp.kinFireFlameTimer = comp.kinFireFlameInterval;
           _damageEnemiesNear(
             comp.position,
-            70,
+            comp.kinFireFlameRadius,
             max(comp.abilityAtk * 0.6, 4.0),
             sourceSlotIndex: entry.key,
           );
@@ -20814,6 +20877,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             : 0,
         lightningActive: comp.kinLightningChargeTimer > 0,
         fireOrbitalActive: comp.kinFireOrbitalFlameActive,
+        fireOrbitalRadius: comp.kinFireFlameRadius,
         lavaPlateActive: comp.kinLavaPlateTimer > 0,
         darkCloakActive: comp.kinDarkCloakTimer > 0,
       );

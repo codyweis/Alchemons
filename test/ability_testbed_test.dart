@@ -348,11 +348,20 @@ void main() {
     }
     // ignore: avoid_print
     print('  ${tally.entries.map((e) => "${e.key} ${e.value}").join(", ")}');
+    // Subjects this harness structurally cannot score, with the reason. They
+    // are not failures — they are abilities whose payoff is gated behind a
+    // state these scenarios never reach.
+    const dormant = {
+      'kin/Fire':
+          'phoenix guard is a reactive one-shot; its flame and rebirth buff '
+          'only unlock when the orb actually dies, which never happens here',
+    };
     // ignore: avoid_print
     print('TESTBED \u2014 nothing on any axis');
     for (final e in verdicts.entries.where((e) => e.value == 'NOTHING')) {
+      final why = dormant[e.key];
       // ignore: avoid_print
-      print('  ${e.key}');
+      print(why == null ? '  ${e.key}' : '  ${e.key} — by design: $why');
     }
 
     expect(dmg, hasLength(families.length * kCosmicAbilityElements.length));

@@ -460,6 +460,9 @@ void drawAdvancedKinSupportAura({
   double iceChargeProgress = 0,
   bool lightningActive = false,
   bool fireOrbitalActive = false,
+  /// What the reborn flame actually burns. The orbit is drawn in proportion to
+  /// it so a Beauty-heavy Fire kin looks as wide as it hits.
+  double fireOrbitalRadius = 70,
   bool lavaPlateActive = false,
   bool darkCloakActive = false,
 }) {
@@ -512,9 +515,10 @@ void drawAdvancedKinSupportAura({
     }
   }
   if (element == 'Fire' && fireOrbitalActive) {
+    final orbit = 32 * (fireOrbitalRadius / 70);
     for (var i = 0; i < 3; i++) {
       final a = time * 3.2 + i * pi * 2 / 3;
-      final p = ui.Offset(cos(a), sin(a)) * 32;
+      final p = ui.Offset(cos(a), sin(a)) * orbit;
       canvas.drawCircle(
         p,
         6,
