@@ -34,6 +34,7 @@ import 'package:alchemons/games/cosmic_survival/survival_mastery_mane.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_payload.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_pip.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_runtime.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mastery_wing.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -2016,6 +2017,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updatePipMastery(dt);
     _updateHornMastery(dt);
     _updateMaskMastery(dt);
+    _updateWingMastery(dt);
     _updateMasteryEchoes(dt);
     updatePersistentAbilityEffects(dt);
     _updateBeamEffects(dt);
@@ -3093,6 +3095,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             _masteryBasicCooldownMultiplier(slotIndex);
         comp.basicCooldown = cooldown;
         _bankHornGuard(slotIndex, comp);
+        _applyWingTracer(slotIndex, comp);
         final basics = createFamilyBasicAttack(
           origin: comp.position,
           angle: fireAngle,
@@ -5829,9 +5832,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Basic attack range multiplier from mastery (Ranging Shots).
   double _masteryAttackRangeMultiplier(int slotIndex) {
     if (!mastery.enabled) return 1.0;
-    return mastery.hasNode(slotIndex, LetNodes.rangingShots)
-        ? LetTuning.rangingShotsRangeScale
-        : 1.0;
+    if (mastery.hasNode(slotIndex, LetNodes.rangingShots)) {
+      return LetTuning.rangingShotsRangeScale;
+    }
+    // Longshot buys reach twice, and the whole path is read against it.
+    return wingRangeMultiplier(hasNode: (id) => mastery.hasNode(slotIndex, id));
   }
 
   /// Reshapes a Let auto-attack for the equipped path: a denser rock or a
@@ -6618,6 +6623,124 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     _appendCompanionProjectiles(darts);
     mastery.recordCapstone(queued.slotIndex);
+  }
+
+  // == Wing mastery (phase 5) ==============================================
+
+  /// Per-slot Wing state, created on demand and dropped on a run reset.
+  final Map<int, WingMasteryState> _wingMastery = {};
+
+  WingMasteryState _wingStateFor(int slotIndex) =>
+      _wingMastery.putIfAbsent(slotIndex, WingMasteryState.new);
+
+  /// Read-only view of a Wing's run state — beam time banked by Tracer, and
+  /// any ramp carried over from a body that died under the beam.
+  WingMasteryState? wingMasteryFor(int slotIndex) => _wingMastery[slotIndex];
+
+  bool _isMasteryWing(int slotIndex) {
+    if (!mastery.enabled) return false;
+    final equipped = mastery.equippedFor(slotIndex);
+    return equipped != null && equipped.family == CreatureFamily.wing;
+  }
+
+  /// Burn Through: what the beam has earned on a body it has been held on.
+  double _wingBoreMultiplier(int slotIndex, CosmicSurvivalEnemy enemy) {
+    if (!_isMasteryWing(slotIndex)) return 1.0;
+    if (enemy.wingBeamDwellSlot != slotIndex) return 1.0;
+    return wingBoreMultiplier(
+      hasNode: (id) => mastery.hasNode(slotIndex, id),
+      dwell: enemy.wingBeamDwell,
+    );
+  }
+
+  /// Longshot: what the distance between a Wing and its target is worth.
+  double _wingLongshotMultiplier(int slotIndex, Offset targetPos) {
+    if (!_isMasteryWing(slotIndex)) return 1.0;
+    final comp = activeCompanions[slotIndex];
+    if (comp == null) return 1.0;
+    final range =
+        comp.attackRange * _masteryAttackRangeMultiplier(slotIndex);
+    return 1 +
+        wingLongshotBonus(
+          hasNode: (id) => mastery.hasNode(slotIndex, id),
+          distance: (targetPos - comp.position).distance,
+          range: range,
+          nearestEnemyDistance: _nearestEnemyDistanceTo(comp.position),
+        );
+  }
+
+  /// How far the closest living body is. Standoff reads it to decide whether
+  /// the Wing has actually kept its distance or merely aimed far.
+  double _nearestEnemyDistanceTo(Offset pos) {
+    var nearest = double.infinity;
+    for (final enemy in enemies) {
+      if (enemy.isDead) continue;
+      final d = (enemy.position - pos).distance;
+      if (d < nearest) nearest = d;
+    }
+    return nearest;
+  }
+
+  /// Tracer: one landed attack, turned into beam time.
+  void _applyWingTracer(int slotIndex, CosmicSurvivalCompanion comp) {
+    if (!_isMasteryWing(slotIndex)) return;
+    final running = _activeWingBeams.any((b) => b.sourceSlotIndex == slotIndex);
+    final tracer = wingTracer(
+      hasNode: (id) => mastery.hasNode(slotIndex, id),
+      beamRunning: running,
+    );
+    if (tracer.shave <= 0) return;
+
+    comp.specialCooldown = max(0, comp.specialCooldown - tracer.shave);
+    if (tracer.extend <= 0) return;
+
+    if (tracer.intoRunningBeam) {
+      // Live Feed: the time goes into the beam already firing. Capped the
+      // same way the bank is, so a fast Wing cannot hold one beam forever.
+      for (final beam in _activeWingBeams) {
+        if (beam.sourceSlotIndex != slotIndex) continue;
+        beam.life = min(
+          beam.life + tracer.extend,
+          beam.descriptor.duration + tracer.cap,
+        );
+      }
+      return;
+    }
+    _wingStateFor(slotIndex).bankBeamTime(tracer.extend, tracer.cap);
+  }
+
+  /// Per-frame Wing upkeep: the dwell that no beam is feeding this frame has
+  /// to fall away, or every body on the field would keep a full ramp forever.
+  void _updateWingMastery(double dt) {
+    if (!mastery.enabled || _wingMastery.isEmpty) return;
+    for (final enemy in enemies) {
+      if (enemy.isDead || enemy.wingBeamDwell <= 0) continue;
+      final slotIndex = enemy.wingBeamDwellSlot;
+      if (slotIndex == null) continue;
+      if (enemy.wingBeamTouchedThisFrame) {
+        enemy.wingBeamTouchedThisFrame = false;
+        continue;
+      }
+      enemy.decayWingBeamDwell(
+        dt,
+        wingBoreCurve(hasNode: (id) => mastery.hasNode(slotIndex, id)).fade,
+      );
+    }
+  }
+
+  /// Carry Through: a body that dies at a full ramp hands it to the next
+  /// thing the beam touches.
+  void _noteWingBeamKill(int slotIndex, CosmicSurvivalEnemy enemy) {
+    if (!_isMasteryWing(slotIndex)) return;
+    if (!mastery.hasNode(slotIndex, WingNodes.carryThrough)) return;
+    if (enemy.wingBeamDwellSlot != slotIndex) return;
+    final curve = wingBoreCurve(
+      hasNode: (id) => mastery.hasNode(slotIndex, id),
+    );
+    if (curve.rampSeconds <= 0) return;
+    final ramp = (enemy.wingBeamDwell / curve.rampSeconds).clamp(0.0, 1.0);
+    if (ramp < WingTuning.carryThreshold) return;
+    _wingStateFor(slotIndex).carriedRamp = enemy.wingBeamDwell;
   }
 
   // == Mask mastery (phase 5) ==============================================
@@ -7774,6 +7897,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // Bulwark: a Horn's own bulk, added to its auto-attacks. The special
     // carries its share through chargeDamage instead, folded in once at cast,
     // so a charge ploughing through six bodies does not add it six times.
+    // Longshot: what a Wing earns for the distance it kept. Applied to its
+    // auto-attacks here; the beam applies its own at the tick site.
+    if (mastery.enabled && sourceSlotIndex != null && autoAttack) {
+      damage *= _wingLongshotMultiplier(sourceSlotIndex, enemy.position);
+    }
     var hornWeighted = false;
     if (mastery.enabled && sourceSlotIndex != null && autoAttack) {
       final comp = activeCompanions[sourceSlotIndex];
@@ -10684,6 +10812,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// triggers rather than reaching into the rules that trigger on it.
   @visibleForTesting
   void debugKillEnemy(CosmicSurvivalEnemy enemy) => _killEnemy(enemy);
+
+  /// The range multiplier mastery is applying to this slot.
+  double debugAttackRangeMultiplier(int slotIndex) =>
+      _masteryAttackRangeMultiplier(slotIndex);
 
   /// Kills [enemy] as an auto-attack from [slotIndex] would, so tests can
   /// exercise the kill hooks without waiting on a dart to land.
@@ -15224,6 +15356,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     required double angle,
   }) {
     if (beams.isEmpty) return;
+    // Ranging Shots: the autos that landed since the last beam paid for a
+    // longer one. Spent here, once, however many beams this cast opens.
+    final banked = _isMasteryWing(sourceSlotIndex)
+        ? _wingStateFor(sourceSlotIndex).takeBankedBeamTime()
+        : 0.0;
     for (final beam in beams) {
       if (_activeWingBeams.length >= 14) _activeWingBeams.removeAt(0);
       _activeWingBeams.add(
@@ -15232,7 +15369,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           sourceSlotIndex: sourceSlotIndex,
           origin: origin,
           angle: angle,
-        ),
+        )..life += banked,
       );
       // Wing+Earth: the orb co-fires a mirror laser alongside the wing.
       if (beam.element == 'Earth') {
@@ -15603,12 +15740,34 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // tying six seconds of ticks to one cast id would leave the volley
         // reading as "fully landed" for as long as the beam burned. It gets
         // the attribution and none of the cast accounting.
+        // Burn Through: the beam earns its ramp by staying on one body, so
+        // the dwell is counted here, where the beam actually holds it.
+        var beamMastery = 1.0;
+        if (mastery.enabled && _isMasteryWing(beam.sourceSlotIndex)) {
+          final carried = _wingStateFor(
+            beam.sourceSlotIndex,
+          ).takeCarriedRamp();
+          if (carried > 0 && enemy.wingBeamDwell <= 0) {
+            enemy.wingBeamDwellSlot = beam.sourceSlotIndex;
+            enemy.wingBeamDwell = carried;
+          }
+          enemy.noteWingBeamDwell(beam.sourceSlotIndex, d.tickInterval);
+          beamMastery =
+              _wingBoreMultiplier(beam.sourceSlotIndex, enemy) *
+              _wingLongshotMultiplier(beam.sourceSlotIndex, enemy.position);
+        }
+        final beforeBeamHp = enemy.hp;
         _damageEnemy(
           enemy,
-          _beamDamageForEnemy(d, enemy) * plantBonus,
+          _beamDamageForEnemy(d, enemy) * plantBonus * beamMastery,
           sourceSlotIndex: beam.sourceSlotIndex,
-          masterySource: MasteryDamageSource.special,
+          masterySource: beamMastery > 1.0
+              ? MasteryDamageSource.mastery
+              : MasteryDamageSource.special,
         );
+        if (beforeBeamHp > 0 && enemy.hp <= 0) {
+          _noteWingBeamKill(beam.sourceSlotIndex, enemy);
+        }
         _applyAbilityEffectToEnemy(
           d.tickEffect,
           enemy,

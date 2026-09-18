@@ -1,8 +1,8 @@
 # Survival Family Mastery
 
-Status (2026-09-18): Phases 1 and 2 complete. **Five of eight families are implemented in combat — Mane, Let, Pip, Horn and Mask** — all twelve nodes each, each in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`, `_mask.dart`) with its own test suite. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
+Status (2026-09-18): Phases 1 and 2 complete. **Six of eight families are implemented in combat — Mane, Let, Pip, Horn, Mask and Wing** — all twelve nodes each, each in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`, `_mask.dart`, `_wing.dart`) with its own test suite. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
 
-**The other three families' trees are purchasable and do nothing.** Wing, Kin and Mystic each have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either those three ship, or the panel has to say they are not ready.
+**The other two families' trees are purchasable and do nothing.** Kin and Mystic each have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either those two ship, or the panel has to say they are not ready.
 
 ## Purpose
 
@@ -1198,6 +1198,48 @@ these paths are that bug waiting to happen:
 
 Plus a flat cap of twelve live graves per Mask and a proc cooldown on placing
 them. All four are pinned by tests, in the group named for the failure.
+
+
+### Wing — Burn Through, Longshot, Tracer (2026-09-18)
+
+Wing's draft was Mane's tree with "shots" written over "slashes". Side by side:
+
+| Wing draft | Mane, already shipped |
+| --- | --- |
+| "When both **shots** hit the same enemy, deal +25% and apply your element's effect." | "When both **slashes** hit the same enemy, deal +20% and apply your element's effect." |
+| "Landing both shots on one enemy builds **Focus** (max 5)… each gives +2% attack range" | "Landing both slashes on one enemy builds **Rhythm** (max 5)… each gives +2% attack speed" |
+| Synchronized Flight — shots fly closer, damage up | Honed Pair — slashes fly closer, damage up |
+
+That was the third family whose draft resonance path was War Rhythm. It also
+added two more every-Nth-attack nodes to the four the game already has, built
+a path on piercing (Mane's identity), left a damaging lane on the ground
+(Wing/Lava's own scar) and ended with an echo of the special after it
+finishes, which is Horn's Juggernaut.
+
+**Wing's real difficulty is that its own seventeen elements have claimed
+nearly every beam behaviour.** Sweeping is Fire's, charging is Lightning's,
+refracting is Light's, ground scars are Lava's, executing is Blood's,
+lifesteal is Crystal's, freezing is Ice's. So the test a Wing path has to pass
+is not "is this unclaimed" but **does it take an element's signature, or a
+neutral property of a beam?** There is a test for exactly that.
+
+Three neutral properties survived:
+
+- **Burn Through** is dwell. `enemy.frostBuildup` already proves Wing
+  accumulates on a held target — but only Ice uses it, and only to freeze. A
+  damage ramp generalises the idea without touching Ice's signature, and the
+  two accumulate side by side.
+- **Longshot** is distance. Nothing in the game reads range, and a sniper that
+  gets worse as enemies close is a real tactical identity rather than a
+  number. Standoff reads the *nearest* body rather than the target, so the
+  path pays for actually keeping away instead of merely aiming far.
+- **Tracer** is the auto-attack, which both beam paths ignore completely. It
+  is what makes the two halves of Wing's kit talk to each other.
+
+One thing the wiring corrected: the capstone was going to be "you keep firing
+while the beam is up", and Wing already does — the basic is not gated on an
+active beam. It became Live Feed instead, which puts the time into the beam
+already running rather than banking it for the next one.
 
 
 ## Decisions intentionally made

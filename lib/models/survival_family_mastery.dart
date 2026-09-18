@@ -446,55 +446,58 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
     family: CreatureFamily.wing,
     chassis: FamilyCombatCopy.of(CreatureFamily.wing).attack,
     paths: [
-      _path('wing.assault', 'Twin Lance', 'Long-range sniping', [
+      _path('wing.burn_through', 'Burn Through', 'Hold the beam and it bites deeper', [
         (
-          'Synchronized Flight',
-          "Both shots fly together and angle slightly inward; each deals 53% damage (up from 50%).",
+          'Bore',
+          "Your beam hits harder the longer it stays on one enemy, up to +45%. Moving off drops it.",
         ),
+        (
+          'Deeper',
+          "It builds twice as fast and reaches +80%.",
+        ),
+        (
+          'No Reprieve',
+          "Moving off no longer drops it at once — it fades over 2s, so switching targets costs little.",
+        ),
+        (
+          'Carry Through',
+          "An enemy that dies at full bite hands it to whatever your beam touches next.",
+        ),
+      ]),
+      _path('wing.longshot', 'Longshot', 'The further out, the harder you hit', [
         (
           'Rangefinder',
-          "Hits on distant enemies (past 60% of your range) deal +15% damage.",
+          "Everything you do to an enemy past 60% of your range deals +15%.",
         ),
         (
-          'Double Tap',
-          "When both shots hit the same enemy, deal +25% bonus damage and apply your element's effect.",
+          'Long Lens',
+          "Your range grows 20%, and the bonus climbs with distance to +35% at the edge.",
         ),
         (
-          'Twin Suns',
-          "Every 5th attack fuses both shots into one homing lance: 165% damage, pierces once, and applies your element.",
-        ),
-      ]),
-      _path('wing.control', 'Razor Horizon', 'Piercing shots across wide lanes', [
-        (
-          'Open Wings',
-          "Shots fan outward and each pierces one enemy, dealing 46% damage (down from 50%).",
+          'Standoff',
+          "While nothing is closer than 30% of your range, that bonus applies at any distance.",
         ),
         (
-          'Crosscurrent',
-          "After piercing, each shot curves toward a new nearby enemy for 35% damage.",
-        ),
-        (
-          'Elemental Contrails',
-          "The first enemy each shot pierces takes your element's effect at 60% strength.",
-        ),
-        (
-          'Razor Horizon',
-          "Every 4th attack leaves a blade of light between the shots for 1s: enemies crossing it take 65% damage and your element.",
+          'Horizon',
+          "Your range grows another 35%, and everything past the old edge takes the full bonus.",
         ),
       ]),
-      _path('wing.resonance', 'Beamweaver', 'Build Focus to power beams', [
+      _path('wing.tracer', 'Tracer', 'Your shots feed your beam', [
         (
-          'Sightline',
-          "Landing both shots on one enemy builds Focus (max 5, fades after 6s). Each Focus gives +2% attack range.",
-        ),
-        ('Coherent Light', "Each Focus also gives +3% attack damage."),
-        (
-          'Beam Feed',
-          "Casting your special spends all Focus: +4% special duration and power per stack.",
+          'Tracer Rounds',
+          "Each attack that lands takes 0.25s off your special's cooldown.",
         ),
         (
-          'Continuum',
-          "Spending 5 Focus leaves an echo of your special after it ends, dealing 35% of its power.",
+          'Ranging Shots',
+          "Each landed attack also adds 0.1s to your next beam, up to 1.5s.",
+        ),
+        (
+          'Hot Barrel',
+          "Both grow: 0.4s off the cooldown and 0.18s onto the beam, up to 3s.",
+        ),
+        (
+          'Live Feed',
+          "While a beam is firing, your attacks lengthen the beam already running instead of banking for the next one.",
         ),
       ]),
     ],

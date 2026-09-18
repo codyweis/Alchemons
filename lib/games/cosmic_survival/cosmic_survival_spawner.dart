@@ -118,6 +118,44 @@ mixin MasteryPayloadStatuses {
 
   bool get isMaskInfected => maskInfectionTimer > 0;
 
+  /// Wing's Burn Through. Seconds this body has been held under one Wing's
+  /// beam. Modelled on `frostBuildup`, which is the same idea already native
+  /// to Wing/Ice — this one feeds damage rather than a freeze, so the two
+  /// accumulate side by side without touching each other.
+  double wingBeamDwell = 0;
+  int? wingBeamDwellSlot;
+
+  /// Set by the beam as it ticks and cleared by the frame that reads it,
+  /// so decay only runs on bodies no beam is currently holding.
+  bool wingBeamTouchedThisFrame = false;
+
+  /// Counts a tick of beam held on this body. A beam from a different Wing
+  /// starts the dwell over, because the ramp belongs to whoever is aiming.
+  void noteWingBeamDwell(int slotIndex, double dt) {
+    if (wingBeamDwellSlot != slotIndex) {
+      wingBeamDwellSlot = slotIndex;
+      wingBeamDwell = 0;
+    }
+    wingBeamDwell += dt;
+    wingBeamTouchedThisFrame = true;
+  }
+
+  /// Lets the dwell fall away once the beam is off. [fade] of zero drops it
+  /// at once, which is what the path does before No Reprieve.
+  void decayWingBeamDwell(double dt, double fade) {
+    if (wingBeamDwell <= 0) return;
+    if (fade <= 0) {
+      wingBeamDwell = 0;
+      wingBeamDwellSlot = null;
+      return;
+    }
+    wingBeamDwell -= dt * (1 / fade) * wingBeamDwell.clamp(0.0, 8.0);
+    if (wingBeamDwell <= 0.001) {
+      wingBeamDwell = 0;
+      wingBeamDwellSlot = null;
+    }
+  }
+
   /// Infects this body, keeping whichever infection lasts longer. A body
   /// already carrying a closer-to-source infection keeps that generation,
   /// so re-infecting cannot walk the counter back down and restart a chain.
