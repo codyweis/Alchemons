@@ -28,16 +28,30 @@ void main() {
       },
     );
 
-    test('meter retains early pacing and continues growing past wave 31', () {
-      expect(CosmicSurvivalBalance.alchemicalMeterCapacity(1), 100);
-      expect(CosmicSurvivalBalance.alchemicalMeterCapacity(11), 180);
-      for (var wave = 31; wave < 100; wave++) {
-        expect(
-          CosmicSurvivalBalance.alchemicalMeterCapacity(wave + 1),
-          greaterThan(CosmicSurvivalBalance.alchemicalMeterCapacity(wave)),
-        );
-      }
-    });
+    test(
+      'meter keeps the slow opening, then follows the wave\'s body count',
+      () {
+        // Waves 1-9 send too few bodies to fill the pre-horde curve, so that
+        // curve is still what the opening plays against.
+        expect(CosmicSurvivalBalance.alchemicalMeterCapacity(1), 100);
+        expect(CosmicSurvivalBalance.alchemicalMeterCapacity(5), 132);
+        // From there a cleared wave is worth about one meter: capacity is the
+        // wave's body count times what a body pays.
+        for (var wave = 12; wave <= 100; wave++) {
+          expect(
+            CosmicSurvivalBalance.alchemicalMeterCapacity(wave),
+            CosmicSurvivalBalance.hordeCountForWave(wave) *
+                CosmicSurvivalBalance.alchemicalMeterPerBody,
+          );
+        }
+        for (var wave = 1; wave < 100; wave++) {
+          expect(
+            CosmicSurvivalBalance.alchemicalMeterCapacity(wave + 1),
+            greaterThan(CosmicSurvivalBalance.alchemicalMeterCapacity(wave)),
+          );
+        }
+      },
+    );
 
     test('legacy Power 20-100 keeps strong high-end separation', () {
       final average = CosmicSurvivalBalance.qualityScore(2.5);

@@ -148,8 +148,8 @@ class CosmicSurvivalCompanion {
   double kinFireFlameRadius = 70;
   double kinFireFlameInterval = 0.5;
   double kinFireFlameTimer = 0;
-  // Kin+Lava: when > 0, ship/companion damage taken triggers a
-  // splash of lava damaging nearby enemies (reactive plate armor).
+  // Kin+Lava: when > 0, damage taken by the orb, ship or a companion
+  // triggers a splash of lava at whatever struck (reactive plate armor).
   double kinLavaPlateTimer = 0;
   // Kin+Ice: charge windup → release radial frost. Charge timer
   // ticks down; on hitting 0 the release fires.
@@ -159,16 +159,22 @@ class CosmicSurvivalCompanion {
   double kinSteamBoilerTimer = 0;
   int kinSteamBoilerStacks = 0;
   double kinSteamStackDecayTimer = 0;
+  // Fractional stack progress. Chaff hits the orb for a few HP at a time,
+  // and flooring each frame's share on its own never reached one stack.
+  double kinSteamStackCarry = 0;
   // Kin+Lightning: while > 0, the kin is actively channelling and
   // all allies' auto-attacks chain to nearby enemies.
   double kinLightningChargeTimer = 0;
-  // Kin+Dark: while > 0, ALL companions become untargetable to enemies.
-  // Stored on the casting Dark kin; enemy targeting reads from any
-  // active Dark kin's timer.
+  // Kin+Dark veil: while > 0, the orb is hidden and companions are
+  // untargetable. Bodies that came for the orb go for the ship instead,
+  // so the veil is a decoy the player has to fly. Stored on the casting
+  // Dark kin; enemy targeting reads from any active Dark kin's timer.
   double kinDarkCloakTimer = 0;
-  // Kin+Blood: while > 0, % of damage taken by any alchemon is
-  // shared as healing across the other living alchemons.
+  // Kin+Blood pact: while > 0, a share of damage that would reach the orb
+  // is taken by the living companions instead, and a share of damage any
+  // alchemon takes is healed across the others.
   double kinBloodPactTimer = 0;
+  double kinBloodPactAbsorbCarry = 0;
   // Kin+Mud: ship enchant timer. The ship leaves a slowing mud trail
   // while this timer is > 0 on any Mud-kin caster.
   double kinMudShipEnchantTimer = 0;
@@ -5057,29 +5063,34 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   CosmicEnemyTarget _pickEnemyTarget(CosmicSurvivalEnemy enemy) {
-    // Kin+Dark cloak: if any kin's cloak is active, ALL companions
-    // become untargetable. Anyone who would have picked
-    // CosmicEnemyTarget.companion retargets to ship (or orb).
+    // Kin+Dark veil: while any Dark kin's veil holds, the orb is hidden and
+    // the companions are untargetable. A body that came for the orb goes
+    // for the ship instead, so the horde is pulled off the orb for as long
+    // as the player can fly the decoy. Artillery shells a position, not a
+    // target, and is unaffected.
     final cloaked = _isAnyKinDarkCloakActive();
+    final orbOrDecoy = cloaked && !ship.isDead
+        ? CosmicEnemyTarget.ship
+        : CosmicEnemyTarget.orb;
     if (spawner.currentMutator == SurvivalWaveMutator.orbSiege &&
         enemy.conduct != EnemyConduct.stalk) {
-      return CosmicEnemyTarget.orb;
+      return orbOrDecoy;
     }
-    if (enemy.conduct == EnemyConduct.charge) return CosmicEnemyTarget.orb;
+    if (enemy.conduct == EnemyConduct.charge) return orbOrDecoy;
     // Artillery is a siege weapon: it is here for the orb, never the ship.
     if (enemy.conduct == EnemyConduct.siege) return CosmicEnemyTarget.orb;
     if (enemy.conduct == EnemyConduct.stalk && !ship.isDead) {
       final roll = _rng.nextDouble();
-      if (roll < 0.25) return CosmicEnemyTarget.orb;
+      if (roll < 0.25) return orbOrDecoy;
       if (roll < 0.65) return CosmicEnemyTarget.ship;
       return cloaked ? CosmicEnemyTarget.ship : CosmicEnemyTarget.companion;
     }
     if (enemy.conduct == EnemyConduct.standoff) {
       if (enemy.conduct == EnemyConduct.standoff && _rng.nextDouble() < 0.72) {
-        return CosmicEnemyTarget.orb;
+        return orbOrDecoy;
       }
       if (_rng.nextDouble() < 0.38) {
-        return CosmicEnemyTarget.orb;
+        return orbOrDecoy;
       }
       if (!cloaked && activeCompanions.isNotEmpty && _rng.nextDouble() < 0.55) {
         return CosmicEnemyTarget.companion;
@@ -5089,7 +5100,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (!cloaked && activeCompanions.isNotEmpty && _rng.nextDouble() < 0.22) {
       return CosmicEnemyTarget.companion;
     }
-    return CosmicEnemyTarget.orb;
+    return orbOrDecoy;
   }
 
   bool _isAnyKinDarkCloakActive() {
@@ -6716,9 +6727,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         hasNode: (id) => mastery.hasNode(slotIndex, id),
         laserDamage: laserDamage,
         allyMaxHp: ally.maxHp.toDouble(),
-        allyHealthFraction: ally.maxHp <= 0
-            ? 1.0
-            : ally.currentHp / ally.maxHp,
+        allyHealthFraction: ally.maxHp <= 0 ? 1.0 : ally.currentHp / ally.maxHp,
       );
       if (gift.heal > 0) {
         ally.currentHp = min(ally.maxHp, ally.currentHp + gift.heal.round());
@@ -6818,8 +6827,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (!_isMasteryWing(slotIndex)) return 1.0;
     final comp = activeCompanions[slotIndex];
     if (comp == null) return 1.0;
-    final range =
-        comp.attackRange * _masteryAttackRangeMultiplier(slotIndex);
+    final range = comp.attackRange * _masteryAttackRangeMultiplier(slotIndex);
     return 1 +
         wingLongshotBonus(
           hasNode: (id) => mastery.hasNode(slotIndex, id),
@@ -7024,7 +7032,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (slotIndex == null || !_isMasteryMask(slotIndex)) return;
     if (p.abilityFamily != 'mask' || !p.stationary) return;
 
-    final delay = maskRearmDelay(hasNode: (id) => mastery.hasNode(slotIndex, id));
+    final delay = maskRearmDelay(
+      hasNode: (id) => mastery.hasNode(slotIndex, id),
+    );
     if (delay <= 0) return;
 
     final state = _maskStateFor(slotIndex);
@@ -8189,6 +8199,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     bool fromPipSpecial = false,
     int masteryCastId = 0,
     MasteryDamageSource? masterySource,
+
     /// This kill was dealt by a hit carrying Bulwark's weight, which is the
     /// only thing Anvil ruptures on.
     bool hornWeighted = false,
@@ -10458,6 +10469,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         comp.kinSteamBoilerTimer =
             10.0 * _hornStatScale(intel, perPoint: 0.12, min: 0.80, max: 1.60);
         comp.kinSteamBoilerStacks = 0;
+        comp.kinSteamStackCarry = 0;
         comp.kinSteamStackDecayTimer = 2.0;
         break;
       case 'Lightning':
@@ -13814,6 +13826,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // compute per-frame damage for reactive kin (Lava plate / Steam
   // boiler / Blood pact).
   double _kinPrevShipHp = -1;
+  // Damage that reached the orb (its shield or its health) since the kin
+  // tick last looked. The reactive kin read this the way they read ship
+  // and companion damage: the orb is the health bar that actually loses.
+  double _kinOrbDamageThisFrame = 0;
 
   void _updateKinSupportTick(double dt) {
     // Decay any active laser-beam visuals.
@@ -13830,6 +13846,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? max(0.0, _kinPrevShipHp - ship.currentHp)
         : 0.0;
     _kinPrevShipHp = ship.currentHp.toDouble();
+    final orbDelta = _kinOrbDamageThisFrame;
+    _kinOrbDamageThisFrame = 0;
 
     // Tick all kin support timers + react to damage.
     // Unbroken: a downed Kin's support runs its course, so the orphans are
@@ -13846,8 +13864,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ? max(0, comp.kinPrevHp - comp.currentHp).toDouble()
           : 0.0;
       comp.kinPrevHp = comp.currentHp;
-      // Combined "team damage this frame" — used by reactive kin.
-      final teamDamage = shipDelta + compDelta;
+      // Damage to the alchemons themselves, and to everything the kin
+      // protects. Ordinary bodies go for the orb three times in four, so a
+      // kin that only reacted to ship and companion damage sat idle.
+      final bodyDamage = shipDelta + compDelta;
+      final teamDamage = bodyDamage + orbDelta;
 
       final isKin = comp.member.family.toLowerCase() == 'kin';
       if (!isKin) continue;
@@ -13963,14 +13984,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (comp.kinLavaPlateTimer > 0) {
         comp.kinLavaPlateTimer = max(0, comp.kinLavaPlateTimer - dt);
         if (element == 'Lava' && teamDamage > 0) {
-          // Splash a chunk of lava damage at the nearest enemy in
-          // proportion to incoming hit.
-          final target = _nearestEnemyTo(ship.position, 280);
+          // Splash lava at whatever struck: the body pressing the orb when
+          // the orb was hit, otherwise the one nearest the ship. Capped so a
+          // crowd breaking on the orb pays a steady price, not one frame of
+          // everything.
+          final target = orbDelta > 0
+              ? _nearestEnemyTo(orb.position, 200)
+              : _nearestEnemyTo(ship.position, 280);
           if (target != null) {
             _damageEnemiesNear(
               target.position,
               90,
-              max(teamDamage * 1.4, comp.abilityAtk * 0.8),
+              max(
+                teamDamage * 1.4,
+                comp.abilityAtk * 0.8,
+              ).clamp(0.0, comp.abilityAtk * 3.0),
               sourceSlotIndex: entry.key,
             );
             _spawnHitSpark(target.position, const Color(0xFFFF7A20));
@@ -13981,11 +14009,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // ── Steam boiler ───────────────────────────
       if (comp.kinSteamBoilerTimer > 0 && element == 'Steam') {
         comp.kinSteamBoilerTimer = max(0, comp.kinSteamBoilerTimer - dt);
-        // Convert damage taken to stacks (1 stack per 8% ship maxHp).
+        // Convert damage taken to stacks: 8% of the ship's health per
+        // stack for ship and companion hits, 1.5% of the orb's for hits on
+        // the orb. Carried across frames so chaff chipping the orb counts.
         if (teamDamage > 0) {
-          final stackUnit = max(2.0, ship.maxHp * 0.08);
-          final gained = (teamDamage / stackUnit).floor();
+          final bodyUnit = max(2.0, ship.maxHp * 0.08);
+          final orbUnit = max(4.0, orb.maxHp * 0.015);
+          comp.kinSteamStackCarry += bodyDamage / bodyUnit + orbDelta / orbUnit;
+          final gained = comp.kinSteamStackCarry.floor();
           if (gained > 0) {
+            comp.kinSteamStackCarry -= gained;
             comp.kinSteamBoilerStacks = min(
               10,
               comp.kinSteamBoilerStacks + gained,
@@ -14108,10 +14141,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // ── Blood pact ─────────────────────────────
       if (comp.kinBloodPactTimer > 0) {
         comp.kinBloodPactTimer = max(0, comp.kinBloodPactTimer - dt);
-        if (element == 'Blood' && teamDamage > 0) {
-          // Split 60% of team-damage as healing across the OTHER
-          // alchemons — ship counts as an alchemon for the pact.
-          final healPool = teamDamage * 0.60;
+        if (element == 'Blood' && bodyDamage > 0) {
+          // Split 60% of the damage the alchemons took as healing across
+          // the living ones — ship included. What they took for the orb
+          // (see _kinBloodPactShareOrbDamage) is part of it.
+          final healPool = bodyDamage * 0.60;
           final living = <Object>[];
           if (!ship.isDead) living.add(ship);
           for (final ally in activeCompanions.values) {
@@ -16078,9 +16112,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // the dwell is counted here, where the beam actually holds it.
         var beamMastery = 1.0;
         if (mastery.enabled && _isMasteryWing(beam.sourceSlotIndex)) {
-          final carried = _wingStateFor(
-            beam.sourceSlotIndex,
-          ).takeCarriedRamp();
+          final carried = _wingStateFor(beam.sourceSlotIndex).takeCarriedRamp();
           if (carried > 0 && enemy.wingBeamDwell <= 0) {
             enemy.wingBeamDwellSlot = beam.sourceSlotIndex;
             enemy.wingBeamDwell = carried;
@@ -19888,7 +19920,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         target: 1,
         sourceSlot: comp.slotIndex,
       );
-      _healOrb(result.shipHeal.toDouble(), sourceSlot: comp.slotIndex);
+      // A Kin's ship heal is authored as a share of the ship's hundred
+      // points. The orb it also mends holds eight hundred and up, so a Kin
+      // pays the same share against the orb's pool; every other family
+      // keeps the point-for-point echo.
+      final isKin = comp.member.family.toLowerCase() == 'kin';
+      _healOrb(
+        isKin
+            ? result.shipHeal / max(1.0, ship.maxHp.toDouble()) * orb.maxHp
+            : result.shipHeal.toDouble(),
+        sourceSlot: comp.slotIndex,
+      );
     }
     if (result.blessingTimer > 0) {
       final benediction = comp.slotIndex >= 0
@@ -19944,6 +19986,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // its bulk, so what reaches the orb is genuinely less.
     var remaining = _hornBodyguardOrbDamage(amount);
     if (remaining <= 0) return;
+    _kinOrbDamageThisFrame += remaining;
     if (orb.shieldHp > 0) {
       final absorbed = min(remaining, orb.shieldHp.toDouble());
       orb.shieldHp -= absorbed.round();
@@ -19954,6 +19997,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             : SoundCue.combatShieldHit,
       );
     }
+    // Only what would reach the orb's own health is shared under a pact;
+    // the shield is spent first.
+    remaining = _kinBloodPactShareOrbDamage(remaining);
     if (remaining > 0) {
       final wasSafe = orb.hpPercent >= 0.25;
       orb.currentHp = max(0, orb.currentHp - remaining);
@@ -19962,6 +20008,46 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
   }
+
+  /// Kin+Blood pact: while a pact holds, the living companions take a share
+  /// of what would have reached the orb's health, split evenly, never past
+  /// their last point. Returns what the orb still takes. The damage they
+  /// absorb is then ordinary companion damage, which the pact's other half
+  /// heals across the team the next tick.
+  double _kinBloodPactShareOrbDamage(double amount) {
+    if (amount <= 0) return amount;
+    var pactActive = false;
+    for (final comp in _kinSupportSources.map((e) => e.value)) {
+      if (comp.kinBloodPactTimer > 0 &&
+          comp.member.family.toLowerCase() == 'kin' &&
+          comp.member.element == 'Blood') {
+        pactActive = true;
+        break;
+      }
+    }
+    if (!pactActive) return amount;
+    final living = <CosmicSurvivalCompanion>[
+      for (final c in activeCompanions.values)
+        if (!c.isDead && c.currentHp > 1) c,
+    ];
+    if (living.isEmpty) return amount;
+    final perAlly = amount * _kinBloodPactOrbShare / living.length;
+    var absorbed = 0.0;
+    for (final c in living) {
+      c.kinBloodPactAbsorbCarry += perAlly;
+      final whole = c.kinBloodPactAbsorbCarry.floor();
+      if (whole <= 0) continue;
+      final take = min(whole, c.currentHp - 1);
+      if (take <= 0) continue;
+      c.kinBloodPactAbsorbCarry -= take;
+      c.currentHp -= take;
+      c.hitFlash = 1.0;
+      absorbed += take;
+    }
+    return max(0.0, amount - absorbed);
+  }
+
+  static const double _kinBloodPactOrbShare = 0.40;
 
   void _triggerChainLightning({
     required CosmicSurvivalEnemy sourceEnemy,
@@ -20966,6 +21052,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     _renderOrbAlchemyRing(canvas, center, alchemyFrac);
+
+    if (_isAnyKinDarkCloakActive()) {
+      // The veil: the orb reads as hidden, a dark ring closing over it.
+      final pulse = 0.5 + 0.5 * sin(elapsed * 3.1);
+      canvas.drawCircle(
+        center,
+        _orbShieldRadius + 8,
+        Paint()..color = const Color(0xFF1A0B2E).withValues(alpha: 0.42),
+      );
+      canvas.drawCircle(
+        center,
+        _orbShieldRadius + 8,
+        Paint()
+          ..color = const Color(
+            0xFF9B5DE5,
+          ).withValues(alpha: 0.30 + 0.25 * pulse)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.0,
+      );
+    }
 
     if (orb.shieldHp > 0) {
       final shieldAlpha = (0.22 + min(orb.shieldHp / max(orb.maxHp, 1), 0.3))

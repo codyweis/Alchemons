@@ -238,3 +238,80 @@ Halving the reward did not slow upgrades down, because kills rose roughly
 tenfold: the draft still opens every 8-15s. If that is too often, the lever is
 `alchemicalMeterCapacity` scaling with wave size rather than another cut to the
 reward.
+
+## Round 7 — meter budget, Kin protects the orb, scorecard fixes (2026-09-19)
+
+**The meter is budgeted per wave.** Round 6 measured the draft opening every
+8-15 s and named the lever; this pulls it. `alchemicalMeterCapacity(wave)` is
+now `max(pre-horde curve, hordeCountForWave(wave) × alchemicalMeterPerBody)`
+with 1.25 meter per body, so a cleared ordinary wave fills the meter about
+once. The old curve grew 8% a wave while bodies grew ten-fold (wave 20: 44 →
+504), which is why the draft, and the pause it brings, fired two to six times
+a wave. Waves 1-9 are unchanged: they never sent enough bodies to fill the
+old curve. Boss reward is still a share of capacity.
+
+Measured by `test/survival_meter_pacing_test.dart` (Party A, two minutes,
+orb and ship kept alive, every surge dismissed), output in `meter_pacing.md`:
+
+| From wave | Surges | Waves cleared | Surges per wave | Seconds per wave |
+| --- | --- | --- | --- | --- |
+| 6 | 6 | 6 | 1.00 | 20 |
+| 12 | 7 | 5 | 1.40 | 24 |
+| 20 | 4 | 4 | 1.00 | 30 |
+| 30 | 3 | 3 | 1.00 | 40 |
+
+Round 6's equivalent from wave 12 was 13 upgrades in two minutes.
+
+**Kin protects the orb.** Ordinary bodies pick the orb 78% of the time and a
+companion 22%; only stalkers hunt the ship. The scorecard showed zero
+companion deaths and zero ship damage in four scenarios of five, so half of
+Kin's kit — reactive plates, the boiler, the pact, the cloak, and every heal
+aimed at a 100-HP ship — had nothing to react to. The orb is the health bar
+that loses. Each kit keeps its mechanic shape and gains the orb-facing half
+(`test/survival_kin_orb_support_test.dart`):
+
+- A Kin's authored ship heal is paid against the orb's pool as the same
+  share (Light 8% of orb max, Water 5%, Crystal 3%, Steam 2%), not as the
+  same eight points.
+- Steam's boiler stacks off orb damage (1.5% of orb max a stack, carried
+  across frames so chaff chip counts).
+- Lava's plate splashes the body pressing the orb when the orb is struck,
+  capped at three basic hits a frame.
+- Blood's pact takes 40% of what would reach the orb's health onto the living
+  companions, split evenly and never past their last point; the 60% team-heal
+  share still runs on what they take.
+- Dark's cloak is a veil: companions stay untargetable and the orb is hidden,
+  so bodies that came for it go for the ship while it lives. Artillery is
+  unaffected. This is a decoy the player flies, and the ship has 100 HP and a
+  30 s respawn, so it is the change that most needs a device session.
+
+**Scorecard fixes.** Two harness faults, both older than this round:
+
+- The orb and ship were reset to full every frame, so a heal had nothing to
+  heal and support read as zero by construction. They are now held at 40% and
+  30% floors; the table gains **Orb healed** and **Orb net** (damage minus
+  healing) and ranks elements on the net.
+- The **artillery rows were dead games**. The first volley zeroed the orb
+  inside one frame, the harness restored its health but never cleared
+  `isGameOver`, and nothing updated afterwards: every family showed exactly
+  400 orb damage and no leak. The flag is now cleared each frame. Artillery is
+  measured for the first time and is the harshest scenario on the board
+  (baseline 3,903 orb damage in 30 s); Wing kills 28 of 30 guns, nothing else
+  reaches 8.
+
+Kin after the change, orb net (lower is better), with the family that led
+each scenario before:
+
+| Scenario | Ship alone | Kin | Previous leader |
+| --- | --- | --- | --- |
+| tide | 1562 | 664 | Horn 238 |
+| brood | 483 | 33.6 | Horn 45.2 |
+| siege | 279 | 15.1 | Wing 50.7 |
+| flank | 639 | 14.6 | Horn 35.9 |
+
+Kin now holds the orb better than anyone against heavy, slow pressure and is
+mid-pack against the chaff tide, which is the shape a support family should
+have. Two readings to distrust: the harness ship never moves, so the Dark
+veil reads as Kin's worst element (bodies reach a parked ship, then walk
+back), and Kin's healing is measured against a floor, not a death. Neither
+replaces playing it.

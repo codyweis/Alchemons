@@ -1,0 +1,56 @@
+[
+  {
+    "startWave": 6,
+    "surges": 6,
+    "wavesCleared": 6,
+    "kills": 689,
+    "orbDamage": 351.37402578197464,
+    "surgesPerWave": [
+      0,
+      2,
+      1,
+      1,
+      0,
+      2
+    ]
+  },
+  {
+    "startWave": 12,
+    "surges": 7,
+    "wavesCleared": 5,
+    "kills": 1641,
+    "orbDamage": 777.8998998178846,
+    "surgesPerWave": [
+      1,
+      2,
+      2,
+      0,
+      1
+    ]
+  },
+  {
+    "startWave": 20,
+    "surges": 4,
+    "wavesCleared": 4,
+    "kills": 2579,
+    "orbDamage": 3774.3120705763868,
+    "surgesPerWave": [
+      0,
+      1,
+      2,
+      1
+    ]
+  },
+  {
+    "startWave": 30,
+    "surges": 3,
+    "wavesCleared": 3,
+    "kills": 4392,
+    "orbDamage": 32695.286264571783,
+    "surgesPerWave": [
+      0,
+      1,
+      1
+    ]
+  }
+]

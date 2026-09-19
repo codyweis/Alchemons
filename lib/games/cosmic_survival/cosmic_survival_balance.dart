@@ -76,10 +76,21 @@ class CosmicSurvivalBalance {
             : 1.0);
   }
 
+  /// The meter is budgeted per wave: a cleared ordinary wave fills it about
+  /// once, so the upgrade draft opens roughly once a wave instead of every
+  /// 8-15 s. Income is per body (a wisp pays 3 x 0.96 x 0.5, then the kill
+  /// pacing multiplier that settles near 0.7), so capacity follows the wave's
+  /// body count. The pre-horde curve stays as a floor: waves 1-9 send too few
+  /// bodies to fill it, which is the slow opening they always had.
+  ///
+  /// Measured by test/survival_meter_pacing_test.dart.
+  static const double alchemicalMeterPerBody = 1.25;
+
   static double alchemicalMeterCapacity(int wave) {
     final steps = max(0, wave - 1);
-    // Keep the early curve, then continue gently beyond the old wave-31 cap.
-    return 100 * (1 + min(steps, 30) * 0.08 + max(0, steps - 30) * 0.025);
+    final legacy =
+        100 * (1 + min(steps, 30) * 0.08 + max(0, steps - 30) * 0.025);
+    return max(legacy, hordeCountForWave(wave) * alchemicalMeterPerBody);
   }
 
   static double bossAlchemyReward(int wave) {
