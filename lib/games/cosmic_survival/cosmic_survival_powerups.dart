@@ -1213,10 +1213,12 @@ List<OfferedPowerUpChoice> generatePowerUpChoices(
   }
 
   for (var i = 0; i < 3 && available.isNotEmpty; i++) {
-    // Every 5 picks, guarantee Pack Leader in the first slot (if still upgradable)
+    // Half of all drafts lead with Pack Leader (while it can still be taken):
+    // another alchemon on the field is the pick that changes a run most, so
+    // it should be on the table often rather than on a schedule. Rolled on
+    // its own seed so the rest of the draft is unchanged by it.
     if (i == 0 &&
-        state.history.isNotEmpty &&
-        (state.history.length + 1) % 5 == 0) {
+        Random(wave * 53 + state.history.length * 7 + 3).nextDouble() < 0.5) {
       final packLeader = available.firstWhere(
         (d) => d.id == 'pack_leader',
         orElse: () => available.first, // fallback if maxed

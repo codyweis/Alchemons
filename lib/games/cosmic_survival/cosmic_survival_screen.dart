@@ -1550,6 +1550,17 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     });
   }
 
+  void _toggleFastForward() {
+    final game = _game;
+    if (game == null) return;
+    setState(() {
+      game.timeScale = game.timeScale > 1
+          ? 1
+          : CosmicSurvivalGame.fastForwardTimeScale;
+    });
+    HapticFeedback.selectionClick();
+  }
+
   void _cycleZoomLevel() {
     final game = _game;
     if (game == null || _showPauseMenu || _powerUpChoices.isNotEmpty) return;
@@ -2973,36 +2984,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 onTap: context.soundTap(_cycleZoomLevel),
               ),
               const SizedBox(width: 6),
-              GestureDetector(
-                onTap: context.soundAction(() {
-                  setState(() {
-                    game.timeScale = game.timeScale >= 2 ? 1 : 2;
-                  });
-                  HapticFeedback.selectionClick();
-                }),
-                child: Container(
-                  height: 32,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 9),
-                  decoration: BoxDecoration(
-                    color: game.timeScale >= 2
-                        ? _C.teal.withValues(alpha: 0.18)
-                        : _C.bg1.withValues(alpha: 0.82),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: game.timeScale >= 2 ? _C.teal : _C.borderDim,
-                    ),
-                  ),
-                  child: Text(
-                    game.timeScale >= 2 ? '2×' : '1×',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: game.timeScale >= 2 ? _C.teal : _C.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
+              // Fast forward: 1.5x. Two was too fast to read a front.
+              _HudIconButton(
+                icon: AppIcons.fast_forward_rounded,
+                color: game.timeScale > 1 ? _C.teal : _C.borderDim,
+                onTap: context.soundTap(_toggleFastForward),
               ),
               const SizedBox(width: 8),
               // Ship HP

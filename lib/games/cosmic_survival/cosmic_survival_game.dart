@@ -1412,6 +1412,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// engine for decisions, so those overlays never inherit fast-forward.
   double timeScale = 1.0;
 
+  /// The fast-forward speed. Two was too fast to read a front and pick where
+  /// to break it.
+  static const double fastForwardTimeScale = 1.5;
+
   final List<CosmicPartyMember> party;
   final void Function(SoundCue cue)? onSound;
   final VoidCallback onGameOver;
@@ -1997,7 +2001,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void update(double dt) {
     super.update(dt);
     if (!_started || isGameOver || gamePaused) return;
-    dt *= timeScale.clamp(1.0, 2.0);
+    dt *= timeScale.clamp(1.0, fastForwardTimeScale);
     final soundHpBefore = ship.currentHp + orb.currentHp;
 
     _rebuildEnemySpatialGrid();
