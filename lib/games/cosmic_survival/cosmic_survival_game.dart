@@ -31,6 +31,7 @@ import 'package:alchemons/games/cosmic_survival/survival_mastery_horn.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_kin.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_let.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_mask.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mastery_mystic.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_mane.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_payload.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_pip.dart';
@@ -2019,6 +2020,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateHornMastery(dt);
     _updateMaskMastery(dt);
     _updateWingMastery(dt);
+    _updateMysticMastery(dt);
     _updateMasteryEchoes(dt);
     updatePersistentAbilityEffects(dt);
     _updateBeamEffects(dt);
@@ -4419,7 +4421,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               takenMult *
               phaseMult *
               barrierMult *
-              _hornShieldWallMultiplier(comp))
+              _hornShieldWallMultiplier(comp) *
+              _firmamentMitigation(comp.position))
           .round(),
     );
     // A Bastion spends its own guard shield before its hit points, and the
@@ -8058,6 +8061,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // auto-attacks here; the beam applies its own at the tick site.
     if (mastery.enabled && sourceSlotIndex != null && autoAttack) {
       damage *= _wingLongshotMultiplier(sourceSlotIndex, enemy.position);
+      // Home Ground: anyone fighting inside a Mystic's world hits harder,
+      // whoever's world it is.
+      final shooter = activeCompanions[sourceSlotIndex];
+      if (shooter != null) damage *= _firmamentPower(shooter.position);
+    }
+    // Weight of Heaven: applied here rather than at seventeen bespoke world
+    // sites. A world's output is everything a spent Mystic deals that is not
+    // its own auto-attack, which is exactly what this condition says.
+    if (mastery.enabled &&
+        sourceSlotIndex != null &&
+        !autoAttack &&
+        _mysticSpentSlots.contains(sourceSlotIndex)) {
+      damage *= _mysticWorldDamageMultiplier(sourceSlotIndex);
     }
     var hornWeighted = false;
     if (mastery.enabled && sourceSlotIndex != null && autoAttack) {
@@ -10970,6 +10986,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   @visibleForTesting
   void debugKillEnemy(CosmicSurvivalEnemy enemy) => _killEnemy(enemy);
 
+  /// Whether this slot's Mystic world is standing.
+  bool debugMysticWorldLit(int slotIndex) =>
+      _mysticSpentSlots.contains(slotIndex);
+
   /// Lengths of the Kin laser beams currently drawn, so a test can see
   /// Longline working without reaching into the render list.
   List<double> get debugKinLaserLengths => [
@@ -11114,13 +11134,121 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   double _mysticWorldPower(int slotIndex) {
     final comp = activeCompanions[slotIndex];
     if (comp == null) return 1.0;
-    return powerUps.mysticWorldPower(slotIndex, comp.member.element);
+    var power = powerUps.mysticWorldPower(slotIndex, comp.member.element);
+    // Quickening divides the beat the same way the surge does, so a world
+    // cannot be driven to a continuous beam however the two stack: the rate
+    // is read back out of the clamped interval rather than applied raw.
+    if (_isMasteryMystic(slotIndex)) {
+      final authored = 4.0;
+      final driven = mysticWorldInterval(
+        hasNode: (id) => mastery.hasNode(slotIndex, id),
+        authoredInterval: authored,
+      );
+      if (driven > 0) power *= authored / driven;
+    }
+    return power;
+  }
+
+  // == Mystic mastery (phase 5) ============================================
+
+  /// Per-slot Mystic state, created on demand and dropped on a run reset.
+  final Map<int, MysticMasteryState> _mysticMastery = {};
+
+  MysticMasteryState _mysticStateFor(int slotIndex) =>
+      _mysticMastery.putIfAbsent(slotIndex, MysticMasteryState.new);
+
+  /// Read-only view of a Mystic's run state — what its world has mended.
+  MysticMasteryState? mysticMasteryFor(int slotIndex) =>
+      _mysticMastery[slotIndex];
+
+  bool _isMasteryMystic(int slotIndex) {
+    if (!mastery.enabled) return false;
+    final equipped = mastery.equippedFor(slotIndex);
+    return equipped != null && equipped.family == CreatureFamily.mystic;
+  }
+
+  /// Weight of Heaven: how much harder everything a world does lands.
+  double _mysticWorldDamageMultiplier(int slotIndex) =>
+      _isMasteryMystic(slotIndex)
+      ? mysticWorldPower(hasNode: (id) => mastery.hasNode(slotIndex, id))
+      : 1.0;
+
+  /// The slot of a standing world whose Firmament covers [pos], if any.
+  int? _firmamentCovering(Offset pos) {
+    if (_mysticSpentSlots.isEmpty || !mastery.enabled) return null;
+    for (final slot in _mysticSpentSlots) {
+      if (!_isMasteryMystic(slot)) continue;
+      if (!mastery.hasNode(slot, MysticNodes.nativeAir)) continue;
+      final caster = activeCompanions[slot];
+      if (caster == null || caster.isDead) continue;
+      if ((caster.position - pos).distance <= MysticTuning.insideRadius) {
+        return slot;
+      }
+    }
+    return null;
+  }
+
+  /// Native Air: what an ally standing in the world takes instead.
+  double _firmamentMitigation(Offset pos) {
+    final slot = _firmamentCovering(pos);
+    if (slot == null) return 1.0;
+    return mysticFirmament(
+      hasNode: (id) => mastery.hasNode(slot, id),
+    ).mitigation;
+  }
+
+  /// Home Ground: what an ally standing in the world deals instead.
+  double _firmamentPower(Offset pos) {
+    final slot = _firmamentCovering(pos);
+    if (slot == null) return 1.0;
+    return mysticFirmament(hasNode: (id) => mastery.hasNode(slot, id)).power;
+  }
+
+  /// Tended: the world mends whoever is standing in it.
+  void _updateMysticMastery(double dt) {
+    if (!mastery.enabled || _mysticSpentSlots.isEmpty) return;
+    for (final slot in _mysticSpentSlots) {
+      if (!_isMasteryMystic(slot)) continue;
+      final firmament = mysticFirmament(
+        hasNode: (id) => mastery.hasNode(slot, id),
+      );
+      if (!firmament.mends) continue;
+      final caster = activeCompanions[slot];
+      if (caster == null || caster.isDead) continue;
+      if (!_mysticStateFor(slot).takeTendedTick(dt)) continue;
+
+      for (final ally in activeCompanions.values) {
+        if (ally.isDead) continue;
+        if ((ally.position - caster.position).distance >
+            MysticTuning.insideRadius) {
+          continue;
+        }
+        final mend = ally.maxHp * MysticTuning.tendedHealPerSecond;
+        final before = ally.currentHp;
+        ally.currentHp = min(ally.maxHp, ally.currentHp + mend.round());
+        _mysticStateFor(slot).healedInside += ally.currentHp - before;
+      }
+      if (!ship.isDead &&
+          (ship.position - caster.position).distance <=
+              MysticTuning.insideRadius) {
+        ship.currentHp = min(
+          ship.maxHp,
+          ship.currentHp + ship.maxHp * MysticTuning.tendedHealPerSecond,
+        );
+      }
+    }
   }
 
   /// Lights whichever world this Mystic makes.
   void _igniteMysticWorld(CosmicSurvivalCompanion comp, int slotIndex) {
     _mysticWorldIgnitions[slotIndex] =
         (_mysticWorldIgnitions[slotIndex] ?? 0) + 1;
+    // First Light: the clocks below are set to a full interval, so a world
+    // normally spends its first turn doing nothing at all. This makes the sky
+    // change and act in the same moment.
+    final actsNow =
+        _isMasteryMystic(slotIndex) &&
+        mysticActsOnIgnition(hasNode: (id) => mastery.hasNode(slotIndex, id));
     switch (comp.member.element) {
       case 'Fire':
         _igniteMysticEmberField(comp);
@@ -11138,9 +11266,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       case 'Lightning':
         // The storm's first bolt comes on the clock like every other, so the
         // cast is the sky changing rather than a bolt being thrown.
-        _mysticClock[slotIndex] = kMysticStrikeInterval;
+        _mysticClock[slotIndex] = actsNow ? 0.0 : kMysticStrikeInterval;
       case 'Earth':
-        _mysticClock[slotIndex] = kMysticQuakeInterval;
+        _mysticClock[slotIndex] = actsNow ? 0.0 : kMysticQuakeInterval;
       case 'Poison':
         _mysticPools.removeWhere((p) => p.ownerSlot == slotIndex);
         _mysticPoisonLastDrop[slotIndex] = ship.position;
@@ -11153,7 +11281,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // Rules on the whole field; nothing to place.
         break;
       case 'Steam':
-        _mysticClock[slotIndex] = kMysticVentInterval;
+        _mysticClock[slotIndex] = actsNow ? 0.0 : kMysticVentInterval;
       case 'Lava':
         _openMysticFissures(comp);
       case 'Water':

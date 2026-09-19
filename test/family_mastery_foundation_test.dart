@@ -7,15 +7,23 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('FamilyMasteryCatalog', () {
-    test('defines eight valid trees, 24 paths, and 96 nodes', () {
+    test('defines eight valid trees, 23 paths, and 92 nodes', () {
+      // Seven families of three paths, and Mystic's two. Only one Mystic may
+      // be fielded at a time and its seventeen worlds are each a bespoke rule
+      // with almost no shared surface, so it carries two paths that work for
+      // all seventeen rather than three where one is filler for eleven.
       expect(FamilyMasteryCatalog.validate(), isEmpty);
       expect(kFamilyMasteryTrees, hasLength(8));
-      expect(kFamilyMasteryTrees.expand((tree) => tree.paths), hasLength(24));
+      expect(kFamilyMasteryTrees.expand((tree) => tree.paths), hasLength(23));
       expect(
         kFamilyMasteryTrees
             .expand((tree) => tree.paths)
             .expand((path) => path.nodes),
-        hasLength(96),
+        hasLength(92),
+      );
+      expect(
+        FamilyMasteryCatalog.treeFor(CreatureFamily.mystic).paths,
+        hasLength(2),
       );
     });
 

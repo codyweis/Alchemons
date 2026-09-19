@@ -1,8 +1,8 @@
 # Survival Family Mastery
 
-Status (2026-09-18): Phases 1 and 2 complete. **Seven of eight families are implemented in combat — Mane, Let, Pip, Horn, Mask, Wing and Kin** — all twelve nodes each, each in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`, `_mask.dart`, `_wing.dart`, `_kin.dart`) with its own test suite. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
+Status (2026-09-18): Phases 1 and 2 complete. **All eight families are implemented in combat.** Seven carry twelve nodes across three paths; Mystic carries eight across two. Each lives in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`, `_mask.dart`, `_wing.dart`, `_kin.dart`, `_mystic.dart`) with its own test suite. Tuning is open for all of them and none has been played on device. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
 
-**Mystic's tree is purchasable and does nothing.** It have a full twelve-node tree with names, descriptions and prices in `kFamilyMasteryTrees`, the panel renders every `CreatureFamily.values`, and `purchaseNode` has no gate on whether a family's behaviour exists — so a player can spend 16,000 silver and 10 gold on a tree with no combat wiring behind it. Either it ships, or the panel has to say it is not ready.
+Nothing in the panel is purchasable-but-inert any more.
 
 ## Purpose
 
@@ -1279,6 +1279,49 @@ has been removing from the drafts. Orphaned supports are now held in
 `_unbrokenKin` and walked by the support tick alongside the living, pruned as
 their timers expire, and the three "is some Kin support up?" reads consult
 them too.
+
+
+### Mystic — Quickening, Firmament, and only two paths (2026-09-18)
+
+Mystic is the one family with two paths instead of three, and that is a
+decision rather than an omission. Only one Mystic may be fielded at a time, its
+cast is spent for the whole deployment, and its seventeen worlds are each a
+bespoke rule or placement — Spirit's world is a rule with no placement at all,
+Blood's likewise. There is far less shared surface to hang a path on than any
+other family has, so it carries two paths that work for all seventeen rather
+than three where one is filler for eleven.
+
+Reading the runtime settled which two. There is no shared "world damage" or
+"world radius" field. Two things are universal:
+
+- **`_mysticClock`**, the interval a world acts on. **Quickening** drives it,
+  using the same divisor the existing powerup surge already established.
+- **The element, and the fact that a world is a place.** **Firmament** drives
+  that: shelter for allies inside, and the world's element lent to them.
+
+So one path is what the world does to the enemy and the other is what it does
+to the team, which is the whole of what an environment can be.
+
+**The third path I rejected** was uptime. A world holds until its caster dies,
+so "survive longer" is literally "world duration" — but every version collided
+with something built days earlier: a world that lingers past your death is
+Kin's Unbroken, and surviving a lethal hit so the world holds is Kin/Fire's
+phoenix.
+
+Two implementation notes worth keeping:
+
+- **Weight of Heaven is applied once in `_damageEnemy`**, not at seventeen
+  bespoke world sites. A world's output is everything a spent Mystic deals
+  that is not its own auto-attack, which is exactly what the condition says.
+- **`mysticWorldInterval` threw on a world authored faster than its own
+  floor** — `clamp(0.35, 0.2)` puts the lower limit above the upper one. A
+  world already faster than the floor is now left exactly as it is.
+
+Supporting this needed two structural changes: the catalog validator expects
+two paths for Mystic and three for everyone else, and `_columnsFor` spaces
+however many columns a tree has instead of hardcoding the sixths — Mystic's
+two land on the quarters rather than leaving the right third of the crown
+empty. The catalog is now eight trees, 23 paths and 92 nodes.
 
 
 ## Decisions intentionally made

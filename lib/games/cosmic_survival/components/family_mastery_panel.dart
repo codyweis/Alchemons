@@ -539,7 +539,12 @@ class _ProgressRingPainter extends CustomPainter {
 
 const _crownHeight = 146.0;
 
-List<double> _columnsFor(double width) => [width / 6, width / 2, width * 5 / 6];
+/// Evenly spaced column centres, one per path. Three gives the sixths this
+/// panel was built around; Mystic's two land on the quarters instead of
+/// leaving the right third of the crown empty.
+List<double> _columnsFor(double width, [int count = 3]) => [
+  for (var i = 0; i < count; i++) width * (2 * i + 1) / (2 * count),
+];
 
 List<int> _ownedTierCounts(FamilyMasteryTreeDef tree, Set<String> owned) => [
   for (final path in tree.paths)
@@ -547,8 +552,8 @@ List<int> _ownedTierCounts(FamilyMasteryTreeDef tree, Set<String> owned) => [
 ];
 
 class _CrownLayout {
-  _CrownLayout(this.width)
-    : columns = _columnsFor(width),
+  _CrownLayout(this.width, [int pathCount = 3])
+    : columns = _columnsFor(width, pathCount),
       root = Offset(width / 2, rootY),
       fork = Offset(width / 2, forkY);
 
@@ -660,7 +665,7 @@ class _TreeCrown extends StatelessWidget {
       height: _crownHeight,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final layout = _CrownLayout(constraints.maxWidth);
+          final layout = _CrownLayout(constraints.maxWidth, tree.paths.length);
           final bannerWidth = layout.width / 3 - 10;
           const rootRadius = _CrownLayout.rootRadius;
           final sideWidth = layout.width / 2 - rootRadius - 12;
@@ -3294,18 +3299,14 @@ const Map<String, IconData> kFamilyMasteryNodeIcons = {
   'kin.benediction.unbroken': PhosphorIconsBold.infinity,
   'kin.benediction.communion': PhosphorIconsBold.usersThree,
   // Mystic
-  'mystic.assault.aligned_stars': PhosphorIconsBold.starFour,
-  'mystic.assault.conjunction': PhosphorIconsBold.intersectThree,
-  'mystic.assault.falling_sign': PhosphorIconsBold.shootingStar,
-  'mystic.assault.the_stars_answer': PhosphorIconsBold.moonStars,
-  'mystic.control.seed_the_field': PhosphorIconsBold.plant,
-  'mystic.control.local_omen': PhosphorIconsBold.eyes,
-  'mystic.control.awakening': PhosphorIconsBold.flowerLotus,
-  'mystic.control.living_world': PhosphorIconsBold.tree,
-  'mystic.resonance.witness': PhosphorIconsBold.eye,
-  'mystic.resonance.shared_vision': PhosphorIconsBold.handEye,
-  'mystic.resonance.oath_fulfilled': PhosphorIconsBold.sealCheck,
-  'mystic.resonance.worldbond': PhosphorIconsBold.globeHemisphereWest,
+  'mystic.quickening.quickening': PhosphorIconsBold.clockClockwise,
+  'mystic.quickening.first_light': PhosphorIconsBold.sunHorizon,
+  'mystic.quickening.weight_of_heaven': PhosphorIconsBold.scales,
+  'mystic.quickening.relentless_sky': PhosphorIconsBold.cloudLightning,
+  'mystic.firmament.native_air': PhosphorIconsBold.shieldCheck,
+  'mystic.firmament.home_ground': PhosphorIconsBold.house,
+  'mystic.firmament.tended': PhosphorIconsBold.plant,
+  'mystic.firmament.sanctum': PhosphorIconsBold.sparkle,
 };
 
 String _compactNumber(int value) =>

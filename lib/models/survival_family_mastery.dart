@@ -566,58 +566,40 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
     family: CreatureFamily.mystic,
     chassis: FamilyCombatCopy.of(CreatureFamily.mystic).attack,
     paths: [
-      _path('mystic.assault', 'Starcaller', 'Make your spell volleys count', [
+      _path('mystic.quickening', 'Quickening', 'Your world acts far more often', [
         (
-          'Aligned Stars',
-          "Bolts fly 30% closer together and each deals 42% damage (up from 40%).",
+          'Quickening',
+          "Your world acts 25% more often.",
         ),
         (
-          'Conjunction',
-          "When all 3 bolts hit one enemy, add 30% elemental damage and apply your element's effect.",
+          'First Light',
+          "It acts the moment it ignites, instead of waiting out a full turn.",
         ),
         (
-          'Falling Sign',
-          "Every 4th time all 3 bolts land, the enemy is marked: your next volley homes in on it for +20% damage.",
+          'Weight of Heaven',
+          "Everything your world does lands 30% harder.",
         ),
         (
-          'The Stars Answer',
-          "Every 5th attack calls a star sigil onto your target for 85% elemental area damage, larger while your world is active.",
-        ),
-      ]),
-      _path('mystic.control', 'Worldshaper', 'Plant Seeds your world awakens', [
-        (
-          'Seed the Field',
-          "Every 3rd attack plants a Seed for 8s (max 3). Seeds pulse 10% elemental damage to nearby enemies every 2s.",
-        ),
-        (
-          'Local Omen',
-          "Seeds also apply a weak version of your element's effect to nearby enemies.",
-        ),
-        (
-          'Awakening',
-          "When your world appears, all current Seeds awaken, pulse harder, and last as long as the world does.",
-        ),
-        (
-          'Living World',
-          "While your world is active, every 5th attack grows a new awakened Seed for 5s (up to 5 Seeds).",
+          'Relentless Sky',
+          "Your world acts twice as often as it did before you began.",
         ),
       ]),
-      _path('mystic.resonance', 'Covenant', 'Accuracy powers team-wide boons', [
+      _path('mystic.firmament', 'Firmament', 'Your world shelters its makers', [
         (
-          'Witness',
-          "Landing all 3 bolts builds Insight (max 5, never fades). Each Insight gives +2% attack damage.",
+          'Native Air',
+          "Allies standing in your world take 15% less damage.",
         ),
         (
-          'Shared Vision',
-          "At 5 Insight, your whole team gets +5% attack range and your bolts favor enemies no one else is hitting.",
+          'Home Ground',
+          "They deal 15% more while they stand in it.",
         ),
         (
-          'Oath Fulfilled',
-          "When your world appears, it spends all Insight to give every teammate a 5s elemental boon.",
+          'Tended',
+          "Your world slowly mends the allies inside it.",
         ),
         (
-          'Worldbond',
-          "While your world is active, every 5 full volleys heal or shield your team and hit nearby enemies with your element.",
+          'Sanctum',
+          "Their attacks carry your world's element for as long as they stay.",
         ),
       ]),
     ],
@@ -679,8 +661,15 @@ class FamilyMasteryCatalog {
       if (!treeFamilies.add(tree.family)) {
         errors.add('Duplicate family tree: ${tree.family.name}');
       }
-      if (tree.paths.length != 3) {
-        errors.add('${tree.family.name} must have exactly three paths');
+      // Mystic gets two. Only one Mystic may be fielded at a time and its
+      // seventeen worlds are all bespoke, so it has far less shared surface
+      // to hang a third path on than any other family — two good paths beat
+      // three where one is filler.
+      final expectedPaths = tree.family == CreatureFamily.mystic ? 2 : 3;
+      if (tree.paths.length != expectedPaths) {
+        errors.add(
+          '${tree.family.name} must have exactly $expectedPaths paths',
+        );
       }
       for (final path in tree.paths) {
         if (!pathIds.add(path.id)) errors.add('Duplicate path: ${path.id}');
