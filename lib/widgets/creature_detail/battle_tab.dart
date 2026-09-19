@@ -13,6 +13,8 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
+import 'package:alchemons/screens/ability_preview_screen.dart';
+import 'package:alchemons/utils/sprite_sheet_def.dart';
 
 class ImprovedBattleScrollArea extends StatefulWidget {
   final FactionTheme? theme;
@@ -75,6 +77,12 @@ class _ExploreTab extends StatelessWidget {
     final hasActiveSpecial =
         !special.subtitle.toLowerCase().contains('passive') &&
         !special.description.toLowerCase().contains('no active');
+    final boosts = _CombatBoostsCard.entriesFor(
+      context,
+      instance: instance,
+      creature: creature,
+      family: family,
+    );
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -83,6 +91,20 @@ class _ExploreTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const BracketSectionDivider(label: 'Stats'),
+          const SizedBox(height: 10),
+          _PreviewAbilitiesButton(
+            accent: _elementAccentColor(element),
+            onTap: () => _openAbilityPreview(
+              context,
+              instance: instance,
+              creature: creature,
+              family: family,
+              element: element,
+              basic: basic,
+              special: special,
+              specialName: specialName,
+            ),
+          ),
           const SizedBox(height: 10),
           _ExploreStatGrid(instance: instance, family: family),
           const SizedBox(height: 18),
@@ -104,7 +126,7 @@ class _ExploreTab extends StatelessWidget {
                 ? '${special.subtitle} • Activates when ready'
                 : special.subtitle,
             description:
-                '${special.description}\n\n${_familySpecialScalingCopy(family)}',
+                '${special.description}\n\n${_specialScalingLine(family)}',
             icon: special.icon,
             accent: _elementAccentColor(element),
             featured: true,
@@ -113,41 +135,168 @@ class _ExploreTab extends StatelessWidget {
           const BracketSectionDivider(label: 'Role'),
           const SizedBox(height: 10),
           _BracketInfoCard(title: role.title, description: role.description),
-          const SizedBox(height: 18),
-          const BracketSectionDivider(label: 'Boosts'),
-          const SizedBox(height: 10),
-          _CombatBoostsCard(
-            instance: instance,
-            creature: creature,
-            family: family,
-          ),
+          if (boosts.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            const BracketSectionDivider(label: 'Boosts'),
+            const SizedBox(height: 10),
+            _CombatBoostsCard(entries: boosts),
+          ],
         ],
       ),
     );
   }
 }
 
-String _familySpecialScalingCopy(String family) => switch (family
-    .toLowerCase()) {
-  'horn' =>
-    'Power: mostly Strength, with Intelligence. Intelligence also improves control and duration; Beauty expands coverage.',
-  'wing' =>
-    'Power: mostly Beauty, with Intelligence. Beauty widens the beam; Intelligence improves reach, duration, and control.',
-  'let' =>
-    'Power: mostly Strength, with Beauty. Beauty enlarges the impact; Intelligence improves aim, duration, and aftermath.',
-  'pip' =>
-    'Power: Strength and Beauty. Intelligence improves guidance, ricochets, and duration.',
-  'mane' =>
-    'Power: mostly Strength, with Intelligence. Beauty adds projectiles or makes the attack wider; Intelligence improves control and duration.',
-  'mask' =>
-    'Power: mostly Beauty, with Intelligence. Beauty enlarges and strengthens traps; Intelligence improves duration and control.',
-  'kin' =>
-    'Power: mostly Beauty, with some Strength and Intelligence. Beauty improves healing and potency; Intelligence improves duration and control.',
-  'mystic' =>
-    'Power: mostly Beauty, with Intelligence. Beauty expands world effects; Intelligence improves duration, control, and repeat effects.',
-  _ =>
-    'Beauty and Intelligence improve this special. Speed makes it ready sooner.',
-};
+void _openAbilityPreview(
+  BuildContext context, {
+  required CreatureInstance instance,
+  required Creature creature,
+  required String family,
+  required String element,
+  required _CosmicBasicInfo basic,
+  required CosmicSpecialInfo special,
+  required String specialName,
+}) {
+  // Built the way summonCompanion builds the real companion: constellation
+  // bonuses applied, the creature's own sheet and visuals.
+  final combatBonuses = context.read<ConstellationEffectsService>();
+  final member = CosmicPartyMember(
+    instanceId: 'preview_${instance.instanceId}',
+    baseId: instance.baseId,
+    displayName: instance.nickname ?? creature.name,
+    imagePath: 'assets/images/${creature.image}',
+    element: element,
+    family: family,
+    level: instance.level,
+    statSpeed: combatBonuses.applyCombatStatBonus('speed', instance.statSpeed),
+    statIntelligence: combatBonuses.applyCombatStatBonus(
+      'intelligence',
+      instance.statIntelligence,
+    ),
+    statStrength: combatBonuses.applyCombatStatBonus(
+      'strength',
+      instance.statStrength,
+    ),
+    statBeauty: combatBonuses.applyCombatStatBonus(
+      'beauty',
+      instance.statBeauty,
+    ),
+    statSpeedPotential: instance.statSpeedPotential,
+    statIntelligencePotential: instance.statIntelligencePotential,
+    statStrengthPotential: instance.statStrengthPotential,
+    statBeautyPotential: instance.statBeautyPotential,
+    slotIndex: 0,
+    staminaBars: 3,
+    staminaMax: 3,
+    spriteSheet: creature.spriteData != null
+        ? sheetFromCreature(creature)
+        : null,
+    spriteVisuals: visualsFromInstance(creature, instance),
+  );
+  AbilityPreviewScreen.open(
+    context,
+    AbilityPreviewSubject(
+      member: member,
+      autoAttackName: basic.name,
+      autoAttackDescription: basic.description,
+      autoAttackIcon: basic.icon,
+      specialName: specialName,
+      specialSubtitle: special.subtitle,
+      specialDescription: special.description,
+      specialIcon: special.icon,
+      accent: _elementAccentColor(element),
+    ),
+  );
+}
+
+/// Opens the live preview of this creature's attacks.
+class _PreviewAbilitiesButton extends StatelessWidget {
+  const _PreviewAbilitiesButton({required this.accent, required this.onTap});
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          height: 44,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: accent.withValues(alpha: 0.6)),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 12),
+              Icon(AppIcons.play_arrow_rounded, size: 16, color: accent),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PREVIEW ABILITIES',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: accent,
+                        fontSize: 10.5,
+                        letterSpacing: 1.8,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      'Watch the auto attack and special in a live arena',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.muted, fontSize: 10.5),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                AppIcons.arrow_forward_ios_rounded,
+                size: 12,
+                color: accent.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// What the special actually scales off, as the game computes it: its power
+/// from [cosmicFamilyAbilityStatWeights], its cooldown from
+/// [cosmicFamilySpecialCooldownWeights].
+String _specialScalingLine(String family) {
+  final power = cosmicFamilyAbilityStatWeights(family);
+  final cadence = cosmicFamilySpecialCooldownWeights(family);
+  String pct(double w) => '${(w * 100).round()}%';
+  String join(List<(String, double)> parts) => parts
+      .where((p) => p.$2 > 0)
+      .map((p) => '${p.$1} ${pct(p.$2)}')
+      .join(' · ');
+  final powerLine = join([
+    ('Strength', power.strength),
+    ('Intelligence', power.intelligence),
+    ('Beauty', power.beauty),
+  ]);
+  final cadenceLine = join([
+    ('Speed', cadence.speed),
+    ('Intelligence', cadence.intelligence),
+    ('Strength', cadence.strength),
+  ]);
+  return 'Scales with $powerLine\nCooldown from $cadenceLine';
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // Bracket-style content cards (shared by Cosmic + Boss tabs)
@@ -365,15 +514,9 @@ class _StatGrid extends StatelessWidget {
 /// Lists every persistent percentage modifier that feeds this creature's
 /// battle readout, grouped by its player-facing source.
 class _CombatBoostsCard extends StatelessWidget {
-  const _CombatBoostsCard({
-    required this.instance,
-    required this.creature,
-    required this.family,
-  });
+  const _CombatBoostsCard({required this.entries});
 
-  final CreatureInstance instance;
-  final Creature creature;
-  final String family;
+  final List<_BoostEntry> entries;
 
   static const _stats = <(String, String)>[
     ('Speed', kStatSpeed),
@@ -382,11 +525,14 @@ class _CombatBoostsCard extends StatelessWidget {
     ('Beauty', kStatBeauty),
   ];
 
-  @override
-  Widget build(BuildContext context) {
-    final palette = BracketPalette.of(context);
-    final theme = context.read<FactionTheme>();
-    final accent = bracketReadableAccent(theme);
+  /// Only the boosts this creature actually has. An empty list means the
+  /// section is not shown at all; a row that says "no boost" is not a boost.
+  static List<_BoostEntry> entriesFor(
+    BuildContext context, {
+    required CreatureInstance instance,
+    required Creature creature,
+    required String family,
+  }) {
     final constellation = context.watch<ConstellationEffectsService>();
     final entries = <_BoostEntry>[];
 
@@ -394,32 +540,21 @@ class _CombatBoostsCard extends StatelessWidget {
       if (instance.natureId?.isNotEmpty == true) instance.natureId!,
       if (instance.natureId2?.isNotEmpty == true) instance.natureId2!,
     };
-    if (natureIds.isEmpty) {
-      entries.add(const _BoostEntry('Nature', 'No Nature boost'));
-    } else {
-      for (final id in natureIds) {
-        final nature = NatureCatalog.byId(id);
-        final parts = nature == null
-            ? const <String>[]
-            : _stats
-                  .map((stat) {
-                    final bonus = nature.effect.getDouble(
-                      'stat_${stat.$2}_bonus',
-                      fallback: 0,
-                    );
-                    return bonus == 0
-                        ? null
-                        : '${stat.$1} ${_signedPercent(bonus)}';
-                  })
-                  .whereType<String>()
-                  .toList(growable: false);
-        entries.add(
-          _BoostEntry(
-            'Nature · ${nature?.id ?? id}',
-            parts.isEmpty ? 'No battle-stat modifier' : parts.join(' · '),
-          ),
-        );
-      }
+    for (final id in natureIds) {
+      final nature = NatureCatalog.byId(id);
+      if (nature == null) continue;
+      final parts = _stats
+          .map((stat) {
+            final bonus = nature.effect.getDouble(
+              'stat_${stat.$2}_bonus',
+              fallback: 0,
+            );
+            return bonus == 0 ? null : '${stat.$1} ${_signedPercent(bonus)}';
+          })
+          .whereType<String>()
+          .toList(growable: false);
+      if (parts.isEmpty) continue;
+      entries.add(_BoostEntry('Nature · ${nature.id}', parts.join(' · ')));
     }
 
     final enhancementParts = <String>[];
@@ -436,14 +571,9 @@ class _CombatBoostsCard extends StatelessWidget {
         '${_stats[i].$1} +${(rank * AlchemonStatSystem.enhancementBonusPerRank * 100).round()}%',
       );
     }
-    entries.add(
-      _BoostEntry(
-        'Enhancement',
-        enhancementParts.isEmpty
-            ? 'No Enhancement boost'
-            : enhancementParts.join(' · '),
-      ),
-    );
+    if (enhancementParts.isNotEmpty) {
+      entries.add(_BoostEntry('Enhancement', enhancementParts.join(' · ')));
+    }
 
     final purity = classifyInstancePurity(instance, species: creature);
     final purityBonus = resolvePurityStatBonus(
@@ -451,28 +581,25 @@ class _CombatBoostsCard extends StatelessWidget {
       isElementallyPure: purity.isElementallyPure,
       isSpeciesPure: purity.isSpeciesPure,
     );
-    entries.add(
-      _BoostEntry(
-        'Purity · ${purityBonus.lineageLabel}',
-        purityBonus.isNone || purityBonus.statKey == null
-            ? 'No purity stat boost'
-            : '${_statLabel(purityBonus.statKey!)} +${(purityBonus.bonus * 100).round()}%',
-      ),
-    );
+    if (!purityBonus.isNone && purityBonus.statKey != null) {
+      entries.add(
+        _BoostEntry(
+          'Purity · ${purityBonus.lineageLabel}',
+          '${_statLabel(purityBonus.statKey!)} +${(purityBonus.bonus * 100).round()}%',
+        ),
+      );
+    }
 
     final constellationParts = <String>[];
     for (final stat in _stats) {
       final percent = constellation.getCombatStatBonusPercent(stat.$2);
       if (percent > 0) constellationParts.add('${stat.$1} +$percent%');
     }
-    entries.add(
-      _BoostEntry(
-        'Combat Constellation',
-        constellationParts.isEmpty
-            ? 'No unlocked combat boost'
-            : constellationParts.join(' · '),
-      ),
-    );
+    if (constellationParts.isNotEmpty) {
+      entries.add(
+        _BoostEntry('Combat Constellation', constellationParts.join(' · ')),
+      );
+    }
 
     final frameParts = <String>[];
     void addFramePart(String label, double multiplier) {
@@ -485,13 +612,22 @@ class _CombatBoostsCard extends StatelessWidget {
     addFramePart('Defense', CosmicBalance.familyDefMultiplier(family));
     addFramePart('Auto range', CosmicBalance.familyAttackRange(family, 1));
     addFramePart('Special range', CosmicBalance.familySpecialRange(family, 1));
-    entries.add(
-      _BoostEntry(
-        'Family Frame · ${family.toUpperCase()}',
-        frameParts.isEmpty ? 'No family modifier' : frameParts.join(' · '),
-      ),
-    );
+    if (frameParts.isNotEmpty) {
+      entries.add(
+        _BoostEntry(
+          'Family Frame · ${family.toUpperCase()}',
+          frameParts.join(' · '),
+        ),
+      );
+    }
+    return entries;
+  }
 
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final theme = context.read<FactionTheme>();
+    final accent = bracketReadableAccent(theme);
     return Container(
       decoration: BoxDecoration(
         color: palette.surfaceFill(),

@@ -62,6 +62,10 @@ class AllCreatureInstances extends StatefulWidget {
   /// Infusion picker turns this on — everywhere else the ranks are noise.
   final bool allowEnhancementMode;
 
+  /// Optional corner badge for every card, e.g. a sale value.
+  final Widget? Function(CreatureInstance inst, Creature species)?
+  cardBadgeBuilder;
+
   const AllCreatureInstances({
     super.key,
     required this.theme,
@@ -81,6 +85,7 @@ class AllCreatureInstances extends StatefulWidget {
     this.prefsScopeKey,
     this.initialDetailMode = InstanceDetailMode.genetics,
     this.allowEnhancementMode = false,
+    this.cardBadgeBuilder,
   });
 
   @override
@@ -705,7 +710,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       theme: widget.theme,
                     ),
                     BracketControlChip(
-                      label: 'STAMINA ↓',
+                      label: 'STM ↓',
                       accentColor: const Color(0xFF34D399),
                       labelFontSize: 10.5,
                       selected: _sortBy == SortBy.staminaHigh,
@@ -974,6 +979,10 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                             activeSortBy: _sortBy,
                             isSelected: isSelected,
                             selectionNumber: selectionNumber,
+                            cornerBadge: widget.cardBadgeBuilder?.call(
+                              inst,
+                              creature,
+                            ),
                             onTap: () {
                               if (widget.selectionMode) {
                                 _handleInstanceTap(inst);

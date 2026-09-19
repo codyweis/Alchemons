@@ -263,7 +263,7 @@ class InstanceFiltersPanel extends StatelessWidget {
       if (onToggleHasStamina != null)
         _ToggleChip(
           icon: AppIcons.bolt_rounded,
-          label: 'HAS STAMINA',
+          label: 'HAS STM',
           active: filterHasStamina,
           activeColor: const Color(0xFF34D399),
           onTap: onToggleHasStamina!,
@@ -325,7 +325,7 @@ class InstanceFiltersPanel extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 _SortChip(
-                  label: 'STAMINA ↓',
+                  label: 'STM ↓',
                   selected: sortBy == SortBy.staminaHigh,
                   onTap: context.soundTap(
                     () => onSortChanged(SortBy.staminaHigh),

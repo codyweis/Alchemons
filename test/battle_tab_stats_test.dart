@@ -107,13 +107,18 @@ void main() {
     expect(cdr, lessThan(1.0));
     expect(find.text('×${(1 / cdr).toStringAsFixed(2)}'), findsOneWidget);
 
-    // Persistent modifiers live in one bottom section, grouped by source.
+    // The live preview sits over the grid.
+    expect(find.text('PREVIEW ABILITIES'), findsOneWidget);
+
+    // Persistent modifiers live in one bottom section, grouped by source, and
+    // only the boosts this specimen has are listed: no nature, no enhancement
+    // and no constellation rows for a specimen that has none of them.
     expect(find.text('Boosts'), findsOneWidget);
-    expect(find.text('NATURE'), findsOneWidget);
-    expect(find.text('No Nature boost'), findsOneWidget);
-    expect(find.text('ENHANCEMENT'), findsOneWidget);
+    expect(find.text('NATURE'), findsNothing);
+    expect(find.text('No Nature boost'), findsNothing);
+    expect(find.text('ENHANCEMENT'), findsNothing);
     expect(find.text('PURITY · PURE'), findsOneWidget);
-    expect(find.text('COMBAT CONSTELLATION'), findsOneWidget);
+    expect(find.text('COMBAT CONSTELLATION'), findsNothing);
     expect(find.text('FAMILY FRAME · PIP'), findsOneWidget);
     expect(find.textContaining('Ratings past 500'), findsNothing);
 

@@ -2,6 +2,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
@@ -29,6 +30,10 @@ class AllSpecimensPage extends StatefulWidget {
   final bool closeReturnsSelection;
   final String? instancePrefsScopeKey;
 
+  /// Optional corner badge for every card, e.g. a sale value.
+  final Widget? Function(CreatureInstance inst, Creature species)?
+  cardBadgeBuilder;
+
   const AllSpecimensPage({
     super.key,
     required this.theme,
@@ -47,6 +52,7 @@ class AllSpecimensPage extends StatefulWidget {
     this.allowedPrimaryTypes = const [],
     this.closeReturnsSelection = false,
     this.instancePrefsScopeKey,
+    this.cardBadgeBuilder,
   });
 
   @override
@@ -256,6 +262,7 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
               _currentSelection = selected;
             },
             onConfirmSelection: widget.onConfirmSelection,
+            cardBadgeBuilder: widget.cardBadgeBuilder,
             onTap: widget.popOnSelect
                 ? (inst) async {
                     final navigator = Navigator.of(context);

@@ -25,6 +25,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -56,6 +57,10 @@ class InstanceCard extends StatelessWidget {
   final Duration? harvestDuration;
   final int Function(CreatureInstance)? calculateHarvestRate;
 
+  /// Drawn in the card's top-right corner, above the favourite star and the
+  /// selection number. The exchange puts a specimen's sale value here.
+  final Widget? cornerBadge;
+
   const InstanceCard({
     super.key,
     required this.species,
@@ -69,6 +74,7 @@ class InstanceCard extends StatelessWidget {
     this.activeSortBy,
     this.harvestDuration,
     this.calculateHarvestRate,
+    this.cornerBadge,
   });
 
   bool get _isHarvestMode =>
@@ -234,7 +240,8 @@ class InstanceCard extends StatelessWidget {
                             fontSize: showSortBadge ? 9 : 10,
                           ),
                         ),
-                        if (instance.isFavorite ||
+                        if (cornerBadge != null ||
+                            instance.isFavorite ||
                             (isSelected && selectionNumber != null))
                           Positioned(
                             top: 0,
@@ -242,6 +249,12 @@ class InstanceCard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
+                                if (cornerBadge != null) cornerBadge!,
+                                if (cornerBadge != null &&
+                                    (instance.isFavorite ||
+                                        (isSelected &&
+                                            selectionNumber != null)))
+                                  const SizedBox(height: 4),
                                 if (instance.isFavorite)
                                   _CardCornerIcon(
                                     icon: AppIcons.star_filled,
@@ -320,6 +333,53 @@ class _CardCornerPill extends StatelessWidget {
           weight: FontWeight.w800,
           letterSpacing: 0.4,
         ),
+      ),
+    );
+  }
+}
+
+/// A coin and an amount in the card's corner: what this specimen sells for.
+class InstanceCardValueBadge extends StatelessWidget {
+  const InstanceCardValueBadge({
+    super.key,
+    required this.amount,
+    required this.kind,
+    required this.theme,
+  });
+
+  final int amount;
+  final CoinKind kind;
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.fromTheme(theme);
+    final t = ForgeTokens(theme);
+    final color = kind == CoinKind.gold
+        ? t.readableAccent(const Color(0xFFFFD700))
+        : const Color(0xFFC9CFD8);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(5, 3, 6, 3),
+      decoration: BoxDecoration(
+        color: palette.chromeFill(),
+        border: Border(right: BorderSide(color: color, width: 2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CoinIcon(kind: kind, size: 10),
+          const SizedBox(width: 4),
+          Text(
+            '$amount',
+            style: bracketText(
+              context,
+              10,
+              color,
+              weight: FontWeight.w800,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
       ),
     );
   }

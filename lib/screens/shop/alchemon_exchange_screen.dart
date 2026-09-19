@@ -12,6 +12,8 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
@@ -88,18 +90,20 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
             children: [
               GestureDetector(
                 onTap: context.soundAction(() => Navigator.of(context).pop()),
-                child: Container(
+                child: SizedBox(
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(
-                    color: t.bg2,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: t.borderDim),
-                  ),
-                  child: Icon(
-                    AppIcons.arrow_back_rounded,
-                    color: t.textPrimary,
-                    size: 20,
+                  child: CustomPaint(
+                    painter: BracketFramePainter(
+                      color: t.textSecondary.withValues(alpha: 0.45),
+                      bracketSize: 8,
+                      strokeWidth: 1,
+                    ),
+                    child: Icon(
+                      AppIcons.chevron_left_rounded,
+                      color: t.textSecondary,
+                      size: 22,
+                    ),
                   ),
                 ),
               ),
@@ -188,23 +192,17 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
               height: 1.45,
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
+          const BracketSectionDivider(label: 'CHOOSE WHAT TO SELL'),
+          const SizedBox(height: 14),
           // Two action cards
           Row(
             children: [
               Expanded(
                 child: GestureDetector(
                   onTap: context.soundAction(_showInstanceBrowser),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 24,
-                      horizontal: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: t.bg2,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: _primaryAccent, width: 1.5),
-                    ),
+                  child: _ExchangeChoiceTile(
+                    accent: _primaryAccent,
                     child: Column(
                       children: [
                         Container(
@@ -249,16 +247,8 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
               Expanded(
                 child: GestureDetector(
                   onTap: context.soundAction(_showVialBrowser),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 24,
-                      horizontal: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: t.bg2,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: t.textSecondary, width: 1.5),
-                    ),
+                  child: _ExchangeChoiceTile(
+                    accent: t.textSecondary,
                     child: Column(
                       children: [
                         Container(
@@ -336,78 +326,43 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: t.bg2,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: t.borderAccent.withValues(alpha: 0.4)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: _primaryAccent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Icon(
-                  AppIcons.inventory_2_rounded,
-                  color: _primaryAccent,
-                  size: 16,
-                ),
+        Row(
+          children: [
+            Expanded(
+              child: BracketSectionDivider(
+                label: 'SELECTED · $_selectionCount',
+                padding: EdgeInsets.zero,
               ),
-              const SizedBox(width: 10),
-              Text(
-                'SELECTED',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.1,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _primaryAccent.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-                child: Text(
-                  '$_selectionCount',
-                  style: TextStyle(
-                    color: _primaryAccent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
+            ),
+            const SizedBox(width: 10),
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: context.soundAction(() {
+                    setState(() {
+                      _selectedForSale.clear();
+                      _selectedVialsForSale.clear();
+                      _totalSilverValue = 0;
+                      _totalGoldValue = 0;
+                    });
+                    HapticFeedback.lightImpact();
+                  }),
+                  child: Text(
+                    'CLEAR ALL',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: t.danger,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
                   ),
                 ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: context.soundAction(() {
-                  setState(() {
-                    _selectedForSale.clear();
-                    _selectedVialsForSale.clear();
-                    _totalSilverValue = 0;
-                    _totalGoldValue = 0;
-                  });
-                  HapticFeedback.lightImpact();
-                }),
-                child: Text(
-                  'CLEAR ALL',
-                  style: TextStyle(
-                    color: t.danger,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         if (_selectedForSale.isNotEmpty) ...[
           _buildSectionLabel(
             'SPECIMENS',
@@ -463,99 +418,88 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
           ),
           const SizedBox(height: 8),
         ],
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: t.bg2,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: t.success.withValues(alpha: 0.5),
-              width: 1.5,
-            ),
+        CustomPaint(
+          painter: BracketFramePainter(
+            color: t.success.withValues(alpha: 0.7),
+            bracketSize: 10,
+            strokeWidth: 1.2,
           ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: t.success.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            color: t.success.withValues(alpha: 0.06),
+            child: Row(
+              children: [
+                Icon(AppIcons.savings_rounded, color: t.success, size: 18),
+                const SizedBox(width: 10),
+                Text(
+                  'YOU RECEIVE',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.success,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                  ),
                 ),
-                child: Icon(
-                  AppIcons.savings_rounded,
-                  color: t.success,
-                  size: 20,
+                const Spacer(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (_totalSilverValue > 0)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CoinIcon(kind: CoinKind.silver, size: 16),
+                          const SizedBox(width: 5),
+                          Text(
+                            '$_totalSilverValue',
+                            style: TextStyle(
+                              color: t.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'silver',
+                            style: TextStyle(
+                              color: t.textMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (_totalGoldValue > 0) const SizedBox(height: 4),
+                    if (_totalGoldValue > 0)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CoinIcon(kind: CoinKind.gold, size: 16),
+                          const SizedBox(width: 5),
+                          Text(
+                            '$_totalGoldValue',
+                            style: TextStyle(
+                              color: _goldAccent,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'gold',
+                            style: TextStyle(
+                              color: t.textMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'YOU RECEIVE',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.success,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (_totalSilverValue > 0)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CoinIcon(kind: CoinKind.silver, size: 16),
-                        const SizedBox(width: 5),
-                        Text(
-                          '$_totalSilverValue',
-                          style: TextStyle(
-                            color: t.textPrimary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'silver',
-                          style: TextStyle(
-                            color: t.textMuted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  if (_totalGoldValue > 0) const SizedBox(height: 4),
-                  if (_totalGoldValue > 0)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CoinIcon(kind: CoinKind.gold, size: 16),
-                        const SizedBox(width: 5),
-                        Text(
-                          '$_totalGoldValue',
-                          style: TextStyle(
-                            color: _goldAccent,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'gold',
-                          style: TextStyle(
-                            color: t.textMuted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
@@ -606,9 +550,11 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: _primaryAccent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: t.textSecondary),
+                        color: _primaryAccent.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(
+                          color: _primaryAccent.withValues(alpha: 0.6),
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -641,10 +587,10 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: t.textSecondary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        color: t.textSecondary.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(3),
                         border: Border.all(
-                          color: t.textSecondary.withValues(alpha: 0.7),
+                          color: t.textSecondary.withValues(alpha: 0.5),
                         ),
                       ),
                       child: Row(
@@ -677,52 +623,55 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
               const SizedBox(height: 10),
               GestureDetector(
                 onTap: context.soundAction(_confirmSale),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: t.success,
-                    borderRadius: BorderRadius.circular(10),
+                child: CustomPaint(
+                  painter: BracketFramePainter(
+                    color: t.success.withValues(alpha: 0.9),
+                    bracketSize: 10,
+                    strokeWidth: 1.2,
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        AppIcons.sell_rounded,
-                        color: t.onColor(t.success),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'COMPLETE SALE',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.onColor(t.success),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: t.onColor(t.success).withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Text(
-                          '$_selectionCount',
+                  child: Container(
+                    width: double.infinity,
+                    height: 52,
+                    color: t.success.withValues(alpha: 0.14),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(AppIcons.sell_rounded, color: t.success, size: 18),
+                        const SizedBox(width: 10),
+                        Text(
+                          'COMPLETE SALE',
                           style: TextStyle(
-                            color: t.onColor(t.success),
-                            fontSize: 12,
+                            fontFamily: 'monospace',
+                            color: t.success,
+                            fontSize: 13,
                             fontWeight: FontWeight.w900,
+                            letterSpacing: 1.4,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: t.success.withValues(alpha: 0.6),
+                            ),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            '$_selectionCount',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: t.success,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -818,6 +767,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
 
   Future<void> _showInstanceBrowser() async {
     final theme = context.read<FactionTheme>();
+    final factions = context.read<FactionService>();
 
     final picked = await Navigator.of(context).push<List<CreatureInstance>>(
       PageRouteBuilder(
@@ -833,6 +783,18 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
               selectedInstanceIds: _selectedForSale
                   .map((inst) => inst.instanceId)
                   .toList(),
+              // What each one sells for, in the card's corner, so the choice
+              // can be made in the grid rather than after.
+              cardBadgeBuilder: (inst, species) {
+                if (inst.locked) return null;
+                final price = _computeSilverSellPrice(inst, species, factions);
+                final usesGold = inst.isPrismaticSkin;
+                return InstanceCardValueBadge(
+                  amount: usesGold ? _silverToGoldValue(price) : price,
+                  kind: usesGold ? CoinKind.gold : CoinKind.silver,
+                  theme: theme,
+                );
+              },
               onWillSelectInstance: (inst) async {
                 if (inst.locked) {
                   _showToast('Locked specimens cannot be exchanged.');
@@ -1303,9 +1265,9 @@ class _ExchangeCreatureRow extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: rarityColor.withValues(alpha: 0.3)),
+        color: BracketPalette.fromTheme(theme).surfaceFill(),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: rarityColor.withValues(alpha: 0.35)),
       ),
       clipBehavior: Clip.antiAlias,
       child: IntrinsicHeight(
@@ -1387,10 +1349,10 @@ class _ExchangeCreatureRow extends StatelessWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: priceColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        color: priceColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(3),
                         border: Border.all(
-                          color: priceColor.withValues(alpha: 0.3),
+                          color: priceColor.withValues(alpha: 0.35),
                         ),
                       ),
                       child: Row(
@@ -1453,9 +1415,9 @@ class _ExchangeVialRow extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: groupColor.withValues(alpha: 0.35)),
+        color: BracketPalette.fromTheme(theme).surfaceFill(),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: groupColor.withValues(alpha: 0.4)),
       ),
       clipBehavior: Clip.antiAlias,
       child: IntrinsicHeight(
@@ -1711,6 +1673,34 @@ class _SaleConfirmationDialog extends StatelessWidget {
 }
 
 /// A single vial is a yes/no, so it gets a checkbox rather than a counter.
+/// One of the two ways in: a bracket-framed tile with the exchange's
+/// accent, replacing the rounded Material card it used to be.
+class _ExchangeChoiceTile extends StatelessWidget {
+  const _ExchangeChoiceTile({required this.accent, required this.child});
+  final Color accent;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    return CustomPaint(
+      painter: BracketFramePainter(
+        color: accent.withValues(alpha: 0.75),
+        bracketSize: 12,
+        strokeWidth: 1.2,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+        decoration: BoxDecoration(
+          color: palette.surfaceFill(),
+          border: Border.all(color: palette.lineSoft.withValues(alpha: 0.6)),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
 class _SelectToggle extends StatelessWidget {
   const _SelectToggle({
     required this.selected,

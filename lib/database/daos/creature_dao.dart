@@ -57,7 +57,7 @@ extension SortByX on SortBy {
     SortBy.potentialStrength => 'pSTR',
     SortBy.potentialBeauty => 'pBEA',
     SortBy.combinedPotential => 'pTOTAL',
-    SortBy.staminaHigh => 'STAMINA',
+    SortBy.staminaHigh => 'STM',
     SortBy.levelHigh || SortBy.levelLow => 'LV',
     SortBy.newest => 'NEWEST',
     SortBy.oldest => 'OLDEST',

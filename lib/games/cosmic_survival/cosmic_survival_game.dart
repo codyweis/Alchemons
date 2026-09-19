@@ -1816,8 +1816,93 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   @override
   bool isLoaded = false;
 
-  double get camX => ship.position.dx - size.x / (2 * _currentZoom);
-  double get camY => ship.position.dy - size.y / (2 * _currentZoom);
+  /// World-space offset added to the camera, which otherwise sits on the
+  /// ship. Zero in a run; the ability preview pans with it.
+  Offset cameraPanOffset = Offset.zero;
+
+  /// Whether the ship is drawn. Always in a run; the ability preview hides
+  /// it when the special being shown has nothing to do with it.
+  bool renderShip = true;
+
+  double get cameraZoom => _currentZoom;
+
+  /// Jump the camera to [zoom] with no animation.
+  void setCameraZoom(double zoom) {
+    _currentZoom = zoom;
+    _zoomAnimFrom = zoom;
+    _zoomAnimTo = zoom;
+    _zoomAnimComplete = true;
+  }
+
+  /// Pinch bounds. The arena is the larger of its fixed radius and the
+  /// visible view, so zooming out past the point where the view covers the
+  /// arena would grow the arena itself. The limit is exactly that point: the
+  /// whole rim in frame, and not a unit more. Note the horde caps were
+  /// device-measured at the presets (0.5-0.75); fully zoomed out draws every
+  /// body at once, so watch frame time there before raising the caps.
+  double get cameraZoomMin =>
+      (max(size.x, size.y) * _arenaViewShare / _arenaFixedRadius).clamp(
+        0.2,
+        _zoomOuter,
+      );
+  double get cameraZoomMax => 1.0;
+
+  @protected
+  double cameraGestureStartZoom = _zoomBase;
+
+  void beginCameraGesture() {
+    cameraGestureStartZoom = _currentZoom;
+  }
+
+  /// One step of a drag or pinch on the arena. [panDelta] is in screen
+  /// pixels; [scale] is the pinch's total scale since the gesture began.
+  void cameraGesture({required Offset panDelta, required double scale}) {
+    final zoom = (cameraGestureStartZoom * scale).clamp(
+      cameraZoomMin,
+      cameraZoomMax,
+    );
+    setCameraZoom(zoom);
+    cameraPanOffset -= panDelta / zoom;
+    // The camera may reach the rim, not wander off into the dark past it.
+    cameraPanOffset =
+        clampCameraCentre(ship.position + cameraPanOffset) - ship.position;
+  }
+
+  /// Keeps a camera centre within a little of the arena rim.
+  @protected
+  Offset clampCameraCentre(Offset centre) {
+    final fromOrb = centre - orb.position;
+    final limit = _arenaRadius + 80;
+    if (fromOrb.distance <= limit) return centre;
+    return orb.position + fromOrb / fromOrb.distance * limit;
+  }
+
+  /// Back to the ship, at the run's zoom preset.
+  void recenterCamera() {
+    cameraPanOffset = Offset.zero;
+    _startZoomAnimation(_zoomPresets[_zoomLevelIndex]);
+  }
+
+  /// Autopilot: the ship holds its orbit around the orb on its own, drags on
+  /// the arena pan the camera instead of flying, and a pinch zooms. Touching
+  /// the joystick takes the ship back and brings the camera home.
+  bool autopilot = false;
+
+  void setAutopilot(bool on) {
+    if (autopilot == on) return;
+    autopilot = on;
+    if (on) {
+      _dragTarget = null;
+      _rememberCurrentOrbitRadius();
+    } else {
+      recenterCamera();
+    }
+  }
+
+  double get camX =>
+      ship.position.dx + cameraPanOffset.dx - size.x / (2 * _currentZoom);
+  double get camY =>
+      ship.position.dy + cameraPanOffset.dy - size.y / (2 * _currentZoom);
 
   final Random _rng;
 
@@ -1878,8 +1963,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   @visibleForTesting
   double get debugArenaRadius => _arenaRadius;
 
-  double get _arenaRadius =>
-      max(1140.0, max(size.x / _currentZoom, size.y / _currentZoom) * 0.54);
+  static const double _arenaFixedRadius = 1140.0;
+  static const double _arenaViewShare = 0.54;
+  double get _arenaRadius => max(
+    _arenaFixedRadius,
+    max(size.x / _currentZoom, size.y / _currentZoom) * _arenaViewShare,
+  );
 
   // Fixed per-run quality profile: visuals do not change mid-game.
   bool get _reduceSecondaryGlows => switch (visualQuality) {
@@ -2144,6 +2233,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   @override
   void onPanStart(DragStartInfo info) {
+    if (autopilot) return;
     _dragTarget = _clampToArena(
       Offset(
         info.eventPosition.global.x / _currentZoom + camX,
@@ -2155,6 +2245,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   @override
   void onPanUpdate(DragUpdateInfo info) {
+    if (autopilot) return;
     _dragTarget = _clampToArena(
       Offset(
         info.eventPosition.global.x / _currentZoom + camX,
@@ -2186,6 +2277,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     var shipIsIdle = false;
     final plagueMove = outbreak?.movementMultiplier(ship.position) ?? 1.0;
 
+    if (autopilot) {
+      if (_joystickInput.distance > 0.1) {
+        setAutopilot(false);
+      } else {
+        // Nothing to fly toward: the idle orbit below is the autopilot.
+        _dragTarget = null;
+      }
+    }
     if (_joystickInput.distance > 0.1) {
       ship.angle = atan2(_joystickInput.dy, _joystickInput.dx);
       final inputScale = _joystickInput.distance.clamp(0.0, 1.0);
@@ -20531,7 +20630,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     // Ship / ghost ship
-    _renderShip(canvas);
+    if (renderShip) _renderShip(canvas);
 
     // Kin+Blood pact: pulsing red threads tying every living
     // alchemon together while a Blood kin's pact is active. The

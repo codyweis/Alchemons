@@ -269,14 +269,12 @@ class _ForgeButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final bool loading;
-  final bool secondary;
 
   const _ForgeButton({
     required this.label,
     required this.icon,
     this.onTap,
     this.loading = false,
-    this.secondary = false,
   });
 
   @override
@@ -286,42 +284,36 @@ class _ForgeButton extends StatelessWidget {
       onTap: isDisabled ? null : context.soundAction(onTap),
       child: CustomPaint(
         painter: _BracketFramePainter(
-          color: secondary
-              ? _C.textSecondary.withValues(alpha: 0.34)
-              : (isDisabled ? _C.borderDim : _C.amberBright).withValues(
-                  alpha: 0.72,
-                ),
+          color: (isDisabled ? _C.borderDim : _C.amberBright).withValues(
+            alpha: 0.72,
+          ),
           bracketSize: 10,
           strokeWidth: 1.1,
         ),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          height: secondary ? 42 : 52,
-          color: secondary
-              ? Colors.white.withValues(alpha: 0.02)
-              : (isDisabled
-                    ? _C.bg3.withValues(alpha: 0.55)
-                    : _C.amber.withValues(alpha: 0.10)),
+          height: 52,
+          color: isDisabled
+              ? _C.bg3.withValues(alpha: 0.55)
+              : _C.amber.withValues(alpha: 0.10),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (loading)
-                SizedBox(
+                const SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: secondary ? _C.textSecondary : _C.amberBright,
+                    color: _C.amberBright,
                   ),
                 )
               else
                 Icon(
                   icon,
-                  size: secondary ? 16 : 18,
-                  color: secondary
-                      ? _C.textSecondary
-                      : (isDisabled ? _C.textMuted : _C.amberBright),
+                  size: 18,
+                  color: isDisabled ? _C.textMuted : _C.amberBright,
                 ),
               const SizedBox(width: 8),
               Flexible(
@@ -331,12 +323,10 @@ class _ForgeButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: _display(
                     context,
-                    secondary ? 12 : 14,
-                    secondary
-                        ? _C.textPrimary.withValues(alpha: 0.86)
-                        : (isDisabled ? _C.textMuted : _C.amberBright),
+                    14,
+                    isDisabled ? _C.textMuted : _C.amberBright,
                     weight: FontWeight.w700,
-                    letterSpacing: secondary ? 0.5 : 0.8,
+                    letterSpacing: 0.8,
                   ),
                 ),
               ),
@@ -348,10 +338,6 @@ class _ForgeButton extends StatelessWidget {
   }
 }
 
-/// The equipped orb, drawn in its own colours.
-///
-/// Same construction the shop uses for the orb offers, so the thing you
-/// bought and the thing you are carrying look like each other.
 class _OrbSphere extends StatelessWidget {
   const _OrbSphere({required this.def, required this.size});
 
@@ -486,6 +472,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   final Set<String> _expandedFamilyCards = <String>{};
   SurvivalHighScoreData? _highScore;
   int _silver = 0;
+  int _gold = 0;
   bool _showPauseMenu = false;
   bool _showJoystick = true;
   bool _largeJoystick = true;
@@ -700,7 +687,28 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   Future<void> _loadHighScore() async {
     if (!mounted) return;
     final db = context.read<AlchemonsDatabase>();
-    final hs = await db.getSurvivalHighScore();
+    var hs = await db.getSurvivalHighScore();
+    // Records used to be written only to two settings keys while this header
+    // read the high-score table, so a run that beat the best never showed.
+    // If the keys are ahead of the table, the table catches up here.
+    final keyScore =
+        int.tryParse(
+          await db.settingsDao.getSetting('cosmic_survival_high_score') ?? '',
+        ) ??
+        0;
+    final keyWave =
+        int.tryParse(
+          await db.settingsDao.getSetting('cosmic_survival_best_wave') ?? '',
+        ) ??
+        0;
+    if (keyScore > (hs?.bestScore ?? 0) || keyWave > (hs?.bestWave ?? 0)) {
+      await db.saveSurvivalHighScore(
+        wave: keyWave,
+        score: keyScore,
+        timeMs: hs?.bestTimeMs ?? 0,
+      );
+      hs = await db.getSurvivalHighScore();
+    }
     if (mounted) setState(() => _highScore = hs);
     await _loadSilver();
   }
@@ -712,7 +720,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     final db = context.read<AlchemonsDatabase>();
     final currencies = await db.currencyDao.getAllCurrencies();
     if (!mounted) return;
-    setState(() => _silver = currencies['silver'] ?? 0);
+    setState(() {
+      _silver = currencies['silver'] ?? 0;
+      _gold = currencies['gold'] ?? 0;
+    });
   }
 
   String _formatHighScoreNumber(int n) {
@@ -1491,6 +1502,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
         _finalWave.toString(),
       );
     }
+    // The lobby header reads the high-score table, not the keys above.
+    await db.saveSurvivalHighScore(
+      wave: _finalWave,
+      score: _finalScore,
+      timeMs: ((_game?.stats.timeElapsed ?? 0) * 1000).round(),
+    );
+    await _loadHighScore();
   }
 
   void _replay() {
@@ -1561,12 +1579,12 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     HapticFeedback.selectionClick();
   }
 
-  void _cycleZoomLevel() {
+  void _toggleAutopilot() {
     final game = _game;
     if (game == null || _showPauseMenu || _powerUpChoices.isNotEmpty) return;
     HapticFeedback.selectionClick();
     setState(() {
-      game.cycleZoomLevel();
+      game.setAutopilot(!game.autopilot);
     });
   }
 
@@ -2066,48 +2084,64 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             _buildMenuHeader(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 8),
                     _buildSpeciesRoster(),
                     const SizedBox(height: 22),
-                    _buildLoadout(),
-                    const SizedBox(height: 22),
-                    _ForgeButton(
-                      label: 'Assign Team',
-                      icon: AppIcons.groups_rounded,
-                      loading: false,
-                      onTap: context.soundAction(_pickTeam),
-                    ),
-                    const SizedBox(height: 10),
+                    _buildCommandHub(),
                     if (_debugToolsEnabled) ...[
-                      const SizedBox(height: 18),
-                      const _EtchedDivider(label: 'COMMAND'),
+                      const SizedBox(height: 22),
+                      const _EtchedDivider(label: 'TEST TEAMS'),
                       const SizedBox(height: 12),
-                      for (var i = 0; i < _testTeamPresets.length; i++) ...[
-                        _ForgeButton(
-                          label: _testTeamPresets[i].label,
-                          icon: _testTeamPresets[i].icon,
-                          onTap: () => _startTestTeam(
-                            _buildFullElementTestTeam(
-                              _testTeamPresets[i].family,
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final preset in _testTeamPresets)
+                            _TestTeamChip(
+                              preset: preset,
+                              onTap: () => _startTestTeam(
+                                _buildFullElementTestTeam(preset.family),
+                                preset.key,
+                              ),
                             ),
-                            _testTeamPresets[i].key,
-                          ),
-                          secondary: true,
-                        ),
-                        if (i < _testTeamPresets.length - 1)
-                          const SizedBox(height: 10),
-                      ],
+                        ],
+                      ),
                     ],
                   ],
                 ),
               ),
             ),
+            _buildLobbyDock(),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Assign Team, always in reach at the bottom of the lobby.
+  Widget _buildLobbyDock() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _C.bg1,
+        border: const Border(top: BorderSide(color: _C.borderDim, width: 1)),
+        boxShadow: [
+          BoxShadow(
+            color: _C.bg0.withValues(alpha: 0.85),
+            blurRadius: 18,
+            offset: const Offset(0, -6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      child: _ForgeButton(
+        label: 'Assign Team',
+        icon: AppIcons.groups_rounded,
+        loading: false,
+        onTap: context.soundAction(_pickTeam),
       ),
     );
   }
@@ -2180,6 +2214,18 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                const CoinIcon(kind: CoinKind.gold, size: 14),
+                const SizedBox(width: 5),
+                Text(
+                  _formatHighScoreNumber(_gold),
+                  style: _display(
+                    context,
+                    12,
+                    _C.textSecondary,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 12),
                 const CoinIcon(kind: CoinKind.silver, size: 14),
                 const SizedBox(width: 5),
                 Text(
@@ -2289,6 +2335,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 final activeFamily = creatureFamilyFromStorage(active.id);
                 // The carousel shows each card at the controller's viewport
                 // fraction of the roster's width.
+                // The lobby column is capped, so the roster is too.
                 final rosterWidth =
                     MediaQuery.sizeOf(context).width - _rosterHorizontalPadding;
                 return AnimatedContainer(
@@ -2425,76 +2472,125 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     await _loadShipSkin();
   }
 
-  /// What you are about to deploy with: the orb you are carrying and the
-  /// guardian bonuses riding on it.
-  ///
-  /// The lobby had a wide empty band between the roster and the buttons, and
-  /// nothing anywhere said which orb was equipped — you had to open Base
-  /// Command to find out what you were about to take into a run. The panel
-  /// fills the gap with that answer and doubles as a second way in.
-  Widget _buildLoadout() {
+  /// The Command Hub: what you are about to deploy with — the orb you are
+  /// carrying and the guardian bonuses riding on it — and the way into Base
+  /// Command, with the silver it spends.
+  Widget _buildCommandHub() {
     return Consumer<SurvivalUpgradeService>(
       builder: (context, svc, _) {
         final orb = getOrbBaseDef(svc.state.equippedSkin);
+        final earned = kGuardianUpgrades
+            .where((d) => svc.state.getGuardianLevel(d.upgrade) > 0)
+            .length;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const _EtchedDivider(label: 'DEPLOYMENT'),
+            const _EtchedDivider(label: 'COMMAND HUB'),
             const SizedBox(height: 14),
             GestureDetector(
               onTap: context.soundAction(() => _openBaseCommand()),
               child: CustomPaint(
                 painter: _BracketFramePainter(
-                  color: orb.glowColor.withValues(alpha: 0.40),
-                  bracketSize: 10,
-                  strokeWidth: 1.1,
+                  color: orb.glowColor.withValues(alpha: 0.55),
+                  bracketSize: 12,
+                  strokeWidth: 1.2,
                 ),
                 child: Container(
-                  color: _C.bg2.withValues(alpha: 0.55),
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color.lerp(_C.bg2, orb.glowColor, 0.10)!,
+                        _C.bg2.withValues(alpha: 0.85),
+                      ],
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _OrbSphere(def: orb, size: 66),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
+                            _OrbSphere(def: orb, size: 78),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'EQUIPPED ORB',
+                                    style: _display(
+                                      context,
+                                      10,
+                                      _C.textMuted,
+                                      weight: FontWeight.w800,
+                                      letterSpacing: 1.8,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
                                     orb.name.toUpperCase(),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: _display(
                                       context,
-                                      13,
+                                      16,
                                       orb.glowColor,
                                       weight: FontWeight.w900,
-                                      letterSpacing: 0.8,
+                                      letterSpacing: 1.0,
                                     ),
                                   ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    orb.ability,
+                                    style: _display(
+                                      context,
+                                      12,
+                                      _C.textSecondary,
+                                      weight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(height: 1, color: _C.borderDim),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'GUARDIAN UPGRADES',
+                                  style: _display(
+                                    context,
+                                    10,
+                                    _C.textMuted,
+                                    weight: FontWeight.w800,
+                                    letterSpacing: 1.8,
+                                  ),
                                 ),
-                                Icon(
-                                  AppIcons.chevron_right_rounded,
-                                  size: 16,
-                                  color: _C.textMuted,
+                                const Spacer(),
+                                Text(
+                                  '$earned / ${kGuardianUpgrades.length} active',
+                                  style: _display(
+                                    context,
+                                    10,
+                                    earned > 0 ? _C.amber : _C.textMuted,
+                                    weight: FontWeight.w700,
+                                    letterSpacing: 0.6,
+                                  ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              orb.ability,
-                              style: _display(
-                                context,
-                                11,
-                                _C.textSecondary,
-                                weight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 8),
                             // All five axes, dim at zero — the empty ones are
                             // the point on a fresh save: they show what there
                             // is to go and earn.
@@ -2510,6 +2606,32 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                     ),
                                   ),
                               ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(height: 1, color: _C.borderDim),
+                      Container(
+                        color: _C.bg1.withValues(alpha: 0.55),
+                        padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(
+                              'OPEN BASE COMMAND',
+                              style: _display(
+                                context,
+                                11,
+                                _C.amberBright,
+                                weight: FontWeight.w800,
+                                letterSpacing: 1.4,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(
+                              AppIcons.chevron_right_rounded,
+                              size: 16,
+                              color: _C.amberBright,
                             ),
                           ],
                         ),
@@ -2539,6 +2661,38 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           game: game,
           backgroundBuilder: (_) => Container(color: Colors.transparent),
         ),
+
+        // Autopilot camera: while the ship flies itself, a drag pans, a
+        // pinch zooms, and a double-tap brings the camera home. The game's
+        // own pan detector ignores drags in this mode, so nothing is lost.
+        if (game.autopilot)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onScaleStart: (_) => game.beginCameraGesture(),
+              onScaleUpdate: (d) => game.cameraGesture(
+                panDelta: d.focalPointDelta,
+                scale: d.scale,
+              ),
+              onDoubleTap: () {
+                HapticFeedback.selectionClick();
+                game.recenterCamera();
+              },
+            ),
+          ),
+
+        // Where the ship is when it has left the frame, and whether it is
+        // being hit. Only matters once the camera can leave it.
+        if (game.autopilot)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ValueListenableBuilder<int>(
+                valueListenable: _liveUiTick,
+                builder: (_, __, ___) =>
+                    CustomPaint(painter: _ShipEdgeMarkerPainter(game)),
+              ),
+            ),
+          ),
 
         Positioned.fill(
           child: MysticGraphxOverlay(controller: _mysticOverlayController),
@@ -2949,11 +3103,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   // ── HUD ────────────────────────────────────────────────
 
   Widget _buildHud(CosmicSurvivalGame game) {
-    final zoomIcon = switch (game.currentZoomLevel) {
-      0 => AppIcons.zoom_out_map_rounded,
-      2 => AppIcons.zoom_in_map_rounded,
-      _ => AppIcons.center_focus_strong_rounded,
-    };
     return Positioned(
       top: 0,
       left: 0,
@@ -2978,10 +3127,12 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 onTap: context.soundTap(_togglePauseMenu),
               ),
               const SizedBox(width: 6),
+              // Autopilot: the ship orbits on its own and the arena becomes
+              // a camera you drag and pinch. Replaced the zoom-preset button.
               _HudIconButton(
-                icon: zoomIcon,
-                color: _C.teal,
-                onTap: context.soundTap(_cycleZoomLevel),
+                icon: AppIcons.navigation_rounded,
+                color: game.autopilot ? _C.teal : _C.borderDim,
+                onTap: context.soundTap(_toggleAutopilot),
               ),
               const SizedBox(width: 6),
               // Fast forward: 1.5x. Two was too fast to read a front.
@@ -3716,6 +3867,85 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   // ─────────────────────────────────────────────────────────────────────────────
   // HUD WIDGETS
   // ─────────────────────────────────────────────────────────────────────────────
+}
+
+/// A marker on the frame's edge pointing at the ship while it is off-screen,
+/// flaring when the ship is taking hits.
+class _ShipEdgeMarkerPainter extends CustomPainter {
+  _ShipEdgeMarkerPainter(this.game);
+  final CosmicSurvivalGame game;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!game.isLoaded || game.ship.isDead) return;
+    final p = game.worldToScreen(game.ship.position);
+    const inset = 22.0;
+    final inside =
+        p.dx >= 0 && p.dx <= size.width && p.dy >= 0 && p.dy <= size.height;
+    if (inside) return;
+    final centre = size.center(Offset.zero);
+    final dir = p - centre;
+    if (dir.distance < 1) return;
+    // Clamp the marker to the inset rectangle along the ray to the ship.
+    final halfW = size.width / 2 - inset;
+    final halfH = size.height / 2 - inset;
+    final t = min(halfW / dir.dx.abs(), halfH / dir.dy.abs());
+    final at = centre + dir * t;
+    final angle = atan2(dir.dy, dir.dx);
+    final hurt = game.ship.hitFlash > 0;
+    final color = hurt ? const Color(0xFFE53935) : _C.teal;
+    final glow = Paint()
+      ..color = color.withValues(alpha: hurt ? 0.35 : 0.18)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(at, hurt ? 16 : 12, glow);
+    final tri = Path()
+      ..moveTo(at.dx + cos(angle) * 9, at.dy + sin(angle) * 9)
+      ..lineTo(at.dx + cos(angle + 2.5) * 7, at.dy + sin(angle + 2.5) * 7)
+      ..lineTo(at.dx + cos(angle - 2.5) * 7, at.dy + sin(angle - 2.5) * 7)
+      ..close();
+    canvas.drawPath(tri, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_ShipEdgeMarkerPainter old) => true;
+}
+
+/// A debug preset, compact enough for a row of eight.
+class _TestTeamChip extends StatelessWidget {
+  const _TestTeamChip({required this.preset, required this.onTap});
+  final _SurvivalTestTeamPreset preset;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: _C.bg2.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: _C.borderDim),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(preset.icon, size: 13, color: _C.textSecondary),
+            const SizedBox(width: 6),
+            Text(
+              preset.label,
+              style: _display(
+                context,
+                11,
+                _C.textSecondary,
+                weight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ScanlinePainter extends CustomPainter {
